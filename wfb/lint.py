@@ -30,7 +30,7 @@ from .layout import (
     ResolvedFace, inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
-from .palette import Color, has_palette_rule
+from .palette import LUMINANCE_WEIGHTS, Color, has_palette_rule
 from .units import IntBox
 
 if TYPE_CHECKING:
@@ -1577,17 +1577,16 @@ def _aod_burn_in_lut(weight: float) -> bytes:
     return bytes(min(255, round(weight * srgb_channel_to_linear(v) * 255)) for v in range(256))
 
 
-#: Rec. 709 primaries, the same weights `Color.relative_luminance` uses --
-#: built lazily (module import time has no Pillow-free reason to pay for
-#: this) by `_aod_burn_in_luts`.
-_AOD_LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
+#: Built lazily (module import time has no Pillow-free reason to pay for
+#: this) by `_aod_burn_in_luts`, from `Color.relative_luminance`'s own
+#: weights, `LUMINANCE_WEIGHTS`.
 _aod_burn_in_luts_cache: tuple[bytes, ...] | None = None
 
 
 def _aod_burn_in_luts() -> tuple[bytes, ...]:
     global _aod_burn_in_luts_cache
     if _aod_burn_in_luts_cache is None:
-        _aod_burn_in_luts_cache = tuple(_aod_burn_in_lut(w) for w in _AOD_LUMINANCE_WEIGHTS)
+        _aod_burn_in_luts_cache = tuple(_aod_burn_in_lut(w) for w in LUMINANCE_WEIGHTS)
     return _aod_burn_in_luts_cache
 
 

@@ -5,10 +5,13 @@ import copy
 
 import pytest
 
+from PIL import Image
+
 from tests.helpers import lint_text, resolve_text
 from wfb import lint
 from wfb.diagnostics import Bag
-from wfb.preview import PreviewOptions, mono_guess_warning, render
+from wfb.palette import Color
+from wfb.preview import PreviewOptions, _quantise, mono_guess_warning, render
 
 MONO = "instinct2"
 MIP = "fenix8solar47mm"
@@ -134,3 +137,28 @@ def test_the_preview_says_once_that_the_snap_is_a_guess(db):
     assert "unverified" in warning
     assert mono_guess_warning([mip], quantise=True) is None
     assert mono_guess_warning([mono], quantise=False) is None
+
+
+def _colour_grid() -> Image.Image:
+    """Every red and green in steps of 3 against 16 blues: dense enough to
+    straddle the black/white crossover many times over (#006CFF is one)."""
+    colours = [(r, g, b) for b in range(0, 256, 17)
+               for g in range(0, 256, 3) for r in range(0, 256, 3)]
+    image = Image.new("RGB", (86 * 86, 16))
+    image.putdata(colours)
+    return image
+
+
+@pytest.mark.parametrize("colors", [2, 64])
+def test_the_preview_snaps_every_colour_where_the_lint_says(colors):
+    """The preview is the evidence for `palette-mono`/`palette-dither`'s
+    "nearest" colour, so the two must be one rule, not two that agree on
+    the easy cases."""
+    grid = _colour_grid()
+    snapped = _quantise(grid, colors).convert("RGB")
+    disagree = [
+        (Color(*rgb), got)
+        for rgb, got in zip(grid.getdata(), snapped.getdata())
+        if Color(*got) != Color(*rgb).nearest_legal(colors)
+    ]
+    assert not disagree, f"{len(disagree)} colours, e.g. {disagree[:3]}"

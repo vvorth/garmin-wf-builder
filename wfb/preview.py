@@ -29,7 +29,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageMath
 
 from . import aod_mask, expr, kinds, visible_area
 from .devices import Device, FontMetric
@@ -41,7 +41,9 @@ from .layout import (
     alignment_shift,
     radial_align_offset, radial_direction_sign,
 )
-from .palette import MIP64_LEVELS, MONO_CROSSOVER, Color, dim_fraction, srgb_channel_to_linear
+from .palette import (
+    MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD, Color, dim_fraction,
+)
 from .units import IntBox
 
 #: One drawn colour, as Pillow takes it.
@@ -304,10 +306,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         # leak back in as non-black.
         image = aod_mask.apply(image, int(expr.as_number(values["time.minute"])), scale)
 
-    if options.quantise and device.display_colors == 64:
-        image = _quantise_mip64(image)
-    elif options.quantise and device.display_colors == 2:
-        image = _quantise_mono(image)
+    if options.quantise:
+        image = _quantise(image, device.display_colors)
     if options.mask_shape:
         image = _mask_shape(image, device, scale)
     if options.skin:
@@ -393,8 +393,6 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     The accumulator is Pillow's 32-bit `"I"` mode because an 8-bit add
     clips at 255, which an always-lit pixel reaches almost immediately.
     """
-    from PIL import ImageMath
-
     options = options or PreviewOptions()
     base = dataclass_replace(options, aod=True, mask_shape=False, skin=False)
     device = resolved.device
@@ -1041,31 +1039,43 @@ def arc_span(start_angle: float, sweep: float) -> tuple[int, int] | None:
     return (start, end) if whole > 0 else (end, start)
 
 
-def _quantise_mip64(image: Image.Image) -> Image.Image:
-    """Snap to the 64-colour panel, so a dithered colour looks wrong here too."""
-    lut = bytes(min(MIP64_LEVELS, key=lambda level: abs(level - value)) for value in range(256))
-    return image.point(lut * 3)
+def _quantise(image: Image.Image, display_colors: int | None) -> Image.Image:
+    """Snap every pixel to what the panel shows, by the palette's own rule
+    for its size -- the tables `Color.nearest_legal` reads, so the preview
+    shows exactly the colour a `palette-dither`/`palette-mono` warning
+    names.  A size with no rule is left as drawn.  On a 2-colour panel the
+    firmware's real mapping is unverified, so that snap is a guess, and
+    `wfb preview` says so (:func:`mono_guess_warning`)."""
+    if display_colors == 64:
+        return image.point(MIP64_SNAP * 3)
+    if display_colors == 2:
+        return _quantise_mono(image)
+    return image
 
 
 @lru_cache(maxsize=None)
-def _mono_luts() -> tuple[bytes, bytes, bytes]:
-    """Per-channel LUTs to each channel's share of relative luminance, x255
-    (`Color.relative_luminance`'s own weights and degamma)."""
-    return tuple(  # type: ignore[return-value]
-        bytes(round(weight * srgb_channel_to_linear(v) * 255) for v in range(256))
-        for weight in (0.2126, 0.7152, 0.0722))
+def _mono_byte_tables() -> tuple[tuple[bytes, bytes], ...]:
+    """`MONO_LUMINANCE` split per channel into high and low bytes: a band's
+    `point` lookup yields 8 bits, and the rule sums 16-bit values."""
+    return tuple((bytes(units >> 8 for units in table), bytes(units & 0xFF for units in table))
+                 for table in MONO_LUMINANCE)
 
 
 def _quantise_mono(image: Image.Image) -> Image.Image:
-    """Snap every pixel to black or white on a 2-colour panel, by the same
-    rule `Color.nearest_legal(2)` uses (`MONO_CROSSOVER`).  The firmware's
-    real mapping is unverified, so this is a guess, and `wfb preview` says
-    so (:func:`mono_guess_warning`)."""
-    r, g, b = image.convert("RGB").split()
-    lut_r, lut_g, lut_b = _mono_luts()
-    luminance = ImageChops.add(ImageChops.add(r.point(lut_r), g.point(lut_g)), b.point(lut_b))
-    threshold = MONO_CROSSOVER * 255
-    bw = luminance.point(lambda v: 255 if v > threshold else 0)
+    """Black where `Color.nearest_legal(2)` says black, white elsewhere:
+    the three channels' `MONO_LUMINANCE` shares summed exactly, as
+    integers, and compared with `MONO_THRESHOLD`."""
+    parts: dict[str, Image.Image] = {}
+    for index, (band, (high, low)) in enumerate(zip(image.convert("RGB").split(),
+                                                    _mono_byte_tables())):
+        parts[f"high{index}"] = band.point(high).convert("I")
+        parts[f"low{index}"] = band.point(low).convert("I")
+    white = ImageMath.lambda_eval(
+        lambda p: (((p["high0"] + p["high1"] + p["high2"]) * 256
+                    + p["low0"] + p["low1"] + p["low2"]) > MONO_THRESHOLD) * 255,
+        **parts)
+    assert isinstance(white, Image.Image)
+    bw = white.convert("L")
     return Image.merge("RGB", (bw, bw, bw))
 
 

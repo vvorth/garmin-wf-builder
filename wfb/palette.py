@@ -12,6 +12,10 @@ the firmware does with any other colour is unverified (research 16 §5).  The
 nearest safe colour is the one with the lower contrast ratio against it --
 the same luminance measure the contrast lint uses.  8- and 14-colour panels
 have no known rule, and 65,536 colours need none.
+
+Both rules are tables here (`MIP64_SNAP`, `MONO_LUMINANCE`), which
+`Color.nearest_legal` and `wfb.preview`'s per-pixel snap both read, so a
+warning's "nearest" colour is exactly what the preview draws.
 """
 
 from __future__ import annotations
@@ -25,6 +29,15 @@ _SHORT_HEX_RE = re.compile(r"^#?([0-9a-fA-F]{3})$")
 
 #: The four legal channel values on a 64-colour device.
 MIP64_LEVELS = (0x00, 0x55, 0xAA, 0xFF)
+
+#: The 64-colour rule as a table: each channel value's nearest legal level.
+#: The rule is per channel, so this one table is the whole rule, for
+#: `Color.nearest_legal(64)` and for the preview's per-pixel snap alike.
+MIP64_SNAP = bytes(min(MIP64_LEVELS, key=lambda level: abs(level - value))
+                   for value in range(256))
+
+#: Rec. 709 luminance weights, red, green, blue (`Color.relative_luminance`).
+LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
 
 
 class ColorError(ValueError):
@@ -74,12 +87,10 @@ class Color:
 
     def nearest_legal(self, display_colors: int | None) -> "Color":
         if display_colors == 64:
-            def snap(c: int) -> int:
-                return min(MIP64_LEVELS, key=lambda level: abs(level - c))
-
-            return Color(snap(self.r), snap(self.g), snap(self.b))
+            return Color(MIP64_SNAP[self.r], MIP64_SNAP[self.g], MIP64_SNAP[self.b])
         if display_colors == 2:
-            return WHITE if self.relative_luminance() > MONO_CROSSOVER else BLACK
+            units = sum(table[c] for table, c in zip(MONO_LUMINANCE, (self.r, self.g, self.b)))
+            return WHITE if units > MONO_THRESHOLD else BLACK
         return self
 
     def relative_luminance(self) -> float:
@@ -88,9 +99,10 @@ class Color:
         "fraction of full white" figure Garmin's unpublished AOD rule wants
         (research 11 §1.2, §5), by the AOD burn-in lint too
         (`wfb.lint.check_aod_burn_in`)."""
-        return (0.2126 * srgb_channel_to_linear(self.r)
-                + 0.7152 * srgb_channel_to_linear(self.g)
-                + 0.0722 * srgb_channel_to_linear(self.b))
+        red, green, blue = LUMINANCE_WEIGHTS
+        return (red * srgb_channel_to_linear(self.r)
+                + green * srgb_channel_to_linear(self.g)
+                + blue * srgb_channel_to_linear(self.b))
 
     def contrast_ratio(self, other: "Color") -> float:
         a, b = self.relative_luminance(), other.relative_luminance()
@@ -116,7 +128,7 @@ WHITE = Color(0xFF, 0xFF, 0xFF)
 #: The relative luminance at which a colour's contrast ratio against black
 #: equals its ratio against white, (Y + 0.05) / 0.05 = 1.05 / (Y + 0.05):
 #: above it the colour is nearer white on a 2-colour panel, at or below it
-#: nearer black.  About 0.179.
+#: nearer black.  About 0.179.  Applied as :data:`MONO_THRESHOLD`.
 MONO_CROSSOVER = math.sqrt(1.05 * 0.05) - 0.05
 
 
@@ -138,6 +150,23 @@ def srgb_channel_to_linear(value: int) -> float:
     """
     s = value / 255.0
     return s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4
+
+
+#: Relative luminance 1.0 in the integer units of :data:`MONO_LUMINANCE`.
+MONO_SCALE = 65535
+
+#: The 2-colour rule as tables: each channel value's share of relative
+#: luminance, in 1/:data:`MONO_SCALE` units, one table per channel.  A
+#: colour is nearer white when its three shares sum above
+#: :data:`MONO_THRESHOLD`.  Integers, so `Color.nearest_legal(2)` and the
+#: preview, which sums the same tables over a whole image, give the same
+#: answer for every colour, the ones at the crossover included.
+MONO_LUMINANCE: tuple[tuple[int, ...], ...] = tuple(
+    tuple(round(weight * srgb_channel_to_linear(value) * MONO_SCALE) for value in range(256))
+    for weight in LUMINANCE_WEIGHTS)
+
+#: :data:`MONO_CROSSOVER` in :data:`MONO_LUMINANCE`'s units.
+MONO_THRESHOLD = round(MONO_CROSSOVER * MONO_SCALE)
 
 
 def dim_channel(value: int, num: int, den: int) -> int:
