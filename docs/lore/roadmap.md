@@ -36,7 +36,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `styles-and-layouts.md`.
 - **The `config:` settings menu** — on a watch without the native editor
   but with `getSettingsView` (fr955), the `config:` axes as one list per
-  axis (`wfb.emit.monkeyc.config_menu`); stored as `Application.Properties`
+  axis (`wfb.emit.monkeyc.config_menu`), a data slot titled by its
+  optional `label:`; stored as `Application.Properties`
   indices; `choices: any` offers the palette or every complication type
   the device has (per-device `Layout` arrays). `config-unsupported` fires
   only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on

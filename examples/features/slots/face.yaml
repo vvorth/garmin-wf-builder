@@ -62,8 +62,9 @@
 # `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
 # ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
 # it) -- it offers both slots from the generated settings menu, opened from
-# its Watch Face menu: `top`'s own three types, and every type fr955's API
-# level has for `bottom`'s `choices: any` (docs/guide/configuration.md).
+# its Watch Face menu, titled "Top" and "Lower reading": `top`'s own three
+# types, and every type fr955's API level has for `bottom`'s `choices: any`
+# (docs/guide/configuration.md).
 #
 # What is verified: this design compiles warning-free, through the real
 # `monkeyc`, on all three targets -- including the generated manifest's
@@ -116,6 +117,7 @@ config:
         - { type: complication.heart_rate, glyph: "U+F05F6" }  # custom glyph
         - { type: complication.calories, icon: none }          # no icon
     bottom:
+      label: "Lower reading"  # its title in fr955's settings menu (else "Bottom")
       default: complication.body_battery
       choices: any          # the editor's own full complication picker
 

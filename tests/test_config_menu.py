@@ -13,7 +13,7 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.monkeyc.config_menu import menu_axes, slot_types
 from wfb.emit.resources import bake_fonts
-from tests.helpers import load_face
+from tests.helpers import load_errors, load_face
 
 DESIGN = """
 format: 1
@@ -46,6 +46,7 @@ config:
       default: complication.steps
       choices: [complication.steps, complication.heart_rate]
     bottom:
+      label: "Lower dial"
       default: complication.battery
       choices: any
 elements:
@@ -136,8 +137,8 @@ def test_every_axis_is_a_menu_item_in_order(write_design):
         ("style", "style", "Style"),
         ("color", "accent_color", "Accent colour"),
         ("color", "data_color", "Data colour"),
-        ("data", "top", "Top"),
-        ("data", "bottom", "Bottom"),
+        ("data", "top", "Top"),              # no label: titled from its name
+        ("data", "bottom", "Lower dial"),    # its own label:
     ]
     style, accent, data = axes[0], axes[1], axes[2]
     # A style entry's own label, else its scheme's, else its name.
@@ -218,6 +219,27 @@ def test_selecting_an_axis_opens_its_options_focused_on_the_current_one(write_de
     delegate = files["source/MenuConfigMenuDelegate.mc"]
     assert "_view.chooseConfig(_axis, index);" in delegate
     assert "_parent.setSubLabel(item.getLabel());" in delegate
+
+
+def test_a_data_slot_s_menu_title_is_its_label_else_its_name(write_design, db):
+    view = _files(write_design, db, ["fenix8solar47mm", "fr955"])["source/MenuView.mc"]
+    title = view[view.index("function configTitle("):view.index("function configLabels(")]
+    assert 'if (axis == 3) {\n            return "Top";' in title
+    assert 'if (axis == 4) {\n            return "Lower dial";' in title
+
+
+def test_a_data_slot_label_never_reaches_the_native_editor(write_design, db):
+    files = _files(write_design, db, ["fenix8solar47mm", "fr955"])
+    # `<complication>` takes no label (resources.xsd), so only the menu has it.
+    assert '<complication id="2" allowAny="true"/>' in files[
+        "resources-fenix8solar47mm/configs/watchface.xml"]
+    assert [path for path, text in files.items() if "Lower dial" in text] == [
+        "source/MenuView.mc"]
+
+
+def test_an_empty_data_slot_label_is_a_schema_error(write_design):
+    errors = load_errors(DESIGN.replace('label: "Lower dial"', 'label: ""'), write_design)
+    assert [e.message for e in errors] == ["config.data.bottom.label: '' should be non-empty"]
 
 
 def test_the_app_offers_the_menu_only_without_the_native_editor(write_design, db):

@@ -617,6 +617,10 @@ class ConfigDataSlot:
     #: `choices: any` (there is no fixed choice list in the design for an
     #: override to attach to).
     icon_overrides: dict[str, "icons.SlotIcon | None"] = field(default_factory=dict)
+    #: The slot's `label:`, its title in the generated settings menu, or
+    #: `None` to title it from `name`.  The native editor shows no slot
+    #: titles (`<complication>` takes no label), so only the menu reads it.
+    label: str | None = None
     span: Span | None = None
 
     @property

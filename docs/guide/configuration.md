@@ -19,6 +19,7 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `data_color:` | `config:` | `default:` + `choices: any` or a list | — | the one native data-colour axis |
 | `style:` | `config:` | ordered mapping of named entries | — | [the Styles axis](#all-four-axes-are-wired-up) |
 | `data:` | `config:` | mapping of named slots | — | [the Data axis](#the-data-axis) |
+| `label:` | a `data:` slot | string | the slot's name, humanised | the slot's title in the [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor); the native editor shows none |
 | `default:` | a `config:` axis/entry | hex/`palette.*` colour, entry name, or `complication.*` type | — | starting value; must be in `choices:` when explicit |
 | `choices:` | a `config:` axis/entry | `any`, or an explicit list | — | the editor's picklist |
 | `label:` | a `style:` entry | string | falls back to the scheme's own `label:` | shown in the editor's Styles list |
@@ -257,6 +258,13 @@ resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
 `default:` must belong to) or the literal string `any`, handing the wearer the
 editor's own unrestricted complication picker.
 
+A slot may also carry a `label:`, its title in the settings menu on a watch
+without the native editor. Without one, the menu titles the slot from its
+name (`top_left` shows as "Top left"). The native editor has nowhere to show
+it: Garmin's `<complication>` resource takes no label (`resources.xsd`,
+`complicationWatchfaceType`); the editor picks a slot out by highlighting
+it on the face (`getComplicationDrawable`, research 08 §3).
+
 **A `choices:` list item** is either a bare `complication.<name>` reference
 (today's only form) or a mapping naming the same reference plus a per-choice
 icon override (plan 03 §6.1/§6.2): `{ type: complication.<name>, icon:
@@ -424,7 +432,8 @@ that fact from the slot's own side, reported independently.
 The build generates it whenever some target lacks the native editor but has
 `AppBase.getSettingsView`. The watch opens it from its Watch Face menu. It
 has one item per axis, in this order: Style, Accent colour, Data colour, then
-each data slot by name. Each item shows the current choice. Selecting one
+each data slot by its `label:`, else its name (`bottom` shows as "Bottom").
+Each item shows the current choice. Selecting one
 opens the list of its options, focused on the current one, and picking an
 option applies it at once.
 

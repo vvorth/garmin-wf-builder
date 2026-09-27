@@ -224,7 +224,8 @@ class ConfigAxes(TopLevelBlocks):
             raw_choices = spec["choices"]
             if raw_choices == "any":
                 self.config_data[name] = ConfigDataSlot(
-                    name=name, default=default, choices="any", span=span)
+                    name=name, default=default, choices="any", label=spec.get("label"),
+                    span=span)
                 continue
 
             choices: list[str] = []
@@ -289,7 +290,7 @@ class ConfigAxes(TopLevelBlocks):
 
             self.config_data[name] = ConfigDataSlot(
                 name=name, default=default, choices=tuple(choices),
-                icon_overrides=icon_overrides, span=span)
+                icon_overrides=icon_overrides, label=spec.get("label"), span=span)
 
     def _build_config(self, raw: dict[str, Any]) -> None:
         """`config:` -- the native editor's colour axes, the Styles axis, and

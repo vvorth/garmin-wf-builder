@@ -48,6 +48,7 @@ class MenuAxis:
     kind: str
     #: `style`, `accent_color`, `data_color`, or the `config: data:` slot name.
     name: str
+    #: The menu item's label; a data slot's is its `label:`, else its name.
     title: str
     #: The options' labels, in order; `None` for a data slot, whose list is
     #: per device (`Layout.CONFIG_DATA_<NAME>_LABELS`).
@@ -99,8 +100,8 @@ def menu_axes(face: Face) -> list[MenuAxis]:
         axes.append(MenuAxis(len(axes), "color", name, humanise(name.replace("color", "colour")),
                              tuple(label for label, _ in options),
                              tuple(c for _, c in options), default_index))
-    for name in face.config_data:
-        axes.append(MenuAxis(len(axes), "data", name, humanise(name), None))
+    for name, slot in face.config_data.items():
+        axes.append(MenuAxis(len(axes), "data", name, slot.label or humanise(name), None))
     return axes
 
 

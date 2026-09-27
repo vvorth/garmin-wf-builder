@@ -433,6 +433,11 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "The slot's title in the generated settings menu on a watch without the native editor (fr955). Optional -- a slot with none is titled from its name ('top_left' shows as 'Top left'). The native editor has no slot titles: Garmin's '<complication>' resource takes no label (resources.xsd, complicationWatchfaceType), so this reaches the menu only.",
+          "type": "string",
+          "minLength": 1
+        },
         "default": {
           "description": "Compiled into the view as the starting Complications.Id, and the only type a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must also appear in 'choices:' when 'choices:' is an explicit list.",
           "$ref": "#/$defs/complicationRef"
