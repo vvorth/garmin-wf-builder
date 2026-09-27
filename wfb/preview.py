@@ -132,6 +132,10 @@ class PreviewOptions:
     #: `check_aod_burn_in` sets this `False` to render the frame once,
     #: unmasked, and apply each of the four phases itself (worst-of-four).
     aod_mask: bool = True
+    #: Set the panel into the device's simulator skin -- the watch drawn
+    #: round it -- `wfb preview --skin` (:func:`frame_in_skin`). A device
+    #: whose files lack the skin renders the bare panel, as without it.
+    skin: bool = False
 
 
 #: `SystemFace.match` levels a stand-in warning is owed (plan 12 R1.3):
@@ -306,6 +310,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         image = _quantise_mono(image)
     if options.mask_shape:
         image = _mask_shape(image, device, scale)
+    if options.skin:
+        image = frame_in_skin(image, device, scale) or image
     return image
 
 
@@ -350,7 +356,8 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
     face_font = fallback.font_for_height(caption_height - 4)
     x = 0
     for panel, label in panels:
-        composed.paste(panel, (x, caption_height))
+        # A skinned panel is RGBA, and its background may be transparent.
+        composed.paste(panel, (x, caption_height), panel if panel.mode == "RGBA" else None)
         if face_font is not None:
             draw.text((x + panel.width / 2, caption_height / 2), label,
                       fill=(220, 220, 220), font=face_font, anchor="mm")
@@ -389,7 +396,7 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     from PIL import ImageMath
 
     options = options or PreviewOptions()
-    base = dataclass_replace(options, aod=True, mask_shape=False)
+    base = dataclass_replace(options, aod=True, mask_shape=False, skin=False)
     device = resolved.device
     scale = max(1, base.scale)
     minute_list = list(range(MINUTES_PER_DAY) if minutes is None else minutes)
@@ -405,6 +412,8 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     heat = accum.point(lambda v: v * (255.0 / count)).convert("L").convert("RGB")
     if options.mask_shape:
         heat = _mask_shape(heat, device, scale)
+    if options.skin:
+        heat = frame_in_skin(heat, device, scale) or heat
     peak = accum.getextrema()[1]
     assert isinstance(peak, (int, float)), "a single-band image has scalar extrema"
     return heat, peak / count
@@ -1086,6 +1095,69 @@ def _mask_shape(image: Image.Image, device: Device, scale: int) -> Image.Image:
     out = Image.new("RGB", image.size, (24, 24, 24))
     out.paste(image, (0, 0), mask)
     return out
+
+
+@lru_cache(maxsize=None)
+def _skin_image(path: str, location: tuple[int, int, int, int], scale: int) -> Image.Image | None:
+    """The skin PNG as RGBA, resized by ``scale``; ``None`` when it cannot
+    be read or the panel location does not fit inside it."""
+    x, y, width, height = location
+    try:
+        with Image.open(path) as opened:
+            skin = opened.convert("RGBA")
+    except OSError:
+        return None
+    if x < 0 or y < 0 or x + width > skin.width or y + height > skin.height:
+        return None
+    if scale != 1:
+        skin = skin.resize((skin.width * scale, skin.height * scale), Image.Resampling.LANCZOS)
+    return skin
+
+
+def _skin_for(device: Device, scale: int) -> tuple[Image.Image, tuple[int, int]] | None:
+    found = visible_area.skin(device)
+    if found is None:
+        return None
+    path, location = found
+    skin = _skin_image(str(path), location, scale)
+    return None if skin is None else (skin, (location[0] * scale, location[1] * scale))
+
+
+def has_skin(device: Device) -> bool:
+    """Whether :func:`frame_in_skin` can frame this device: its files ship
+    the skin PNG and a panel location that fits it."""
+    return _skin_for(device, 1) is not None
+
+
+def frame_in_skin(image: Image.Image, device: Device, scale: int) -> Image.Image | None:
+    """``image`` (a panel render at ``scale``) set into the device's
+    simulator skin: the skin PNG `simulator.json` names, with the panel at
+    its `display.location`, as the simulator shows it. The skin is
+    transparent where the panel shows through, so it composites straight
+    over the render. The result is RGBA and keeps the skin's own
+    background round the watch: opaque white on most skins, transparent on
+    a few.
+
+    ``None`` when the device files lack the skin (:func:`has_skin`): the
+    skin is optional, and a caller falls back to the bare panel."""
+    found = _skin_for(device, scale)
+    if found is None:
+        return None
+    skin, origin = found
+    framed = Image.new("RGBA", skin.size, (0, 0, 0, 0))
+    framed.paste(image.convert("RGB"), origin)
+    framed.alpha_composite(skin)
+    return framed
+
+
+def skin_missing_warning(devices: Iterable[Device], skin: bool) -> str | None:
+    """One line for `wfb preview --skin` to print when a device had no skin
+    to frame it in, or ``None``."""
+    bare = sorted(d.id for d in devices if not has_skin(d))
+    if not skin or not bare:
+        return None
+    return (f"warning: {', '.join(bare)} ha(s) no simulator skin in the device files; "
+            f"rendered the bare screen instead")
 
 
 def save(image: Image.Image, path: Path) -> Path:

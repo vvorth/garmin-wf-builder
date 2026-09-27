@@ -66,6 +66,10 @@ or AOD-related has been observed on a watch or in the simulator.
   40–70 ms per AMOLED target (two full-frame renders plus one per shown
   element). `jitter:` was built and removed on 2026-09-23 in favour of the
   mask. `docs/guide/always-on-display.md`, `docs/research/11`, `15`.
+- **Preview in the watch** — `wfb preview --skin` sets the render into
+  the simulator skin the device files ship, at its `display.location`
+  (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
+  screen with one warning. `docs/guide/preview-and-cli.md`.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 

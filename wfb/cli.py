@@ -306,6 +306,10 @@ def _parser() -> argparse.ArgumentParser:
                          help="sum the AOD frame (implies --aod) over every minute of the "
                               "day into one PNG where a pixel lit every minute is white, "
                               "and print the largest share of minutes any pixel was lit")
+    preview.add_argument("--skin", action="store_true",
+                         help="draw the watch round the screen: the simulator skin from "
+                              "the device files; a device without one renders the bare "
+                              "screen, with a warning")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -495,7 +499,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     """
     from .preview import (
         MINUTES_PER_DAY, PreviewOptions, UnknownStyleError, render, render_all_styles,
-        mono_guess_warning, render_aod_heatmap, save,
+        has_skin, mono_guess_warning, render_aod_heatmap, save, skin_missing_warning,
     )
     from .preview import stand_in_warning as preview_stand_in_warning
 
@@ -538,7 +542,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=args.asleep, aod=heatmap or args.aod,
                              sample=sample,
-                             fonts_root=args.fonts_dir)
+                             fonts_root=args.fonts_dir, skin=args.skin)
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
     # Collects every distinct face this whole call resolves, across every
@@ -562,6 +566,9 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
                 suffix = ""
             if style is not None:
                 suffix = f"--{style}{suffix}"
+            if args.skin and has_skin(result.device):
+                suffix += "--skin"
+                note += ", in the simulator skin"
             if to_stdout:
                 image.save(sys.stdout.buffer, format="PNG")
                 sys.stdout.buffer.flush()
@@ -583,6 +590,9 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     mono = mono_guess_warning((r.device for r in resolved.values()), options.quantise)
     if mono:
         print(mono, file=sys.stderr)
+    bare = skin_missing_warning((r.device for r in resolved.values()), options.skin)
+    if bare:
+        print(bare, file=sys.stderr)
     if blurb and not quiet:
         print()
         for line in (
@@ -633,8 +643,14 @@ def _preview(args: argparse.Namespace) -> int:
     `--minute`. `--units metric|statute` sets the watch's unit settings a
     `units: auto` element follows (metric by default).
 
-    Every mode writes `<device>[--<style>][--all-styles|--heatmap].png`
-    under `-o`, or its one image to stdout with `-o -`.
+    `--skin` draws the watch round the screen: the render is set into the
+    simulator skin, the watch image the device files ship, on any mode.
+    The skin is optional: a device whose files lack it renders the bare
+    screen, as without the flag, and one warning names it.
+
+    Every mode writes
+    `<device>[--<style>][--all-styles|--heatmap][--skin].png` under `-o`,
+    or its one image to stdout with `-o -`.
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).

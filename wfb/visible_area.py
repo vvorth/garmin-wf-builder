@@ -16,6 +16,10 @@ analytic circle, which the skin matches to within its anti-aliased rim
 - `wfb.preview`, which crops to :meth:`VisibleMask.image`;
 - `wfb.lint`'s `aod-burn-in`, whose denominator is the visible pixels.
 
+Separately, `wfb preview --skin` sets a render into the whole skin
+(:func:`skin`, `wfb.preview.frame_in_skin`), on every shape, round
+included.
+
 The lint allows one pixel of tolerance (:attr:`VisibleMask.hidden`): the
 skins anti-alias their edges, and the Instinct 3/E skins draw a 1-px opaque
 border that their own declared subscreen box contradicts (research 16 §3).
@@ -26,6 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from PIL import Image, ImageFilter
@@ -77,16 +82,27 @@ class VisibleMask:
         return True
 
 
-def visible_mask(device: "Device") -> VisibleMask | None:
-    """The device's mask, or ``None`` when its skin or panel location is
-    missing, or the location does not fit the skin at the panel's size."""
-    skin = device.skin_path
+def skin(device: "Device") -> tuple[Path, tuple[int, int, int, int]] | None:
+    """The device's skin PNG and the panel's ``(x, y, width, height)`` in
+    it, or ``None`` when either is missing or the location is not the
+    panel's own size. Whether the location fits inside the image is left to
+    the caller, which has to open the file to know."""
+    path = device.skin_path
     location = device.display_location
-    if skin is None or location is None:
+    if path is None or location is None:
         return None
     if location[2:] != (device.width, device.height):
         return None
-    return _load(str(skin), location)
+    return path, location
+
+
+def visible_mask(device: "Device") -> VisibleMask | None:
+    """The device's mask, or ``None`` when its skin or panel location is
+    missing, or the location does not fit the skin at the panel's size."""
+    found = skin(device)
+    if found is None:
+        return None
+    return _load(str(found[0]), found[1])
 
 
 @lru_cache(maxsize=None)

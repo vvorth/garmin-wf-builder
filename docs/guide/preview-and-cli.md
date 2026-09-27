@@ -49,7 +49,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
-wfb preview   design.yaml [-d DEVICE] [--watch] [-q] [-o -]  # render to PNG; no simulator
+wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
@@ -75,6 +75,21 @@ wfb preview my-face.yaml -o -- | chafa
 
 `-q/--quiet` alone keeps the files and silences stdout; either way warnings
 and errors still go to stderr.
+
+`wfb preview --skin` draws the watch round the screen: the render is set
+into the simulator's own picture of the device (its *skin*, which ships in
+the device files), where the simulator shows the screen, and written as
+`<watch>--skin.png`. It works with every other preview flag, including
+`--all-styles` and `--heatmap`:
+
+```sh
+wfb preview my-face.yaml --skin -d fr955
+```
+
+The skin is optional. If a device's files don't include it, that device
+renders the bare screen, as it would without `--skin`, under its usual
+file name, and one warning names it. Around the watch, the image keeps the
+skin's own background, which is white on most devices.
 
 `wfb help <command>` and `wfb <command> help` print the same thing as
 `wfb <command> --help`, byte for byte, because all three are read from that
