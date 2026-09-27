@@ -236,7 +236,10 @@ wins over its group's" rule `antialias:` already follows.
   faces that device does publish. This is the default because a missing
   clock is not a cosmetic problem.
 * **`hide`**: the element simply does not draw on the devices that fail.
-  Every other device is unaffected.
+  Every other device is unaffected. Where it does not draw, it has no
+  `on_hold:` region either, and the placement lints (`off-screen`,
+  `safe-area`, `text-overflow`, ...) say nothing about it: the one
+  `font-unavailable` warning names those devices.
 * `if_unavailable:` on a **baked** font entry, or on an element whose font is
   baked or a system font, is a build error: there is nothing that can be
   unavailable, so accepting it would promise a check that never runs. The

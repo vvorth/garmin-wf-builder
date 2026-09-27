@@ -6,8 +6,8 @@ from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
-    Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress, PlacedShape,
-    ResolvedFace, ResolvedHandPart,
+    HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
+    PlacedShape, ResolvedFace, ResolvedHandPart,
 )
 from ...units import IntBox
 from .common import (
@@ -230,10 +230,12 @@ def _shown_constants(resolved: ResolvedFace, placed: Placed, guards: "Guards") -
     the answer."""
     if placed.id not in guards.subscreen_hidden or placed.kind == "group":
         return []
-    shown = placed.id not in resolved.hidden
-    return [(f"{const_prefix(placed.id)}_SHOWN", shown,
-             "drawn in the subscreen window" if shown
-             else "no subscreen on this device: 'if_unavailable: hide'")]
+    reason = resolved.hidden.get(placed.id)
+    note = ("drawn in the subscreen window" if reason is None
+            else "no subscreen on this device: 'if_unavailable: hide'"
+            if reason == HIDDEN_BY_SUBSCREEN
+            else "its font has no face on this device: 'if_unavailable: hide'")
+    return [(f"{const_prefix(placed.id)}_SHOWN", reason is None, note)]
 
 
 def _hold_constants(resolved: ResolvedFace, placed: Placed) -> Constants:

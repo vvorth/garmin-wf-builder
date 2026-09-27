@@ -26,8 +26,8 @@ from .ir import (
     PatternElement, StyleEntry, authored_draw_order, never_together,
 )
 from .layout import (
-    BEZEL_MARGIN, Placed, PlacedPattern, PlacedProgress, PlacedText, ResolvedFace,
-    inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
+    BEZEL_MARGIN, HIDDEN_BY_FONT, Placed, PlacedPattern, PlacedProgress, PlacedText,
+    ResolvedFace, inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
 from .palette import Color, has_palette_rule
@@ -100,7 +100,9 @@ def run_design(face: Face, bag: Bag) -> None:
 def run(resolved: ResolvedFace, bag: Bag) -> None:
     """Stage 3: everything computable from resolved geometry on one device.
     An item this device does not draw (`ResolvedFace.hidden`) is not
-    checked here; :func:`check_subscreen_availability` reports it."""
+    checked here; the cross-device check its reason names reports it
+    (:func:`check_subscreen_availability`,
+    :func:`check_vector_font_availability`)."""
     if resolved.hidden:
         resolved = dataclass_replace(resolved, items=resolved.shown_items)
     for check in DEVICE_CHECKS:
@@ -335,13 +337,20 @@ def check_vector_font_availability(
     **`hide`** draws nothing there: a suppressible warning naming every
     device the carrier will not draw on.
 
+    A device where the carrier is hidden for another reason
+    (`ResolvedFace.hidden`: `anchor: subscreen` on a device without the
+    window) is left out: :func:`check_subscreen_availability` already says
+    it does not draw there.
+
     A `Text` element and a pattern's `shape: text` part (plan 11 slice 2)
     go through the same gates, the same `if_unavailable:` precedence (the
     carrier's own value over the font's) and the same wording; a part is
     suppressed through its pattern's `lint:`.
     """
     placed_by_device = {
-        device_id: {p.id: p for p in rf.items} for device_id, rf in resolved.items()
+        device_id: {p.id: p for p in rf.items
+                    if rf.hidden.get(p.id, HIDDEN_BY_FONT) == HIDDEN_BY_FONT}
+        for device_id, rf in resolved.items()
     }
     for element, run in kinds.face_text_runs(face):
         spec = face.fonts.get(run.font)

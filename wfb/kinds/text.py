@@ -13,7 +13,7 @@ from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
 from ..ir.model import Element, Expression, Outline, Text, aod_outline_choice
-from ..layout import Placed, PlacedText, longer, resolved_curve, text_ink
+from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
@@ -511,6 +511,12 @@ class TextKind(ElementKind[Text, PlacedText]):
                                      (element.value,), (element.color,))
         return element
 
+    def hidden_reason(self, placed: PlacedText) -> str | None:
+        # `available` is only ever false for a `face:` font that failed
+        # gates 1-3 here, which survives into a build only under
+        # `if_unavailable: hide`.
+        return None if placed.font.available else HIDDEN_BY_FONT
+
     def resolve(self, r: Resolver, element: Text, parent: Box, depth: int) -> Placed:
         font = r.text_font(element.font, element.font_is_custom, element.id, element.curve)
         widest = _widest_text(element)
@@ -582,11 +588,8 @@ class TextKind(ElementKind[Text, PlacedText]):
         color = renderer.aod_color(element, "color", element.color)
         if placed.font.is_vector:
             # A `face:` font draws upright, angled or radial, never through a
-            # baked sheet; `font.available is False` is `if_unavailable: hide`
-            # on this device, which draws nothing, as the watch does.
-            if not placed.font.available:
-                return
-
+            # baked sheet.  One this device lacks never gets here: the text
+            # is in `ResolvedFace.hidden` (`hidden_reason`).
             def draw(anchor: tuple[int, int], fill: tuple[int, int, int],
                      box: IntBox | None = None) -> None:
                 renderer.draw_vector_text(

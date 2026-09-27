@@ -97,7 +97,9 @@ what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to
 a minimum touch size: Garmin publishes no such number, and inventing one would
 silently overlap neighbours on a dense face. For a bigger target, or to make
 several elements act as one, put them in a [`group`](elements.md#group) and put `on_hold:`
-on the group instead of each child.
+on the group instead of each child. On a device where the element does not
+draw at all -- `if_unavailable: hide` on a missing `face:` font or subscreen
+-- its region is empty there, so a hold never fires on blank screen.
 
 Regions are tested in draw order and the first match wins, so two overlapping
 regions make the second unreachable. That is a warning (`hold-overlap`), not

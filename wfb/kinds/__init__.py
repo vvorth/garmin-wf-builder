@@ -232,6 +232,12 @@ class ElementKind(Generic[E, P]):
         """Resolve one element for one device, inside its parent's box."""
         raise NotImplementedError(f"{self.name}: resolve")
 
+    def hidden_reason(self, placed: P) -> str | None:
+        """Why this device does not draw `placed` at all -- a
+        `wfb.layout.HIDDEN_BY_*` code, which `Resolver` records in
+        `ResolvedFace.hidden` -- or `None` when it draws."""
+        return None
+
     def circular_extent(self, placed: P) -> tuple[float, float, float] | None:
         """`(cx, cy, radius)` for a genuinely round element
         (`layout.circular_extent`), else `None`."""

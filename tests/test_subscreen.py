@@ -132,8 +132,8 @@ def test_hide_is_a_note_and_hides_the_subtree_there(write_design, db):
     assert bag.ok(), bag.render()
     notes = [d for d in bag.items if d.code == "subscreen"]
     assert notes and all(d.severity.value == "note" for d in notes)
-    assert resolved[ROUND].hidden == frozenset({"ring", "pack", "dot"})
-    assert resolved[INSTINCT].hidden == frozenset()
+    assert set(resolved[ROUND].hidden) == {"ring", "pack", "dot"}
+    assert not resolved[INSTINCT].hidden
 
 
 def test_a_hidden_element_is_not_linted_where_it_does_not_draw(write_design, db):

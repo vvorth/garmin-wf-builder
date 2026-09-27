@@ -12,7 +12,7 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
@@ -570,7 +570,9 @@ class ResolvedFont:
     #: Whether vector gates 1-3 passed on this device (always `True` for a
     #: baked or system font).  `False` survives into a build only under
     #: `if_unavailable: hide` (`wfb.lint.check_vector_font_availability`):
-    #: the element still resolves, but nothing draws it on this device.
+    #: the element still resolves, but nothing draws it on this device -- a
+    #: `text` element is then in `ResolvedFace.hidden` (`HIDDEN_BY_FONT`);
+    #: a pattern part is skipped by its own pattern.
     available: bool = True
 
 
@@ -1046,6 +1048,11 @@ class SubPixelLength:
     element: Element  # the element to hang `lint: {allow: [...]}` on
 
 
+#: `ResolvedFace.hidden` reasons: the code of the lint that reports each.
+HIDDEN_BY_SUBSCREEN = "subscreen"
+HIDDEN_BY_FONT = "font-unavailable"
+
+
 @dataclass
 class ResolvedFace:
     face: Face
@@ -1058,13 +1065,16 @@ class ResolvedFace:
     #: Every `SubPixelLength` this device's resolve recorded, in resolve
     #: order, not deduplicated -- the lint decides how to present them.
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
-    #: Ids of the items that do not draw on this device: an `anchor:
+    #: The items that do not draw on this device, each mapped to why: the
+    #: code of the lint that reports it.  `HIDDEN_BY_SUBSCREEN`: an `anchor:
     #: subscreen` element with `if_unavailable: hide` on a device without a
-    #: subscreen, and its group's children.  They are still in `items`,
-    #: placed at the screen's centre, because the shared view and every
-    #: device's `Layout.mc` need their constants; the lints and the preview
-    #: read :attr:`shown_items` instead.
-    hidden: frozenset[str] = frozenset()
+    #: subscreen, and its group's children.  `HIDDEN_BY_FONT`: a text whose
+    #: `face:` font resolves no face here under `if_unavailable: hide`
+    #: (`ElementKind.hidden_reason`).  They are still in `items`, because
+    #: the shared view and every device's `Layout.mc` need their constants;
+    #: the lints, the preview and the hold regions read :attr:`shown_items`
+    #: or this map instead.
+    hidden: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def shown_items(self) -> list[Placed]:
@@ -1175,7 +1185,7 @@ class Resolver:
         self.screen = Box(0, 0, device.width, device.height)
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
-        self.hidden: set[str] = set()
+        self.hidden: dict[str, str] = {}
         self.warnings: list[str] = []
         #: `SubPixelLength`s, in resolve order (`extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
@@ -1199,22 +1209,24 @@ class Resolver:
             sub_pixel=self.sub_pixel,
             screen=IntBox(0, 0, self.device.width, self.device.height),
             warnings=self.warnings,
-            hidden=frozenset(self.hidden),
+            hidden=dict(self.hidden),
         )
 
     # -- traversal --------------------------------------------------------
 
     def _resolve_list(self, elements: list[Element], parent: Box, depth: int,
-                      hidden: bool = False) -> None:
+                      hidden: str | None = None) -> None:
+        """Place ``elements`` inside ``parent``.  ``hidden`` is a hidden
+        group's reason, which every child inherits."""
         for element in elements:
-            here, element_hidden = parent, hidden
+            here, reason = parent, hidden
             if element.in_subscreen:
                 window = self.device.subscreen
                 if window is None:
                     # `if_unavailable: hide` (an `error` fails the build,
                     # `wfb.lint.check_subscreen_availability`): placed on the
                     # screen so every constant exists, and marked hidden.
-                    element_hidden = True
+                    reason = HIDDEN_BY_SUBSCREEN
                 else:
                     here = Box(*window)
             first_sub_pixel = len(self.sub_pixel)
@@ -1225,12 +1237,14 @@ class Resolver:
                         Placed(element, box.rounded(min_1px=element.resolved_min_1px),
                                (round(box.center_x), round(box.center_y)), depth)
                     )
-                    self._resolve_list(element.items, box, depth + 1, element_hidden)
+                    self._resolve_list(element.items, box, depth + 1, reason)
                 else:
-                    resolve = kinds.for_element(element).resolve
-                    self.items.append(resolve(self, element, here, depth))
-            if element_hidden:
-                self.hidden.add(element.id)
+                    kind = kinds.for_element(element)
+                    placed = kind.resolve(self, element, here, depth)
+                    self.items.append(placed)
+                    reason = reason or kind.hidden_reason(placed)
+            if reason is not None:
+                self.hidden[element.id] = reason
                 del self.sub_pixel[first_sub_pixel:]  # nothing draws here to round away
 
     @contextmanager
