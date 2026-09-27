@@ -67,6 +67,7 @@ APPLY_SETTINGS_METHOD = "applySettings"
 #: reason as `applySettings`: the app and the menu delegate call them.
 SETTINGS_MENU_METHOD = "settingsMenu"
 SELECT_SETTING_METHOD = "selectSetting"
+CHOOSE_SETTING_METHOD = "chooseSetting"
 
 
 @dataclass
@@ -619,14 +620,17 @@ def _emit_settings_menu(w: Writer, face: Face) -> None:
     `AppBase.getSettingsView` returns the `Menu2` `settingsMenu` builds, so
     the watch opens it from its Watch Face menu. A `boolean` setting is a
     `ToggleMenuItem`. A `choice` or `color_scheme` setting is a `MenuItem`
-    whose sub-label is the current choice; selecting it moves to the next
-    choice, wrapping.
-    Each item's identifier is the setting's position in `settings:`.
+    whose sub-label is the current choice; selecting it pushes a second
+    `Menu2` listing every choice, focused on the current one, and picking
+    one there calls `chooseSetting` (through `<Face>SettingChoiceDelegate`),
+    which also updates the first menu's sub-label and pops back to it.
+    Each settings item's identifier is the setting's position in
+    `settings:`; each choice item's, the choice's index.
 
-    `selectSetting` writes `Application.Properties` and then runs
-    `applySettings`, the same path a Garmin Connect push takes. A local
-    write does not call `onSettingsChanged` (research 17 §3.3), so the menu
-    calls the path itself.
+    Both paths write `Application.Properties` and then run `applySettings`,
+    the same path a Garmin Connect push takes. A local write does not call
+    `onSettingsChanged` (research 17 §3.3), so the menu calls the path
+    itself.
     """
     w.doc(
         "The settings menu, built from the current values.  The watch opens it from\n"
@@ -644,26 +648,53 @@ def _emit_settings_menu(w: Writer, face: Face) -> None:
                        f"{setting_label_method(setting.name)}({setting.field}), {index}, null));")
         w.line("return menu;")
     w.blank()
+    has_choices = any(s.type != "boolean" for s in face.settings.values())
+    has_toggles = any(s.type == "boolean" for s in face.settings.values())
     w.doc(
-        "One settings menu item was selected: store the new value, then apply it\n"
-        "the way a Garmin Connect push would.  A choice moves to its next value."
+        "One settings menu item was selected.  A toggle stores its new value and\n"
+        "applies it the way a Garmin Connect push would; a choice opens the list of\n"
+        "its options, focused on the current one."
     )
     with w.block(f"function {SELECT_SETTING_METHOD}(item as WatchUi.MenuItem) as Void"):
         w.line("var id = item.getId();")
         for index, setting in enumerate(face.settings.values()):
-            name = _mc_string(setting.name)
             if setting.type == "boolean":
-                with w.block(f"if (id == {index} && item instanceof WatchUi.ToggleMenuItem)"):
-                    w.comment(f"settings.{setting.name}")
-                    w.line(f"Application.Properties.setValue({name}, item.isEnabled());")
                 continue
             with w.block(f"if (id == {index})"):
-                w.comment(f"settings.{setting.name}")
-                w.line(f"var next = ({setting.field} + 1) % {len(setting.choices)};")
-                w.line(f"Application.Properties.setValue({name}, next);")
-                w.line(f"item.setSubLabel({setting_label_method(setting.name)}(next));")
-        w.line(f"{APPLY_SETTINGS_METHOD}();")
-        w.line("WatchUi.requestUpdate();")
+                w.comment(f"settings.{setting.name}: pick from its options")
+                w.line(f"var options = new WatchUi.Menu2({{ :title => {_mc_string(setting.label)} }});")
+                for choice_index, choice in enumerate(setting.choices):
+                    w.line(f"options.addItem(new WatchUi.MenuItem({_mc_string(choice.label)}, "
+                           f"null, {choice_index}, null));")
+                w.line(f"options.setFocus({setting.field});")
+                w.line(f"WatchUi.pushView(options, new {face.entry}SettingChoiceDelegate("
+                       f"self, {index}, item), WatchUi.SLIDE_LEFT);")
+                w.line("return;")
+        if has_toggles:
+            for index, setting in enumerate(face.settings.values()):
+                if setting.type != "boolean":
+                    continue
+                with w.block(f"if (id == {index} && item instanceof WatchUi.ToggleMenuItem)"):
+                    w.comment(f"settings.{setting.name}")
+                    w.line(f"Application.Properties.setValue({_mc_string(setting.name)}, "
+                           "item.isEnabled());")
+            w.line(f"{APPLY_SETTINGS_METHOD}();")
+            w.line("WatchUi.requestUpdate();")
+    if has_choices:
+        w.blank()
+        w.doc(
+            "One option was picked from a choice's list: store it, then apply it the\n"
+            "way a Garmin Connect push would.  `setting` is the settings item's id."
+        )
+        with w.block(f"function {CHOOSE_SETTING_METHOD}(setting as Number, index as Number) as Void"):
+            for index, setting in enumerate(face.settings.values()):
+                if setting.type == "boolean":
+                    continue
+                with w.block(f"if (setting == {index})"):
+                    w.comment(f"settings.{setting.name}")
+                    w.line(f"Application.Properties.setValue({_mc_string(setting.name)}, index);")
+            w.line(f"{APPLY_SETTINGS_METHOD}();")
+            w.line("WatchUi.requestUpdate();")
     for setting in face.settings.values():
         if setting.type == "boolean":
             continue

@@ -268,17 +268,52 @@ def test_the_menu_is_built_by_default(write_design, db, bag):
             "settingLabelSide(_settingSide), 1, null));") in menu
 
 
-def test_selecting_stores_the_value_and_applies_it(write_design, db):
+def test_a_toggle_stores_its_value_and_applies_it(write_design, db):
     menu = _menu_part(_project(write_design, db).files()["source/SettingsView.mc"])
-    select = menu[menu.index("function selectSetting("):menu.index("private function settingLabelSide")]
+    select = menu[menu.index("function selectSetting("):menu.index("function chooseSetting(")]
     assert "if (id == 0 && item instanceof WatchUi.ToggleMenuItem)" in select
     assert 'Application.Properties.setValue("show_dot", item.isEnabled());' in select
-    # A choice cycles through all three choices, wrapping.
-    assert "var next = (_settingSide + 1) % 3;" in select
-    assert 'Application.Properties.setValue("side", next);' in select
-    assert "item.setSubLabel(settingLabelSide(next));" in select
     # Then the same path a Garmin Connect push takes.
-    assert select.index("applySettings();") > select.index("setSubLabel")
+    assert select.index("applySettings();") > select.index('setValue("show_dot"')
+
+
+def test_a_choice_opens_a_list_of_its_options(write_design, db):
+    """Not a cycle on each click: the choice pushes a Menu2 of every option,
+    focused on the current one."""
+    menu = _menu_part(_project(write_design, db).files()["source/SettingsView.mc"])
+    select = menu[menu.index("function selectSetting("):menu.index("function chooseSetting(")]
+    branch = select[select.index("if (id == 1) {"):select.index("return;")]
+    assert 'var options = new WatchUi.Menu2({ :title => "Dot side" });' in branch
+    for index, label in enumerate(["Left", "Right", "Top"]):
+        assert f'options.addItem(new WatchUi.MenuItem("{label}", null, {index}, null));' in branch
+    assert "options.setFocus(_settingSide);" in branch
+    assert ("WatchUi.pushView(options, new SettingsSettingChoiceDelegate(self, 1, item), "
+            "WatchUi.SLIDE_LEFT);") in branch
+    assert "% 3" not in select  # no cycling left
+
+
+def test_picking_an_option_stores_it_and_applies_it(write_design, db):
+    files = _project(write_design, db).files()
+    menu = _menu_part(files["source/SettingsView.mc"])
+    choose = menu[menu.index("function chooseSetting("):menu.index("private function settingLabelSide")]
+    assert "function chooseSetting(setting as Number, index as Number) as Void" in choose
+    assert 'if (setting == 1) {\n            // settings.side\n' \
+        '            Application.Properties.setValue("side", index);' in choose
+    assert choose.index("applySettings();") > choose.index('setValue("side"')
+    delegate = files["source/SettingsSettingsDelegate.mc"]
+    picked = delegate[delegate.index("class SettingsSettingChoiceDelegate"):]
+    assert "_view.chooseSetting(_setting, index);" in picked
+    assert "_parent.setSubLabel(item.getLabel());" in picked
+    assert "WatchUi.popView(WatchUi.SLIDE_RIGHT);" in picked
+
+
+def test_no_choice_delegate_without_a_choice(write_design, db):
+    text = DESIGN.replace(SETTINGS, SETTINGS[:SETTINGS.index("  side:")]) \
+        .replace('visible: settings.side == "left"', "visible: settings.show_dot") \
+        .replace("visible: '\"right\" == settings.side'", "visible: settings.show_dot")
+    files = _project(write_design, db, text).files()
+    assert "SettingChoiceDelegate" not in files["source/SettingsSettingsDelegate.mc"]
+    assert "chooseSetting" not in files["source/SettingsView.mc"]
 
 
 def test_a_choice_label_method_maps_every_index(write_design, db):

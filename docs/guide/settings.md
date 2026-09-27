@@ -18,17 +18,18 @@ fēnix 8's native face editor:
 **How the wearer changes a setting: a menu on the watch.** The build
 generates a settings menu, which the watch opens from its Watch Face menu
 (`AppBase.getSettingsView`). A `boolean` is a toggle. A `choice` or a
-`color_scheme` shows its current label, and selecting it moves to the next
-one. The change applies
-at once. Garmin Connect cannot do this for a sideloaded face: it edits
+`color_scheme` shows its current label; selecting it opens the list of its
+options, focused on the current one, and picking one there stores it and
+returns to the settings menu. The change applies at once. Garmin Connect cannot do this for a sideloaded face: it edits
 settings only for apps installed from the Connect IQ Store, private beta
 included (`docs/research/17-phone-settings.md` §2).
 
 Every installed device has the menu except `fenix5`/`fenix5x`, which keep
-each `default:` and get a `settings-menu-unsupported` note. **Not yet seen
-on a watch:** that the menu entry appears on `fr955`, and on a fēnix 8
-beside the native editor, and that a change applies at once. There is no
-simulator here, so this needs a sideload.
+each `default:` and get a `settings-menu-unsupported` note. **Seen working
+on `fr955`** (2026-09-27): the menu opens from the Watch Face menu and a
+change applies. Not yet seen: the list of options a choice opens (the
+earlier build cycled through them instead), and a fēnix 8, where the menu
+sits beside the native editor.
 
 ## At a glance
 
@@ -159,18 +160,21 @@ nothing keeps the two in step. Accept it with the setting's own
   resource for every title and choice label. `monkeyc` checks it and writes
   `<face>-<device>-settings.json` beside each `.prg`, the file the Store
   reads.
-- The menu: `settingsMenu()` and `selectSetting()` on the view, a
-  `<Face>SettingsDelegate` class, and `getSettingsView()` on the app. A
-  selection writes the property and then runs `applySettings()`, the same
-  path as a Garmin Connect push, because a write on the watch does not call
+- The menu: `settingsMenu()`, `selectSetting()` and (with a list setting)
+  `chooseSetting()` on the view, a `<Face>SettingsDelegate` class and, for
+  a choice's list of options, `<Face>SettingChoiceDelegate`, and
+  `getSettingsView()` on the app. A toggle or a picked option writes the
+  property and then runs `applySettings()`, the same path as a Garmin
+  Connect push, because a write on the watch does not call
   `onSettingsChanged`.
 
 Measured on the verification devices, for a face with one `boolean` and one
 `choice` setting read by `visible:` guards on three elements: the settings
-add 279 B (1,761 B to 2,040 B) and the menu another 619 B (to 2,659 B). On
-`fenix5`, which never opens the menu, the two add 372 B and 1,044 B. In
-`examples/features/settings/`, a `color_scheme` setting with two roles adds
-373 B (499 B on `fenix5`), and `edit: phone` about 80 B.
+add 279 B (1,761 B to 2,040 B) and the menu, with the choice's list of
+options, another 1,029 B (to 3,069 B). On `fenix5`, which never opens the
+menu, the two add 372 B and 1,557 B. `examples/features/settings/` (two
+toggles and two lists, one of them a `color_scheme`) builds to 5,081 B
+(8,161 B on `fenix5`), and `edit: phone` adds about 80 B.
 
 ## Things to know
 

@@ -113,8 +113,9 @@ def emit_app(face: Face) -> SourceFile:
 
 def emit_settings_delegate(face: Face) -> SourceFile:
     """`source/<Face>SettingsDelegate.mc` -- the settings menu's input
-    delegate. It hands every selection to the view, which owns the fields
-    the menu shows and the one path that applies a change."""
+    delegate, plus, when a setting has choices, the delegate of the list
+    a choice opens. Both hand the selection to the view, which owns the
+    fields the menu shows and the one path that applies a change."""
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Lang;", "import Toybox.WatchUi;").blank()
@@ -128,6 +129,30 @@ def emit_settings_delegate(face: Face) -> SourceFile:
         w.blank()
         with w.block("function onSelect(item as WatchUi.MenuItem) as Void"):
             w.line("_view.selectSetting(item);")
+    if any(s.type != "boolean" for s in face.settings.values()):
+        w.blank()
+        w.doc(
+            "Input for one choice's list of options: the picked option is stored, the\n"
+            "settings menu's item shows it, and the list closes."
+        )
+        with w.block(f"class {face.entry}SettingChoiceDelegate extends WatchUi.Menu2InputDelegate"):
+            w.line(f"private var _view as {face.entry}View;")
+            w.line("private var _setting as Number;")
+            w.line("private var _parent as WatchUi.MenuItem;")
+            w.blank()
+            with w.block(f"function initialize(view as {face.entry}View, setting as Number, "
+                         "parent as WatchUi.MenuItem)"):
+                w.line("Menu2InputDelegate.initialize();")
+                w.line("_view = view;")
+                w.line("_setting = setting;")
+                w.line("_parent = parent;")
+            w.blank()
+            with w.block("function onSelect(item as WatchUi.MenuItem) as Void"):
+                w.line("var index = item.getId();")
+                with w.block("if (index instanceof Number)"):
+                    w.line("_view.chooseSetting(_setting, index);")
+                    w.line("_parent.setSubLabel(item.getLabel());")
+                w.line("WatchUi.popView(WatchUi.SLIDE_RIGHT);")
     return SourceFile(f"source/{face.entry}SettingsDelegate.mc", w.render())
 
 

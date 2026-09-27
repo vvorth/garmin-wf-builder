@@ -44,7 +44,7 @@ or AOD-related has been observed on a watch or in the simulator.
   default), with lint `settings-menu-unsupported` on `fenix5`/`fenix5x`;
   `edit: phone`'s `settings.xml`, checked against `monkeyc`'s own
   `-settings.json` (no Store packaging, so it does nothing on a sideload);
-  `wfb preview --set`. Not yet seen on a watch. `docs/guide/settings.md`.
+  `wfb preview --set`. Seen working on `fr955`; a choice's options list and a fēnix 8 are not yet seen. `docs/guide/settings.md`.
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
   friendly error (`wfb.build.select_devices`); complication, weather and
   field touches are `has`-guarded (`wfb/availability.py`); lints

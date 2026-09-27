@@ -622,9 +622,11 @@ Phone-side settings work only for a Connect IQ Store install, private beta
 included (`docs/research/17-phone-settings.md` §2). For a sideload, the one
 way the wearer changes a `settings:` value is the generated on-watch menu,
 opened from the watch's Watch Face menu (`AppBase.getSettingsView`), which
-`fenix5`/`fenix5x` lack. **Not verified on a watch:** that the menu entry
-appears on `fr955`, and on a fēnix 8 beside the native editor; that a change
-applies at once; and which memory limit the menu runs under.
+`fenix5`/`fenix5x` lack. **Seen working on `fr955`** by the user
+(2026-09-27): the menu opens and a change applies. **Not verified on a
+watch:** a choice's list of options (that build cycled through them
+instead), the menu on a fēnix 8 beside the native editor, and which memory
+limit the menu runs under.
 
 ---
 
