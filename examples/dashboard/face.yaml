@@ -548,10 +548,9 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     lint:
-      allow: [safe-area, config-unsupported]
+      allow: [safe-area]
       reason: "hugs the bezel on purpose; stays inside the physical disc, only
-        past the 2% margin; fr955/fr255/fenix6 have no on-device editor
-        and keep the default colours"
+        past the 2% margin"
 
   arc_battery_left:
     type: progress

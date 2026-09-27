@@ -257,10 +257,9 @@ elements:
     when_absent: hide
     antialias: true
     lint:
-      allow: [safe-area, config-unsupported]
+      allow: [safe-area]
       reason: "hugs the bezel on purpose; stays inside the physical disc, only
-        past the 2% margin; fr955 has no on-device editor and keeps the
-        default colours"
+        past the 2% margin"
 
 
   hours:

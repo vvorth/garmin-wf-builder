@@ -7,7 +7,8 @@
 # the generated starting point it grew out of (it carries the small-seconds
 # subdial).
 #
-# fr955 has no native editor, so it keeps the default style.
+# fr955 has no native editor, so it picks the style from the generated
+# settings menu instead.
 #
 # Build it:    ./wfb.py build examples/analog-custom/face.yaml
 # Preview it:  ./wfb.py preview examples/analog-custom/face.yaml --time 10:09:42
@@ -218,11 +219,6 @@ static:
     start_angle: 0deg
     sweep: 360deg
     color: config.colors.track
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps every declared default
-        forever, which is this example's whole point -- see the header
-        comment."
 
   ticks:
     type: group
@@ -231,10 +227,6 @@ static:
       - { id: tick_3, shape: line, type: shape, at: { angle: 90deg, radius: 84%r }, to: { angle: 90deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
       - { id: tick_6, shape: line, type: shape, at: { angle: 180deg, radius: 84%r }, to: { angle: 180deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
       - { id: tick_9, shape: line, type: shape, at: { angle: 270deg, radius: 84%r }, to: { angle: 270deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps every declared default
-        forever, the same as dial_ring above."
 
 layouts:
   classic:

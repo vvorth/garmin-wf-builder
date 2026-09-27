@@ -12,8 +12,9 @@ examples must recurse: `tests/test_templates.py` uses `rglob`, and a flat
 `examples/*/face.yaml` glob now sweeps up only the four wearable faces.
 
 Every example lints clean on every target. Where a design deliberately
-touches the bezel or accepts a platform gap (no on-device editor, no
-Complications), the element says so with `lint: {allow: [...], reason:}`.
+touches the bezel or accepts a platform gap (no Complications), the element
+says so with `lint: {allow: [...], reason:}`. No verification target needs a
+`config-unsupported` allow: fr955 edits `config:` from the settings menu.
 
 ## `features/`
 
