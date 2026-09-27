@@ -5,10 +5,12 @@
                            [--crop L,T,R,B] [--zoom REGION] [--style NAME] [--asleep] [--aod]
                            [-o OUT.png]
 
-Renders the design with `wfb preview` (same geometry, fonts and 64-colour
-quantisation the watch uses), crops the target to a square around the dial,
-scales it to the preview's size, masks both to the round screen, and writes
-one sheet of four panels:
+Renders the design with `wfb preview` (same geometry, fonts and palette
+quantisation the watch uses), crops the target to the screen's aspect ratio
+(square for a round dial), scales it to the preview's size, masks both to
+the screen's visible area (the round dial, or a rectangular or Instinct
+screen's own outline, subscreen window included), and writes one sheet of
+four panels:
 
     target | preview | 50/50 overlay | difference heat map (bright = differs)
 
@@ -48,6 +50,11 @@ except ImportError:  # re-run under the project's own venv, like wfb.py does
         os.execv(str(venv_python), [str(venv_python), __file__, *sys.argv[1:]])
     raise
 
+# `wfb preview` paints what the bezel hides in this grey
+# (`wfb.preview._mask_shape`). On a 64- or 2-colour panel no design colour can
+# be it; on a full-colour one a stray anti-aliased pixel might, which only
+# leaves that pixel out of the score.
+OUTSIDE = (24, 24, 24)
 PANEL_GAP = 8
 CAPTION = 22
 GRID_NAMES = [["top-left", "top", "top-right"],
@@ -81,30 +88,34 @@ def render_preview(design: Path, args: argparse.Namespace) -> Image.Image:
     return Image.open(io.BytesIO(proc.stdout)).convert("RGB")
 
 
-def square_crop(image: Image.Image, crop: str | None) -> Image.Image:
+def screen_crop(image: Image.Image, crop: str | None, size: tuple[int, int]) -> Image.Image:
+    """`--crop`'s box, else the largest centred box of the screen's aspect ratio."""
     if crop:
         left, top, right, bottom = (int(v) for v in crop.split(","))
         return image.crop((left, top, right, bottom))
-    side = min(image.size)
-    left = (image.width - side) // 2
-    top = (image.height - side) // 2
-    return image.crop((left, top, left + side, top + side))
+    aspect = size[0] / size[1]
+    width = min(image.width, round(image.height * aspect))
+    height = min(image.height, round(width / aspect))
+    left = (image.width - width) // 2
+    top = (image.height - height) // 2
+    return image.crop((left, top, left + width, top + height))
 
 
-def round_mask(size: tuple[int, int]) -> Image.Image:
-    mask = Image.new("L", size, 0)
-    ImageDraw.Draw(mask).ellipse([0, 0, size[0] - 1, size[1] - 1], fill=255)
-    return mask
+def visible_mask(preview: Image.Image) -> Image.Image:
+    """The screen's visible area, read back from the preview's own mask."""
+    outside = Image.new("RGB", preview.size, OUTSIDE)
+    diff = ImageChops.difference(preview, outside).convert("L")
+    return diff.point(lambda v: 255 if v else 0)
 
 
 def masked(image: Image.Image, mask: Image.Image) -> Image.Image:
-    out = Image.new("RGB", image.size, (24, 24, 24))
+    out = Image.new("RGB", image.size, OUTSIDE)
     out.paste(image, (0, 0), mask)
     return out
 
 
 def score(diff: Image.Image, mask: Image.Image, box=None) -> float:
-    """Mean per-pixel difference inside the round mask, 0 (same) to 100."""
+    """Mean per-pixel difference inside the visible area, 0 (same) to 100."""
     grey = diff.convert("L")
     if box:
         grey, mask = grey.crop(box), mask.crop(box)
@@ -135,8 +146,9 @@ def main() -> None:
     parser.add_argument("--asleep", action="store_true", help="render the sleeping frame")
     parser.add_argument("--aod", action="store_true",
                         help="render the AMOLED always-on frame (for an always-on screenshot)")
-    parser.add_argument("--crop", help="L,T,R,B pixel box of the dial in the target "
-                                       "(default: centred square)")
+    parser.add_argument("--crop", help="L,T,R,B pixel box of the screen in the target "
+                                       "(default: the largest centred box of the "
+                                       "screen's aspect ratio)")
     parser.add_argument("--zoom", help="also blow up one region 3x: a region name "
                                        "(top-left ... bottom-right, centre) or 'worst'")
     parser.add_argument("--scale", type=int, default=2, help="preview scale (default 2)")
@@ -145,9 +157,9 @@ def main() -> None:
     args = parser.parse_args()
 
     preview = render_preview(args.design, args)
-    target = square_crop(Image.open(args.target).convert("RGB"), args.crop)
+    target = screen_crop(Image.open(args.target).convert("RGB"), args.crop, preview.size)
     target = target.resize(preview.size, Image.LANCZOS)
-    mask = round_mask(preview.size)
+    mask = visible_mask(preview)
     target, preview = masked(target, mask), masked(preview, mask)
 
     diff = ImageChops.difference(target, preview)

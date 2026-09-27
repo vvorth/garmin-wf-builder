@@ -41,4 +41,5 @@ find . ~ /workspace -maxdepth 6 -name watchface-builder.md 2>/dev/null | head
   `examples/dashboard/face.yaml` (the user's playground) or the other
   examples unless asked.
 - **Show the person the last compare sheet** when you report, rather than
-  only describing it.
+  only describing it, and a `wfb preview --skin` render: the face inside the
+  watch's own simulator image.

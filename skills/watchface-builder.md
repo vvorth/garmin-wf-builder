@@ -35,15 +35,18 @@ not a sign that something went wrong.
 `wfb preview` draws the face from **the same resolved per-device geometry
 the generated Monkey C uses**, in **Garmin's own device fonts** (when
 `wfb doctor` reports `Garmin fonts ... previews draw exact glyph shapes`),
-snapped to the watch's **64-colour palette** and masked to the round
-screen. A position, a size, a font's width or a colour that differs between
+snapped to what the panel can show (the **64-colour palette** on a MIP
+watch, black and white on an Instinct) and masked to the screen's visible
+area: the round dial, or a rectangular or Instinct screen's own outline. A
+position, a size, a font's width or a colour that differs between
 the picture and the preview **differs on the watch too**. Do not explain a
 mismatch away as "preview inaccuracy": fix the design.
 
 What the preview genuinely cannot show:
 
 - **data:** it uses fixed sample readings (10:09:42, 8432 steps, HR 72,
-  battery 68 %, Wednesday 3 Sep). Match the *time* with `--time`; the other
+  battery 68 %, Wednesday 3 Sep, metric units; `--units statute` for the
+  other). Match the *time* with `--time`; the other
   values will differ from the picture's and that is fine;
 - **`complication.*` readings** show as absent, graphs draw a synthetic
   curve, and an `icon_for:` weather icon always draws;
@@ -84,7 +87,7 @@ Learn the vocabulary from the tool, not from memory:
 
 ```sh
 wfb sources            # every data source you may bind, its type, whether it can be absent
-wfb devices            # the watches you may target
+wfb devices            # the watches you may target: screen size, shape, display, colours
 wfb fonts <device>     # that watch's system fonts (with pixel heights) and vector faces
 wfb series             # what a graph may plot
 wfb complications      # what on_hold: may open
@@ -119,12 +122,21 @@ dx = (x - cx) / R * 100 %r        dy = (y - cy) / R * 100 %r
 ```
 
 where `(cx, cy)` is the dial centre and `R` its radius in the picture's
-pixels. If you can run Python, **measure the picture with Pillow** rather
+pixels. On a **rectangular or Instinct screen**, `%r` is half the *shorter*
+side, the origin is still the screen's centre, and `%` is a fraction of the
+screen per axis (width across, height down); `wfb devices` gives each
+screen's size in pixels. If you can run Python, **measure the picture with Pillow** rather
 than estimating: sample colours, scan a row or a ray from the centre for
 where ink starts and stops, find the extent of a block of text. A minute of
 measuring saves three rounds of nudging. For example, scanning outward along
 12 o'clock gives the inner and outer radius of the top tick, and the widest
 run of dark pixels across it gives its width.
+
+**Which watch is it?** A round dial fits the default targets. A square or
+rectangular screen is a Venu Sq/X1 class watch, and a squarish screen with
+cut corners and a small round window top right is an **Instinct**
+(semi-octagon, black and white only). Target a watch of the picture's own
+shape (`wfb devices` lists each one's `shape`), and say which you chose.
 
 **What is the screen?** Decide before measuring. A screenshot's whole
 round area is the screen. A photo or render of a watch also shows a case,
@@ -161,14 +173,20 @@ Angles run **clockwise from 12 o'clock**: `0deg` top, `90deg` 3 o'clock,
 | You see | Use | Chapter in `docs/guide/` |
 |---|---|---|
 | any text, digital time, date, a number | `text` (a `face:` font plus `curve:` for rotated or curved text) | `text.md`, `fonts.md`, `data.md` |
+| a sunrise time, recovery hours, a race time, a pace | `text` with a duration format on a number of seconds (`{:%h:%M}`, `{:%-H:%M:%S}`, `{:%-M:%S}{unit}`) | `data.md` |
+| a distance, temperature, elevation or speed with its unit | `text` with `units: auto` and `{unit}` in `format:` | `data.md` |
 | outlined or hollow digits, a halo round text | `text` with `outline:` (a pattern's `shape: text` part takes it too) | `text.md` |
 | rectangle, card, pill, disc, ring, wedge, divider | `shape` | `shapes.md` |
 | a goal ring or bar that fills | `progress` (`style: arc` or `bar`) | `progress-and-graphs.md` |
+| a ring or bar of separate cells, some lit | `progress` with `style: segments` | `progress-and-graphs.md` |
+| coloured zones with a dot at the value | `progress` with `style: scale` | `progress-and-graphs.md` |
+| a gauge needle driven by a reading (battery, HR) | `progress` with `style: needle` | `progress-and-graphs.md` |
 | a line, area or bar chart | `graph` | `progress-and-graphs.md` |
 | a small symbol (heart, steps, battery, weather) | `icon` | `icons.md` |
 | analog hands | top-level `hands:` set plus a `type: hands` element | `analog-hands.md` |
 | ticks, indices, numerals round a dial, a row of dots | `pattern` (`radial` or `linear`) | `patterns.md` |
 | a wearer-selectable data spot | `complication_slot` | `configuration.md` |
+| a gauge or number in an Instinct's small round window | any element at `at: { anchor: subscreen }` | `placement.md` |
 | several things that move together | `group` | `elements.md` |
 
 Anything that never changes (background, ticks, printed numerals, fixed
@@ -207,7 +225,8 @@ your interpretation and a proposed default for each open point in **one
 numbered message**. Defaults to propose: the design's shown colours
 snapped to the palette, `%h` for the hour (follows the watch's 12/24-hour
 setting), `when_absent: placeholder` with `"--"` for a lone reading, `hide`
-inside a cluster, and targets `fenix8solar47mm, fenix8solar51mm, fr955`.
+inside a cluster, and targets `fenix8solar47mm, fenix8solar51mm, fr955`
+for a round picture (a watch of the picture's own shape otherwise).
 
 **If the person says to use your judgement, or gave no room for questions,
 do that** and list the assumptions you made in your final report.
@@ -224,9 +243,20 @@ Start from a template, which is already correct, so you edit rather than
 invent:
 
 ```sh
-wfb new "Their Face" -t minimal -o their-face/face.yaml   # background and time
-wfb new "Their Face" -o their-face/face.yaml              # time, ring, two clusters, battery
+wfb new "Their Face" -t analog -o their-face/face.yaml    # pick the closest template
+wfb new --list                                            # all of them
 ```
+
+| Template | Starts you with |
+|---|---|
+| `dashboard` (the default) | the time, a step-goal ring, heart-rate and step readouts, a battery bar |
+| `minimal` | a background and the time |
+| `analog` | a three-hand dial: minute and hour ticks, twelve numerals, a date window |
+| `sport` | the time, a heart-rate graph, four icon-and-value readouts |
+| `gauge` | a battery needle gauge across the top half, the time below it |
+| `calendar` | the time over a month of dots, today lit |
+| `themed` | colour schemes, accent and data colours, two complication slots |
+| `amoled` | an AMOLED target with a sparse always-on frame |
 
 Then study the example closest to the picture before writing much. They
 are known-good and warning-free:
@@ -235,8 +265,10 @@ are known-good and warning-free:
 |---|---|
 | analog dial with hands, ticks, numerals | `examples/analog-custom/face.yaml`, `examples/features/analog/face.yaml`, `examples/features/patterns/face.yaml` |
 | dense digital face with data clusters, arcs | `examples/showcase/face.yaml`, `examples/features/align/face.yaml` |
+| gauges, segmented rings, zone scales | `examples/features/gauge/face.yaml`, `examples/features/progress/face.yaml` |
 | rotated or curved text | `examples/features/vector-text/face.yaml` |
 | graphs | `examples/features/graph/face.yaml` |
+| an Instinct: black and white, the subscreen window | `examples/features/instinct/face.yaml` |
 | every shape | `examples/features/shapes/face.yaml` |
 
 ### Rules that otherwise cost you a round
@@ -250,15 +282,24 @@ are known-good and warning-free:
    (with `placeholder: "--"`) or `fallback`.
 3. **Colours: each channel is `00`, `55`, `AA` or `FF`**, or the MIP panel
    dithers it. Snap every colour you measured to the nearest legal one,
-   declare it in `palette:` and reference `palette.<name>`.
+   declare it in `palette:` and reference `palette.<name>`. On an
+   **Instinct** (2 colours) only `#000000` and `#FFFFFF` are safe
+   (`palette-mono` warns on anything else): turn the picture's shades into
+   black-or-white shapes, not greys.
 4. **Time needs a time format**: `value: time.clock`, `format: "{:%h:%M}"`.
-   Dates: `value: date.today`, `format: "{:%a %e}"`. `text:` is a literal
-   string, `value:` is an expression; never put a literal in `value:`.
+   Dates: `value: date.today`, `format: "{:%a %e}"`. Text around a field is
+   kept, and one spec may hold several fields (`"{:%a}, {:%e %b}"`), but
+   every spec needs a `{}` field: a bare `%H:%M` is an error. `text:` is a
+   literal string, `value:` is an expression; never put a literal in
+   `value:`.
 5. **An arc is a stroke**: `radius`, `thickness` (pen width), `start_angle`,
    `sweep`. There is no filled arc, no round cap, no gradient. A solid wedge
    is a `polygon`; a disc is a `circle`.
 6. **`style: arc` and `style: bar` take different keys.** An arc progress
    needs `radius`/`thickness`/`start_angle`/`sweep`, a bar needs `size`.
+   `segments` (`count:`, `gap:`) and `scale` (`bands:`) take either track.
+   A `needle` takes neither: its `needle:` parts are authored like a hand's
+   (rule 9), about `at:`, turned to `start_angle + fraction × sweep`.
 7. **A font or icon `size:` is `px` or `%r` only.** No bare number, no
    `scale:`.
 8. **Icons:** `icon: <name>` for a catalogue name (`wfb sources` lists
@@ -289,11 +330,25 @@ are known-good and warning-free:
 14. **Not available**: `image` and `raw` elements, per-device `overrides`,
     transparency, animation, and taps or swipes (a face gets only touch and
     hold, via `on_hold:`). `modes: [always_on]` is gone: an AMOLED sleep
-    frame is `aod:` (below). If the picture needs something missing, say so
-    and use the closest thing that exists.
+    frame is `aod:` (below). There are no wearer settings beyond `config:`
+    (no on/off switches, no choice lists of your own). If the picture needs
+    something missing, say so and use the closest thing that exists.
+15. **`anchor: subscreen`** (Instinct 2/2X/3 Solar 45mm/E 45mm) goes on a
+    top-level element's own `at:`, and inside it `%` is of the 62 px window;
+    `%r` is still the whole screen's. A target without the window is a build
+    error unless that element sets `if_unavailable: hide`.
 
 `wfb schema` prints the normative definition; `docs/guide/` explains every
 key with examples. `docs/README.md` is the index.
+
+### Wearer choices: `config:`
+
+If the picture comes with colour variants, or a data spot the wearer should
+pick, that is `config:` (`docs/guide/configuration.md`,
+`styles-and-layouts.md`; `wfb new -t themed` starts one). A fēnix 8 edits it
+in Garmin's own face editor; an fr955 gets the same choices in a generated
+settings menu, where a data slot's optional `label:` is its title. You
+design it once for both.
 
 ### AMOLED targets: the always-on frame
 
@@ -357,9 +412,10 @@ python3 skills/face-compare.py <picture> their-face/face.yaml \
     [--crop L,T,R,B] [--zoom centre|worst|<region>] -o build/compare/round-<n>.png
 ```
 
-It renders the preview, crops the picture to a square (or to `--crop`, the
-dial's pixel box, when the picture has a margin, a bezel or a strap), scales
-both to the same size and writes one sheet:
+It renders the preview, crops the picture to the screen's shape (a square
+for a round dial; or to `--crop`, the screen's pixel box, when the picture
+has a margin, a bezel or a strap), scales both to the same size, masks both
+to the visible area and writes one sheet:
 **target | preview | 50/50 overlay | difference heat map**. It prints a
 difference score (0 = identical) for the whole dial and for each ninth of it.
 `--zoom <region>` adds that region of both images blown up 3x; use
@@ -368,7 +424,8 @@ difference score (0 = identical) for the whole dial and for each ninth of it.
 
 **Get the crop right first.** If the overlay shows two dials of different
 sizes or offset centres, every later comparison is noise. Pass `--crop` so
-the picture's *screen* circle fills the square exactly.
+the picture's *screen* fills the box exactly: the dial circle on a round
+face, the display's rectangle otherwise.
 
 Then **look at the sheet** (open the PNG) and work through this list in
 order, biggest error first:
@@ -422,7 +479,10 @@ claim the design matches.
 
 Also preview every target once at the end (`wfb preview face.yaml`, output
 in `build/preview/`): the 51 mm fēnix has a bigger screen, and `%r` should
-keep it in proportion.
+keep it in proportion. A system font does *not* scale with `%r`, so on a
+target of another size or shape check that text still fits its space.
+`wfb preview face.yaml --skin` sets each render inside the watch's own
+simulator image, the best picture to show the person at the end.
 
 ---
 
@@ -554,7 +614,10 @@ schema describes.
 | `unknown data source ...` | Use the suggestion; check `wfb sources`. Never invent one |
 | `a time value needs a strftime-style format` | `format: "{:%h:%M}"` |
 | `will be dithered` / `palette-dither` | Use the nearest legal colour it names |
-| `safe-area` / `off-screen` | Move it inward or shrink it: it is under the bezel |
+| `palette-mono` | An Instinct shows black and white only: use the one it names |
+| `'...' has no {} field` | Wrap the codes in a field, `"{:%H:%M}"` not `"%H:%M"`; a fixed string goes in `text:` |
+| `... have no subscreen window` | Target only Instincts, or give the element `if_unavailable: hide` |
+| `safe-area` / `off-screen` | Move it inward or shrink it: it is under the bezel (or outside a rectangle's rounded corners, or the Instinct's window) |
 | `text-overflow` | The widest value does not fit: smaller font, or more room |
 | `curve: requires a face: font` | Rotated or curved text needs a `fonts:` entry with `face:` |
 | `font-unavailable` | That vector face is missing on a target; add a fallback face to the list, or `if_unavailable: hide` |
