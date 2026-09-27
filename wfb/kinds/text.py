@@ -518,7 +518,7 @@ class TextKind(ElementKind[Text, PlacedText]):
         return None if placed.font.available else HIDDEN_BY_FONT
 
     def resolve(self, r: Resolver, element: Text, parent: Box, depth: int) -> Placed:
-        font = r.text_font(element.font, element.font_is_custom, element.id, element.curve)
+        font = r.text_font(element.font, element.font_is_custom, element.curve)
         widest = _widest_text(element)
         # A baked sheet measures exactly; anything else is an estimate --
         # still a conservative, non-zero one for an *unavailable* vector

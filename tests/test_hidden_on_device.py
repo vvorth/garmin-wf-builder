@@ -111,3 +111,73 @@ def test_the_font_lint_leaves_out_a_device_the_subscreen_hides(write_design, db)
     font = [d for d in bag.items if d.code == "font-unavailable"]
     assert len(font) == 1, bag.render()
     assert INSTINCT in font[0].message and LACKS_FACE not in font[0].message
+
+
+# -- what the resolve records against a hidden element ------------------------
+
+#: AMOLED, no subscreen, and no pixel metrics for `FONT_SYSTEM_LARGE`.
+NO_METRICS = "fenix847mm"
+
+SUBSCREEN_TEXT = """
+format: 1
+face:
+  id: 5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+  name: Hidden
+targets: [TARGETS]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: level
+    type: text
+    text: "42"
+    font: FONT_SYSTEM_LARGE
+    at: {anchor: subscreen}
+    color: palette.fg
+    if_unavailable: hide
+  - id: tick
+    type: shape
+    shape: rectangle
+    at: {anchor: subscreen}
+    size: {width: 0.1%r, height: 10px}
+    min_1px: false
+    color: palette.fg
+    if_unavailable: hide
+"""
+
+
+def _drawn(text: str) -> str:
+    """The same design with nothing anchored to the subscreen."""
+    return (text.replace("at: {anchor: subscreen}", "at: {anchor: center}")
+            .replace("    if_unavailable: hide\n", ""))
+
+
+def _metrics_notes(bag: Bag) -> list:
+    return [d for d in bag.items if d.code == "metrics" and d.message.startswith("level:")]
+
+
+def test_no_metrics_note_where_the_element_is_hidden(write_design, db):
+    """The premise: where `level` draws, the missing metrics are a note."""
+    drawn = _drawn(SUBSCREEN_TEXT)
+    _, _, _, bag = _resolve(write_design, db, drawn, (NO_METRICS,))
+    assert _metrics_notes(bag), bag.render()
+    _, _, _, bag = _resolve(write_design, db, SUBSCREEN_TEXT, (NO_METRICS,))
+    assert not _metrics_notes(bag), bag.render()
+
+
+def test_a_metrics_note_is_on_its_element_s_line(write_design, db):
+    drawn = _drawn(SUBSCREEN_TEXT)
+    face, _, _, bag = _resolve(write_design, db, drawn, (NO_METRICS,))
+    [note] = _metrics_notes(bag)
+    level = next(e for e in face.elements if e.id == "level")
+    assert note.span is not None and note.span == level.span
+
+
+def test_no_sub_pixel_finding_where_the_element_is_hidden(write_design, db):
+    """0.1%r is under a pixel on both devices; only the one that draws
+    `tick` may say so."""
+    _, _, _, bag = _resolve(write_design, db, SUBSCREEN_TEXT, (INSTINCT, NO_METRICS))
+    findings = [d for d in bag.items if d.code == "sub-pixel-length"]
+    assert findings, bag.render()
+    assert all(INSTINCT in d.message and NO_METRICS not in d.message for d in findings), \
+        bag.render()

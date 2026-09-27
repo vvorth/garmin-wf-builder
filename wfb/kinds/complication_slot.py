@@ -397,7 +397,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         *declared* icon size as the icon's height.
         """
         cx, cy = r.point(element.at, parent)
-        font = r.font_for_ref(element.font, element.font_is_custom, element.id)
+        font = r.font_for_ref(element.font, element.font_is_custom)
         widest = _complication_slot_widest(r, element)
         text_width, line_height = font.width(widest), font.line_height
 

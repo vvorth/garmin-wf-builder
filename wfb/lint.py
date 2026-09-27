@@ -15,7 +15,6 @@ from __future__ import annotations
 import difflib
 import re
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import replace as dataclass_replace
 from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
 from . import availability, catalog, complications, expr, kinds, series
@@ -103,12 +102,12 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     checked here; the cross-device check its reason names reports it
     (:func:`check_subscreen_availability`,
     :func:`check_vector_font_availability`)."""
-    if resolved.hidden:
-        resolved = dataclass_replace(resolved, items=resolved.shown_items)
+    resolved = resolved.drawn_only()
     for check in DEVICE_CHECKS:
         check(resolved, bag)
     for warning in resolved.warnings:
-        bag.note("metrics", warning, confidence="not checked -- no metrics available")
+        bag.note("metrics", warning.message, warning.span,
+                 confidence="not checked -- no metrics available")
 
 
 def _suppressed(code: str, allows: Iterable[frozenset[str]]) -> bool:

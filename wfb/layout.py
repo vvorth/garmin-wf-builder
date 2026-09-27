@@ -1021,7 +1021,8 @@ class PlacedComplicationSlot(Placed):
 
 @dataclass(frozen=True)
 class _Owner:
-    """Who a `SubPixelLength` is recorded against (`Resolver._owned_by`)."""
+    """Who a `SubPixelLength` or `ResolveWarning` is recorded against
+    (`Resolver._owned_by`)."""
 
     id: str
     span: Span | None
@@ -1053,6 +1054,18 @@ HIDDEN_BY_SUBSCREEN = "subscreen"
 HIDDEN_BY_FONT = "font-unavailable"
 
 
+@dataclass(frozen=True)
+class ResolveWarning:
+    """Something this device's resolve could not check: a system font with
+    no pixel metrics here, so its text's extent is a guess.  Recorded by
+    `Resolver.font_for_ref`, reported by `wfb.lint.run` as a `metrics` note
+    on the owner's own line."""
+
+    message: str
+    span: Span | None  # the owner's line: a part's for a pattern part
+    element: Element   # the element the owner belongs to
+
+
 @dataclass
 class ResolvedFace:
     face: Face
@@ -1061,7 +1074,7 @@ class ResolvedFace:
     items: list[Placed]
     fonts: dict[str, BakedFont]
     screen: IntBox
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[ResolveWarning] = field(default_factory=list)
     #: Every `SubPixelLength` this device's resolve recorded, in resolve
     #: order, not deduplicated -- the lint decides how to present them.
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
@@ -1080,6 +1093,19 @@ class ResolvedFace:
     def shown_items(self) -> list[Placed]:
         """`items` less :attr:`hidden`: what this device actually draws."""
         return [p for p in self.items if p.id not in self.hidden]
+
+    def drawn_only(self) -> "ResolvedFace":
+        """This face less what the device does not draw: :attr:`shown_items`,
+        and only the sub-pixel lengths and warnings recorded against them --
+        what the per-device lints check (`wfb.lint.run`).  The resolve
+        records everything; this is the one place a hidden item drops out
+        of those records."""
+        if not self.hidden:
+            return self
+        return replace(
+            self, items=self.shown_items,
+            sub_pixel=[sp for sp in self.sub_pixel if sp.element.id not in self.hidden],
+            warnings=[w for w in self.warnings if w.element.id not in self.hidden])
 
     def in_mode(self, mode: str) -> list[Placed]:
         return [p for p in self.items if mode in p.element.modes]
@@ -1186,7 +1212,7 @@ class Resolver:
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
         self.hidden: dict[str, str] = {}
-        self.warnings: list[str] = []
+        self.warnings: list[ResolveWarning] = []
         #: `SubPixelLength`s, in resolve order (`extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
         #: Who a `SubPixelLength` is recorded against (`_owned_by`): the
@@ -1229,7 +1255,6 @@ class Resolver:
                     reason = HIDDEN_BY_SUBSCREEN
                 else:
                     here = Box(*window)
-            first_sub_pixel = len(self.sub_pixel)
             with self._owned_by(_Owner(element.id, element.span, element)):
                 if isinstance(element, Group):
                     box = self._group_box(element, here)
@@ -1245,12 +1270,11 @@ class Resolver:
                     reason = reason or kind.hidden_reason(placed)
             if reason is not None:
                 self.hidden[element.id] = reason
-                del self.sub_pixel[first_sub_pixel:]  # nothing draws here to round away
 
     @contextmanager
     def _owned_by(self, owner: "_Owner") -> Iterator[None]:
-        """Record every `SubPixelLength` inside this scope against `owner`,
-        then restore whoever owned them before."""
+        """Record every `SubPixelLength` and `ResolveWarning` inside this
+        scope against `owner`, then restore whoever owned them before."""
         previous, self._owner = self._owner, owner
         try:
             yield
@@ -1280,14 +1304,13 @@ class Resolver:
         cx, cy = self.point(element.at, parent)
         return self.sized_box(element, parent, cx, cy)[0]
 
-    def text_font(self, font: str, font_is_custom: bool, warn_id: str,
-                  curve: Curve | None) -> _Font:
+    def text_font(self, font: str, font_is_custom: bool, curve: Curve | None) -> _Font:
         """`font_for_ref`, plus gates 1-3 for a `face:` (vector) font: its
         baked sheet and system metric are both meaningless (nothing bakes a
         vector font), so they give way to this device's resolved face and a
         metric synthesised for it.  Shared by a `text` element and a
         pattern's `shape: text` part."""
-        resolved = self.font_for_ref(font, font_is_custom, warn_id)
+        resolved = self.font_for_ref(font, font_is_custom)
         if not resolved.is_custom:
             return resolved
         spec = self.face.fonts[font]
@@ -1360,15 +1383,15 @@ class Resolver:
         self, part: AnyHandPart, owner: str, index: int, *, min_1px: bool,
     ) -> ResolvedHandPart:
         """:meth:`_hand_part_geometry`, with the part (`<owner>.parts[<index>]`,
-        its own span) as the owner of any `SubPixelLength` it raises, for
-        the part's duration only."""
+        its own span) as the owner of any `SubPixelLength` or
+        `ResolveWarning` it raises, for the part's duration only."""
         owner_id = f"{owner}.parts[{index}]"
         assert self._owner is not None, "no element is being resolved yet"
         with self._owned_by(replace(self._owner, id=owner_id, span=part.span)):
-            return self._hand_part_geometry(part, owner_id, min_1px=min_1px)
+            return self._hand_part_geometry(part, min_1px=min_1px)
 
     def _hand_part_geometry(
-        self, part: AnyHandPart, owner_id: str, *, min_1px: bool,
+        self, part: AnyHandPart, *, min_1px: bool,
     ) -> ResolvedHandPart:
         """One hand or pattern part -> whole-pixel geometry in its own frame
         (origin = the axis / the pattern's `at:`, 12 o'clock up), with its
@@ -1376,8 +1399,7 @@ class Resolver:
         :func:`round_half_away`, so a mirrored `dx: -1.5px`/`1.5px` pair
         stays symmetric.
 
-        `owner_id` (`<owner>.parts[<index>]`) names the part in any "no
-        pixel metrics" warning it raises. `min_1px` is the owning element's
+        `min_1px` is the owning element's
         resolved value; the part's own `min_1px:` overrides it here, per
         placement, because one `hands:` set can be placed by several
         elements that resolve it differently.
@@ -1456,7 +1478,7 @@ class Resolver:
             # `wfb.kinds.pattern.PatternKind.resolve` measures each drawn copy's own ink
             # instead.
             x0, y0 = self._hand_point(part.at)
-            font = self.text_font(part.font, part.font_is_custom, owner_id, part.curve)
+            font = self.text_font(part.font, part.font_is_custom, part.curve)
             curve = resolved_curve(part.curve)
             if part.curve is not None and curve.style == "radial" and part.curve.radius is not None:
                 # Through `_hand_extent`, like any other part radius: a
@@ -1574,11 +1596,12 @@ class Resolver:
             span=self._owner.span, element=self._owner.element,
         ))
 
-    def font_for_ref(self, font: str, font_is_custom: bool, warn_id: str) -> _Font:
+    def font_for_ref(self, font: str, font_is_custom: bool) -> _Font:
         """A `font:` reference resolved for this device, before any vector
         face gate (`text_font` adds those): a custom font's baked sheet
         (or, unbaked -- a layout-only caller -- its declared size), or a
-        system font's `FontMetric`, warning once when the device has none.
+        system font's `FontMetric`, with a `ResolveWarning` against the
+        current owner when the device has none.
         The metric rides onto the `Placed*` so `wfb.preview` measures and
         draws through the same face (plan 09 §4 R2.3)."""
         if font_is_custom:
@@ -1587,10 +1610,13 @@ class Resolver:
             return _Font(size, font, True, baked, None, fonts_root=self.device.fonts_root)
         metric = self.device.system_fonts.get(font)
         if metric is None:
-            self.warnings.append(
-                f"{warn_id}: no pixel metrics for {font} on {self.device.id}; "
-                f"text extent is not checked"
-            )
+            owner = self._owner
+            assert owner is not None, "no element is being resolved yet"
+            self.warnings.append(ResolveWarning(
+                f"{owner.id}: no pixel metrics for {font} on {self.device.id}; "
+                f"text extent is not checked",
+                owner.span, owner.element,
+            ))
         return _Font(metric.size_px if metric else 0, font, False, None, metric,
                      fonts_root=self.device.fonts_root)
 
