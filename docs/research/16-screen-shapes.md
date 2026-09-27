@@ -27,33 +27,55 @@ memory limit. **VERIFIED.**
 28 further rectangular devices (Edge, Oregon and similar) cannot run a face
 at all. 115 + 9 + 8 + 4 = 136, which matches root `CLAUDE.md` §1.
 
-**None of these 21 is installed.** `vendor/devices/` holds 22 devices, all
-round (VERIFIED, `ls vendor/devices`). So no code path for a non-round
-screen has ever run against a real `compiler.json`, `simulator.json` or
-`api.debug.xml`. The test suite has no rectangular or semi-shaped device
-fixture either (VERIFIED, `grep` over `tests/`).
+**7 of these 21 are installed** (2026-09-27): `venusq`, `venusq2`,
+`venux1`, `instinct2`, `instinct2x`, `instinct3solar45mm`, `instincte45mm`
+(VERIFIED, `ls vendor/devices`). `venusqm`, `venusq2m`, `instinct2s`,
+`instinctcrossover`, `instincte40mm` and `descentg1` are not; every
+statement below about them is still from the reference alone. Two more
+Instinct-branded devices came with them, `instinct3amoled50mm` (416×416)
+and `instinctcrossoveramoled` (390×390), and both are **round** AMOLED
+(`simulator.json` `display.shape`, VERIFIED): an Instinct is not
+necessarily a semi-octagon. The test suite has no rectangular or
+semi-shaped device fixture yet (VERIFIED, `grep` over `tests/`).
 
 ### 1.1 How much of the list is reachable at the 3.1.0 floor
 
 The shared manifest floor is 3.1.0, and a device below it is a friendly
-build error (`wfb.build.select_devices`, root `CLAUDE.md` 6e). API levels
-live in each device's `compiler.json`, which is not installed for any of
-these. The rows below are therefore **UNVERIFIED** until the files land,
-and come from Garmin's public device pages plus the SDK's own "Since"
-stamps:
+build error (`wfb.build.select_devices`, root `CLAUDE.md` 6e). A device's
+API level is the `connectIQVersion` of its `compiler.json` `partNumbers`
+entries; `wfb devices` prints the highest. For the installed seven
+(**VERIFIED**, `compiler.json`, `wfb devices`):
+
+| Device | API | `deviceFamily` | Display | Colours | Face memory |
+|---|---|---|---|---|---|
+| `venusq` | 3.3.6 (one part number 3.3.1) | `rectangle-240x240` | `lcd` | 65 536 | 98 304 B |
+| `venusq2` | 5.0.0 | `rectangle-320x360` | `amoled` | 65 536 | 131 072 B |
+| `venux1` | 6.0.2 | `rectangle-448x486` | `amoled` | 65 536 | 131 072 B |
+| `instinct2` | 3.4.2 (one part number 3.2.7) | `semioctagon-176x176` | `mip` | 2 | 65 536 B |
+| `instinct2x` | 3.4.3 | `semioctagon-176x176` | `mip` | 2 | 65 536 B |
+| `instinct3solar45mm` | 6.0.2 | `semioctagon-176x176` | `mip` | 2 | 65 536 B |
+| `instincte45mm` | 6.0.2 | `semioctagon-176x176` | `mip` | 2 | 65 536 B |
+
+All seven are above the floor. Note `deviceFamily` spells the shape
+`semioctagon`, without the hyphen `simulator.json` uses (platform
+constraint 14: read it, never derive it). `venusq` is an LCD, a display
+type no installed round device has. The four semi-octagons also set
+`antiAliasedFontSupport: false`.
+
+Still **UNVERIFIED**, from Garmin's public device pages plus the SDK's own
+"Since" stamps:
 
 - **Semi-round (4) and the three 205×148/148×205 rectangles plus `fr920xt`
   (4)** are 2014–2016 products. They are almost certainly Connect IQ 1.x/2.x
   devices, below the floor, and so already friendly errors. If so, only
   **5 rectangles and 8 semi-octagons are realistic targets.**
-- **Semi-octagon** needs at least 3.3.0: `System.SCREEN_SHAPE_SEMI_OCTAGON`
-  is "API Level 3.3.0" (`$CIQ_SDK/doc/Toybox/System.html`, VERIFIED), and
-  `WatchUi.getSubscreen` is 3.2.7 (below).
-- **`venusq`/`venusqm`/`venusq2`/`venusq2m`/`venux1`** are 2020–2025
-  products, 3.x–5.x.
+- The six missing devices (above) are 2021–2025 products and very likely
+  3.x–6.x, like their installed siblings.
 
-The first slice of the plan installs the files and replaces this section
-with `compiler.json` facts.
+`System.SCREEN_SHAPE_SEMI_OCTAGON` is "API Level 3.3.0"
+(`$CIQ_SDK/doc/Toybox/System.html`, VERIFIED), below one `instinct2` part
+number. That does not matter here: the compiler reads the shape from
+`simulator.json` at build time and never asks the device.
 
 ---
 
@@ -100,9 +122,24 @@ against an ideal inscribed circle (**VERIFIED**, this session):
 
 The mismatches are a one-pixel anti-aliased rim. So **the skin's alpha
 channel is a per-device visible-area mask**, at the panel's own
-resolution, with no geometry to guess. For a semi-octagon it would also
-show the subscreen window (§4) as a hole in the mask, if the skin draws it
-that way: **UNVERIFIED** until an Instinct skin is installed.
+resolution, with no geometry to guess.
+
+The non-round skins (**VERIFIED**, 2026-09-27, alpha < 128 counted as
+visible):
+
+| Device | Panel | Visible px | What the mask shows |
+|---|---|---|---|
+| `venusq`, `venusq2` | 240×240, 320×360 | all but 84 | a rectangle with slightly rounded corners |
+| `venux1` | 448×486 | all but 4 078 (1.9%) | a rectangle with visibly rounded corners |
+| `instinct2`, `instinct2x` | 176×176 | 26 942 (87.0%) | the octagon, plus the subscreen as a separate disc behind an opaque ring |
+| `instinct3solar45mm`, `instincte45mm` | 176×176 | 26 481 (85.5%) | the same, inside a 1-px opaque border on all four edges |
+
+So the mask is two connected regions on a semi-octagon: the main face and
+the subscreen disc (§4). A rectangle's mask is not quite the framebuffer:
+`venux1`'s corners hide about 2% of it. The Instinct 3/E border contradicts
+`simulator.json`'s own subscreen box, which starts at row 0 (§4); it is
+most likely a skin-drawing artifact, and a mask-based lint should tolerate
+a 1-px rim rather than trust it.
 
 This replaces "define safe-area geometry per shape" with one
 shape-independent mechanism: load the mask, test ink against it. The
@@ -127,12 +164,27 @@ What that means for a face:
 - The subscreen is the small round window in the top-right corner. It is
   part of the same framebuffer: a face draws into it with ordinary `Dc` calls
   at the box's coordinates. Stock Instinct faces put a gauge or a number
-  there. The API returns a *box*, and the visible part is a circle inscribed
-  in it (**UNVERIFIED**: Garmin's product imagery, not the SDK).
-- The box's coordinates differ per model. They are available at runtime
-  and, if the skin has a hole there, at build time from the mask (§3). They
-  are **not** in the device reference (VERIFIED: `instinct2.json`'s
-  attributes are size, shape, colours, touch, buttons and icon size only).
+  there. The API returns a *box*, and the visible part is the circle
+  inscribed in it: the skin's transparent subscreen region fills its
+  bounding box's inscribed disc to within 1% (**VERIFIED**, the four
+  installed skins, §3).
+- **The box is in `simulator.json`**, as a top-level
+  `subscreen.location` in skin coordinates (**VERIFIED**). Minus
+  `display.location`, it is **x=113, y=0, 62×62 on all four installed
+  semi-octagons**: `instinct2` (212−99, 164−164), `instinct2x` (same),
+  `instinct3solar45mm` (214−101, 158−158), `instincte45mm` (223−110,
+  173−173). The skin mask agrees to within its 1-px anti-aliased rim. So
+  the box is a build-time fact read from a declared field, with no mask
+  analysis needed. That `getSubscreen()` returns the same box at runtime
+  is **UNVERIFIED** (no simulator, no watch), but the simulator draws its
+  subscreen from this field. The box is **not** in the device reference
+  (VERIFIED: `instinct2.json`'s attributes are size, shape, colours,
+  touch, buttons and icon size only).
+- The two round AMOLED Instincts have a `subscreen` key in
+  `simulator.json` too, but it is a different thing: an `image` and
+  overlays for the simulator's dial window, with no `location`
+  (VERIFIED). A reader must key on `subscreen.location`, not on
+  `subscreen`.
 - It is a natural **anchor**. Placement is anchor-relative (ADR 0004 §2), so
   `at: { anchor: subscreen }` with a `%` relative to the subscreen box, not
   the screen, would let one design put its seconds or battery into the
@@ -142,7 +194,12 @@ What that means for a face:
 ## 5. Two-colour and fourteen-colour panels
 
 The eight semi-octagons report `Display Colors: 2` (VERIFIED, reference).
-They are monochrome MIP: black and one "on" colour. The four semi-rounds and
+They are monochrome MIP: black and one "on" colour. The four installed ones
+declare it in `compiler.json`: `bitsPerPixel: 1` and
+`palette: {colors: [000000, FFFFFF, TRANSPARENT, TRANSPARENT],
+isResourcePalette: true}` (VERIFIED). That palette is what `monkeyc`
+quantises resource bitmaps to, so the device files themselves name black
+and white as the only two colours. The four semi-rounds and
 `fr920xt` report 14 (VERIFIED). What the firmware does with any other colour
 is **UNVERIFIED**: nearest-colour mapping, a luminance threshold or dithering
 are all plausible, and the simulator cannot be run to find out (root
@@ -193,9 +250,11 @@ or guard. That is a larger step, and should be the second step.
 
 ## 7. What stays open
 
-1. **API levels** of all 21 devices (§1.1). Needs the device files.
-2. **The subscreen's shape and whether the skin shows it as a hole** (§3,
-   §4). Needs an Instinct skin.
+1. **API levels** of the 14 face-capable non-round devices not installed
+   (§1.1). Needs their device files; the installed seven are all above the
+   floor.
+2. **That `getSubscreen()` returns `simulator.json`'s box at runtime**
+   (§4). Needs a simulator or a watch.
 3. **How a 2-colour panel renders a non-black, non-white colour** (§5).
    Needs a simulator or a watch. Neither is available: the user owns no
    Instinct.
@@ -206,9 +265,8 @@ or guard. That is a larger step, and should be the second step.
 ## 8. Recommendation
 
 1. **Install the device files for the realistic 13** (5 rectangles, 8
-   semi-octagons) and let the existing pipeline tell us what breaks. This
-   costs nothing but the user copying files. It turns §1.1 into facts, and
-   is the cheapest way to find rectangle bugs.
+   semi-octagons) and let the existing pipeline tell us what breaks. Done
+   for 7 of them (§1): 3 rectangles and 4 semi-octagons.
 2. **Rectangles next:** tests with a real rectangular device, preview and
    lint verified, and one example target. Nothing new in the format.
 3. **Replace per-shape geometry with the skin mask** (§3) for the

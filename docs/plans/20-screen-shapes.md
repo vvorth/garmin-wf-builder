@@ -1,15 +1,16 @@
 # 20 — Rectangular and semi-octagon screens
 
-**Status: proposed (2026-09-26), not started. Slice 0 needs the user;
-slices 4 and 5 need decisions D1–D2 first.** Delete this file once every
+**Status: proposed (2026-09-26). Slice 0 done for 7 of the 13 devices
+(2026-09-27); slices 1–3 can start; slices 4 and 5 need decisions D1–D2
+first.** Delete this file once every
 slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/16-screen-shapes.md`. In short: 21 non-round
 devices can run a face, and realistically **13 are reachable at the 3.1.0
 floor** (5 rectangles: `venusq`, `venusqm`, `venusq2`, `venusq2m`, `venux1`;
 8 semi-octagons: the Instinct 2/2S/2X/3/Crossover/E family and `descentg1`).
-None is installed, and no non-round code path has ever run against real
-device files. Semi-round (`fr230`/`235`/`630`/`735xt`) is out of scope
+Seven are installed (slice 0), but no non-round code path has yet been
+exercised against them. Semi-round (`fr230`/`235`/`630`/`735xt`) is out of scope
 unless slice 0 shows they are above the floor.
 
 ## 1. Decisions for the user
@@ -26,32 +27,37 @@ unless slice 0 shows they are above the floor.
   subscreen box, with `%` lengths relative to that box. On a device with no
   subscreen, the element is a build error unless it opts into being hidden
   there, with the same `error|hide` choice a `fonts:` entry's
-  `if_unavailable:` already offers. *Recommended*, but only after slice 0
-  shows the box can be read at build time.
+  `if_unavailable:` already offers. *Recommended.* Slice 0 showed the box
+  is a build-time fact: `simulator.json` declares it as
+  `subscreen.location` (x=113, y=0, 62×62 on all four installed
+  semi-octagons, research 16 §4).
 - **D3 (no decision needed, recorded):** the first 2-colour rule is "black
   and white are the only safe colours", because that is true whatever the
-  firmware's mapping turns out to be (research 16 §5).
+  firmware's mapping turns out to be. The device files agree: each
+  semi-octagon's `compiler.json` `palette` is exactly `000000`, `FFFFFF`
+  (research 16 §5).
 
 ## 2. What changes, by slice
 
-### Slice 0 — device files (the user, on the host)
+### Slice 0 — device files: done for 7 of 13
 
-Copy the 13 device directories from the SDK Manager's install into
-`vendor/devices/`, then run `./tools/setup-env.sh`, which installs new
-devices incrementally. On macOS:
+Installed 2026-09-27: `venusq`, `venusq2`, `venux1`, `instinct2`,
+`instinct2x`, `instinct3solar45mm`, `instincte45mm`, all above the 3.1.0
+floor. Facts in research 16 §1.1, §3–§5. Not installed: `venusqm`,
+`venusq2m`, `instinct2s`, `instinctcrossover`, `instincte40mm`,
+`descentg1`. They are optional: each installed sibling shares its shape,
+and the slices below need one of each shape. `instinct2s` (163×156) and
+`instincte40mm` (166×166) are the only semi-octagons at another
+resolution, so they are the ones worth adding for slice 2. To add them
+later, on macOS (download them in the SDK Manager first):
 
 ```sh
 cd ~/Library/Application\ Support/Garmin/ConnectIQ/Devices
-cp -R venusq venusqm venusq2 venusq2m venux1 \
-      instinct2 instinct2s instinct2x instinct3solar45mm instinctcrossover \
-      instincte40mm instincte45mm descentg1 \
+cp -R venusqm venusq2m instinct2s instinctcrossover instincte40mm descentg1 \
       ~/claude/garmin-wf-builder/vendor/devices/
 ```
 
-Devices the SDK Manager has not downloaded are downloaded there first.
-Then record each device's `connectIQVersion`, `deviceFamily`, display type
-and whether its skin PNG has a subscreen hole, replacing research 16 §1.1's
-UNVERIFIED rows.
+then `./tools/setup-env.sh`.
 
 ### Slice 1 — rectangles, exercised
 
@@ -77,7 +83,9 @@ No format change.
   with a mask) tests the element's ink against the mask instead of
   returning "not checked". Round keeps its analytic circle and
   `BEZEL_MARGIN`. A parity test pins the mask to the circle within the
-  measured 0.5% on `fr955`, `fenix8solar51mm` and `venu`.
+  measured 0.5% on `fr955`, `fenix8solar51mm` and `venu`. The
+  Instinct 3/E skins have a 1-px opaque border the panel does not
+  (research 16 §3), so the mask test tolerates a 1-px rim.
 - `wfb preview`: crop to the mask, so a semi-octagon preview shows what the
   bezel hides.
 - `aod-burn-in`: the denominator is the mask, which closes `wfb/lint.py`'s
@@ -115,9 +123,11 @@ No format change.
 
 ### Slice 5 — `anchor: subscreen` (D2)
 
-Only if slice 0 shows the box is readable from the skin mask. Otherwise it
-needs a small `Layout` constant filled in from `WatchUi.getSubscreen()` at
-runtime, which is a different design and would be re-planned.
+Slice 0 settled the precondition. `Device.subscreen` reads
+`simulator.json` `subscreen.location` minus `display.location`, and is
+`None` without a `location` (the round AMOLED Instincts have a
+`subscreen` key with no box). The box resolves at build time into the
+per-device `Layout.mc` constants like any other anchor.
 
 ## 3. Docs, in the same commits
 

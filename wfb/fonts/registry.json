@@ -383,6 +383,16 @@
       "note": "bare *_ROBOTO_NNB, matches the Roboto Condensed Bold bitmap family"
     },
     {
+      "regex": "_ROBOTO_\\d+M$",
+      "key": "roboto-medium",
+      "note": "bare *_ROBOTO_NNM, e.g. instinct3amoled50mm FNT_006B458700_ROBOTO_22M (FONT_AUX1) -- scraped face is 'Roboto Medium' (docs/research/data/devices/instinct3amoled50mm.json). Every scraped name this matches already resolved to the same key by face."
+    },
+    {
+      "regex": "_ROBOTO_\\d+$",
+      "key": "roboto-regular",
+      "note": "bare *_ROBOTO_NN, e.g. instinct3amoled50mm/instinctcrossoveramoled FNT_006B4587/4586/467800_ROBOTO_{16..33} (FONT_XTINY..LARGE) -- scraped face is 'Roboto'. Must stay after the CDPG_ROBOTO patterns, which are condensed. Every scraped name this matches already resolved to the same key by face."
+    },
+    {
       "regex": "BIONIC_COND",
       "key": "bionic-cond-substitute",
       "note": "Bionic Cond substitute: condensed bold sans, same role as RobotoCondensed-Bold on sibling devices"
