@@ -1013,14 +1013,14 @@ def _devices(args: argparse.Namespace) -> int:
     """
     db = DeviceDatabase.discover(args.devices_dir)
     color_out = term.should_color(sys.stdout)
-    header = (f"{'id':<24} {'screen':<12} {'shape':<10} {'display':<8} "
+    header = (f"{'id':<24} {'screen':<12} {'shape':<12} {'display':<8} "
               f"{'colors':<7} {'api':<8} {'watch face':<10} family")
     print(term.style(header, "bold", enabled=color_out))
     for device_id in db.ids():
         device = db.get(device_id)
         limit = f"{device.watchface_memory_limit // 1024} KB" if device.supports_watchface else "-"
         colors = str(device.display_colors) if device.display_colors else "?"
-        print(f"{device.id:<24} {device.width}x{device.height:<8} {device.shape:<10} "
+        print(f"{device.id:<24} {device.width}x{device.height:<8} {device.shape:<12} "
               f"{device.display_type:<8} {colors:<7} {device.api_level:<8} {limit:<10} "
               f"{device.device_family}")
     return 0

@@ -63,8 +63,13 @@
 # Small guide dots at the four diagonal `at:` points show where each
 # readout's box is anchored before alignment pushes it outward.
 #
+# `venusq2` (320x360, AMOLED) is a fourth target: the one example with a
+# rectangular screen, and the reason `main_hands` carries `aod: show` -- an
+# AMOLED target needs an always-on frame, and the hands are this face's.
+# The three MIP targets never draw it.
+#
 # What is verified: this design compiles warning-free through the real
-# `monkeyc` on all three targets, and `wfb preview` renders the resolved
+# `monkeyc` on all four targets, and `wfb preview` renders the resolved
 # geometry the header describes. What is NOT verified anywhere in this
 # project: what any of it looks like on a panel, or that today's date and
 # steps bars move correctly at midnight -- there is no simulator and no
@@ -86,6 +91,7 @@ targets:
   - fenix8solar47mm
   - fenix8solar51mm
   - fr955
+  - venusq2
 
 # Every colour is one the 64-colour MIP panel shows without dithering: each
 # channel is 0x00, 0x55, 0xAA or 0xFF.
@@ -251,6 +257,7 @@ elements:
     type: hands
     hands: main
     at: { anchor: center }
+    aod: show
 
   # NE: `complication_slot`, re-pointable on the wrist between steps and
   # heart rate -- on `fr955`, from the generated settings menu

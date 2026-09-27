@@ -120,9 +120,10 @@ specifies each item.
     -- all three are friendly build errors, whether the element writes
     the key or inherits it from a group (`Builder.aod_refusal`), never a
     silent no-op.
-12. **Non-round screens** (plan 20, research 16): rectangles are designed
-    for but never run against a real device; semi-octagon (Instinct) and
-    semi-round are "not checked"; 2-colour panels have no palette rule.
+12. **Non-round screens** (plan 20, research 16): rectangles resolve, lint,
+    preview and build against real device files (slice 1), with the
+    framebuffer as the visible area; semi-octagon (Instinct) and semi-round
+    are "not checked"; 2-colour panels have no palette rule.
 
 ## Architecture options not taken
 

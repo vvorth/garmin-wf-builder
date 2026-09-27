@@ -41,6 +41,9 @@ SHOTS = {
 # ``--scale`` itself, so it need not be repeated in extra args).
 EXAMPLES = {
     "align": ("features/align", [], None),
+    # The same design on a 320x360 rectangle, beside the round shot in
+    # docs/guide/placement.md -- see EXAMPLE_DEVICE below.
+    "align-venusq2": ("features/align", [], None),
     "patterns": ("features/patterns", [], None),
     "graph": ("features/graph", [], None),
     "shapes": ("features/shapes", [], None),
@@ -60,10 +63,10 @@ EXAMPLES = {
 }
 
 #: Per-example device override for `EXAMPLES` -- every other topic example
-#: renders on `DEVICE` (a MIP target); `features/aod` is the one design
-#: whose whole point is an AMOLED target, so its shot needs `fenix847mm`
-#: instead, the only device in this project with a real `_aod` frame to show.
-EXAMPLE_DEVICE = {"aod": "fenix847mm"}
+#: renders on `DEVICE` (a MIP target). `features/aod` is the one design
+#: whose whole point is an AMOLED target, so its shot needs `fenix847mm`;
+#: `align-venusq2` shows the align design on a non-square rectangle.
+EXAMPLE_DEVICE = {"aod": "fenix847mm", "align-venusq2": "venusq2"}
 
 # `wfb new` templates: name -> (-t value or None for the default, face name).
 NEW_TEMPLATES = {

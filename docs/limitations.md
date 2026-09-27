@@ -759,9 +759,13 @@ that target (below, "Device gating for a source is only partly enforced").
 Only `round` and `rectangle` have safe-area geometry. `semi-round` and
 `semi-octagon` are **unsupported targets rather than silently wrong ones**: the
 geometry check reports "not checked" instead of guessing, and the preview
-does not crop to their shape. The `rectangle` path exists but has never run
-against a real device: no rectangular device is installed, and no test uses
-one. A 2-colour panel (the Instinct family) gets no palette check at all.
+does not crop to their shape. A `rectangle` is exercised against real device
+files (`venusq`, `venusq2`, `venux1`; `tests/test_screen_rectangle.py`), and
+`examples/features/align/` targets `venusq2`. Its visible area is taken to be
+the whole framebuffer, which is slightly generous: the simulator skins round
+the corners, `venux1`'s by about 2% of the panel. No rectangle face has been
+seen on a real watch. A 2-colour panel (the Instinct family) gets no palette
+check at all.
 `docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
 realistic targets) and a route to exact geometry from the simulator skin;
 `docs/plans/20-screen-shapes.md` is the plan.

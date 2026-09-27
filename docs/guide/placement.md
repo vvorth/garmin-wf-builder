@@ -90,6 +90,18 @@ Anchors are the nine box positions: `top_left`, `top`, `top_right`, `left`,
 of the dial on a 260×260 and a 280×280 screen; `50%` of the width is not, once a
 screen stops being square.
 
+**On a rectangle, a round design stays round and centred.** On the 320×360
+Venu Sq 2, `%r` is 160 px (half the shorter side), and `%` is 320 px across and
+360 px down. A system font does not scale with any of these, though. It is the
+device's own size. The Venu Sq 2's `FONT_XTINY` is large for its screen, so the
+date and step count outgrow cards sized in `%r`. Check the preview for every
+target shape.
+
+<img src="../screenshots/align.png" width="260" alt="align example on a round fēnix 8"> <img src="../screenshots/align-venusq2.png" width="231" alt="the same design on a 320x360 Venu Sq 2">
+
+*[`examples/features/align`](../../examples/features/align/face.yaml) on a
+fēnix 8 (260×260) and a Venu Sq 2 (320×360), with no per-device edits.*
+
 **A relative size, thickness or radius can be told never to resolve below
 1 px, with `min_1px:`.** `%`/`%r` scale per device, so a hairline such as
 `thickness: 0.5%r` can be a full pixel on one screen and round to nothing on

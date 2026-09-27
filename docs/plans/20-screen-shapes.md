@@ -1,8 +1,8 @@
 # 20 — Rectangular and semi-octagon screens
 
-**Status: proposed (2026-09-26). Slice 0 done for 7 of the 13 devices
-(2026-09-27); slices 1–3 can start; slices 4 and 5 need decisions D1–D2
-first.** Delete this file once every
+**Status: in progress. Slice 0 done for 7 of the 13 devices and slice 1
+done (2026-09-27); slices 2–3 can start; slices 4 and 5 need decisions
+D1–D2 first.** Delete this file once every
 slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/16-screen-shapes.md`. In short: 21 non-round
@@ -59,21 +59,30 @@ cp -R venusqm venusq2m instinct2s instinctcrossover instincte40mm descentg1 \
 
 then `./tools/setup-env.sh`.
 
-### Slice 1 — rectangles, exercised
+### Slice 1 — rectangles, exercised: done
 
-No format change.
+No format change. Every `examples/features/*` face plus `showcase`, built
+for `venusq2` and `venux1`, and nothing broke in the compiler. The errors
+it raised are all correct capability diagnostics:
+- `venusq2` has no `Graphics.getVectorFont`, so `outline`, `vector-text`
+  and `showcase` refuse their `face:` fonts there;
+- `styles` uses `modes: [low_power]`, which both AMOLED rectangles refuse
+  (`partial-update`);
+- every face without `aod:` gets `aod-empty` on the AMOLED rectangles.
 
-- Build every `examples/features/*` face plus `showcase` for `venusq2` and
-  `venux1` (`-d`). Fix what breaks. The research expects font sizing via
-  `%r`, `deviceFamily` resource directories and the AMOLED `aod:` path on a
-  non-round panel to be the likely spots.
-- Add a rectangular device to the test fixtures: resolve, lint and preview
-  one design on it. This is the first test anywhere with a non-round
-  screen.
-- `wfb devices` and `wfb doctor` show shape. They already print it; check
-  it reads right.
-- Add a `venusq2` target to `examples/features/align/`, the example with
-  the most edge-anchored elements, and regenerate its screenshot.
+What was added: `tests/test_screen_rectangle.py`, which resolves, lints and
+previews on `venusq2`. That screen is 320×360, so the tests catch a
+width/height swap, and both kinds of swap were checked to turn them red.
+`examples/features/align/` gained a `venusq2` target (plus `aod: show` on its
+hands) and a second screenshot in `docs/guide/placement.md`. `wfb devices`
+widened its shape column for `semi-octagon`.
+
+What the previews showed: system fonts do not scale with `%r`, and the Venu
+Sq family's are large for their screens. So `align`'s date and steps
+outgrow their `%r`-sized cards on `venusq`/`venusq2`, though not on
+`venux1`. That is the case slice 4's `overrides:` is for. Separately,
+`venusq2`'s SDK reference understates its font heights by 22–30%; its `.cft`
+files are right, and layout already prefers them (research 10 §10.6).
 
 ### Slice 2 — the skin mask
 

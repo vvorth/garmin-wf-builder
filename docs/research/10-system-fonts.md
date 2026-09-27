@@ -564,7 +564,17 @@ fonts. Two real files decoded by `tests/test_cft.py` (skipped when
 
 Across the scraped default tables, `.cft` `height - size_px` is 0 in 260
 entries, +1 in 92 (including all of fenix6: 32 vs 31, 100 vs 99) and +2 in
-8. Since the `.cft` is the very file the simulator loads, its own
+8. The non-round devices installed for research 16 (2026-09-27) widen
+the spread. The semi-octagons' `CDPG_ROBOTO_15M` is +2 (23 vs 21), and
+their `0000_GARMIN_*` number fonts are the first *negative* differences,
+−2 to −3 (35 vs 37 … 56 vs 59). `venusq2` is off by +7 to +42 on every
+symbol, 22–30% (`FONT_XTINY` 39 vs 32, `FONT_NUMBER_THAI_HOT` 181 vs
+139). The glyph ink sides with the file: a `0` in `venusq2`'s
+`ROBOTO_CONDENSED_*` is 0.59 of the `.cft` height, the same ratio as the
+Roboto `.cft`s whose height and `size_px` agree (`venu` 0.61, `venusq`
+0.69), and would be 0.72 of the scraped `size_px`. So the reference page's
+`venusq2` pixel sizes understate what is drawn. (VERIFIED difference and
+ink, measured with `wfb.fonts.cft`.) Since the `.cft` is the very file the simulator loads, its own
 `height`/`ascent` are treated as the line box and baseline in preference to
 the scraped `size_px` wherever a `.cft` is found. Whether
 `Graphics.getFontHeight` on a bitmap-font device returns `height` or
