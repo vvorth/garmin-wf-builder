@@ -465,7 +465,7 @@ feature on for any of those elements. (What `wfb preview` shows for
 that same soft edge is a separate gap — see "the simulator does not run in a
 headless Linux container" below.)
 
-### On-device configuration: four axes, four configurations, and not on fr955
+### On-device configuration: four axes, four configurations, and a menu on fr955
 
 The native watch-face editor is **API 5.1.0, fēnix 8 and newer**, and exposes
 exactly four axes: Styles, complication slots, **one** data colour and **one**
@@ -487,13 +487,15 @@ slot (`AppBase.onStart`'s edit-mode flag, `WatchFaceDelegate.onTap` +
 least one `complication_slot` element — see §2 below for what "built" does
 and does not mean here.
 
-**The Forerunner 955 is excluded from it entirely.** A design targeting all three
-devices is configurable on the wrist on two of them. This is a consequence of the
-chosen scope (the native editor for the `config:` axes) and of the device,
-not a defect — but it must never be a surprise: a target with no native editor
-keeps every `config:` entry's declared `default:` forever — colour axes and
-color_scheme roles alike — and the suppressible `config-unsupported` warning
-says so at build time rather than leaving it to be discovered on the wrist.
+**The Forerunner 955 has no native editor.** It gets the same `config:` axes
+from a generated settings menu instead, opened from its Watch Face menu
+(`AppBase.getSettingsView`; `docs/guide/configuration.md`, "The settings
+menu"). What that cannot give it: the four saved configurations (a menu choice
+is one value for the whole face) and, for `choices: any`, a free colour picker
+(the menu lists the palette). A watch with neither editor nor menu
+(`fenix5`/`fenix5x`) keeps every `config:` entry's declared `default:`
+forever, and the suppressible `config-unsupported` warning says so at build
+time rather than leaving it to be discovered on the wrist.
 
 **No behaviour of the editor is verified anywhere in this project.** There is
 no simulator in this container and no watch (§2 below, "the simulator does not
@@ -538,8 +540,8 @@ still true of the shipped feature:
   whether it lines up with what is drawn, and whether `onTap`'s hit regions
   read correctly on a real touchscreen are all UNVERIFIED (no simulator in
   this container, no watch — §2 below). What is verified: it compiles
-  warning-free on every target, including `fr955`, which has no editor at
-  all and never calls any of it.
+  warning-free on every target, including `fr955`, which has no native
+  editor and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**
   (`Complications.Id.getType()`), not from the current *value* -- so a type
   whose icon depends on its value (the weather-condition complications:
@@ -613,20 +615,20 @@ the platform.
 
 It fires only for Garmin Connect pushes. Any cached property must be invalidated
 explicitly or an on-watch change silently does not take effect. The generated
-`settings:` menu does this: a selection writes the property and then runs the
-view's `applySettings`, the same path a push takes.
+`config:` settings menu does this: a picked option writes its property and
+then runs the view's `applyStoredConfig` itself.
 
 ### Garmin Connect does not edit a sideloaded face's settings
 
 Phone-side settings work only for a Connect IQ Store install, private beta
-included (`docs/research/17-phone-settings.md` §2). For a sideload, the one
-way the wearer changes a `settings:` value is the generated on-watch menu,
-opened from the watch's Watch Face menu (`AppBase.getSettingsView`), which
-`fenix5`/`fenix5x` lack. **Seen working on `fr955`** by the user
-(2026-09-27): the menu opens and a change applies. **Not verified on a
-watch:** a choice's list of options (that build cycled through them
-instead), the menu on a fēnix 8 beside the native editor, and which memory
-limit the menu runs under.
+included (`docs/research/17-phone-settings.md` §2), so this project generates
+none. On a watch without the native editor, the wearer edits `config:` in the
+generated on-watch menu, opened from the Watch Face menu
+(`AppBase.getSettingsView`), which `fenix5`/`fenix5x` lack. **The mechanism
+was seen working on `fr955`** by the user (2026-09-27, with the since-removed
+`settings:` block): the menu opens and a change applies. **Not verified on a
+watch:** the `config:` menu and its lists of options, and which memory limit
+the menu runs under.
 
 ---
 
@@ -668,7 +670,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| `number` settings, and phone editing that reaches a watch | `Menu2` has no numeric entry widget, so a `number` setting would be phone-only. `settings:`' `edit: phone` generates `settings.xml`, but there is no `wfb package`, and Garmin Connect edits settings only for a Store install (`docs/research/17-phone-settings.md` §2). The old WIP on `wip/phone-settings` is design reference only |
+| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install (`docs/research/17-phone-settings.md` §2), and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. The old WIP on `wip/phone-settings` is design reference only |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `complication_slot` inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
@@ -852,10 +854,9 @@ checking for it would report a capability the author can never reach — see
 `docs/research/07-carousel-interaction.md` §1.) `check_config_support` resolves
 `WatchFaceConfig.getSettings` the same way, for the same reason: `fr955`
 reports ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still
-has no editor at all. `check_settings_menu_support` resolves
-`AppBase.getSettingsView` the same way for the `settings:` menu; only
-`fenix5`/`fenix5x` lack it among the installed devices, and they get a
-`settings-menu-unsupported` note.
+has no editor at all. Before warning, it resolves `AppBase.getSettingsView`
+the same way: a device with it gets the `config:` settings menu, so only
+`fenix5`/`fenix5x`, which lack both, get `config-unsupported`.
 
 *By version comparison, for complications.* `check_complication_availability`
 compares a type's `since` against the device's `Device.api_level`. This one

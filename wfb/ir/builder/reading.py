@@ -25,15 +25,6 @@ _CONFIG_COLORS_RE = re.compile(
 )
 
 
-#: Matches `expr.check`'s "unknown data source" message for
-#: `settings.<name>` or `settings.<name>.<x>`: group 1 is the name, group 2
-#: `""` or `.<x>` -- for a `color_scheme` setting, `Builder.expression` turns
-#: either into the same kind of error `config.colors` gets.
-_SETTING_SCHEME_RE = re.compile(
-    r"^unknown data source 'settings\.([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)?)'$"
-)
-
-
 def _offset_span(span: Span | None, text: str, offset: int) -> Span | None:
     """Shift a span to point inside the expression string, not just at its key."""
     if span is None:
@@ -118,18 +109,6 @@ reporting why) out."""
                     else:
                         message = f"config.colors has no role {match.group(1)[1:]!r}"
                         notes = [f"declared roles: {roles}"]
-            match = _SETTING_SCHEME_RE.match(message)
-            if match is not None and match.group(1) in self._setting_scheme_roles:
-                name = match.group(1)
-                roles = ", ".join(f"settings.{name}.{r}"
-                                  for r in self._setting_scheme_roles[name])
-                code_ = "settings"
-                if match.group(2) == "":
-                    message = f"settings.{name} is a colour scheme, not a colour"
-                    notes = [f"reference a role instead: {roles}"]
-                else:
-                    message = f"settings.{name} has no role {match.group(2)[1:]!r}"
-                    notes = [f"declared roles: {roles}"]
             if syntax_error and key == "value":
                 notes = list(notes) + [
                     "'value:' is an expression over data sources, not literal text -- "

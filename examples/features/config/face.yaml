@@ -21,10 +21,8 @@
 #
 # `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
 # ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
-# it) -- it simply keeps every declared default forever, colour axes and
-# scheme roles alike.  That is a real, user-facing consequence of the chosen
-# scope, not a bug, and the suppressible `config-unsupported` warning is
-# accepted explicitly below rather than left to be discovered on the wrist.
+# it) -- it offers the same axes from the generated settings menu, opened
+# from its Watch Face menu (docs/guide/configuration.md).
 #
 # No behaviour of the editor's own UI is verified anywhere in this project --
 # there is no simulator in this container and no watch.  What is verified:
@@ -102,11 +100,6 @@ static:
     start_angle: 0deg
     sweep: 360deg
     color: config.accent_color
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps every declared default
-        forever, which is this example's whole point -- see the header
-        comment"
 
   steps_caption:
     type: text

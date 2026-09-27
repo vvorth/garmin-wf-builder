@@ -93,39 +93,6 @@ class UnknownStyleError(ValueError):
     a clean, listable CLI error rather than a KeyError with no context."""
 
 
-class SettingOverrideError(ValueError):
-    """A `wfb preview --set NAME=VALUE` that names no declared setting, or a
-    value the setting cannot take."""
-
-
-def parse_settings(face: Face, assignments: list[str]) -> dict[str, bool | str]:
-    """`--set NAME=VALUE` flags -> `PreviewOptions.settings`: a `boolean`
-    takes `true`/`false`, a `choice` one of its keys. Raises
-    `SettingOverrideError` with the message to print."""
-    out: dict[str, bool | str] = {}
-    for assignment in assignments:
-        name, sep, raw = assignment.partition("=")
-        name, raw = name.strip(), raw.strip()
-        if not sep:
-            raise SettingOverrideError(f"--set {assignment!r}: expected NAME=VALUE")
-        setting = face.settings.get(name)
-        if setting is None:
-            declared = ", ".join(face.settings) or "(none declared)"
-            raise SettingOverrideError(
-                f"--set {name}: no such setting; declared settings: {declared}")
-        if setting.type == "boolean":
-            if raw.lower() not in ("true", "false"):
-                raise SettingOverrideError(
-                    f"--set {name}: expected true or false, got {raw!r}")
-            out[name] = raw.lower() == "true"
-            continue
-        if raw not in setting.keys:
-            raise SettingOverrideError(
-                f"--set {name}: expected one of {', '.join(setting.keys)}, got {raw!r}")
-        out[name] = raw
-    return out
-
-
 @dataclass
 class PreviewOptions:
     scale: int = 2
@@ -165,9 +132,6 @@ class PreviewOptions:
     #: `check_aod_burn_in` sets this `False` to render the frame once,
     #: unmasked, and apply each of the four phases itself (worst-of-four).
     aod_mask: bool = True
-    #: `settings:` values to render instead of their defaults, by name -- a
-    #: Boolean, or a `choice`'s key (`wfb preview --set`, `parse_settings`).
-    settings: dict[str, bool | str] | None = None
 
 
 #: `SystemFace.match` levels a stand-in warning is owed (plan 12 R1.3):
@@ -294,17 +258,6 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # without one (fr955) ever shows anyway (ADR 0006 1).
     for name, config_entry in resolved.face.config.items():
         values.setdefault(f"config.{name}", config_entry.default.value)
-
-    # `settings:` render at their defaults, or at `--set`'s values. A choice
-    # is seeded with its key: the expression tree keeps the key, and only
-    # the generated code compares indices (`expr._choice_compare`).
-    for name, setting in resolved.face.settings.items():
-        chosen = (options.settings or {}).get(name, setting.default)
-        if setting.type == "color_scheme":
-            for role, color in resolved.face.color_scheme[str(chosen)].colors.items():
-                values.setdefault(f"settings.{name}.{role}", color.value)
-            continue
-        values.setdefault(f"settings.{name}", chosen)
 
     # `config: style:` renders at the chosen entry's scheme colours (the
     # default entry's, absent `--style`) -- the preview has no editor to ask

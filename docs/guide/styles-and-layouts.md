@@ -109,9 +109,11 @@ calls `repaintStatic()` for a static config colour -- a layout switch is just
 another field `applyConfig` sets before that call.
 
 **On fr955** (no native editor, CLAUDE.md constraint 6): `applyConfig` is
-never called, so the compiled-in default entry's layout is what the wearer
-sees forever -- the same "keeps every declared default" behaviour every
-other `config:` axis already has there, `config-unsupported` included.
+never called; the wearer picks an entry from the generated settings menu
+instead, and `applyStoredConfig` passes its index to the same
+`resolveStyle`, so layout and colours switch exactly as they do on a fēnix 8
+(`configuration.md`, "The settings menu"). A device with neither
+(`fenix5`) shows the default entry forever, and `config-unsupported` says so.
 
 **Preview.** `wfb preview --style <entry>` renders one entry -- its scheme's
 colours and only the shared content plus that entry's own layout, exactly

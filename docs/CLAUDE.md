@@ -38,7 +38,7 @@ they record when and why a decision changed.
 | 16 AOD pixel mask | `git show 965518a:docs/plans/16-aod-pixel-mask.md` (§5 "Slices" is what shipped; plan `fd49cab`, slice 1 `3c2b40d`, slice 2 `965518a`, slice 3 the docs closeout that deleted it) |
 | 17 derived system-font metrics | `git show f03d413:docs/plans/17-derived-system-font-metrics.md` (built as written in one commit, the one that deleted it; §2 is the 45/45 evidence, also in research 10 §3.1) |
 | 18 review bug fixes | `git show 45c40b7:docs/plans/18-review-bug-fixes.md` (§1 lists items 1–9 with their commits; §2.1, Float complications converted with `.toFloat()`, is `45c40b7`; §2.2, `contrast` for a slot's `icon_color` but not a progress `track_color`, is the commit that deleted it) |
-| 21 `settings:` | `git show 0e741d9:docs/plans/21-phone-settings.md` (§1 is D1–D3, §4 the slices with their measurements; slice 1 is `3137c80`, slice 2 `88eb824`, slice 3 `0e741d9`, slice 4 the commit that deleted it; §6's checks on a watch are open, see `docs/limitations.md` §1) |
+| 21 `settings:` | `git show 0e741d9:docs/plans/21-phone-settings.md` (§1 is D1–D3, §4 the slices; slices 1-4 are `3137c80`, `88eb824`, `0e741d9`, `b6aad60`. All of `settings:` was removed the same day in favour of the `config:` settings menu, ADR 0006's eleventh amendment; only the menu machinery lives on) |
 | 19 architecture refactor | `git show d325e77:docs/plans/19-architecture-refactor.md` (§1 "Done" lists A0–A6 and the small items with their commits and how each was proven output-identical; §2 P2 and §3 A7 are the one option not taken, see `docs/lore/roadmap.md`) |
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of

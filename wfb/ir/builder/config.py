@@ -1,28 +1,23 @@
 """`config:`: the four on-device configuration axes -- Styles
 (`style:`), Data (`data:`, complication slots) and the two colours
-(`accent_color`, `data_color`) -- and `settings:`, the wearer settings
-that ride `Application.Properties` instead."""
+(`accent_color`, `data_color`)."""
 
 from __future__ import annotations
 
-import difflib
 from typing import Any
 
 from ... import complications, icons
-from ...diagnostics import Span, did_you_mean
+from ...diagnostics import Span
 from ...palette import Color, ColorError
 
-from ..model import (
-    ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, Setting, SettingChoice, StyleEntry,
-)
-from ..naming import setting_field, setting_role_field
+from ..model import ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry
 from .state import _lint_suppression
 from .glyphs import _NO_ICON_OVERRIDE, _ICON_OVERRIDE_ERROR
 from .blocks import TopLevelBlocks
 
 
 class ConfigAxes(TopLevelBlocks):
-    """Builds the `config:` axes and `settings:`."""
+    """Builds the `config:` axes."""
 
     def _build_config_style(self, spec: dict[str, Any], span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
@@ -369,140 +364,3 @@ class ConfigAxes(TopLevelBlocks):
 
             self.config[name] = ConfigColor(name=name, default=default,
                                             choices=tuple(choices), span=span)
-
-    def _build_settings(self, raw: dict[str, Any]) -> None:
-        """`settings:` -- values the wearer changes after install
-        (`docs/guide/settings.md`).
-
-        The schema has already checked each entry's shape: a `label:`, a
-        `type:` of `boolean` or `choice`, a `default:` of the right JSON type,
-        and a `choice`'s `choices:` mapping of at least two keys.  What is
-        left is what a schema cannot say: a `choice`'s `default:` must be one
-        of its keys, and two names must not collapse onto one generated view
-        field (`show_seconds` and `showSeconds` both become
-        `_settingShowSeconds`).
-
-        Every declared setting goes into `setting_bindings`, rejected or not,
-        so a reference to a rejected one gets no second error ("one error,
-        not N", `docs/lore/codegen.md`).
-        """
-        edit = raw.get("edit")
-        if edit is not None:
-            self.settings_edit = tuple(edit)
-            if "watch" not in edit:
-                self.bag.note(
-                    "settings",
-                    "settings.edit: phone only -- on a sideloaded face nothing can "
-                    "change these settings",
-                    self.doc.span(raw, "edit"),
-                    notes=["Garmin Connect edits settings only for a Connect IQ Store "
-                           "install, private beta included, never for a sideload "
-                           "(docs/research/17-phone-settings.md §2)",
-                           "add 'watch' for the on-watch settings menu"],
-                )
-        if edit is not None and len(raw) == 1:
-            self.bag.error(
-                "settings", "settings: declares 'edit:' but no setting",
-                self.doc.span(raw, "edit"),
-                notes=["declare at least one setting beside 'edit:', or remove the block"],
-            )
-        fields: dict[str, str] = {}
-        for name, spec in raw.items():
-            if name == "edit":
-                continue
-            span = self.doc.span(raw, name, of="key")
-            self.settings.declare(name, span)
-            kind = spec["type"]
-            keys = tuple(spec["choices"]) if kind == "choice" else None
-            roles = self._setting_scheme_roles_of(spec) if kind == "color_scheme" else ()
-            self.setting_bindings[name] = (kind, keys, roles)
-
-            generated = [setting_field(name)] + [setting_role_field(name, r) for r in roles]
-            clash = next((f for f in generated if f in fields), None)
-            if clash is not None:
-                other = fields[clash]
-                self.bag.error(
-                    "settings",
-                    f"settings.{name}: the same generated name as settings.{other}",
-                    span,
-                    notes=[f"both need the view field {clash}; rename one"],
-                )
-                self.settings.reject(name)
-                continue
-            fields.update((f, name) for f in generated)
-
-            label = str(spec["label"])
-            if kind == "boolean":
-                self.settings[name] = Setting(
-                    name=name, label=label, type=kind, default=bool(spec["default"]), span=span)
-                continue
-            if kind == "color_scheme":
-                self._build_scheme_setting(name, label, spec, span)
-                continue
-
-            assert keys is not None
-            raw_choices = spec["choices"]
-            choices = tuple(SettingChoice(key=key, label=str(raw_choices[key])) for key in keys)
-            default = spec["default"]
-            if default not in keys:
-                near = difflib.get_close_matches(str(default), keys, n=3, cutoff=0.4)
-                self.bag.error(
-                    "settings",
-                    f"settings.{name}: default {default!r} is not one of 'choices:'",
-                    self.doc.span(spec, "default"),
-                    notes=did_you_mean(list(near)) + [f"choices: {', '.join(keys)}"],
-                )
-                self.settings.reject(name)
-                continue
-            self.settings[name] = Setting(
-                name=name, label=label, type=kind, default=str(default),
-                choices=choices, span=span)
-
-    def _setting_scheme_roles_of(self, spec: dict[str, Any]) -> tuple[str, ...]:
-        """The roles a `color_scheme` setting exposes: those of its first
-        choice that is an accepted scheme (every accepted scheme has the
-        same roles, `_build_color_scheme`), or -- when none is -- every role
-        any accepted scheme declares, so a reference to one still resolves
-        after the real error ("one error, not N")."""
-        for scheme_name in spec["choices"]:
-            if scheme_name in self.color_scheme:
-                return tuple(sorted(self.color_scheme[scheme_name].colors))
-        roles: set[str] = set()
-        for scheme in self.color_scheme.values():
-            roles |= set(scheme.colors)
-        return tuple(sorted(roles))
-
-    def _build_scheme_setting(self, name: str, label: str, spec: dict[str, Any],
-                              span: Span | None) -> None:
-        """A `type: color_scheme` setting: `choices:` names declared
-        `color_scheme:` entries (resolved like a `config: style:` entry's
-        `colors:`, with the same declared/rejected cascade), and `default:`
-        must be one of them."""
-        choices: list[SettingChoice] = []
-        ok = True
-        raw_choices = spec["choices"]
-        for index, scheme_name in enumerate(raw_choices):
-            resolved = self._scheme_reference(scheme_name, self.doc.span(raw_choices, index))
-            if resolved is None:
-                ok = False
-                continue
-            scheme = self.color_scheme[resolved]
-            choices.append(SettingChoice(key=resolved, label=scheme.label or resolved))
-        if not ok:
-            self.settings.reject(name)
-            return
-        default = spec["default"]
-        keys = [choice.key for choice in choices]
-        if default not in keys:
-            near = difflib.get_close_matches(str(default), keys, n=3, cutoff=0.4)
-            self.bag.error(
-                "settings",
-                f"settings.{name}: default {default!r} is not one of 'choices:'",
-                self.doc.span(spec, "default"),
-                notes=did_you_mean(list(near)) + [f"choices: {', '.join(keys)}"],
-            )
-            self.settings.reject(name)
-            return
-        self.settings[name] = Setting(
-            name=name, label=label, type="color_scheme", default=str(default),
-            choices=tuple(choices), span=span, **_lint_suppression(spec))

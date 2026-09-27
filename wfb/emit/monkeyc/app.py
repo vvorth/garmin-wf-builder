@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from ... import icons, kinds
+from ...availability import Guards
 from ...ir import Face
 from .common import SourceFile, _editor_slot_pairs, header, needs_delegate
 from ..writer import Writer
 
 
-def emit_app(face: Face) -> SourceFile:
+def emit_app(face: Face, guards: "Guards | None" = None) -> SourceFile:
     """`source/<Face>App.mc` -- the application entry point.
 
     `onStart`/`_editMode` are only emitted when the design has at least one
@@ -19,12 +20,12 @@ def emit_app(face: Face) -> SourceFile:
     or a `has` guard, because `onStart`'s own `state` dictionary is the only
     place this flag is ever delivered.
 
-    A design with `settings:` keeps the view in `_view`, so
-    `onSettingsChanged` (a Garmin Connect push, constraint 12) can re-read
-    the settings into it.
+    With `guards.config_menu`, the app keeps the view in `_view` and
+    offers the `config:` settings menu from `getSettingsView` -- returning
+    null on a device with the native editor, which edits `config:` itself.
     """
     needs_it = needs_delegate(face)
-    has_settings = bool(face.settings)
+    menu = guards is not None and guards.config_menu
     has_slots = bool(_editor_slot_pairs(face))
     w = Writer()
     w.doc(header(face)).blank()
@@ -43,8 +44,8 @@ def emit_app(face: Face) -> SourceFile:
             )
             w.line("private var _editMode as Boolean = false;")
             w.blank()
-        if has_settings:
-            w.doc("The view, kept so onSettingsChanged can re-read the settings into it.")
+        if menu:
+            w.doc("The view, kept so the settings menu edits the one on screen.")
             w.line(f"private var _view as {face.entry}View?;")
             w.blank()
         with w.block("function initialize()"):
@@ -63,7 +64,7 @@ def emit_app(face: Face) -> SourceFile:
             w.blank()
         with w.block("function getInitialView() as [Views] or [Views, InputDelegates]"):
             view_ctor = f"new {face.entry}View(_editMode)" if has_slots else f"new {face.entry}View()"
-            if not needs_it and not has_settings:
+            if not needs_it and not menu:
                 w.line(f"return [ {view_ctor} ];")
             elif not needs_it:
                 w.line(f"var view = {view_ctor};")
@@ -71,7 +72,7 @@ def emit_app(face: Face) -> SourceFile:
                 w.line("return [ view ];")
             else:
                 w.line(f"var view = {view_ctor};")
-                if has_settings:
+                if menu:
                     w.line("_view = view;")
                 w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
                 w.comment("without WatchFaceDelegate still gets the face, just not the holds")
@@ -80,80 +81,25 @@ def emit_app(face: Face) -> SourceFile:
                     w.comment("the delegate holds the view so a config edit can update it")
                     w.line(f"return [ view, new {face.entry}Delegate(view) ];")
                 w.line("return [ view ];")
-        if has_settings:
+        if menu:
             w.blank()
             w.doc(
-                "A setting changed: re-read every setting into the view and redraw.\n"
-                "\n"
-                "The system calls this only for a Garmin Connect push (CLAUDE.md\n"
-                "constraint 12)."
-            )
-            with w.block("function onSettingsChanged() as Void"):
-                w.line("var view = _view;")
-                with w.block("if (view != null)"):
-                    w.line("view.applySettings();")
-                w.line("WatchUi.requestUpdate();")
-        if face.settings_menu:
-            w.blank()
-            w.doc(
-                "The settings menu, opened from the watch's Watch Face menu.  A device\n"
-                "without getSettingsView (fenix5) never calls this, and keeps every\n"
-                "setting's default."
+                "The config: settings menu, opened from the watch's Watch Face menu on a\n"
+                "device with no native editor (fr955).  With the native editor this\n"
+                "returns null: that editor edits config: there.  A device without\n"
+                "getSettingsView (fenix5) never calls this and keeps every default."
             )
             with w.block("function getSettingsView() as [Views] or [Views, InputDelegates] or Null"):
+                with w.block("if (Application has :WatchFaceConfig)"):
+                    w.line("return null;")
                 w.line("var view = _view;")
                 with w.block("if (view == null)"):
                     w.comment("nothing documents that getInitialView runs first, so build the")
-                    w.comment("view here if it has not: its constructor reads the settings")
+                    w.comment("view here if it has not: its constructor reads the stored config")
                     w.line(f"view = {view_ctor};")
                     w.line("_view = view;")
-                w.line(f"return [ view.settingsMenu(), new {face.entry}SettingsDelegate(view) ];")
+                w.line(f"return [ view.configMenu(), new {face.entry}ConfigMenuDelegate(view) ];")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
-
-
-def emit_settings_delegate(face: Face) -> SourceFile:
-    """`source/<Face>SettingsDelegate.mc` -- the settings menu's input
-    delegate, plus, when a setting has choices, the delegate of the list
-    a choice opens. Both hand the selection to the view, which owns the
-    fields the menu shows and the one path that applies a change."""
-    w = Writer()
-    w.doc(header(face)).blank()
-    w.lines("import Toybox.Lang;", "import Toybox.WatchUi;").blank()
-    w.doc("Input for the settings menu: every selection goes to the view.")
-    with w.block(f"class {face.entry}SettingsDelegate extends WatchUi.Menu2InputDelegate"):
-        w.line(f"private var _view as {face.entry}View;")
-        w.blank()
-        with w.block(f"function initialize(view as {face.entry}View)"):
-            w.line("Menu2InputDelegate.initialize();")
-            w.line("_view = view;")
-        w.blank()
-        with w.block("function onSelect(item as WatchUi.MenuItem) as Void"):
-            w.line("_view.selectSetting(item);")
-    if any(s.type != "boolean" for s in face.settings.values()):
-        w.blank()
-        w.doc(
-            "Input for one choice's list of options: the picked option is stored, the\n"
-            "settings menu's item shows it, and the list closes."
-        )
-        with w.block(f"class {face.entry}SettingChoiceDelegate extends WatchUi.Menu2InputDelegate"):
-            w.line(f"private var _view as {face.entry}View;")
-            w.line("private var _setting as Number;")
-            w.line("private var _parent as WatchUi.MenuItem;")
-            w.blank()
-            with w.block(f"function initialize(view as {face.entry}View, setting as Number, "
-                         "parent as WatchUi.MenuItem)"):
-                w.line("Menu2InputDelegate.initialize();")
-                w.line("_view = view;")
-                w.line("_setting = setting;")
-                w.line("_parent = parent;")
-            w.blank()
-            with w.block("function onSelect(item as WatchUi.MenuItem) as Void"):
-                w.line("var index = item.getId();")
-                with w.block("if (index instanceof Number)"):
-                    w.line("_view.chooseSetting(_setting, index);")
-                    w.line("_parent.setSubLabel(item.getLabel());")
-                w.line("WatchUi.popView(WatchUi.SLIDE_RIGHT);")
-    return SourceFile(f"source/{face.entry}SettingsDelegate.mc", w.render())
 
 
 def emit_palette(face: Face) -> SourceFile:

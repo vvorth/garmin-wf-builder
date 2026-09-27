@@ -39,40 +39,6 @@ def config_field(name: str) -> str:
     return "_config" + _pascal(name)
 
 
-def setting_field(name: str) -> str:
-    """The view field a `settings:` entry is cached in (``_settingShowSeconds``).
-
-    Module-level for the same reason as `config_field`: `Builder._build_scope`
-    binds a rejected setting's name too, and there is no `Setting` for it.
-    """
-    return "_setting" + _pascal(name)
-
-
-def setting_role_field(name: str, role: str) -> str:
-    """The view field a `color_scheme` setting's `role` is cached in
-    (``_settingNightBg``) -- read as `settings.<name>.<role>`."""
-    return setting_field(name) + _pascal(role)
-
-
-def setting_title_id(name: str) -> str:
-    """The `<string>` resource id a setting's `label:` is emitted under for
-    `settings.xml` (``SettingShowSecondsTitle``)."""
-    return f"Setting{_pascal(name)}Title"
-
-
-def setting_choice_id(name: str, index: int) -> str:
-    """The `<string>` resource id of a `choice` setting's `index`-th label in
-    `settings.xml` (``SettingRing0``) -- keyed by position, like
-    `config_label_id`."""
-    return f"Setting{_pascal(name)}{index}"
-
-
-def setting_label_method(name: str) -> str:
-    """The view method that turns a `choice` setting's index into its label
-    (``settingLabelRing``), for the settings menu's sub-label."""
-    return "settingLabel" + _pascal(name)
-
-
 def config_data_ids(face: "Face") -> dict[str, int]:
     """`config: data:` slot name -> the `<complication id="N">` this slot is
     emitted under, 1-based in declaration order (`docs/research/probes/

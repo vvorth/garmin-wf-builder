@@ -8,7 +8,7 @@
 #
 # Config: several colour schemes paired with the layouts as `config: style:`
 # entries, both colour axes, and the Data axis (the two registers). fr955
-# has no native editor, so it keeps every default.
+# has no native editor, so it offers them from the generated settings menu.
 #
 # Build it:    ./wfb.py build examples/showcase/face.yaml
 # Preview it:  ./wfb.py preview examples/showcase/face.yaml --all-styles
@@ -346,25 +346,23 @@ elements:
     placeholder: "--"
     on_hold: auto
     lint:
-      allow: [config-unsupported, static-overlap]
-      reason: "fr955 has no native editor and keeps this register's declared
-        default forever -- see the header comment. static-overlap: both the
-        analog layout's full-dial tick/numeral patterns and the roman
-        layout's own numeral ring bound this register card's overlap box
-        (any dynamic element trivially overlaps a full-circle pattern's
+      allow: [static-overlap]
+      reason: "Both the analog layout's full-dial tick/numeral patterns and
+        the roman layout's own numeral ring bound this register card's overlap
+        box (any dynamic element trivially overlaps a full-circle pattern's
         bounding disc). Analog's numerals (radius 78%r, the small
         font.dialfont) clear this card with a visible gap, confirmed by
         rendering `--time 10:09:30` -- 'X' and '2' sit above it, not inside
-        it. Roman's own ring (radius 69%r, the much larger font.romandial)
-        is a different story: II and X land almost exactly on this
-        register's position (`dx: ±50%r, dy: -30%r` is ~58%r out at ~59°
-        off 12, i.e. the 2/10 o'clock spokes -- a `complication_slot`
-        cannot live inside a `layouts:` body, so this position is fixed for
-        every layout) and DID draw under the card and its icon before the
-        roman `numerals` pattern below added `skip: [2, 10]` for exactly
-        this reason. With the skip in place, no roman numeral's ink falls
-        inside this card either -- re-checked the same way, at the same
-        time, on all three targets, after the skip"
+        it. Roman's own ring (radius 69%r, the much larger font.romandial) is
+        a different story: II and X land almost exactly on this register's
+        position (`dx: ±50%r, dy: -30%r` is ~58%r out at ~59° off 12, i.e. the
+        2/10 o'clock spokes -- a `complication_slot` cannot live inside a
+        `layouts:` body, so this position is fixed for every layout) and DID
+        draw under the card and its icon before the roman `numerals` pattern
+        below added `skip: [2, 10]` for exactly this reason. With the skip in
+        place, no roman numeral's ink falls inside this card either --
+        re-checked the same way, at the same time, on all three targets, after
+        the skip"
 
   right_register:
     type: complication_slot
@@ -380,12 +378,11 @@ elements:
     when_absent: placeholder
     placeholder: "--"
     lint:
-      allow: [config-unsupported, static-overlap]
-      reason: "fr955 has no native editor and keeps this register's declared
-        default forever -- see the header comment. static-overlap: same
-        full-dial-pattern bounding-box overstatement as left_register above
-        (both analog's and roman's numeral rings, roman's own only true
-        after `skip: [2, 10]` -- see that reason), mirrored at dx +42%r"
+      allow: [static-overlap]
+      reason: "Same full-dial-pattern bounding-box overstatement as
+        left_register above (both analog's and roman's numeral rings, roman's
+        own only true after `skip: [2, 10]` -- see that reason), mirrored at
+        dx +42%r"
 
   # date_text:
   #   type: text
@@ -416,10 +413,6 @@ layouts:
         start_angle: 0deg
         sweep: 360deg
         color: config.colors.track
-        lint:
-          allow: [config-unsupported]
-          reason: "fr955 has no native editor and keeps every declared
-            default forever -- see the header comment"
 
       minute_ticks:
         type: pattern

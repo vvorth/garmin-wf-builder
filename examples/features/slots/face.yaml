@@ -61,10 +61,9 @@
 #
 # `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
 # ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
-# it) -- it simply keeps both slots' compiled-in `default:` forever, exactly
-# like every other `config:` axis. The suppressible `config-unsupported`
-# warning is accepted explicitly below rather than left to be discovered on
-# the wrist.
+# it) -- it offers both slots from the generated settings menu, opened from
+# its Watch Face menu: `top`'s own three types, and every type fr955's API
+# level has for `bottom`'s `choices: any` (docs/guide/configuration.md).
 #
 # What is verified: this design compiles warning-free, through the real
 # `monkeyc`, on all three targets -- including the generated manifest's
@@ -152,11 +151,6 @@ elements:
     when_absent: placeholder
     placeholder: "--"
     on_hold: auto
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps this slot's declared
-        default forever, which is this example's whole point -- see the
-        header comment"
 
   - id: bottom_reading
     type: complication_slot
@@ -168,8 +162,3 @@ elements:
     color: palette.fg
     when_absent: placeholder
     placeholder: "--"
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps this slot's declared
-        default forever, which is this example's whole point -- see the
-        header comment"

@@ -166,7 +166,9 @@ re-litigate these without new evidence.**
 8. **Every data field is nullable.** Absence is normal.
 9. **On-device config has four axes** (API 5.1.0, fēnix 8+): Styles, Data
    (complication slots), one data colour and one accent colour, with at most
-   four saved configurations. **`fr955` has none.**
+   four saved configurations. **`fr955` has none**: there the build's
+   generated settings menu (`getSettingsView`) offers the same axes, and
+   `fenix5`/`fenix5x`, with neither, keep the defaults.
    - **9b.** The Data axis takes Garmin complication types only.
      Author-defined selectable content rides Styles (`styleId` is opaque and
      global).
@@ -215,11 +217,12 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 **User decisions:**
 - **Interaction:** `on_hold:` everywhere, touch-and-hold only. The original
   tap/hold split was superseded by research (6b/6c).
-- **On-device config:** the native editor for the four `config:` axes, so
-  fr955 gets none from it (accepted knowingly).
-- **Wearer settings (2026-09-27, built):** a generated on-watch
-  `getSettingsView` menu, since phone settings never reach a sideload;
-  `settings.xml` emitted but no `wfb package`/Store beta; no `.SET` writer.
+- **On-device config (2026-09-27):** the native editor for the four
+  `config:` axes, and, on a watch without it, the same axes in a generated
+  `getSettingsView` menu (one list per axis; `choices: any` offers the
+  palette or every supported complication type). No separate wearer
+  settings language: the short-lived `settings:` block was removed. Phone
+  settings never reach a sideload; no `.SET` writer.
 - **Repo:** a sibling directory; the Dashboard face repo is left untouched.
   `forums.garmin.com` and `developer.android.com` are allowlisted.
 
@@ -265,10 +268,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
-  - `number` settings (`Menu2` has no numeric entry) and `wfb package`, so
-    `settings:`' phone editing reaches no Store install. The old WIP on
-    `wip/phone-settings` is design reference only. Do not resume it
-    without asking;
+  - wearer settings beyond `config:` (booleans, choices) -- decided
+    against, 2026-09-27. The old WIP on `wip/phone-settings` is design
+    reference only. Do not resume it without asking;
   - non-round screens: rectangles untested, semi-shapes "not checked"
     — plan 20;
   - catalogue generation from the SDK;
@@ -284,7 +286,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:`; progress `needle`/`segments`/`scale`; `pattern:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
-  and the burn-in lint; `settings:` (`boolean`/`choice`/`color_scheme`) with the on-watch settings menu and `edit: phone`'s `settings.xml`. One line each, with the guide chapter, in
+  and the burn-in lint; the `config:` settings menu on a watch without the
+  native editor. One line each, with the guide chapter, in
   `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,

@@ -1820,7 +1820,8 @@ def test_on_hold_module_gap_fires_standalone_when_onpress_is_available(
 def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missing(
         write_design, bag, db):
     """Case 4 is deliberately NOT deduped against `config-unsupported`:
-    fenix6 has no native editor *and* no `Toybox.Complications`, and the two
+    fenix5 has no native editor, no settings menu *and* no
+    `Toybox.Complications`, and the two
     warnings say different, both-true things -- `config-unsupported` (fixed
     below to say so) that the slot shows its absent state rather than
     "keeping its declared default" (the default is itself read through
@@ -1829,8 +1830,8 @@ def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missin
     side. Contrast the `on_hold:`/`hold-unsupported` dedupe (case 3), which
     stays a real dedupe because "the hold never fires" is true regardless of
     whether `Complications` also works."""
-    _skip_unless_installed(db, "fenix6")
-    resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fenix6")
+    _skip_unless_installed(db, "fenix5")
+    resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fenix5")
     lint.run(resolved, bag)
     config_hits = [d for d in bag.items if d.code == "config-unsupported"]
     api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
@@ -1848,12 +1849,18 @@ def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missin
 
 
 def test_config_unsupported_still_says_keeps_default_when_complications_works(
-        write_design, bag, db):
-    """The common case this fix must not break: fr955 lacks the editor but
-    *has* `Toybox.Complications`, so the slot's `default:` really can be
-    resolved and shown forever -- `config-unsupported`'s original wording
-    stays accurate, and `check_api_gated` has nothing to add (the module
-    check that gates case 4 is satisfied)."""
+        write_design, bag, db, monkeypatch):
+    """A device with no editor and no settings menu but *with*
+    `Toybox.Complications` can resolve a slot's `default:` and show it
+    forever -- `config-unsupported` says "keep their declared defaults", and
+    `check_api_gated` has nothing to add. No installed device is that
+    combination, so fr955 is made to lack `getSettingsView`."""
+    from wfb.availability import SETTINGS_MENU_SYMBOL
+    from wfb.devices import Device
+
+    original = Device.has_symbol
+    monkeypatch.setattr(Device, "has_symbol", lambda self, symbol: (
+        False if symbol == SETTINGS_MENU_SYMBOL else original(self, symbol)))
     resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fr955")
     assert resolved.device.has_module("Complications") is True
     lint.run(resolved, bag)
@@ -1913,7 +1920,8 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     by slice 6, research 11 §6 F), governed by `wfb.emit.monkeyc.view`
     directly, never by `check_api_gated` -- excluded the same way, as is
     `partial_update_unsupported` (plan 19 A5), the view's build-wide
-    `onPartialUpdate` decision."""
+    `onPartialUpdate` decision, and `config_menu`, whether the build carries
+    the `config:` settings menu."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards
@@ -1921,7 +1929,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     guards_field_names = (
         {f.name for f in dc_fields(Guards)}
         - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded",
-           "partial_update_unsupported"}
+           "partial_update_unsupported", "config_menu"}
     )
     assert guards_field_names == {"complications", "modules", "fields"}
 

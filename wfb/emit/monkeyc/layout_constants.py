@@ -15,6 +15,7 @@ from .common import (
     _vector_fonts_used, const_prefix, header,
 )
 from ..writer import Writer
+from . import config_menu
 
 
 #: One `Layout` block: `(name, value, note)` per constant, the note (if any)
@@ -149,6 +150,9 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
     )
     imports = ["import Toybox.Graphics;", "import Toybox.Lang;"] if needs_graphics \
         else ["import Toybox.Lang;"]
+    menu_slots = guards.config_menu and bool(face.config_data)
+    if menu_slots:
+        imports.insert(0, "import Toybox.Complications;")
     w.lines(*imports).blank()
     w.doc(
         f"Layout resolved for {device.id}.\n"
@@ -162,6 +166,8 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
         w.doc("The screen, for reference.")
         w.line(f"const SCREEN_WIDTH as Number = {device.width};")
         w.line(f"const SCREEN_HEIGHT as Number = {device.height};")
+        if menu_slots:
+            config_menu.emit_layout_constants(w, face, device)
         vector_fonts = _vector_fonts_used(resolved)
         if vector_fonts:
             w.blank()

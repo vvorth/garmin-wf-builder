@@ -76,10 +76,6 @@ wfb preview my-face.yaml -o -- | chafa
 `-q/--quiet` alone keeps the files and silences stdout; either way warnings
 and errors still go to stderr.
 
-`wfb preview --set NAME=VALUE` (repeatable) renders a
-[`settings:`](settings.md) entry at VALUE instead of its default: `true` or
-`false` for a boolean, a key for a choice.
-
 `wfb help <command>` and `wfb <command> help` print the same thing as
 `wfb <command> --help`, byte for byte, because all three are read from that
 command's handler docstring rather than from a hand-written string that could

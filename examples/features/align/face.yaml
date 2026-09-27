@@ -253,8 +253,8 @@ elements:
     at: { anchor: center }
 
   # NE: `complication_slot`, re-pointable on the wrist between steps and
-  # heart rate. `fr955` has no native editor and keeps `default:` forever
-  # (docs/limitations.md, `examples/features/slots/face.yaml`).
+  # heart rate -- on `fr955`, from the generated settings menu
+  # (`examples/features/slots/face.yaml`).
   - id: steps_slot
     type: complication_slot
     slot: config.data.top
@@ -269,11 +269,6 @@ elements:
     placeholder: "--"
     align: left
     vertical_align: bottom
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps this slot's declared
-        default forever -- see examples/features/slots/face.yaml for the full
-        account"
 
   # SE: a `group` carries the alignment; its icon and text stay centred on
   # their own positions inside the group's box.

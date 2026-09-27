@@ -186,9 +186,11 @@ platform, not a list of supported devices:
   letting `monkeyc` fail on it.
 - **Newer features switch off where the watch lacks them**, rather than
   locking the face out. Complications need Connect IQ 4.2 and the on-device
-  face editor needs 5.1 plus Garmin's editor (fēnix 8 and later). On an older
-  watch a complication reads as absent, the face keeps its default
-  configuration, and the build warns (`api-gated`, `config-unsupported`). Touch-and-hold needs a touchscreen
+  face editor needs 5.1 plus Garmin's editor (fēnix 8 and later). A watch
+  without the editor gets the same choices in a generated settings menu
+  instead. On an older watch a complication reads as absent, a watch with
+  neither editor nor menu keeps its default configuration, and the build
+  warns (`api-gated`, `config-unsupported`). Touch-and-hold needs a touchscreen
   (`hold-unsupported` otherwise).
 - **Round screens are the home ground.** Rectangular screens get the same
   layout checks. On semi-round and semi-octagon screens the face builds, but

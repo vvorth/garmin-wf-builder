@@ -327,13 +327,19 @@ def test_a_palette_ref_config_resource_carries_the_labels_through(write_design, 
 # -- lint: config-unsupported --------------------------------------------------
 
 
-def test_config_unsupported_fires_on_fr955_and_not_on_fenix8(write_design, db):
-    fenix = _lint(DESIGN, write_design, db, "fenix8solar47mm")
-    assert not any(d.code == "config-unsupported" for d in fenix.items), fenix.render()
+def test_config_unsupported_fires_only_with_neither_editor_nor_menu(write_design, db):
+    """fēnix 8: the native editor. fr955: the settings menu. fenix5:
+    neither, so it keeps every default and says so."""
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    for device_id in ("fenix8solar47mm", "fr955"):
+        bag = _lint(DESIGN, write_design, db, device_id)
+        assert not any(d.code == "config-unsupported" for d in bag.items), bag.render()
 
-    fr955 = _lint(DESIGN, write_design, db, "fr955")
+    fr955 = _lint(DESIGN, write_design, db, "fenix5")
     warnings = [d for d in fr955.items if d.code == "config-unsupported"]
     assert len(warnings) == 1, fr955.render()
+    assert "no on-device watch face editor and no settings menu" in warnings[0].message
     assert warnings[0].severity.value == "warning"
     assert "config.accent_color" in warnings[0].message
     assert "config.data_color" in warnings[0].message
@@ -375,9 +381,11 @@ def test_config_unsupported_with_no_referencing_element_still_warns_unsuppressib
     size: {width: 100%, height: 100%}
     color: palette.bg
 """
-    fr955 = _lint(text, write_design, db, "fr955")
-    warnings = [d for d in fr955.items if d.code == "config-unsupported"]
-    assert len(warnings) == 1, fr955.render()
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    fenix5 = _lint(text, write_design, db, "fenix5")
+    warnings = [d for d in fenix5.items if d.code == "config-unsupported"]
+    assert len(warnings) == 1, fenix5.render()
     assert "nowhere to put" in " ".join(warnings[0].notes)
 
 

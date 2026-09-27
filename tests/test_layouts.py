@@ -931,7 +931,9 @@ def test_config_unsupported_on_a_layout_only_default_names_no_role(write_design,
     so there is no role for `config-unsupported` to name; only the
     unreachable-entry note applies (the widened Phase 1 assert sites, per the
     coordinator's Phase 2 follow-up)."""
-    bag = _lint(LAYOUT_ONLY, write_design, db, "fr955")
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    bag = _lint(LAYOUT_ONLY, write_design, db, "fenix5")
     warnings = [d for d in bag.items if d.code == "config-unsupported"]
     assert len(warnings) == 1, bag.render()
     assert "config.colors." not in warnings[0].message

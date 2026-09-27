@@ -6,7 +6,7 @@ and ADR 0006 left it "Open". A first implementation was started and frozen
 (§5). Before resuming it: does the mechanism work for **this project's own
 use**, which is personal sideload (root `CLAUDE.md` §1)? If not, what does?
 
-**Status:** research; fed plan 21 (`git show 0e741d9:docs/plans/21-phone-settings.md`), now built as `settings:` (`docs/guide/settings.md`). Every
+**Status:** research; fed plan 21 (`git show 0e741d9:docs/plans/21-phone-settings.md`). Its on-watch menu now carries the `config:` axes on a watch without the native editor (`docs/guide/configuration.md`, ADR 0006's eleventh amendment); the `settings:` block it proposed was built and then removed. Every
 behavioural claim is marked **VERIFIED** (SDK, device files, or the probe
 at `probes/phone-settings/`) or **UNVERIFIED**.
 

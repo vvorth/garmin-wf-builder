@@ -14,7 +14,7 @@ from ...yamlsrc import YamlDocument
 
 from ..model import (
     ColorScheme, ConfigColor, ConfigDataSlot,
-    ConfigStyle, Expression, FontSpec, HandSet, LayoutDecl, Setting,
+    ConfigStyle, Expression, FontSpec, HandSet, LayoutDecl,
 )
 
 T = TypeVar("T")
@@ -22,7 +22,7 @@ T = TypeVar("T")
 
 class NamedRegistry(dict[str, T], Generic[T]):
     """A named top-level block -- `fonts:`, `palette:`, `layouts:`,
-    `color_scheme:`, `config: data:`, `hands:` or `settings:` -- as it parses: a dict of
+    `color_scheme:`, `config: data:` or `hands:` -- as it parses: a dict of
     the *accepted* entries, in declaration order, plus the bookkeeping for
     references to the rest.
 
@@ -130,17 +130,6 @@ scope.  Every other layer of `Builder` reads and writes these."""
         #: for `expression`'s dedicated error; `None` means no Styles
         #: colours at all, not zero roles.
         self._config_colors_roles: tuple[str, ...] | None = None
-        #: `color_scheme` setting name -> its roles, for the same dedicated
-        #: error on a bare `settings.<name>` or an unknown role.
-        self._setting_scheme_roles: dict[str, tuple[str, ...]] = {}
-        self.settings: NamedRegistry[Setting] = NamedRegistry()
-        #: Every declared setting, accepted or rejected -> its `type:`, a
-        #: `choice`'s keys and a `color_scheme`'s roles: what `_build_scope`
-        #: binds `settings.<name>` (or `.<role>`) from, so a rejected one
-        #: still resolves.
-        self.setting_bindings: dict[
-            str, tuple[str, tuple[str, ...] | None, tuple[str, ...]]] = {}
-        self.settings_edit: tuple[str, ...] = ("watch",)
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it

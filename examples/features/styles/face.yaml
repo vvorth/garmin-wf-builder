@@ -33,13 +33,9 @@
 # positive case of the slot rule: a slot may only ever be shared, never
 # inside a `layouts:` body, on pain of a build error), and a small date.
 #
-# `fr955` has no native editor at all (CLAUDE.md constraint 6) -- it simply
-# keeps the compiled-in default entry (`big_dark`) forever, colours and
-# layout alike, exactly like every other `config:` axis; the two entries it
-# can never reach (`big_light`, `compact_dark`) are named by the suppressible
-# `config-unsupported` warning, accepted explicitly below on the element
-# that binds a `config.colors.*` role, the same way `examples/features/config/
-# face.yaml` accepts it for its own two colour axes.
+# `fr955` has no native editor at all (CLAUDE.md constraint 6) -- it offers
+# every entry, layouts and colours alike, from the generated settings menu,
+# opened from its Watch Face menu (docs/guide/configuration.md).
 #
 # `compact_clock` also carries `modes: [active, low_power]` -- small enough
 # (measured: well under the 25% clip-area threshold) that it costs no
@@ -126,13 +122,10 @@ elements:
     at: { anchor: center, dy: -38% }
     color: config.colors.fg
     lint:
-      allow: [config-unsupported, static-overlap]
-      reason: "fr955 has no native editor and keeps every declared default
-        forever, which is this example's whole point -- see the header
-        comment. static-overlap: a decorative ring's bounding box is its
-        full circumscribed square, which overstates the thin ink of the
-        ring itself -- this text sits well clear of the drawn line on
-        every target"
+      allow: [static-overlap]
+      reason: "A decorative ring's bounding box is its full circumscribed
+        square, which overstates the thin ink of the ring itself -- this text
+        sits well clear of the drawn line on every target"
 
   reading_slot:
     type: complication_slot
@@ -143,11 +136,9 @@ elements:
     when_absent: placeholder
     placeholder: "--"
     lint:
-      allow: [config-unsupported, static-overlap]
-      reason: "fr955 has no native editor and keeps this slot's declared
-        default forever, the same as examples/features/slots/face.yaml.
-        static-overlap: the same decorative-ring bounding-box overstatement
-        as date_text above"
+      allow: [static-overlap]
+      reason: "The same decorative-ring bounding-box overstatement as
+        date_text above"
 
 layouts:
   big:

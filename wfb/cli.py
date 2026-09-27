@@ -285,10 +285,6 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--all-styles", action="store_true",
                          help="render every 'config: style:' entry side by side, one "
                               "PNG per device")
-    preview.add_argument("--set", action="append", dest="settings", metavar="NAME=VALUE",
-                         help="render a 'settings:' entry at VALUE instead of its "
-                              "default: true/false for a boolean, a key for a choice "
-                              "(repeatable)")
     preview.add_argument("--time", metavar="HH:MM[:SS]",
                          help="render analog hands (and any time.*-bound element) at "
                               "this time instead of the sample 10:09:42")
@@ -498,8 +494,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     unaffected either way, because `Bag.print` writes to stderr.
     """
     from .preview import (
-        MINUTES_PER_DAY, PreviewOptions, SettingOverrideError, UnknownStyleError,
-        parse_settings, render, render_all_styles,
+        MINUTES_PER_DAY, PreviewOptions, UnknownStyleError, render, render_all_styles,
         render_aod_heatmap, save,
     )
     from .preview import stand_in_warning as preview_stand_in_warning
@@ -540,14 +535,9 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
         setting = 1 if args.units == "statute" else 0
         sample = {f"device.{name}_units": setting
                   for name in ("distance", "elevation", "temperature", "pace")}
-    try:
-        settings = parse_settings(face, args.settings or [])
-    except SettingOverrideError as exc:
-        _error(str(exc))
-        return 1, watched
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=args.asleep, aod=heatmap or args.aod,
-                             sample=sample, settings=settings,
+                             sample=sample,
                              fonts_root=args.fonts_dir)
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
@@ -639,10 +629,6 @@ def _preview(args: argparse.Namespace) -> int:
     Heat Map. It takes `--style`, but not `--all-styles`, `--time` or
     `--minute`. `--units metric|statute` sets the watch's unit settings a
     `units: auto` element follows (metric by default).
-
-    `--set NAME=VALUE` (repeatable) renders a `settings:` entry at VALUE
-    instead of its default: `true`/`false` for a boolean, a key for a
-    choice. A name or value the design does not declare is a clean error.
 
     Every mode writes `<device>[--<style>][--all-styles|--heatmap].png`
     under `-o`, or its one image to stdout with `-o -`.

@@ -618,8 +618,12 @@ def test_a_dithered_icon_color_can_be_suppressed_on_its_own_element(write_design
 # -- lint: config-unsupported, extended to name slots -------------------------
 
 
-def test_config_unsupported_names_the_data_axis_on_fr955(write_design, db):
-    bag = _lint(DESIGN, write_design, db, device_id="fr955")
+def test_config_unsupported_names_the_data_axis_on_fenix5(write_design, db):
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    fr955 = _lint(DESIGN, write_design, db, device_id="fr955")
+    assert not [d for d in fr955.items if d.code == "config-unsupported"], fr955.render()
+    bag = _lint(DESIGN, write_design, db, device_id="fenix5")
     hits = [d for d in bag.items if d.code == "config-unsupported"]
     assert hits, bag.render()
     assert "config.data.top" in hits[0].message and "config.data.bottom" in hits[0].message

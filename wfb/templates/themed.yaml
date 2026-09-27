@@ -74,9 +74,6 @@ static:
     size: { width: 100%, height: 100% }
     color: config.colors.bg
     # One allow anywhere accepts the single, face-wide warning.
-    lint:
-      allow: [config-unsupported]
-      reason: "fr955 has no on-device editor; it keeps every default here"
 
   - id: accent_ring
     type: shape

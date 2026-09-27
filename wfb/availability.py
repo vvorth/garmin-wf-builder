@@ -51,8 +51,11 @@ from typing import Iterable
 from . import kinds
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import Face, FontSpec, Graph
+from .ir import CONFIG_SYMBOL, Face, FontSpec, Graph
 from .series import ACQUISITION, Acquisition
+
+#: The override the settings menu hangs off -- absent on fenix5/fenix5x.
+SETTINGS_MENU_SYMBOL = "Toybox.Application.AppBase.getSettingsView"
 
 
 @dataclass(frozen=True)
@@ -377,6 +380,23 @@ class Guards:
     #: `partial-update` error anyway, so no build that compiles carries the
     #: method on a device that cannot run it.
     partial_update_unsupported: bool = False
+    #: True iff the design has `config:` and some target has no native
+    #: editor (`CONFIG_SYMBOL`) but does call `AppBase.getSettingsView`
+    #: (fr955): the shared sources then carry the settings menu that offers
+    #: the `config:` axes there (`wfb.emit.monkeyc.config_menu`). Which
+    #: editor a device uses is decided again at runtime, `Application has
+    #: :WatchFaceConfig`, so a native-editor target in the same build never
+    #: runs it.
+    config_menu: bool = False
+
+
+def _has(device: Device, symbol: str) -> bool:
+    """`device.has_symbol(symbol)`, `False` when its symbol table is missing
+    (`wfb.lint` reports that separately)."""
+    try:
+        return device.has_symbol(symbol)
+    except Exception:
+        return False
 
 
 def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
@@ -409,8 +429,13 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
         not device.has_symbol(Device.DISPLAY_MODE_SYMBOL) for device in devices
     )
     partial_update_unsupported = not any(device.supports_partial_update for device in devices)
+    config_menu = face.has_config and any(
+        not _has(device, CONFIG_SYMBOL) and _has(device, SETTINGS_MENU_SYMBOL)
+        for device in devices
+    )
     return Guards(complications=complications, fields=missing_fields,
                   vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
                   burn_in_field_guarded=burn_in_field_guarded,
                   display_mode_guarded=display_mode_guarded, modules=missing_modules,
-                  partial_update_unsupported=partial_update_unsupported)
+                  partial_update_unsupported=partial_update_unsupported,
+                  config_menu=config_menu)

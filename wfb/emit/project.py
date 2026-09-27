@@ -14,6 +14,7 @@ from ..fonts import BakedFont
 from ..ir import Face
 from ..layout import ResolvedFace, resolve
 from . import jungle, manifest, monkeyc, resources, strhash, usage
+from .monkeyc import config_menu
 from .usage import RUNTIME_LIB
 
 #: Support-barrel files, and what pulls each one in.  Only what a face uses is
@@ -42,12 +43,9 @@ class GeneratedProject:
     manifest_text: str = ""
     jungle_text: str = ""
     strings_text: str = ""
-    #: `resources/settings/properties.xml`; empty, and not written, for a
-    #: design without `settings:`.
+    #: `resources/settings/properties.xml`, the `config:` settings menu's
+    #: stored choices; empty, and not written, without the menu.
     properties_text: str = ""
-    #: `resources/settings/settings.xml`; empty, and not written, unless
-    #: the design has `settings: edit: [phone]`.
-    settings_text: str = ""
     barrel: list[str] = field(default_factory=list)
     resolved: dict[str, ResolvedFace] = field(default_factory=dict)
     #: String literals that would still share a monkeyc `str___<hash>` label
@@ -68,8 +66,6 @@ class GeneratedProject:
         }
         if self.properties_text:
             out["resources/settings/properties.xml"] = self.properties_text
-        if self.settings_text:
-            out["resources/settings/settings.xml"] = self.settings_text
         for source in self.sources:
             out[source.path] = source.text
         return out
@@ -113,18 +109,16 @@ def generate(face: Face, devices: list[Device], root: Path,
     """
     project = GeneratedProject(face=face, devices=devices, root=root)
 
-    project.sources.append(monkeyc.emit_app(face))
+    guards = compute_guards(face, devices)
+    project.sources.append(monkeyc.emit_app(face, guards))
     if face.palette:
         project.sources.append(monkeyc.emit_palette(face))
 
-    guards = compute_guards(face, devices)
     project.manifest_text = manifest.render(face, devices)
     project.jungle_text = jungle.render(face, devices)
     project.strings_text = resources.shared_strings(face)
-    if face.settings:
-        project.properties_text = resources.properties_resource(face)
-    if face.settings_phone:
-        project.settings_text = resources.settings_resource(face)
+    if guards.config_menu:
+        project.properties_text = config_menu.properties_resource(face)
 
     for device in devices:
         device_resolved = (resolved or {}).get(device.id)
@@ -162,8 +156,8 @@ def generate(face: Face, devices: list[Device], root: Path,
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(_check_shared(project, lambda r: monkeyc.emit_delegate(r, guards)))
-    if face.settings_menu:
-        project.sources.append(monkeyc.emit_settings_delegate(face))
+    if guards.config_menu:
+        project.sources.append(config_menu.emit_delegates(face))
     project.barrel = sorted(usage.barrel_modules(source.text for source in project.sources))
     _avoid_string_label_collisions(project)
     return project

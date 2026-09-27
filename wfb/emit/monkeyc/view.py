@@ -13,14 +13,14 @@ from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
     HOLD_AUTO, Expression, Face, config_data_ids, config_field, font_resource_id, local_name,
-    setting_label_method, setting_role_field, static_group_method,
+    static_group_method,
 )
 from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
     NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
-    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _mc_string, _method,
+    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _method,
     _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
 )
@@ -28,6 +28,7 @@ from .complication_slot import (
     _emit_complication_slot_editor_methods, _emit_complication_slot_hold_method,
     _emit_complication_slot_icon_method, _emit_pulsing_field,
 )
+from . import config_menu
 from .graph import _emit_graph_fields, _emit_graph_rebuild
 from .readplan import ReadPlan
 from ..writer import Writer
@@ -47,27 +48,13 @@ STATIC_FIELD = "_staticBuffer"
 STATIC_RENDER = "renderStatic"
 
 
-#: Re-paints the static buffer from the *current* field values -- the
-#: callers are `applyConfig` and `applySettings`, for a config colour or a
-#: setting drawn into static content (ADR 0006 1 and its tenth amendment).
-#: A fixed literal name, like the two above, not derived from any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
+#: Re-paints the static buffer from the *current* field values -- the one
+#: caller is `applyConfig`, for a config colour drawn into static content
+#: (ADR 0006 1).  A fixed literal name, like the two above, not derived from
+#: any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
 #: nothing an author writes can make this collide, and it does not need an
 #: entry in `Builder._check_symbol_collision`.
 REPAINT_STATIC_METHOD = "repaintStatic"
-
-
-#: Reads every `settings:` entry into its view field. Public: the app's
-#: `onSettingsChanged` calls it, and a private method cannot be called from
-#: another class (`docs/lore/monkeyc.md`). Fixed, like the names above.
-APPLY_SETTINGS_METHOD = "applySettings"
-
-
-#: The on-watch settings menu's two view methods: one builds the `Menu2`
-#: from the current fields, one handles a selection. Public for the same
-#: reason as `applySettings`: the app and the menu delegate call them.
-SETTINGS_MENU_METHOD = "settingsMenu"
-SELECT_SETTING_METHOD = "selectSetting"
-CHOOSE_SETTING_METHOD = "chooseSetting"
 
 
 @dataclass
@@ -224,7 +211,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved, aod_only_fonts)
         _emit_config_fields(w, face, guards)
-        _emit_settings_fields(w, face)
+        if guards.config_menu:
+            config_menu.emit_fields(w, face)
         _emit_static_field(w, static)
         _emit_graph_fields(w, graphs)
         if slot_pairs:
@@ -253,10 +241,11 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_antialias_helper(w)
         if face.has_config:
             _emit_apply_config(w, face, static)
-        if face.settings:
-            _emit_apply_settings(w, face, static)
-        if face.settings_menu:
-            _emit_settings_menu(w, face)
+        if guards.config_menu:
+            config_menu.emit_view_methods(
+                w, face, face.entry,
+                repaint=REPAINT_STATIC_METHOD if static is not None else None,
+                resolve_style=RESOLVE_STYLE_METHOD, complications_guarded=guards.complications)
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
@@ -276,8 +265,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if slot_pairs:
             _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
-            _emit_static_methods(w, face, static, antialias_default,
-                                 needs_repaint=face.has_config or bool(face.settings))
+            _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config,
+                                 from_menu=guards.config_menu)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -353,7 +342,7 @@ def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
 
 def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                          antialias_default: bool | None = None,
-                         needs_repaint: bool = False) -> None:
+                         needs_repaint: bool = False, from_menu: bool = False) -> None:
     """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
 
     `renderStatic` takes a Dc rather than the buffer, and is called with the
@@ -407,32 +396,20 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                              lambda root: w.line(f"{static.method(root)}(dc);"))
     if needs_repaint:
         w.blank()
-        if face.settings:
-            w.doc("Re-paint the static buffer from the current field values, in place.\n"
-                  "\n"
-                  "Called from `applySettings` (and `applyConfig`, if any): a "
-                  "setting or config\n"
-                  "colour drawn into static content was already baked into the "
-                  "buffer once in\n"
-                  "onLayout, so a wearer's edit needs this to show before the "
-                  "buffer is blitted\n"
-                  "again.  Narrows through a local rather than calling `.getDc()` "
-                  "straight off\n"
-                  "the field -- `monkeyc` cannot narrow a `Null` check across a "
-                  "field read\n"
-                  "(CLAUDE.md).")
-        else:
-            w.doc("Re-paint the static buffer from the current field values, in place.\n"
-                  "\n"
-                  "Called only from `applyConfig`: a config colour drawn into static "
-                  "content\n"
-                  "was already baked into the buffer once in onLayout, so a wearer's "
-                  "edit\n"
-                  "needs this to show before the buffer is blitted again.  Narrows "
-                  "through a\n"
-                  "local rather than calling `.getDc()` straight off the field -- "
-                  "`monkeyc`\n"
-                  "cannot narrow a `Null` check across a field read (CLAUDE.md).")
+        w.doc("Re-paint the static buffer from the current field values, in place.\n"
+              "\n"
+              + ("Called from `applyConfig`/`applyStoredConfig`: a config colour drawn "
+               "into static\ncontent" if from_menu else
+               "Called only from `applyConfig`: a config colour drawn into static "
+               "content")
+              + "\n"
+              "was already baked into the buffer once in onLayout, so a wearer's "
+              "edit\n"
+              "needs this to show before the buffer is blitted again.  Narrows "
+              "through a\n"
+              "local rather than calling `.getDc()` straight off the field -- "
+              "`monkeyc`\n"
+              "cannot narrow a `Null` check across a field read (CLAUDE.md).")
         with w.block(f"private function {REPAINT_STATIC_METHOD}() as Void"):
             w.line(f"var buffer = {STATIC_FIELD};")
             with w.block("if (buffer != null)"):
@@ -545,167 +522,6 @@ def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) ->
         else:
             w.line(f"private var {slot.field} as Complications.Id = "
                    f"new Complications.Id(Complications.{ctype.constant});")
-    w.blank()
-
-
-def _emit_settings_fields(w: Writer, face: Face) -> None:
-    """One field per `settings:` entry, initialised to its declared default:
-    a Boolean for `boolean`, the default key's index for `choice`.
-    `applySettings` overwrites each from `Application.Properties` in the
-    constructor, so the initialiser only has to type the field."""
-    if not face.settings:
-        return
-    w.doc("Wearer settings (`settings:`), read from Application.Properties by "
-          "applySettings.\n"
-          "A choice holds its key's index, in the order 'choices:' lists them.")
-    for setting in face.settings.values():
-        if setting.type == "boolean":
-            w.line(f"private var {setting.field} as Boolean = {_mc_bool(bool(setting.default))};")
-            continue
-        w.line(f"private var {setting.field} as Number = {setting.stored_default};"
-               f"  // {setting.default}")
-        if setting.type == "color_scheme":
-            for role, color in face.color_scheme[str(setting.default)].colors.items():
-                w.line(f"private var {setting_role_field(setting.name, role)} as Number = "
-                       f"{color.as_monkeyc()};")
-    w.blank()
-
-
-def _emit_apply_settings(w: Writer, face: Face, static: "StaticPlan | None") -> None:
-    """`applySettings` -- read every `settings:` entry into its field.
-
-    Called from the constructor, and from the app's `onSettingsChanged` when
-    Garmin Connect pushes a change. Every read is type-checked, not just
-    null-checked: Garmin's developer FAQ reports the phone sending a value
-    of the wrong type (`docs/research/17-phone-settings.md` §1). A value of
-    the wrong type, or a `choice` index out of range (say, a stored index
-    from a build with more choices), falls back to the declared default.
-    """
-    w.doc(
-        "Read every wearer setting into its field.\n"
-        "\n"
-        "A value of the wrong type, or a choice index out of range, falls back to\n"
-        "the declared default, so a setting is never absent."
-    )
-    with w.block(f"function {APPLY_SETTINGS_METHOD}() as Void"):
-        for name, setting in face.settings.items():
-            local = local_name(f"settings.{name}")
-            w.line(f'var {local} = Application.Properties.getValue("{name}");')
-            if setting.type == "boolean":
-                w.line(f"{setting.field} = ({local} instanceof Boolean) ? {local} : "
-                       f"{_mc_bool(bool(setting.default))};")
-                continue
-            with w.block(f"if ({local} instanceof Number && {local} >= 0 && "
-                         f"{local} < {len(setting.choices)})"):
-                w.line(f"{setting.field} = {local};")
-            with w.block("else"):
-                w.line(f"{setting.field} = {setting.stored_default};")
-            if setting.type == "color_scheme":
-                w.comment(f"settings.{name}: the chosen color_scheme's colours")
-                for index, choice in enumerate(setting.choices):
-                    with w.block(f"if ({setting.field} == {index})"):
-                        for role, color in face.color_scheme[choice.key].colors.items():
-                            w.line(f"{setting_role_field(name, role)} = {color.as_monkeyc()};"
-                                   f"  // color_scheme.{choice.key}")
-        if static is not None:
-            w.comment("a setting may be drawn into the static buffer -- repaint it")
-            w.line(f"{REPAINT_STATIC_METHOD}();")
-    w.blank()
-
-
-def _emit_settings_menu(w: Writer, face: Face) -> None:
-    """The on-watch settings menu: `settingsMenu`, `selectSetting`, and one
-    `settingLabel<Name>` per `choice` or `color_scheme` setting.
-
-    `AppBase.getSettingsView` returns the `Menu2` `settingsMenu` builds, so
-    the watch opens it from its Watch Face menu. A `boolean` setting is a
-    `ToggleMenuItem`. A `choice` or `color_scheme` setting is a `MenuItem`
-    whose sub-label is the current choice; selecting it pushes a second
-    `Menu2` listing every choice, focused on the current one, and picking
-    one there calls `chooseSetting` (through `<Face>SettingChoiceDelegate`),
-    which also updates the first menu's sub-label and pops back to it.
-    Each settings item's identifier is the setting's position in
-    `settings:`; each choice item's, the choice's index.
-
-    Both paths write `Application.Properties` and then run `applySettings`,
-    the same path a Garmin Connect push takes. A local write does not call
-    `onSettingsChanged` (research 17 §3.3), so the menu calls the path
-    itself.
-    """
-    w.doc(
-        "The settings menu, built from the current values.  The watch opens it from\n"
-        "its Watch Face menu (AppBase.getSettingsView)."
-    )
-    with w.block(f"function {SETTINGS_MENU_METHOD}() as WatchUi.Menu2"):
-        w.line(f"var menu = new WatchUi.Menu2({{ :title => {_mc_string(face.name)} }});")
-        for index, setting in enumerate(face.settings.values()):
-            label = _mc_string(setting.label)
-            if setting.type == "boolean":
-                w.line(f"menu.addItem(new WatchUi.ToggleMenuItem({label}, null, {index}, "
-                       f"{setting.field}, null));")
-            else:
-                w.line(f"menu.addItem(new WatchUi.MenuItem({label}, "
-                       f"{setting_label_method(setting.name)}({setting.field}), {index}, null));")
-        w.line("return menu;")
-    w.blank()
-    has_choices = any(s.type != "boolean" for s in face.settings.values())
-    has_toggles = any(s.type == "boolean" for s in face.settings.values())
-    w.doc(
-        "One settings menu item was selected.  A toggle stores its new value and\n"
-        "applies it the way a Garmin Connect push would; a choice opens the list of\n"
-        "its options, focused on the current one."
-    )
-    with w.block(f"function {SELECT_SETTING_METHOD}(item as WatchUi.MenuItem) as Void"):
-        w.line("var id = item.getId();")
-        for index, setting in enumerate(face.settings.values()):
-            if setting.type == "boolean":
-                continue
-            with w.block(f"if (id == {index})"):
-                w.comment(f"settings.{setting.name}: pick from its options")
-                w.line(f"var options = new WatchUi.Menu2({{ :title => {_mc_string(setting.label)} }});")
-                for choice_index, choice in enumerate(setting.choices):
-                    w.line(f"options.addItem(new WatchUi.MenuItem({_mc_string(choice.label)}, "
-                           f"null, {choice_index}, null));")
-                w.line(f"options.setFocus({setting.field});")
-                w.line(f"WatchUi.pushView(options, new {face.entry}SettingChoiceDelegate("
-                       f"self, {index}, item), WatchUi.SLIDE_LEFT);")
-                w.line("return;")
-        if has_toggles:
-            for index, setting in enumerate(face.settings.values()):
-                if setting.type != "boolean":
-                    continue
-                with w.block(f"if (id == {index} && item instanceof WatchUi.ToggleMenuItem)"):
-                    w.comment(f"settings.{setting.name}")
-                    w.line(f"Application.Properties.setValue({_mc_string(setting.name)}, "
-                           "item.isEnabled());")
-            w.line(f"{APPLY_SETTINGS_METHOD}();")
-            w.line("WatchUi.requestUpdate();")
-    if has_choices:
-        w.blank()
-        w.doc(
-            "One option was picked from a choice's list: store it, then apply it the\n"
-            "way a Garmin Connect push would.  `setting` is the settings item's id."
-        )
-        with w.block(f"function {CHOOSE_SETTING_METHOD}(setting as Number, index as Number) as Void"):
-            for index, setting in enumerate(face.settings.values()):
-                if setting.type == "boolean":
-                    continue
-                with w.block(f"if (setting == {index})"):
-                    w.comment(f"settings.{setting.name}")
-                    w.line(f"Application.Properties.setValue({_mc_string(setting.name)}, index);")
-            w.line(f"{APPLY_SETTINGS_METHOD}();")
-            w.line("WatchUi.requestUpdate();")
-    for setting in face.settings.values():
-        if setting.type == "boolean":
-            continue
-        w.blank()
-        w.doc(f"settings.{setting.name}: a choice's index -> its label.")
-        with w.block(f"private function {setting_label_method(setting.name)}"
-                     "(index as Number) as String"):
-            for index, choice in enumerate(setting.choices[1:], start=1):
-                with w.block(f"if (index == {index})"):
-                    w.line(f"return {_mc_string(choice.label)};")
-            w.line(f"return {_mc_string(setting.choices[0].label)};")
     w.blank()
 
 
@@ -901,8 +717,6 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
     signature = "function initialize(editMode as Boolean)" if has_slots else "function initialize()"
     with w.block(signature):
         w.line("WatchFace.initialize();")
-        if face.settings:
-            w.line(f"{APPLY_SETTINGS_METHOD}();")
         if guards.complications and face.config_data:
             w.blank()
             w.comment("Toybox.Complications is absent on at least one target -- leave")
@@ -912,6 +726,10 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
                 for name, slot in face.config_data.items():
                     ctype = complications.TYPES[slot.default]
                     w.line(f"{slot.field} = new Complications.Id(Complications.{ctype.constant});")
+        if guards.config_menu:
+            w.comment("no native editor: config comes from the settings menu's stored choices")
+            with w.block("if (!(Application has :WatchFaceConfig))"):
+                w.line(f"{config_menu.APPLY_STORED_METHOD}();")
     w.blank()
 
 

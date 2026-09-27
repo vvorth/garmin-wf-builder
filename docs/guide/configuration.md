@@ -3,11 +3,13 @@
 Garmin's fēnix 8 watches have a native on-device face editor with four
 user-editable axes: an accent colour, a data colour, Styles (author-named
 entries), and Data (named complication slots the wearer repoints at any
-Garmin metric). The wearer can save up to four configurations. `fr955` has
-no on-device editor at all, so it always shows the compiled-in defaults.
-`config:` declares which of these axes a design uses. A Boolean or a
-named choice that every target stores, fr955 included, is a
-[wearer setting](settings.md) instead.
+Garmin metric). The wearer can save up to four configurations. `config:`
+declares which of these axes a design uses.
+
+A watch without the native editor, such as `fr955`, gets the same axes in a
+generated **settings menu** instead, opened from its Watch Face menu (see
+[below](#the-settings-menu-on-a-watch-without-the-native-editor)). A watch
+with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 
 ## At a glance
 
@@ -59,8 +61,7 @@ magenta data colour, and the left slot set to heart rate. Right: magenta
 accent, cyan data colour, and the right slot set to calories.*
 
 The wearer picks these in the fēnix 8's native face editor, which saves up to
-four configurations. The fr955 has no on-device editor, so it always shows the
-defaults.
+four configurations. On fr955, the same picks come from the settings menu.
 
 ## Configuration
 
@@ -402,19 +403,52 @@ raised manifest floor -- see "The `complication.*` namespace" and "Holding an
 element" below for the full mechanism, and the `api-gated` lint entry just
 below for what an author sees on such a device.
 
-**A device with no native editor keeps every declared default forever** -- the
-compiled-in colours and the default scheme's role colours always; a slot's
-default complication type too, **provided the device can still resolve it**
--- it is read through `Toybox.Complications` the same as any other choice,
-so a device that lacks that module as well (fenix6, fenix6xpro, fr245 today)
-cannot "keep" it either, and the slot shows its absent state instead. This is
-a real, user-facing consequence of the chosen scope
-(`docs/adr/0006-configuration-theming-and-modes.md` §2), not a bug, and the
-compiler says so: the suppressible `config-unsupported` warning fires once
-per such target, naming the device and the entries (roles, slots) affected,
-worded accordingly for a slot that cannot resolve its default either; see
-`api-gated` below for the same fact from the slot's own side, reported
-independently rather than folded into this one.
+**Every device edits `config:` one of three ways:**
+
+| Device | How the wearer edits `config:` |
+|---|---|
+| Native editor (fēnix 8 and newer) | the native editor, as above |
+| No native editor, but `AppBase.getSettingsView` (fr955, fenix6, fr245, ...) | the generated [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor) |
+| Neither (`fenix5`/`fenix5x`) | nothing: every declared default, forever |
+
+The third row is the only one that warns: the suppressible
+`config-unsupported` warning fires once per such target, naming the device
+and the entries (roles, slots) affected. A slot's default complication type
+is read through `Toybox.Complications`, so on a device that also lacks that
+module (`fenix5`/`fenix5x`, and fenix6/fr245 for the menu too) the slot
+shows its absent state instead of any default; see `api-gated` below for
+that fact from the slot's own side, reported independently.
+
+### The settings menu, on a watch without the native editor
+
+The build generates it whenever some target lacks the native editor but has
+`AppBase.getSettingsView`. The watch opens it from its Watch Face menu. It
+has one item per axis, in this order: Style, Accent colour, Data colour, then
+each data slot by name. Each item shows the current choice. Selecting one
+opens the list of its options, focused on the current one, and picking an
+option applies it at once.
+
+| Axis | The options listed |
+|---|---|
+| `style:` | every entry, by its label (else its scheme's label, else its name) |
+| `accent_color:`/`data_color:` | the `choices:` list, by palette label or hex; for `choices: any`, every `palette:` entry, plus the default first if it is not one of them |
+| a `data:` slot | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
+
+Which editor runs is decided on the watch, with the same `Application has
+:WatchFaceConfig` check the view already makes, so one build serves a fēnix 8
+(native editor, and `getSettingsView` returns null) and an fr955 (the menu)
+alike. A menu choice is stored as an `Application.Properties` index, one
+property per axis in `resources/settings/properties.xml`, defaulting to -1,
+"never chosen". A stored value of the wrong type or out of range keeps the
+declared default. A menu choice is one value for the whole face: there are
+no saved configurations outside the native editor.
+
+A build whose targets all have the native editor carries none of this.
+With a menu target in the build, the menu is shared code, so every target
+carries it. Measured on the example faces (`fr955`): +1,830 B for
+`examples/features/config/` (two colour axes and a style), +1,667 B for
+`features/styles/`, and +2,892 B for `features/slots/`, whose
+`choices: any` slot lists about forty complication types.
 
 ### Lint
 
@@ -444,10 +478,11 @@ independently rather than folded into this one.
   `color:`/`track_color:`/`icon_color:`, a text's `outline: {color: ...}`,
   or an `aod:` override's colour (a plain `palette.<name>` reference is
   checked the same way, against the same fields).
-* `config-unsupported` (suppressible) -- at least one target has no native
-  editor, so the declared defaults are all that device ever shows (now
-  including every slot's default); when `style` has more than one entry, the
-  message also names the non-default entries as unreachable on that device.
+* `config-unsupported` (suppressible) -- at least one target has neither the
+  native editor nor the settings menu (`fenix5`/`fenix5x`), so the declared
+  defaults are all that device ever shows (including every slot's default);
+  when `style` has more than one entry, the message also names the
+  non-default entries as unreachable on that device.
 * `data:`'s `default:`/`choices:` naming an unknown `complication.<name>` --
   error, with a near-miss suggestion, the same as an `on_hold:` typo.
 * `data:`'s `default:` not among an explicit `choices:` list -- error, the
@@ -506,9 +541,9 @@ independently rather than folded into this one.
     (the default is itself read through `Toybox.Complications`, so a device
     missing the module cannot resolve it either). This does **not** dedupe
     against `config-unsupported`: that warning, when it *also* fires because
-    the device lacks the native editor too, says the slot "keeps its
+    the device has neither editor nor menu, says the slot "keeps its
     declared default" -- true only when the default can still resolve, so
-    on a device missing both (fenix6, fenix6xpro, fr245 today) the two
+    on a device missing all three (`fenix5`/`fenix5x` today) the two
     warnings report different halves of the truth and both fire, with
     `config-unsupported`'s own wording adjusted to say "shows as absent"
     for such a slot rather than "keeps its declared default".
@@ -528,7 +563,11 @@ independently rather than folded into this one.
 **No behaviour of the editor is verified anywhere in this project.** There is
 no simulator in this container and no watch (`docs/limitations.md` §2); every
 claim above is a compile-time result (schema, IR, a real `monkeyc` build) or a
-byte cost, never a description of what the editor's UI actually does.
+byte cost, never a description of what the editor's UI actually does. The
+settings menu mechanism was seen working on `fr955` (2026-09-27, with the
+since-removed `settings:` block, whose choices cycled rather than opening a
+list): the Watch Face menu entry appears and a change applies at once. The
+`config:` menu, and its lists of options, have not been seen on a watch yet.
 
 **A `complication_slot`'s geometry is sized from its value alone.** `label:`
 and a `String`-typed `unit:` are localised device strings with no documented

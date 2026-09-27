@@ -34,17 +34,13 @@ or AOD-related has been observed on a watch or in the simulator.
   Styles with `color_scheme:` and `layouts:` (form A), the Data axis as
   `complication_slot`. `docs/guide/configuration.md`,
   `styles-and-layouts.md`.
-- **Wearer settings** — `settings:` with `boolean`, `choice` and
-  `color_scheme` (read as `settings.<name>.<role>`, lint
-  `settings-scheme-overlap`),
-  stored as `Application.Properties` (`properties.xml`), read as
-  `settings.<name>` (a choice compares its Number index,
-  `wfb.expr._choice_compare`), re-read by `onSettingsChanged`; the
-  on-watch settings menu (`getSettingsView`, `edit: [watch]`, the
-  default), with lint `settings-menu-unsupported` on `fenix5`/`fenix5x`;
-  `edit: phone`'s `settings.xml`, checked against `monkeyc`'s own
-  `-settings.json` (no Store packaging, so it does nothing on a sideload);
-  `wfb preview --set`. Seen working on `fr955`; a choice's options list and a fēnix 8 are not yet seen. `docs/guide/settings.md`.
+- **The `config:` settings menu** — on a watch without the native editor
+  but with `getSettingsView` (fr955), the `config:` axes as one list per
+  axis (`wfb.emit.monkeyc.config_menu`); stored as `Application.Properties`
+  indices; `choices: any` offers the palette or every complication type
+  the device has (per-device `Layout` arrays). `config-unsupported` fires
+  only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on
+  `fr955`; the `config:` menu itself not yet. `docs/guide/configuration.md`.
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
   friendly error (`wfb.build.select_devices`); complication, weather and
   field touches are `has`-guarded (`wfb/availability.py`); lints
@@ -97,10 +93,10 @@ specifies each item.
 3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `complication_slot`.
-5. **`number` settings and `wfb package`.** `Menu2` has no numeric entry,
-   so a `number` setting would be phone-only, and phone editing needs a
-   Store install, which needs `wfb package` (research 17 §2). No `.SET`
-   writer, by decision (ADR 0006 tenth amendment). The
+5. **Phone-side settings and `wfb package`.** Phone editing needs a Store
+   install, which needs `wfb package` (research 17 §2); wearer settings
+   beyond `config:` were decided against, and there is no `.SET` writer
+   (ADR 0006 tenth and eleventh amendments). The
    2026-09-11 WIP is pinned on `wip/phone-settings`. It is design reference
    only: it predates the builder, emitter and kinds refactors. Do not
    resume it without asking the user.

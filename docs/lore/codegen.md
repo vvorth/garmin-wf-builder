@@ -704,14 +704,22 @@ These cost real time to discover; do not rediscover them.
   host rendering (`render`, what `wfb preview` draws) share that same row
   (`wfb.formatting.Code`).
 
-- **A `choice` setting's compare keeps its key in the expression tree, and
-  only `emit` turns it into an index** (`wfb.expr._choice_compare`).
-  Rewriting `settings.ring == "steps"` into `== 0` during `fold` looks
-  simpler, but `wfb.ir.builder.visibility` re-runs `expr.check` on already
-  folded trees when it conjoins a group's `visible:` into its children, and
-  `check` must reject a bare Number compared with a choice. Keeping the key
-  also lets `wfb preview` evaluate the same tree against the key, with no
-  second mapping to drift. The generated `properties.xml` notes each
-  choice's index order in an XML comment, which may not contain `--`: the
-  keys are schema identifiers, so they are safe there, and a label (free
-  text) is left out on purpose.
+- **The `config:` settings menu (2026-09-27): runtime choice of editor,
+  per-device option lists, and two `monkeyc` findings.** Which editor a
+  device uses is decided on the watch by `Application has :WatchFaceConfig`,
+  the check `onLayout`'s first native read already made, so one shared view
+  serves a fēnix 8 (native; `getSettingsView` returns null) and an fr955
+  (the menu) with no per-device flag. A data slot's options are per device
+  (`choices: any` lists the types the device's API level has), so they live
+  in `Layout.mc` (`CONFIG_DATA_<SLOT>_TYPES`/`_LABELS`/`_DEFAULT`) and the
+  shared view only indexes them; every property therefore defaults to -1,
+  "never chosen", keeping `properties.xml` one shared file while each
+  device's default index differs. Real builds found: (1) with every target
+  having `Toybox.Complications`, the `has` block around each slot's decode
+  is not emitted, so two slots' `var types` share one straight-line scope --
+  `Redefinition of variable 'types'` (the same rule the `outline:` finding
+  above records); each slot gets its own local (`typesTop`). (2) An empty
+  `[]` typed `Array<Complications.Type>` in `Layout.mc` compiles
+  warning-free on a device without the module (fenix6), so no second
+  shape is needed there. `tests/test_config_menu.py` builds fēnix 8, fr955,
+  fenix6 and fenix5 together.

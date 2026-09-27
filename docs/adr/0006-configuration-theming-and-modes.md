@@ -906,6 +906,40 @@ nothing. See research 07 §2.
 > deleted plan 21). A `color_scheme` setting gives `fr955` colour schemes
 > without the native editor. `docs/guide/settings.md` is the reference; the
 > UNVERIFIED points above still stand.
+>
+> Superseded the same day by the eleventh amendment: `settings:` is gone,
+> and the menu carries `config:` itself.
+
+> **Eleventh amendment (2026-09-27): the settings menu carries the `config:`
+> axes, and `settings:` is removed.** After seeing the settings menu work on
+> `fr955`, the user asked for `config:` itself -- Styles and its layouts,
+> the two colours, the Data slots -- to be offered there on a watch without
+> the native editor, rather than a second, separate language for wearer
+> choices. Decided:
+>
+> - A watch with the native editor edits `config:` there only; its
+>   `getSettingsView` returns null. A watch without it but with
+>   `getSettingsView` (fr955, fenix6, fr245, ...) gets one menu item per
+>   axis, each opening the list of its options. A watch with neither
+>   (`fenix5`/`fenix5x`) keeps every default, and `config-unsupported` now
+>   fires only there.
+> - `choices: any` offers every `palette:` entry for a colour, and every
+>   complication type the device's API level has for a data slot -- a list
+>   decided per device, in `Layout.mc`.
+> - Wearer booleans and plain choices are dropped, `color_scheme` settings
+>   with them (Styles already picks schemes), and so are `edit: phone` and
+>   `settings.xml` (D2 above): there is no `settings:` left to describe.
+>
+> Which editor a device uses is decided at runtime by `Application has
+> :WatchFaceConfig`, the check the view already made before its first native
+> read, so one build serves both. A menu choice is an
+> `Application.Properties` index per axis, one value for the whole face:
+> outside the native editor there are no saved configurations.
+> `docs/guide/configuration.md` "The settings menu" is the reference.
+> UNVERIFIED: the `config:` menu on a watch (the mechanism was seen working
+> on `fr955` with the removed `settings:` block), the memory limit the menu
+> runs under, and whether a fēnix 8 ever shows a settings entry (it returns
+> null there).
 
 ---
 
@@ -971,10 +1005,10 @@ both map to `onPress`, rather than silently preferring one.
   only element that opted out of the null guard, font resolution, layout-box
   and static/antialias rules every other element shares. See the amendment
   for the reasons and CLAUDE.md for the deletion session.
-- (tenth amendment) Wearer settings are a generated on-watch menu, with
-  `settings.xml` emitted alongside it for a possible Store beta. This gives
-  `fr955` a configuration route of its own, colour schemes included.
-  `docs/guide/settings.md` is the author-facing reference.
+- (tenth and eleventh amendments) A watch without the native editor gets
+  the `config:` axes in a generated settings menu, so `fr955` has a
+  configuration route of its own; only `fenix5`/`fenix5x` keep the
+  defaults. `docs/guide/configuration.md` is the author-facing reference.
 
 ## Open
 

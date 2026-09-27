@@ -493,11 +493,16 @@ config:
 # -- lint: config-unsupported --------------------------------------------------
 
 
-def test_config_unsupported_names_every_role_on_fr955(write_design, db):
-    fenix = _lint(DESIGN, write_design, db, "fenix8solar47mm")
-    assert not any(d.code == "config-unsupported" for d in fenix.items), fenix.render()
+def test_config_unsupported_names_every_role_on_fenix5(write_design, db):
+    """The native editor (fēnix 8) and the settings menu (fr955) both edit
+    config:; fenix5 has neither."""
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    for device_id in ("fenix8solar47mm", "fr955"):
+        bag = _lint(DESIGN, write_design, db, device_id)
+        assert not any(d.code == "config-unsupported" for d in bag.items), bag.render()
 
-    fr955 = _lint(DESIGN, write_design, db, "fr955")
+    fr955 = _lint(DESIGN, write_design, db, "fenix5")
     warnings = [d for d in fr955.items if d.code == "config-unsupported"]
     assert len(warnings) == 1, fr955.render()
     assert "config.colors.bg" in warnings[0].message

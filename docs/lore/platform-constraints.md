@@ -141,7 +141,10 @@ These are the findings that shaped every decision. Full detail and citations in
 
 9. **On-device config has exactly four axes** (API 5.1.0, fēnix 8+): Styles,
    complication slots, **one** data colour, **one** accent colour. Max four saved
-   configurations. No per-element colour editing. **`fr955` is excluded entirely.**
+   configurations. No per-element colour editing. **`fr955` is excluded entirely**
+   from the native editor; this project offers the same axes there from a
+   generated `getSettingsView` menu instead (`docs/guide/configuration.md`,
+   ADR 0006's tenth amendment), which `fenix5`/`fenix5x` lack too.
 
    **9b. The Data axis takes Garmin complication types only** -- there is no way
    to put author-defined content in a `<complication>`'s list. Author-defined

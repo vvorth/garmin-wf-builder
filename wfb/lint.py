@@ -50,7 +50,7 @@ SUPPRESSIBLE = frozenset({
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
     "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
-    "aod-unreachable", "aod-empty", "aod-burn-in", "settings-scheme-overlap",
+    "aod-unreachable", "aod-empty", "aod-burn-in",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -82,7 +82,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
-    "settings", "settings-menu-unsupported", "settings-scheme-overlap", "static", "static-overlap", "string-label",
+    "static", "static-overlap", "string-label",
     "text-antialias", "text-curve", "text-outline", "text-outline-interior",
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
@@ -107,7 +107,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
 def _suppressed(code: str, allows: Iterable[frozenset[str]]) -> bool:
     """The one definition of "suppressed": ``code`` names a real suppressible
     diagnostic, and at least one owner's ``lint: {allow: [...]}`` (an
-    element's, a `config: style:` entry's, a layout's, a setting's, the face's `aod:`)
+    element's, a `config: style:` entry's, a layout's, the face's `aod:`)
     accepted it."""
     return code in SUPPRESSIBLE and any(code in allow for allow in allows)
 
@@ -199,37 +199,6 @@ def check_duplicate_style(face: Face, bag: Bag) -> None:
                 f"'{entry.name}' to accept it -- e.g. two labels while "
                 "iterating on the same look",
             ],
-        )
-
-
-def check_settings_scheme_overlap(face: Face, bag: Bag) -> None:
-    """A `color_scheme` setting offering a scheme a `config: style:` entry
-    also offers: the wearer then has two controls for one set of colours,
-    in two different places, and nothing ties them together -- one element
-    can follow the setting while another follows the editor.
-
-    A warning, suppressible on the setting's own `lint:`.  Design-level:
-    runs once, from :func:`run_design`.
-    """
-    if face.config_style is None:
-        return
-    styled = {e.colors for e in face.config_style.entries if e.colors is not None}
-    for name, setting in face.settings.items():
-        if setting.type != "color_scheme":
-            continue
-        shared = [key for key in setting.keys if key in styled]
-        if not shared or _suppressed("settings-scheme-overlap", [setting.lint_allow]):
-            continue
-        bag.warning(
-            "settings-scheme-overlap",
-            f"settings.{name} and 'config: style:' both pick from color_scheme "
-            + ", ".join(shared),
-            setting.span,
-            notes=["the wearer gets two separate controls for one set of colours: "
-                   "settings.* follows the settings menu, config.colors.* the native "
-                   "editor, and nothing keeps the two in step",
-                   f"set 'lint: {{allow: [settings-scheme-overlap], reason: ...}}' on "
-                   f"settings.{name} to accept it"],
         )
 
 
@@ -446,9 +415,6 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
         decl = face.layout_decls[name]
         for code in sorted(decl.lint_allow):
             _check_one_lint_allow(bag, f"layouts.{name}", decl.span, code)
-    for name, setting in face.settings.items():
-        for code in sorted(setting.lint_allow):
-            _check_one_lint_allow(bag, f"settings.{name}", setting.span, code)
 
 
 # -- check 3: palette legality ---------------------------------------------
@@ -621,29 +587,21 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
-    """Every colour a `config: style:` entry's `colors:` or a `color_scheme`
-    setting can put on screen, checked per role across every scheme that
-    can be picked (deduplicated, first-reference order).  Styles has no unrestricted
+    """Every colour a `config: style:` entry's `colors:` can put on screen,
+    checked per role across every scheme some entry references
+    (deduplicated, first-reference order).  Styles has no unrestricted
     picker, so there is no `choices: any` carve-out; an unreferenced scheme
     can never be shown, so it is not checked.
     """
     if resolved.device.display_colors is None:
         return  # check_palette already emits the one "not checked" note per device
-    schemes = resolved.face.color_scheme
-    for setting in resolved.face.settings.values():
-        if setting.type != "color_scheme":
-            continue
-        for role in sorted(schemes[setting.keys[0]].colors):
-            _check_declared_colors(resolved, bag, f"settings.{setting.name}.{role}", [
-                (f"color_scheme.{name}.colors.{role}=", schemes[name].colors[role])
-                for name in setting.keys
-            ])
     axis = resolved.face.config_style
     if axis is None:
         return
     default_entry = axis.default_entry
     if default_entry.colors is None:
         return  # a layout-only default entry has no scheme role to check
+    schemes = resolved.face.color_scheme
     roles = sorted(schemes[default_entry.colors].colors)
     scheme_names = list(dict.fromkeys(
         e.colors for e in axis.entries if e.colors is not None))
@@ -669,46 +627,17 @@ def _probe_symbols(bag: Bag, device: Device, code: str, what: str,
         return None
 
 
-#: The override the on-watch settings menu hangs off.
-SETTINGS_MENU_SYMBOL = "Toybox.Application.AppBase.getSettingsView"
-
-
-def check_settings_menu_support(resolved: ResolvedFace, bag: Bag) -> None:
-    """Does this device call `AppBase.getSettingsView`?
-
-    Every installed device does except `fenix5`/`fenix5x`. Without it the
-    generated menu compiles but never opens, so every setting keeps its
-    `default:` there. A note, not a warning: the face still works, and
-    there is nothing for the author to change.
-    """
-    face = resolved.face
-    if not face.settings_menu:
-        return
-    device = resolved.device
-    available = _probe_symbols(bag, device, "settings-menu-unsupported", "the settings menu",
-                               lambda: device.has_symbol(SETTINGS_MENU_SYMBOL))
-    if available is not False:
-        return
-    names = ", ".join(f"settings.{name}" for name in face.settings)
-    bag.note(
-        "settings-menu-unsupported",
-        f"{device.id} has no AppBase.getSettingsView, so the settings menu never "
-        f"opens there and {names} keep their defaults",
-        face.settings[next(iter(face.settings))].span,
-        notes=["the face still works; only the wearer's way to change a setting is missing",
-               f"checked against {device.id}'s own api.debug.xml, not an API level"],
-        confidence="exact -- the device's own symbol table",
-    )
-
-
 def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
-    """Does this device actually have the native on-device editor?
+    """Can the wearer edit `config:` on this device at all -- in the native
+    editor, or failing that in the generated settings menu?
 
-    Resolved against the device's own symbol table, not an API level
+    Both resolved against the device's own symbol table, not an API level
     (constraint 6: fr955 reports 5.2.0, above the editor's documented
     5.1.0, and has no editor -- `docs/research/probes/watchface-config/`).
-    Without it the face still runs and keeps every declared `default:`
-    forever -- ADR 0006 §2's chosen scope, not a bug, but not silent either.
+    A device without the editor but with `AppBase.getSettingsView` (fr955)
+    gets the settings menu (`wfb.emit.monkeyc.config_menu`), so nothing is
+    reported. With neither (fenix5/fenix5x) the face still runs and keeps
+    every declared `default:` forever -- not a bug, but not silent either.
 
     **Except a `config.data.*` slot on a device that also lacks
     `Toybox.Complications`** (fenix6, fenix6xpro, fr245 today): a slot's
@@ -725,6 +654,9 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
                                lambda: device.has_symbol(CONFIG_SYMBOL))
     if available is not False:
         return
+    if _probe_symbols(bag, device, "config-unsupported", "the settings menu",
+                      lambda: device.has_symbol(availability.SETTINGS_MENU_SYMBOL)) is not False:
+        return  # the settings menu offers config: here
 
     colour_tokens = [f"config.{name}" for name in sorted(face.config)]
     non_default_entries: list[str] = []
@@ -775,8 +707,9 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             "any declared default (see the 'api-gated' warning for the same fact)"
         )
     notes.append(
-        "this follows from ADR 0006 2's chosen scope -- the native editor is "
-        "fēnix 8 and newer only -- not from a missing feature in this compiler"
+        "the native editor is fēnix 8 and newer only, and the settings menu that "
+        "offers config: elsewhere needs AppBase.getSettingsView, which this device "
+        "lacks too"
     )
     if non_default_entries:
         notes.append(
@@ -803,7 +736,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             "nothing here binds a 'color:'/'track_color:'/'slot:' at all -- "
             "this is purely about the unreachable style entries named above"
         )
-    editor = f"{device.id}: has no on-device watch face editor"
+    editor = f"{device.id}: has no on-device watch face editor and no settings menu"
     kept, absent = ", ".join(kept_names_list), ", ".join(absent_slot_tokens)
     if kept_names_list and absent_slot_tokens:
         message = (f"{editor}, so {kept} keep their declared defaults here; it also "
@@ -2439,7 +2372,6 @@ def check_memory(device: Device, build_output: str, bag: Bag) -> MemoryStats | N
 #: Checks that read the design alone, in the order :func:`run_design` runs them.
 DESIGN_CHECKS = (
     check_permissions, check_lint_allow, check_duplicate_style, check_unreachable_layout,
-    check_settings_scheme_overlap,
 )
 
 #: Per-device checks, in the order :func:`run` runs them -- which is the
@@ -2447,8 +2379,7 @@ DESIGN_CHECKS = (
 #: derived from definition order.
 DEVICE_CHECKS = (
     check_palette, check_antialias_palette, check_config_palette,
-    check_color_scheme_palette, check_config_support, check_settings_menu_support,
-    check_geometry, check_progress_segments,
+    check_color_scheme_palette, check_config_support, check_geometry, check_progress_segments,
     check_sub_pixel_length, check_text_fit, check_glyphs, check_contrast,
     check_partial_update_budget, check_hold_targets, check_dead_element,
     check_aod_unreachable, check_aod_empty, check_aod_burn_in, check_api_gated,
