@@ -508,3 +508,18 @@ device, and the watch splits the copy index into column and row in the one
 draw loop, so the code cost stays flat in the count. `columns` is a total
 count's divisor rather than a second `count` so `copy` numbers every cell
 once, in reading order, the way a month calendar needs.
+
+**Amendment 2026-09-27: a tenth anchor, `subscreen`.** §2's nine anchors
+are points on the parent box. `subscreen` is different: it names a box, the
+Instinct family's subscreen window, read from the device files
+(`simulator.json` `subscreen.location`, where the device's symbol table
+also has `WatchUi.getSubscreen`; research 16 §4). A top-level element
+anchored there is resolved with that box as its parent, so it is placed at
+the box's centre and its `%` lengths are fractions of the window. `%r`
+stays the screen's minor radius, since it is defined as that. It is accepted
+only on a top-level element's own `at:`, because below the top level the
+parent box is already chosen. On a target without the window, the choice is
+the one a `face:` font already offers: `if_unavailable: error` (the
+default, a build error naming the device) or `hide`. `hide` is realised as a
+per-device `Layout` constant that the element's draw method checks, so the
+shared view stays one file. Plan 20's D2, decided and built the same day.

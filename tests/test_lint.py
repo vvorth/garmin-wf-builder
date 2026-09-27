@@ -1920,8 +1920,9 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     by slice 6, research 11 §6 F), governed by `wfb.emit.monkeyc.view`
     directly, never by `check_api_gated` -- excluded the same way, as is
     `partial_update_unsupported` (plan 19 A5), the view's build-wide
-    `onPartialUpdate` decision, and `config_menu`, whether the build carries
-    the `config:` settings menu."""
+    `onPartialUpdate` decision, `config_menu`, whether the build carries
+    the `config:` settings menu, and `subscreen_hidden`, governed by
+    `if_unavailable:` and `wfb.lint.check_subscreen_availability`."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards
@@ -1929,7 +1930,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     guards_field_names = (
         {f.name for f in dc_fields(Guards)}
         - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded",
-           "partial_update_unsupported", "config_menu"}
+           "partial_update_unsupported", "config_menu", "subscreen_hidden"}
     )
     assert guards_field_names == {"complications", "modules", "fields"}
 

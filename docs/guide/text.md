@@ -26,7 +26,7 @@ wordmark on this platform.
 | `curve.angle:` | `Angle` | — | rotation (`angled`) or start position (`radial`) — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.radius:` | `Length` | — | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.direction:` | `clockwise`/`counter_clockwise` | `clockwise` | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
-| `if_unavailable:` | `error`/`hide` | inherits the font's own | [Fonts](fonts.md#if_unavailable--and-what-error-actually-promises) |
+| `if_unavailable:` | `error`/`hide` | inherits the font's own (`error` for the subscreen) | [Fonts](fonts.md#if_unavailable--and-what-error-actually-promises) |
 | `outline:` | `none`, a colour expression, or `{color, width}` | `none` | [`outline:`](#outline--the-stamped-ring) |
 
 ## Example

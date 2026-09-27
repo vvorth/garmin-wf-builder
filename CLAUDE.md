@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), slices 0–3 built, 4–5 awaiting user decisions D1–D2. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -272,8 +272,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     against, 2026-09-27. The old WIP on `wip/phone-settings` is design
     reference only. Do not resume it without asking;
   - non-round screens: checked against the simulator skin's visible area
-    and (2-colour) palette, never seen on a watch; no per-shape
-    `overrides:`, no `anchor: subscreen` — plan 20;
+    and (2-colour) palette, `anchor: subscreen` for the Instinct window,
+    never seen on a watch; no per-shape `overrides:` — plan 20;
   - catalogue generation from the SDK;
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008

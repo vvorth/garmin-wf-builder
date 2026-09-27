@@ -137,7 +137,8 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
             f"{device.display_type}, family {device.device_family}",
         )
     ).blank()
-    per_item = [(placed, _layout_constants(placed) + _hold_constants(placed))
+    per_item = [(placed, _shown_constants(resolved, placed, guards)
+                 + _layout_constants(placed) + _hold_constants(resolved, placed))
                 for placed in resolved.items]
     # Toybox.Graphics only when some constant is typed against it (a
     # polygon's `Array<Graphics.Point2D>`: Point2D is the fixed-size
@@ -221,7 +222,21 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
 
 
-def _hold_constants(placed: Placed) -> Constants:
+def _shown_constants(resolved: ResolvedFace, placed: Placed, guards: "Guards") -> Constants:
+    """`<ID>_SHOWN` for an element laid out in the subscreen window, when
+    some target in the build has none (`Guards.subscreen_hidden`): false
+    where this device hides it, and its draw method returns early there.
+    A group draws nothing itself, so only its hold region (below) needs
+    the answer."""
+    if placed.id not in guards.subscreen_hidden or placed.kind == "group":
+        return []
+    shown = placed.id not in resolved.hidden
+    return [(f"{const_prefix(placed.id)}_SHOWN", shown,
+             "drawn in the subscreen window" if shown
+             else "no subscreen on this device: 'if_unavailable: hide'")]
+
+
+def _hold_constants(resolved: ResolvedFace, placed: Placed) -> Constants:
     """The hit rectangle for an `on_hold:` element.
 
     Deliberately the element's own resolved box, not an inflated one: the
@@ -235,8 +250,12 @@ def _hold_constants(placed: Placed) -> Constants:
         return []
     prefix = const_prefix(placed.id)
     box = placed.box
+    note = "hit region: the element's own drawn box"
+    if placed.id in resolved.hidden:
+        # Not drawn here, so nothing to hold: an empty region never matches.
+        box, note = IntBox(0, 0, 0, 0), "hit region: empty, not drawn on this device"
     return [
-        (f"{prefix}_HOLD_X", box.x, "hit region: the element's own drawn box"),
+        (f"{prefix}_HOLD_X", box.x, note),
         (f"{prefix}_HOLD_Y", box.y, ""),
         (f"{prefix}_HOLD_WIDTH", box.width, ""),
         (f"{prefix}_HOLD_HEIGHT", box.height, ""),

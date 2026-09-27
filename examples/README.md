@@ -51,7 +51,7 @@ says what it is on the watch.
 | Face | Exercises | Guide chapter |
 |---|---|---|
 | [`features/align/`](features/align/face.yaml) | `align:`/`vertical_align:` on every element kind that takes them | [Placement](../docs/guide/placement.md) |
-| [`features/instinct/`](features/instinct/face.yaml) | a semi-octagon, 2-colour Instinct face: black and white only, clear of the bezel, battery in the subscreen window | [Colours](../docs/guide/colors.md) |
+| [`features/instinct/`](features/instinct/face.yaml) | a semi-octagon, 2-colour Instinct face: black and white only, clear of the bezel, battery in the subscreen window (`anchor: subscreen`) | [Colours](../docs/guide/colors.md) |
 | [`features/shapes/`](features/shapes/face.yaml) | every native `shape` primitive | [Shapes](../docs/guide/shapes.md) |
 | [`features/graph/`](features/graph/face.yaml) | `graph` styles (line, area, bars) and series | [Progress and graphs](../docs/guide/progress-and-graphs.md) |
 | [`features/analog/`](features/analog/face.yaml) | `hands:` sets, `type: hands`, a subdial, switched by style | [Analog hands](../docs/guide/analog-hands.md) |

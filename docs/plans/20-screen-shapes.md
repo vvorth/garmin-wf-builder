@@ -1,7 +1,7 @@
 # 20 — Rectangular and semi-octagon screens
 
-**Status: in progress. Slice 0 done for 7 of the 13 devices, slices 1–3
-done (2026-09-27); slices 4 and 5 need decisions D1–D2 first.** Delete this file once every
+**Status: in progress. Slice 0 done for 7 of the 13 devices; slices 1–3
+and 5 done (2026-09-27); slice 4 needs decision D1.** Delete this file once every
 slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/16-screen-shapes.md`. In short: 21 non-round
@@ -22,14 +22,11 @@ unless slice 0 shows they are above the floor.
   second step. *Recommended.* The alternative, per-shape `layouts:`
   entries, would reuse the Styles machinery for something that is not a
   wearer choice, and would cost a Styles slot.
-- **D2: `anchor: subscreen`**, placing an element relative to the Instinct
-  subscreen box, with `%` lengths relative to that box. On a device with no
-  subscreen, the element is a build error unless it opts into being hidden
-  there, with the same `error|hide` choice a `fonts:` entry's
-  `if_unavailable:` already offers. *Recommended.* Slice 0 showed the box
-  is a build-time fact: `simulator.json` declares it as
-  `subscreen.location` (x=113, y=0, 62×62 on all four installed
-  semi-octagons, research 16 §4).
+- **D2: `anchor: subscreen` -- decided and built (2026-09-27).** It places
+  an element relative to the Instinct subscreen box, with `%` lengths
+  relative to that box. On a device with no subscreen the element is a
+  build error unless `if_unavailable: hide`, the choice a `face:` font
+  already offers.
 - **D3 (no decision needed, recorded):** the first 2-colour rule is "black
   and white are the only safe colours", because that is true whatever the
   firmware's mapping turns out to be. The device files agree: each
@@ -146,13 +143,35 @@ It does pass under the ring once an hour.
 - `docs/guide/placement.md` "Per-device and per-shape overrides"; ADR 0004
   §4 amended with a dated note saying what shipped.
 
-### Slice 5 — `anchor: subscreen` (D2)
+### Slice 5 — `anchor: subscreen` (D2): done
 
-Slice 0 settled the precondition. `Device.subscreen` reads
-`simulator.json` `subscreen.location` minus `display.location`, and is
-`None` without a `location` (the round AMOLED Instincts have a
-`subscreen` key with no box). The box resolves at build time into the
-per-device `Layout.mc` constants like any other anchor.
+- `Device.subscreen` is `simulator.json` `subscreen.location` minus
+  `display.location`. It also requires `WatchUi.getSubscreen` in the
+  device's own symbol table: `instinct3amoled50mm` declares a box but has a
+  virtual window, no symbol and no ring in its skin, so it has no
+  subscreen (research 16 §4 corrected).
+- The resolver gives a top-level `anchor: subscreen` element (a group
+  takes its subtree along) the window's box as its parent. `%` is then of
+  the window; `%r` stays the screen's. `anchor: subscreen` anywhere else (a
+  child, `to:`, `points:`, a pattern `step:`) is an error, and so is an
+  element's `if_unavailable:` with nothing that can be unavailable.
+- `if_unavailable:` moved to every element. On a target without a window,
+  `error` (the default) fails the build, naming the devices, from
+  `lint.check_subscreen_availability`, cross-device like
+  `font-unavailable`. `hide` is a note: the resolver still places the
+  element (at the screen's centre, so every constant exists), marks it in
+  `ResolvedFace.hidden`, and the lints and preview skip it
+  (`shown_items`). Codegen emits `<ID>_SHOWN` per device and an early
+  return in the draw method, only when some target lacks the window
+  (`Guards.subscreen_hidden`). A hidden hold region is empty.
+  `clip_for` leaves hidden items out, but never down to no clip.
+- `examples/features/instinct` uses it (identical positions, identical
+  `.prg` sizes). `tests/test_subscreen.py` drives every path red,
+  including the `lint.run` filter (a hidden group's hold region would
+  otherwise overlap the clock's on the round device). A mixed
+  Instinct+fēnix build with `hide` compiles warning-free (`slow`), and the
+  `tools/snapshot.py` comparison against the previous commit shows no
+  output change for any face that does not use it.
 
 ## 3. Docs, in the same commits
 

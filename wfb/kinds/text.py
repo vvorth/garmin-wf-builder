@@ -469,7 +469,6 @@ class TextKind(ElementKind[Text, PlacedText]):
             when_absent=node.get("when_absent"),
             placeholder=node.get("placeholder"),
             fallback=b.expression(node, "fallback") if "fallback" in node else None,
-            if_unavailable=node.get("if_unavailable"),
         )
         if units is not None:
             _, element.units, element.unit_label, element.unit_labels, element.unit_digits = units
@@ -483,7 +482,7 @@ class TextKind(ElementKind[Text, PlacedText]):
             element.curve = b.build_curve(
                 node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
                 font_is_vector=font_is_vector, font_note=font_note)
-        if font_ok and "if_unavailable" in node:
+        if font_ok and "if_unavailable" in node and not element.in_subscreen:
             b.check_if_unavailable(node, element.id, font_is_vector, font_note)
         if "outline" in node:
             element.outline = b.build_outline(node, "outline", element.id, element=element)

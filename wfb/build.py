@@ -152,6 +152,7 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     # device in this build resolved first, so it runs once here rather than
     # once per device.
     lint.check_vector_font_availability(face, resolved, bag)
+    lint.check_subscreen_availability(face, resolved, bag)
     lint.check_shared_view_targets(resolved, bag)
     return resolved, baked
 

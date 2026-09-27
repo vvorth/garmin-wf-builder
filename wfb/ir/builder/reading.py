@@ -225,14 +225,29 @@ reporting why) out."""
             return True
         return False
 
-    def position(self, raw: dict[str, Any] | None, node: dict[str, Any], key: str) -> Position:
+    def position(self, raw: dict[str, Any] | None, node: dict[str, Any], key: str, *,
+                 allow_subscreen: bool = False) -> Position:
         """An `at:`-style position (`anchor`, `dx`/`dy` or polar
         `angle`/`radius`) from `raw`, which is `node[key]`; the default
         centre position when `raw` is `None` or a unit error was reported.
+        `anchor: subscreen` is an error unless ``allow_subscreen`` (only a
+        top-level element's own `at:` passes it,
+        `ElementTree._build_element`): every other position on the element
+        is already inside the window's box.
         """
         if raw is None:
             return Position()
         span = self.doc.span(node, key)
+        if raw.get("anchor") == "subscreen" and not allow_subscreen:
+            self.bag.error(
+                "subscreen",
+                f"'anchor: subscreen' is not accepted in '{key}:' here",
+                self.doc.span(raw, "anchor") or span,
+                notes=["it is accepted only on a top-level element's own 'at:'; that "
+                       "element's other positions ('to:', 'points:', a group's children) "
+                       "are then already laid out inside the subscreen window"],
+            )
+            return Position()
         try:
             return Position(
                 anchor=raw.get("anchor", "center"),

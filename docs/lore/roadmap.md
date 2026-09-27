@@ -123,8 +123,8 @@ specifies each item.
 12. **Non-round screens** (plan 20, research 16): rectangles resolve, lint,
     preview and build against real device files (slice 1); every non-round
     shape's visible area is its simulator skin (slice 2); 2-colour panels
-    are black and white only, `palette-mono` (slice 3); `overrides:` and
-    `anchor: subscreen` await D1/D2.
+    are black and white only, `palette-mono` (slice 3); `anchor: subscreen`
+    places an element in the Instinct window (D2); `overrides:` awaits D1.
 
 ## Architecture options not taken
 

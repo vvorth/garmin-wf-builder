@@ -239,7 +239,10 @@ wins over its group's" rule `antialias:` already follows.
   Every other device is unaffected.
 * `if_unavailable:` on a **baked** font entry, or on an element whose font is
   baked or a system font, is a build error: there is nothing that can be
-  unavailable, so accepting it would promise a check that never runs.
+  unavailable, so accepting it would promise a check that never runs. The
+  one exception is an element anchored to the
+  [subscreen window](placement.md#the-subscreen-window), where the same key
+  says what to do on a target without one.
 
 **The honest limit of `error`: it is a build-time guarantee only.**
 `Graphics.getVectorFont` can return `null` at runtime even when every

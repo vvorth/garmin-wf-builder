@@ -15,6 +15,7 @@ from __future__ import annotations
 import difflib
 import re
 from collections.abc import Callable, Iterable, Iterator
+from dataclasses import replace as dataclass_replace
 from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
 from . import availability, catalog, complications, expr, kinds, series
@@ -82,7 +83,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
-    "static", "static-overlap", "string-label",
+    "static", "static-overlap", "string-label", "subscreen",
     "text-antialias", "text-curve", "text-outline", "text-outline-interior",
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
@@ -97,7 +98,11 @@ def run_design(face: Face, bag: Bag) -> None:
 
 
 def run(resolved: ResolvedFace, bag: Bag) -> None:
-    """Stage 3: everything computable from resolved geometry on one device."""
+    """Stage 3: everything computable from resolved geometry on one device.
+    An item this device does not draw (`ResolvedFace.hidden`) is not
+    checked here; :func:`check_subscreen_availability` reports it."""
+    if resolved.hidden:
+        resolved = dataclass_replace(resolved, items=resolved.shown_items)
     for check in DEVICE_CHECKS:
         check(resolved, bag)
     for warning in resolved.warnings:
@@ -263,6 +268,50 @@ def check_shared_view_targets(resolved: dict[str, ResolvedFace], bag: Bag) -> No
         ],
         confidence="exact -- device displayType",
     )
+
+
+def check_subscreen_availability(
+    face: Face, resolved: dict[str, ResolvedFace], bag: Bag,
+) -> None:
+    """`anchor: subscreen` on a target without a subscreen window
+    (`Device.subscreen`): cross-device, like
+    :func:`check_vector_font_availability`, because it names every such
+    target at once.  `if_unavailable: error` (the default) fails the build;
+    `hide` is the author's explicit choice, so it is a note, naming where
+    the element will not draw.
+    """
+    lacking = sorted(device_id for device_id, rf in resolved.items()
+                     if rf.device.subscreen is None)
+    if not lacking:
+        return
+    for element in face.elements:
+        if not element.in_subscreen:
+            continue
+        span = element.span
+        if element.if_unavailable == "hide":
+            bag.note(
+                "subscreen",
+                f"{element.id}: not drawn on " + ", ".join(lacking)
+                + " -- no subscreen window there ('if_unavailable: hide')",
+                span,
+                confidence="exact -- the device files' subscreen box and "
+                           "WatchUi.getSubscreen",
+            )
+            continue
+        bag.error(
+            "subscreen",
+            f"{element.id}: 'at: {{anchor: subscreen}}', but " + ", ".join(lacking)
+            + (" has" if len(lacking) == 1 else " have") + " no subscreen window",
+            span,
+            notes=[
+                "the subscreen is the Instinct family's round window; a device has one "
+                "when its simulator.json declares 'subscreen.location' and its symbol "
+                "table has WatchUi.getSubscreen",
+                f"set 'if_unavailable: hide' on '{element.id}' to leave it out there, "
+                "or drop the device from 'targets:'",
+            ],
+            confidence="exact -- the device files' subscreen box and WatchUi.getSubscreen",
+        )
 
 
 def check_vector_font_availability(

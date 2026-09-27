@@ -688,7 +688,7 @@
           "default": "hide"
         },
         "dim": {
-          "description": "Scale the luminance of every colour the AOD frame draws (docs/plans/14-aod.md §4.5): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon_color:' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
+          "description": "Scale the luminance of every colour the AOD frame draws (docs/plans/14-aod.md \u00a74.5): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon_color:' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1
@@ -1030,9 +1030,11 @@
             "right",
             "bottom_left",
             "bottom",
-            "bottom_right"
+            "bottom_right",
+            "subscreen"
           ],
-          "default": "center"
+          "default": "center",
+          "description": "The point on the parent box that dx/dy or angle/radius are measured from. 'subscreen' is the centre of the Instinct family's subscreen window, and is accepted only on a top-level element's own 'at:': that element (and, for a group, its children) is then laid out inside the window's box, so '%' lengths are fractions of the window, and '%r' is still the screen's. On a target without a subscreen the element is a build error unless it sets 'if_unavailable: hide'."
         },
         "dx": {
           "$ref": "#/$defs/length"
@@ -1248,6 +1250,13 @@
           "items": {
             "$ref": "#/$defs/element"
           }
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },
@@ -1355,6 +1364,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },
@@ -1428,7 +1444,7 @@
           "$ref": "#/$defs/outline"
         },
         "if_unavailable": {
-          "description": "Overrides this element's font's own 'if_unavailable:' outright -- only meaningful when 'font:' names a 'face:' (vector) font; a build error on a baked or system font, since nothing there can ever be unavailable. 'error' fails the build naming the device and the face(s) it lacks; 'hide' makes this one element not draw on a device that fails the font's availability gates, leaving every other element that shares the font unaffected. Omit to inherit the font's own 'if_unavailable:' (itself 'error' by default).",
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or a usable 'face:' font. For the font it overrides the font's own 'if_unavailable:' outright; for the subscreen the default is 'error'. 'error' fails the build naming the device and what it lacks; 'hide' makes this one element not draw on that device, leaving every other element that shares the font unaffected. A build error when neither applies (a baked or system font, and no subscreen anchor), since nothing can then be unavailable.",
           "enum": [
             "error",
             "hide"
@@ -1629,6 +1645,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       },
       "allOf": [
@@ -1775,6 +1798,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       },
       "oneOf": [
@@ -1904,6 +1934,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },
@@ -2022,6 +2059,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },
@@ -2082,6 +2126,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },
@@ -2426,6 +2477,13 @@
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
+        },
+        "if_unavailable": {
+          "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
     },

@@ -181,16 +181,21 @@ What that means for a face:
   subscreen from this field. The box is **not** in the device reference
   (VERIFIED: `instinct2.json`'s attributes are size, shape, colours,
   touch, buttons and icon size only).
-- The two round AMOLED Instincts have a `subscreen` key in
-  `simulator.json` too, but it is a different thing: an `image` and
-  overlays for the simulator's dial window, with no `location`
-  (VERIFIED). A reader must key on `subscreen.location`, not on
-  `subscreen`.
-- It is a natural **anchor**. Placement is anchor-relative (ADR 0004 §2), so
-  `at: { anchor: subscreen }` with a `%` relative to the subscreen box, not
-  the screen, would let one design put its seconds or battery into the
-  window on all eight devices. On a device without a subscreen it is a
-  build-time fact, so the element can be an error or hidden per device.
+- **A box is not enough on its own.** `instinct3amoled50mm` (round,
+  AMOLED) also has a top-level `subscreen.location`, 98×98 at (273, 55) in
+  screen pixels, but its `api.debug.xml` has no `WatchUi.getSubscreen`,
+  and its skin draws no window there (VERIFIED). That is a virtual
+  subscreen, which the SDK documents `getSubscreen()` as returning null
+  for. `instinctcrossoveramoled` has no top-level `subscreen` at all; both
+  devices also carry a nested `subscreen` object (an `image` and overlays
+  for the simulator's dial art) that is not a box. So
+  `Device.subscreen` requires both the box and the symbol, and reports a
+  window on exactly the four installed semi-octagons.
+- It is a natural **anchor**, and is built: `at: { anchor: subscreen }`
+  lays a top-level element out inside the box, with `%` relative to it
+  (`docs/guide/placement.md` "The subscreen window"). On a device without a
+  subscreen it is a build error, or with `if_unavailable: hide` the element
+  does not draw there.
 
 ## 5. Two-colour and fourteen-colour panels
 
@@ -278,7 +283,7 @@ or guard. That is a larger step, and should be the second step.
 5. **`overrides:` with `shape:` and device-id selectors, geometry keys
    only** (§6). This is the format change the user has to approve; ADR 0004
    already accepted its shape.
-6. **`anchor: subscreen`** (§4), after 3–5.
+6. **`anchor: subscreen`** (§4), after 3–5. Done.
 
 Semi-round is not worth work unless §1.1 turns out wrong: every
 semi-round device is very likely below the floor.

@@ -12,7 +12,7 @@ stays correct across every screen size and shape.
 
 | Field | Values | Default | Meaning |
 |---|---|---|---|
-| `anchor` | `top_left`/`top`/`top_right`/`left`/`center`/`right`/`bottom_left`/`bottom`/`bottom_right` | `center` | the point on the parent box the position is relative to |
+| `anchor` | `top_left`/`top`/`top_right`/`left`/`center`/`right`/`bottom_left`/`bottom`/`bottom_right`, or `subscreen` | `center` | the point on the parent box the position is relative to; `subscreen` lays a top-level element out in the Instinct's [subscreen window](#the-subscreen-window) |
 | `dx`, `dy` | a [length](#lengths) | — | cartesian offset from the anchor |
 | `angle`, `radius` | an [angle](#angles), a [length](#lengths) | — | polar offset from the anchor — required together |
 
@@ -254,3 +254,47 @@ grows away from it, so the four corners stay symmetric whatever their content.
 - groups, text, progress bars and arcs, graphs, icons and complication slots
 - shapes other than `polygon` and `line`
 - rectangle, circle and text parts of hands and patterns
+
+## The subscreen window
+
+The Instinct 2, 2X, 3 Solar 45mm and E 45mm have a small round window at the
+top right, the subscreen. It is part of the same screen, so a face draws into
+it like anywhere else, and stock faces put a gauge or a number there.
+`at: { anchor: subscreen }` places an element inside it:
+
+```yaml
+- id: battery_ring
+  type: progress
+  style: arc
+  at: { anchor: subscreen }     # the centre of the window
+  radius: 39%                   # 39 % of the window, not of the screen
+  thickness: 3px
+  start_angle: 0deg
+  sweep: 360deg
+  value: system.battery
+  max: 100
+  color: palette.fg
+```
+
+- **The window's box becomes the element's parent box.** The anchor is its
+  centre, and `%` is a fraction of the window (62×62 px on all four): `dx`,
+  `dy`, `size:`, and a `radius:` or `thickness:` in `%`. `%r` is still the
+  screen's minor radius, so use `%` or `px` inside the window.
+- **Only on a top-level element's own `at:`.** A group anchored there lays its
+  children out inside the window, relative to the group, as usual. A child,
+  a line's `to:` or a polygon's `points:` cannot name `subscreen` itself.
+- **The window is round.** The box is square, and the lint checks the
+  element's ink against the round opening (`safe-area`).
+- **A target without a subscreen is a build error** naming it, unless the
+  element sets `if_unavailable: hide`. It then does not draw there (nor do a
+  group's children), and the build says so in a note. This is the same
+  `error`/`hide` choice a [`face:` font](fonts.md) offers, and on a `text`
+  element the one key covers both. A device has a subscreen when its
+  `simulator.json` declares the box and its symbol table has
+  `WatchUi.getSubscreen`: the round AMOLED Instinct 3 declares a box but has
+  no such window.
+
+<img src="../screenshots/instinct.png" width="260" alt="battery in the Instinct subscreen">
+
+*[`examples/features/instinct`](../../examples/features/instinct/face.yaml):
+the battery ring and number anchored to the subscreen.*

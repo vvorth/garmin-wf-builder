@@ -271,7 +271,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             if placed.kind == "group":
                 continue
             w.blank()
-            _emit_element_method(w, resolved, placed, plan, antialias_default, aod)
+            _emit_element_method(w, resolved, placed, plan, antialias_default, aod,
+                                 subscreen_guarded=placed.id in guards.subscreen_hidden)
 
     body_text = w.render()
     modules = sorted(set(_BASE_IMPORTS) | usage.toybox_modules(body_text))
@@ -1123,7 +1124,7 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan: "ReadPlan",
                          antialias_default: bool | None = None,
-                         aod: AodStyle = NO_AOD) -> None:
+                         aod: AodStyle = NO_AOD, subscreen_guarded: bool = False) -> None:
     element = placed.element
     kind = kinds.for_placed(placed)
     w.doc(_method_doc(placed))
@@ -1140,6 +1141,13 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
         and getattr(element, "when_absent", None) in ("placeholder", "fallback")
     )
     with w.block(signature):
+        if subscreen_guarded:
+            # Before any read: where it does not draw, it reads nothing.
+            w.comment("anchor: subscreen, if_unavailable: hide -- false on a device "
+                      "without the window")
+            with w.block(f"if (!Layout.{const_prefix(placed.id)}_SHOWN)"):
+                w.line("return;")
+            w.blank()
         declarations = plan.declarations(placed)
         if declarations:
             w.comment("the values this element is bound to")

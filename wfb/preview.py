@@ -279,7 +279,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # `if (_configLayout == N)`.
     active_layout = entry.layout if entry is not None else None
     renderer = Renderer(resolved, draw, image, scale, values, options, used_faces)
-    for placed in resolved.items:
+    for placed in resolved.shown_items:  # not what this device hides (`if_unavailable: hide`)
         if placed.kind == "group":
             continue
         if options.aod:

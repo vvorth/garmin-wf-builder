@@ -389,4 +389,7 @@ ANCHORS: dict[str, tuple[float, float]] = {
     "bottom_left": (0.0, 1.0),
     "bottom": (0.5, 1.0),
     "bottom_right": (1.0, 1.0),
+    # The centre of the parent box: `wfb.layout.Resolver` passes a
+    # subscreen-anchored element the subscreen window as its parent.
+    "subscreen": (0.5, 0.5),
 }

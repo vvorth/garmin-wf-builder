@@ -51,7 +51,7 @@ from typing import Iterable
 from . import kinds
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import CONFIG_SYMBOL, Face, FontSpec, Graph
+from .ir import CONFIG_SYMBOL, Element, Face, FontSpec, Graph
 from .series import ACQUISITION, Acquisition
 
 #: The override the settings menu hangs off -- absent on fenix5/fenix5x.
@@ -388,6 +388,29 @@ class Guards:
     #: :WatchFaceConfig`, so a native-editor target in the same build never
     #: runs it.
     config_menu: bool = False
+    #: Ids of every element laid out in the subscreen window (`anchor:
+    #: subscreen`, and a group's children) when at least one target has no
+    #: subscreen (`Device.subscreen`). Each gets a per-device
+    #: `Layout.<ID>_SHOWN` and its draw method returns early where that is
+    #: false (`if_unavailable: hide`; `error` never builds). Empty when every
+    #: target has the window, so such a build is unchanged.
+    subscreen_hidden: frozenset[str] = frozenset()
+
+
+def subscreen_element_ids(face: Face) -> frozenset[str]:
+    """Every element laid out in the subscreen window: each top-level
+    `anchor: subscreen` element and, for a group, its whole subtree."""
+    out: set[str] = set()
+
+    def add(element: Element) -> None:
+        out.add(element.id)
+        for child in element.children():
+            add(child)
+
+    for element in face.elements:
+        if element.in_subscreen:
+            add(element)
+    return frozenset(out)
 
 
 def _has(device: Device, symbol: str) -> bool:
@@ -433,9 +456,13 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
         not _has(device, CONFIG_SYMBOL) and _has(device, SETTINGS_MENU_SYMBOL)
         for device in devices
     )
+    subscreen_hidden = (
+        subscreen_element_ids(face) if any(device.subscreen is None for device in devices)
+        else frozenset()
+    )
     return Guards(complications=complications, fields=missing_fields,
                   vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
                   burn_in_field_guarded=burn_in_field_guarded,
                   display_mode_guarded=display_mode_guarded, modules=missing_modules,
                   partial_update_unsupported=partial_update_unsupported,
-                  config_menu=config_menu)
+                  config_menu=config_menu, subscreen_hidden=subscreen_hidden)

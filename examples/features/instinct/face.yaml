@@ -12,11 +12,12 @@
 #     corners and the opaque ring round the subscreen, both read from the
 #     simulator skin, and `safe-area` warns on anything under them. The big
 #     clock sits low and left so it clears the ring.
-#   * The subscreen window. It is part of the same framebuffer, a 62x62 box
-#     at (113, 0) on all four targets (simulator.json `subscreen.location`),
-#     so the battery gauge inside it is placed in px from the top-right
-#     corner: its centre is (144, 31). `anchor: subscreen` would say this
-#     directly; it is plan 20's D2, not built.
+#   * The subscreen window, with `at: { anchor: subscreen }`: the battery
+#     gauge and its number are laid out inside the window's own box (62x62
+#     at (113, 0) on all four targets, from simulator.json), so the ring's
+#     `radius: 39%` is 39% of the window, not of the screen. A target with
+#     no window would be a build error, unless the element set
+#     `if_unavailable: hide` (docs/guide/placement.md).
 #
 # What is verified: this design lints clean and compiles warning-free on
 # all four targets, and `wfb preview` renders it. What is not: how it looks
@@ -57,8 +58,8 @@ elements:
   - id: battery_ring
     type: progress
     style: arc
-    at: { anchor: top_right, dx: -32px, dy: 31px }
-    radius: 24px
+    at: { anchor: subscreen }
+    radius: 39%
     thickness: 3px
     start_angle: 0deg
     sweep: 360deg
@@ -71,7 +72,7 @@ elements:
     value: system.battery
     format: "{:d}"
     font: FONT_XTINY
-    at: { anchor: top_right, dx: -32px, dy: 31px }
+    at: { anchor: subscreen }
     color: palette.fg
 
   # -- the main face ----------------------------------------------------------

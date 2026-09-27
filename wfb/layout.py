@@ -1058,6 +1058,18 @@ class ResolvedFace:
     #: Every `SubPixelLength` this device's resolve recorded, in resolve
     #: order, not deduplicated -- the lint decides how to present them.
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
+    #: Ids of the items that do not draw on this device: an `anchor:
+    #: subscreen` element with `if_unavailable: hide` on a device without a
+    #: subscreen, and its group's children.  They are still in `items`,
+    #: placed at the screen's centre, because the shared view and every
+    #: device's `Layout.mc` need their constants; the lints and the preview
+    #: read :attr:`shown_items` instead.
+    hidden: frozenset[str] = frozenset()
+
+    @property
+    def shown_items(self) -> list[Placed]:
+        """`items` less :attr:`hidden`: what this device actually draws."""
+        return [p for p in self.items if p.id not in self.hidden]
 
     def in_mode(self, mode: str) -> list[Placed]:
         return [p for p in self.items if mode in p.element.modes]
@@ -1083,7 +1095,10 @@ class ResolvedFace:
         layout would need setting inside each guard -- a possible
         optimisation, not built.
         """
-        boxes = [p.box for p in self.drawn_in_mode(mode)]
+        drawn = self.drawn_in_mode(mode)
+        # A hidden item never draws here, but the constant must exist
+        # whenever anything is in the mode: the shared view sets the clip.
+        boxes = [p.box for p in drawn if p.id not in self.hidden] or [p.box for p in drawn]
         if not boxes:
             return None
         clip = boxes[0]
@@ -1160,6 +1175,7 @@ class Resolver:
         self.screen = Box(0, 0, device.width, device.height)
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
+        self.hidden: set[str] = set()
         self.warnings: list[str] = []
         #: `SubPixelLength`s, in resolve order (`extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
@@ -1183,23 +1199,39 @@ class Resolver:
             sub_pixel=self.sub_pixel,
             screen=IntBox(0, 0, self.device.width, self.device.height),
             warnings=self.warnings,
+            hidden=frozenset(self.hidden),
         )
 
     # -- traversal --------------------------------------------------------
 
-    def _resolve_list(self, elements: list[Element], parent: Box, depth: int) -> None:
+    def _resolve_list(self, elements: list[Element], parent: Box, depth: int,
+                      hidden: bool = False) -> None:
         for element in elements:
+            here, element_hidden = parent, hidden
+            if element.in_subscreen:
+                window = self.device.subscreen
+                if window is None:
+                    # `if_unavailable: hide` (an `error` fails the build,
+                    # `wfb.lint.check_subscreen_availability`): placed on the
+                    # screen so every constant exists, and marked hidden.
+                    element_hidden = True
+                else:
+                    here = Box(*window)
+            first_sub_pixel = len(self.sub_pixel)
             with self._owned_by(_Owner(element.id, element.span, element)):
                 if isinstance(element, Group):
-                    box = self._group_box(element, parent)
+                    box = self._group_box(element, here)
                     self.items.append(
                         Placed(element, box.rounded(min_1px=element.resolved_min_1px),
                                (round(box.center_x), round(box.center_y)), depth)
                     )
-                    self._resolve_list(element.items, box, depth + 1)
+                    self._resolve_list(element.items, box, depth + 1, element_hidden)
                 else:
                     resolve = kinds.for_element(element).resolve
-                    self.items.append(resolve(self, element, parent, depth))
+                    self.items.append(resolve(self, element, here, depth))
+            if element_hidden:
+                self.hidden.add(element.id)
+                del self.sub_pixel[first_sub_pixel:]  # nothing draws here to round away
 
     @contextmanager
     def _owned_by(self, owner: "_Owner") -> Iterator[None]:

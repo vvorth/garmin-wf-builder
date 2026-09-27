@@ -694,6 +694,13 @@ class Element:
     #: also the only gesture there is: `WatchFaceDelegate.onTap` fires solely
     #: inside the on-device config editor, on every device that has it.
     on_hold: str | None = None
+    #: `if_unavailable:` -- `error`/`hide`, or `None` as written.  Governs
+    #: whatever this element needs that a target may lack: its `anchor:
+    #: subscreen` window (`None` means `error`), and on a `Text`, a `face:`
+    #: font (`None` inherits the font's own `FontSpec.if_unavailable`).
+    #: Rejected where neither applies (`ElementTree._build_element`,
+    #: `Builder.check_if_unavailable`).
+    if_unavailable: str | None = None
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
     #: all.  **Absent means hidden** (no `when_absent:` applies).  A group's
     #: is conjoined into every descendant's own (`Builder.push_visible`),
@@ -755,6 +762,11 @@ class Element:
     def symbol(self) -> str:
         """The stable Monkey C symbol derived from the element id (ADR 0003)."""
         return _pascal(self.id)
+
+    @property
+    def in_subscreen(self) -> bool:
+        """`at: {anchor: subscreen}` -- only ever a top-level element."""
+        return self.at.anchor == "subscreen"
 
     def children(self) -> list["Element"]:
         return []
@@ -1166,9 +1178,6 @@ class Text(Element):
     fallback: Expression | None = None
     #: `curve:`, or `None` for upright text; needs a `face:` (vector) font.
     curve: "Curve | None" = None
-    #: Overrides a vector font's own `FontSpec.if_unavailable`; `None`
-    #: inherits it.  Rejected on a baked or system font.
-    if_unavailable: str | None = None
     #: `outline:` (plan 15), or `None` for a plain fill; wraps whichever
     #: draw call `curve:` selects.
     outline: "Outline | None" = None

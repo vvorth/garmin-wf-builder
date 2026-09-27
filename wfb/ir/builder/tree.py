@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 from ... import catalog, complications, kinds
 from ...diagnostics import Span
 
-from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE
+from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE, Position
 from ..naming import element_const_prefix, element_method_name
 from .state import _lint_suppression
 from .static import StaticPass
@@ -67,10 +67,13 @@ class ElementTree(StaticPass):
             return None
 
         aod_own_hide, aod_own = self._build_aod_authored(node)
+        at = self.position(node.get("at"), node, "at", allow_subscreen=True)
+        if not self._check_subscreen(node, at, path, span):
+            return None
         common = dict(
             id=element_id,
             kind=node["type"],
-            at=self.position(node.get("at"), node, "at"),
+            at=at,
             modes=tuple(node.get("modes") or ("active",)),
             z=node.get("z"),
             span=span,
@@ -82,6 +85,7 @@ class ElementTree(StaticPass):
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
             aod_own_hide=aod_own_hide,
             aod_own=aod_own,
+            if_unavailable=node.get("if_unavailable"),
         )
 
         if node["type"] not in kinds.names():  # unreachable once the schema has run
@@ -93,6 +97,34 @@ class ElementTree(StaticPass):
         if element is not None:
             self._resolve_hold_auto(element)
         return element
+
+    def _check_subscreen(self, node: dict[str, Any], at: Position, path: tuple[str | int, ...],
+                         span: Span | None) -> bool:
+        """`anchor: subscreen` is a top-level element's alone, and
+        `if_unavailable:` needs something that can be unavailable: the
+        subscreen here, or a `text` element's `face:` font (checked by the
+        text kind itself, `Builder.check_if_unavailable`)."""
+        in_subscreen = at.anchor == "subscreen"
+        if in_subscreen and "children" in path:
+            self.bag.error(
+                "subscreen",
+                f"{node['id']}: 'anchor: subscreen' is not accepted on a group's child",
+                self.doc.span(node.get("at"), "anchor") or span,
+                notes=["put 'anchor: subscreen' on the top-level group instead: its "
+                       "children are then laid out inside the window"],
+            )
+            return False
+        if "if_unavailable" in node and not in_subscreen and node["type"] != "text":
+            self.bag.error(
+                "subscreen",
+                f"{node['id']}: 'if_unavailable:' is not accepted here",
+                self.doc.span(node, "if_unavailable") or span,
+                notes=["on this element it governs 'at: {anchor: subscreen}' on a target "
+                       "without a subscreen window; this element is not anchored there",
+                       "drop 'if_unavailable:', or anchor the element to the subscreen"],
+            )
+            return False
+        return True
 
     def _check_symbol_collision(self, element_id: str, node: dict[str, Any], span: Span | None) -> bool:
         """Reject two distinct ids that derive the same Monkey C symbol.

@@ -25,7 +25,8 @@ own chapter, linked below.
 ## At a glance
 
 Z-order is document order, with an optional `z:` override. Every element takes
-`id`, `type`, `at`, `modes`, `z`, `visible`, `lint` and `overrides`.
+`id`, `type`, `at`, `modes`, `z`, `visible`, `lint`, `overrides` and `if_unavailable`
+(accepted only where something can be unavailable).
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
@@ -42,6 +43,7 @@ Z-order is document order, with an optional `z:` override. Every element takes
 | `modes` | every element | list of `active`\|`low_power` | `[active]` | which power modes draw this element |
 | `aod` | every element, `group` | `hide`\|`show`\|an override block | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
 | `z` | every element | integer | document order | z-order override |
+| `if_unavailable` | an element anchored to the [subscreen](placement.md#the-subscreen-window), or a `text` with a `face:` font | `error`\|`hide` | `error` (a `text`: its font's own) | what to do on a target that lacks the window, or the face |
 | `on_hold` | kinds with a fixed box (not `hands`, not `pattern`) | a complication name, or `auto` | — | touch-and-hold target — see [Interactivity](modes-and-interaction.md#interactivity-on_hold) |
 | `lint` | every element | `{allow: [...], reason: ...}` | — | suppress a specific warning — see [Lints](lints.md) |
 

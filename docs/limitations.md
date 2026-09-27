@@ -780,7 +780,10 @@ or "not checked" (semi-shapes). No semi-round device is installed.
 Rectangles are exercised against real device files (`venusq`, `venusq2`,
 `venux1`; `tests/test_screen_rectangle.py`), and `examples/features/align/`
 targets `venusq2`, and `examples/features/instinct/` targets the four installed
-semi-octagons. No non-round face has been seen on a real watch.
+semi-octagons, with its battery gauge in the subscreen window
+(`at: {anchor: subscreen}`). No non-round face has been seen on a real watch,
+and nothing here has confirmed that `WatchUi.getSubscreen()` returns the box
+the device files declare.
 `docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
 realistic targets) and a route to exact geometry from the simulator skin;
 `docs/plans/20-screen-shapes.md` is the plan.

@@ -258,6 +258,37 @@ class Device:
         except (KeyError, TypeError, ValueError):
             return None
 
+    @property
+    def subscreen(self) -> tuple[int, int, int, int] | None:
+        """``(x, y, width, height)`` of the subscreen window in screen
+        pixels -- `simulator.json` `subscreen.location`, which is in skin
+        coordinates, minus `display.location` (research 16 §4). ``None`` on
+        a device without one. Both halves are required: the box, and
+        `WatchUi.getSubscreen` in this device's own symbol table.
+        `instinct3amoled50mm` has the box but not the symbol, and its skin
+        draws no window there: a virtual subscreen, for which Garmin
+        documents `getSubscreen()` as null."""
+        try:
+            if not self.has_symbol(self.SUBSCREEN_SYMBOL):
+                return None
+        except DeviceError:
+            return None  # no symbol table: nothing says the window exists
+        sub = self.simulator.get("subscreen")
+        panel = self.display_location
+        if not isinstance(sub, dict) or not isinstance(sub.get("location"), dict) \
+                or panel is None:
+            return None
+        loc = sub["location"]
+        try:
+            x, y = int(loc["x"]) - panel[0], int(loc["y"]) - panel[1]
+            width, height = int(loc["width"]), int(loc["height"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if x < 0 or y < 0 or width <= 0 or height <= 0 \
+                or x + width > self.width or y + height > self.height:
+            return None
+        return x, y, width, height
+
     # -- display ----------------------------------------------------------
 
     @property
@@ -530,6 +561,11 @@ class Device:
     #: re-checked directly against each installed device's own
     #: `has_symbol`).
     DISPLAY_MODE_SYMBOL = "System.getDisplayMode"
+
+    #: `WatchUi.getSubscreen` (API 3.2.7): present exactly on the devices with
+    #: a physical subscreen window (research 16 §4). :attr:`subscreen`
+    #: requires it alongside `simulator.json`'s box.
+    SUBSCREEN_SYMBOL = "WatchUi.getSubscreen"
 
     @staticmethod
     def _symbol_for_simulator_name(name: str) -> str:
