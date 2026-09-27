@@ -276,7 +276,7 @@
       "pattern": "^palette\\.[A-Za-z_][A-Za-z0-9_]*$"
     },
     "configColor": {
-      "description": "One native colour axis: a compiled-in default, plus either the editor's full colour picker ('any') or an explicit, orderable list of choices. Every declared colour is checked against the target's 64-colour palette rule, the same 'palette-dither' check a palette entry gets.",
+      "description": "One native colour axis: a compiled-in default, plus either the editor's full colour picker ('any') or an explicit, orderable list of choices. Every declared colour is checked against the target's palette rule, the same check a palette entry gets: 'palette-dither' on a 64-colour panel, 'palette-mono' on a 2-colour one.",
       "type": "object",
       "required": [
         "default",

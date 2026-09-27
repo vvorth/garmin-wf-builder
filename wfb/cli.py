@@ -495,7 +495,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     """
     from .preview import (
         MINUTES_PER_DAY, PreviewOptions, UnknownStyleError, render, render_all_styles,
-        render_aod_heatmap, save,
+        mono_guess_warning, render_aod_heatmap, save,
     )
     from .preview import stand_in_warning as preview_stand_in_warning
 
@@ -580,6 +580,9 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     warning = preview_stand_in_warning(used_faces)
     if warning:
         print(warning, file=sys.stderr)
+    mono = mono_guess_warning((r.device for r in resolved.values()), options.quantise)
+    if mono:
+        print(mono, file=sys.stderr)
     if blurb and not quiet:
         print()
         for line in (

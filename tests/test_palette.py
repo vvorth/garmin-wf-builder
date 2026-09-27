@@ -1,9 +1,9 @@
-"""Colour parsing and the 64-colour MIP palette rule."""
+"""Colour parsing and the palette rules (64-colour MIP, 2-colour mono)."""
 
 import pytest
 
 from wfb.build import load
-from wfb.palette import MIP64_LEVELS, Color, ColorError
+from wfb.palette import BLACK, MIP64_LEVELS, WHITE, Color, ColorError, has_palette_rule
 
 HEAD = """format: 1
 face:
@@ -53,6 +53,36 @@ def test_nearest_legal_snaps_every_channel():
 def test_unknown_palette_size_is_not_checked():
     """A confident wrong answer is worse than no answer (ADR 0008)."""
     assert Color.parse("#123456").is_palette_legal(None) is True
+
+
+@pytest.mark.parametrize("hexcode,legal", [
+    ("#000000", True), ("#FFFFFF", True),
+    # Legal on a 64-colour panel, so the two rules cannot be one rule.
+    ("#FF0000", False), ("#555555", False), ("#AAAAAA", False),
+])
+def test_mono_legality(hexcode, legal):
+    """A 2-colour panel shows black and white only (research 16 §5)."""
+    assert Color.parse(hexcode).is_palette_legal(2) is legal
+    assert Color.parse(hexcode).is_palette_legal(64) is True
+
+
+@pytest.mark.parametrize("hexcode,nearest", [
+    # Either side of MONO_CROSSOVER (relative luminance ~0.179): #777777
+    # is 0.184, #707070 is 0.162.
+    ("#777777", "#FFFFFF"), ("#707070", "#000000"),
+    ("#FF0000", "#FFFFFF"), ("#5555AA", "#000000"),
+])
+def test_mono_nearest_is_the_lower_contrast_ratio(hexcode, nearest):
+    color = Color.parse(hexcode)
+    assert str(color.nearest_legal(2)) == nearest
+    assert str(min((BLACK, WHITE), key=color.contrast_ratio)) == nearest
+
+
+@pytest.mark.parametrize("colors,known", [
+    (2, True), (64, True), (65536, True), (8, False), (14, False), (None, False),
+])
+def test_which_palette_sizes_have_a_rule(colors, known):
+    assert has_palette_rule(colors) is known
 
 
 def test_contrast_ratio_matches_wcag_endpoints():

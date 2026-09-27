@@ -467,8 +467,9 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
 * `duplicate-style` (suppressible) -- two `style` entries resolve to the same
   `colors:` -- warning, once per design, at the second entry of the pair;
   suppress on that entry's own `lint:`.
-* Every declared colour goes through the same 64-colour palette-legality check
-  a `palette:` entry gets: `default:` always (it is the only value a device
+* Every declared colour goes through the same palette-legality check a
+  `palette:` entry gets (`palette-dither` on a 64-colour panel, `palette-mono`
+  on a 2-colour one): `default:` always (it is the only value a device
   with no native editor ever shows), plus every listed `choices:` colour when
   `choices:` is an explicit list (`choices: any` has no list to check) --
   and, for `style`, every role of every scheme some entry actually

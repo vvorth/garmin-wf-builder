@@ -29,7 +29,7 @@ from .layout import (
     inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
-from .palette import Color
+from .palette import Color, has_palette_rule
 from .units import IntBox
 
 if TYPE_CHECKING:
@@ -45,8 +45,8 @@ _T = TypeVar("_T")
 #: produces a face that does not work.  So is `api-gated-unguardable`
 #: (`check_api_gated` case 5): it means an unguarded call that crashes.
 SUPPRESSIBLE = frozenset({
-    "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
-    "hold-unsupported", "hold-overlap", "api-gated",
+    "palette-dither", "palette-mono", "safe-area", "text-overflow", "contrast",
+    "partial-update-budget", "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
     "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
@@ -76,7 +76,7 @@ ALL_CODES = frozenset({
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
-    "palette-dither", "partial-update", "partial-update-budget", "pattern",
+    "palette-dither", "palette-mono", "partial-update", "partial-update-budget", "pattern",
     "progress-segments",
     "pattern-step", "permission",
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
@@ -444,13 +444,18 @@ def _users_of(face: Face, token: str) -> list[Element]:
 
 
 def _emit_dither(
-    bag: Bag, users: list[Element], message: str, nearest_note: str, token: str,
+    bag: Bag, users: list[Element], device: Device, subject: str, nearest_note: str,
+    token: str,
 ) -> None:
-    """The `palette-dither` warning every declared-colour check shares,
-    suppressible on any element that uses the declaration."""
+    """The warning every declared-colour check shares, suppressible on any
+    element that uses the declaration: `palette-mono` on a 2-colour panel,
+    `palette-dither` on a 64-colour one.  ``subject`` names the colour(s)
+    and ends in "is"/"are"; the outcome is appended here."""
+    colors = device.display_colors
+    code = "palette-mono" if colors == 2 else "palette-dither"
     if users:
         suppress_note = (
-            f"set 'lint: {{allow: [palette-dither], reason: ...}}' on an element "
+            f"set 'lint: {{allow: [{code}], reason: ...}}' on an element "
             f"that draws '{token}' ({', '.join(u.id for u in users)}) to keep it"
         )
     else:
@@ -458,34 +463,53 @@ def _emit_dither(
         suppress_note = (
             f"no element draws exactly '{token}' (as 'color:', 'track_color:', "
             f"'icon_color:', 'outline:' or an 'aod:' override), so there is nowhere "
-            f"to put 'lint: {{allow: [palette-dither]}}' for it"
+            f"to put 'lint: {{allow: [{code}]}}' for it"
         )
-    _emit_for_users(bag, users, Diagnostic(
-        Severity.WARNING,
-        "palette-dither",
-        message,
-        notes=[
-            nearest_note,
-            "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
-            "dithered by the firmware and looks grainy",
-            suppress_note,
-        ],
-        confidence="exact -- device display_colors",
-    ))
+    message = f"{subject} not one of {device.id}'s {colors} colours"
+    if colors == 2:
+        diagnostic = Diagnostic(
+            Severity.WARNING,
+            "palette-mono",
+            f"{message}; only black and white are safe",
+            notes=[
+                nearest_note,
+                "the panel shows black and one 'on' colour, and its compiler.json palette "
+                "is exactly #000000 and #FFFFFF; how the firmware maps any other colour is "
+                "unverified, so the nearest shown is a guess (by contrast ratio)",
+                suppress_note,
+            ],
+            confidence="exact that the colour is outside the palette; its mapping unverified",
+        )
+    else:
+        diagnostic = Diagnostic(
+            Severity.WARNING,
+            "palette-dither",
+            f"{message} and will be dithered",
+            notes=[
+                nearest_note,
+                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
+                "dithered by the firmware and looks grainy",
+                suppress_note,
+            ],
+            confidence="exact -- device display_colors",
+        )
+    _emit_for_users(bag, users, diagnostic)
 
 
 def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
-    """Each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel.
+    """Each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel, and only
+    black and white are safe on a 2-colour one (`palette-mono`).
 
     The warning is about a *palette entry*, which has no `lint:` of its
     own, so suppression is honoured on any element that references it
     (:func:`_emit_for_users`).
     """
     colors = resolved.device.display_colors
-    if colors is None:
+    if not has_palette_rule(colors):
+        size = "unknown" if colors is None else f"{colors} colours, which has no known rule"
         bag.note(
             "palette-dither",
-            f"{resolved.device.id}: palette size is unknown, so colour legality is not checked",
+            f"{resolved.device.id}: palette size is {size}, so colour legality is not checked",
             confidence="not checked",
         )
         return
@@ -494,9 +518,8 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
             continue
         token = f"palette.{name}"
         _emit_dither(
-            bag, _users_of(resolved.face, token),
-            f"{token} = {color} is not one of {resolved.device.id}'s "
-            f"{colors} colours and will be dithered",
+            bag, _users_of(resolved.face, token), resolved.device,
+            f"{token} = {color} is",
             f"nearest legal colour: {color.nearest_legal(colors)}",
             token,
         )
@@ -561,10 +584,9 @@ def _check_declared_colors(
         return
     nearest = ", ".join(f"{label}{c} -> {c.nearest_legal(colors)}" for label, c in bad)
     _emit_dither(
-        bag, _users_of(resolved.face, token),
-        f"{token}: {len(bad)} declared colour(s) are not one of "
-        f"{resolved.device.id}'s {colors} colours and will be dithered",
-        f"off-grid -> nearest legal: {nearest}",
+        bag, _users_of(resolved.face, token), resolved.device,
+        f"{token}: {len(bad)} declared colour(s) are",
+        f"off-palette -> nearest legal: {nearest}",
         token,
     )
 
@@ -577,7 +599,7 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
     entry too.  `choices: any` skips only the list half: the editor's
     unrestricted picker gives this compiler no list to check.
     """
-    if resolved.device.display_colors is None:
+    if not has_palette_rule(resolved.device.display_colors):
         return  # check_palette already emits the one "not checked" note per device
     for name, entry in resolved.face.config.items():
         declared = [entry.default]
@@ -593,7 +615,7 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
     picker, so there is no `choices: any` carve-out; an unreferenced scheme
     can never be shown, so it is not checked.
     """
-    if resolved.device.display_colors is None:
+    if not has_palette_rule(resolved.device.display_colors):
         return  # check_palette already emits the one "not checked" note per device
     axis = resolved.face.config_style
     if axis is None:

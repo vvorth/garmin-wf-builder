@@ -465,6 +465,17 @@ feature on for any of those elements. (What `wfb preview` shows for
 that same soft edge is a separate gap — see "the simulator does not run in a
 headless Linux container" below.)
 
+**A 2-colour panel shows black and white only.** The Instinct family's panel
+is monochrome MIP, and its `compiler.json` palette is exactly `#000000` and
+`#FFFFFF`. Anything else is `palette-mono`. How the firmware shows another
+colour (the nearest by luminance, a threshold, or dithering) is
+**unverified**: there is no simulator here and no Instinct to look at. The
+nearest colour the warning names, and the preview's black-and-white snap,
+both use the contrast-ratio crossover (relative luminance about 0.179), and
+the preview says it is guessing. These panels have no `setAntiAlias`, so no
+soft edge arises there. 8- and 14-colour panels (12 face-capable devices,
+none installed) have no known rule, and are reported "not checked".
+
 ### On-device configuration: four axes, four configurations, and a menu on fr955
 
 The native watch-face editor is **API 5.1.0, fēnix 8 and newer**, and exposes
@@ -768,8 +779,8 @@ or "not checked" (semi-shapes). No semi-round device is installed.
 
 Rectangles are exercised against real device files (`venusq`, `venusq2`,
 `venux1`; `tests/test_screen_rectangle.py`), and `examples/features/align/`
-targets `venusq2`. No non-round face has been seen on a real watch. A
-2-colour panel (the Instinct family) gets no palette check at all.
+targets `venusq2`, and `examples/features/instinct/` targets the four installed
+semi-octagons. No non-round face has been seen on a real watch.
 `docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
 realistic targets) and a route to exact geometry from the simulator skin;
 `docs/plans/20-screen-shapes.md` is the plan.

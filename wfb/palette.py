@@ -1,14 +1,22 @@
-"""Colour parsing and the 64-colour MIP palette rule.
+"""Colour parsing and the palette rules.
 
 On a 64-colour panel each channel must be one of ``0x00``, ``0x55``, ``0xAA`` or
 ``0xFF``; anything else is dithered by the firmware and looks grainy
 (ADR 0006 4, lint check 3).  The check is exact arithmetic against the device's
 documented palette size -- it is a warning, not an error, because a deliberate
 dithered colour is a legitimate choice.
+
+On a 2-colour panel (the Instinct family) only black and white are safe: the
+device files' own `compiler.json` palette is exactly those two, and whatever
+the firmware does with any other colour is unverified (research 16 §5).  The
+nearest safe colour is the one with the lower contrast ratio against it --
+the same luminance measure the contrast lint uses.  8- and 14-colour panels
+have no known rule, and 65,536 colours need none.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -55,20 +63,24 @@ class Color:
         return f"0x{self.value:06X}"
 
     def is_palette_legal(self, display_colors: int | None) -> bool:
-        """``True`` when the panel can show this colour without dithering."""
-        # Only the 64-colour MIP rule is known; no rule for any other palette
-        # size (or an unknown one, `Device.display_colors`) is guessed at.
-        if display_colors != 64:
-            return True
-        return all(c in MIP64_LEVELS for c in (self.r, self.g, self.b))
+        """``True`` when the panel is known to show this colour as written:
+        the 64-colour MIP rule, or black/white on a 2-colour panel.  No rule
+        is guessed for any other size (:func:`has_palette_rule`)."""
+        if display_colors == 64:
+            return all(c in MIP64_LEVELS for c in (self.r, self.g, self.b))
+        if display_colors == 2:
+            return self in (BLACK, WHITE)
+        return True
 
     def nearest_legal(self, display_colors: int | None) -> "Color":
-        if display_colors != 64:
-            return self
-        def snap(c: int) -> int:
-            return min(MIP64_LEVELS, key=lambda level: abs(level - c))
+        if display_colors == 64:
+            def snap(c: int) -> int:
+                return min(MIP64_LEVELS, key=lambda level: abs(level - c))
 
-        return Color(snap(self.r), snap(self.g), snap(self.b))
+            return Color(snap(self.r), snap(self.g), snap(self.b))
+        if display_colors == 2:
+            return WHITE if self.relative_luminance() > MONO_CROSSOVER else BLACK
+        return self
 
     def relative_luminance(self) -> float:
         """WCAG relative luminance -- Rec. 709 primaries over sRGB-degamma'd
@@ -96,6 +108,23 @@ class Color:
         """
         return Color(dim_channel(self.r, num, den), dim_channel(self.g, num, den),
                      dim_channel(self.b, num, den))
+
+
+BLACK = Color(0x00, 0x00, 0x00)
+WHITE = Color(0xFF, 0xFF, 0xFF)
+
+#: The relative luminance at which a colour's contrast ratio against black
+#: equals its ratio against white, (Y + 0.05) / 0.05 = 1.05 / (Y + 0.05):
+#: above it the colour is nearer white on a 2-colour panel, at or below it
+#: nearer black.  About 0.179.
+MONO_CROSSOVER = math.sqrt(1.05 * 0.05) - 0.05
+
+
+def has_palette_rule(display_colors: int | None) -> bool:
+    """Whether :meth:`Color.is_palette_legal` can answer for this palette
+    size: 2 and 64 have a rule, 65,536 needs none.  8, 14 and an unknown
+    size have none, and are reported "not checked"."""
+    return display_colors in (2, 64) or (display_colors is not None and display_colors >= 65536)
 
 
 def srgb_channel_to_linear(value: int) -> float:

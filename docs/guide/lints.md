@@ -10,13 +10,14 @@ out" — see its own paragraph below.
 
 ## At a glance
 
-Twenty-two codes are suppressible. One line each, derived from this chapter,
+Twenty-three codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
 messages; see `wfb/lint.py` if unsure.
 
 | Code | Meaning |
 |---|---|
 | `palette-dither` | a declared colour an element draws isn't an exact MIP palette colour (each channel `00`/`55`/`AA`/`FF`) and dithers |
+| `palette-mono` | on a 2-colour panel (the Instinct family), a declared colour an element draws is neither `#000000` nor `#FFFFFF`; how the watch shows it is unverified, and the warning names the nearer of the two |
 | `safe-area` | the element's ink falls outside the screen's visible area: the inscribed circle on a round screen, and the simulator skin's visible area on any other shape (one pixel of tolerance) |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
@@ -68,7 +69,7 @@ the generated code itself, so it follows the ordinary "acknowledge it, with
 a reason" suppression path like every other measured/estimated check
 instead of joining the hard-limit errors below.
 
-Twenty-two codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+Twenty-three codes are suppressible: `palette-dither`, `palette-mono`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,

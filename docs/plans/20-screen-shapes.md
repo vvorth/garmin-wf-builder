@@ -1,8 +1,7 @@
 # 20 — Rectangular and semi-octagon screens
 
-**Status: in progress. Slice 0 done for 7 of the 13 devices, slices 1 and
-2 done (2026-09-27); slice 3 can start; slices 4 and 5 need decisions
-D1–D2 first.** Delete this file once every
+**Status: in progress. Slice 0 done for 7 of the 13 devices, slices 1–3
+done (2026-09-27); slices 4 and 5 need decisions D1–D2 first.** Delete this file once every
 slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/16-screen-shapes.md`. In short: 21 non-round
@@ -111,16 +110,24 @@ A hand is tested as a disc of its full length, as on round screens, so a
 minute hand long enough to pass under the subscreen ring is a finding.
 It does pass under the ring once an hour.
 
-### Slice 3 — two-colour panels
+### Slice 3 — two-colour panels: done
 
-- New lint `palette-mono`: on a `display_colors == 2` device, any colour
-  other than `#000000`/`#FFFFFF` is a warning, suppressible, naming the
-  nearest by luminance. `Color.is_palette_legal`/`nearest_legal` gain the
-  2-colour rule; 14 colours stays "not checked".
-- The preview's `quantise` step snaps to black/white on those devices, and
-  prints once that the mapping is a guess.
-- One semi-octagon target in a new `examples/features/instinct/` face that
-  lints clean, built warning-free.
+- `Color.is_palette_legal(2)` is black/white only, and `nearest_legal(2)`
+  picks whichever of the two has the lower contrast ratio
+  (`MONO_CROSSOVER`, relative luminance ≈ 0.179). `palette-mono` is its
+  own suppressible warning, not a variant of `palette-dither`, because
+  the harm is an unverified mapping rather than dithering. It covers
+  `palette:`, `config:` colours and `color_scheme:` roles, through the
+  same helper as `palette-dither`. 8/14/unknown sizes are a "not checked"
+  note (`has_palette_rule`) instead of passing silently.
+- `wfb preview` snaps a 2-colour device to black and white by the same
+  crossover, and prints once per run that the mapping is a guess.
+- `examples/features/instinct/` targets the four installed semi-octagons.
+  It lints clean, builds warning-free (the project's first semi-octagon
+  `.prg`s), and is shown in `docs/guide/colors.md`.
+- Driven red: cutting the 2-colour rule, the code choice or the preview
+  snap each fails its own tests (`tests/test_palette_mono.py`,
+  `tests/test_palette.py`).
 
 ### Slice 4 — `overrides:` (D1)
 

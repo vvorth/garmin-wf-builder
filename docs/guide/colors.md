@@ -70,6 +70,20 @@ Anything else is dithered by the firmware and looks grainy. The linter warns and
 names the nearest legal colour; `lint: {allow: [palette-dither], reason: "..."}`
 on an element silences it for a deliberate choice.
 
+**On a 2-colour panel (the Instinct family) only `#000000` and `#FFFFFF` are
+safe.** The panel shows black and one "on" colour, and the device files list
+exactly those two. What the watch does with any other colour is unverified, so
+`palette-mono` warns and names whichever of the two is nearer by contrast
+ratio. `wfb preview` snaps the image to black and white by the same rule, and
+says it is guessing. 8- and 14-colour panels have no known rule; the linter
+reports them "not checked".
+
+<img src="../screenshots/instinct.png" width="260" alt="a black-and-white face on an Instinct 2">
+
+*[`examples/features/instinct`](../../examples/features/instinct/face.yaml) on
+an Instinct 2: black and white only, with the bezel's chamfers and the ring
+round the subscreen window greyed out.*
+
 **A `palette:` entry may not reference `config.*`.** A palette entry compiles
 to a Monkey C `const`, and a config value is not known until the watch reads
 it, so `bg: config.accent_color` is an error. Reference the config entry

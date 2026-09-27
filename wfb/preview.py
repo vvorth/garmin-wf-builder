@@ -41,7 +41,7 @@ from .layout import (
     alignment_shift,
     radial_align_offset, radial_direction_sign,
 )
-from .palette import MIP64_LEVELS, Color, dim_fraction
+from .palette import MIP64_LEVELS, MONO_CROSSOVER, Color, dim_fraction, srgb_channel_to_linear
 from .units import IntBox
 
 #: One drawn colour, as Pillow takes it.
@@ -302,6 +302,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
 
     if options.quantise and device.display_colors == 64:
         image = _quantise_mip64(image)
+    elif options.quantise and device.display_colors == 2:
+        image = _quantise_mono(image)
     if options.mask_shape:
         image = _mask_shape(image, device, scale)
     return image
@@ -1034,6 +1036,39 @@ def _quantise_mip64(image: Image.Image) -> Image.Image:
     """Snap to the 64-colour panel, so a dithered colour looks wrong here too."""
     lut = bytes(min(MIP64_LEVELS, key=lambda level: abs(level - value)) for value in range(256))
     return image.point(lut * 3)
+
+
+@lru_cache(maxsize=None)
+def _mono_luts() -> tuple[bytes, bytes, bytes]:
+    """Per-channel LUTs to each channel's share of relative luminance, x255
+    (`Color.relative_luminance`'s own weights and degamma)."""
+    return tuple(  # type: ignore[return-value]
+        bytes(round(weight * srgb_channel_to_linear(v) * 255) for v in range(256))
+        for weight in (0.2126, 0.7152, 0.0722))
+
+
+def _quantise_mono(image: Image.Image) -> Image.Image:
+    """Snap every pixel to black or white on a 2-colour panel, by the same
+    rule `Color.nearest_legal(2)` uses (`MONO_CROSSOVER`).  The firmware's
+    real mapping is unverified, so this is a guess, and `wfb preview` says
+    so (:func:`mono_guess_warning`)."""
+    r, g, b = image.convert("RGB").split()
+    lut_r, lut_g, lut_b = _mono_luts()
+    luminance = ImageChops.add(ImageChops.add(r.point(lut_r), g.point(lut_g)), b.point(lut_b))
+    threshold = MONO_CROSSOVER * 255
+    bw = luminance.point(lambda v: 255 if v > threshold else 0)
+    return Image.merge("RGB", (bw, bw, bw))
+
+
+def mono_guess_warning(devices: Iterable[Device], quantise: bool) -> str | None:
+    """One line for `wfb preview` to print when it snapped a 2-colour
+    device's image to black and white, or ``None``."""
+    mono = sorted(d.id for d in devices if d.display_colors == 2)
+    if not quantise or not mono:
+        return None
+    return (f"warning: {', '.join(mono)} show(s) 2 colours; the preview snaps every other "
+            f"colour to black or white by luminance, but how the watch maps them is "
+            f"unverified (docs/limitations.md)")
 
 
 def _mask_shape(image: Image.Image, device: Device, scale: int) -> Image.Image:

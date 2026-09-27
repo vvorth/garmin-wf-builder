@@ -285,3 +285,17 @@ screens keep the analytic circle. Confidence stays "exact": it is resolved
 geometry against a mask read from the device files, not an estimate. A
 device without a skin degrades exactly as before, to the framebuffer
 (rectangle) or "not checked" (semi-shapes).
+
+## Amendment (2026-09-27): check 3 on 2-colour panels, `palette-mono`
+
+Check 3 knew only the 64-colour rule, and silently passed every colour on
+any other palette size. It now has a second rule. On a 2-colour panel only
+`#000000` and `#FFFFFF` are legal, because the device files' own
+`compiler.json` palette is exactly those two (research 16 §5). Anything
+else is a separate code, `palette-mono`, suppressible like
+`palette-dither`, because the harm is different. It is not dithering: what
+the firmware does with the colour is unverified. So its confidence says
+the colour is exactly outside the palette, and that the nearest colour it
+names is a guess. Sizes with no known rule (8, 14, unknown) are reported
+"not checked", as this ADR asks, instead of passing silently; 65,536
+colours need no rule.

@@ -91,7 +91,7 @@ Read from the code. **VERIFIED.**
 | `safe-area` lint (`wfb/lint.py`) | checked, shape-aware ink reach | checked against the skin, 1 px tolerance | checked against the skin, 1 px tolerance; a "not checked" note without one |
 | Preview crop (`wfb/preview.py` `_mask_shape`) | round crop | the skin mask | the skin mask |
 | AOD burn-in denominator (`wfb/lint.py` `_aod_burn_in_mask`) | the disc | the skin's visible pixels | the skin's visible pixels |
-| Palette legality (`wfb/palette.py` `is_palette_legal`) | 64-colour rule | 64-colour rule on 64-colour panels, else nothing | **nothing** on 2- or 14-colour panels |
+| Palette legality (`wfb/palette.py` `is_palette_legal`) | 64-colour rule | 64-colour rule on 64-colour panels | black/white only on 2-colour panels (`palette-mono`); "not checked" on 8 or 14 |
 | `%r` (`docs/guide/placement.md`) | minor radius | half the shorter side | half the shorter side |
 
 A device whose skin is missing, or whose `display.location` does not match
@@ -206,17 +206,18 @@ is **UNVERIFIED**: nearest-colour mapping, a luminance threshold or dithering
 are all plausible, and the simulator cannot be run to find out (root
 `CLAUDE.md` §3).
 
-Consequences for the compiler:
+Consequences for the compiler (built, plan 20 slice 3):
 
-- `Color.is_palette_legal` accepts every colour on a panel that is not
-  64-colour, deliberately: "no rule for any other palette size is guessed
-  at" (`wfb/palette.py`). On a 2-colour panel, a design that is fine on a
-  fēnix can therefore turn into an unreadable blob with no warning.
-- The first reliable rule is **"only `#000000` and `#FFFFFF` are safe"**,
-  which is certainly true whatever the mapping is. That makes a new
-  per-device palette lint, `palette-mono`, with a clear "use black or white"
-  fix. The preview's `quantise` step should then snap to those two, by
-  luminance, and say it is guessing.
+- The reliable rule is **"only `#000000` and `#FFFFFF` are safe"**, which
+  is true whatever the mapping is. `Color.is_palette_legal(2)` applies it,
+  and any other colour is `palette-mono`, a suppressible warning naming
+  the nearer of the two by contrast ratio (the crossover is relative
+  luminance ≈ 0.179, `wfb.palette.MONO_CROSSOVER`).
+- The preview's `quantise` step snaps a 2-colour device's image to black
+  and white by the same rule, and `wfb preview` prints once that the
+  mapping is a guess.
+- 8- and 14-colour panels still have no rule, and are now reported "not
+  checked" rather than passed silently.
 - The contrast lint needs nothing new: it already measures the two colours
   it is given.
 
@@ -273,7 +274,7 @@ or guard. That is a larger step, and should be the second step.
 3. **Replace per-shape geometry with the skin mask** (§3) for the
    visible-area lint, the preview crop and the burn-in denominator. That
    single mechanism is what makes semi-octagons "checked". Done (§2).
-4. **The `palette-mono` lint and 2-colour preview** (§5).
+4. **The `palette-mono` lint and 2-colour preview** (§5). Done.
 5. **`overrides:` with `shape:` and device-id selectors, geometry keys
    only** (§6). This is the format change the user has to approve; ADR 0004
    already accepted its shape.
