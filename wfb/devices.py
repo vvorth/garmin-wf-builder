@@ -235,6 +235,29 @@ class Device:
         """The resource-qualifier directory name, read rather than derived."""
         return cast(str, self.compiler["deviceFamily"])
 
+    @property
+    def skin_path(self) -> Path | None:
+        """The simulator's skin PNG (`simulator.json` `image`), whose alpha
+        is transparent exactly where the panel shows through (research 16
+        §3); ``None`` when the device files do not ship it."""
+        name = self.simulator.get("image")
+        if not isinstance(name, str):
+            return None
+        path = self.root / name
+        return path if path.is_file() else None
+
+    @property
+    def display_location(self) -> tuple[int, int, int, int] | None:
+        """``(x, y, width, height)`` of the panel inside the skin image
+        (`simulator.json` `display.location`), or ``None`` if absent."""
+        loc = self.simulator.get("display", {}).get("location")
+        if not isinstance(loc, dict):
+            return None
+        try:
+            return int(loc["x"]), int(loc["y"]), int(loc["width"]), int(loc["height"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
     # -- display ----------------------------------------------------------
 
     @property

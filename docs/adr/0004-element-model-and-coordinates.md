@@ -455,6 +455,13 @@ renderer can be trusted. It is a capability hand authors do not have.
   > inscribed circle to within 0.5% on three round devices. That is a
   > per-device visible-area mask for every shape (research 16 §3), proposed
   > in plan 20 alongside the §4 `overrides:` this ADR already accepted.
+
+  > **Note (2026-09-27): built for every non-round shape.** `wfb.visible_area`
+  > reads the skin's alpha inside `display.location`, and the `safe-area`
+  > lint, the preview crop and the `aod-burn-in` denominator all use it on
+  > any screen that is not round. Round keeps the analytic circle, which a
+  > test pins to the skin. A non-round device without a skin still falls
+  > back: a rectangle to its framebuffer, a semi-shape to "not checked".
 - Whether to support a constraint solver (element A right-of element B) rather
   than only parent-relative anchors. Deferred: anchors cover the reference design
   and a solver is a large addition. Revisit if real faces demand it.

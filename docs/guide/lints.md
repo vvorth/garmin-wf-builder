@@ -17,7 +17,7 @@ messages; see `wfb/lint.py` if unsure.
 | Code | Meaning |
 |---|---|
 | `palette-dither` | a declared colour an element draws isn't an exact MIP palette colour (each channel `00`/`55`/`AA`/`FF`) and dithers |
-| `safe-area` | the element's box falls outside the round screen's visible area |
+| `safe-area` | the element's ink falls outside the screen's visible area: the inscribed circle on a round screen, and the simulator skin's visible area on any other shape (one pixel of tolerance) |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
 | `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour; a complication slot's `icon_color` is judged too, a progress `track_color` is not |

@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
-from . import kinds, units
+from . import kinds, units, visible_area
 from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
@@ -311,12 +311,13 @@ def annulus_sector_reach(
 # -- ink shapes ------------------------------------------------------------
 #
 # The real ink of a drawn thing, as one of four small shapes.  Each answers
-# the three questions the lints ask, from the one shape: `box()` (the AABB,
+# the four questions the lints ask, from the one shape: `box()` (the AABB,
 # for the rectangular framebuffer and `Placed.box`), `bounds()` (the same
-# AABB as `(min_x, min_y, max_x, max_y)`, for unioning a pattern's copies)
-# and `reach(px, py)` (the farthest ink from a point, for the round-screen
+# AABB as `(min_x, min_y, max_x, max_y)`, for unioning a pattern's copies),
+# `reach(px, py)` (the farthest ink from a point, for the round-screen
 # `safe-area` check -- an AABB's own corners generically overreach the shape
-# they bound).  `box()`/`bounds()` each keep the arithmetic their callers
+# they bound) and `contains(px, py)` (is a point inked, for testing against
+# a skin mask, `wfb.visible_area`).  `box()`/`bounds()` each keep the arithmetic their callers
 # have always used, so neither is derived from the other.
 
 
@@ -340,6 +341,10 @@ class InkRect:
         return max(math.hypot(x - px, y - py)
                    for x, y in ((left, top), (right, top), (left, bottom), (right, bottom)))
 
+    def contains(self, px: float, py: float) -> bool:
+        left, top, right, bottom = self.bounds()
+        return left <= px <= right and top <= py <= bottom
+
 
 @dataclass(frozen=True)
 class InkQuad:
@@ -358,6 +363,17 @@ class InkQuad:
 
     def reach(self, px: float, py: float) -> float:
         return max(math.hypot(x - px, y - py) for x, y in self.corners)
+
+    def contains(self, px: float, py: float) -> bool:
+        # Convex: inside when on the same side of every edge.
+        sides = set()
+        count = len(self.corners)
+        for i in range(count):
+            (ax, ay), (bx, by) = self.corners[i], self.corners[(i + 1) % count]
+            cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+            if abs(cross) > 1e-9:
+                sides.add(cross > 0)
+        return len(sides) <= 1
 
 
 @dataclass(frozen=True)
@@ -382,6 +398,17 @@ class InkSector:
         return annulus_sector_reach(self.cx, self.cy, self.r_inner, self.r_outer,
                                     self.theta_a, self.theta_b, px, py)
 
+    def contains(self, px: float, py: float) -> bool:
+        r = math.hypot(px - self.cx, py - self.cy)
+        if not max(0.0, self.r_inner) <= r <= self.r_outer:
+            return False
+        theta_min = min(self.theta_a, self.theta_b)
+        sweep = max(self.theta_a, self.theta_b) - theta_min
+        if sweep >= 360.0 or r < 1e-9:
+            return True
+        theta = math.degrees(math.atan2(-(py - self.cy), px - self.cx)) % 360.0
+        return (theta - theta_min) % 360.0 <= sweep
+
 
 @dataclass(frozen=True)
 class InkDisc:
@@ -401,6 +428,9 @@ class InkDisc:
 
     def reach(self, px: float, py: float) -> float:
         return math.hypot(self.cx - px, self.cy - py) + self.radius
+
+    def contains(self, px: float, py: float) -> bool:
+        return math.hypot(px - self.cx, py - self.cy) <= self.radius
 
 
 Ink = InkRect | InkQuad | InkSector | InkDisc
@@ -1616,9 +1646,23 @@ def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float,
 
 
 def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
-    """Visibility test that respects the element's actual shape."""
+    """Visibility test that respects the element's actual shape.
+
+    A round screen is the analytic circle less `BEZEL_MARGIN`. Any other
+    shape is tested against the simulator skin's own visible area
+    (`wfb.visible_area`), with one pixel of tolerance; without a skin, a
+    rectangle falls back to its framebuffer and a semi-shape is "not
+    checked" (`None`).
+    """
     if device.shape != "round":
-        return inside_visible_area(placed.box, device)
+        mask = visible_area.visible_mask(device)
+        if mask is None:
+            return inside_visible_area(placed.box, device)
+        ink = _shape_ink(placed, device.fonts_root)
+        if ink is None:
+            box = placed.box
+            ink = InkRect(box.x, box.y, box.width, box.height)
+        return mask.admits(ink)
     screen_cx, screen_cy = device.width / 2, device.height / 2
     reach = visible_reach(placed, screen_cx, screen_cy, device.fonts_root)
     if reach is None:
@@ -1628,10 +1672,11 @@ def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
 
 
 def inside_visible_area(box: IntBox, device: Device) -> bool | None:
-    """Is every corner of the box within the part of the screen the user sees?
+    """Is every corner of the box within the part of the screen the user sees,
+    by shape alone? (:func:`inside_visible_area_for` prefers the skin mask.)
 
-    ``None`` means "not checked": ``semi-round`` and ``semi-octagon`` geometry is
-    not established (ADR 0004), and a confident wrong answer is worse than none.
+    ``None`` means "not checked": a ``semi-round`` or ``semi-octagon`` screen
+    has no analytic geometry, and a confident wrong answer is worse than none.
     """
     if device.shape == "round":
         cx, cy = device.width / 2, device.height / 2

@@ -824,9 +824,10 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
         if visible is None:
             unchecked_shape = True
         elif not visible:
-            notes = ["the framebuffer is rectangular but the panel is not; the outer "
-                     "edge is cropped by the bezel"]
+            notes: list[str] = []
             if device.shape == "round":
+                notes.append("the framebuffer is rectangular but the panel is not; the "
+                             "outer edge is cropped by the bezel")
                 # Name the two numbers a shape-aware reach (a disc, a curved
                 # text's real ink) came down to -- `box` alone is not what
                 # was tested for those kinds.
@@ -837,6 +838,12 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
                     notes.append(
                         f"this element's own ink reaches {reach:.1f}px from {device.id}'s "
                         f"screen centre; the visible disc's own limit is {limit:.1f}px")
+                confidence = "exact -- resolved geometry against the visible disc"
+            else:
+                notes.append(
+                    f"the visible area is {device.id}'s simulator skin, which covers this "
+                    f"element's ink (one pixel of tolerance allowed)")
+                confidence = "exact -- resolved geometry against the simulator skin's mask"
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
                 "safe-area",
@@ -844,7 +851,7 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
                 f"{device.shape} screen",
                 placed.element.span,
                 notes=notes,
-                confidence="exact for round and rectangle screens",
+                confidence=confidence,
             ))
     if unchecked_shape:
         bag.note(
@@ -1504,30 +1511,27 @@ def _aod_burn_in_luts() -> tuple[bytes, ...]:
     return _aod_burn_in_luts_cache
 
 
-def _aod_burn_in_mask(width: int, height: int, shape: str) -> Image.Image:
+def _aod_burn_in_mask(device: Device) -> Image.Image:
     """Which pixels count in the denominator (research 11 §1.1: Garmin's
-    rule is about *screen* pixels/luminance) -- on a round screen, the
-    pixels the bezel physically crops are not part of the display at all,
-    so they must not count on either side of the fraction. Built the same
-    way `wfb.preview._mask_round`'s own bezel crop is (a hard-edged
-    ellipse inscribed in the framebuffer), but returned as a mask rather
-    than applied to an image, because this lint needs the pixel *count*
-    the crop leaves behind, not just a masked picture.
-
-    Every other screen shape (rectangle, and semi-round/semi-octagon, for
-    which ADR 0008 check 4 already says "unavailable" -- ADR 0008) uses the
-    whole framebuffer: not exactly the true visible area on a semi-shape,
-    but the two AMOLED devices this project has today (`fenix847mm`,
-    `fenix947mm`) are both `round-454x454`, so this never actually differs
-    from an exact answer in practice; it is flagged here for the day a
-    semi-shaped AMOLED device shows up.
+    rule is about *screen* pixels/luminance) -- the pixels the bezel
+    physically crops are not part of the display at all, so they must not
+    count on either side of the fraction. The same visible area
+    `wfb.preview`'s own bezel crop uses: a hard-edged ellipse inscribed in
+    the framebuffer on a round screen, the simulator skin's mask on any
+    other (`wfb.visible_area`), and the whole framebuffer when a non-round
+    device has no skin. Returned as a mask rather than applied to an image,
+    because this lint needs the pixel *count* the crop leaves behind.
     """
     from PIL import Image, ImageDraw
-    if shape == "round":
-        mask = Image.new("L", (width, height), 0)
-        ImageDraw.Draw(mask).ellipse([0, 0, width - 1, height - 1], fill=255)
+    from . import visible_area
+    if device.shape == "round":
+        mask = Image.new("L", (device.width, device.height), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, device.width - 1, device.height - 1], fill=255)
         return mask
-    return Image.new("L", (width, height), 255)
+    skin = visible_area.visible_mask(device)
+    if skin is not None:
+        return skin.image()
+    return Image.new("L", (device.width, device.height), 255)
 
 
 def _aod_burn_in_measure(image: Image.Image,
@@ -1610,7 +1614,7 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     from . import aod_mask as _aod_mask
     from . import preview as _preview
 
-    mask = _aod_burn_in_mask(device.width, device.height, device.shape)
+    mask = _aod_burn_in_mask(device)
     phases = range(4) if resolved.face.aod_mask else (None,)
     best: tuple[float, float, int, tuple[int, int, int], int | None] | None = None
     for sample_time in AOD_BURN_IN_SAMPLE_TIMES:

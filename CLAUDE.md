@@ -271,9 +271,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - wearer settings beyond `config:` (booleans, choices) -- decided
     against, 2026-09-27. The old WIP on `wip/phone-settings` is design
     reference only. Do not resume it without asking;
-  - non-round screens: rectangles tested against device files but not on a
-    watch, semi-shapes "not checked"
-    — plan 20;
+  - non-round screens: checked against the simulator skin's visible area,
+    never seen on a watch; no 2-colour palette rule, no per-shape
+    `overrides:` — plan 20;
   - catalogue generation from the SDK;
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008

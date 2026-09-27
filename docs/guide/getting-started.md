@@ -192,9 +192,10 @@ platform, not a list of supported devices:
   neither editor nor menu keeps its default configuration, and the build
   warns (`api-gated`, `config-unsupported`). Touch-and-hold needs a touchscreen
   (`hold-unsupported` otherwise).
-- **Round screens are the home ground.** Rectangular screens get the same
-  layout checks. On semi-round and semi-octagon screens the face builds, but
-  the visible-area check reports "not checked".
+- **Round screens are the home ground.** Rectangular and semi-octagon
+  (Instinct) screens get the same layout checks, against the visible area
+  the simulator draws for each device. That area includes the Instinct's
+  subscreen window and a rectangle's rounded corners.
 - **MIP and AMOLED screens both work**, but AMOLED watches can't use
   `low_power` updates and need an `aod:` sleep frame instead
   ([always-on display](always-on-display.md)); the lints say so.

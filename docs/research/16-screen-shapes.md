@@ -85,18 +85,19 @@ Read from the code. **VERIFIED.**
 
 | Stage | `round` | `rectangle` | `semi-*` |
 |---|---|---|---|
-| `Device.shape` (`wfb/devices.py:224`) | read from `simulator.json` `display.shape` | same | same |
-| Visible-area test (`wfb/layout.py` `inside_visible_area`) | inscribed circle minus `BEZEL_MARGIN` | the framebuffer | `None`, "not checked" |
+| `Device.shape` (`wfb/devices.py`) | read from `simulator.json` `display.shape` | same | same |
+| Visible-area test (`wfb/layout.py` `inside_visible_area_for`) | inscribed circle minus `BEZEL_MARGIN` | the skin mask (§3), else the framebuffer | the skin mask, else `None`, "not checked" |
 | `safe_area()` | inscribed square | the framebuffer | `None` |
-| `safe-area` lint (`wfb/lint.py:822–846`) | checked, shape-aware ink reach | framebuffer bounds (`off-screen`) | a "not checked" note |
-| Preview mask (`wfb/preview.py:305`, `:404`) | round crop | none (full frame, correct) | none (**wrong**: shows pixels the bezel hides) |
-| AOD burn-in denominator (`wfb/lint.py:1510`) | the disc | the framebuffer (correct) | the framebuffer ("not exactly the true visible area") |
+| `safe-area` lint (`wfb/lint.py`) | checked, shape-aware ink reach | checked against the skin, 1 px tolerance | checked against the skin, 1 px tolerance; a "not checked" note without one |
+| Preview crop (`wfb/preview.py` `_mask_shape`) | round crop | the skin mask | the skin mask |
+| AOD burn-in denominator (`wfb/lint.py` `_aod_burn_in_mask`) | the disc | the skin's visible pixels | the skin's visible pixels |
 | Palette legality (`wfb/palette.py` `is_palette_legal`) | 64-colour rule | 64-colour rule on 64-colour panels, else nothing | **nothing** on 2- or 14-colour panels |
 | `%r` (`docs/guide/placement.md`) | minor radius | half the shorter side | half the shorter side |
 
-So a rectangle is *designed* to work already. It is simply unexercised. The
-semi-shapes are honestly refused as "not checked" rather than guessed, as
-ADR 0004 §3 asks.
+A device whose skin is missing, or whose `display.location` does not match
+its resolution, falls back to the framebuffer (rectangle) or "not checked"
+(semi-shapes), so no answer is guessed. `tests/test_visible_area.py` pins
+each path, and `tests/test_screen_rectangle.py` the rectangle's geometry.
 
 ---
 
@@ -271,7 +272,7 @@ or guard. That is a larger step, and should be the second step.
    lint verified, and one example target. Nothing new in the format.
 3. **Replace per-shape geometry with the skin mask** (§3) for the
    visible-area lint, the preview crop and the burn-in denominator. That
-   single mechanism is what makes semi-octagons "checked".
+   single mechanism is what makes semi-octagons "checked". Done (§2).
 4. **The `palette-mono` lint and 2-colour preview** (§5).
 5. **`overrides:` with `shape:` and device-id selectors, geometry keys
    only** (§6). This is the format change the user has to approve; ADR 0004

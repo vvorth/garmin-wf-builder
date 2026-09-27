@@ -31,8 +31,8 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import aod_mask, expr, kinds
-from .devices import FontMetric
+from . import aod_mask, expr, kinds, visible_area
+from .devices import Device, FontMetric
 from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
 from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
@@ -302,8 +302,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
 
     if options.quantise and device.display_colors == 64:
         image = _quantise_mip64(image)
-    if options.mask_shape and device.shape == "round":
-        image = _mask_round(image, scale)
+    if options.mask_shape:
+        image = _mask_shape(image, device, scale)
     return image
 
 
@@ -401,8 +401,8 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
                                       a=accum, b=lit.convert("I"))
     count = max(len(minute_list), 1)
     heat = accum.point(lambda v: v * (255.0 / count)).convert("L").convert("RGB")
-    if options.mask_shape and device.shape == "round":
-        heat = _mask_round(heat, scale)
+    if options.mask_shape:
+        heat = _mask_shape(heat, device, scale)
     peak = accum.getextrema()[1]
     assert isinstance(peak, (int, float)), "a single-band image has scalar extrema"
     return heat, peak / count
@@ -1036,9 +1036,18 @@ def _quantise_mip64(image: Image.Image) -> Image.Image:
     return image.point(lut * 3)
 
 
-def _mask_round(image: Image.Image, scale: int) -> Image.Image:
-    mask = Image.new("L", image.size, 0)
-    ImageDraw.Draw(mask).ellipse([0, 0, image.width - 1, image.height - 1], fill=255)
+def _mask_shape(image: Image.Image, device: Device, scale: int) -> Image.Image:
+    """Grey out what the bezel hides: the inscribed circle on a round
+    screen, the simulator skin's own visible area on any other shape
+    (`wfb.visible_area`), or nothing when a non-round device has no skin."""
+    if device.shape == "round":
+        mask = Image.new("L", image.size, 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, image.width - 1, image.height - 1], fill=255)
+    else:
+        skin = visible_area.visible_mask(device)
+        if skin is None:
+            return image
+        mask = skin.image().resize(image.size, Image.Resampling.NEAREST)
     out = Image.new("RGB", image.size, (24, 24, 24))
     out.paste(image, (0, 0), mask)
     return out

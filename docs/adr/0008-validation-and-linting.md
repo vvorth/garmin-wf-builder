@@ -271,3 +271,17 @@ own 3-minute static-pixel rule (research 11 §1.2/§5) is a property of a
 luminance fraction additionally depends on this compiler's own choice of
 formula, since Garmin's is unpublished. `confidence=` on the diagnostic
 says all of this, and `docs/limitations.md` §3 has the full account.
+
+## Amendment (2026-09-27): check 4 on non-round screens reads the simulator skin
+
+Check 4 was "unavailable" for `semi-round`/`semi-octagon`. It is now
+available wherever the device files ship the simulator's skin PNG: the
+skin's alpha inside `display.location` is the visible area, at panel
+resolution (research 16 §3, `wfb.visible_area`). An element warns when any
+pixel of its ink lands on a pixel the skin covers, with one pixel of
+tolerance for the skin's anti-aliased edge. The same mask applies to a
+rectangle, whose rounded corners the framebuffer test missed. Round
+screens keep the analytic circle. Confidence stays "exact": it is resolved
+geometry against a mask read from the device files, not an estimate. A
+device without a skin degrades exactly as before, to the framebuffer
+(rectangle) or "not checked" (semi-shapes).

@@ -1,7 +1,7 @@
 # 20 — Rectangular and semi-octagon screens
 
-**Status: in progress. Slice 0 done for 7 of the 13 devices and slice 1
-done (2026-09-27); slices 2–3 can start; slices 4 and 5 need decisions
+**Status: in progress. Slice 0 done for 7 of the 13 devices, slices 1 and
+2 done (2026-09-27); slice 3 can start; slices 4 and 5 need decisions
 D1–D2 first.** Delete this file once every
 slice has shipped (`docs/CLAUDE.md`).
 
@@ -84,23 +84,32 @@ outgrow their `%r`-sized cards on `venusq`/`venusq2`, though not on
 `venusq2`'s SDK reference understates its font heights by 22–30%; its `.cft`
 files are right, and layout already prefers them (research 10 §10.6).
 
-### Slice 2 — the skin mask
+### Slice 2 — the skin mask: done
 
-- `Device.visible_mask`: the skin PNG's alpha inside `display.location`,
-  cached per device, `None` when the skin is missing (research 16 §3).
-- `inside_visible_area_for` and `safe-area`: a semi-shape (and any device
-  with a mask) tests the element's ink against the mask instead of
-  returning "not checked". Round keeps its analytic circle and
-  `BEZEL_MARGIN`. A parity test pins the mask to the circle within the
-  measured 0.5% on `fr955`, `fenix8solar51mm` and `venu`. The
-  Instinct 3/E skins have a 1-px opaque border the panel does not
-  (research 16 §3), so the mask test tolerates a 1-px rim.
-- `wfb preview`: crop to the mask, so a semi-octagon preview shows what the
-  bezel hides.
-- `aod-burn-in`: the denominator is the mask, which closes `wfb/lint.py`'s
-  "not exactly the true visible area on a semi-shape" caveat.
-- Drive the new diagnostic red: one element placed under the Instinct bezel
-  corner must warn, and the same element on a round device must not.
+`wfb.visible_area.visible_mask(device)` reads the skin's alpha inside
+`display.location` (`Device.skin_path`/`display_location`), cached per skin.
+It returns `None` when the skin is missing or does not fit. It is a
+function, not the proposed `Device.visible_mask`, because `wfb.devices`
+never imports Pillow.
+
+- `inside_visible_area_for`, and so `safe-area` and `text-overflow`: on
+  any non-round screen with a mask, an element fails when a pixel of its
+  ink (the same `Ink` shapes the round check uses, which gained `contains`)
+  lands on a pixel the skin covers along with all 8 of its neighbours.
+  That one-pixel tolerance absorbs the anti-aliased rim and the Instinct 3/E
+  border. Round keeps the circle and `BEZEL_MARGIN`; a test pins every
+  pixel where the round skins disagree with the circle to within 1.5 px of
+  the circle's edge, on `fr955`, `fenix8solar51mm` and `venu`.
+- `wfb preview` greys out what the skin covers, on every non-round shape.
+- The `aod-burn-in` denominator is the skin's visible pixels.
+- Driven red: a dot on the Instinct subscreen's ring warns there and not on
+  `fenix8solar47mm`, and a dot in the subscreen window does not warn.
+  `venux1`'s rounded corner warns. Cutting each of the three paths turns
+  its own test red (`tests/test_visible_area.py`).
+
+A hand is tested as a disc of its full length, as on round screens, so a
+minute hand long enough to pass under the subscreen ring is a finding.
+It does pass under the ring once an hour.
 
 ### Slice 3 — two-colour panels
 

@@ -756,16 +756,20 @@ that target (below, "Device gating for a source is only partly enforced").
 
 ### Screen shapes
 
-Only `round` and `rectangle` have safe-area geometry. `semi-round` and
-`semi-octagon` are **unsupported targets rather than silently wrong ones**: the
-geometry check reports "not checked" instead of guessing, and the preview
-does not crop to their shape. A `rectangle` is exercised against real device
-files (`venusq`, `venusq2`, `venux1`; `tests/test_screen_rectangle.py`), and
-`examples/features/align/` targets `venusq2`. Its visible area is taken to be
-the whole framebuffer, which is slightly generous: the simulator skins round
-the corners, `venux1`'s by about 2% of the panel. No rectangle face has been
-seen on a real watch. A 2-colour panel (the Instinct family) gets no palette
-check at all.
+A round screen's visible area is the inscribed circle. Every other shape's
+is the device's own simulator skin: the `safe-area` lint, the preview crop
+and the `aod-burn-in` denominator all read the skin's alpha channel
+(research 16 §3). That covers the Instinct's octagon and the ring round its
+subscreen window, and a rectangle's rounded corners (`venux1` hides about
+2% of its framebuffer). The skin is the simulator's picture of the device,
+not a measurement of the glass; the lint allows one pixel of tolerance. A
+non-round device without a skin falls back to its framebuffer (rectangle)
+or "not checked" (semi-shapes). No semi-round device is installed.
+
+Rectangles are exercised against real device files (`venusq`, `venusq2`,
+`venux1`; `tests/test_screen_rectangle.py`), and `examples/features/align/`
+targets `venusq2`. No non-round face has been seen on a real watch. A
+2-colour panel (the Instinct family) gets no palette check at all.
 `docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
 realistic targets) and a route to exact geometry from the simulator skin;
 `docs/plans/20-screen-shapes.md` is the plan.
@@ -1097,7 +1101,8 @@ glance, and back returns — so this is documented rather than gated.
 * **`raw` element runtime allocation.** The escape hatch does not exist yet; when
   it does, its memory contribution will be compiled and therefore measured, but
   its *runtime* allocation will not be modelled.
-* **Safe area on `semi-round` and `semi-octagon`.** Reported as "not checked".
+* **Safe area on a semi-shaped device without a simulator skin.** Reported as
+  "not checked".
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
 * **Device gating for a source is only partly enforced** — ADR 0008's check

@@ -121,9 +121,9 @@ specifies each item.
     the key or inherits it from a group (`Builder.aod_refusal`), never a
     silent no-op.
 12. **Non-round screens** (plan 20, research 16): rectangles resolve, lint,
-    preview and build against real device files (slice 1), with the
-    framebuffer as the visible area; semi-octagon (Instinct) and semi-round
-    are "not checked"; 2-colour panels have no palette rule.
+    preview and build against real device files (slice 1); every non-round
+    shape's visible area is its simulator skin (slice 2); 2-colour panels
+    have no palette rule, and `overrides:`/`anchor: subscreen` await D1/D2.
 
 ## Architecture options not taken
 
