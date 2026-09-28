@@ -375,6 +375,9 @@ elements:
     icon_color: config.data_color
     color: config.colors.fg
     label: none
+    # `choices: any`: weather conditions and training status get their
+    # 7-character names, so they stay inside this small register.
+    short: true
     when_absent: placeholder
     placeholder: "--"
     lint:

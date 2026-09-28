@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from .. import catalog, expr, icons, units
+from .. import catalog, complications, expr, icons, units
 from ..diagnostics import Span
 from ..palette import Color
 from ..series import SeriesDef
@@ -632,6 +632,17 @@ class ConfigDataSlot:
         """The generated view field this slot's chosen `Complications.Id` is
         cached in (`_configDataTop`)."""
         return config_field(f"data_{self.name}")
+
+    @property
+    def condition_icons(self) -> frozenset[str]:
+        """The weather types whose icon follows the pulled condition
+        (`WfbWeather.chooseIcon`) rather than staying the type's own: every
+        weather choice left on its catalogue icon.  An authored per-choice
+        icon stays as written."""
+        return frozenset(
+            name for name in self.icons
+            if complications.READING[name] == "condition" and name not in self.icon_overrides
+        )
 
     @property
     def icons(self) -> dict[str, "icons.SlotIcon"]:
@@ -1342,9 +1353,15 @@ class ComplicationSlot(Element):
     #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
     #: `.longLabel`, read alongside the value, never authored.
     label: str = "none"
-    #: Append `Complication.unit`'s suffix (`WfbComplications.mc`'s
-    #: `unitSuffix`) after the value.
+    #: Add the unit a reading's rule opts in to (`%`, `hPa`, `km`, `/km`,
+    #: ...; `wfb.complications.READING`).  Markers a bare number would be
+    #: unreadable without (`K`, `°`, `h`) are drawn either way.
     unit: bool = False
+    #: Draw a reading in at most `wfb.complications.SHORT_LENGTH` characters
+    #: where a rule can: a weather condition's and a training status's short
+    #: names, "26/17" for "H 26 / L 17", and a unit dropped when it would
+    #: pass the limit.  Text the device supplies otherwise is never cut.
+    short: bool = False
     #: `hide` (default) | `placeholder`.  "hide" blanks only the reading and
     #: keeps the icon, which still says what the slot is pointed at.
     when_absent: str = "hide"

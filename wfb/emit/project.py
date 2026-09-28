@@ -25,6 +25,7 @@ BARREL_FILES = {
     "WfbArc.mc": "arcs -- a `progress` ring, a plain `shape: arc` and a pattern arc part alike",
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription and pull",
+    "WfbReading.mc": "a `complication_slot`'s reading, formatted per complication type",
     "WfbSeries.mc": "graph time-series acquisition, binning and drawing",
     "WfbHands.mc": "analog hands -- the three clock-to-angle functions",
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
@@ -150,6 +151,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         # (docs/research/07-carousel-interaction.md), so a design with no
         # slots emits none of it.
         project.sources.append(monkeyc.emit_slot_drawable(face))
+        project.sources.append(monkeyc.emit_slot_text(face))
     if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
         # are Layout constants, which are already per-device.  A `config:`-only

@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
-from .. import catalog, complications, formatting, icons, units
-from ..catalog import Type
+from .. import complications, icons, units
 from ..diagnostics import Span
 from ..fonts import BakedFont, fallback
 from ..ir.builder import ICON_SIZE_NOTE
@@ -33,11 +32,12 @@ if TYPE_CHECKING:
     from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
-#: Illustrative sample values for a `complication_slot` preview, keyed by
-#: `wfb.complications.TYPES` name -- not real data (there is no live
-#: `Complications` subscription on the host), just something plausible to
-#: show instead of an empty box. Falls back to a plain "12"/"--" for any type
-#: not listed here.
+#: Illustrative raw readings for a `complication_slot` preview, keyed by
+#: `wfb.complications.TYPES` name, in the units the SDK documents -- not
+#: real data (there is no live `Complications` subscription on the host),
+#: just something plausible, formatted by the same rules the watch uses
+#: (`wfb.complications.format_reading`).  Falls back to 12 / "--" for a
+#: type not listed here.
 _COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
     "steps": 8432,
     "heart_rate": 72,
@@ -45,12 +45,40 @@ _COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
     "battery": 68,
     "body_battery": 62,
     "floors_climbed": 7,
+    "intensity_minutes": 17,
     "notification_count": 3,
     "stress": 34,
-    "current_temperature": 21.0,
+    "current_temperature": 21.4,
+    "high_low_temperature": "H 26 / L 17",
+    "current_weather": 22,
+    "forecast_weather_1day": 1,
+    "forecast_weather_2day": 3,
+    "forecast_weather_3day": 0,
+    "sunrise": 22512,
+    "sunset": 65558,
+    "altitude": 511.0,
+    "sea_level_pressure": 101675.0,
+    "recovery_time": 2161,
+    "race_predictor_5k": 1480,
+    "race_predictor_10k": 3090,
+    "race_predictor_half_marathon": 6900,
+    "race_predictor_marathon": 14520,
+    "race_pace_predictor_5k": 3.38,
+    "race_pace_predictor_10k": 3.24,
+    "race_pace_predictor_half_marathon": 3.06,
+    "race_pace_predictor_marathon": 2.91,
+    "weekly_run_distance": 23400.0,
+    "weekly_bike_distance": 61200.0,
+    "vo2max_run": 49,
+    "vo2max_bike": 45,
+    "pulse_ox": 97,
+    "respiration_rate": 15,
+    "solar_input": 40,
+    "sleep_score": 88,
+    "calendar_events": "19:00",
     "date": "28 Mar",
     "weekday_monthday": "Wed 28",
-    "training_status": "Productive",
+    "training_status": "PRODUCTIVE",
 }
 
 
@@ -104,30 +132,33 @@ def _check_slot_color_absence(
     )
 
 
+def _slot_choices(face: Face, element: ComplicationSlot) -> tuple[str, ...]:
+    """The types this slot can show that the build knows a rule for: its
+    declared choices, or, for `choices: any`, every native type."""
+    slot = face.config_data.get(element.slot)
+    if slot is None:
+        return ()
+    if slot.allow_any:
+        return tuple(complications.names())
+    return tuple(name for name in slot.choices if name in complications.TYPES)
+
+
 def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
     """The widest plausible reading a `complication_slot` can draw: the
-    digit-count estimate `formatting.widest` gives an unranged source,
-    across every declared choice (there is no per-choice `format:`),
-    and the placeholder.
+    widest of its choices' readings under its `unit:`/`short:`
+    (`wfb.complications.widest_reading`), and the placeholder.
 
-    `label:`/`unit:` are deliberately not folded in: they are localised
-    device strings with no documented bound, so any padding is either
-    routinely wrong or large enough to push ordinary slots into spurious
-    `off-screen` warnings.  `docs/limitations.md` records the gap.
+    `label:` is deliberately not folded in: it is a localised device string
+    with no documented bound, so any padding is either routinely wrong or
+    large enough to push ordinary slots into spurious `off-screen`
+    warnings.  `docs/limitations.md` records the gap.
     """
-    slot = r.face.config_data.get(element.slot)
-    choices: tuple[str, ...] = ()
-    if slot is not None:
-        # `choices: any` is the one string form; its only known reading is the default.
-        choices = slot.choices if isinstance(slot.choices, tuple) else (slot.default,)
+    font = r.font_for_ref(element.font, element.font_is_custom)
     widest = ""
-    for name in choices:
-        ctype = complications.TYPES.get(name)
-        if ctype is None:
-            continue
-        value_type = Type.STRING if ctype.value_type == "string" else Type.NUMBER
-        candidate = formatting.widest("{}", None, value_type)
-        widest = longer(widest, candidate)
+    for name in _slot_choices(r.face, element):
+        candidate = complications.widest_reading(name, element.unit, element.short)
+        if not widest or font.width(candidate) > font.width(widest):
+            widest = candidate
     if element.when_absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
     return widest
@@ -161,53 +192,50 @@ def highlight_box(box: IntBox, anchor_x: int, align: str, screen_width: int) -> 
     return IntBox(left, box.y, right - left, box.height).union(box)
 
 
-def _complication_slot_text(element: ComplicationSlot,
-                            ctype: complications.ComplicationType) -> str:
-    """An illustrative reading for `ctype`, formatted the same way
-    `wfb.emit.monkeyc.complication_slot.emit_complication_slot` renders one: an optional
-    label prefix, the value, and an optional unit suffix -- approximate,
-    since the real label and unit come from the device at runtime."""
+def _preview_settings(renderer: Renderer) -> complications.ReadingSettings:
+    """The preview's own `device.*` sample settings, as a reading follows
+    them (`wfb preview --units statute` flips the units)."""
+    values = renderer.values
+    statute = {key: values.get(f"device.{key}_units") == 1
+               for key in ("distance", "elevation", "temperature", "pace")}
+    return complications.ReadingSettings(
+        is_24_hour=bool(values.get("device.is_24_hour", True)),
+        statute_distance=statute["distance"], statute_elevation=statute["elevation"],
+        statute_temperature=statute["temperature"], statute_pace=statute["pace"],
+    )
+
+
+def _complication_slot_text(element: ComplicationSlot, ctype: complications.ComplicationType,
+                            settings: complications.ReadingSettings) -> str:
+    """An illustrative reading for `ctype`, drawn the way
+    `wfb.emit.monkeyc.complication_slot.emit_complication_slot` draws one:
+    an optional label prefix, then the reading by the type's own rule --
+    approximate only in that the label comes from the device at runtime."""
     value = _COMPLICATION_SLOT_SAMPLE.get(
         ctype.name, 12 if ctype.value_type != "string" else "--")
-    text = ""
-    if element.label == "short":
-        text += "Now "
-    elif element.label == "long":
-        text += "Current "
-    text += complications.format_value(value)
-    if element.unit and ctype.unit:
-        text += f" {ctype.unit}"
-    return text
+    reading = complications.format_reading(
+        ctype.name, value, unit=element.unit, short=element.short, settings=settings)
+    if reading is None:
+        return element.placeholder or "" if element.when_absent == "placeholder" else ""
+    prefix = {"short": "Now ", "long": "Current "}.get(element.label, "")
+    return prefix + reading
 
 
 def _text_glyphs(element: ComplicationSlot, face: Face) -> set[str]:
     """Every character the slot's reading could render.  The wearer can
-    point this slot at any of its declared choices, each with its own value
-    type and no per-choice `format:`, so the font must carry everything
-    *any* choice could render (`_complication_slot_widest`, same reason)."""
+    point this slot at any of its choices, each with its own rule, so the
+    font must carry everything *any* choice could render."""
     glyphs: set[str] = set()
-    slot = face.config_data.get(element.slot)
-    choices: tuple[str, ...] = ()
-    if slot is not None:
-        # `choices: any` is the one string form; its only known reading is the default.
-        choices = slot.choices if isinstance(slot.choices, tuple) else (slot.default,)
-    for name in choices:
-        ctype = complications.TYPES.get(name)
-        if ctype is None:
-            continue
-        value_type = (catalog.Type.STRING if ctype.value_type == "string"
-                     else catalog.Type.NUMBER)
-        glyphs |= formatting.glyphs("{}", None, value_type)
-        if ctype.value_type == "float":
-            glyphs |= set(".")
+    for name in _slot_choices(face, element):
+        glyphs |= complications.reading_glyphs(name, element.unit, element.short)
+        if complications.READING[name] in ("text", "training_status", "high_low"):
+            # Text the device supplies: a firmware string, unbounded.
+            glyphs |= set(COMPLICATION_TEXT_ALPHABET)
     if element.placeholder:
         glyphs |= set(element.placeholder)
-    if element.label != "none" or element.unit:
-        # A label is always a localised device string; a unit can be too
-        # (`Complications.Unit or Lang.String`) -- both unbounded.
+    if element.label != "none":
+        # A label is always a localised device string -- unbounded.
         glyphs |= set(COMPLICATION_TEXT_ALPHABET)
-    if element.unit:
-        glyphs |= set("".join(complications.UNIT_SUFFIX.values()))
     return glyphs
 
 
@@ -227,7 +255,15 @@ def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
                          # own docstring.
     if not mapped:
         return None
-    glyphs = "".join(sorted({si.codepoint for si in mapped.values()}))
+    codepoints = {si.codepoint for si in mapped.values()}
+    table = {slot_icon.key: slot_icon.codepoint for slot_icon in mapped.values()}
+    if slot.condition_icons:
+        # A weather choice's icon follows the pulled condition on-device, so
+        # the font needs every condition's glyph.
+        codepoints |= set(icons.WEATHER_GLYPH_SET)
+        table |= {name: icons.CATALOG[name].codepoint
+                  for name in icons.GARMIN_WEATHER_CONDITION_ICON.values()}
+    glyphs = "".join(sorted(codepoints))
     # The default choice's own icon normalises the shared nominal size,
     # the same "pick one reference glyph" trade-off
     # `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set.
@@ -238,7 +274,7 @@ def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
         f"{element.id}.icon", key, span=element.span,
         icon=IconFont(element.icon_size, glyphs, reference_icon.codepoint,
                       element.resolved_antialias),
-        glyph_table={slot_icon.key: slot_icon.codepoint for slot_icon in mapped.values()})
+        glyph_table=table)
 
 class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]):
     name = "complication_slot"
@@ -324,10 +360,9 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                     "Float or Long or Double union whose concrete type genuinely "
                     "varies by which choice the wearer picks -- a format string "
                     "written for one choice would be silently wrong for another",
-                    "this element renders the value as the watch reports it "
-                    "(a Float rounded to three significant figures); use 'label:' "
-                    "and/or 'unit:' for the extra context a format string would "
-                    "otherwise add",
+                    "this element formats each type by its own rule instead (a "
+                    "time of day, a duration, a pace, a rounded temperature, ...); "
+                    "use 'unit:', 'short:' and 'label:' to adjust it",
                 ],
             )
 
@@ -343,6 +378,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             icon_color=icon_color,
             label=node.get("label", "none"),
             unit=bool(node.get("unit", False)),
+            short=bool(node.get("short", False)),
             when_absent=node.get("when_absent", "hide"),
             placeholder=node.get("placeholder"),
             align=align,
@@ -527,8 +563,12 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             if icon is not None:
                 icon_font = renderer.resolved.fonts.get(placed.icon_font_key)
                 icon_glyph = icon.codepoint
+                sample = _COMPLICATION_SLOT_SAMPLE.get(slot.default)
+                if slot.default in slot.condition_icons and isinstance(sample, int):
+                    icon_glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
+                        sample, "weather_unknown")].codepoint
 
-        text = _complication_slot_text(element, ctype)
+        text = _complication_slot_text(element, ctype, _preview_settings(renderer))
         text_font = (renderer.resolved.fonts.get(placed.font.reference)
                      if placed.font.is_custom else None)
         if text_font is not None:

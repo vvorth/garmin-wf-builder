@@ -51,6 +51,7 @@ the expression a real Float.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .diagnostics import Catalogue
@@ -212,10 +213,11 @@ TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
 #: `unit: true` -- `Complications.Complication.unit` comes back typed
 #: `Complications.Unit or Lang.String or Null`, i.e. either this enum or a
 #: literal string a *user* complication supplied directly (see
-#: `runtime-lib/WfbComplications.mc`'s `unitSuffix`, which checks `instanceof
+#: `runtime-lib/WfbReading.mc`'s `unitSuffix`, which checks `instanceof
 #: Lang.String` before falling back to this table). `UNIT_INVALID` is not a
 #: real unit and maps to no suffix, the same way `COMPLICATION_TYPE_INVALID`
-#: is excluded from :data:`TYPES` above.
+#: is excluded from :data:`TYPES` above.  Only a type with no rule in
+#: :data:`READING` (an app's complication) reaches it.
 UNIT_SUFFIX: dict[str, str] = {
     "UNIT_DISTANCE": "m",
     "UNIT_ELEVATION": "m",
@@ -229,7 +231,7 @@ UNIT_SUFFIX: dict[str, str] = {
 def format_value(value: object) -> str:
     """A pulled complication value as the watch draws it.
 
-    The Python twin of ``runtime-lib/WfbComplications.mc``'s
+    The Python twin of ``runtime-lib/WfbReading.mc``'s
     ``formatValue``/``decimalText``, used by the host preview. A float gets
     three significant figures without ever dropping an integer digit, then
     loses its trailing zeros (12.879 -> "12.9", 101325.0 -> "101325");
@@ -254,3 +256,368 @@ def get(name: str) -> ComplicationType | None:
 
 def names() -> list[str]:
     return sorted(TYPES)
+
+
+# ============================================================================
+# How a `complication_slot` draws each type's reading
+# ============================================================================
+
+#: The longest reading `short: true` aims for, in characters.
+SHORT_LENGTH = 7
+
+#: Each type's rule for turning its raw value into the text a
+#: `complication_slot` draws.  The generated `SlotText.reading` switches on
+#: the wearer's pick and calls the matching `runtime-lib/WfbReading.mc`
+#: helper; :func:`format_reading` is the Python twin the preview draws with.
+#:
+#: * ``count``: a whole number; 10,000 and up scaled to thousands ("12.9K").
+#: * ``percent``: a whole number, "%" with `unit:`.
+#: * ``vo2max``: a count, but 0 (nothing recorded) reads as absent.
+#: * ``clock``: seconds since local midnight, as a time of day.
+#: * ``duration``: seconds, as "M:SS" or "H:MM:SS".
+#: * ``pace``: metres per second, as "M:SS" per kilometre or mile.
+#: * ``hours``: minutes, as whole hours rounded up, always with "h".
+#: * ``temperature``: Celsius or Fahrenheit, rounded, always with "°".
+#: * ``elevation``/``distance``: metres, as m or ft / km or mi.
+#: * ``pressure``: pascals, as whole hectopascals.
+#: * ``condition``: a `Weather.CONDITION_*`, as its name.
+#: * ``training_status``/``high_low``/``text``: the device's own string.
+READING: dict[str, str] = {
+    "battery": "percent",
+    "steps": "count",
+    "calories": "count",
+    "floors_climbed": "count",
+    "intensity_minutes": "count",
+    "date": "text",
+    "weekday_monthday": "text",
+    "current_weather": "condition",
+    "forecast_weather_1day": "condition",
+    "forecast_weather_2day": "condition",
+    "forecast_weather_3day": "condition",
+    "calendar_events": "text",
+    "sunrise": "clock",
+    "sunset": "clock",
+    "altitude": "elevation",
+    "sea_level_pressure": "pressure",
+    "notification_count": "count",
+    "heart_rate": "count",
+    "weekly_run_distance": "distance",
+    "weekly_bike_distance": "distance",
+    "recovery_time": "hours",
+    "stress": "count",
+    "body_battery": "percent",
+    "vo2max_run": "vo2max",
+    "vo2max_bike": "vo2max",
+    "training_status": "training_status",
+    "race_predictor_5k": "duration",
+    "race_predictor_10k": "duration",
+    "race_predictor_half_marathon": "duration",
+    "race_predictor_marathon": "duration",
+    "race_pace_predictor_5k": "pace",
+    "race_pace_predictor_10k": "pace",
+    "race_pace_predictor_half_marathon": "pace",
+    "race_pace_predictor_marathon": "pace",
+    "pulse_ox": "percent",
+    "respiration_rate": "count",
+    "solar_input": "percent",
+    "current_temperature": "temperature",
+    "high_low_temperature": "high_low",
+    "wheelchair_pushes": "count",
+    "last_golf_round_score": "text",
+    "sleep_score": "count",
+}
+
+#: The unit `unit: true` adds after a ``count``, for the types whose SDK
+#: description names one.
+COUNT_UNIT: dict[str, str] = {
+    "heart_rate": "bpm",
+    "respiration_rate": "brpm",
+}
+
+#: The reading kinds that draw words rather than digits, so a baked font
+#: needs letters for them.
+WORDED = frozenset({"condition", "training_status", "high_low", "text"})
+
+#: `Toybox.Weather.CONDITION_*` (`doc/Toybox/Weather.html`, API 3.2.0) as
+#: the name a slot draws and the short form `short: true` draws, at most
+#: :data:`SHORT_LENGTH` characters.  The long name is the SDK table's own
+#: description.
+WEATHER_CONDITION_TEXT: dict[int, tuple[str, str]] = {
+    0: ("Clear", "Clear"),
+    1: ("Partly cloudy", "Pt cldy"),
+    2: ("Mostly cloudy", "Mo cldy"),
+    3: ("Rain", "Rain"),
+    4: ("Snow", "Snow"),
+    5: ("Windy", "Windy"),
+    6: ("Thunderstorms", "T-storm"),
+    7: ("Wintry mix", "Wintry"),
+    8: ("Fog", "Fog"),
+    9: ("Hazy", "Hazy"),
+    10: ("Hail", "Hail"),
+    11: ("Scattered showers", "Sc shwr"),
+    12: ("Scattered thunderstorms", "Sc tstm"),
+    13: ("Unknown precipitation", "Precip"),
+    14: ("Light rain", "Lt rain"),
+    15: ("Heavy rain", "Hv rain"),
+    16: ("Light snow", "Lt snow"),
+    17: ("Heavy snow", "Hv snow"),
+    18: ("Light rain snow", "Lt r/s"),
+    19: ("Heavy rain snow", "Hv r/s"),
+    20: ("Cloudy", "Cloudy"),
+    21: ("Rain snow", "Rain/sn"),
+    22: ("Partly clear", "Pt clr"),
+    23: ("Mostly clear", "Mo clr"),
+    24: ("Light showers", "Lt shwr"),
+    25: ("Showers", "Showers"),
+    26: ("Heavy showers", "Hv shwr"),
+    27: ("Chance of showers", "Ch shwr"),
+    28: ("Chance of thunderstorms", "Ch tstm"),
+    29: ("Mist", "Mist"),
+    30: ("Dust", "Dust"),
+    31: ("Drizzle", "Drizzle"),
+    32: ("Tornado", "Tornado"),
+    33: ("Smoke", "Smoke"),
+    34: ("Ice", "Ice"),
+    35: ("Sand", "Sand"),
+    36: ("Squall", "Squall"),
+    37: ("Sandstorm", "Sndstrm"),
+    38: ("Volcanic ash", "Vol ash"),
+    39: ("Haze", "Haze"),
+    40: ("Fair", "Fair"),
+    41: ("Hurricane", "Hurricn"),
+    42: ("Tropical storm", "Trp stm"),
+    43: ("Chance of snow", "Ch snow"),
+    44: ("Chance of rain snow", "Ch r/s"),
+    45: ("Cloudy chance of rain", "Ch rain"),
+    46: ("Cloudy chance of snow", "Ch snow"),
+    47: ("Cloudy chance of rain snow", "Ch r/s"),
+    48: ("Flurries", "Flurry"),
+    49: ("Freezing rain", "Fz rain"),
+    50: ("Sleet", "Sleet"),
+    51: ("Ice snow", "Ice/sn"),
+    52: ("Thin clouds", "Thin cl"),
+    53: ("Unknown", "Unknown"),
+}
+
+#: The condition a value outside the documented 0-53 reads as.
+UNKNOWN_CONDITION = 53
+
+#: A training status's short form, keyed by the status in capitals.  The
+#: SDK documents the value only as "a String representing your training
+#: status"; these are the statuses Garmin's watches show, as the simulator
+#: reports them ("MAINTAINING").  A status not listed here is drawn as the
+#: device reported it, even with `short: true`.
+TRAINING_STATUS_SHORT: dict[str, str] = {
+    "PEAKING": "Peaking",
+    "PRODUCTIVE": "Prodctv",
+    "MAINTAINING": "Maint",
+    "RECOVERY": "Recovry",
+    "UNPRODUCTIVE": "Unprod",
+    "DETRAINING": "Detrain",
+    "OVERREACHING": "Overrch",
+    "STRAINED": "Strain",
+    "NO STATUS": "No stat",
+}
+
+
+@dataclass(frozen=True)
+class ReadingSettings:
+    """The `DeviceSettings` a reading follows: the 12/24-hour clock and each
+    quantity's metric/statute choice."""
+
+    is_24_hour: bool = True
+    statute_distance: bool = False
+    statute_elevation: bool = False
+    statute_temperature: bool = False
+    statute_pace: bool = False
+
+
+def _rounded(value: float) -> int:
+    """`WfbReading.rounded`: nearest whole number, halves away from zero."""
+    return -int(-value + 0.5) if value < 0 else int(value + 0.5)
+
+
+def _suffixed(number: str, suffix: str, short: bool) -> str:
+    """`WfbReading.suffixed`: the suffix goes when `short` and both together
+    would pass :data:`SHORT_LENGTH`."""
+    if short and len(number) + len(suffix) > SHORT_LENGTH:
+        return number
+    return number + suffix
+
+
+def _count(value: object, device_unit: object) -> str:
+    if isinstance(value, float):
+        return format_value(value) + (device_unit if isinstance(device_unit, str) else "")
+    whole = int(value)  # type: ignore[call-overload]
+    if abs(whole) >= 10000:
+        return format_value(whole / 1000.0) + "K"
+    return str(whole)
+
+
+def _duration(seconds: int) -> str:
+    total = max(int(seconds), 0)
+    hours, minutes, secs = total // 3600, total // 60 % 60, total % 60
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def _clock(seconds: float, is_24_hour: bool) -> str:
+    minutes = int(seconds) // 60 % 1440
+    hour = minutes // 60
+    shown = f"{hour:02d}" if is_24_hour else str(hour % 12 or 12)
+    return f"{shown}:{minutes % 60:02d}"
+
+
+def _high_low_short(text: str) -> str:
+    found = re.findall(r"-?\d+", text)
+    return f"{found[0]}/{found[1]}" if len(found) == 2 else text
+
+
+def _in_case_of(short: str, reported: str) -> str:
+    return short.upper() if reported == reported.upper() else short
+
+
+def condition_text(condition: int, short: bool) -> str:
+    """A `Weather.CONDITION_*` as a slot names it."""
+    long_name, short_name = WEATHER_CONDITION_TEXT.get(
+        condition, WEATHER_CONDITION_TEXT[UNKNOWN_CONDITION])
+    return short_name if short else long_name
+
+
+def format_reading(name: str, value: object, device_unit: object = None, *,
+                   unit: bool = False, short: bool = False,
+                   settings: ReadingSettings = ReadingSettings()) -> str | None:
+    """The text a `complication_slot` draws for type `name` reading `value`,
+    or `None` when the reading counts as absent.
+
+    The Python twin of the generated `SlotText.reading` and the
+    `runtime-lib/WfbReading.mc` helpers it calls.  `device_unit` is
+    `Complication.unit`, `unit`/`short` the element's own keys.
+    """
+    if value is None:
+        return None
+    kind = READING.get(name)
+    if isinstance(value, str):
+        if kind == "training_status" and short:
+            abbreviation = TRAINING_STATUS_SHORT.get(value.upper())
+            return _in_case_of(abbreviation, value) if abbreviation is not None else value
+        if kind == "high_low" and short:
+            return _high_low_short(value)
+        return value
+    number = float(value) if isinstance(value, (int, float)) else 0.0
+    if kind in ("count", "vo2max"):
+        if kind == "vo2max" and int(number) == 0:
+            return None
+        return _suffixed(_count(value, device_unit), COUNT_UNIT.get(name, "") if unit else "", short)
+    if kind == "percent":
+        return str(_rounded(number)) + ("%" if unit else "")
+    if kind == "condition":
+        return condition_text(int(number), short)
+    if kind == "clock":
+        return _clock(number, settings.is_24_hour)
+    if kind == "duration":
+        return _duration(int(number))
+    if kind == "hours":
+        return f"{(max(int(number), 0) + 59) // 60}h"
+    if kind == "temperature":
+        statute = settings.statute_temperature
+        degrees = number * 1.8 + 32.0 if statute else number
+        return str(_rounded(degrees)) + (("°F" if statute else "°C") if unit else "°")
+    if kind == "elevation":
+        statute = settings.statute_elevation
+        shown = _rounded(number / 0.3048 if statute else number)
+        return _suffixed(str(shown), ("ft" if statute else "m") if unit else "", short)
+    if kind == "distance":
+        statute = settings.statute_distance
+        shown_distance = number / (1609.344 if statute else 1000.0)
+        return _suffixed(f"{shown_distance:.1f}", ("mi" if statute else "km") if unit else "", short)
+    if kind == "pressure":
+        return _suffixed(str(_rounded(number / 100.0)), "hPa" if unit else "", short)
+    if kind == "pace":
+        if number <= 0:
+            return None
+        statute = settings.statute_pace
+        seconds = _rounded((1609.344 if statute else 1000.0) / number)
+        return _suffixed(_duration(seconds), ("/mi" if statute else "/km") if unit else "", short)
+    suffix = ""
+    if unit:
+        suffix = device_unit if isinstance(device_unit, str) else UNIT_SUFFIX.get(str(device_unit), "")
+    return _suffixed(format_value(value), suffix, short)
+
+
+#: A representative widest reading per kind, for the layout lints: digits
+#: stand in for any digit, the suffix `unit:` adds is appended where it can
+#: be.  Text the device supplies (a date, an event time, a training status)
+#: has no documented bound, so it keeps the same five-digit guess as any
+#: unranged value.
+_WIDEST: dict[str, str] = {
+    "count": "88888",
+    "percent": "888",
+    "vo2max": "88",
+    "clock": "88:88",
+    "duration": "8:88:88",
+    "pace": "88:88",
+    "hours": "888h",
+    "temperature": "-88°",
+    "elevation": "88888",
+    "distance": "888.8",
+    "pressure": "8888",
+    "high_low": "H 88 / L 88",
+    "text": "88888",
+    "training_status": "88888",
+}
+
+
+def _unit_suffix_for(name: str, kind: str) -> str:
+    """The longest suffix `unit: true` adds to type `name`'s reading."""
+    if kind == "count":
+        return COUNT_UNIT.get(name, "")
+    return {"percent": "%", "temperature": "C", "elevation": "ft", "distance": "km",
+            "pressure": "hPa", "pace": "/km"}.get(kind, "")
+
+
+def widest_reading(name: str, unit: bool, short: bool) -> str:
+    """The widest reading type `name` plausibly draws, under the element's
+    `unit:`/`short:` (see :data:`_WIDEST`)."""
+    kind = READING[name]
+    if kind == "condition":
+        return max((names[1] if short else names[0]
+                    for names in WEATHER_CONDITION_TEXT.values()), key=len)
+    if kind == "training_status" and short:
+        return max(TRAINING_STATUS_SHORT.values(), key=len)
+    if kind == "high_low" and short:
+        return "-88/-88"
+    base = _WIDEST[kind]
+    return _suffixed(base, _unit_suffix_for(name, kind) if unit else "", short)
+
+
+def reading_glyphs(name: str, unit: bool, short: bool) -> set[str]:
+    """Every character type `name`'s reading can draw that a rule of its
+    own produces: digits, separators, markers, `unit:` suffixes and the
+    weather and training-status names.  Text the device supplies is the
+    caller's to cover."""
+    kind = READING[name]
+    glyphs = set("0123456789-")
+    glyphs |= {
+        "count": set(".K"), "clock": set(":"), "duration": set(":"), "pace": set(":"),
+        "hours": set("h"), "temperature": set("°"), "distance": set("."),
+    }.get(kind, set())
+    if unit:
+        if kind == "temperature":
+            glyphs |= set("CF")
+        elif kind == "elevation":
+            glyphs |= set("mft")
+        elif kind in ("distance", "pace"):
+            glyphs |= set("/kmi")
+        else:
+            glyphs |= set(_unit_suffix_for(name, kind))
+    if kind == "condition":
+        for names in WEATHER_CONDITION_TEXT.values():
+            glyphs |= set(names[1] if short else names[0])
+    if kind == "training_status" and short:
+        for abbreviation in TRAINING_STATUS_SHORT.values():
+            glyphs |= set(abbreviation) | set(abbreviation.upper())
+    if kind == "high_low" and short:
+        glyphs |= set("/")
+    return glyphs

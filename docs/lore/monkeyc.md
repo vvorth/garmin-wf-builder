@@ -44,6 +44,13 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   a clean build) — a generated dispatcher that another generated class must
   call needs to be `public`, even when every other method like it stays
   `private`.
+- **Stacked `case` labels fall through** (documented in
+  `doc/docs/Monkey_C/Functions.html`, and built warning-free under `-l 3`
+  by the generated `SlotText.mc`): `case A:` then `case B: return x;` is one
+  body for both. **An early `return` narrows a local**: after `if (value
+  instanceof Lang.String) { ... return ...; }`, a `Complications.Value`
+  local is `RangeValue` for the rest of the function, so it passes as
+  `Numeric` and takes `.toNumber()` with no cast.
 - Switching on `Complications.Id.getType()` — the type the *wearer* picked —
   typechecks under `-l 3` like any other enum switch, which is what lets one
   authored template serve every choice in a re-pointable complication slot

@@ -1950,7 +1950,7 @@
       }
     },
     "complicationSlotElement": {
-      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch, with the editor's own instant preview. Draws an icon chosen at runtime from the wearer's pick (every native complication type has one -- run 'wfb complications'/see wfb.icons.COMPLICATION_ICON) plus the reading itself, rendered as the watch reports it (toString(), except a Float or Double, rounded to three significant figures with trailing zeros removed), since the concrete value type genuinely varies by choice -- see 'format:' below.",
+      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch, with the editor's own instant preview. Draws an icon chosen at runtime from the wearer's pick (every native complication type has one -- run 'wfb complications'/see wfb.icons.COMPLICATION_ICON) plus the reading itself, formatted by a rule per complication type (a time of day for sunrise, M:SS for a pace, a condition name for weather, ...) since the concrete value type genuinely varies by choice -- see 'format:' below.",
       "type": "object",
       "required": [
         "id",
@@ -2010,7 +2010,12 @@
           "default": "none"
         },
         "unit": {
-          "description": "Append Complication.unit's suffix after the value (e.g. 'm', 'm/s', '\u00b0C') when the device supplies one. Default false.",
+          "description": "Add the unit a reading can carry: '%' (battery, body battery, pulse ox, solar), 'bpm'/'brpm' (heart rate, respiration), 'm'/'ft' (altitude), 'km'/'mi' (weekly distances), '/km'/'/mi' (race pace), 'hPa' (pressure), '\u00b0C'/'\u00b0F' (temperature). Metric or statute follows the watch's own settings. Markers a bare number is unreadable without -- 'K' on a count of 10,000 or more, '\u00b0' on a temperature, 'h' on recovery time -- are drawn either way. Default false.",
+          "type": "boolean",
+          "default": false
+        },
+        "short": {
+          "description": "Keep the reading to 7 characters where a rule can: a weather condition's short name ('Mo clr'), a training status's ('Maint'), '26/17' for 'H 26 / L 17', and a unit dropped when it would pass 7. Other text the watch supplies (a date, a calendar event) is never cut. Default false: full names.",
           "type": "boolean",
           "default": false
         },

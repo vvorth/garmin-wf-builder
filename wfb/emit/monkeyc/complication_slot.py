@@ -9,7 +9,10 @@ from ...ir import (
     config_field, element_method_name,
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
-from .common import NO_AOD, AodStyle, SourceFile, _NO_GUARDS, const_prefix, font_field, header, mc_color
+from .common import (
+    NO_AOD, AodStyle, SourceFile, _NO_GUARDS, complication_slots, const_prefix, font_field, header,
+    mc_color,
+)
 from ..writer import Writer
 
 
@@ -197,6 +200,186 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     return SourceFile(f"source/{face.entry}SlotDrawable.mc", w.render())
 
 
+#: The generated module a `complication_slot`'s reading is formatted by.
+SLOT_TEXT_MODULE = "SlotText"
+
+
+def slot_reading_types(face: Face) -> list[str]:
+    """Every `wfb.complications.TYPES` name a drawn `complication_slot` can
+    show, across every slot: the ones `SlotText.reading` needs a case for.
+    `choices: any` can show every type."""
+    names: set[str] = set()
+    for element in complication_slots(face):
+        slot = face.config_data.get(element.slot)
+        if slot is None:
+            continue
+        names |= set(complications.TYPES) if slot.allow_any else set(slot.choices)
+    return sorted(names)
+
+
+def _worded_variants(face: Face, kind: str) -> set[bool]:
+    """The `short:` values of the drawn slots that can show a `kind` reading
+    -- which of its long and short name tables the program needs."""
+    variants: set[bool] = set()
+    for element in complication_slots(face):
+        slot = face.config_data.get(element.slot)
+        if slot is None:
+            continue
+        shown = complications.TYPES if slot.allow_any else slot.choices
+        if any(complications.READING[name] == kind for name in shown):
+            variants.add(element.short)
+    return variants
+
+
+#: `SlotText.reading`'s return expression for each numeric reading kind,
+#: over the narrowed `value`, the pulled `c`, the element's `unit`/`short`
+#: and, where the kind follows it, the device's `settings`.
+_NUMERIC_READING: dict[str, str] = {
+    "percent": "WfbReading.percent(value, unit)",
+    "vo2max": "(value.toNumber() == 0) ? null : WfbReading.count(value, c.unit)",
+    "clock": "WfbReading.clock(value, settings.is24Hour)",
+    "duration": "WfbReading.duration(value)",
+    "hours": "WfbReading.hours(value)",
+    "temperature": ("WfbReading.temperature(value, "
+                    "settings.temperatureUnits == System.UNIT_STATUTE, unit)"),
+    "elevation": ("WfbReading.elevation(value, "
+                  "settings.elevationUnits == System.UNIT_STATUTE, unit, short)"),
+    "distance": ("WfbReading.distance(value, "
+                 "settings.distanceUnits == System.UNIT_STATUTE, unit, short)"),
+    "pressure": "WfbReading.pressure(value, unit, short)",
+    "pace": ("WfbReading.pace(value, "
+             "settings.paceUnits == System.UNIT_STATUTE, unit, short)"),
+}
+
+#: The numeric kinds whose rule reads `System.getDeviceSettings()`.
+_READS_SETTINGS = frozenset({"clock", "temperature", "elevation", "distance", "pace"})
+
+
+def _variant_expression(variants: set[bool], short: str, full: str) -> str:
+    """The expression for a reading with a short and a full form, given the
+    `short:` values the slots showing it use."""
+    if variants == {True}:
+        return short
+    if variants == {False}:
+        return full
+    return f"short ? {short} : {full}"
+
+
+#: What pads a packed name table's entries to one width
+#: (`WfbReading.packed`); no name contains it.
+_PACK_FILL = "|"
+
+
+def _packed_names(short: bool) -> tuple[str, int]:
+    """Every `Weather.CONDITION_*` name, in value order, padded to one
+    width and joined: one string literal instead of a 54-way `switch`,
+    measured 1,246 B smaller for the short names on a fenix8solar47mm."""
+    names = [complications.WEATHER_CONDITION_TEXT[value][1 if short else 0]
+             for value in sorted(complications.WEATHER_CONDITION_TEXT)]
+    assert sorted(complications.WEATHER_CONDITION_TEXT)[-1] == complications.UNKNOWN_CONDITION
+    width = max(len(name) for name in names)
+    assert all(_PACK_FILL not in name for name in names)
+    return "".join(name.ljust(width, _PACK_FILL) for name in names), width
+
+
+def _emit_condition_table(w: Writer, method: str, short: bool) -> None:
+    packed, width = _packed_names(short)
+    with w.block(f"function {method}(condition as Number) as String"):
+        w.line(f'return WfbReading.packed("{packed}",')
+        w.line(f"        {width}, condition);")
+    w.blank()
+
+
+def emit_slot_text(face: Face) -> SourceFile:
+    """`source/SlotText.mc` -- a `complication_slot`'s reading as the text
+    it draws, one rule per complication type (`wfb.complications.READING`).
+
+    Generated, rather than a barrel file, so a program carries a case only
+    for the types its slots can show, and the weather and training-status
+    name tables only in the variants (`short:` or not) a slot draws.  The
+    arithmetic lives in `runtime-lib/WfbReading.mc`.  A type with no case (an
+    app's complication, under `choices: any`) falls back to the value as
+    reported, with `Complication.unit`'s suffix under `unit:`.
+    """
+    names = slot_reading_types(face)
+    kinds = {name: complications.READING[name] for name in names}
+    constant = {name: f"Complications.{complications.TYPES[name].constant}" for name in names}
+    training = _worded_variants(face, "training_status")
+    conditions = _worded_variants(face, "condition")
+
+    w = Writer()
+    w.doc(header(face)).blank()
+    w.lines("import Toybox.Complications;", "import Toybox.Lang;", "import Toybox.System;").blank()
+    w.doc(
+        "A complication_slot's reading as the text it draws: one rule per\n"
+        "complication type, generated from wfb.complications.READING."
+    )
+    with w.block(f"module {SLOT_TEXT_MODULE}"):
+        w.doc(
+            "The pulled complication `c`, of type `t`, as display text, or null when\n"
+            "it has no reading.  `unit` and `short` are the element's own keys."
+        )
+        with w.block("function reading(t as Complications.Type, c as Complications.Complication,\n"
+                     "                     unit as Boolean, short as Boolean) as String?"):
+            w.line("var value = c.value;")
+            with w.block("if (value == null)"):
+                w.line("return null;")
+            with w.block("if (value instanceof Lang.String)"):
+                # only a slot drawn `short:` changes the device's own text
+                string_cases: dict[str, str] = {}
+                for name in names:
+                    shortened = {"training_status": "trainingShort(value)",
+                                 "high_low": "WfbReading.highLowShort(value)"}.get(kinds[name])
+                    variants = _worded_variants(face, kinds[name])
+                    if shortened is not None and True in variants:
+                        string_cases[name] = _variant_expression(variants, shortened, "value")
+                if string_cases:
+                    with w.block("switch (t)"):
+                        for name, expression in string_cases.items():
+                            w.line(f"case {constant[name]}: return {expression};")
+                w.line("return value;")
+            if any(kinds[n] in _READS_SETTINGS for n in names):
+                w.line("var settings = System.getDeviceSettings();")
+            numeric = [n for n in names if kinds[n] not in complications.WORDED - {"condition"}]
+            if numeric:
+                groups: dict[str, list[str]] = {}
+                for name in numeric:
+                    kind = kinds[name]
+                    if kind == "count":
+                        suffix = complications.COUNT_UNIT.get(name, "")
+                        expression = ("WfbReading.count(value, c.unit)" if not suffix else
+                                      f'WfbReading.suffixed(WfbReading.count(value, c.unit), '
+                                      f'unit ? "{suffix}" : "", short)')
+                    elif kind == "condition":
+                        expression = _variant_expression(
+                            conditions, "conditionShort(value.toNumber())",
+                            "conditionName(value.toNumber())")
+                    else:
+                        expression = _NUMERIC_READING[kind]
+                    groups.setdefault(expression, []).append(name)
+                with w.block("switch (t)"):
+                    for expression, members in groups.items():
+                        for name in members[:-1]:
+                            w.line(f"case {constant[name]}:")
+                        w.line(f"case {constant[members[-1]]}: return {expression};")
+            w.comment("no rule of its own: an app's complication, under choices: any")
+            w.line("return WfbReading.suffixed(WfbReading.formatValue(value),")
+            w.line('        unit ? WfbReading.unitSuffix(c.unit) : "", short);')
+        w.blank()
+        if True in conditions:
+            _emit_condition_table(w, "conditionShort", short=True)
+        if False in conditions:
+            _emit_condition_table(w, "conditionName", short=False)
+        if True in training:
+            w.doc("A training status's short form, in the case the device reported it.")
+            with w.block("function trainingShort(status as String) as String"):
+                with w.block("switch (status.toUpper())"):
+                    for status, short in complications.TRAINING_STATUS_SHORT.items():
+                        w.line(f'case "{status}": return WfbReading.inCaseOf("{short}", status);')
+                    w.line("default: return status;")
+    return SourceFile(f"source/{SLOT_TEXT_MODULE}.mc", w.render())
+
+
 def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlot,
                                         guards: "Guards" = _NO_GUARDS) -> None:
     """`holdTargetFor<Id>()` -- the public getter `on_hold: auto` on a
@@ -254,19 +437,27 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     # type list, so the switch's case order falls back to a stable
     # alphabetical one there instead, over every mapped type.
     names = slot.choices if not slot.allow_any else sorted(mapped)
+    follows = slot.condition_icons
     w.blank()
-    w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type alone -- not\n"
-          "from the pulled value, so it still shows even on a frame the reading itself\n"
-          "could not be pulled.")
+    w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type -- not from\n"
+          "the reading, so it still shows on a frame the reading could not be pulled.\n"
+          "A weather type's icon follows the pulled condition when there is one.")
     method = complication_slot_icon_method(element.id)
-    with w.block(f"private function {method}(t as Complications.Type) as String?"):
+    with w.block(f"private function {method}(t as Complications.Type,\n"
+                 "            pulled as Complications.Complication?) as String?"):
+        if follows:
+            w.line("var value = (pulled != null) ? pulled.value : null;")
         with w.block("switch (t)"):
             for name in names:
                 icon = mapped.get(name)
                 if icon is None:
                     continue
                 ctype = complications.TYPES[name]
-                w.line(f'case Complications.{ctype.constant}: return "{icon.key}";')
+                if name in follows:
+                    w.line(f"case Complications.{ctype.constant}: return (value instanceof Lang.Number)"
+                           f' ? WfbWeather.chooseIcon(value) : "{icon.key}";')
+                else:
+                    w.line(f'case Complications.{ctype.constant}: return "{icon.key}";')
             w.line("default: return null;")
     w.blank()
 
@@ -329,19 +520,22 @@ def emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComp
     w.blank()
     w.comment(f"slot: config.data.{element.slot}")
     w.line(f"var chosenId = {field};")
+    if guards.complications:
+        w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
+    else:
+        w.line("var pulled = WfbComplications.valueOf(chosenId);")
 
     icon_font_expr = None
     if placed.icon_font_key is not None:
         w.line(f"var iconFont = _{font_field(placed.icon_font_key)};")
         w.comment("the icon is chosen from the wearer's picked *type*, so it still shows")
-        w.comment("even on a frame the reading itself could not be pulled -- a name")
-        w.comment("(WfbComplications-style split), then IconGlyphs.glyph turns it into")
-        w.comment("the actual character, exactly like a dynamic weather icon does")
+        w.comment("even on a frame the reading itself could not be pulled -- a name,")
+        w.comment("then IconGlyphs.glyph turns it into the actual character")
         icon_method = complication_slot_icon_method(element.id)
         if guards.complications:
-            w.line(f"var iconName = (chosenId != null) ? {icon_method}(chosenId.getType()) : null;")
+            w.line(f"var iconName = (chosenId != null) ? {icon_method}(chosenId.getType(), pulled) : null;")
         else:
-            w.line(f"var iconName = {icon_method}(chosenId.getType());")
+            w.line(f"var iconName = {icon_method}(chosenId.getType(), pulled);")
         w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;")
         w.blank()
         icon_font_expr = "iconFont"
@@ -363,22 +557,14 @@ def emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComp
             w.comment("when_absent: hide -- the reading blanks, the icon (if any) stays")
 
     w.line('var text = "";')
-    if guards.complications:
-        w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
-    else:
-        w.line("var pulled = WfbComplications.valueOf(chosenId);")
-    with w.block("if (pulled == null)"):
+    unit = "true" if element.unit else "false"
+    short = "true" if element.short else "false"
+    with w.block("if (pulled == null || chosenId == null)" if guards.complications
+                 else "if (pulled == null)"):
         _emit_absent()
     with w.block("else"):
-        # `pulled.value` is read into its own local, and narrowed through
-        # *that* local rather than re-read off `pulled` -- monkeyc cannot
-        # narrow a null check across a repeated field-access expression
-        # (CLAUDE.md), only across a local variable, and `pulled` itself
-        # stays narrowed for the whole of this `else` (it never leaves that
-        # local's own guarded scope), which is what still lets `pulled.
-        # shortLabel`/`.longLabel`/`.unit` below be read unconditionally.
-        w.line("var value = pulled.value;")
-        with w.block("if (value == null)"):
+        w.line(f"var reading = {SLOT_TEXT_MODULE}.reading(chosenId.getType(), pulled, {unit}, {short});")
+        with w.block("if (reading == null)"):
             _emit_absent()
         with w.block("else"):
             if element.label in ("short", "long"):
@@ -386,9 +572,7 @@ def emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComp
                 w.line(f"var label = pulled.{attr};")
                 with w.block("if (label != null)"):
                     w.line('text = label + " ";')
-            w.line("text += WfbComplications.formatValue(value);")
-            if element.unit:
-                w.line("text += WfbComplications.unitSuffix(pulled.unit);")
+            w.line("text += reading;")
     w.blank()
 
     text_color_expr = aod.color(element, "color")

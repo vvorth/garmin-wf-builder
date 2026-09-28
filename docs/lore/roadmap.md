@@ -34,6 +34,12 @@ or AOD-related has been observed on a watch or in the simulator.
   Styles with `color_scheme:` and `layouts:` (form A), the Data axis as
   `complication_slot`. `docs/guide/configuration.md`,
   `styles-and-layouts.md`.
+- **A slot's reading per complication type** — times of day, durations,
+  paces, rounded temperatures, hours, `K` counts and condition names,
+  following the watch's units and clock; `unit:` adds each type's unit and
+  `short:` keeps to seven characters; a weather slot's icon follows the
+  condition (`wfb.complications.READING`, generated `SlotText.mc`,
+  `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **The `config:` settings menu** — on a watch without the native editor
   but with `getSettingsView` (fr955), the `config:` axes as one list per
   axis (`wfb.emit.monkeyc.config_menu`), a data slot titled by its

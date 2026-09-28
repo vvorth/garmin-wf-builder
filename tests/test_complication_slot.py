@@ -58,6 +58,7 @@ BODY = """elements:
     slot: config.data.bottom
     at: {anchor: center, dy: 20%}
     color: palette.fg
+    short: true
     when_absent: placeholder
     placeholder: "--"
 """
@@ -714,7 +715,8 @@ def test_icon_lookup_is_a_generated_method_not_an_inline_local(write_design, bag
     resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     method = complication_slot_icon_method("top_reading")
-    assert f"private function {method}(t as Complications.Type) as String?" in view
+    assert f"private function {method}(t as Complications.Type,\n" in view
+    assert "pulled as Complications.Complication?) as String? {" in view
     assert "as String? = null" not in view
     assert "IconGlyphs.glyph(" in view
     # `bottom_reading` has no icon (`choices: any`) -- no lookup method for it.
@@ -990,8 +992,13 @@ def test_choices_any_icon_switch_covers_every_native_type(write_design, bag, db)
     view = monkeyc.emit_view(resolved).text
     for name, icon_name in icons.COMPLICATION_ICON.items():
         ctype = complications.TYPES[name]
-        assert f'COMPLICATION_TYPE_{ctype.name.upper()}: return "{icon_name}"' in view \
-            or f'Complications.{ctype.constant}: return "{icon_name}"' in view
+        if complications.READING[name] == "condition":
+            # A weather type's icon follows the pulled condition, falling
+            # back to its own icon without one.
+            assert (f"Complications.{ctype.constant}: return (value instanceof Lang.Number)"
+                    f' ? WfbWeather.chooseIcon(value) : "{icon_name}";') in view
+        else:
+            assert f'Complications.{ctype.constant}: return "{icon_name}";' in view
 
 
 # -- codegen: byte-identical output, and each `icon_position:` branch --------
@@ -1143,7 +1150,7 @@ def test_config_resource_emits_the_data_block(write_design, bag, db):
 
 
 def test_unit_suffix_barrel_matches_the_python_table(write_design, bag):
-    """`WfbComplications.mc`'s `unitSuffix` is the on-device twin of
+    """`WfbReading.mc`'s `unitSuffix` is the on-device twin of
     `wfb.complications.UNIT_SUFFIX` -- parsed and checked directly, the same
     discipline `tests/test_weather_barrel.py` already applies to
     `WfbWeather.mc`."""
@@ -1151,7 +1158,7 @@ def test_unit_suffix_barrel_matches_the_python_table(write_design, bag):
     import re
 
     source = (Path(__file__).resolve().parent.parent / "runtime-lib"
-              / "WfbComplications.mc").read_text(encoding="utf-8")
+              / "WfbReading.mc").read_text(encoding="utf-8")
     cases = dict(re.findall(
         r'case Complications\.(UNIT_\w+):\s*return\s*"([^"]*)";', source))
     assert cases, "no unitSuffix cases found -- did the barrel change shape?"
@@ -1174,15 +1181,18 @@ def test_format_value_rounds_floats_and_trims_zeros(value, shown):
     assert complications.format_value(value) == shown
 
 
-def test_slot_reading_goes_through_format_value(write_design, bag, db):
-    """`Float.toString()` prints six decimals ("12.879000K" in the simulator),
-    so the reading must never be drawn through it directly."""
+def test_slot_reading_goes_through_slot_text(write_design, bag, db):
+    """The reading is formatted by its type's own rule (`SlotText.reading`),
+    never drawn through `toString()` directly: `Float.toString()` prints six
+    decimals ("12.879000K" in the simulator), and a raw sunrise is 22512."""
     from wfb.emit import monkeyc
 
     _, resolved = _resolved(DESIGN, write_design, bag, db)
     view = monkeyc.emit_view(resolved).text
-    assert "text += WfbComplications.formatValue(value);" in view
+    assert "var reading = SlotText.reading(chosenId.getType(), pulled, true, false);" in view
+    assert "var reading = SlotText.reading(chosenId.getType(), pulled, false, true);" in view
     assert "value.toString()" not in view
+    assert "WfbComplications.formatValue" not in view
 
 
 def test_format_value_barrel_matches_the_python_twin():
@@ -1191,7 +1201,7 @@ def test_format_value_barrel_matches_the_python_twin():
     from pathlib import Path
 
     source = (Path(__file__).resolve().parent.parent / "runtime-lib"
-              / "WfbComplications.mc").read_text(encoding="utf-8")
+              / "WfbReading.mc").read_text(encoding="utf-8")
     body = source[source.index("function decimalText"):source.index("function unitSuffix")]
     assert "var decimals = 2;" in body
     assert "if (magnitude >= 100) {\n            decimals = 0;" in body

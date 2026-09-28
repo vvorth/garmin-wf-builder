@@ -21,7 +21,7 @@ from .app import emit_app, emit_icon_glyphs, emit_palette, icon_glyph_entries
 from .common import (
     SourceFile, _mc_number, _mc_type, complication_slots, hold_targets, needs_delegate,
 )
-from .complication_slot import emit_slot_drawable
+from .complication_slot import emit_slot_drawable, emit_slot_text
 from .delegate import emit_delegate
 from .layout_constants import emit_layout
 from .readplan import ReadPlan
@@ -34,5 +34,5 @@ from .view import emit_view
 __all__ = [
     "ReadPlan", "SourceFile", "_mc_number", "_mc_type", "complication_slots", "emit_app",
     "emit_delegate", "emit_icon_glyphs", "emit_layout", "emit_palette", "emit_slot_drawable",
-    "emit_view", "hold_targets", "icon_glyph_entries", "needs_delegate",
+    "emit_slot_text", "emit_view", "hold_targets", "icon_glyph_entries", "needs_delegate",
 ]

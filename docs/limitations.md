@@ -576,18 +576,39 @@ still true of the shipped feature:
   touchscreen. It
   compiles warning-free on every target, including `fr955`, which has no
   native editor and never calls any of it.
-* **A slot's icon is chosen on-device from the wearer's picked *type* alone**
-  (`Complications.Id.getType()`), not from the current *value* -- so a type
-  whose icon depends on its value (the weather-condition complications:
-  `current_weather`, `forecast_weather_*day`) draws one fixed, type-keyed
-  icon (`wfb.icon_catalog.CATALOG["weather"]`) rather than the value-keyed
-  condition icon `icon_for: weather.condition` resolves on-device -- that
-  remains future work. Every other native type has a catalogue icon
+* **A slot's icon is chosen on-device from the wearer's picked *type***
+  (`Complications.Id.getType()`), except a weather type's, which follows
+  the pulled condition (`WfbWeather.chooseIcon`, the mapping `icon_for:
+  weather.condition` uses) and falls back to the type's own `weather` icon
+  on a frame with no reading. Every native type has a catalogue icon
   (`wfb.icons.COMPLICATION_ICON` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping-form `icon:`/`glyph:`/`icon: none`, plan 03 §6.1/§6.2), and
   `icon_position:`/`icon_gap:`/`icon_color:` place, space and colour it (plan
   03 §6.1/§6.3) -- `docs/guide/configuration.md`'s "The Data axis" has the full account.
+* **A slot's reading is formatted per complication type**
+  (`wfb.complications.READING`, the generated `SlotText.mc`), following
+  the watch's own units and clock. Each rule rests on the SDK's documented
+  unit (`doc/Toybox/Complications.html`) and on the raw values a fenix 8
+  solar reported in the simulator (2026-09-28); **none is seen on a watch
+  yet.** Specifically unverified: that a real watch, like the simulator,
+  hands steps past 10,000 over as a Float in thousands with the unit `"K"`;
+  what the training status string is on a watch (the short-form table is
+  keyed on the simulator's English capitals, `MAINTAINING`, so a
+  localised status draws as reported, even under `short: true`); what the
+  next calendar event reads when there is none today (documented
+  nullable, so presumably the placeholder); and whether VO2 max bike's 0
+  really means "nothing recorded" (it is drawn as absent). The weather
+  condition names are this compiler's English, since the platform names
+  none; the date, weekday and event strings are the device's own.
+  **Measured** (`--build-stats`, fenix8solar47mm): the rules cost what the
+  slots can show, so `choices: any` carries all of them --
+  `examples/features/slots/face.yaml` grew from 6,559 B to 13,505 B, of
+  which about 2.9 KB is the weather icon following the condition (the
+  condition-to-icon table and 29 more icon glyphs); showcase grew from
+  23,041 B to 27,207 B. The condition names are packed into one string
+  per variant (`WfbReading.packed`), 1,246 B smaller than a 54-way
+  `switch`.
 * **`choices: any` + `icon_size:` is accepted.** A Connect IQ-app
   complication picked there draws no icon.
 * **monkeyc 9.2.0 crashes on two different string literals with the same
@@ -711,7 +732,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |
 | The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
 | Ticks drawn by a `style: scale` progress itself | ADR 0004 §1 lists "ticks + coloured range band + pointer"; the band and the pointer are built, and ticks are a radial `pattern` sharing the scale's `start_angle`/`sweep` rather than a second tick mechanism |
-| `units:` on an expression, or on a `complication_slot` | a conversion needs the unit its value is in, which only a bare source states; a slot's value is whatever the wearer picked, so there is no one unit to convert from |
+| `units:` on an expression, or on a `complication_slot` | a conversion needs the unit its value is in, which only a bare source states. A slot has no `units:`: each type's reading already follows the watch's own metric/statute settings (`docs/guide/configuration.md`, "The Data axis") |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |

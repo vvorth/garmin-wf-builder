@@ -113,6 +113,7 @@ elements:
     icon_gap: 2%r
     icon_color: config.accent_color
     color: config.data_color
+    short: true # 7-character weather and training-status names
     when_absent: placeholder
     placeholder: "--"
     on_hold: auto # opens the glance for whatever the slot shows

@@ -158,10 +158,11 @@ a light well with dark text and a 1 px frame, reading as a wheel cut
 through the dial rather than a UI chip, since `alphaBlendingSupport` is
 false and nothing can be cut out) -- plus
 two shared `complication_slot` "registers" (the Data axis, one with
-per-choice icon overrides, one `choices: any`), several `color_scheme:`
+per-choice icon overrides, one `choices: any` drawn `short: true`), several `color_scheme:`
 entries and the `config: style:` entries pairing them with the three
 layouts, and several-colour `accent_color`/`data_color` axes. Builds
-warning-free on all three targets at 16.8% of the 128 KB budget.
+warning-free on all three targets at 24.0% of the 128 KB budget
+(2026-09-28).
 
 The Phase 2 slice is no longer an example: it is the test fixture
 `tests/fixtures/slice/`.

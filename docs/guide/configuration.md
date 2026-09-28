@@ -28,7 +28,8 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `slot:` | `complication_slot` | `config.data.<name>` | required | which declared slot this element draws |
 | `icon_size:` | `complication_slot` | length, px or `%r` | omit = no icon | icon height, chosen on-device |
 | `icon_position:` / `icon_gap:` / `icon_color:` | `complication_slot` | `left`/`right`/`top`/`bottom`; px/`%r`; colour | `left`; `4px`; = `color:` | icon placement, gap and colour — need `icon_size:` |
-| `label:` / `unit:` | `complication_slot` | `none`/`short`/`long`; boolean | `none`; `false` | `Complication.shortLabel`/`.longLabel`; `.unit` suffix |
+| `label:` | `complication_slot` | `none`/`short`/`long` | `none` | `Complication.shortLabel`/`.longLabel` before the reading |
+| `unit:` / `short:` | `complication_slot` | boolean | `false` | the reading's own unit (`%`, `hPa`, `km`, `/km`, ...); 7-character forms |
 | `when_absent:` | `complication_slot` | `hide` / `placeholder` | `hide` | blanks only the reading; the icon still draws |
 | `on_hold:` | `complication_slot` | `auto` only | — | resolves to the wearer's current pick, on every hold |
 
@@ -296,32 +297,62 @@ no ordinary `value:` expression at all. Instead:
   or Float or Long or Double` union whose concrete type genuinely varies by
   which choice the wearer makes -- a format string written for one choice
   would be silently wrong for another. `format:` is a schema error naming
-  this reason. The value renders through `WfbComplications.formatValue`:
-  `toString()` for a Number, Long or String; a Float or Double is rounded to
-  three significant figures without dropping integer digits, then loses its
-  trailing zeros (12.879 -> `12.9`, 101325.0 -> `101325`). Floats need this
-  because Monkey C's `Float.toString()` always prints six decimals. Observed
-  in the simulator: steps at or above 10,000 arrive as a Float in
-  thousands with the unit string `"K"`, so they draw as `12.9K`.
+  this reason. Instead **every complication type has its own rule**
+  (`wfb.complications.READING`), which the generated `source/SlotText.mc`
+  applies on the watch (a case only for the types the design's slots can
+  show) through `runtime-lib/WfbReading.mc`. Metric or statute, and the
+  12/24-hour clock, follow the watch's own settings:
+
+  | Types | Drawn | With `unit: true` |
+  |---|---|---|
+  | steps, calories, floors, intensity minutes, notifications, stress, sleep score, pushes | `8809`; `12.9K` from 10,000 up | -- |
+  | heart rate, respiration rate | `77`, `17` | `77bpm`, `17brpm` |
+  | battery, body battery, pulse ox, solar input | `100` | `100%` |
+  | VO2 max (run, bike) | `49`; 0 (nothing recorded) is absent | -- |
+  | sunrise, sunset | `06:15`, `18:12` (`6:15`, `6:12` on a 12-hour watch) | -- |
+  | race predictors | `24:40`, `3:25:45` | -- |
+  | race pace predictors | `4:56` per km or mile; a speed of 0 is absent | `4:56/km`, `7:56/mi` |
+  | recovery time | whole hours, rounded up: `37h`, `0h` | -- |
+  | current temperature | `24°` (°F on a statute watch) | `24°C`, `75°F` |
+  | altitude | `511` (m or ft) | `511m`, `1677ft` |
+  | weekly run / bike distance | `23.4` (km or mi) | `23.4km`, `14.5mi` |
+  | sea-level pressure | `1017` (hPa) | `1017hPa` |
+  | current weather, 1/2/3-day forecast | the condition's name: `Mostly clear` | -- |
+  | training status, high/low temperature, date, weekday, next event, golf | the device's own text | -- |
+
+  The `K`, `°` and `h` are drawn with or without `unit:`: a bare number is
+  unreadable without them. Steps past 10,000 are seen in the simulator
+  arriving already scaled, as the Float 12.879 with the unit `"K"`; that
+  `K` is kept too. A type with no rule (a Connect IQ app's complication,
+  under `choices: any`) draws its value as reported, a Float to three
+  significant figures, with `Complication.unit`'s suffix under `unit:`.
+* **`short:`** (`false` default) keeps a reading to seven characters where a
+  rule can: a weather condition's short name (`Mo clr`, `Pt cldy`, `Ch r/s`),
+  a training status's (`Maint`, `Prodctv`, in the case the device reported
+  it), `26/17` for `H 26 / L 17`, and a `unit:` suffix dropped when it would
+  pass seven (`12:30/mi` -> `12:30`). Text the device supplies otherwise --
+  a date, a calendar event, a training status the table does not know -- is
+  never cut. The tables are `wfb.complications.WEATHER_CONDITION_TEXT` and
+  `TRAINING_STATUS_SHORT`; the long condition names are the SDK's own
+  (`doc/Toybox/Weather.html`), in English whatever the watch's language.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
-  shortLabel`/`.longLabel` before the value, when the device supplies one.
-* **`unit:`** (`false` default) appends `Complication.unit`'s suffix after the
-  value, when the device supplies one -- a raw `String` unit (a user
-  complication may supply one directly) is used verbatim; the documented
-  `Complications.Unit` enum is translated through a small, SDK-transcribed
-  table (`m`, `m/s`, `°C`, `g`, ...; see `wfb/complications.py`'s
-  `UNIT_SUFFIX` and `runtime-lib/WfbComplications.mc`'s `unitSuffix`).
+  shortLabel`/`.longLabel` before the reading, when the device supplies one.
 * **`when_absent:`** is `hide` (default) or `placeholder` (needs
   `placeholder:`) -- and unlike every other element, `hide` blanks only the
   *reading*, leaving the icon drawn: the icon says which metric the slot is
   pointed at, which stays true even on a frame the reading itself could not be
   pulled.
 * **`icon_size:`** (omit to draw no icon) chooses the icon **on-device**, from
-  the wearer's picked *type* alone -- `Complications.Id.getType()`, `switch`ed
+  the wearer's picked *type* -- `Complications.Id.getType()`, `switch`ed
   against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`, or a
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
   `glyph:` override's canonical `U+XXXX` spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
+  **A weather type's icon follows the pulled condition** (`WfbWeather.
+  chooseIcon`, the same mapping as `icon_for: weather.condition`), and falls
+  back to the type's own `weather` icon on a frame with no reading; the
+  slot's icon font then carries every condition glyph. A weather choice
+  with an authored `icon:`/`glyph:` keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
   `wfb.complications.TYPES` entirely) simply draws no icon, since this
@@ -580,15 +611,21 @@ since-removed `settings:` block, whose choices cycled rather than opening a
 list): the Watch Face menu entry appears and a change applies at once. The
 `config:` menu, and its lists of options, have not been seen on a watch yet.
 
-**A `complication_slot`'s geometry is sized from its value alone.** `label:`
-and a `String`-typed `unit:` are localised device strings with no documented
-upper bound -- unlike a digit count, padding for them would either be
-routinely wrong or, picked generously, turn an ordinary slot into a spurious
-`off-screen` warning (confirmed directly: an 8-character placeholder
-pushed a comfortably-fitting design off the framebuffer). So the safe-area/
-off-screen/overflow checks do not account for `label:`/`unit:` width at all --
-a slot whose label or unit runs long on the real device can overflow further
-than the compiler warned about.
+**A `complication_slot`'s geometry is sized from its readings alone.** The
+estimate is the widest reading any of its choices can draw under its
+`unit:`/`short:` (`wfb.complications.widest_reading`): a clock is `88:88`,
+a race prediction `8:88:88`, a weather condition its longest name -- so
+`choices: any` in full names is honestly wider than the screen ("Cloudy
+chance of rain snow"), and the `off-screen` lint says so; `short: true`
+brings it back inside. Text the device supplies (a date, a calendar event, a
+training status in full) has no documented bound and keeps a five-digit
+guess, and `label:` is not counted at all: a localised device string with
+no documented upper bound, where padding would either be routinely wrong
+or, picked generously, turn an ordinary slot into a spurious `off-screen`
+warning (confirmed directly: an 8-character placeholder pushed a
+comfortably-fitting design off the framebuffer). A slot whose label or
+device text runs long on the real device can overflow further than the
+compiler warned about.
 
 **The editor's animated highlight is handed a box that spans the screen
 instead.** `getComplicationDrawable` needs a fixed `Graphics.BoundingBox` up
