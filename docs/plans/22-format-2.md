@@ -1,7 +1,8 @@
 # 22 — Format 2: a designed revision of the YAML format
 
 **Status: approved for implementation (decisions F1–F7 and Q1–Q5, and
-the names in §2, 2026-09-28). Nothing is built yet.** Delete this file once
+the names in §2, 2026-09-28). Being built on branch `format-2`, one commit
+per slice; progress is recorded under each slice in §6.** Delete this file once
 slice 5 has shipped (`docs/CLAUDE.md`).
 
 **Goal.** Format 1 grew one feature at a time. Format 2 fixes its naming
@@ -328,9 +329,13 @@ Every slice keeps the fast suite green, `mypy --strict` clean over `wfb/`
 (`pytest -m typecheck`), and a real `monkeyc` build warning-free on the
 three verification devices.
 
-**Slice 0 — baseline.**
+**Slice 0 — baseline.** *Done 2026-09-28.*
 - On `main` before any change: `tools/snapshot.py save`, and record the
   commit in this plan.
+- Saved from `6cfb9b6` to `build/snapshots/format2-baseline` (gitignored,
+  so local to this checkout; re-create it with `git worktree add` at that
+  commit and the same command if it is lost): 441 cases, 0 errored,
+  5,787 artifacts.
 
 **Slice 1 — the migrator.**
 - `wfb/migrate.py`, the `migrate` CLI command, and tests:
