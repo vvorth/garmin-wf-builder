@@ -863,6 +863,41 @@ def test_the_editor_drawable_gets_the_highlight_box_and_taps_the_estimate(
         assert placed.highlight.width > placed.box.width
 
 
+def test_the_editor_drawable_loads_fonts_and_config_before_onlayout(write_design, bag, db):
+    """Entering the editor's Data list starts the face afresh, and the editor
+    draws the preselected slot's drawable before `onLayout` has run -- on a
+    fenix8solar47mm the slot pulsed with no icon, its font field still null.
+    `drawableFor` runs `loadResources` (the icon fonts and the first config
+    read, which `onLayout` calls too) when it has not run yet."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+
+    def code(signature: str) -> list[str]:
+        return [line for line in _method_body(view, signature)
+                if line and not line.startswith("//")]
+
+    drawable = code(
+        "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null")
+    assert drawable[:3] == ["if (!_resourcesLoaded) {", "loadResources();", "}"], drawable[:4]
+
+    load = code("private function loadResources() as Void")
+    assert "_resourcesLoaded = true;" in load
+    # `top_reading` draws an icon; `bottom_reading` (`choices: any`) does not
+    assert any("loadResource(Rez.Fonts.FontIcon" in line and "SlotTop" in line
+               for line in load), load
+    assert "applyConfig(settings);" in load
+
+    layout = code("function onLayout(dc as Dc) as Void")
+    assert layout[0] == "loadResources();"
+    assert not any("loadResource(" in line or "applyConfig" in line for line in layout)
+
+
 def test_leaving_a_slot_in_the_editor_stops_skipping_it(write_design, bag, db):
     """Nothing but the editor's own edits can tell the view no slot is being
     animated any more: a `:type` other than COMPLICATION (null is "the end of

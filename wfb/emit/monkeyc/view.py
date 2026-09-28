@@ -26,7 +26,8 @@ from .common import (
 )
 from .complication_slot import (
     _emit_complication_slot_editor_methods, _emit_complication_slot_hold_method,
-    _emit_complication_slot_icon_method, _emit_pulsing_field,
+    _emit_complication_slot_icon_method, _emit_pulsing_field, _emit_resources_loaded_field,
+    LOAD_RESOURCES_METHOD, RESOURCES_LOADED_FIELD,
 )
 from . import config_menu
 from .graph import _emit_graph_fields, _emit_graph_rebuild
@@ -217,6 +218,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         _emit_graph_fields(w, graphs)
         if slot_pairs:
             _emit_pulsing_field(w)
+            _emit_resources_loaded_field(w)
         if needs_sleeping_field:
             w.doc(
                 "Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
@@ -248,7 +250,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
                 resolve_style=RESOLVE_STYLE_METHOD, complications_guarded=guards.complications)
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
-        _emit_on_layout(w, resolved, plan, static, guards)
+        _emit_on_layout(w, resolved, plan, static, guards, has_slots=bool(slot_pairs))
         _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards)
         if _has_partial_update(resolved, guards):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
@@ -770,7 +772,18 @@ def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> No
 
 
 def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
-                    static: "StaticPlan | None" = None, guards: "Guards" = _NO_GUARDS) -> None:
+                    static: "StaticPlan | None" = None, guards: "Guards" = _NO_GUARDS,
+                    has_slots: bool = False) -> None:
+    """`onLayout`: fonts, the first config read, complication subscriptions
+    and the static buffer.
+
+    With ``has_slots``, the fonts and the config read -- everything a slot's
+    own draw method needs -- move into `loadResources`, which `onLayout`
+    calls first and the view's `drawableFor` calls too if it has not run:
+    the native editor can draw a slot before `onLayout`
+    (`_emit_resources_loaded_field`).  Subscriptions and the static buffer
+    stay here; the slot draw needs neither.
+    """
     face = resolved.face
     loaded = _loaded_fonts(resolved)
     vector_fonts = _vector_fonts_used(resolved)
@@ -783,58 +796,104 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
              "already reflects the wearer's own choice rather than the compiled-in\n"
              "default -- guarded, since a device with no native editor (fr955) has\n"
              "no WatchFaceConfig module to call at all." if has_config else ""))
+    if has_slots:
+        with w.block("function onLayout(dc as Dc) as Void"):
+            w.line(f"{LOAD_RESOURCES_METHOD}();")
+            if event:
+                w.blank()
+                _emit_subscriptions(w, plan, event)
+            if static is not None:
+                w.blank()
+                _emit_static_allocation(w, static)
+        w.blank()
+        w.doc("Fonts and the first config read: what every slot's draw method needs.\n"
+              "\nCalled from onLayout, and from drawableFor when the native editor asks\n"
+              "for a slot before onLayout has run.")
+        with w.block(f"private function {LOAD_RESOURCES_METHOD}() as Void"):
+            w.line(f"{RESOURCES_LOADED_FIELD} = true;")
+            _emit_loads_and_config_read(w, loaded, vector_fonts, has_config, guards)
+        w.blank()
+        return
     with w.block("function onLayout(dc as Dc) as Void"):
         if not loaded and not vector_fonts and not event and static is None and not has_config:
             w.line("// No resources to load: this face draws entirely from system fonts.")
-        for name in loaded:
-            resource = font_resource_id(name)
-            w.line(
-                f"_{font_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
-            )
-        if vector_fonts:
-            if loaded:
-                w.blank()
-            for name in vector_fonts:
-                _emit_vector_font_construction(w, name, guards)
+        _emit_font_loads(w, loaded, vector_fonts, guards)
         if event:
             if loaded or vector_fonts:
                 w.blank()
-            w.comment(
-                "complications: one subscription per type, which keeps the "
-                "platform's own reading fresh -- the value itself is pulled in "
-                "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
-                "a device that does not support a given type"
-            )
-            # Unlike an unsupported *type* (WfbComplications.subscribe's own
-            # job), a device that lacks Toybox.Complications entirely --
-            # fenix6, fr245 -- fails on the bare reference to
-            # registerComplicationChangeCallback/Complications.Id, before
-            # WfbComplications is ever reached, so the guard has to sit
-            # here, not in the barrel (CLAUDE.md: monkeyc checks the
-            # SDK-wide API, not the device's -- this only fails at runtime).
-            guarded = plan.device_guards.complications
-            if guarded:
-                w.comment("Toybox.Complications is absent on at least one target device")
-            with w.block_if("if (Toybox has :Complications)" if guarded else None):
-                w.line("Complications.registerComplicationChangeCallback("
-                       "method(:onComplicationChanged));")
-                for name in event:
-                    w.line("WfbComplications.subscribe(new Complications.Id("
-                           f"Complications.{READERS[name].complication_type}));")
+            _emit_subscriptions(w, plan, event)
         if has_config:
             if loaded or event:
                 w.blank()
-            w.comment("the native on-device editor, where this device has one -- absent on")
-            w.comment("fr955, which keeps running on the compiled-in defaults above")
-            with w.block("if (Application has :WatchFaceConfig)"):
-                w.line("var settings = WatchFaceConfig.getSettings(null);")
-                with w.block("if (settings != null)"):
-                    w.line("applyConfig(settings);")
+            _emit_first_config_read(w)
         if static is not None:
             if loaded or event or has_config:
                 w.blank()
             _emit_static_allocation(w, static)
     w.blank()
+
+
+def _emit_loads_and_config_read(w: Writer, loaded: list[str], vector_fonts: list[str],
+                                has_config: bool, guards: "Guards") -> None:
+    """`loadResources`' body: `onLayout`'s font loading, then its first
+    config read."""
+    _emit_font_loads(w, loaded, vector_fonts, guards)
+    if has_config:
+        if loaded or vector_fonts:
+            w.blank()
+        _emit_first_config_read(w)
+
+
+def _emit_font_loads(w: Writer, loaded: list[str], vector_fonts: list[str],
+                     guards: "Guards") -> None:
+    """Every bitmap font resource, then every vector font, into its field."""
+    for name in loaded:
+        resource = font_resource_id(name)
+        w.line(
+            f"_{font_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
+        )
+    if vector_fonts:
+        if loaded:
+            w.blank()
+        for name in vector_fonts:
+            _emit_vector_font_construction(w, name, guards)
+
+
+def _emit_subscriptions(w: Writer, plan: "ReadPlan", event: list[str]) -> None:
+    """One complication subscription per event-read type, plus the change
+    callback."""
+    w.comment(
+        "complications: one subscription per type, which keeps the "
+        "platform's own reading fresh -- the value itself is pulled in "
+        "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
+        "a device that does not support a given type"
+    )
+    # Unlike an unsupported *type* (WfbComplications.subscribe's own
+    # job), a device that lacks Toybox.Complications entirely --
+    # fenix6, fr245 -- fails on the bare reference to
+    # registerComplicationChangeCallback/Complications.Id, before
+    # WfbComplications is ever reached, so the guard has to sit
+    # here, not in the barrel (CLAUDE.md: monkeyc checks the
+    # SDK-wide API, not the device's -- this only fails at runtime).
+    guarded = plan.device_guards.complications
+    if guarded:
+        w.comment("Toybox.Complications is absent on at least one target device")
+    with w.block_if("if (Toybox has :Complications)" if guarded else None):
+        w.line("Complications.registerComplicationChangeCallback("
+               "method(:onComplicationChanged));")
+        for name in event:
+            w.line("WfbComplications.subscribe(new Complications.Id("
+                   f"Complications.{READERS[name].complication_type}));")
+
+
+def _emit_first_config_read(w: Writer) -> None:
+    """The first `WatchFaceConfig` read, where the device has the editor."""
+    w.comment("the native on-device editor, where this device has one -- absent on")
+    w.comment("fr955, which keeps running on the compiled-in defaults above")
+    with w.block("if (Application has :WatchFaceConfig)"):
+        w.line("var settings = WatchFaceConfig.getSettings(null);")
+        with w.block("if (settings != null)"):
+            w.line("applyConfig(settings);")
 
 
 def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bool,

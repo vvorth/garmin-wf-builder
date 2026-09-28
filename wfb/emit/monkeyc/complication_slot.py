@@ -13,6 +13,30 @@ from .common import NO_AOD, AodStyle, SourceFile, _NO_GUARDS, const_prefix, font
 from ..writer import Writer
 
 
+#: The view method holding `onLayout`'s font loading and first config read,
+#: on a design with a `complication_slot`, and the flag saying it has run.
+LOAD_RESOURCES_METHOD = "loadResources"
+RESOURCES_LOADED_FIELD = "_resourcesLoaded"
+
+
+def _emit_resources_loaded_field(w: Writer) -> None:
+    """`_resourcesLoaded` -- whether `loadResources` has run.
+
+    Entering the native editor's Data list starts the face afresh, and the
+    editor asks for the preselected slot's drawable and draws it before the
+    view's `onLayout` has run: seen on a fenix8solar47mm, the slot pulsed
+    with no icon (its font field still null) and its text centred alone,
+    until anything redrew the face.  `drawableFor` reads this flag and loads
+    first.
+    """
+    w.doc(
+        "Whether loadResources has run.  The native editor can ask for a slot's\n"
+        "drawable, and draw it, before onLayout -- drawableFor loads first then."
+    )
+    w.line(f"private var {RESOURCES_LOADED_FIELD} as Boolean = false;")
+    w.blank()
+
+
 def _emit_pulsing_field(w: Writer) -> None:
     """`_pulsing` -- which complication_slot the native editor is currently
     animating (a `config_data_ids` unique id), or 0 for none.
@@ -100,6 +124,10 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
     with w.block(
         "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null",
     ):
+        w.comment("the editor can get here before onLayout: fonts and the wearer's")
+        w.comment("config first, or the slot draws without its icon")
+        with w.block(f"if (!{RESOURCES_LOADED_FIELD})"):
+            w.line(f"{LOAD_RESOURCES_METHOD}();")
         w.line("var drawable = null;")
         with w.block("switch (unique)"):
             for element, unique_id in pairs:

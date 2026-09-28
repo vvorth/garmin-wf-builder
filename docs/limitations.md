@@ -558,7 +558,12 @@ still true of the shipped feature:
   estimate (which leaves out label and unit, and cut "STEPS 5068" to
   "TEPS 506" on a fenix8solar47mm) but a per-device `_HIGHLIGHT` box
   spanning every screen column the pair can reach from its anchor;
-  `onTap` still hit-tests the estimate. **Seen on a fenix8solar47mm:** the
+  `onTap` still hit-tests the estimate. Entering the editor's Data list
+  starts the face afresh and draws the preselected slot's drawable before
+  `onLayout` runs (seen on a fenix8solar47mm: no icon, its font not yet
+  loaded), so `drawableFor` first runs `loadResources` -- the fonts and
+  first config read `onLayout` also calls -- when it has not run yet.
+  **Seen on a fenix8solar47mm:** the
   highlight animates over the selected slot and previews each choice as the
   wearer scrolls. Not yet seen: that the wider box ends the clipping, and
   whether `onTap`'s hit regions read correctly on the touchscreen. It
