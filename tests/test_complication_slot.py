@@ -121,8 +121,7 @@ def test_unknown_complication_type_in_default_is_an_error(write_design):
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
     assert hits, errors
-    assert "unknown complication type" in hits[0].message
-    assert "complication.step" in hits[0].message
+    assert "unknown complication type 'step'" in hits[0].message
     assert any("did you mean" in n and "steps" in n for n in hits[0].notes), hits[0].notes
 
 
@@ -135,7 +134,7 @@ def test_unknown_complication_type_in_choices_is_an_error(write_design):
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
-    assert any("complication.bogus" in d.message for d in hits), errors
+    assert any("'bogus'" in d.message for d in hits), errors
 
 
 def test_default_not_among_explicit_choices_is_an_error(write_design):
@@ -149,7 +148,7 @@ def test_default_not_among_explicit_choices_is_an_error(write_design):
     hits = [d for d in errors if d.code == "config"]
     assert hits, errors
     assert "is not one of 'choices:'" in hits[0].message
-    assert "complication.heart_rate" in hits[0].message
+    assert "'heart_rate'" in hits[0].message
 
 
 def test_a_rejected_slot_does_not_cascade(write_design):
@@ -290,7 +289,7 @@ def test_a_type_listed_twice_across_shapes_is_an_error(write_design):
     hits = [d for d in errors if d.code == "config"]
     assert hits, errors
     assert "listed more than once" in hits[0].message
-    assert "complication.steps" in hits[0].message
+    assert "steps" in hits[0].message
 
 
 def test_a_rejected_choice_icon_does_not_cascade(write_design):
@@ -334,8 +333,8 @@ def test_unknown_slot_reference_is_an_error(write_design):
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
     assert hits, errors
-    assert "unknown slot 'config.data.bogus'" in hits[0].message
-    assert any("config.data.top" in n and "config.data.bottom" in n for n in hits[0].notes), \
+    assert "unknown slot 'bogus'" in hits[0].message
+    assert any("bottom, top" in n for n in hits[0].notes), \
         hits[0].notes
 
 
@@ -517,7 +516,7 @@ def test_icon_position_gap_color_need_icon_size(write_design, key, value):
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
     assert hits, errors
-    assert f"'{key}:' needs 'icon_size:'" in hits[0].message
+    assert f"'icon: {{{key[len('icon_'):]}:}}' needs 'icon: {{size:}}'" in hits[0].message
 
 
 def test_icon_gap_percent_unit_is_rejected(write_design):
@@ -533,7 +532,7 @@ def test_icon_gap_percent_unit_is_rejected(write_design):
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
     assert hits, errors
-    assert "icon_gap must be px or %r" in hits[0].message
+    assert "icon: {gap:} must be px or %r" in hits[0].message
 
 
 def test_icon_gap_negative_is_rejected(write_design):
@@ -564,7 +563,8 @@ def test_icon_color_nullable_is_an_error(write_design):
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
-    assert hits and "icon_color" in hits[0].message and "can be absent" in hits[0].message, errors
+    assert hits and "'icon: {color:}'" in hits[0].message \
+        and "can be absent" in hits[0].message, errors
 
 
 def test_icon_color_defaults_to_color_when_unauthored(write_design, bag):
@@ -671,7 +671,7 @@ elements:
     bag = _lint(text, write_design, db, device_id="fr955")
     hits = [d for d in bag.items if d.code == "api-gated"]
     assert hits, bag.render()
-    assert any("sleep_score" in d.message and "config.data.top" in d.message for d in hits), \
+    assert any("sleep_score" in d.message and "slot 'top'" in d.message for d in hits), \
         [d.message for d in hits]
 
 

@@ -117,11 +117,11 @@ class ElementTree(StaticPass):
         if "if_unavailable" in node and not in_subscreen and node["type"] != "text":
             self.bag.error(
                 "subscreen",
-                f"{node['id']}: 'if_unavailable:' is not accepted here",
+                f"{node['id']}: 'unsupported:' is not accepted here",
                 self.doc.span(node, "if_unavailable") or span,
                 notes=["on this element it governs 'at: {anchor: subscreen}' on a target "
                        "without a subscreen window; this element is not anchored there",
-                       "drop 'if_unavailable:', or anchor the element to the subscreen"],
+                       "drop 'unsupported:', or anchor the element to the subscreen"],
             )
             return False
         return True

@@ -81,7 +81,7 @@ elements:
 """
     face = load(write_design(text), bag)
     assert face is None
-    assert any(d.code == "hands" and "low_power" in d.message for d in bag.errors), bag.render()
+    assert any(d.code == "hands" and "sleep_update" in d.message for d in bag.errors), bag.render()
 
 
 # --------------------------------------------------------------------------
@@ -143,7 +143,7 @@ elements:
     assert face is None
     hits = [d for d in bag.errors if d.code == "aod"]
     assert hits, bag.render()
-    assert "complication_slot" in hits[0].message and "not implemented" in hits[0].message
+    assert "data element" in hits[0].message and "not implemented" in hits[0].message
 
 
 def test_vector_face_font_override_is_a_friendly_error(write_design, bag):
@@ -263,10 +263,10 @@ def test_group_inherited_unsupported_aod_keys_are_errors_on_each_element(write_d
 
 
 @pytest.mark.parametrize("aod,child,needle", [
-    ("{font: FONT_TINY}", "slot", "complication_slot"),
+    ("{font: FONT_TINY}", "slot", "data element"),
     ("{font: FONT_TINY}", "p", "pattern"),
     ("{filled: false}", "tri", "drawPolygon"),
-    ('{format: "{:%H}"}', "label", "fixed 'text:'"),
+    ('{format: "{:%H}"}', "label", "this text is fixed"),
 ])
 def test_each_group_inherited_refusal_on_its_own(write_design, bag, aod, child, needle):
     text = _group_aod_design(aod, [child])

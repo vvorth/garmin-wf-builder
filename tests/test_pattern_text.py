@@ -113,7 +113,7 @@ def test_both_value_and_text_is_one_error(write_design, bag):
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert bad[0].code == "pattern"
-    assert "exactly one of" in bad[0].message
+    assert "a text part needs a 'text:'" in bad[0].message
 
 
 def test_neither_value_nor_text_is_one_error(write_design, bag):
@@ -121,7 +121,7 @@ def test_neither_value_nor_text_is_one_error(write_design, bag):
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert bad[0].code == "pattern"
-    assert "exactly one of" in bad[0].message
+    assert "a text part needs a 'text:'" in bad[0].message
 
 
 def test_value_reading_a_palette_reference_is_one_error(write_design, bag):
@@ -129,7 +129,7 @@ def test_value_reading_a_palette_reference_is_one_error(write_design, bag):
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "may read only 'copy'" in bad[0].message
-    assert "palette.fg" in bad[0].message
+    assert "color.fg" in bad[0].message
 
 
 def test_value_reading_a_data_source_is_one_error(write_design, bag):
@@ -156,7 +156,7 @@ def test_format_with_a_fixed_text_is_one_error(write_design, bag):
                  '        at: {dy: -50px}\n')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
-    assert "applies only to 'value:'" in bad[0].message
+    assert "a format spec needs a placeholder" in bad[0].message
 
 
 def test_radius_on_a_text_part_is_one_error(write_design, bag):
@@ -166,7 +166,7 @@ def test_radius_on_a_text_part_is_one_error(write_design, bag):
                  '        at: {dy: -50px}\n')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
-    assert "'radius' is not used by a pattern 'shape: text' part" in bad[0].message
+    assert "'radius' is not used by a pattern 'type: text' part" in bad[0].message
 
 
 def test_font_on_a_line_part_is_one_error(write_design, bag):
@@ -179,7 +179,7 @@ def test_font_on_a_line_part_is_one_error(write_design, bag):
                  '        font: FONT_MEDIUM\n')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
-    assert "'font' is not used by a pattern 'shape: line' part" in bad[0].message
+    assert "'font' is not used by a pattern 'type: line' part" in bad[0].message
 
 
 def test_undeclared_font_is_one_error(write_design, bag):
@@ -211,7 +211,7 @@ hands:
 """
     bad = errors(BASE + hands + "\nelements:\n" + elements, bag, write_design)
     assert len(bad) == 1
-    assert "'shape: text' is not accepted on a hand part" in bad[0].message
+    assert "'type: text' is not accepted on a hand part" in bad[0].message
     assert "a bitmap font cannot rotate" in bad[0].message
 
 

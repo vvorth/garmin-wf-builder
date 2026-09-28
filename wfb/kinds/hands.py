@@ -140,9 +140,9 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             b.bag.error(
                 "hands",
                 f"{element_id}: 'seconds: {seconds}' needs a second hand, but "
-                f"hands.{name} declares none",
+                f"hand_sets.{name} declares none",
                 b.doc.span(node, "seconds"),
-                notes=[f"hands.{name} declares: {declared}"],
+                notes=[f"hand_sets.{name} declares: {declared}"],
             )
             return None
         if seconds is None and hand_set.second is not None:
@@ -153,7 +153,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             # no-ops, CLAUDE.md §7).
             b.bag.error(
                 "hands",
-                f"{element_id}: 'seconds: never' on hands.{name}, which has only a "
+                f"{element_id}: 'seconds: never' on hand_sets.{name}, which has only a "
                 "second hand, draws nothing",
                 b.doc.span(node, "seconds"),
                 notes=["remove the element, or place a set with an hour or minute hand"],
@@ -163,7 +163,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         if "low_power" in common["modes"]:
             b.bag.error(
                 "hands",
-                f"{element_id}: 'modes:' may not include 'low_power' on analog hands",
+                f"{element_id}: 'sleep_update: true' is not accepted on analog hands",
                 b.doc.span(node, "modes") or common["span"],
                 notes=["the hour and minute hands never need it -- they change once a "
                        "minute, and the sleeping onUpdate already redraws them",

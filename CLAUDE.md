@@ -234,6 +234,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 |---|---|---|
 | YAML load with source spans | `wfb/yamlsrc.py` | no |
 | JSON Schema, reported on author lines | `wfb/validate.py` | no |
+| Format 2 → internal shape (spans and author names kept) | `wfb/lower.py` | no |
 | Semantic pass (sources, types, nulls) | `wfb/ir/` (`model.py`, `naming.py`, `builder/`), `wfb/catalog.py`, `wfb/expr.py` | no |
 | Mapping form → list form, other sugar | `wfb/desugar.py` | no |
 | Per-device layout resolve | `wfb/layout.py` | device files |

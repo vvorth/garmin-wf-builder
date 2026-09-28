@@ -376,24 +376,21 @@ def test_polygon_rejects_align_with_the_no_single_at_reason(write_design, bag):
     assert not bag.ok()
     assert len(bag.errors) == 1
     message = bag.errors[0]
-    assert "'align' is not used by 'shape: polygon'" in message.message
+    assert "'align' is not used by 'type: polygon'" in message.message
     notes = " ".join(message.notes)
     assert "every vertex is its own position" in notes
     assert "no 'at:' of its own" in notes
 
 
-def test_polygon_rejects_both_keys_as_two_separate_errors(write_design, bag):
-    """One error per key, not one per element (or per mistake bundled)."""
+def test_polygon_rejects_both_keys_as_one_error(write_design, bag):
+    """`align:` and `vertical_align:` are format 2's one `align:`: one error."""
     load(
         write_design(BASE + "elements:\n" +
                      _polygon_yaml("    align: left\n    vertical_align: top\n")),
         bag,
     )
     assert not bag.ok()
-    assert len(bag.errors) == 2
-    messages = [d.message for d in bag.errors]
-    assert any("'align' is not used by 'shape: polygon'" in m for m in messages)
-    assert any("'vertical_align' is not used by 'shape: polygon'" in m for m in messages)
+    assert [d.message for d in bag.errors] == ["'align' is not used by 'type: polygon'"]
 
 
 def _line_yaml(extra: str) -> str:
@@ -411,7 +408,7 @@ def test_line_rejects_align_with_the_two_ends_reason(write_design, bag):
     assert not bag.ok()
     assert len(bag.errors) == 1
     message = bag.errors[0]
-    assert "'align' is not used by 'shape: line'" in message.message
+    assert "'align' is not used by 'type: line'" in message.message
     assert any("two ends" in note for note in message.notes)
 
 
@@ -419,4 +416,4 @@ def test_line_rejects_vertical_align_too(write_design, bag):
     load(write_design(BASE + "elements:\n" + _line_yaml("    vertical_align: bottom\n")), bag)
     assert not bag.ok()
     assert len(bag.errors) == 1
-    assert "'vertical_align' is not used by 'shape: line'" in bag.errors[0].message
+    assert "'align' is not used by 'type: line'" in bag.errors[0].message

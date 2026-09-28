@@ -11,6 +11,16 @@ from .state import and_paths
 from .aod import AodPass
 
 
+
+def _root_name(root: Element) -> str:
+    """How a diagnostic names a static subtree's root: the `static:` block
+    (the whole face's, or a layout's) by its key, anything else by id."""
+    if root.id == "static":
+        return "the 'static:' block"
+    if root.id.startswith("layout_") and root.id.endswith("_static"):
+        return f"layout {root.id[len('layout_'):-len('_static')]!r}'s 'static:' block"
+    return repr(root.id)
+
 class StaticPass(AodPass):
     """`static:` marking and its checks."""
 
@@ -58,10 +68,10 @@ class StaticPass(AodPass):
         if element is not root and element.static:
             self.bag.error(
                 "static",
-                f"{element.id!r} declares `static: true` inside the static "
-                f"subtree of {root.id!r}",
+                f"{element.id!r} is static inside the static subtree of "
+                f"{_root_name(root)}",
                 element.span,
-                notes=[f"{root.id!r} already draws it into the same buffer",
+                notes=[f"{_root_name(root)} already draws it into the same buffer",
                        "delete the inner `static: true`"],
             )
             return
@@ -85,9 +95,9 @@ class StaticPass(AodPass):
                         f"{element.id!r} is {phrase} and cannot be static",
                         element.span,
                         notes=[note,
-                               f"take it out of {root.id!r}"
+                               f"take it out of {_root_name(root)}"
                                if element is not root else
-                               "drop `static: true` from it"],
+                               "move it out of the 'static:' block"],
                     )
                     continue
                 for expression in element.expressions():
@@ -116,14 +126,14 @@ class StaticPass(AodPass):
                     self.bag.error(
                         "static",
                         f"{element.id!r} is static and declares "
-                        "`modes: [... low_power ...]`",
+                        "'sleep_update: true'",
                         element.span,
                         notes=["onPartialUpdate is charged by clip *area*, and "
                                "the buffer is the whole screen -- one blit a "
                                "second would spend the power budget, which is "
                                "disabled permanently once exceeded",
-                               "`active` is fine -- and 'aod:' governs the AMOLED "
-                               "sleep frame independently of `modes:`"],
+                               "the once-a-minute sleeping update is fine -- and "
+                               "'aod:' governs the AMOLED sleep frame independently"],
                     )
 
     def _rank_static(self, elements: list[Element], roots: list[Element]) -> None:

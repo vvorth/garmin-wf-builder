@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 from typing import Any, TYPE_CHECKING
 
-from .. import expr
+from .. import expr, vocab
 from ..catalog import Type
 from ..ir.model import Element, Expression, Progress
 from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
@@ -50,12 +50,12 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
         return
     b.bag.error(
         "when-absent",
-        f"{element.id}: a progress fallback is a fill fraction, so it must be "
-        f"between 0.0 and 1.0 -- got {fallback.text}",
+        f"{element.id}: a gauge's 'absent: {{value:}}' is a fill fraction, so it must "
+        f"be between 0.0 and 1.0 -- got {fallback.shown}",
         b.doc.span(node, "fallback"),
         notes=[
-            "unlike a text fallback, which supplies the value and is then "
-            "formatted, a progress fallback supplies the filled proportion "
+            "unlike a text's 'absent: {value:}', which supplies the value and is "
+            "then formatted, a gauge's supplies the filled proportion "
             "directly: either the value or the max can be the absent reading, "
             "so the outcome is the only well-defined thing to substitute",
             "for 'half full' write 0.5, not the reading you would have shown",
@@ -95,9 +95,8 @@ _NEEDLE_UNREAD = {
     "thickness": "a line part's own 'thickness:' is the needle's pen width",
     "size": "a needle has no box; its extent is the disc it sweeps",
     "track_color": "a needle draws no track -- draw the dial with its own "
-                   "'style: arc' progress or a pattern",
+                   "'style: arc' gauge or a pattern",
     "align": "'at:' is the axis the needle turns about, not a box",
-    "vertical_align": "'at:' is the axis the needle turns about, not a box",
 }
 
 
@@ -107,8 +106,11 @@ def _build_needle(b: Builder, node: dict[str, Any], element: Progress) -> bool:
     part's default.  False when anything was reported."""
     ok = True
     for key, why in _NEEDLE_UNREAD.items():
+        if key == "align" and "vertical_align" in node and key not in node:
+            key = "vertical_align"  # format 2's `align: top` lowers to this
         if key in node:
-            b.bag.error("element", f"{element.id}: '{key}:' is not read by 'style: needle' -- {why}",
+            b.bag.error("element", f"{element.id}: '{vocab.key(key)}:' is not read by "
+                        f"'style: needle' -- {why}",
                         b.doc.span(node, key))
             ok = False
     color_failed = "color" in node and element.color is None
@@ -439,7 +441,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             if bound and not bound.value.type.is_numeric():
                 b.bag.error(
                     "type",
-                    f"progress {name} must be a number, got {bound.value}",
+                    f"gauge {name} must be a number, got {bound.value}",
                     b.doc.span(node, name),
                 )
         if value is not None or maximum is not None:

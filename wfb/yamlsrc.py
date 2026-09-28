@@ -14,6 +14,7 @@ loader, so the compiler and the future editor cannot disagree about the file.
 from __future__ import annotations
 
 import io
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,33 @@ from ruamel.yaml.error import MarkedYAMLError
 from .diagnostics import Bag, Span
 
 
+@dataclass(frozen=True)
+class Origin:
+    """What the author wrote where the compiler now reads one key of a
+    lowered format 2 document (`wfb.lower`): the author's own name for the
+    key, and, when lowering rewrote the value's text, the author's text and
+    where the rewritten text's offsets land in it -- so a diagnostic names
+    and quotes what is in the file."""
+
+    key: str
+    text: str | None = None
+    #: ``(rewritten offset, author offset)`` pairs, ascending: an offset into
+    #: the rewritten text maps to the author offset of the last pair at or
+    #: before it, plus the distance past that pair.
+    offsets: tuple[tuple[int, int], ...] = ()
+    #: What a diagnostic quotes for this value, when not ``text`` itself (a
+    #: template's placeholder expression, not the whole template).
+    quote: str | None = None
+
+    def author_offset(self, offset: int) -> int:
+        base_rewritten, base_author = 0, 0
+        for rewritten, author in self.offsets:
+            if rewritten > offset:
+                break
+            base_rewritten, base_author = rewritten, author
+        return base_author + (offset - base_rewritten)
+
+
 class YamlDocument:
     """A parsed YAML file plus the machinery to locate any node inside it."""
 
@@ -30,6 +58,23 @@ class YamlDocument:
         self.path = path
         self.text = text
         self.data = data
+        #: The ``format:`` the author wrote: 2 for a document `wfb.lower`
+        #: rewrote into the compiler's internal shape, 1 otherwise.
+        self.format = 1
+        self._origins: dict[tuple[int, str], Origin] = {}
+
+    # -- format 2 origins ---------------------------------------------------
+
+    def set_origin(self, node: Any, key: str, origin: Origin) -> None:
+        self._origins[(id(node), key)] = origin
+
+    def origin(self, node: Any, key: str) -> Origin | None:
+        return self._origins.get((id(node), key))
+
+    def author_key(self, node: Any, key: str) -> str:
+        """The name the author wrote for ``node[key]``."""
+        origin = self._origins.get((id(node), key))
+        return origin.key if origin is not None else key
 
     # -- span lookup ------------------------------------------------------
 

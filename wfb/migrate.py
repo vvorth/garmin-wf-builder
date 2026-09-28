@@ -998,6 +998,18 @@ def _scope(ctx: _Context, holder: CommentedMap) -> None:
                     if comment is not None:
                         elements.ca.items.setdefault(name, comment)
                         elements.ca.items.pop(name, None)
+    if moved and static is None and moved[0][0] == STATIC_ID and _is_bare_group(moved[0][1]):
+        # `- id: static, type: group, static: true, children: ...` is format
+        # 1's long spelling of the `static:` block itself: its children are
+        # the block.
+        name, group = moved.pop(0)
+        static = _to_mapping(ctx, group["children"])
+        _insert_before(holder, "elements", "static", static)
+    if any(name == STATIC_ID for name, _ in moved):
+        ctx.refuse(f"a 'static: true' element with the id {STATIC_ID!r} would collide with "
+                   "the 'static:' block it moves into", holder, "elements",
+                   f"the id {STATIC_ID!r} is the block's own; rename the element")
+        return
     if moved:
         if not isinstance(static, CommentedMap):
             if static is not None:
@@ -1016,6 +1028,16 @@ def _scope(ctx: _Context, holder: CommentedMap) -> None:
             for body in block.values():
                 if isinstance(body, CommentedMap):
                     _element(ctx, body, static_scope=in_static, root=True)
+
+
+#: The id format 1 gave the top-level `static:` block's group.
+STATIC_ID = "static"
+
+
+def _is_bare_group(body: CommentedMap) -> bool:
+    return (body.get("type") == "group"
+            and isinstance(body.get("children"), (CommentedMap, CommentedSeq))
+            and set(body) <= {"type", "children"})
 
 
 def _to_mapping(ctx: _Context, node: Any) -> Any:
@@ -1190,6 +1212,8 @@ def _shape(body: CommentedMap) -> None:
 
 def _text(ctx: _Context, body: CommentedMap) -> None:
     """``text:``/``value:``/``format:`` into one ``text:`` template."""
+    if "value" in body and "text" in body:
+        return  # format 1 already refuses both; leave them for the compiler to name
     if "value" in body:
         original = body["value"]
         expr = rewrite_refs(original)
@@ -1254,6 +1278,8 @@ def _escape(text: str, quote: str) -> str:
 
 
 def _icon(ctx: _Context, body: CommentedMap) -> None:
+    if sum(key in body for key in ("icon", "glyph", "icon_for")) > 1:
+        return  # format 1 already refuses two; leave them for the compiler to name
     if "glyph" in body:
         _rename(body, "glyph", "icon")
     elif "icon_for" in body:

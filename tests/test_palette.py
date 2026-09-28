@@ -141,7 +141,7 @@ def test_long_form_entry_may_not_reference_config(write_design, bag):
     errors = [d for d in bag.items if d.severity.value == "error"]
     assert any(d.code == "palette" for d in errors)
     note = " ".join(n for d in errors for n in d.notes)
-    assert "color: config.accent_color" in note
+    assert "color: color.accent" in note
 
 
 def test_a_rejected_long_form_palette_entry_does_not_cascade(write_design, bag):

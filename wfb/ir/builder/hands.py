@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import expr, formatting
+from ... import vocab, expr, formatting
 from ...catalog import Type
 from ...diagnostics import Span
 
@@ -117,7 +117,7 @@ class HandParts(ConfigAxes):
             if ok and all(hand is None for hand in hands.values()):
                 self.bag.error(
                     "hands",
-                    f"hands.{name}: declares none of hour, minute or second",
+                    f"hand_sets.{name}: declares none of hour, minute or second",
                     span,
                     notes=["a hand set is a shape, like a fonts: entry -- it needs at "
                            "least one hand to be worth placing",
@@ -134,7 +134,7 @@ class HandParts(ConfigAxes):
 
     def _build_hand(self, spec: dict[str, Any], set_name: str, hand_name: str) -> Hand | None:
         """One `hour:`/`minute:`/`second:` entry of a `hands:` set."""
-        where = f"hands.{set_name}.{hand_name}"
+        where = f"hand_sets.{set_name}.{hand_name}"
         hand_color, color_failed = self.owned_color(spec, where, hand=True)
         ok = not color_failed
         parts: list[AnyHandPart] = []
@@ -185,10 +185,9 @@ class HandParts(ConfigAxes):
             "hands",
             f"{where}.color: a hand colour cannot read data ({and_paths(color.sources)})",
             span or color.span,
-            notes=["allowed: palette entries, literal colours and config.* "
-                   "(accent_color, data_color, colors.<role>) -- and conditionals "
-                   "over those",
-                   "a hand has no 'when_absent:' to fall back through if the "
+            notes=["allowed: 'color.<name>' (a swatch or a role) and literal "
+                   "colours -- and conditionals over those",
+                   "a hand has no 'absent:' to fall back through if the "
                    "reading it named turned out absent"],
         )
         return True
@@ -218,7 +217,7 @@ class HandParts(ConfigAxes):
         if shape in rejected_shapes:
             self.bag.error(
                 "element",
-                f"{part_where}: 'shape: {shape}' is not accepted on a {noun} part -- "
+                f"{part_where}: 'type: {shape}' is not accepted on a {noun} part -- "
                 f"{rejected_shapes[shape]}",
                 self.doc.span(node, "shape") or span,
                 notes=["the rotatable primitives are: " + ", ".join(sorted(geometry_keys))],
@@ -291,7 +290,7 @@ class HandParts(ConfigAxes):
             self.bag.error(
                 "element",
                 f"{part_where}: 'filled: false' is not accepted on a {noun} "
-                f"'shape: {shape}' part -- Toybox.Graphics.Dc has fillPolygon "
+                f"'type: {shape}' part -- Toybox.Graphics.Dc has fillPolygon "
                 "but no drawPolygon",
                 self.doc.span(node, "filled") or span,
                 notes=(["a rectangle part becomes a polygon at build time, so "
@@ -344,7 +343,7 @@ class HandParts(ConfigAxes):
         if extra:
             self.bag.error(
                 "format",
-                f"{part_where}.format: {spec!r} follows the watch's 12/24-hour "
+                f"{part_where}.text: {spec!r} follows the watch's 12/24-hour "
                 "setting, which a pattern text part cannot read",
                 self.doc.span(node, "format"),
                 notes=["a pattern text part's strings are fixed at build time; "
@@ -368,9 +367,8 @@ class HandParts(ConfigAxes):
         if has_value == ("text" in node):  # both, or neither
             self.bag.error(
                 "pattern",
-                f"{part_where}: a text part needs exactly one of "
-                "'value:' (an expression; 'copy' is in scope) or "
-                "'text:' (a fixed string)",
+                f"{part_where}: a text part needs a 'text:' -- fixed text, or a "
+                "placeholder whose expression reads 'copy'",
                 self.doc.span(node),
             )
             ok = False
@@ -387,8 +385,8 @@ class HandParts(ConfigAxes):
                 if bad_refs:
                     self.bag.error(
                         "pattern",
-                        f"{part_where}.value: a pattern text part's value "
-                        "may read only 'copy', not " + ", ".join(bad_refs),
+                        f"{part_where}.text: a pattern text part's placeholder "
+                        "may read only 'copy', not " + ", ".join(vocab.refs(r) for r in bad_refs),
                         value.span,
                         notes=["every copy's string must be known at build "
                                "time, for font subsetting and extents",
@@ -399,7 +397,7 @@ class HandParts(ConfigAxes):
                 elif value.value.type not in (Type.NUMBER, Type.FLOAT, Type.STRING):
                     self.bag.error(
                         "pattern",
-                        f"{part_where}.value: must be a number or a "
+                        f"{part_where}.text: the placeholder must be a number or a "
                         f"string, got {value.value}",
                         value.span,
                     )
@@ -487,8 +485,8 @@ class HandParts(ConfigAxes):
         thickness_always = {"line"} if is_hand else {"line", "arc"}
         thickness_ok = shape in thickness_always or (shape == "circle" and not filled)
         if "thickness" in node and not thickness_ok:
-            reason = ("a filled 'shape: circle' part" if shape == "circle"
-                      else f"a {noun} 'shape: {shape}' part")
+            reason = ("a filled 'type: circle' part" if shape == "circle"
+                      else f"a {noun} 'type: {shape}' part")
             only = "'line'" + (" and 'arc'" if not is_hand else "")
             self.bag.error(
                 "element",
@@ -510,7 +508,7 @@ class HandParts(ConfigAxes):
                                "Toybox.Graphics.Dc has no filled-arc primitive")
             self.bag.error(
                 "element",
-                f"{part_where}: 'filled' is not used by a {noun} 'shape: {shape}' part",
+                f"{part_where}: 'filled' is not used by a {noun} 'type: {shape}' part",
                 self.doc.span(node, "filled") or self.doc.span(node),
                 notes=[filled_note],
             )

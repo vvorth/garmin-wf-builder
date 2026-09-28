@@ -5,18 +5,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import catalog, formatting
+from ... import catalog, formatting, vocab
 from ...catalog import Type
 from ...diagnostics import Span
 
 from ..model import Element, Expression, ROLE_VISIBLE
 from .reading import Readers
 
-#: Shared notes of every "can be absent, so 'when_absent:' is required" error.
+#: Shared notes of every "can be absent, so 'absent:' is required" error.
 ABSENCE_IS_NORMAL = ("every ActivityMonitor field is nullable and sensors are simply missing "
                      "on some devices, so absence is the normal case, not an error")
-_WHEN_ABSENT_CHOICES = ("choose one of: hide | placeholder (with 'placeholder:') | fallback "
-                        "(with 'fallback:')")
+_WHEN_ABSENT_CHOICES = ("choose one of: 'absent: hide', a text to draw instead "
+                        "('absent: \"--\"'), or a value to use instead "
+                        "('absent: {value: <expression>}')")
 
 
 class AbsenceChecks(Readers):
@@ -45,14 +46,14 @@ class AbsenceChecks(Readers):
             if when_absent is not None and not others_nullable:
                 self.bag.note(
                     "when-absent",
-                    f"{element.id}: 'when_absent' has no effect -- {bound.text} is never absent",
+                    f"{element.id}: 'absent:' has no effect -- {bound.shown} is never absent",
                     self.doc.span(node, "when_absent"),
                 )
             return
         if when_absent is None:
             self.bag.error(
                 "when-absent",
-                f"{element.id}: {bound.text!r} can be absent, so 'when_absent:' is required",
+                f"{element.id}: {bound.shown!r} can be absent, so 'absent:' is required",
                 self.doc.span(node, key),
                 notes=[
                     ABSENCE_IS_NORMAL,
@@ -67,9 +68,9 @@ class AbsenceChecks(Readers):
         if when_absent == "fallback" and fallback is not None and fallback.nullable:
             self.bag.error(
                 "when-absent",
-                f"{element.id}: the fallback expression can itself be absent",
+                f"{element.id}: the 'absent: {{value:}}' expression can itself be absent",
                 self.doc.span(node, "fallback"),
-                notes=["a fallback must always produce a value"],
+                notes=["the value used instead of an absent reading must always exist"],
             )
 
     def check_other_absence(self, node: dict[str, Any], element: Element, key: str,
@@ -100,14 +101,14 @@ class AbsenceChecks(Readers):
             return
         self.bag.error(
             "when-absent",
-            f"{element.id}: {key!r} reads {bound.text!r}, which can be absent, so "
-            "'when_absent:' is required",
+            f"{element.id}: {vocab.key(key)!r} reads {bound.shown!r}, which can be absent, "
+            "so 'absent:' is required",
             span if span is not None else self.doc.span(node, key),
             notes=[
                 ABSENCE_IS_NORMAL,
-                f"'when_absent:' is required once anything on this element is nullable, not "
-                f"just 'value' -- a nullable {key} always hides the element when absent, "
-                "regardless of which policy is chosen for the bound value",
+                f"'absent:' is required once anything on this element is nullable, not "
+                f"just the reading it draws -- a nullable {vocab.key(key)} always hides the "
+                "element when absent, whatever 'absent:' says for the reading",
                 _WHEN_ABSENT_CHOICES,
             ],
         )
@@ -150,16 +151,19 @@ class AbsenceChecks(Readers):
         if not value_sources <= other_sources:
             return
         shared = ", ".join(sorted(value_sources))
+        substitute = ("'absent: {value:}' value" if policy == "fallback"
+                      else "'absent:' text")
+        shown = vocab.key(key)
         self.bag.warning(
             "when-absent",
-            f"{element.id}: the {policy} can never be drawn -- {shared} is also read by "
-            f"{key}, which hides the element whenever it is absent",
+            f"{element.id}: the {substitute} can never be drawn -- {shared} is also read "
+            f"by {shown}, which hides the element whenever it is absent",
             self.doc.span(node, policy if policy == "fallback" else "placeholder")
             or self.doc.span(node, key),
             notes=[
-                f"a nullable {key} always hides the element, and that guard runs before "
-                f"the value's own {policy}",
-                f"either drop the {policy}, or stop reading {shared} from {key} so the "
+                f"a nullable {shown} always hides the element, and that guard runs before "
+                f"the reading's own {substitute}",
+                f"either drop the {substitute}, or stop reading {shared} from {shown} so the "
                 "element can still draw when the reading is missing",
             ],
             confidence="exact -- the same guard order codegen emits",
@@ -189,7 +193,8 @@ class AbsenceChecks(Readers):
                 example = "{:%a %e %b}" if bound.value.type is Type.DATE else "{:%H:%M}"
                 self.bag.error(
                     "format",
-                    f"a {bound.value.type.value} value needs a 'format:', e.g. '{example}'",
+                    f"a {bound.value.type.value} value needs a format spec in its "
+                    f"placeholder, e.g. '{{{bound.shown}{example[1:]}'",
                     self.doc.span(node, "value"),
                 )
             return
@@ -270,7 +275,7 @@ class AbsenceChecks(Readers):
             return True
         self.bag.error(
             "format",
-            f"{label}.format: 'format:' applies only to 'value:', not a fixed 'text:'",
+            f"{label}: a format spec needs a placeholder to format -- this text is fixed",
             self.doc.span(node, "format"),
         )
         return False

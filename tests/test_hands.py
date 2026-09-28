@@ -134,7 +134,7 @@ hands:
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
-    assert f"'shape: {shape}'" in bad[0].message
+    assert f"'type: {shape}'" in bad[0].message
     assert reason in bad[0].message
 
 
@@ -151,7 +151,7 @@ hands:
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
-    assert "'radius' is not used by a hand 'shape: polygon' part" in bad[0].message
+    assert "'radius' is not used by a hand 'type: polygon' part" in bad[0].message
 
 
 def test_anchor_in_a_part_position_is_always_an_error(write_design, bag):
@@ -306,7 +306,7 @@ def test_low_power_mode_is_rejected_on_hands(write_design, bag):
 """
     bad = errors(design(CLASSIC, elements), bag, write_design)
     assert len(bad) == 1
-    assert "low_power" in bad[0].message
+    assert "sleep_update" in bad[0].message
 
 
 @pytest.mark.parametrize("elements", [
@@ -333,9 +333,9 @@ def test_static_hands_is_rejected_directly_and_nested(write_design, bag, element
 
 @pytest.mark.parametrize("part,message", [
     ("{shape: polygon, filled: false, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
-     "not accepted on a hand 'shape: polygon' part"),
+     "not accepted on a hand 'type: polygon' part"),
     ("{shape: rectangle, filled: false, at: {dy: 0}, size: {width: 4%r, height: 4%r}}",
-     "not accepted on a hand 'shape: rectangle' part"),
+     "not accepted on a hand 'type: rectangle' part"),
 ])
 def test_filled_false_is_rejected_on_polygon_and_rectangle(write_design, bag, part, message):
     hands = f"""
@@ -362,7 +362,7 @@ hands:
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
-    assert "'thickness' is not used by a filled 'shape: circle' part" in bad[0].message
+    assert "'thickness' is not used by a filled 'type: circle' part" in bad[0].message
 
 
 def test_filled_is_rejected_on_a_line_part(write_design, bag):
@@ -376,7 +376,7 @@ hands:
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
-    assert "'filled' is not used by a hand 'shape: line' part" in bad[0].message
+    assert "'filled' is not used by a hand 'type: line' part" in bad[0].message
 
 
 def test_the_old_analog_clock_hint_now_points_at_type_hands(write_design, bag):

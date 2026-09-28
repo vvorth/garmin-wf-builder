@@ -8,7 +8,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, Final, Literal
 
-from ... import icons
+from ... import icons, vocab
 from ...diagnostics import Span
 
 from ..model import Curve, Element, MAX_OUTLINE_WIDTH, Outline
@@ -66,20 +66,31 @@ class GlyphHelpers(AbsenceChecks):
         Returns whether every key present belonged to `chosen`'s own row.
         """
         ok = True
+        # Named the way the author writes them (`wfb.vocab`): a shape or a
+        # part is a `type:`, and two internal keys can be one author key
+        # (`align:` is both `align` and `vertical_align`), reported once.
+        label = vocab.key(disc)
+        text_part = chosen == "text"
+        reported: set[str] = set()
         for key in sorted(all_keys - table[chosen]):
             if key not in node:
                 continue
-            owners = sorted(s for s, keys in table.items() if key in keys)
+            author = vocab.key(key, text_value=True)
+            if author in reported or author in vocab.keys(table[chosen], text_value=text_part):
+                continue
+            reported.add(author)
+            owners = sorted({vocab.kind(s) for s, keys in table.items() if key in keys})
             notes = [
-                f"'{disc}: {chosen}' reads: "
-                + (", ".join(sorted(table[chosen])) or empty_label),
-                f"{key!r} belongs to " + " and ".join(f"'{disc}: {s}'" for s in owners),
+                f"'{label}: {vocab.kind(chosen)}' reads: "
+                + (", ".join(vocab.keys(table[chosen], text_value=text_part)) or empty_label),
+                f"{author!r} belongs to " + " and ".join(f"'{label}: {s}'" for s in owners),
             ]
             if extra_notes is not None:
                 notes.extend(extra_notes(key))
             self.bag.error(
                 code,
-                f"{prefix}{key!r} is not used by {qualifier}'{disc}: {chosen}'{suffix}",
+                f"{prefix}{author!r} is not used by {qualifier}'{label}: "
+                f"{vocab.kind(chosen)}'{suffix}",
                 self.doc.span(node, key) or self.doc.span(node),
                 notes=notes,
             )
@@ -227,8 +238,8 @@ class GlyphHelpers(AbsenceChecks):
         if vertical_align == "bottom" and style == "angled":
             self.bag.error(
                 "text-curve",
-                f"{label}: 'vertical_align: bottom' is not accepted under "
-                "'curve: {style: angled}'",
+                f"{label}: a bottom alignment ('align: bottom', 'bottom_left', ...) is "
+                "not accepted under 'curve: {style: angled}'",
                 self.doc.span(node, "vertical_align") or span,
                 notes=[
                     "an upright text's 'bottom' is implemented by subtracting the "
@@ -236,8 +247,8 @@ class GlyphHelpers(AbsenceChecks):
                     "baseline is rotated that subtraction no longer points along "
                     "the text's own vertical axis, so the ink would land somewhere "
                     "this compiler cannot predict",
-                    "use 'top' or 'center' instead ('curve: {style: radial}' "
-                    "accepts all three)",
+                    "align it to the top or the centre instead ('curve: {style: "
+                    "radial}' accepts all three)",
                 ],
             )
         return Curve(style=style, angle=angle, radius=radius, direction=direction)
@@ -256,14 +267,14 @@ class GlyphHelpers(AbsenceChecks):
             return
         self.bag.error(
             "text-curve",
-            f"{label}: 'if_unavailable:' is not accepted here",
+            f"{label}: 'unsupported:' is not accepted here",
             self.doc.span(node, "if_unavailable"),
             notes=[
-                "'if_unavailable:' governs a device-resident 'face:' font "
+                "'unsupported:' governs a device-resident 'face:' font "
                 "failing to publish a face on some target device -- nothing "
-                "about a baked or system font can ever be unavailable",
+                "about a baked or system font can ever be unsupported",
                 *([font_note] if font_note is not None else []),
-                "drop 'if_unavailable:', or point 'font:' at a 'face:' font",
+                "drop 'unsupported:', or point 'font:' at a 'face:' font",
             ],
         )
 
@@ -284,8 +295,8 @@ class GlyphHelpers(AbsenceChecks):
                 span,
                 notes=[
                     "the catalogue has: " + ", ".join(icons.names()),
-                    "for a glyph the catalogue does not name, write "
-                    "'glyph: \"U+XXXX\"' instead -- see wfb/assets/icons/README.md",
+                    "for a glyph the catalogue does not name, write its codepoint, "
+                    "'icon: \"U+XXXX\"' -- see wfb/assets/icons/README.md",
                 ],
             )
         return codepoint
@@ -306,10 +317,10 @@ class GlyphHelpers(AbsenceChecks):
         if character is None:
             self.bag.error(
                 "icon",
-                f"glyph must be a codepoint written 'U+XXXX', not {raw!r}",
+                f"an icon codepoint is written 'U+XXXX', not {raw!r}",
                 span,
-                notes=["e.g. glyph: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
-                       "to use a name from the built-in catalogue, write 'icon:' instead"],
+                notes=["e.g. icon: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
+                       "or name an icon from the built-in catalogue"],
             )
             return None
         if not icons.font_has(character):

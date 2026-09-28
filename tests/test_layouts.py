@@ -629,7 +629,7 @@ elements:
         "expected exactly the one real error, got: "
         + "; ".join(f"{d.code}: {d.message}" for d in errors))
     assert "config.style.choices.bare" in errors[0].message
-    assert "needs at least one of 'layout:'/'colors:'" in errors[0].message
+    assert "needs at least one of 'layout:'/'scheme:'" in errors[0].message
 
 
 def test_colors_all_or_none_still_holds_with_layouts(write_design):
@@ -676,7 +676,7 @@ elements:
         "expected exactly the one real error, got: "
         + "; ".join(f"{d.code}: {d.message}" for d in errors))
     assert "config.style.choices.analog" in errors[0].message
-    assert "'colors:' must be declared on every entry, or none" in " ".join(errors[0].notes)
+    assert "'scheme:' must be declared on every entry, or none" in " ".join(errors[0].notes)
 
 
 def test_layouts_with_no_config_style_is_an_error(write_design):

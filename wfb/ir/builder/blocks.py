@@ -72,7 +72,7 @@ against."""
             if isinstance(element, ComplicationSlot) and element.layout is not None:
                 self.bag.error(
                     "layouts",
-                    f"{element.id!r}: a complication_slot may not be inside "
+                    f"{element.id!r}: a 'type: data' element may not be inside "
                     f"layout {element.layout!r} content",
                     element.span,
                     notes=[
@@ -135,10 +135,10 @@ against."""
                     f"palette entry {name!r} refers to {raw_value!r}",
                     value_span,
                     notes=[
-                        "palette entries must be literal colours in this format version",
-                        "reference a config entry directly from 'color:'/'track_color:' "
-                        "instead -- e.g. 'color: config.accent_color' -- rather than "
-                        "through a palette entry",
+                        "palette entries must be literal colours",
+                        "name the role directly from 'color:'/'track_color:' instead -- "
+                        "e.g. 'color: color.accent' -- rather than through a palette "
+                        "entry",
                     ],
                 )
                 self.palette.reject(name)
@@ -234,14 +234,14 @@ against."""
                 continue
             self.bag.error(
                 "color-scheme",
-                f"color_scheme.{name}: missing role(s) "
-                f"{', '.join(sorted(missing))} -- every color_scheme entry "
-                "must declare the same roles",
+                f"theme.schemes.{name}: missing role(s) "
+                f"{', '.join(sorted(missing))} -- every scheme must declare the "
+                "same roles",
                 self.color_scheme[name].span,
                 notes=[
-                    f"color_scheme.{name} declares: "
+                    f"theme.schemes.{name} declares: "
                     + (", ".join(sorted(colors)) or "(none)"),
-                    "otherwise 'config.colors.<role>' would be undefined "
+                    "otherwise 'color.<role>' would be undefined "
                     "whenever the wearer picks the scheme that lacks it",
                 ],
             )
@@ -268,7 +268,7 @@ against."""
         scheme = self.color_scheme.resolve(
             self.bag, name, span, code="config",
             message=f"unknown color scheme {name!r}",
-            note="declared color_scheme entries",
+            note="declared schemes (theme: schemes:)",
         )
         return name if scheme is not None else None
 

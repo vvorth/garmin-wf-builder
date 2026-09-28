@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
+from .. import vocab
 from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
 from ..preview import arc_span
@@ -77,7 +78,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
             and bool(node.get("filled", True)):
         b.bag.error(
             "element",
-            f"'thickness' is not used by a filled 'shape: {shape}'",
+            f"'thickness' is not used by a filled 'type: {vocab.kind(shape)}'",
             b.doc.span(node, "thickness") or b.doc.span(node),
             notes=["thickness is the pen width of an outline; a filled shape has "
                    "no outline to draw",
@@ -187,14 +188,14 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 # here would promise a solid sector the platform cannot draw.
                 b.bag.error(
                     "element",
-                    "'filled' is not accepted on 'shape: arc' -- Connect IQ has no "
+                    "'filled' is not accepted on 'type: arc' -- Connect IQ has no "
                     "filled-arc primitive",
                     b.doc.span(node, "filled") or b.doc.span(node),
                     notes=["there is no fillArc, fillSector or drawSector in "
                            "Toybox.Graphics.Dc: an arc is setPenWidth + drawArc and "
                            "nothing else, so 'thickness' is its only weight control",
-                           "for a solid disc use 'shape: circle'; for a solid wedge, "
-                           "approximate it with 'shape: polygon'"],
+                           "for a solid disc use 'type: circle'; for a solid wedge, "
+                           "approximate it with 'type: polygon'"],
                 )
         if shape == "ellipse" and (element.size.width is None or element.size.height is None):
             b.require(node, "size", "an ellipse needs size.width and size.height")
@@ -208,10 +209,10 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 # drawLine calls, which is a different element, not this one.
                 b.bag.error(
                     "element",
-                    "'filled: false' is not accepted on 'shape: polygon' -- "
+                    "'filled: false' is not accepted on 'type: polygon' -- "
                     "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
                     b.doc.span(node, "filled") or b.doc.span(node),
-                    notes=["for an outline, draw the edges as 'shape: line' "
+                    notes=["for an outline, draw the edges as 'type: line' "
                            "elements, which is what a drawPolygon would have "
                            "compiled to anyway"],
                 )
@@ -303,9 +304,9 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if key == "filled" and shape == "polygon":
             return (
                 "aod",
-                "'aod: {filled: ...}' is not accepted on 'shape: polygon' -- "
+                "'aod: {filled: ...}' is not accepted on 'type: polygon' -- "
                 "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
-                ["for an outline, draw the edges as separate 'shape: line' "
+                ["for an outline, draw the edges as separate 'type: line' "
                  "elements, and override those instead"],
             )
         return None

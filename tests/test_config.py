@@ -151,7 +151,7 @@ def test_a_palette_entry_may_not_reference_config(write_design):
     errors = _errors(text, write_design)
     assert any(d.code == "palette" for d in errors)
     note = " ".join(n for d in errors for n in d.notes)
-    assert "color: config.accent_color" in note
+    assert "color: color.accent" in note
 
 
 def test_config_colour_is_an_ordinary_unfoldable_colour_binding(write_design, bag):
@@ -661,8 +661,8 @@ def test_wfb_sources_lists_config_axes():
     with redirect_stdout(buf):
         _sources(_Args())
     out = buf.getvalue()
-    assert "config.accent_color" in out
-    assert "config.data_color" in out
+    assert "color.accent" in out
+    assert "color.data" in out
 
 
 # -- the real toolchain ---------------------------------------------------------

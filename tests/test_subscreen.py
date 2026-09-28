@@ -124,7 +124,7 @@ def test_a_target_without_a_window_is_an_error_by_default(write_design, db):
     errors = [d for d in bag.items if d.code == "subscreen" and d.severity.value == "error"]
     assert sorted(d.message.split(":", 1)[0] for d in errors) == ["pack", "ring"]
     assert all(ROUND in d.message and INSTINCT not in d.message for d in errors)
-    assert "if_unavailable: hide" in " ".join(errors[0].notes)
+    assert "unsupported: hide" in " ".join(errors[0].notes)
 
 
 def test_hide_is_a_note_and_hides_the_subtree_there(write_design, db):
@@ -234,7 +234,7 @@ def test_subscreen_is_a_top_level_at_only(write_design):
 
 def test_if_unavailable_needs_something_that_can_be_unavailable(write_design):
     shape = _text(None).replace("      - id: dot", "      - id: dot\n        if_unavailable: hide")
-    assert any("dot: 'if_unavailable:' is not accepted here" in m
+    assert any("dot: 'unsupported:' is not accepted here" in m
                for m in _errors(write_design, shape))
     # A system-font text anchored to the window may say it; unanchored, not.
     anchored = _text(None).replace("    at: {anchor: center, dy: 10%}",
@@ -242,7 +242,7 @@ def test_if_unavailable_needs_something_that_can_be_unavailable(write_design):
     assert _errors(write_design, anchored) == []
     loose = _text(None).replace("    at: {anchor: center, dy: 10%}",
                                 "    at: {anchor: center}\n    if_unavailable: hide")
-    assert any("'if_unavailable:' is not accepted here" in m for m in _errors(write_design, loose))
+    assert any("'unsupported:' is not accepted here" in m for m in _errors(write_design, loose))
 
 
 # -- the real compiler -------------------------------------------------------------

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from ... import kinds
+from ... import kinds, vocab
 
 from ..model import AodOverride, Element, Outline, Shape, Text
 from .state import _lint_suppression
@@ -232,9 +232,10 @@ class AodPass(HandParts):
                 code,
                 f"{element.id}: {what}, inherited from group {group.id!r}",
                 element.span,
-                notes=[f"group {group.id!r} sets 'aod: {{{key}: ...}}' ({where}) for every "
-                       f"element below it", *notes,
-                       f"move the group's '{key}' onto the elements that can take it"],
+                notes=[f"group {group.id!r} sets 'aod: {{{vocab.key(key)}: ...}}' ({where}) "
+                       "for every element below it", *notes,
+                       f"move the group's '{vocab.key(key)}' onto the elements that can "
+                       "take it"],
             )
             del inherited[key]
 

@@ -275,7 +275,7 @@ def test_low_power_inside_a_static_subtree_is_an_error(write_design):
                               "    color: palette.fg\n    modes: [active, low_power]\nelements:")
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
-    assert "low_power" in errors[0].message
+    assert "sleep_update" in errors[0].message
     assert "charged by clip *area*" in " ".join(errors[0].notes)
 
 
@@ -293,7 +293,7 @@ def test_a_nested_static_names_the_outer_one(write_design):
                               "    color: palette.fg\n    static: true\nelements:")
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
-    assert "inside the static subtree of 'static'" in errors[0].message
+    assert "inside the static subtree of the 'static:' block" in errors[0].message
 
 
 def test_static_content_is_hoisted_rather_than_rejected(write_design, bag, db):

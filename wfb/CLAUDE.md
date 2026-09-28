@@ -3,6 +3,10 @@
 Loaded automatically when working under `wfb/`. The pipeline stage table is
 in the root `CLAUDE.md` §6.
 
+- `wfb/lower.py` rewrites a format 2 document into the internal shape the
+  builder reads (older key names), recording each key's author name as a
+  `yamlsrc.Origin`; a diagnostic names what the author wrote through
+  `wfb/vocab.py` and `Expression.shown`, never the internal name.
 - `wfb/desugar.py` rewrites every alternative spelling (the mapping form of
   `elements:`, the top-level `static:` block) into one form **before** anything
   else runs. New sugar belongs there, gated by a byte-identical-output test.

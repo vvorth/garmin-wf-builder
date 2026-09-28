@@ -275,7 +275,7 @@ elements:
     assert any(d.code == "icon" for d in bag.errors)
     notes = " ".join(n for d in bag.errors for n in d.notes)
     assert "heart" in notes  # the catalogue is listed
-    assert "glyph:" in notes  # and the escape hatch for a name it does not have
+    assert "icon: \"U+XXXX\"" in notes  # and the escape hatch for a name it does not have
 
 
 def test_percent_size_is_rejected_with_an_explanation(write_design, bag):

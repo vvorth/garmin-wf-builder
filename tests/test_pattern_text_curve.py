@@ -164,7 +164,7 @@ def test_vertical_align_bottom_rejected_under_curve(write_design, bag):
     face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
-    assert any("vertical_align: bottom" in e.message for e in errors), bag.render()
+    assert any("a bottom alignment" in e.message for e in errors), bag.render()
 
 
 def test_vertical_align_bottom_accepted_under_radial_curve(write_design, bag):
@@ -193,7 +193,7 @@ def test_if_unavailable_requires_a_face_font_on_a_pattern_part(write_design, bag
     face = load(write_design(_design(baked, elements)), bag)
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
-    assert any("'if_unavailable:' is not accepted" in e.message for e in errors), bag.render()
+    assert any("'unsupported:' is not accepted" in e.message for e in errors), bag.render()
 
 
 def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_design, bag):

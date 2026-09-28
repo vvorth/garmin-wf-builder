@@ -36,6 +36,9 @@ from .yamlsrc import YamlDocument
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"
 SCHEMA_PATH = SCHEMA_DIR / "wfb-face-1.schema.json"
+SCHEMA_V2_PATH = SCHEMA_DIR / "wfb-face-2.schema.json"
+#: The schema each ``format:`` is checked against.
+SCHEMA_PATHS = {1: SCHEMA_PATH, 2: SCHEMA_V2_PATH}
 
 
 @lru_cache(maxsize=None)
@@ -75,16 +78,20 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
         return False
 
     before = len(bag.errors)
+    version = _format(doc)
 
     # An unknown element `type:` makes every oneOf branch fail for the same
     # uninformative reason, so it is caught first and named directly.
     bad_types = (
         _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
-        + _check_pattern_frame(doc, bag) + _check_baseline_renamed(doc, bag)
-        + _check_hands_pattern_alignment(doc, bag) + _check_modes_always_on(doc, bag)
+        + _check_pattern_frame(doc, bag) + _check_hands_pattern_alignment(doc, bag)
     )
+    if version == 1:
+        bad_types += _check_baseline_renamed(doc, bag) + _check_modes_always_on(doc, bag)
+    else:
+        bad_types += _check_reserved(doc, bag)
 
-    validator = Draft202012Validator(load_schema())
+    validator = Draft202012Validator(load_schema(SCHEMA_PATHS[version]))
     errors = sorted(validator.iter_errors(doc.data), key=lambda e: list(e.absolute_path))
     for error in errors:
         # Checked per *narrowed* (leaf) error, not the raw one straight out of
@@ -105,17 +112,24 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
             # without also hiding an unrelated mistake on the same element),
             # so its one schema error is narrowed here instead.
             kept = _drop_pivot_alignment_keys(narrowed)
+            if kept is not None and version == 2:
+                kept = _drop_reserved_keys(kept, bad_types)
             if kept is None:
                 continue
-            _report(doc, bag, kept)
+            _report(doc, bag, kept, version)
     return len(bag.errors) == before
 
 
-def _element_types_from_schema() -> tuple[str, ...]:
-    """The element types this format version understands, read from the
+def _format(doc: YamlDocument) -> int:
+    """The document's ``format:``, already known to be a supported one."""
+    return 2 if isinstance(doc.data, dict) and doc.data.get("format") == 2 else 1
+
+
+def _element_types_from_schema(path: Path = SCHEMA_PATH) -> tuple[str, ...]:
+    """The element types a format version understands, read from the
     schema's own discriminated `element` `oneOf`, in the order it lists
     them -- rather than a second, hand-kept copy of the same list."""
-    defs = load_schema()["$defs"]
+    defs = load_schema(path)["$defs"]
     out = []
     for ref in defs["element"]["oneOf"]:
         name = ref["$ref"].rsplit("/", 1)[-1]
@@ -123,7 +137,10 @@ def _element_types_from_schema() -> tuple[str, ...]:
     return tuple(out)
 
 
+#: The internal element kinds (`wfb.kinds`), which format 1 names directly.
 ELEMENT_TYPES = _element_types_from_schema()
+#: Each format's element types.
+ELEMENT_TYPES_BY_FORMAT = {1: ELEMENT_TYPES, 2: _element_types_from_schema(SCHEMA_V2_PATH)}
 
 #: Names authors reach for that belong to a discriminated pair, or to another
 #: format entirely.  Mapping them beats listing the five valid types and leaving
@@ -155,6 +172,29 @@ ELEMENT_ALIASES: dict[str, str] = {
     "analog_clock": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
 }
 
+#: Format 2's version of :data:`ELEMENT_ALIASES`.
+ELEMENT_ALIASES_V2: dict[str, str] = {
+    "shape": "type: rectangle      # or circle, line, arc, ellipse, polygon",
+    "rounded_rectangle": "type: rectangle\n    corner_radius: 3%r",
+    "triangle": "type: polygon",
+    "progress": "type: gauge",
+    "ring": "type: gauge\n    style: arc",
+    "bar": "type: gauge\n    style: bar",
+    "progress_bar": "type: gauge\n    style: bar",
+    "complication_slot": "type: data",
+    "complication": "type: data",
+    "slot": "type: data",
+    "label": "type: text",
+    "string": "type: text",
+    "digital_clock": "type: text\n    text: \"{time.clock:%H:%M}\"",
+    "clock": "type: text\n    text: \"{time.clock:%H:%M}\"",
+    "time": "type: text\n    text: \"{time.clock:%H:%M}\"",
+    "hand": "type: hands\n    set: <name>      # a name declared under 'resources: hand_sets:'",
+    "analog": "type: hands\n    set: <name>      # a name declared under 'resources: hand_sets:'",
+    "analog_clock": "type: hands\n    set: <name>      # a name declared under "
+                    "'resources: hand_sets:'",
+}
+
 #: Element types this format does not have *yet*, so the message can say so
 #: rather than implying the author misspelled something.
 ELEMENT_NOT_YET = {
@@ -165,20 +205,38 @@ ELEMENT_NOT_YET = {
 
 
 def _visit_elements(doc: YamlDocument, visit: Callable[[dict[str, Any], list[str | int]], bool | None]) -> None:
-    """Call ``visit(element, path)`` for every element mapping under
-    ``elements:``, recursing into each one's ``children:`` unless ``visit``
-    returns ``True``.  ``path`` is the jsonschema-style path to the element."""
+    """Call ``visit(element, path)`` for every element mapping in the
+    document, recursing into each one's ``children:`` unless ``visit``
+    returns ``True``.  ``path`` is the jsonschema-style path to the element.
+    Format 1's (desugared) ``elements:`` is a list; format 2's element
+    blocks -- ``static:``, ``elements:`` and each layout's -- are mappings
+    keyed by id."""
     def walk(elements: object, path: list[str | int]) -> None:
-        if not isinstance(elements, list):
+        if isinstance(elements, list):
+            items: Iterable[tuple[str | int, object]] = enumerate(elements)
+        elif isinstance(elements, dict) and _format(doc) == 2:
+            items = elements.items()
+        else:
             return
-        for index, element in enumerate(elements):
+        for index, element in items:
             if not isinstance(element, dict):
                 continue
             here = path + [index]
             if not visit(element, here):
                 walk(element.get("children"), here + ["children"])
 
-    walk(doc.data.get("elements"), ["elements"])
+    data = doc.data
+    if _format(doc) == 1:
+        walk(data.get("elements"), ["elements"])
+        return
+    for block in ("static", "elements"):
+        walk(data.get(block), [block])
+    layouts = data.get("layouts")
+    if isinstance(layouts, dict):
+        for name, body in layouts.items():
+            if isinstance(body, dict):
+                for block in ("static", "elements"):
+                    walk(body.get(block), ["layouts", name, block])
 
 
 def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
@@ -188,21 +246,25 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     accounted for."""
     bad: list[list[str | int]] = []
 
+    version = _format(doc)
+    types = ELEMENT_TYPES_BY_FORMAT[version]
+    aliases = ELEMENT_ALIASES if version == 1 else ELEMENT_ALIASES_V2
+
     def visit(element: dict[str, Any], here: list[str | int]) -> bool:
         if (_check_progress_style_keys(doc, bag, element)
                 or _check_hands_seconds_always(doc, bag, element)):
             bad.append(here)
             return True
         kind = element.get("type")
-        if isinstance(kind, str) and kind not in ELEMENT_TYPES:
+        if isinstance(kind, str) and kind not in types:
             notes = []
-            alias = ELEMENT_ALIASES.get(kind)
+            alias = aliases.get(kind)
             pending = ELEMENT_NOT_YET.get(kind)
             if alias:
                 notes.append(f"write it as:\n    {alias}")
             elif pending:
                 notes.append(pending)
-            notes.append("this format version has: " + ", ".join(ELEMENT_TYPES))
+            notes.append("this format version has: " + ", ".join(types))
             bag.error(
                 "schema",
                 f"unknown element type {kind!r}",
@@ -234,9 +296,9 @@ _PROGRESS_STYLE_SHAPES = {
 
 
 def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, Any]) -> bool:
-    """Catch a `progress` whose keys belong to another style.  True when
-    it reported an error for this element."""
-    if element.get("type") != "progress":
+    """Catch a gauge whose keys belong to another style.  True when it
+    reported an error for this element."""
+    if element.get("type") not in ("progress", "gauge"):
         return False
     style = element.get("style")
     # `segments`/`scale` take either an arc's keys or a bar's, so no key of
@@ -257,7 +319,7 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, A
     candidates = list(dict.fromkeys(others[key] for key in wrong))
     bag.error(
         "schema",
-        f"this progress element is 'style: {style}' but carries "
+        f"this {element['type']} element is 'style: {style}' but carries "
         f"{'/'.join(candidates)}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
         doc.span(element, "style"),
         notes=[
@@ -267,6 +329,92 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, A
         ],
     )
     return True
+
+
+#: Format 2 keys whose vocabulary is fixed but which are not built yet
+#: (plan 22 §5): where each may appear, and what the error says.
+_RESERVED_ELEMENT_KEYS = {
+    "effects": "'effects:' (a drop shadow and the like) is reserved and not implemented yet",
+    "use": "components ('use:'/'with:', declared under 'resources: components:') are "
+           "reserved and not implemented yet",
+    "with": "components ('use:'/'with:', declared under 'resources: components:') are "
+            "reserved and not implemented yet",
+}
+_RESERVED_DATA_KEYS = {
+    key: "a data element's own parts ('parts:', 'arrange:', 'requires:', 'fallback:') "
+         "are reserved and not implemented yet"
+    for key in ("parts", "arrange", "requires", "fallback")
+}
+_RESERVED_NOTE = "docs/limitations.md, \"Not implemented yet\""
+
+
+def _check_reserved(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
+    """Format 2's reserved vocabulary (plan 22 §5): each key is a friendly
+    "not implemented yet" error, never a generic unknown key.  Returns the
+    paths accounted for; a reserved key inside an object is also stripped
+    from that object's own unknown-key error (`_drop_reserved_keys`)."""
+    bad: list[list[str | int]] = []
+
+    def report(container: dict[str, Any], key: str, message: str,
+               path: list[str | int], *notes: str) -> None:
+        bag.error("reserved", f"{_dotted(path)}: {message}", doc.span(container, key, of="key"),
+                  notes=[*notes, _RESERVED_NOTE])
+        bad.append(path)
+
+    resources = doc.data.get("resources")
+    if isinstance(resources, dict) and "components" in resources:
+        report(resources, "components", "components are reserved and not implemented yet",
+               ["resources", "components"])
+
+    def rule_list(value: object) -> bool:
+        return (isinstance(value, list) and bool(value)
+                and all(isinstance(item, dict) and ("when" in item or "else" in item)
+                        for item in value))
+
+    def parts(element: dict[str, Any], key: str, here: list[str | int], *,
+              pattern: bool) -> None:
+        items = element.get(key)
+        if not isinstance(items, list):
+            return
+        for index, part in enumerate(items):
+            if not isinstance(part, dict) or "outline" not in part:
+                continue
+            if pattern and part.get("type") == "text":
+                continue
+            report(part, "outline", "'outline:' on a hand, needle or pattern part other "
+                   "than text is reserved and not implemented yet",
+                   here + [key, index, "outline"],
+                   "a text part of a pattern takes 'outline:' today")
+
+    def visit(element: dict[str, Any], here: list[str | int]) -> None:
+        for key, message in _RESERVED_ELEMENT_KEYS.items():
+            if key in element:
+                report(element, key, message, here + [key])
+        if element.get("type") == "data":
+            for key, message in _RESERVED_DATA_KEYS.items():
+                if key in element:
+                    report(element, key, message, here + [key])
+        for key, value in element.items():
+            if rule_list(value):
+                report(element, key, "'when:' rule lists are reserved and not "
+                       "implemented yet", here + [key],
+                       "for now, write the choice as one expression: "
+                       "\"cond ? a : b\"")
+        if element.get("type") == "gauge":
+            parts(element, "needle", here, pattern=False)
+        if element.get("type") == "pattern":
+            parts(element, "parts", here, pattern=True)
+
+    _visit_elements(doc, visit)
+    sets = resources.get("hand_sets") if isinstance(resources, dict) else None
+    if isinstance(sets, dict):
+        for set_name, spec in sets.items():
+            if isinstance(spec, dict):
+                for hand_name, hand in spec.items():
+                    if isinstance(hand, dict):
+                        parts(hand, "parts", ["resources", "hand_sets", set_name, hand_name],
+                              pattern=False)
+    return bad
 
 
 def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict[str, Any]) -> bool:
@@ -483,9 +631,15 @@ def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict[str, Any], path: l
 
 
 def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
-    """`_check_frame_part` over every part of every top-level `hands:` set."""
+    """`_check_frame_part` over every part of every declared hand set."""
     bad: list[list[str | int]] = []
-    sets = doc.data.get("hands")
+    where: list[str | int]
+    if _format(doc) == 1:
+        sets, where = doc.data.get("hands"), ["hands"]
+    else:
+        resources = doc.data.get("resources")
+        sets = resources.get("hand_sets") if isinstance(resources, dict) else None
+        where = ["resources", "hand_sets"]
     if not isinstance(sets, dict):
         return bad
     for set_name, spec in sets.items():
@@ -497,7 +651,7 @@ def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
                 continue
             for index, part in _parts(hand):
                 bad += _check_frame_part(doc, bag, part,
-                                         ["hands", set_name, hand_name, "parts", index],
+                                         where + [set_name, hand_name, "parts", index],
                                          _HAND_FRAME)
     return bad
 
@@ -612,6 +766,27 @@ def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None
     # The same wording `jsonschema` itself uses (verified against the
     # installed version), so `_humanise`'s `.replace("Additional properties
     # are not allowed", "unknown key")` still fires on it unchanged.
+    error.message = f"Additional properties are not allowed ({joined} {verb} unexpected)"
+    return error
+
+
+def _drop_reserved_keys(error: ValidationError, reported: list[list[str | int]],
+                        ) -> ValidationError | None:
+    """Strip the keys `_check_reserved` already explained from an unknown-key
+    error on the object holding them; ``None`` when they were all it had."""
+    if error.validator != "additionalProperties":
+        return error
+    here = list(error.absolute_path)
+    explained = {path[-1] for path in reported
+                 if len(path) == len(here) + 1 and path[:-1] == here}
+    offending = set(_unexpected_keys(error))
+    remaining = sorted(offending - explained)
+    if len(remaining) == len(offending):
+        return error
+    if not remaining:
+        return None
+    joined = ", ".join(f"{k!r}" for k in remaining)
+    verb = "was" if len(remaining) == 1 else "were"
     error.message = f"Additional properties are not allowed ({joined} {verb} unexpected)"
     return error
 
@@ -745,17 +920,52 @@ def _merge_alternatives(error: ValidationError) -> ValidationError:
     return error
 
 
-def _report(doc: YamlDocument, bag: Bag, error: ValidationError) -> None:
+def _report(doc: YamlDocument, bag: Bag, error: ValidationError, version: int = 1) -> None:
     path = list(error.absolute_path)
     unexpected = _unexpected_keys(error) if error.validator == "additionalProperties" else []
     # An unknown key is pointed at itself, not at the mapping's first key.
     span = (doc.span(error.instance, unexpected[0], of="key") if unexpected else None) \
         or doc.span_for_path(path)
-    message, notes = _humanise(error)
+    message, notes = _humanise(error, version)
     bag.error("schema", f"{_dotted(path)}: {message}" if path else message, span, notes=notes)
 
 
-def _humanise(error: ValidationError) -> tuple[str, list[str]]:
+#: A format 1 key an author may still type into a format 2 file, and how
+#: format 2 writes it.
+FORMAT_1_KEYS = {
+    "targets": "'build: {targets: [...]}'",
+    "fonts": "'resources: {fonts: ...}'",
+    "palette": "'resources: {palette: ...}'",
+    "hands": "'set:' on a 'type: hands' element, and 'resources: {hand_sets: ...}' "
+             "at the top level",
+    "color_scheme": "'theme: {schemes: ...}'",
+    "antialias": "'defaults: {antialias: ...}' at the top level",
+    "min_1px": "'defaults: {min_1px: ...}' at the top level",
+    "default": "'defaults: {aod: hide|show}'",
+    "data": "'config: {slots: ...}'",
+    "colors": "'scheme:'",
+    "when_absent": "'absent:' -- 'hide', a placeholder string, or {value: <expression>}",
+    "placeholder": "'absent: \"--\"'",
+    "fallback": "'absent: {value: <expression>}'",
+    "vertical_align": "one 'align:', e.g. 'align: top_left'",
+    "if_unavailable": "'unsupported:'",
+    "modes": "'sleep_update: true' (for [active, low_power]; [active] is the default)",
+    "static": "a 'static:' block -- move the element into it",
+    "value": "one 'text:' template, e.g. 'text: \"{time.hour:02d}\"' (on a gauge, "
+             "'value:' is still the reading)",
+    "format": "one 'text:' template, e.g. 'text: \"{activity.steps:d}\"'",
+    "glyph": "'icon: \"U+XXXX\"'",
+    "icon_for": "'icon: {for: <expression>}'",
+    "icon_size": "'icon: {size: ...}'",
+    "icon_position": "'icon: {position: ...}'",
+    "icon_gap": "'icon: {gap: ...}'",
+    "icon_color": "'icon: {color: ...}'",
+    "shape": "'type: <shape>' (type: rectangle, circle, line, ...)",
+    "id": "the element's key: elements are a mapping of id -> element",
+}
+
+
+def _humanise(error: ValidationError, version: int = 1) -> tuple[str, list[str]]:
     """Turn jsonschema's wording into something an author can act on."""
     notes: list[str] = []
     description = _schema_of(error).get("description")
@@ -786,6 +996,11 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
                 "    at: {anchor: center, dy: -18%}\n"
                 "    size: {width: 60%, height: 12%}"
             )
+        if version == 2:
+            for key in _unexpected_keys(error):
+                if key in FORMAT_1_KEYS:
+                    notes.append(f"'{key}:' is format 1; format 2 writes {FORMAT_1_KEYS[key]} "
+                                 "-- 'wfb migrate' rewrites a whole file")
         notes.append(
             "unknown keys are an error, not a warning -- a misspelled key is how a "
             "design silently loses an element (ADR 0009)"

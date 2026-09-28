@@ -180,7 +180,7 @@ def test_pattern_outline_color_nullable_without_when_absent_is_an_error(write_de
     assert errors, bag.render()
     # the pattern's own message, naming the element, not a per-key one
     assert "ring" in errors[0].message
-    assert "when_absent: hide" in errors[0].message
+    assert "absent: hide" in errors[0].message
 
 
 def test_pattern_outline_color_nullable_with_when_absent_hide_builds_clean(write_design, bag, minimal):

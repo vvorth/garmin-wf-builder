@@ -12,4 +12,4 @@ toolchain (everything up to and including codegen) stay testable in CI.
 __version__ = "0.1.0"
 
 #: The document ``format:`` majors this compiler accepts (ADR 0009).
-SUPPORTED_FORMATS = (1,)
+SUPPORTED_FORMATS = (1, 2)

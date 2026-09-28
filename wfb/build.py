@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import desugar, lint, validate, yamlsrc
+from . import desugar, lint, lower, validate, yamlsrc
 from .devices import Device, DeviceDatabase, DeviceError, version_key
 from .diagnostics import Bag
 from .emit import GeneratedProject, generate
@@ -72,6 +72,17 @@ def load(path: Path, bag: Bag) -> Face | None:
     doc = yamlsrc.load(path, bag)
     if doc is None:
         return None
+    if isinstance(doc.data, dict) and doc.data.get("format") == 2:
+        # Format 2 is checked against its own schema on the author's lines,
+        # then lowered into the internal shape everything after this reads
+        # (`wfb/lower.py`), then desugared like any other document.
+        if not validate.validate(doc, bag):
+            return None
+        if not lower.lower(doc, bag):
+            return None
+        if not desugar.desugar(doc, bag):
+            return None
+        return build_ir(doc, bag)
     # Stage 0.5: the author's conveniences become the one shape the schema, the
     # IR and codegen know about.  Runs before validation so the schema never has
     # to describe two spellings of the same thing (`wfb/desugar.py`).

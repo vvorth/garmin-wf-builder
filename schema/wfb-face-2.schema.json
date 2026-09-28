@@ -1,0 +1,2991 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/garmin-wf-builder/schema/wfb-face-2.schema.json",
+  "title": "Garmin watch face (wfb format 2)",
+  "description": "The normative definition of the wfb authoring format. Point a YAML language server at this file to get autocomplete and inline validation while authoring.",
+  "type": "object",
+  "required": [
+    "format",
+    "face",
+    "build"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "description": "Format major version. The compiler refuses a version it does not understand rather than parsing it partially (ADR 0009); a format 1 file is rewritten once with 'wfb migrate'.",
+      "const": 2
+    },
+    "face": {
+      "$ref": "#/$defs/face"
+    },
+    "build": {
+      "$ref": "#/$defs/build"
+    },
+    "defaults": {
+      "$ref": "#/$defs/defaults"
+    },
+    "aod": {
+      "$ref": "#/$defs/faceAod"
+    },
+    "resources": {
+      "$ref": "#/$defs/resources"
+    },
+    "theme": {
+      "$ref": "#/$defs/theme"
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "static": {
+      "description": "Elements that never change, drawn once into an offscreen buffer and blitted every frame, under everything else. Nothing in it may read a data source.",
+      "$ref": "#/$defs/elementMapping"
+    },
+    "elements": {
+      "description": "The elements drawn every frame, above 'static:'.",
+      "$ref": "#/$defs/elementMapping"
+    },
+    "layouts": {
+      "description": "Named widget sets the wearer switches between on-device (docs/guide/styles-and-layouts.md). Each entry has its own 'static:'/'elements:', drawn above the shared ones while it is active. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'type: data' element may not appear inside one (the Data axis is face-wide).",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/layout"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "face": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The Connect IQ application UUID. Generate once and keep it stable; changing it makes the watch treat the face as a different app.",
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "default": "1.0.0"
+        },
+        "entry": {
+          "description": "Monkey C entry class name. Derived from the face name when omitted.",
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "hexColor": {
+      "description": "A literal colour, '#RRGGBB' or '#RGB'. Not a palette/config reference -- used where a build-time literal is required, such as a 'config:' entry's own 'default:' and 'choices:'.",
+      "type": "string",
+      "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "expression": {
+      "description": "An expression over data sources, palette entries and literals. A bare number is accepted for the common case of a literal bound (max: 10000) and needs no quoting.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "number"
+        }
+      ]
+    },
+    "colorExpression": {
+      "description": "A palette reference, a literal colour, or an expression yielding one.",
+      "type": "string",
+      "minLength": 1
+    },
+    "bakedFont": {
+      "description": "A custom bitmap font, baked from a TrueType/OpenType source at build time.",
+      "type": "object",
+      "required": [
+        "source",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Path to a TrueType/OpenType file, relative to the design file.",
+          "type": "string"
+        },
+        "size": {
+          "$ref": "#/$defs/length",
+          "description": "The em size to rasterise this font at, per device. px or %r only -- a sheet is baked before any element is placed, so there is no parent box for % and no font in scope for pt; the compiler reports the other two against your own line. '%r' scales with each device's own screen; 'px' is the same pixel count everywhere."
+        },
+        "glyphs": {
+          "description": "The characters to bake. Omit to let the compiler derive the set from every string the design can render.",
+          "type": "string"
+        },
+        "antialias": {
+          "description": "Bitmap fonts default to 1-bit to save runtime RAM. Anti-aliasing costs memory (SDK: Resources, Fonts).",
+          "type": "boolean",
+          "default": false
+        },
+        "monospace": {
+          "description": "Bake every glyph at one shared advance, the widest the set needs. A digital clock in a proportional face shifts as its digits change ('1' is narrower than '0'); one cell width stops that. Works on a proportional source as well as a monospaced one -- the cell is measured from the glyphs actually baked.",
+          "type": "boolean",
+          "default": false
+        },
+        "align": {
+          "description": "Where a glyph's ink sits inside its cell. Only meaningful with monospace: true, and an error without it.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "default": "center"
+        },
+        "unsupported": {
+          "description": "Vector-font key. A build error here: a baked font is rasterised from your own 'source:' at build time, so it is never unsupported on any device.",
+          "enum": [
+            "error",
+            "hide"
+          ]
+        }
+      }
+    },
+    "vectorFont": {
+      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference (docs/research/12-vector-fonts.md \u00a73.2) -- and nothing can add a face to that list, so an author's own typeface can never be one. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
+      "type": "object",
+      "required": [
+        "face",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "glyphs": {
+          "description": "Baked-font key. A build error here: a vector font is never rasterised to a sheet, so there is no glyph set to restrict.",
+          "type": "string"
+        },
+        "antialias": {
+          "description": "Baked-font key. A build error here: there is no bitmap sheet for anti-aliasing to apply to.",
+          "type": "boolean"
+        },
+        "monospace": {
+          "description": "Baked-font key. A build error here: there is no baked cell for a glyph's advance to be fixed to.",
+          "type": "boolean"
+        },
+        "align": {
+          "description": "Baked-font key. A build error here: with no baked cell (see 'monospace:'), there is nowhere for a glyph's ink to sit inside it.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "face": {
+          "description": "The device-resident face name(s) to ask Graphics.getVectorFont for, tried in the order given -- a string for one, or an array for several acceptable alternatives. Resolved per target device at build time to the single face that device actually publishes; ':face' is then emitted as that one resolved string, never the array. Garmin's own runtime array fallback is deliberately not used here: it would pick a face at draw time, so the build could not say which one renders, or measure the layout box against it. A device that publishes none of the listed faces fails this font's availability gates -- governed by 'unsupported:'.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/length",
+          "description": "The pixel height to draw this face at, per device. px or %r only, the same rule a baked font's 'size:' follows -- but unlike a baked font, nothing is rasterised at this size at build time: Graphics.getVectorFont takes it directly, in pixels, at draw time, so one face serves any number of sizes with no extra sheets."
+        },
+        "unsupported": {
+          "description": "What to do on a target device that fails to publish any of the listed 'face:' names, or lacks Graphics.getVectorFont entirely. 'error' (the default) fails the build, naming the device, the face(s) asked for, and the faces that device does publish -- a missing clock is not a cosmetic problem. 'hide' lets every element using this font simply not draw on that one device; every other device is unaffected. This is a build-time guarantee only: Graphics.getVectorFont can still return null at runtime even when every build-time gate passed (the platform offers no other way to fail), and the generated code always null-checks regardless of this setting -- there is no way to promise a live face never goes missing, only that it was published at build time. An element using this font may override this outright with its own 'unsupported:'.",
+          "enum": [
+            "error",
+            "hide"
+          ],
+          "default": "error"
+        }
+      }
+    },
+    "font": {
+      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time (plan 11) -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/bakedFont"
+        },
+        {
+          "$ref": "#/$defs/vectorFont"
+        }
+      ]
+    },
+    "curve": {
+      "description": "Bends a 'text' element's content along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText. Both calls refuse a resource font outright ('These APIs only support scalable fonts and do not support custom fonts loaded as resources', SDK Core Topics: Graphics, Scalable Fonts) -- so the element's 'font:' must name a 'face:' (vector) 'fonts:' entry; a baked or system font under 'curve:' is a build error quoting that same sentence.",
+      "type": "object",
+      "required": [
+        "style",
+        "angle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "'angled' draws the text along one straight line through 'at:', tilted by 'angle:'. 'radial' sweeps it around a circle -- 'at:' is then the CENTRE OF THE CIRCLE, not a point the text passes through, and 'radius:' is the circle's own radius. 'radius:'/'direction:' are rejected on 'angled': there is no circle for either to describe.",
+          "enum": [
+            "angled",
+            "radial"
+          ]
+        },
+        "angle": {
+          "$ref": "#/$defs/angle",
+          "description": "Not one convention -- 'angled' and 'radial' use 'angle:' for genuinely different kinds of quantity, despite sharing units ('deg'/'rad'/'turn'). For 'style: radial', a POSITION: where around the circle the text starts, in this format's universal 12 o'clock = 0, clockwise-positive direction convention -- the same one every other angle in the format uses (arc/hand/pattern start angles); the compiler converts to Garmin's 3-o'clock/counter-clockwise one. For 'style: angled', a ROTATION: how far the text's own baseline is tilted away from level, clockwise positive, where '0deg' means unrotated (level text) rather than 'pointing at 12 o'clock' -- deliberately a different zero from every direction angle in the format, because conflating the two made the common cases (a level bezel numeral, a gently tilted ribbon) need '90deg' while '0deg', which reads like 'no rotation', stood the text on end."
+        },
+        "radius": {
+          "$ref": "#/$defs/length",
+          "description": "'radial' only: the circle's own radius, the same unit rules 'at:'/'radius:' already use elsewhere. Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled' -- parsed here rather than turned away as an unknown key, so the compiler can name the actual mistake (an angled line has no circle for it to describe) instead of jsonschema's generic message, the same 'text-antialias' precedent 'wfb.ir.builder' already follows."
+        },
+        "direction": {
+          "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
+          "enum": [
+            "clockwise",
+            "counter_clockwise"
+          ],
+          "default": "clockwise"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "radial"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "radius"
+            ]
+          }
+        }
+      ]
+    },
+    "outline": {
+      "description": "The stamped-ring outline (research 13/14, plan 15): draws the text N times at small pixel offsets in this colour, then once more, unshifted, in the element's own 'color:' -- the fill pass every text element already has. 'none' (the default) draws no ring at all, byte-identical to today. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",
+      "oneOf": [
+        {
+          "const": "none"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/colorExpression"
+            },
+            {
+              "not": {
+                "const": "none"
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit (docs/guide/patterns.md). Capped at 3 -- a build error above that, not a schema bound, so the message can cite research 14's own numbers (D6, plan 15 \u00a713). Never %/%r: the ring is a fixed visual stroke weight, the same way Garmin's own engine strokes at a fixed 2.0px regardless of device (research 13 \u00a72.1)."
+            }
+          }
+        }
+      ]
+    },
+    "length": {
+      "description": "px (device pixels), % (of the parent box on the axis being resolved), %r (of the screen's minor radius), or pt (multiples of the element's font pixel height). A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px|pt)?\\s*$"
+        }
+      ]
+    },
+    "angle": {
+      "description": "Degrees, 12 o'clock = 0, clockwise positive. Converted to Garmin's drawArc convention by the compiler.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(deg|rad|turn)?\\s*$"
+        }
+      ]
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "$ref": "#/$defs/length"
+        },
+        "height": {
+          "$ref": "#/$defs/length"
+        }
+      }
+    },
+    "visible": {
+      "description": "Draw this element only while this expression is true. It must type as a boolean -- use a comparison ('activity.steps > 0'), 'and'/'or'/'not', or a '?:' whose branches are booleans; there is no truthiness rule, so a bare Number is an error. Absent means hidden: if the condition reads a source the device cannot supply, the element is not drawn. There is deliberately no 'absent:' for visibility -- 'absent:' picks a substitute *value*, and there is no substitute for existence. On a 'group' this gates the whole subtree: the condition is conjoined into every element beneath it. A hidden element still occupies its box for the geometry, overlap and safe-area checks, and still owns its 'on_hold:' region -- see docs/limitations.md.",
+      "type": "string"
+    },
+    "lint": {
+      "type": "object",
+      "required": [
+        "allow",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "reason": {
+          "description": "Required. A suppression without a stated reason is how linters get disabled wholesale.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "handPosition": {
+      "description": "A position within a hand's own frame, measured from the axis -- there is no anchor, because the axis already is one. Cartesian (dx/dy) or polar (angle/radius, clockwise from 12 o'clock), px or %r only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dx": {
+          "$ref": "#/$defs/handLength"
+        },
+        "dy": {
+          "$ref": "#/$defs/handLength"
+        },
+        "angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        }
+      },
+      "dependentRequired": {
+        "angle": [
+          "radius"
+        ],
+        "radius": [
+          "angle"
+        ]
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "dx",
+              "angle"
+            ]
+          },
+          {
+            "required": [
+              "dy",
+              "angle"
+            ]
+          }
+        ]
+      }
+    },
+    "handSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "$ref": "#/$defs/handLength"
+        },
+        "height": {
+          "$ref": "#/$defs/handLength"
+        }
+      }
+    },
+    "handLength": {
+      "description": "px or %r only -- a hand's own frame has no parent box for % and no font in scope for pt. %r is the screen's minor radius, so a hand scales between screens the same way the dial does. A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|px)?\\s*$"
+        }
+      ]
+    },
+    "patternCurve": {
+      "description": "curve: on a pattern's own 'type: text' part -- the same bend a 'text' element's own 'curve:' gives it, through the same Dc.drawAngledText/Dc.drawRadialText, with one difference: 'angle:' is in the TEMPLATE'S OWN LOCAL FRAME, for copy 0. A radial pattern turns every later copy's angle right along with its anchor -- the same way a pattern 'type: arc' part's own 'start_angle:' already turns with the copy -- so an author writes one angle per part (e.g. 0deg, tangent to the copy's own radius), not one per copy; a linear pattern never turns, so every copy simply keeps this angle unchanged. Otherwise identical to the 'curve' definition: 'style:' is the required discriminator ('angled'/'radial'), 'radius:'/'direction:' are rejected on 'angled'. The one real difference from '#/$defs/curve' is 'radius:', which is a handLength here (px or %r only) rather than a length -- a pattern part has no parent box for '%' and no font in scope for 'pt' in this position, the same restriction every other pattern-part length already carries.",
+      "type": "object",
+      "required": [
+        "style",
+        "angle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "'angled' draws this copy's own text along one straight line through its own anchor, tilted by 'angle:'. 'radial' sweeps it around a circle centred on that same anchor -- 'radius:' is the circle's own radius. 'radius:'/'direction:' are rejected on 'angled': there is no circle for either to describe.",
+          "enum": [
+            "angled",
+            "radial"
+          ]
+        },
+        "angle": {
+          "$ref": "#/$defs/angle",
+          "description": "In this part's own local (copy-0) frame -- a radial pattern composes it with the copy's own rotation, the same way an 'arc' part's 'start_angle:' composes with 'start:'/'step:'. Not one convention, the same split '#/$defs/curve's own 'angle:' makes: for 'style: radial', a POSITION (12 o'clock = 0, clockwise positive -- where around the circle the text starts). For 'style: angled', a ROTATION ('0deg' = level/unrotated, clockwise positive -- how far the text's own baseline is tilted). A radial PATTERN with an 'angled' text part composing '0deg' with each copy's own rotation is what makes one 'angle: 0deg' sit tangent to every copy's own radius and read level at the top of the dial, without the author writing one angle per copy."
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength",
+          "description": "'radial' only: the circle's own radius, px or %r only (a pattern part's frame has no parent box for '%' and no font in scope for 'pt'). Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent 'wfb.ir.builder' already follows elsewhere."
+        },
+        "direction": {
+          "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
+          "enum": [
+            "clockwise",
+            "counter_clockwise"
+          ],
+          "default": "clockwise"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "radial"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "radius"
+            ]
+          }
+        }
+      ]
+    },
+    "patternStep": {
+      "description": "The offset between consecutive copies of a linear pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical (docs/plans/05-patterns.md D4).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dx": {
+          "$ref": "#/$defs/patternLength"
+        },
+        "dy": {
+          "$ref": "#/$defs/patternLength"
+        }
+      }
+    },
+    "patternLength": {
+      "description": "px, % (of the parent box on the axis being resolved) or %r (of the screen's minor radius) -- not pt: a linear pattern's step has no font in scope to measure against. A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px)?\\s*$"
+        }
+      ]
+    },
+    "zOrder": {
+      "type": "integer"
+    },
+    "onHold": {
+      "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's placeholder or an icon's 'for:', a gauge's 'value:' -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one. On a 'data' element, only 'auto' is accepted (a fixed name is an error naming why) -- it opens whichever glance the wearer's own *current* pick belongs to, resolved on-device on every hold rather than to a fixed name at build time.",
+      "type": "string"
+    },
+    "antialias": {
+      "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On a primitive (rectangle, circle, line, arc, ellipse, polygon), 'gauge', 'graph', 'hands' and 'pattern' this flags the element's own Dc primitive drawing (for 'hands', every hand of the set; for 'pattern', every copy); on 'icon' and 'data' it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'resources: fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
+      "type": "boolean"
+    },
+    "min_1px": {
+      "description": "Override the face-wide 'min_1px:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'min_1px:' still wins outright over its group's. Clamps a nonzero '%'/'%r' size (width/height), thickness, 'bar_width:' or this element's own radius up to at least 1 px instead of letting it round away to nothing, sign preserved -- never a position, 'corner_radius:', a 'px'/'pt' length or an author-written exact 0. Not accepted on 'text', 'icon' or 'data': a font size already floors at 1 px on its own path, with no switch to set. See 'defaults: min_1px:' for the full rule, and the suppressible 'sub-pixel-length' lint it enables while this is off.",
+      "type": "boolean"
+    },
+    "overrides": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "configStyle": {
+      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list (plan 02 \u00a74.1, \u00a712.4). Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
+      "type": "object",
+      "required": [
+        "default",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "description": "The entry (a 'choices:' key) compiled into the view as the starting styleId, and the only entry a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must be one of 'choices:'.",
+          "$ref": "#/$defs/identifier"
+        },
+        "choices": {
+          "description": "The editor's Styles picklist, an ordered mapping of entry name -> entry -- editor order, and the order '<style id=\"N\">' numbers entries from (index 0 first). There is no 'any' here, unlike the two colour axes: Styles has no equivalent of the editor's own unrestricted picker.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/styleEntry"
+          }
+        }
+      }
+    },
+    "styleEntry": {
+      "description": "One 'config: style:' entry: at least one of 'layout:'/'scheme:', plus an optional 'label:' and 'lint:' (docs/guide/styles-and-layouts.md). Not every scheme suits every layout, so each entry is one explicit (layout, scheme) pair.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "Shown in the editor's Styles list. Optional -- an entry with no label and only 'scheme:' (no 'layout:') falls back to that scheme's own 'label:'; every other entry with no 'label:' of its own gets no label attribute.",
+          "type": "string",
+          "minLength": 1
+        },
+        "layout": {
+          "description": "Names a declared 'layouts:' entry by its bare name (e.g. 'layout: digital'). Required on every entry once 'layouts:' is declared, and rejected when it is not -- an entry showing only shared content in a design that has layouts would be a silent blank-looking face.",
+          "$ref": "#/$defs/identifier"
+        },
+        "scheme": {
+          "description": "Names a declared 'theme: schemes:' entry by its bare name (e.g. 'scheme: dark'). Every entry in one 'choices:' must carry 'scheme:', or none may.",
+          "$ref": "#/$defs/identifier"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        }
+      }
+    },
+    "align": {
+      "description": "Which point of this element's placement box sits at the point 'at:' resolves to: one of the nine anchor names 'anchor:' uses, or a compass alias -- N, NE, E, SE, S, SW, W, NW for top, top_right, right, bottom_right, bottom, bottom_left, left, top_left (uppercase only; 'center' has none). 'top_left' puts the box's top-left corner on the point, so the box grows down and to the right (docs/guide/placement.md). A YAML 1.1 tool reads a bare N as false: quote it (\"N\") there; wfb's own loader is YAML 1.2.",
+      "enum": [
+        "top_left",
+        "top",
+        "top_right",
+        "left",
+        "center",
+        "right",
+        "bottom_left",
+        "bottom",
+        "bottom_right",
+        "N",
+        "NE",
+        "E",
+        "SE",
+        "S",
+        "SW",
+        "W",
+        "NW"
+      ],
+      "default": "center"
+    },
+    "sleepUpdate": {
+      "description": "Also redraw this element every second while a MIP watch sleeps (onPartialUpdate), not only in the once-a-minute sleeping update every element gets. Default false. A build error on an AMOLED target, which forbids onPartialUpdate (use 'aod:' there), and inside a 'static:' block, which is painted once. On a 'group' it covers the whole subtree.",
+      "type": "boolean",
+      "default": false
+    },
+    "unsupported": {
+      "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies. Distinct from 'absent:', which is about a reading that is null at runtime.",
+      "enum": [
+        "error",
+        "hide"
+      ]
+    },
+    "colorRef": {
+      "description": "A reference to a declared colour: 'color.<name>', a role (a key of every 'theme: schemes:' entry's 'colors:', or the role a 'config:' colour axis binds) or else a 'resources: palette:' swatch.",
+      "type": "string",
+      "pattern": "^color\\.[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "swatchColor": {
+      "description": "A build-time colour: a literal '#RRGGBB'/'#RGB', or 'color.<name>' naming a palette swatch (never a role -- a role has no single value at build time).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/hexColor"
+        },
+        {
+          "$ref": "#/$defs/colorRef"
+        }
+      ]
+    },
+    "paletteEntry": {
+      "description": "Long form of a 'resources: palette:' entry: an explicit colour plus a human-readable label. The label is otherwise inert -- it surfaces only when this swatch is named as 'color.<name>' in a 'config:' colour axis's 'default:'/'choices:', where it becomes the editor's label for that choice.",
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "description": "The swatch's colour -- a literal '#RRGGBB'/'#RGB'.",
+          "$ref": "#/$defs/hexColor"
+        },
+        "label": {
+          "description": "Shown in the editor's picker when this entry is used as a 'config:' choice. Optional -- an entry with no label used as a choice produces an unlabelled '<color>', same as omitting 'label:' on an inline choice.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "color": {
+      "description": "A literal colour.",
+      "$ref": "#/$defs/hexColor"
+    },
+    "configColor": {
+      "description": "One native colour axis: a compiled-in default, plus either the editor's full colour picker ('any') or an explicit, orderable list of choices. It binds a colour role, 'color.accent' for 'accent_color' and 'color.data' for 'data_color', unless 'role:' names another. Every declared colour is checked against the target's palette rule: 'palette-dither' on a 64-colour panel, 'palette-mono' on a 2-colour one.",
+      "type": "object",
+      "required": [
+        "default",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "description": "Compiled into the view as the starting value, and the only value a device with neither the native editor nor the settings menu ever shows. A literal colour or a 'color.<swatch>' -- either way it must also appear (by colour value) in 'choices:' when 'choices:' is an explicit list.",
+          "$ref": "#/$defs/swatchColor"
+        },
+        "choices": {
+          "description": "'any' hands the wearer the editor's own full colour picker (allowAny=\"true\", no listed colours, no string resources needed). An explicit list becomes the editor's picklist; 'default:' must be one of the listed colours in that case, since Garmin defines no behaviour for a default that is not in the list.",
+          "oneOf": [
+            {
+              "const": "any"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/configChoice"
+              }
+            }
+          ]
+        },
+        "role": {
+          "description": "The role this axis binds, read as 'color.<role>'. Default 'accent' for 'accent_color' and 'data' for 'data_color'. A role name may not also be a scheme role or a palette swatch.",
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "configChoice": {
+      "description": "One entry in an explicit 'choices:' list -- a 'color.<swatch>' (contributing that swatch's colour and, if it has one, its label) or an inline {color, label}.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/colorRef"
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/hexColor"
+            },
+            "label": {
+              "description": "Shown in the editor's picker. Optional -- an unlabelled colour is legal (the SDK's own sample has one) and becomes a '<color>' with no label attribute.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "scheme": {
+      "description": "One 'theme: schemes:' entry: an optional editor label plus a role -> colour mapping. Every scheme in a design must declare the identical set of roles.",
+      "type": "object",
+      "required": [
+        "colors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "Shown in the editor's Styles list. Optional -- a scheme with none produces a '<style>' with no label attribute.",
+          "type": "string",
+          "minLength": 1
+        },
+        "colors": {
+          "description": "Role name -> colour, a literal '#RRGGBB'/'#RGB' or a 'color.<swatch>'. A role is read as 'color.<role>' and follows the active style's scheme.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/swatchColor"
+          }
+        }
+      }
+    },
+    "complicationName": {
+      "description": "A Garmin complication type by its bare name, e.g. 'steps' (run 'wfb complications' for the list) -- the same names 'on_hold:' takes.",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "slot": {
+      "description": "One 'config: slots:' entry: a compiled-in default complication type plus either the editor's full complication picker ('any') or an explicit, orderable list of choices. Drawn by a 'type: data' element naming this slot.",
+      "type": "object",
+      "required": [
+        "default",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "The slot's title in the generated settings menu on a watch without the native editor (fr955). Optional -- a slot with none is titled from its name ('top_left' shows as 'Top left'). The native editor has no slot titles: Garmin's '<complication>' resource takes no label (resources.xsd, complicationWatchfaceType), so this reaches the menu only.",
+          "type": "string",
+          "minLength": 1
+        },
+        "default": {
+          "description": "Compiled into the view as the starting type, and the only type a device with neither the native editor nor the settings menu ever shows. Must also appear in 'choices:' when 'choices:' is an explicit list.",
+          "$ref": "#/$defs/complicationName"
+        },
+        "choices": {
+          "description": "'any' hands the wearer the editor's own unrestricted complication picker (every native complication type has a catalogue icon). An explicit list becomes the editor's picklist; 'default:' must be one of the listed types.",
+          "oneOf": [
+            {
+              "const": "any"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/slotChoice"
+              },
+              "uniqueItems": true
+            }
+          ]
+        }
+      }
+    },
+    "slotChoice": {
+      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, a codepoint 'U+XXXX' in the vendored icon font, or 'none' to draw no icon for this choice). A type listed twice, in either shape, is an error.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/complicationName"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/complicationName"
+            },
+            "icon": {
+              "description": "A catalogue icon name, a codepoint 'U+XXXX' in the vendored icon font, or 'none'.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "defaults": {
+      "description": "Face-wide defaults every element inherits unless it (or an enclosing group) says otherwise.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "antialias": {
+          "description": "Face-wide default for anti-aliasing. Defaults to false, matching the platform's own default -- a crisp 1-bit bitmap font, and non-anti-aliased Dc primitives (a guarded 'dc has :setAntiAlias' call around a primitive, gauge, graph, hands or pattern element's own drawing). Every font, icon and primitive-drawing element inherits this unless it declares its own 'antialias:' (a group's own value becomes the default for its subtree in turn, so only the nearest enclosing declaration matters). Anti-aliasing a font costs runtime RAM the resource compiler does not report anywhere the build can measure (SDK: Resources, Fonts); anti-aliasing a primitive, gauge, graph, hands or pattern element on a 64-colour panel (every currently supported target) dithers its soft edge, reported by the suppressible 'antialias-dither' lint -- turn it on only where the softer edge is worth either cost.",
+          "type": "boolean",
+          "default": false
+        },
+        "min_1px": {
+          "description": "Face-wide default for whether a nonzero relative ('%'/'%r') size, thickness, 'bar_width:' or an element/part's own radius clamps up to at least 1 px instead of rounding away to nothing (sign preserved) -- the same hairline that draws as 1 px on one screen can otherwise round to 0 on another. Defaults to false: a face that never writes 'min_1px:' compiles to byte-identical output. Every group, primitive, 'gauge', 'graph', 'hands', 'pattern' element and hand/pattern part inherits this unless it declares its own 'min_1px:' (a group's own value becomes the default for its whole subtree in turn, and a hand/pattern part's own value wins outright over its element's) -- nearest declaration wins at every level, overriding either way, exactly the shape 'antialias:' uses. Only a size (width/height), thickness, 'bar_width:' or an element/part's own radius is affected -- never a position ('at:', 'to:', a polygon's points, a linear pattern's 'step:'), 'corner_radius:', a 'px'/'pt' length or an author-written exact 0. Not accepted on 'text', 'icon' or 'data': a font size (including an icon's 'size:' and a data element's 'icon: {size:}') already floors at 1 px on its own path (no switch needed). Whenever this is off and a relative length would have been clamped, the suppressible 'sub-pixel-length' lint reports it.",
+          "type": "boolean",
+          "default": false
+        },
+        "aod": {
+          "description": "Whether an element with no 'aod:' anywhere in its own ancestry draws in the always-on-display frame. 'hide' (the default) is safe: an unconverted design lights nothing extra. Not sticky: one element's own 'aod: show' still applies under a default of 'hide'.",
+          "enum": [
+            "hide",
+            "show"
+          ],
+          "default": "hide"
+        }
+      }
+    },
+    "faceAod": {
+      "description": "The face-wide always-on-display (AOD) frame settings, for an AMOLED target (docs/guide/always-on-display.md). Which elements draw there is 'defaults: aod:' and each element's own 'aod:'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dim": {
+          "description": "Scale the luminance of every colour the AOD frame draws (docs/plans/14-aod.md \u00a74.5): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon: {color:}' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "mask": {
+          "description": "A moving 2x2 pixel mask over the whole AOD frame (docs/plans/16-aod-pixel-mask.md): one pixel in each on-screen 2x2 tile stays lit, the other three are forced black, and which pixel of the tile is lit moves to a 4-neighbour once a minute (phase = minute mod 4). On (the default) unless set to false. No pixel is lit for two consecutive minutes and every pixel is lit at most one minute in four, cutting lit-pixel count and luminance to about a quarter of the unmasked frame. Stacks with 'dim:'.",
+          "type": "boolean",
+          "default": true
+        },
+        "lint": {
+          "description": "Suppress a face-level AOD lint (currently only 'aod-empty') -- there is no single element to hang an ordinary 'lint: {allow: [...]}' on for a face-wide check.",
+          "$ref": "#/$defs/lint"
+        }
+      }
+    },
+    "build": {
+      "description": "How to build: which devices by default.",
+      "type": "object",
+      "required": [
+        "targets"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "description": "Device ids to build for by default. Must be installed Connect IQ device definitions. The CLI's -d/--device replaces this set, and may name devices not listed here.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "resources": {
+      "description": "Declarations elements refer to by name: fonts ('font.<name>'), palette swatches ('color.<name>') and analog hand sets ('set: <name>').",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fonts": {
+          "description": "Custom fonts: a bitmap font baked from a TrueType source at build time, or a device-resident scalable face. Referenced as 'font.<name>'.",
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/font"
+          }
+        },
+        "palette": {
+          "description": "Named colours, referenced as 'color.<name>'. Each entry is either a colour directly or {value, label}; the label names the swatch in the editor when a 'config:' colour axis offers it.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/color"
+              },
+              {
+                "$ref": "#/$defs/paletteEntry"
+              }
+            ]
+          }
+        },
+        "hand_sets": {
+          "description": "Named analog-hand sets: hour/minute/second, each a list of primitives drawn pointing at 12 o'clock in a frame whose origin is the axis. Placed on screen by a 'type: hands' element naming one with 'set:'.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/handSet"
+          }
+        }
+      }
+    },
+    "theme": {
+      "description": "Colour schemes the wearer picks through a 'config: style:' entry.",
+      "type": "object",
+      "required": [
+        "schemes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemes": {
+          "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'scheme:'. Every scheme must declare the identical set of roles, or 'color.<role>' would be undefined under some style.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/scheme"
+          }
+        }
+      }
+    },
+    "config": {
+      "description": "What the wearer can change on the watch, in the native editor (API 5.1.0) or, on a watch without it, the generated settings menu: two colour axes (each binding a colour role, 'color.accent'/'color.data'), the Styles axis ('style:', pairing a layout and a scheme per entry) and the Data axis ('slots:').",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "accent_color": {
+          "description": "The one native accent-colour axis. Binds the role 'color.accent' (or its 'role:').",
+          "$ref": "#/$defs/configColor"
+        },
+        "data_color": {
+          "description": "The one native data-colour axis. Binds the role 'color.data' (or its 'role:').",
+          "$ref": "#/$defs/configColor"
+        },
+        "style": {
+          "description": "The Styles axis: an ordered list of author-named entries, each naming a declared 'layouts:' entry as 'layout:', a 'theme: schemes:' entry as 'scheme:', or both.",
+          "$ref": "#/$defs/configStyle"
+        },
+        "slots": {
+          "description": "The Data axis: named native complication slots. Each entry's 'default:'/'choices:' name complication types (see 'wfb complications'). Drawn by a 'type: data' element naming the slot with 'slot:'.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/slot"
+          }
+        }
+      }
+    },
+    "elementMapping": {
+      "description": "Elements, as a mapping whose key is the element id. Draw order is document order unless 'z:' is given.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/element"
+      }
+    },
+    "layout": {
+      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/guide/styles-and-layouts.md). A 'type: data' element may not appear in either -- the Data axis is face-wide, so a data element belongs in the shared 'elements:'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "static": {
+          "description": "This layout's own fixed furniture, drawn once into the shared static buffer while this layout is active, after the design's shared static content.",
+          "$ref": "#/$defs/elementMapping"
+        },
+        "elements": {
+          "description": "This layout's own elements, drawn every frame while this layout is active, above the design's shared elements.",
+          "$ref": "#/$defs/elementMapping"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        }
+      }
+    },
+    "aodText": {
+      "description": "'aod:' on a 'text' element: 'hide' | 'show' | an override block reusing its own 'color:'/'font:'/'text:'/'outline:', plus 'visible:'. An empty block means 'show'. 'outline:' replaces the awake ring whole: 'none' drops it in AOD; a colour or '{color, width}' draws that ring instead.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "font": {
+              "type": "string"
+            },
+            "text": {
+              "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
+              "type": "string"
+            },
+            "outline": {
+              "$ref": "#/$defs/outline"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodShape": {
+      "description": "'aod:' on a primitive (rectangle, circle, line, arc, ellipse, polygon): 'hide' | 'show' | an override block reusing its own 'color:'/'thickness:'/'filled:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "filled": {
+              "type": "boolean"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodGauge": {
+      "description": "'aod:' on a 'gauge': 'hide' | 'show' | an override block reusing its own 'color:'/'track_color:'/'thickness:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "track_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodIcon": {
+      "description": "'aod:' on an 'icon': 'hide' | 'show' | an override block reusing its own 'color:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodGraph": {
+      "description": "'aod:' on a 'graph': 'hide' | 'show' | an override block reusing its own 'color:'/'thickness:'/'bar_width:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "bar_width": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodData": {
+      "description": "'aod:' on a 'data' element: 'hide' | 'show' | an override block reusing its own 'color:'/'icon: {color:}'/'font:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "icon": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "$ref": "#/$defs/colorExpression"
+                }
+              }
+            },
+            "font": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodHands": {
+      "description": "'aod:' on a 'hands' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set, plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodPattern": {
+      "description": "'aod:' on a 'pattern': 'hide' | 'show' | an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part, plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "font": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodGroup": {
+      "description": "'aod:' on a 'group': 'hide' | 'show' | an override block allowing the union of every kind a descendant might allow, plus 'visible:'. Pushed down to descendants key by key.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "track_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "icon": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "$ref": "#/$defs/colorExpression"
+                }
+              }
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "bar_width": {
+              "$ref": "#/$defs/length"
+            },
+            "filled": {
+              "type": "boolean"
+            },
+            "font": {
+              "type": "string"
+            },
+            "text": {
+              "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
+              "type": "string"
+            },
+            "outline": {
+              "$ref": "#/$defs/outline"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "position": {
+      "description": "A position relative to an anchor on the parent box. Either cartesian (dx/dy) or polar (angle/radius) -- polar is first-class because 115 of 164 devices are round.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "enum": [
+            "top_left",
+            "top",
+            "top_right",
+            "left",
+            "center",
+            "right",
+            "bottom_left",
+            "bottom",
+            "bottom_right",
+            "subscreen",
+            "N",
+            "NE",
+            "E",
+            "SE",
+            "S",
+            "SW",
+            "W",
+            "NW"
+          ],
+          "default": "center",
+          "description": "The point on the parent box that dx/dy or angle/radius are measured from: one of the nine names, or a compass alias (N, NE, E, SE, S, SW, W, NW for top, top_right, right, bottom_right, bottom, bottom_left, left, top_left; uppercase only; quote it for a YAML 1.1 tool). 'subscreen' is the centre of the Instinct family's subscreen window, and is accepted only on a top-level element's own 'at:': that element (and, for a group, its children) is then laid out inside the window's box, so '%' lengths are fractions of the window, and '%r' is still the screen's. On a target without a subscreen the element is a build error unless it sets 'unsupported: hide'."
+        },
+        "dx": {
+          "$ref": "#/$defs/length"
+        },
+        "dy": {
+          "$ref": "#/$defs/length"
+        },
+        "angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        }
+      },
+      "dependentRequired": {
+        "angle": [
+          "radius"
+        ],
+        "radius": [
+          "angle"
+        ]
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "dx",
+              "angle"
+            ]
+          },
+          {
+            "required": [
+              "dy",
+              "angle"
+            ]
+          }
+        ]
+      }
+    },
+    "groupElement": {
+      "type": "object",
+      "required": [
+        "type",
+        "children"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "group"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodGroup"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "children": {
+          "description": "The group's own elements, laid out in its box, as a mapping whose key is the element id.",
+          "$ref": "#/$defs/elementMapping"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "rectangleElement": {
+      "description": "A filled or outlined rectangle; with 'corner_radius:', rounded.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rectangle"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "circleElement": {
+      "description": "A filled or outlined circle of 'radius:'.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "circle"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "lineElement": {
+      "description": "A line from 'at:' to 'to:', 'thickness:' wide.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "line"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "arcElement": {
+      "description": "A stroked arc: setPenWidth + drawArc. There is no filled arc on this platform.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "arc"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "ellipseElement": {
+      "description": "A filled or outlined ellipse in 'size:'.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "ellipse"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "polygonElement": {
+      "description": "A filled polygon through 'points:' (3 to 64). There is no outlined polygon.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "polygon"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "corner_radius": {
+          "$ref": "#/$defs/length"
+        },
+        "to": {
+          "$ref": "#/$defs/position"
+        },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "type": "boolean",
+          "default": true
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "textElement": {
+      "type": "object",
+      "required": [
+        "type",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "description": "What to draw: literal text, with at most one '{expr}' or '{expr:spec}' placeholder (docs/guide/text.md). The expression ends at the first ':' outside parentheses, brackets and quotes, so a ternary is parenthesised: \"{(x > 0 ? x : 0):d}\". 'spec' is a format spec: d, 02d, .1f, strftime codes such as %H:%M for a time, or a duration. '{{' and '}}' are literal braces. With 'units:', '{unit}' is the displayed unit's label (km or mi, \u00b0C or \u00b0F, m or ft, km/h or mph). Two or more placeholders are reserved (not implemented yet).",
+          "type": "string"
+        },
+        "units": {
+          "description": "Convert the placeholder's reading to the wearer's units (ADR 0005 \u00a74): 'auto' follows the watch's own distance/elevation/temperature setting at runtime, 'metric'/'statute' fix one system. The placeholder must be exactly one source with a physical quantity (activity.distance, ambient.altitude, weather.temperature, weather.wind_speed, ...); '{unit}' in the text shows the displayed unit's label.",
+          "enum": [
+            "auto",
+            "metric",
+            "statute"
+          ]
+        },
+        "font": {
+          "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...).",
+          "type": "string"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "curve": {
+          "description": "Bends this text along a line or around an arc, instead of drawing it upright with plain Dc.drawText. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry -- a baked or system font here is a build error, since Dc.drawAngledText/drawRadialText refuse a resource font outright.",
+          "$ref": "#/$defs/curve"
+        },
+        "outline": {
+          "description": "Draws this text's string N times at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring (research 13/14, plan 15). 'none' (the default) draws no ring at all, byte-identical to today.",
+          "$ref": "#/$defs/outline"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodText"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        },
+        "absent": {
+          "description": "Required for a nullable reading: absence is the normal case on this platform, so the format refuses to guess. 'hide' draws nothing; any other string is drawn instead of the value (\"--\"); {value: <expression>} is formatted in its place. Any null reading makes the element absent.",
+          "anyOf": [
+            {
+              "const": "hide"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/expression"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "gaugeElement": {
+      "type": "object",
+      "required": [
+        "type",
+        "style",
+        "value",
+        "max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "gauge"
+        },
+        "style": {
+          "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered. needle is a gauge: 'needle:' parts turned about 'at:' to start_angle + fraction x sweep, with the analog hands' rotation machinery. segments is 'count:' cells lit one by one; scale is a track with coloured 'bands:' and a pointer dot at the value. segments and scale take an arc's keys (radius, thickness, start_angle, sweep) or a bar's (size).",
+          "enum": [
+            "arc",
+            "bar",
+            "needle",
+            "segments",
+            "scale"
+          ]
+        },
+        "count": {
+          "description": "style: segments only -- how many cells; round(fraction x count) of them light in 'color:', the rest draw in 'track_color:'.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 60
+        },
+        "gap": {
+          "description": "style: segments only -- the space between two cells, a length (default 2px). On an arc it is measured along the arc at 'radius:'.",
+          "$ref": "#/$defs/length"
+        },
+        "bands": {
+          "description": "style: scale only -- coloured zones along the track, each running from the previous band's 'to:' (the first from 0) to its own. 'to:' is a fraction of the full scale, 0-1 exclusive of 0, strictly increasing. The rest of the track draws in 'track_color:'.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "to",
+              "color"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "to": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              },
+              "color": {
+                "$ref": "#/$defs/colorExpression"
+              }
+            }
+          }
+        },
+        "pointer": {
+          "description": "style: scale only -- the radius of the dot drawn at the value, in 'color:'. Default: the track's thickness (arc) or height (bar), so the dot is twice as thick as the track.",
+          "$ref": "#/$defs/length"
+        },
+        "needle": {
+          "description": "style: needle only -- the needle's parts, authored exactly like an analog hand's (docs/guide/analog-hands.md): pointing at 12 o'clock, in a frame whose origin is the axis ('at:'), drawn in this order. A part with no 'color:' takes the element's own 'color:'.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/handPart"
+          }
+        },
+        "value": {
+          "$ref": "#/$defs/expression"
+        },
+        "max": {
+          "$ref": "#/$defs/expression"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "radius": {
+          "$ref": "#/$defs/length"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "track_color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "description": "Both styles (docs/guide/placement.md, \"Placement: at: and align:\").",
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodGauge"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        },
+        "absent": {
+          "description": "Required for a nullable 'value:' or 'max:'. A gauge has no placeholder text: 'hide' draws nothing while the reading is absent, and {value: <expression>} draws the gauge at that value instead.",
+          "oneOf": [
+            {
+              "const": "hide"
+            },
+            {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/expression"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "arc"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "radius",
+              "thickness",
+              "start_angle",
+              "sweep"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "bar"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "size"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "needle"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "start_angle",
+              "sweep",
+              "needle"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "segments"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "count"
+            ]
+          }
+        }
+      ]
+    },
+    "iconElement": {
+      "type": "object",
+      "required": [
+        "type",
+        "icon"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "icon"
+        },
+        "icon": {
+          "description": "A name from the built-in icon catalogue, a codepoint 'U+XXXX' in the vendored icon font, or {for: <expression>} to choose the glyph at runtime from a bound value (currently a weather.condition* source only). A bitmap-font glyph, drawn with drawText.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "for"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "for": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodIcon"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "graphElement": {
+      "type": "object",
+      "required": [
+        "type",
+        "series",
+        "range",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "graph"
+        },
+        "series": {
+          "description": "A name from the series catalogue (`wfb series`): heart_rate; steps, calories, distance, floors_climbed, active_minutes; forecast_temperature, forecast_precipitation_chance, forecast_cloud_cover, forecast_uv_index, forecast_wind_speed, forecast_humidity; daily_high_temperature, daily_low_temperature, daily_precipitation_chance. None of these needs a permission; SensorHistory-backed series (pressure, stress, elevation, Body Battery) and solar are not available to a watch face at all -- see docs/limitations.md.",
+          "type": "string"
+        },
+        "range": {
+          "description": "A duration ('30m', '4h', '7d') or a bare integer sample count. heart_rate passes a duration straight through to getHeartRateHistory and bins it at runtime; every other series converts a duration to a count at build time using its own natural interval (1 day for the activity and daily-forecast series, 1 hour for the hourly-forecast ones) -- asking for more than a documented maximum (getHistory()'s 7 days) is a build error, not a silent clamp.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+\\s*(m|h|d)\\s*$"
+            }
+          ]
+        },
+        "buckets": {
+          "description": "Time bins for a time-binned series read over a duration -- i.e. heart_rate with a duration range. Default 40. An error naming the series on anything else.",
+          "type": "integer",
+          "minimum": 1,
+          "default": 40
+        },
+        "style": {
+          "description": "line (setPenWidth + drawLine per segment), area (one fillPolygon, capped at 62 samples -- Dc.fillPolygon's own 64-point limit minus the two corners that close the outline) or bars (fillRectangle per bucket).",
+          "enum": [
+            "line",
+            "area",
+            "bars"
+          ],
+          "default": "line"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length",
+          "description": "style: line only -- the pen width."
+        },
+        "bar_width": {
+          "$ref": "#/$defs/length",
+          "description": "style: bars only -- centred in each slot."
+        },
+        "min": {
+          "$ref": "#/$defs/expression",
+          "description": "auto (the default) uses the series' own extent -- the iterator's getMin() for heart_rate, the collected values' extent for every other series. A number or an expression compiles like any other bound value."
+        },
+        "max": {
+          "$ref": "#/$defs/expression",
+          "description": "See min. Two fixed bounds with min >= max is a build error."
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodGraph"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        }
+      }
+    },
+    "dataElement": {
+      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch. Draws an icon chosen at runtime from the wearer's pick plus the reading itself, formatted by a rule per complication type.",
+      "type": "object",
+      "required": [
+        "type",
+        "slot"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "data"
+        },
+        "slot": {
+          "description": "Which declared 'config: slots:' entry this element shows, by name.",
+          "$ref": "#/$defs/identifier"
+        },
+        "font": {
+          "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...), for the reading. Defaults to FONT_SMALL.",
+          "type": "string"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression",
+          "description": "Must not be nullable -- 'absent:' governs the pulled reading, not this element's own appearance."
+        },
+        "label": {
+          "description": "none (default): just the value. short/long: Complication.shortLabel/.longLabel, drawn before the value when the device supplies one.",
+          "enum": [
+            "none",
+            "short",
+            "long"
+          ],
+          "default": "none"
+        },
+        "unit": {
+          "description": "Add the unit a reading can carry: '%' (battery, body battery, pulse ox, solar), 'bpm'/'brpm' (heart rate, respiration), 'm'/'ft' (altitude), 'km'/'mi' (weekly distances), '/km'/'/mi' (race pace), 'hPa' (pressure), '\u00b0C'/'\u00b0F' (temperature). Metric or statute follows the watch's own settings. Markers a bare number is unreadable without -- 'K' on a count of 10,000 or more, '\u00b0' on a temperature, 'h' on recovery time -- are drawn either way. Default false.",
+          "type": "boolean",
+          "default": false
+        },
+        "short": {
+          "description": "Keep the reading to 7 characters where a rule can: a weather condition's short name ('Mo clr'), a training status's ('Maint'), '26/17' for 'H 26 / L 17', and a unit dropped when it would pass 7. Other text the watch supplies (a date, a calendar event) is never cut. Default false: full names.",
+          "type": "boolean",
+          "default": false
+        },
+        "format": {
+          "description": "Not accepted -- an error naming why: the pulled value's concrete type varies by which choice the wearer makes, so one format spec cannot be right for all of them. Accepted here only so 'wfb validate' can report that against your own line.",
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodData"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        },
+        "icon": {
+          "description": "The icon chosen from the wearer's pick. Omit to draw no icon.",
+          "type": "object",
+          "required": [
+            "size"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "size": {
+              "$ref": "#/$defs/length",
+              "description": "Visual height of the icon. px or %r only."
+            },
+            "position": {
+              "description": "Where the icon sits relative to the reading. Default left.",
+              "enum": [
+                "left",
+                "right",
+                "top",
+                "bottom"
+              ],
+              "default": "left"
+            },
+            "gap": {
+              "$ref": "#/$defs/length",
+              "description": "The space between icon and reading. px or %r only, not negative. Default 4px."
+            },
+            "color": {
+              "$ref": "#/$defs/colorExpression",
+              "description": "The icon's own colour, distinct from the reading's 'color:'. Must not be nullable. Defaults to 'color:'."
+            }
+          }
+        },
+        "absent": {
+          "description": "Governs the pulled reading only -- the icon, chosen from the slot's configured type rather than its current value, still draws either way. 'hide' (default): the reading blanks, leaving the icon. Any other string is drawn instead (\"--\").",
+          "type": "string",
+          "default": "hide"
+        }
+      }
+    },
+    "handsElement": {
+      "description": "Analog hands: places a declared hand set on screen. 'at:' is the axis -- every part of the set is measured from it. No 'size:' (there is no box), no 'on_hold:' (a moving hand has no fixed hit region -- hold a group around it instead), and it may not sit in a 'static:' block (a hand's angle is the time).",
+      "type": "object",
+      "required": [
+        "type",
+        "set"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "hands"
+        },
+        "at": {
+          "description": "The axis every hand in this set rotates about, on screen. May be off-centre.",
+          "$ref": "#/$defs/position"
+        },
+        "seconds": {
+          "description": "Whether the set's second hand draws. 'awake' (default): drawn while awake, hidden while asleep -- a once-a-minute sleeping update would otherwise freeze it at whatever second that update landed on. 'never': the second hand is not drawn at all. An element whose set has no 'second:' hand may not set this. 'always' is reserved (not implemented -- see docs/limitations.md) and is refused with a friendly error, not this enum.",
+          "enum": [
+            "awake",
+            "never"
+          ]
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodHands"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        },
+        "set": {
+          "description": "Names a declared 'resources: hand_sets:' entry.",
+          "type": "string"
+        }
+      }
+    },
+    "patternElement": {
+      "description": "One template of 1-16 primitives, drawn repeatedly -- turned about 'at:' ('pattern: radial'), stepped along {dx, dy} ('pattern: linear') or laid out in rows ('pattern: grid').",
+      "type": "object",
+      "required": [
+        "type",
+        "pattern",
+        "count",
+        "parts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "pattern"
+        },
+        "pattern": {
+          "description": "'radial': copies turn about 'at:', 'step' degrees apart. 'linear': copies step along {dx, dy} from 'at:'. 'grid': copies fill rows of 'columns:' from 'at:', dx between columns and dy between rows; copy i is column i % columns, row i // columns.",
+          "enum": [
+            "radial",
+            "linear",
+            "grid"
+          ]
+        },
+        "columns": {
+          "description": "'pattern: grid' only (and required there): how many copies per row. 'count:' is the total, so the last row may be partial -- 31 days in 'columns: 7' is four full weeks and three days.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "at": {
+          "description": "Radial: the centre every copy turns about. Linear: copy 0's own origin. An ordinary position, resolved against the parent box exactly like any other element's 'at:'.",
+          "$ref": "#/$defs/position"
+        },
+        "count": {
+          "description": "How many copies. Dc draws one primitive per call -- there is no repeat/instancing call on this platform (docs/plans/05-patterns.md 1) -- so this is also how many times the device loops and rotates or translates the template.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360
+        },
+        "step": {
+          "description": "Radial: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. Linear and grid: required, {dx, dy} -- either may be omitted (0); on a grid, dx is between columns and dy between rows. Writing an angle on a linear pattern, a {dx, dy} on a radial one, or omitting it on a linear one, are each build-time errors, not schema errors -- both shapes are accepted here so the compiler can name the real mistake against your own line.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/angle"
+            },
+            {
+              "$ref": "#/$defs/patternStep"
+            }
+          ]
+        },
+        "start": {
+          "description": "Radial only: the angle of copy 0, default 0deg (12 o'clock). An error on a linear pattern -- {dx, dy} already places copy 0 via 'at:'.",
+          "$ref": "#/$defs/angle"
+        },
+        "skip": {
+          "description": "Copy indices (0-based, each less than 'count:', no duplicates) that are left undrawn -- room for another pattern's copies, e.g. the hour ticks' places in a 60-copy minute ring.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "skip_every": {
+          "description": "Copies whose index is a multiple of this are left undrawn (0, N, 2N, ...) -- 2 to 'count:'.",
+          "type": "integer",
+          "minimum": 2
+        },
+        "color": {
+          "description": "Default colour for every part that declares none of its own. May read 'copy' -- the index of the copy being drawn, 0-based, bound nowhere else -- and any data source, including one that can be absent -- but a nullable source anywhere in the pattern (this colour, a part's colour, or a part's 'visible:') requires 'absent: hide' on the pattern (see 'absent'). e.g. \"copy == (date.weekday + 5) % 7 ? color.on : color.off\".",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/patternPart"
+          }
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodPattern"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        },
+        "unsupported": {
+          "$ref": "#/$defs/unsupported"
+        },
+        "absent": {
+          "description": "Required once any colour (the element's own or any part's) or any part 'visible:' reads a source that can be absent. The only value is 'hide': absence hides the whole pattern, because the reading is taken once per frame, before the loop.",
+          "const": "hide"
+        }
+      }
+    },
+    "element": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "oneOf": [
+        {
+          "$ref": "#/$defs/groupElement"
+        },
+        {
+          "$ref": "#/$defs/rectangleElement"
+        },
+        {
+          "$ref": "#/$defs/circleElement"
+        },
+        {
+          "$ref": "#/$defs/lineElement"
+        },
+        {
+          "$ref": "#/$defs/arcElement"
+        },
+        {
+          "$ref": "#/$defs/ellipseElement"
+        },
+        {
+          "$ref": "#/$defs/polygonElement"
+        },
+        {
+          "$ref": "#/$defs/textElement"
+        },
+        {
+          "$ref": "#/$defs/gaugeElement"
+        },
+        {
+          "$ref": "#/$defs/iconElement"
+        },
+        {
+          "$ref": "#/$defs/graphElement"
+        },
+        {
+          "$ref": "#/$defs/dataElement"
+        },
+        {
+          "$ref": "#/$defs/handsElement"
+        },
+        {
+          "$ref": "#/$defs/patternElement"
+        }
+      ]
+    },
+    "handPart": {
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'. 'filled: false' is rejected on polygon and rectangle.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "description": "The four rotatable primitives are polygon/rectangle/line/circle. ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason instead of a bare 'not one of ...'.",
+          "enum": [
+            "polygon",
+            "rectangle",
+            "line",
+            "circle",
+            "ellipse",
+            "arc",
+            "text",
+            "icon"
+          ]
+        },
+        "points": {
+          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the axis.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/handPosition"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "size": {
+          "$ref": "#/$defs/handSize"
+        },
+        "to": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "thickness": {
+          "$ref": "#/$defs/handLength"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        },
+        "filled": {
+          "type": "boolean",
+          "default": true
+        },
+        "color": {
+          "description": "Overrides the hand's own default colour for this part only. Same data-binding restriction as the hand's own 'color:'.",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "description": "'type: rectangle' or 'circle' only.",
+          "$ref": "#/$defs/align"
+        },
+        "min_1px": {
+          "description": "As authored, or omitted to inherit the owning 'type: hands' element's own resolved value. This part's own value wins outright over its element's -- one hand set can be placed by more than one 'type: hands' element, so a shared part's effective value can differ per placement.",
+          "$ref": "#/$defs/min_1px"
+        }
+      }
+    },
+    "patternPart": {
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses: origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks. 'anchor:' is rejected. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points'; rectangle 'at', 'size', 'align'; line 'at', 'to', 'thickness'; circle 'at', 'radius', 'filled', 'thickness' (only when 'filled: false'), 'align'; arc 'radius', 'thickness', 'start_angle', 'sweep' (always centred on the copy's own origin); text 'at', 'text', 'font', 'align', 'curve', 'unsupported' and 'outline'.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat. ellipse and icon are recognised here only so the compiler can reject each with its own reason.",
+          "enum": [
+            "polygon",
+            "rectangle",
+            "line",
+            "circle",
+            "arc",
+            "ellipse",
+            "text",
+            "icon"
+          ]
+        },
+        "points": {
+          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the origin.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/handPosition"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "size": {
+          "$ref": "#/$defs/handSize"
+        },
+        "to": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "thickness": {
+          "$ref": "#/$defs/handLength"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        },
+        "filled": {
+          "type": "boolean",
+          "default": true
+        },
+        "color": {
+          "description": "Overrides the pattern's own default colour for this part only. Same rules as the pattern's own 'color:', 'copy' included.",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "visible": {
+          "description": "Draw this part only while this expression is true, evaluated separately for each copy -- 'copy' is bound here, the same as in a colour. Must type as a boolean, the same rule the element-level 'visible:' uses. Other parts, and other copies of this same part, are unaffected. Unlike the element-level 'visible:', a source here that can be absent is not 'absent means this part is hidden': the reading is taken once per frame, before the loop, so its absence hides the whole pattern under 'absent: hide' (see the pattern's own 'absent'), not just this part for this copy.",
+          "type": "string"
+        },
+        "start_angle": {
+          "description": "'type: arc' only. The arc's own start angle as authored for copy 0; a radial pattern turns it with each copy (12 o'clock = 0, clockwise). Default 0deg.",
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "description": "'type: arc' only. How far the arc spans, clockwise positive, default 360deg (a full ring) when omitted.",
+          "$ref": "#/$defs/angle"
+        },
+        "text": {
+          "description": "'type: text' only. A template, like a 'text' element's: literal text with at most one placeholder, whose expression may read only 'copy' (the index of the copy being drawn), so every copy's string is known at build time -- \"{(copy + 11) % 12 + 1}\".",
+          "type": "string"
+        },
+        "font": {
+          "description": "'type: text' only. A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...). Default FONT_MEDIUM.",
+          "type": "string"
+        },
+        "curve": {
+          "description": "'type: text' only, and only with a 'face:' (vector) 'font:' Bends this copy's own text along a line or around a circle, exactly as a 'text' element's own 'curve:' does -- 'angle:' is in the part's own local (copy-0) frame; a radial pattern composes it with each copy's own rotation, so one angle serves every copy. A baked or system font here is a build error, the same 'text-curve' reasoning a 'text' element's own 'curve:' gives.",
+          "$ref": "#/$defs/patternCurve"
+        },
+        "outline": {
+          "description": "'type: text' only The stamped-ring outline, identical to a standalone 'text' element's own 'outline:' -- draws this copy's string N times at small screen-space pixel offsets in a ring colour, then once more, unshifted, in the part's own 'color:'. The offsets are applied to this copy's own already-rotated/translated anchor, after the pattern's own per-copy rotation and after the part's own 'curve:' angle -- never re-rotated themselves -- so the ring is not smeared by either transform. 'none' (the default) draws no ring at all, byte-identical to today.",
+          "$ref": "#/$defs/outline"
+        },
+        "align": {
+          "description": "'type: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy; on text, only the anchor point moves -- the glyphs stay upright unless 'curve:' turns them.",
+          "$ref": "#/$defs/align"
+        },
+        "min_1px": {
+          "description": "As authored, or omitted to inherit the owning pattern's own resolved value. This part's own value wins outright over its pattern's, applied on top of whichever copy repeats it.",
+          "$ref": "#/$defs/min_1px"
+        },
+        "unsupported": {
+          "description": "'type: text' only, with a 'face:' (vector) 'font:'. Overrides that font's own 'unsupported:' for this part: 'hide' makes this one part not draw on a device without the face.",
+          "enum": [
+            "error",
+            "hide"
+          ]
+        }
+      }
+    },
+    "hand": {
+      "description": "One hand: a default colour for its parts, plus the parts themselves, drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis.",
+      "type": "object",
+      "required": [
+        "parts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "description": "Default colour for every part of this hand that declares none of its own. A hand colour may not read data -- colour references and literals only (and conditionals over those).",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/handPart"
+          }
+        }
+      }
+    },
+    "handSet": {
+      "description": "One named hand set: a shape, like a font, not something drawn on its own -- it is placed by a 'type: hands' element naming it with 'set:'. Any of hour:/minute:/second: may be present, and at least one must be.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hour": {
+          "$ref": "#/$defs/hand"
+        },
+        "minute": {
+          "$ref": "#/$defs/hand"
+        },
+        "second": {
+          "$ref": "#/$defs/hand"
+        }
+      }
+    }
+  }
+}

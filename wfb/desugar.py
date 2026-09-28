@@ -227,8 +227,7 @@ def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
                 doc.span(existing, "id") or span,
                 notes=["the block is rewritten into a group under that id, and "
                        "two elements cannot share one",
-                       "rename this element, or drop the `static:` block and put "
-                       "`static: true` on the group you want buffered"],
+                       "rename this element"],
             )
             return False
     elements.insert(0, group)

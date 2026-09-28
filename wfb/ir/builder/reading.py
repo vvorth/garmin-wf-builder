@@ -12,6 +12,7 @@ from ...catalog import Type
 from ...diagnostics import Span
 from ...palette import Color, ColorError
 from ...units import Angle, Length, UnitError
+from ...yamlsrc import Origin
 
 from ..model import ComplicationSlot, Expression, Position, SYSTEM_FONTS, Size, Text
 from .state import BuilderState
@@ -61,13 +62,17 @@ reporting why) out."""
         raw = node.get(key)
         if raw is None:
             return None
-        return self.compile_expression(str(raw), self.doc.span(node, key), key)
+        return self.compile_expression(str(raw), self.doc.span(node, key), key,
+                                       origin=self.doc.origin(node, key))
 
-    def compile_expression(self, text: str, span: Span | None, key: str) -> Expression | None:
+    def compile_expression(self, text: str, span: Span | None, key: str, *,
+                           origin: Origin | None = None) -> Expression | None:
         """`text` parsed, type-checked and compiled as :meth:`expression`
         does for an authored key -- for an expression the builder writes
         itself (a `units:` conversion, `wfb.conversion`), reported against
-        ``span`` under ``key``."""
+        ``span`` under ``key``.  ``origin`` is what the author wrote there,
+        when `wfb.lower` rewrote it: a diagnostic names and points into
+        that instead."""
         before = set(self.scope.used)
         self.scope.used.clear()
         syntax_error = False
@@ -109,7 +114,7 @@ reporting why) out."""
                     else:
                         message = f"config.colors has no role {match.group(1)[1:]!r}"
                         notes = [f"declared roles: {roles}"]
-            if syntax_error and key == "value":
+            if syntax_error and key == "value" and origin is None:
                 notes = list(notes) + [
                     "'value:' is an expression over data sources, not literal text -- "
                     "for a fixed string use 'text:' instead:\n"
@@ -117,10 +122,13 @@ reporting why) out."""
                     "note that YAML strips the quotes, so `value: 'XX%'` reaches the "
                     "expression parser as a bare XX%",
                 ]
+            offset = exc.offset if origin is None else origin.author_offset(exc.offset)
+            if self._quoted_at(span):
+                offset += 1  # the offset is into the value, after its opening quote
             self.bag.error(
                 code_,
-                f"{key}: {message}",
-                _offset_span(span, text, exc.offset),
+                f"{origin.key if origin is not None else key}: {message}",
+                _offset_span(span, text, offset),
                 notes=notes,
             )
             self.scope.used |= before
@@ -132,11 +140,24 @@ reporting why) out."""
         modules = {expr.CALL_MODULES[c.name] for c in expr.walk(folded)
                    if isinstance(c, expr.Call) and c.name in expr.CALL_MODULES}
         constant = resolved.value if isinstance(resolved, expr.Literal) else None
+        author = None
+        if origin is not None and origin.text is not None:
+            author = origin.quote if origin.quote is not None else origin.text
         return Expression(
             text=text, code=code, value=value, sources=tuple(sorted(used)),
             barrel=frozenset(barrel), modules=frozenset(modules), span=span, constant=constant,
-            ast=folded,
+            ast=folded, author=author,
         )
+
+    def _quoted_at(self, span: Span | None) -> bool:
+        """Does a quoted scalar open at ``span``?"""
+        if span is None or span.path != self.doc.path:
+            return False
+        lines = self.doc.text.split("\n")
+        if not 0 < span.line <= len(lines):
+            return False
+        line = lines[span.line - 1]
+        return 0 < span.col <= len(line) and line[span.col - 1] in "'\""
 
     def color_expression(self, node: dict[str, Any], key: str) -> Expression | None:
         """`node[key]` as a colour :class:`Expression`: a bare `#RRGGBB`
@@ -157,7 +178,8 @@ reporting why) out."""
                 return None
             self.bag.note(
                 "raw-color",
-                f"{key}: {text} is a literal colour -- prefer a named palette entry",
+                f"{self.doc.author_key(node, key)}: {text} is a literal colour -- prefer a "
+                "named palette swatch",
                 span,
                 notes=["palette entries keep a design's colours consistent and lintable"],
             )
@@ -167,8 +189,9 @@ reporting why) out."""
         bound = self.expression(node, key)
         if bound is not None and bound.value.type is not Type.COLOR:
             self.bag.error(
-                "type", f"{key} must be a colour, got {bound.value}", span,
-                notes=["known palette entries: " + (", ".join(f"palette.{n}" for n in sorted(self.palette)) or "(none)")],
+                "type", f"{self.doc.author_key(node, key)} must be a colour, got {bound.value}",
+                span,
+                notes=["known palette swatches: " + (", ".join(f"color.{n}" for n in sorted(self.palette)) or "(none)")],
             )
             return None
         return bound

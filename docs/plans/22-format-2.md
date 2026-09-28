@@ -380,6 +380,43 @@ three verification devices.
   - **output identity**: for every example and template, the migrated v2
     face and the v1 face generate byte-identical projects and
     pixel-identical previews.
+- *Done 2026-09-29.* `schema/wfb-face-2.schema.json` (derived once from the
+  v1 schema by a throwaway script, then edited by hand; normative from now
+  on), `wfb/lower.py`, `wfb/vocab.py`, format-aware `wfb/validate.py`, and
+  `tests/test_format2.py`. For every example, template and fixture but the
+  two slice 1 refusals: the twin reports the same diagnostic codes, lowers to
+  the same internal document, and generates byte-identical projects and
+  pixel-identical default previews -- **except one line per generated file**,
+  its header naming the source file and `(format N)`. Slice 3's snapshot
+  compare will show that header line changed in every generated source;
+  nothing else.
+  - The message scan was driven red first: five of its cases failed
+    (`absent-missing`, `data-default-not-in-choices`, `data-icon-color-nullable`,
+    `data-format`, `absent-placeholder-on-gauge`) before the messages were
+    reworded. Messages are now in format 2 terms for every input, format 1
+    too -- it is deleted next slice -- and the tests asserting the old text
+    were updated here rather than in slice 3.
+  - A second, broader check ran by hand (not committed): every design the
+    fast suite loads, migrated and loaded again as v2. It found three
+    migrator bugs (an element carrying both `value:` and `text:`, or two
+    icon keys, was silently collapsed into a valid one; a v1 group with the
+    reserved id `static` and the flag collided with the block), all fixed
+    with tests, and 138 distinct diagnostics naming a v1 key, reworded. What
+    it still reports is schema errors naming a v1 key the (invalid, migrated
+    as is) input really contains, each with a note giving the v2 spelling.
+  - Decided while building: an expression in a v2 file that still says
+    `palette.x` or `config.*` is an error naming its `color.` spelling; a
+    template's parentheses round a ternary are template syntax, stripped
+    when lowered; `align: <v>` lowers to `vertical_align:` alone, so
+    `align: center` + `vertical_align: v` in v1 and `align: v` in v2 lower
+    to documents that differ only in that default (the round-trip test
+    normalises it); `vocab.refs` names an axis's colour by its default role
+    (`color.accent`), not a `role:` the author renamed it to.
+  - `tools/snapshot.py compare` against slice 0: 369 cases unchanged, 72
+    changed, 2 added (`cli/help-migrate`). Every change is stdout or stderr
+    -- the reworded diagnostics, `wfb help` listing `migrate`, and `wfb
+    sources`/`wfb series` in format 2 terms. No generated file or preview
+    image changed.
 
 **Slice 3 — switch over, one commit (F5).**
 - Migrate:

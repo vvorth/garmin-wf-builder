@@ -17,7 +17,7 @@ import re
 from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
-from . import availability, catalog, complications, expr, kinds, series
+from . import availability, catalog, complications, expr, kinds, series, vocab
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
@@ -79,7 +79,7 @@ ALL_CODES = frozenset({
     "palette-dither", "palette-mono", "partial-update", "partial-update-budget", "pattern",
     "progress-segments",
     "pattern-step", "permission",
-    "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
+    "on-hold", "overrides", "raw-color", "reserved", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label", "subscreen",
@@ -293,7 +293,7 @@ def check_subscreen_availability(
             bag.note(
                 "subscreen",
                 f"{element.id}: not drawn on " + ", ".join(lacking)
-                + " -- no subscreen window there ('if_unavailable: hide')",
+                + " -- no subscreen window there ('unsupported: hide')",
                 span,
                 confidence="exact -- the device files' subscreen box and "
                            "WatchUi.getSubscreen",
@@ -308,7 +308,7 @@ def check_subscreen_availability(
                 "the subscreen is the Instinct family's round window; a device has one "
                 "when its simulator.json declares 'subscreen.location' and its symbol "
                 "table has WatchUi.getSubscreen",
-                f"set 'if_unavailable: hide' on '{element.id}' to leave it out there, "
+                f"set 'unsupported: hide' on '{element.id}' to leave it out there, "
                 "or drop the device from 'targets:'",
             ],
             confidence="exact -- the device files' subscreen box and WatchUi.getSubscreen",
@@ -375,7 +375,7 @@ def check_vector_font_availability(
                     *(_vector_font_failure_reason(resolved[device_id].device, spec,
                                                   run.curve)
                       for device_id in failing),
-                    f"set 'if_unavailable: hide' on 'font.{run.font}' or on "
+                    f"set 'unsupported: hide' on 'font.{run.font}' or on "
                     f"'{what}' to let it disappear on a target that cannot "
                     "draw it, drop the device from 'targets:', or add a face it "
                     "actually publishes",
@@ -513,13 +513,13 @@ def _emit_dither(
     if users:
         suppress_note = (
             f"set 'lint: {{allow: [{code}], reason: ...}}' on an element "
-            f"that draws '{token}' ({', '.join(u.id for u in users)}) to keep it"
+            f"that draws '{vocab.refs(token)}' ({', '.join(u.id for u in users)}) to keep it"
         )
     else:
         # Never claim a suppression site that does not exist.
         suppress_note = (
-            f"no element draws exactly '{token}' (as 'color:', 'track_color:', "
-            f"'icon_color:', 'outline:' or an 'aod:' override), so there is nowhere "
+            f"no element draws exactly '{vocab.refs(token)}' (as 'color:', 'track_color:', "
+            f"'icon: {{color:}}', 'outline:' or an 'aod:' override), so there is nowhere "
             f"to put 'lint: {{allow: [{code}]}}' for it"
         )
     message = f"{subject} not one of {device.id}'s {colors} colours"
@@ -576,7 +576,7 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
         token = f"palette.{name}"
         _emit_dither(
             bag, _users_of(resolved.face, token), resolved.device,
-            f"{token} = {color} is",
+            f"{vocab.refs(token)} = {color} is",
             f"nearest legal colour: {color.nearest_legal(colors)}",
             token,
         )
@@ -686,7 +686,7 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
         e.colors for e in axis.entries if e.colors is not None))
     for role in roles:
         _check_declared_colors(resolved, bag, f"config.colors.{role}", [
-            (f"color_scheme.{name}.colors.{role}=", schemes[name].colors[role])
+            (f"theme.schemes.{name}.colors.{role}=", schemes[name].colors[role])
             for name in scheme_names
         ])
 
@@ -754,7 +754,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     if not names_list and not non_default_entries:
         # Nothing the wearer could ever observe differently.
         return
-    names = ", ".join(names_list)
+    names = ", ".join(vocab.refs(name) for name in names_list)
 
     # A slot's default is read through Toybox.Complications, so on a device
     # that lacks the module too it shows as absent rather than "kept".
@@ -769,20 +769,21 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     if kept_names_list:
         if slot_tokens and has_complications:
             notes.append(
-                "the face still works: every element bound to a config.* colour, or "
-                "drawing a config.data.* slot, simply keeps its declared default "
+                "the face still works: every element bound to a 'config:' colour, or "
+                "drawing a 'config: slots:' slot, simply keeps its declared default "
                 "forever on this device"
             )
         else:
             notes.append(
-                "the face still works: every element bound to a config.* colour "
+                "the face still works: every element bound to a 'config:' colour "
                 "simply keeps its declared default forever on this device"
             )
     if absent_slot_tokens:
         notes.append(
-            "a config.data.* slot's own declared default is itself read through "
+            "a slot's own declared default is itself read through "
             "Toybox.Complications, which this device also lacks -- so "
-            + ", ".join(absent_slot_tokens) + " show their absent state here instead of "
+            + ", ".join(vocab.refs(t) for t in absent_slot_tokens)
+            + " show their absent state here instead of "
             "any declared default (see the 'api-gated' warning for the same fact)"
         )
     notes.append(
@@ -1301,7 +1302,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             f"onPartialUpdate, but this design has low-power elements",
             notes=["MIP and AMOLED are structurally different low-power paths, not a "
                    "styling difference; on an AMOLED target the sleep frame is 'aod:', "
-                   "not 'modes: [low_power]'"],
+                   "not 'sleep_update: true'"],
             confidence="exact -- device displayType",
         )
         return
@@ -1325,7 +1326,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "onPartialUpdate -- a 'weather.*' or 'complication.*' binding, or a "
                    "'graph' element (its own series is recomputed on-device every "
                    "minute, not read fresh, but the drawing itself still runs every "
-                   "partial update), on a low_power element is the expensive case to "
+                   "partial update), on a 'sleep_update: true' element is the expensive case to "
                    "look at first",
                    "position the low-power elements physically close together to tighten "
                    "the clip -- wrapping them in a 'group' does not: a group paints "
@@ -1354,7 +1355,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                 notes=["exceeding the power budget calls onPowerBudgetExceeded and "
                        "disables partial updates PERMANENTLY for the rest of the app's "
                        "lifecycle -- not just for the frame that overran",
-                       "move this element out of 'modes: [low_power]', or accept the "
+                       "drop this element's 'sleep_update: true', or accept the "
                        "cost with 'lint: {allow: [partial-update-budget], reason: ...}'"],
                 confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                            "flags a known-expensive draw, not a measured overrun",
@@ -1375,8 +1376,8 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "exceeding the power budget calls onPowerBudgetExceeded and "
                    "disables partial updates PERMANENTLY for the rest of the app's "
                    "lifecycle -- not just for the frame that overran",
-                   "bind a cheaper source here, move this element out of "
-                   "'modes: [low_power]', or accept the cost with "
+                   "bind a cheaper source here, drop this element's "
+                   "'sleep_update: true', or accept the cost with "
                    "'lint: {allow: [partial-update-budget], reason: ...}'"],
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags a known-expensive read, not a measured overrun",
@@ -1962,7 +1963,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
                 _emit(bag, placed, Diagnostic(
                     Severity.WARNING,
                     "api-gated",
-                    f"{placed.id}: slot config.data.{element.slot} needs "
+                    f"{placed.id}: slot {element.slot!r} needs "
                     f"Toybox.Complications, which {device.id} lacks, so it shows its "
                     f"absent state here -- never the declared default",
                     element.span,
@@ -2011,7 +2012,7 @@ def _emit_source_gap(bag: Bag, placed: Placed, path: str, span: Span | None, gap
         Severity.WARNING,
         "api-gated",
         f"{placed.id}: {path!r} needs {need}, which {device.id} lacks, so it reads as "
-        f"absent there ('when_absent' applies)",
+        f"absent there ('absent:' applies)",
         span,
         notes=[
             f"confirmed against {device.id}'s own api.debug.xml -- " + (
@@ -2070,7 +2071,7 @@ def _since_subject(placed: Placed, name: str, kind: str) -> str:
         return f"holding to launch {name!r}"
     if kind == "slot":
         assert isinstance(placed.element, ComplicationSlot)
-        return f"slot config.data.{placed.element.slot}'s 'complication.{name}'"
+        return f"slot {placed.element.slot!r}'s 'complication.{name}'"
     return f"'complication.{name}'"
 
 

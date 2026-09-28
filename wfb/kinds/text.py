@@ -378,8 +378,8 @@ def _apply_units(
     span = b.doc.span(node, "units")
     if value is None:
         if "value" not in node:
-            b.bag.error("units", f"{element_id}: 'units:' converts a bound 'value:', "
-                        "not a fixed 'text:'", span)
+            b.bag.error("units", f"{element_id}: 'units:' converts the reading in a "
+                        "placeholder, and this text is fixed", span)
         return None
     raw = str(node["value"]).strip()
     source = catalog.CATALOG.get(raw)
@@ -392,7 +392,7 @@ def _apply_units(
                 f"{raw!r} is not a single source with a unit 'units:' converts")
         b.bag.error(
             "units", f"{element_id}: {what}", b.doc.span(node, "value"),
-            notes=["'units:' converts a 'value:' that is exactly one of: "
+            notes=["'units:' converts a placeholder that is exactly one of: "
                    + ", ".join(convertible),
                    "write the bare source; the conversion replaces any "
                    "hand-written scaling such as 'activity.distance / 100000.0'"])
@@ -433,8 +433,8 @@ def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
         return
     aod = node.get("aod")
     for where, spec, span in (
-        ("format", element.format, b.doc.span(node, "format")),
-        ("aod.format", aod.get("format") if isinstance(aod, dict) else None,
+        ("text", element.format, b.doc.span(node, "format")),
+        ("aod.text", aod.get("format") if isinstance(aod, dict) else None,
          b.doc.span(aod, "format") if isinstance(aod, dict) else None),
     ):
         if spec and formatting.has_unit_field(str(spec)):
@@ -497,14 +497,15 @@ class TextKind(ElementKind[Text, PlacedText]):
                 # An `aod: {format: ...}` inherited from a group is checked
                 # in `_resolve_aod` instead, once inheritance is resolved.
                 b.check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
-        else:
+        elif "value" not in node:
             # A fixed `text:` has no bound value for `format:`, or its
-            # `aod:` twin, to format.
+            # `aod:` twin, to format.  (A `value:` that failed to compile
+            # already has its own error.)
             b.check_format_not_on_literal(node, element.id)
             refusal = b.aod_refusal("format", "text", None, literal_text=True)
             if own_aod_format and refusal is not None:
                 code, what, notes = refusal
-                b.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
+                b.bag.error(code, f"{element.id}.aod.text: {what}", aod_format_span,
                            notes=notes)
         b.check_other_absence(node, element, "color", element.color)
         b.check_reachable_substitute(node, element, "'color'",
@@ -557,7 +558,7 @@ class TextKind(ElementKind[Text, PlacedText]):
     def aod_refusal(self, key: str, shape: str | None,
                     literal_text: bool) -> tuple[str, str, list[str]] | None:
         if key == "format" and literal_text:
-            return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
+            return ("format", "'aod: {text:}' restyles a placeholder, and this text is fixed", [])
         return None
 
     def text_runs(self, element: Text, face: Face) -> list[TextRun]:

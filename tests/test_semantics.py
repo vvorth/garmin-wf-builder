@@ -36,7 +36,7 @@ def test_a_nullable_source_requires_when_absent(write_design, bag):
     load(write_design(design(STEPS_TEXT)), bag)
     assert any(d.code == "when-absent" for d in bag.errors)
     note = " ".join(bag.errors[0].notes)
-    assert "hide" in note and "placeholder" in note and "fallback" in note
+    assert "absent: hide" in note and "absent: {value:" in note
 
 
 def test_when_absent_hide_satisfies_it(write_design, bag):
@@ -57,7 +57,8 @@ def test_a_fallback_may_not_itself_be_absent(write_design, bag):
         + "    when_absent: fallback\n"
         + "    fallback: activity.calories\n"
     )), bag)
-    assert any("fallback" in d.message for d in bag.errors)
+    assert any("'absent: {value:}' expression can itself be absent" in d.message
+               for d in bag.errors)
 
 
 def test_when_absent_on_a_non_null_source_is_a_note_not_an_error(write_design, bag):
@@ -1750,7 +1751,7 @@ def test_format_on_a_literal_text_element_is_an_error(write_design, bag):
     load(write_design(design(_LITERAL_WITH_FORMAT)), bag)
     errors = [d for d in bag.errors if d.code == "format"]
     assert errors, bag.render()
-    assert "applies only to 'value:'" in errors[0].message
+    assert "a format spec needs a placeholder" in errors[0].message
 
 
 def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
@@ -1760,7 +1761,7 @@ def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
     load(write_design(design(_LITERAL_WITH_AOD_FORMAT)), bag)
     errors = [d for d in bag.errors if d.code == "format"]
     assert errors, bag.render()
-    assert "applies only to 'value:'" in errors[0].message
+    assert "restyles a placeholder, and this text is fixed" in errors[0].message
 
 
 # -- `overrides:` is not implemented, and now says so -------------------------

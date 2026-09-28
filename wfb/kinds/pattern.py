@@ -303,21 +303,21 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
         b.bag.error(
             "when-absent",
             f"{element.id}: reads {and_paths(sources)}, which can be "
-            "absent, so 'when_absent: hide' is required",
+            "absent, so 'absent: hide' is required",
             first.span,
             notes=[
                 ABSENCE_IS_NORMAL,
-                "a pattern has no placeholder or fallback -- absence hides "
+                "a pattern has no text or value to use instead -- absence hides "
                 "the whole pattern, every copy and every part, because the "
                 "reading is taken once per frame, before the loop",
-                "add 'when_absent: hide' to the pattern",
+                "add 'absent: hide' to the pattern",
             ],
         )
         return
     if element.when_absent is not None:
         b.bag.note(
             "when-absent",
-            f"{element.id}: 'when_absent' has no effect -- nothing this "
+            f"{element.id}: 'absent:' has no effect -- nothing this "
             "pattern reads is ever absent",
             b.doc.span(node, "when_absent"),
         )
@@ -688,7 +688,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         if "low_power" in common["modes"]:
             b.bag.error(
                 "pattern",
-                f"{element_id}: 'modes:' may not include 'low_power' on a pattern",
+                f"{element_id}: 'sleep_update: true' is not accepted on a pattern",
                 b.doc.span(node, "modes") or common["span"],
                 notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
                        "geometry never changes -- and its clip would be its whole "

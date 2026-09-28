@@ -1343,20 +1343,21 @@ def _fonts(args: argparse.Namespace) -> int:
     return 0
 
 
-#: `config.*`, listed by `wfb sources` after the catalogue: declared per
-#: design, not read from a device API, so not in `wfb.catalog`.
+#: The colours a design declares, listed by `wfb sources` after the
+#: catalogue: declared per design, not read from a device API, so not in
+#: `wfb.catalog`.
 _CONFIG_SOURCES = (
-    ("config.accent_color", "color",
-     "the one accent-colour axis (<accentColors>, Settings.accentColor)"),
-    ("config.data_color", "color",
-     "the one data-colour axis (<dataColors>, Settings.complicationColor)"),
-    ("config.colors.<role>", "color",
-     "the Styles axis -- one role of a declared 'color_scheme:' entry, picked via the "
-     "active 'config: style:' entry's 'colors:' (<styles>, Settings.styleId)"),
-    ("config.data.<name>", "",
-     "the Data axis -- a named native complication slot declared in 'config: data:' "
-     "(<data><complication>, Settings.complicationSettings); drawn by a "
-     "'type: complication_slot' element ('slot:'), not bound as an ordinary expression"),
+    ("color.<swatch>", "color",
+     "a 'resources: palette:' swatch, fixed at build time"),
+    ("color.<role>", "color",
+     "a 'theme: schemes:' role, following the active 'config: style:' entry's "
+     "'scheme:' (<styles>, Settings.styleId)"),
+    ("color.accent", "color",
+     "the role the one accent-colour axis binds, 'config: accent_color:' "
+     "(<accentColors>, Settings.accentColor); 'role:' renames it"),
+    ("color.data", "color",
+     "the role the one data-colour axis binds, 'config: data_color:' "
+     "(<dataColors>, Settings.complicationColor); 'role:' renames it"),
 )
 
 
@@ -1480,8 +1481,8 @@ def _series(args: argparse.Namespace) -> int:
         print(f"  {name:<{width}}  {entry.value_type.value:<6} {entry.doc}{suffix}"
               f"  ({entry.source_ref})")
     print(f"\n{len(series_catalog.SERIES)} series. Use one on a `graph` element:")
-    print("    - id: hr_graph\n      type: graph\n      series: heart_rate\n"
-          "      range: 4h\n      style: line\n      color: palette.accent")
+    print("    hr_graph:\n      type: graph\n      series: heart_rate\n"
+          "      range: 4h\n      style: line\n      color: color.accent")
     return 0
 
 

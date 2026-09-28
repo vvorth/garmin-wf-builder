@@ -141,7 +141,7 @@ config:
     errors = _errors(text, write_design)
     assert any(d.code == "color-scheme" for d in errors), errors
     message = next(d for d in errors if d.code == "color-scheme").message
-    assert "color_scheme.light" in message and "dim" in message
+    assert "theme.schemes.light" in message and "dim" in message
 
 
 def test_the_scheme_with_every_role_is_not_blamed(write_design):
@@ -374,7 +374,7 @@ config:
         "expected exactly the one real error, got: "
         + "; ".join(f"{d.code}: {d.message}" for d in errors))
     assert "config.style.choices.light" in errors[0].message
-    assert "needs at least one of 'layout:'/'colors:'" in errors[0].message
+    assert "needs at least one of 'layout:'/'scheme:'" in errors[0].message
 
 
 def test_colors_all_or_none_reports_the_first_entry_that_lacks_it(write_design):
@@ -460,7 +460,7 @@ def test_schema_widened_for_config_colors_lets_the_ir_give_the_friendly_error(wr
     assert not any(d.code == "schema" for d in errors), errors
     assert any(d.code == "palette" for d in errors), errors
     note = " ".join(n for d in errors for n in d.notes)
-    assert "color: config.accent_color" in note or "must be literal colours" in " ".join(
+    assert "color: color.accent" in note or "must be literal colours" in " ".join(
         d.message for d in errors if d.code == "palette")
 
 

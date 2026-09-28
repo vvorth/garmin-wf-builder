@@ -135,6 +135,15 @@ class Expression:
     #: evaluate the same expression the device compiles.  Nothing on the device
     #: ever sees this -- ADR 0005's "no runtime evaluator" is about the watch.
     ast: expr.Node | None = None
+    #: What the author wrote, when `wfb.lower` rewrote it into ``text``
+    #: (`color.bg` for `config.colors.bg`, a template's expression).  Only
+    #: diagnostics read it; generated code keeps ``text``.
+    author: str | None = field(default=None, compare=False)
+
+    @property
+    def shown(self) -> str:
+        """The expression as a diagnostic quotes it: the author's own text."""
+        return self.author if self.author is not None else self.text
 
     @property
     def nullable(self) -> bool:

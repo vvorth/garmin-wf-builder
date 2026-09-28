@@ -215,7 +215,7 @@ def test_if_unavailable_is_rejected_on_a_baked_font_entry(write_design, bag, rep
     assert face is None
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
-    assert "if_unavailable" in errors[0].message
+    assert "unsupported" in errors[0].message
     assert "baked" in errors[0].message
 
 
@@ -318,7 +318,7 @@ def test_vertical_align_bottom_is_rejected_under_curve(write_design, bag, repo_r
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
     assert errors, bag.render()
-    assert any("vertical_align" in d.message and "bottom" in d.message for d in errors)
+    assert any("a bottom alignment" in d.message for d in errors)
 
 
 @pytest.mark.parametrize("vertical_align", ["top", "center"])
@@ -374,7 +374,7 @@ def test_if_unavailable_is_rejected_on_an_element_with_a_baked_font(write_design
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
     assert errors, bag.render()
-    assert "if_unavailable" in errors[0].message
+    assert "unsupported" in errors[0].message
     assert any("baked" in note for note in errors[0].notes)
 
 

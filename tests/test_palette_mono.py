@@ -55,16 +55,16 @@ def test_a_colour_legal_on_mip_is_palette_mono_on_the_instinct(write_design, db)
     mip = _codes(lint_text(DESIGN, write_design, db, MIP), "palette-mono", "palette-dither")
     assert mono["palette-dither"] == []
     assert sorted(m.split(" ", 1)[0] for m in mono["palette-mono"]) == [
-        "palette.navy", "palette.orange", "palette.red"]
+        "color.navy", "color.orange", "color.red"]
     assert mip["palette-mono"] == []
-    assert [m.split(" ", 1)[0] for m in mip["palette-dither"]] == ["palette.orange"]
+    assert [m.split(" ", 1)[0] for m in mip["palette-dither"]] == ["color.orange"]
 
 
 def test_palette_mono_names_the_nearest_and_says_the_mapping_is_a_guess(write_design, db):
     _need(db, MONO)
     bag = lint_text(DESIGN, write_design, db, MONO)
     by_token = {d.message.split(" ", 1)[0]: d for d in bag.items if d.code == "palette-mono"}
-    red, navy = by_token["palette.red"], by_token["palette.navy"]
+    red, navy = by_token["color.red"], by_token["color.navy"]
     assert red.severity.value == "warning"
     assert "only black and white are safe" in red.message
     assert "nearest legal colour: #FFFFFF" in red.notes
@@ -79,7 +79,7 @@ def test_palette_mono_is_suppressible_on_an_element_that_draws_it(write_design, 
         "color: palette.red, lint: {allow: [palette-mono], reason: deliberate}}")
     bag = lint_text(allowed, write_design, db, MONO)
     flagged = [d.message.split(" ", 1)[0] for d in bag.items if d.code == "palette-mono"]
-    assert "palette.red" not in flagged and "palette.navy" in flagged
+    assert "color.red" not in flagged and "color.navy" in flagged
 
 
 def test_a_config_colour_goes_through_the_same_rule(write_design, db):

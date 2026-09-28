@@ -91,6 +91,23 @@ These cost real time to discover; do not rediscover them.
   `add`), and an injected mapping key needs
   `add_kv_line_col(k, [l, c, l, c])` — **four** values, because `key()`
   reads slots 0–1 and `value()` reads 2–3.
+- **Format 2 is lowered, not compiled (plan 22).** `wfb/lower.py` rewrites a
+  schema-valid format 2 document in place into the internal shape the IR
+  builder has always read -- `targets:`, `palette.x`, `when_absent:`,
+  `type: shape` -- and `wfb.desugar` runs after it as before. The rewritten
+  text is exactly what `wfb migrate` would have read, which is why a format
+  1 face and its migrated twin generate byte-identical projects (the one
+  exception: each generated file's header names the source file and its
+  format) -- the generated code's own comments quote expressions and slot
+  names in the internal spelling. Three things keep diagnostics in the
+  author's terms: every moved key keeps its source position (`lc`), every
+  renamed or rewritten key records a `yamlsrc.Origin` (the author's key,
+  text, and an offset map so a caret lands inside a template), and every
+  message that names a key, kind or colour goes through `wfb/vocab.py` or
+  quotes `Expression.shown`. `tests/test_format2.py` checks all three over
+  the corpus: the same diagnostics, the same internal document (the
+  round-trip property) and the same output for every twin, plus a message
+  scan with a case per moved key.
 - **Rewriting YAML with ruamel and keeping the author's layout** (`wfb
   migrate`, plan 22). What the round-trip loader does *not* keep, and what
   `wfb/migrate.py` does about each, all found on the example corpus:

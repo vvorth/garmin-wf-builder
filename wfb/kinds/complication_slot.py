@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
-from .. import complications, icons, units
+from .. import complications, icons, units, vocab
 from ..diagnostics import Span
 from ..fonts import BakedFont, fallback
 from ..ir.builder import ICON_SIZE_NOTE
@@ -94,15 +94,15 @@ def _resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDa
     if not raw.startswith("config.data."):
         b.bag.error(
             "complication-slot",
-            f"slot: expected 'config.data.<name>', got {raw!r}",
+            f"slot: expected the name of a 'config: slots:' entry, got {raw!r}",
             span,
         )
         return None
     name = raw[len("config.data."):]
     return b.config_data.resolve(
         b.bag, name, span, code="complication-slot",
-        message=f"unknown slot {raw!r}",
-        note="declared slots", prefix="config.data.",
+        message=f"unknown slot {name!r}",
+        note="declared slots (config: slots:)", prefix="",
     )
 
 
@@ -122,12 +122,12 @@ def _check_slot_color_absence(
         return
     b.bag.error(
         "complication-slot",
-        f"{element.id}: '{key}:' reads {color.text!r}, which can be absent",
+        f"{element.id}: '{vocab.key(key)}' reads {color.shown!r}, which can be absent",
         b.doc.span(node, key),
         notes=[
             note,
             "guard it in the expression instead, e.g. "
-            "\"x != null and x > 100 ? palette.hot : palette.fg\"",
+            "\"x != null and x > 100 ? color.hot : color.fg\"",
         ],
     )
 
@@ -282,7 +282,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
     placed_class = PlacedComplicationSlot
     extra_symbols = (complication_slot_icon_method, complication_slot_hold_method)
     static_forbidden = (
-        "a complication_slot",
+        "a data element",
         "its reading is pulled fresh every frame, and the wearer can "
         "repoint it to a different complication at any time -- a buffer "
         "filled once would freeze both",
@@ -305,14 +305,14 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         slot = _resolve_slot_reference(b, str(slot_raw), b.doc.span(node, "slot"))
 
         icon_size = b.baked_size_length(
-            node, "icon_size", code="complication-slot", label="icon_size",
+            node, "icon_size", code="complication-slot", label="icon: {size:}",
             note=ICON_SIZE_NOTE,
         )
 
         icon_position = node.get("icon_position", "left")
         icon_gap = b.baked_size_length(
-            node, "icon_gap", code="complication-slot", label="icon_gap",
-            note="the same restriction 'icon_size:' has -- an icon's font is "
+            node, "icon_gap", code="complication-slot", label="icon: {gap:}",
+            note="the same restriction the icon's size has -- an icon's font is "
                  "baked once, before layout runs, so the gap that sits "
                  "against it cannot depend on a parent box (%) or an "
                  "element's own font (pt)",
@@ -320,7 +320,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         if icon_gap is not None and icon_gap.value < 0:
             b.bag.error(
                 "complication-slot",
-                f"icon_gap must not be negative, got {icon_gap.value:g}{icon_gap.unit}",
+                f"icon: {{gap:}} must not be negative, got {icon_gap.value:g}{icon_gap.unit}",
                 b.doc.span(node, "icon_gap"),
             )
             icon_gap = None
@@ -339,12 +339,12 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                     continue
                 b.bag.error(
                     "complication-slot",
-                    f"{common['id']}: '{key}:' needs 'icon_size:'",
+                    f"{common['id']}: '{vocab.key(key)}' needs 'icon: {{size:}}'",
                     b.doc.span(node, key),
-                    notes=[f"'{key}:' only means something for the icon this slot draws, "
-                           "and there is no icon to place, space or colour without "
-                           "'icon_size:'",
-                           f"add 'icon_size:', or drop '{key}:'"],
+                    notes=[f"'{vocab.key(key)}' only means something for the icon this "
+                           "slot draws, and there is no icon to place, space or colour "
+                           "without a size",
+                           f"add 'icon: {{size:}}', or drop '{vocab.key(key)}'"],
                 )
             icon_position = "left"
             icon_gap = None
@@ -353,7 +353,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         if "format" in node:
             b.bag.error(
                 "complication-slot",
-                f"{common['id']}: 'format:' is not accepted on a 'complication_slot'",
+                f"{common['id']}: 'format:' is not accepted on a 'type: data' element",
                 b.doc.span(node, "format"),
                 notes=[
                     "Complications.Complication.value is a String or Number or "
@@ -390,12 +390,12 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             b.bag.error(
                 "complication-slot",
                 f"{element.id}: 'font: font.{element.font}' is a 'face:' "
-                "(vector) font -- not accepted on a complication_slot",
+                "(vector) font -- not accepted on a 'type: data' element",
                 b.doc.span(node, "font"),
                 notes=[
                     "a vector font is drawn straight from the device's own "
                     "resident face through Dc.drawText/drawAngledText/"
-                    "drawRadialText -- a complication_slot draws its reading "
+                    "drawRadialText -- a data element draws its reading "
                     "through a different path that only accepts a baked "
                     "bitmap font or one of the platform's fixed system fonts",
                     "a vector font is only usable on a 'text' element",
@@ -410,7 +410,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             # slot's own current id (`_resolve_hold_auto`).
             b.bag.error(
                 "complication-slot",
-                f"{element.id}: 'on_hold:' on a complication_slot only accepts "
+                f"{element.id}: 'on_hold:' on a 'type: data' element only accepts "
                 f"'auto', not {element.on_hold!r}",
                 element.span,
                 notes=[
@@ -430,20 +430,18 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             element.on_hold = None
 
         if color is None:
-            b.require(node, "color", "a complication_slot needs a color")
+            b.require(node, "color", "a data element needs a color")
         else:
             _check_slot_color_absence(
                 b, node, element, "color", color,
-                "a complication_slot's colour has no 'when_absent:' of its own "
-                "-- 'when_absent:'/'placeholder:' governs the pulled reading, "
-                "not the element's appearance",
+                "a data element's colour has no 'absent:' of its own -- 'absent:' "
+                "governs the pulled reading, not the element's appearance",
             )
 
         _check_slot_color_absence(
             b, node, element, "icon_color", icon_color,
-            "a complication_slot's colours have no 'when_absent:' of their "
-            "own -- 'when_absent:'/'placeholder:' governs the pulled "
-            "reading, not the element's appearance",
+            "a data element's colours have no 'absent:' of their own -- "
+            "'absent:' governs the pulled reading, not the element's appearance",
         )
 
         if element.when_absent == "placeholder" and element.placeholder is None:
@@ -511,9 +509,9 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         if key == "font":
             return (
                 "aod",
-                "a complication_slot's 'aod: {font: ...}' override is not implemented yet (plan 14)",
-                ["restyle this slot's colour/icon_color in AOD instead, or drop the font "
-                 "override for now"],
+                "a data element's 'aod: {font: ...}' override is not implemented yet",
+                ["restyle this element's 'color:'/'icon: {color:}' in AOD instead, or drop "
+                 "the font override for now"],
             )
         return None
 

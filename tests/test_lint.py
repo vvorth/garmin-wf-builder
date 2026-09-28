@@ -1844,7 +1844,7 @@ def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missin
     assert "show as absent" in config_hits[0].message
     assert "Complications" in config_hits[0].message
     # api-gated says the same fact from the slot's own side.
-    assert "config.data.top" in api_gated_hits[0].message
+    assert "slot 'top'" in api_gated_hits[0].message
     assert "never the declared default" in api_gated_hits[0].message
 
 
@@ -1895,7 +1895,7 @@ def test_slot_module_gap_fires_standalone_when_the_editor_is_available(
     api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
     assert not config_hits, bag.render()
     assert api_gated_hits, bag.render()
-    assert "config.data.top" in api_gated_hits[0].message
+    assert "slot 'top'" in api_gated_hits[0].message
     assert "Complications" in api_gated_hits[0].message
 
 

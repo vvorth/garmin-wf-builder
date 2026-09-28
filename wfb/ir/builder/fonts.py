@@ -65,14 +65,14 @@ class FontBlock(VisibilityHelpers):
         if "if_unavailable" in spec:
             self.bag.error(
                 "font",
-                f"font {name!r}: 'if_unavailable:' is not accepted on a baked font",
+                f"font {name!r}: 'unsupported:' is not accepted on a baked font",
                 self.doc.span(spec, "if_unavailable"),
                 notes=[
-                    "'if_unavailable:' governs a device-resident 'face:' font "
+                    "'unsupported:' governs a device-resident 'face:' font "
                     "failing to publish a face -- a baked font is rasterised from "
-                    "your own 'source:' at build time, so it is never unavailable "
+                    "your own 'source:' at build time, so it is never unsupported "
                     "on any device",
-                    "drop 'if_unavailable:', or switch this entry to 'face:' if "
+                    "drop 'unsupported:', or switch this entry to 'face:' if "
                     "you meant a device-resident font",
                 ],
             )

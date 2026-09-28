@@ -59,15 +59,15 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         if len(chosen) != 1:
             b.bag.error(
                 "icon",
-                "an icon element needs exactly one of 'icon', 'glyph' or 'icon_for'"
-                + (f" -- got {', '.join(repr(k) for k in chosen)}" if chosen else ""),
+                "an icon element needs one 'icon:'",
                 b.doc.span(node),
-                notes=["'icon' names a glyph from the built-in catalogue (run "
+                notes=["'icon:' names a glyph from the built-in catalogue (run "
                        "`wfb sources` for the list)",
-                       "'glyph' is any codepoint in the icon font, written "
-                       "'U+XXXX' -- for the ~10,000 glyphs the catalogue does not name",
-                       "'icon_for' chooses one at runtime from a bound value -- see "
-                       "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
+                       "or is any codepoint in the icon font, written 'U+XXXX' -- for "
+                       "the ~10,000 glyphs the catalogue does not name",
+                       "or is {for: <expression>}, choosing one at runtime from a "
+                       "bound value -- see wfb.catalog.WEATHER_CONDITION_SOURCES for "
+                       "what it accepts"],
             )
 
         size = b.baked_size_length(
@@ -93,9 +93,9 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
             ):
                 b.bag.error(
                     "icon",
-                    f"icon_for must be exactly one of: "
+                    f"icon: {{for:}} must be exactly one of: "
                     f"{', '.join(sorted(catalog.WEATHER_CONDITION_SOURCES))} "
-                    f"-- not {value_for.text!r}",
+                    f"-- not {value_for.shown!r}",
                     b.doc.span(node, "icon_for"),
                     notes=["arithmetic or a conditional would break the "
                            "condition-to-glyph lookup, which needs the raw "

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import complications, icons
+from ... import complications, icons, vocab
 from ...diagnostics import Span
 from ...palette import Color, ColorError
 
@@ -52,7 +52,7 @@ class ConfigAxes(TopLevelBlocks):
             self.bag.error(
                 "config",
                 f"config.style.choices.{name}: needs at least one of "
-                "'layout:'/'colors:'",
+                "'layout:'/'scheme:'",
                 self.doc.span(raw_choices, name),
             )
             self.rejected_config.add("style")
@@ -92,13 +92,13 @@ class ConfigAxes(TopLevelBlocks):
             item_span = self.doc.span(raw_choices, name)
             if has_colors:
                 message = (f"config.style.choices.{name}: declares "
-                           f"'colors:', but 'choices.{baseline_name}' does not")
+                           f"'scheme:', but 'choices.{baseline_name}' does not")
             else:
-                message = (f"config.style.choices.{name}: needs 'colors:' "
+                message = (f"config.style.choices.{name}: needs 'scheme:' "
                            f"-- 'choices.{baseline_name}' declares one")
             self.bag.error(
                 "config", message, item_span,
-                notes=["'colors:' must be declared on every entry, or none"],
+                notes=["'scheme:' must be declared on every entry, or none"],
             )
             self.rejected_config.add("style")
             return
@@ -191,14 +191,14 @@ class ConfigAxes(TopLevelBlocks):
         resolve against, not a second one (docs/research/09 §4).
         """
         if not (isinstance(raw, str) and raw.startswith("complication.")):
-            self.bag.error("config", f"{what}: expected a 'complication.<name>' "
-                                     f"reference, got {raw!r}", span)
+            self.bag.error("config", f"{what}: expected a complication type's name, "
+                                     f"got {raw!r}", span)
             return None
         name = raw[len("complication."):]
         if complications.get(name) is not None:
             return name
         notes = self._complication_suggestion_notes(name, "types")
-        self.bag.error("config", f"{what}: unknown complication type {raw!r}", span, notes=notes)
+        self.bag.error("config", f"{what}: unknown complication type {name!r}", span, notes=notes)
         return None
 
     def _build_config_data(self, raw: dict[str, Any], block_span: Span | None) -> None:
@@ -216,7 +216,7 @@ class ConfigAxes(TopLevelBlocks):
             self.config_data.declare(name, span)
             default_span = self.doc.span(spec, "default")
             default = self._complication_reference(
-                spec["default"], f"config.data.{name}.default", default_span)
+                spec["default"], f"config.slots.{name}.default", default_span)
             if default is None:
                 self.config_data.reject(name)
                 continue
@@ -239,13 +239,13 @@ class ConfigAxes(TopLevelBlocks):
                     # carries more than the bare form, so it is not sugar.
                     type_span = self.doc.span(item, "type") if "type" in item else item_span
                     resolved = self._complication_reference(
-                        item.get("type"), f"config.data.{name}.choices[{index}].type",
+                        item.get("type"), f"config.slots.{name}.choices[{index}].type",
                         type_span)
                     if resolved is None:
                         ok = False
                         continue
                     override = self._resolve_choice_icon_override(
-                        item, f"config.data.{name}.choices[{index}]", item_span)
+                        item, f"config.slots.{name}.choices[{index}]", item_span)
                     if override is _ICON_OVERRIDE_ERROR:
                         ok = False
                         continue
@@ -253,21 +253,21 @@ class ConfigAxes(TopLevelBlocks):
                         icon_overrides[resolved] = override
                 else:
                     resolved = self._complication_reference(
-                        item, f"config.data.{name}.choices[{index}]", item_span)
+                        item, f"config.slots.{name}.choices[{index}]", item_span)
                     if resolved is None:
                         ok = False
                         continue
                 if resolved in seen:
                     self.bag.error(
                         "config",
-                        f"config.data.{name}.choices: complication.{resolved} is "
+                        f"config.slots.{name}.choices: {resolved} is "
                         "listed more than once",
                         item_span,
                         notes=[
                             f"already listed at choices[{seen[resolved]}]",
                             "a type can appear at most once in 'choices:', "
-                            "regardless of which shape (a bare reference or "
-                            "{type, icon}/{type, glyph}) each appearance uses -- "
+                            "regardless of which shape (a bare name or "
+                            "{type, icon}) each appearance uses -- "
                             "the schema's own 'uniqueItems' cannot see through "
                             "the two different shapes",
                         ],
@@ -282,9 +282,9 @@ class ConfigAxes(TopLevelBlocks):
 
             if default not in choices:
                 self._default_not_in_choices(
-                    f"config.data.{name}", spec["default"], default_span,
+                    f"config.slots.{name}", default, default_span,
                     noun="type", tag="type",
-                    listed="listed types: " + ", ".join(f"complication.{n}" for n in choices))
+                    listed="listed types: " + ", ".join(choices))
                 self.config_data.reject(name)
                 continue
 
@@ -357,7 +357,7 @@ class ConfigAxes(TopLevelBlocks):
 
             if not any(choice.color == default for choice in choices):
                 self._default_not_in_choices(
-                    f"config.{name}", spec["default"], default_span,
+                    f"config.{name}", vocab.refs(str(spec["default"])), default_span,
                     noun="colour", tag="color",
                     listed="listed colours: " + ", ".join(str(c.color) for c in choices))
                 self.rejected_config.add(name)

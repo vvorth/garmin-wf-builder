@@ -200,7 +200,7 @@ def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
     text = RADIAL_RING.replace("    at: {anchor: center}", "    at: {anchor: center}\n    modes: [active, low_power]")
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "low_power" in bad[0].message
+    assert "sleep_update" in bad[0].message
 
 
 # -- §5.2 part diagnostics -----------------------------------------------------
@@ -224,7 +224,7 @@ def test_bad_part_shapes_each_get_their_own_reason(write_design, bag, shape, rea
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert f"'shape: {shape}'" in bad[0].message
+    assert f"'type: {shape}'" in bad[0].message
     assert reason in bad[0].message
 
 
@@ -244,7 +244,7 @@ def test_at_on_an_arc_part_is_rejected_with_the_centring_reason(write_design, ba
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "'at' is not used by a pattern 'shape: arc' part" in bad[0].message
+    assert "'at' is not used by a pattern 'type: arc' part" in bad[0].message
     assert "always centred on the copy's own origin" in " ".join(bad[0].notes)
 
 
@@ -255,7 +255,7 @@ def test_a_key_not_used_by_this_part_shape_is_an_error(write_design, bag):
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "'radius' is not used by a pattern 'shape: polygon' part" in bad[0].message
+    assert "'radius' is not used by a pattern 'type: polygon' part" in bad[0].message
 
 
 def test_no_colour_is_an_error(write_design, bag):
@@ -306,7 +306,7 @@ def test_a_colour_reading_an_absent_able_source_needs_when_absent(write_design, 
     assert len(bad) == 1, [d.message for d in bad]
     assert bad[0].code == "when-absent"
     assert "reads 'activity.steps', which can be absent" in bad[0].message
-    assert "'when_absent: hide' is required" in bad[0].message
+    assert "'absent: hide' is required" in bad[0].message
 
 
 def test_two_nullable_bindings_on_one_pattern_still_get_one_error(write_design, bag):
@@ -439,7 +439,7 @@ def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
     bad = errors(design(shape), bag, write_design)
     assert len(bad) == 1
     assert "'copy' is only defined in a 'type: pattern' element's colours, " \
-           "its parts' 'visible:' and a text part's 'value:'" in bad[0].message
+           "its parts' 'visible:' and a text part's placeholder" in bad[0].message
 
 
 def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
@@ -485,7 +485,7 @@ def test_copy_in_the_element_level_visible_is_its_own_error(write_design, bag):
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
     assert "'copy' is only defined in a 'type: pattern' element's colours, " \
-           "its parts' 'visible:' and a text part's 'value:'" in bad[0].message
+           "its parts' 'visible:' and a text part's placeholder" in bad[0].message
 
 
 # -- part `visible:` (B) -------------------------------------------------------
@@ -520,7 +520,7 @@ def test_part_visible_reading_a_nullable_source_needs_when_absent(write_design, 
     assert len(bad) == 1, [d.message for d in bad]
     assert bad[0].code == "when-absent"
     assert "activity.move_bar_level" in bad[0].message
-    assert "'when_absent: hide' is required" in bad[0].message
+    assert "'absent: hide' is required" in bad[0].message
 
 
 def test_part_visible_reading_a_nullable_source_builds_with_when_absent_hide(write_design, bag):
@@ -594,7 +594,7 @@ def test_filled_false_is_rejected_on_polygon(write_design, bag):
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "not accepted on a pattern 'shape: polygon' part" in bad[0].message
+    assert "not accepted on a pattern 'type: polygon' part" in bad[0].message
 
 
 def test_thickness_is_rejected_on_a_filled_circle_part(write_design, bag):
@@ -604,7 +604,7 @@ def test_thickness_is_rejected_on_a_filled_circle_part(write_design, bag):
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "'thickness' is not used by a filled 'shape: circle' part" in bad[0].message
+    assert "'thickness' is not used by a filled 'type: circle' part" in bad[0].message
 
 
 def test_thickness_is_accepted_on_an_arc_part(write_design, bag):
@@ -623,7 +623,7 @@ def test_filled_is_rejected_on_an_arc_part(write_design, bag):
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "'filled' is not used by a pattern 'shape: arc' part" in bad[0].message
+    assert "'filled' is not used by a pattern 'type: arc' part" in bad[0].message
 
 
 def test_an_arc_part_needs_a_radius(write_design, bag):

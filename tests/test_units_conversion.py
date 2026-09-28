@@ -201,7 +201,7 @@ def test_units_on_fixed_text_is_an_error(write_design, bag):
     units: auto
 """
     [error] = _errors(text, write_design, bag)
-    assert error.code == "units" and "fixed 'text:'" in error.message
+    assert error.code == "units" and "this text is fixed" in error.message
 
 
 def test_unit_field_without_units_is_an_error(write_design, bag):

@@ -525,7 +525,7 @@ def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
     if node.path == COPY:
         return ExprError(
             f"{COPY!r} is only defined in a 'type: pattern' element's colours, "
-            "its parts' 'visible:' and a text part's 'value:'",
+            "its parts' 'visible:' and a text part's placeholder",
             node.offset,
             [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
              "nothing but a pattern has copies",
@@ -555,7 +555,7 @@ def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
     elif siblings:
         note = f"{namespace} has: " + ", ".join(siblings)
     else:
-        note = "known namespaces: " + ", ".join(sorted(catalog.namespaces())) + ", palette"
+        note = "known namespaces: " + ", ".join(sorted(catalog.namespaces())) + ", color"
     return ExprError(f"unknown data source {node.path!r}", node.offset, [note])
 
 

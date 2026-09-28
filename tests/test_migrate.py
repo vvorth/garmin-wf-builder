@@ -460,6 +460,39 @@ def test_pattern_parts():
     ]
 
 
+def test_two_spellings_of_one_key_are_left_for_the_compiler_to_name():
+    """Format 1 already refuses these; overwriting one with the other would
+    turn an invalid file into a valid one."""
+    body = element("- {id: x, type: text, text: hi, value: time.hour}\n")
+    assert body["text"] == "hi" and body["value"] == "time.hour"
+    body = element("- {id: x, type: icon, icon: heart, icon_for: weather.condition}\n")
+    assert body["icon"] == "heart" and body["icon_for"] == "weather.condition"
+
+
+def test_a_static_group_named_static_is_the_static_block():
+    """`- id: static, type: group, static: true` is format 1's long spelling
+    of the `static:` block itself."""
+    out = _data(migrate(HEADER + """\
+elements:
+  - id: static
+    type: group
+    static: true
+    children:
+      - {id: bg, type: shape, shape: circle, radius: 3}
+  - {id: a, type: text, text: hi}
+"""))
+    assert out["static"] == {"bg": {"type": "circle", "radius": 3}}
+    assert list(out["elements"]) == ["a"]
+
+
+def test_refuses_a_static_element_named_static_that_is_not_a_bare_group():
+    messages = refusals(HEADER + """\
+elements:
+  - {id: static, type: shape, shape: circle, radius: 3, static: true}
+""")
+    assert len(messages) == 1 and "would collide" in messages[0]
+
+
 # --------------------------------------------------------------------------
 # refusals (§4): each one leaves the file untouched
 

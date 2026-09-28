@@ -322,21 +322,19 @@ def test_hand_polygon_rejects_align_with_the_no_single_at_reason(bag, write_desi
     bad = errors(design(HAND_POLYGON, HAND_POLYGON_SET.format(extra="align: left")),
                  bag, write_design)
     assert len(bad) == 1
-    assert "'align' is not used by a hand 'shape: polygon' part" in bad[0].message
+    assert "'align' is not used by a hand 'type: polygon' part" in bad[0].message
     notes = " ".join(bad[0].notes)
     assert "every vertex is its own position" in notes
 
 
-def test_hand_polygon_rejects_both_keys_as_two_separate_errors(bag, write_design):
+def test_hand_polygon_rejects_both_keys_as_one_error(bag, write_design):
     bad = errors(
         design(HAND_POLYGON,
                HAND_POLYGON_SET.format(extra="align: left\n          vertical_align: top")),
         bag, write_design,
     )
-    assert len(bad) == 2
-    messages = [d.message for d in bad]
-    assert any("'align' is not used by a hand 'shape: polygon' part" in m for m in messages)
-    assert any("'vertical_align' is not used by a hand 'shape: polygon' part" in m for m in messages)
+    assert len(bad) == 1
+    assert "'align' is not used by a hand 'type: polygon' part" in bad[0].message
 
 
 HAND_LINE_SET = """
@@ -356,7 +354,7 @@ def test_hand_line_rejects_align_with_the_two_ends_reason(bag, write_design):
     bad = errors(design(HAND_POLYGON, HAND_LINE_SET.format(extra="align: left")),
                  bag, write_design)
     assert len(bad) == 1
-    assert "'align' is not used by a hand 'shape: line' part" in bad[0].message
+    assert "'align' is not used by a hand 'type: line' part" in bad[0].message
     assert any("two ends" in note for note in bad[0].notes)
 
 
@@ -364,7 +362,7 @@ def test_hand_line_rejects_vertical_align_too(bag, write_design):
     bad = errors(design(HAND_POLYGON, HAND_LINE_SET.format(extra="vertical_align: bottom")),
                  bag, write_design)
     assert len(bad) == 1
-    assert "'vertical_align' is not used by a hand 'shape: line' part" in bad[0].message
+    assert "'align' is not used by a hand 'type: line' part" in bad[0].message
 
 
 PATTERN_ELEMENT = """  - id: p
@@ -388,7 +386,7 @@ def test_pattern_polygon_rejects_align(bag, write_design):
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
     assert len(bad) == 1
-    assert "'align' is not used by a pattern 'shape: polygon' part" in bad[0].message
+    assert "'align' is not used by a pattern 'type: polygon' part" in bad[0].message
     assert any("every vertex is its own position" in note for note in bad[0].notes)
 
 
@@ -400,7 +398,7 @@ def test_pattern_line_rejects_vertical_align(bag, write_design):
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
     assert len(bad) == 1
-    assert "'vertical_align' is not used by a pattern 'shape: line' part" in bad[0].message
+    assert "'align' is not used by a pattern 'type: line' part" in bad[0].message
     assert any("two ends" in note for note in bad[0].notes)
 
 
@@ -411,18 +409,18 @@ def test_pattern_arc_rejects_align_with_the_own_origin_reason(bag, write_design)
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
     assert len(bad) == 1
-    assert "'align' is not used by a pattern 'shape: arc' part" in bad[0].message
+    assert "'align' is not used by a pattern 'type: arc' part" in bad[0].message
     assert any("centred on the copy's own origin" in note for note in bad[0].notes)
 
 
-def test_pattern_arc_rejects_both_keys_as_two_separate_errors(bag, write_design):
+def test_pattern_arc_rejects_both_keys_as_one_error(bag, write_design):
     parts = """      - shape: arc
         radius: 10px
         align: left
         vertical_align: top
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
-    assert len(bad) == 2
+    assert len(bad) == 1
 
 
 # -- rejection: type: hands / type: pattern refuse element-level alignment --
