@@ -214,8 +214,9 @@ draw method -- so there is exactly one implementation of what a slot looks
 like, drawn either by `onUpdate` or by the editor's own `Drawable`. A design
 with no `complication_slot` element gets none of this: `onTap` (unlike
 `onPress`) never fires on a live face (research 07 §1), so all of it would be
-dead weight there. **No behaviour of any of this is verified** -- see "What
-this compiler cannot tell you" below.
+dead weight there. On a fenix8solar47mm the highlight animates over the
+selected slot and previews each choice as the wearer scrolls; the rest is
+unverified -- see "What this compiler cannot tell you" below.
 
 ### The Data axis
 
@@ -589,13 +590,17 @@ off-screen/overflow checks do not account for `label:`/`unit:` width at all --
 a slot whose label or unit runs long on the real device can overflow further
 than the compiler warned about.
 
-**The editor's animated highlight is handed the same estimated box, for the
-same reason.** `getComplicationDrawable` needs a fixed `Graphics.BoundingBox`
-up front, before anything is pulled, so it reuses the geometry lints'
-estimate rather than the actual drawn extent (which, as above, is not known
-until runtime). Whether that estimated box actually lines up with what is
-drawn under the editor's animation is unverified along with everything else
-about the editor.
+**The editor's animated highlight is handed a box that spans the screen
+instead.** `getComplicationDrawable` needs a fixed `Graphics.BoundingBox` up
+front, before anything is pulled, and the editor clips the slot's drawable
+to it -- given the estimate above, a fenix8solar47mm drew "STEPS 5068" as
+"TEPS 506" and cut a date's icon and last digit. So the drawable's box keeps
+the estimate's rows but takes every screen column the pair can reach from
+its anchor: as far as the nearer screen edge either way for `align:
+center` (the full width for a centred slot, like the SDK's own sample), and
+from the anchor to one edge for `left`/`right`. `onTap` still hit-tests the
+estimate, so two slots side by side stay separate tap targets. That the
+wider box ends the clipping is not yet seen on a watch.
 
 **`on_hold: auto` on a `complication_slot` is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`

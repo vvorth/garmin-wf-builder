@@ -277,20 +277,16 @@ def _emit_get_complication_drawable(w: Writer) -> None:
     necessary, not optional), and `_view.drawableFor` builds the generated
     `SlotDrawable` that delegates straight back to the view's own per-slot
     draw method, so there is exactly one implementation of what a slot looks
-    like.  UNVERIFIED: whether the highlight actually animates, and whether
-    it lines up with what is drawn -- no simulator runs in this container and
-    there is no watch (CLAUDE.md).  What is verified is that this compiles
-    warning-free under `-l 3` on all three targets, including `fr955`, which
-    has no editor and therefore never calls this at all.
+    like.  Seen on a fenix8solar47mm: the highlight animates over the slot
+    and previews each choice as the wearer scrolls.  `fr955` has no editor
+    and never calls this at all; it still compiles warning-free there.
     """
     w.doc(
         "Only fires inside the on-device config editor: hands back a Drawable the\n"
         "system animates while the wearer picks a new value for one slot.\n"
         "\n"
-        "UNVERIFIED whether the highlight actually animates or lines up with what\n"
-        "is drawn -- no simulator runs in this container and there is no watch.\n"
-        "What is verified: this compiles warning-free on every target, including\n"
-        "fr955, which has no editor and so never calls this at all."
+        "Seen on a fenix8solar47mm: the highlight animates over the slot and\n"
+        "previews each choice.  A watch with no editor never calls this."
     )
     with w.block(
         "function getComplicationDrawable(complication as ComplicationRef)\n"

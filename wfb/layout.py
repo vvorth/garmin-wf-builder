@@ -1017,6 +1017,11 @@ class PlacedComplicationSlot(Placed):
     icon_position: str = "left"
     #: `icon_gap:` resolved for this device, else `COMPLICATION_SLOT_ICON_GAP`.
     icon_gap_px: int = COMPLICATION_SLOT_ICON_GAP
+    #: The box handed to the native editor with the slot's drawable
+    #: (`wfb.kinds.complication_slot.highlight_box`): every on-screen column
+    #: the pair could reach, since the editor clips the drawable to it.
+    #: `None` only for a hand-built instance; the emitter falls back to `box`.
+    highlight: IntBox | None = None
 
 
 @dataclass(frozen=True)

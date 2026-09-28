@@ -553,13 +553,17 @@ still true of the shipped feature:
   slot was selected. Measured on `examples/features/slots/face.yaml` at a fixed path,
   `fenix8solar47mm`: the editor machinery alone (no `on_hold:`) costs +161 B
   data / +693 B code over the same design without it; `on_hold: auto` on one
-  slot adds a further +9 B data / +90 B code on top of that. **No behaviour
-  of any of it is verified** — whether the highlight actually animates,
-  whether it lines up with what is drawn, and whether `onTap`'s hit regions
-  read correctly on a real touchscreen are all UNVERIFIED (no simulator in
-  this container, no watch — §2 below). What is verified: it compiles
-  warning-free on every target, including `fr955`, which has no native
-  editor and never calls any of it.
+  slot adds a further +9 B data / +90 B code on top of that. The editor
+  clips the drawable to the box it is handed, so that box is not the lints'
+  estimate (which leaves out label and unit, and cut "STEPS 5068" to
+  "TEPS 506" on a fenix8solar47mm) but a per-device `_HIGHLIGHT` box
+  spanning every screen column the pair can reach from its anchor;
+  `onTap` still hit-tests the estimate. **Seen on a fenix8solar47mm:** the
+  highlight animates over the selected slot and previews each choice as the
+  wearer scrolls. Not yet seen: that the wider box ends the clipping, and
+  whether `onTap`'s hit regions read correctly on the touchscreen. It
+  compiles warning-free on every target, including `fr955`, which has no
+  native editor and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**
   (`Complications.Id.getType()`), not from the current *value* -- so a type
   whose icon depends on its value (the weather-condition complications:

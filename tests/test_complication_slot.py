@@ -792,6 +792,77 @@ def test_the_editor_drawable_draws_the_slot_the_face_skips(write_design, bag, db
         assert own[0] == f"if (_pulsing == {ids[slot]}) {{", own[:3]
 
 
+@pytest.mark.parametrize("anchor_x, align, expected", [
+    # centred at the screen centre: the whole row, like the SDK sample's drawable
+    (130, "center", (0, 260)),
+    # centred off-centre: as far as the nearer edge, so the pulse stays on the anchor
+    (60, "center", (0, 120)),
+    (200, "center", (140, 260)),
+    # the pair grows away from the anchor on one side only
+    (60, "left", (60, 260)),
+    (200, "right", (0, 200)),
+])
+def test_the_highlight_box_spans_every_column_the_pair_can_reach(anchor_x, align, expected):
+    """The editor clips the slot's drawable to its box, and the estimated box
+    leaves out the label and unit ("STEPS 5068" drew as "TEPS 506" on a
+    fenix8solar47mm), so the drawable's box spans the screen columns the pair
+    can reach from its anchor, keeping the estimated rows."""
+    from wfb.kinds.complication_slot import highlight_box
+    from wfb.units import IntBox
+
+    # the estimate sits where `align:` puts the pair: on the anchor's own side
+    left = {"left": anchor_x, "center": anchor_x - 20, "right": anchor_x - 40}[align]
+    box = IntBox(left, 41, 40, 32)
+    got = highlight_box(box, anchor_x, align, 260)
+    assert (got.x, got.right) == expected
+    assert (got.y, got.height) == (41, 32)
+
+
+def test_the_highlight_box_keeps_an_estimate_that_overhangs_the_edge():
+    """An anchor at the very edge leaves a centred span of nothing; the
+    estimated box is kept inside it rather than handing the editor a
+    zero-width drawable."""
+    from wfb.kinds.complication_slot import highlight_box
+    from wfb.units import IntBox
+
+    box = IntBox(-10, 41, 40, 32)
+    assert highlight_box(box, 0, "center", 260) == box
+
+
+def test_the_editor_drawable_gets_the_highlight_box_and_taps_the_estimate(
+        write_design, bag, db):
+    """`drawableFor` builds each slot's drawable on its `_HIGHLIGHT` box --
+    the full row for these centred slots, wider than the estimate -- while
+    `onTap` keeps hit-testing the estimated `_BOX`, so two slots side by side
+    stay separate tap targets."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    body = "\n".join(_method_body(
+        view, "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null"))
+    for prefix in ("TOP_READING", "BOTTOM_READING"):
+        assert f"Layout.{prefix}_HIGHLIGHT_X, Layout.{prefix}_HIGHLIGHT_Y," in body
+        assert f"Layout.{prefix}_HIGHLIGHT_WIDTH, Layout.{prefix}_HIGHLIGHT_HEIGHT)" in body
+    assert "_BOX_" not in body
+
+    delegate = monkeyc.emit_delegate(resolved).text
+    tap = "\n".join(_method_body(delegate, "function onTap(clickEvent as ClickEvent) as Boolean"))
+    assert "Layout.TOP_READING_BOX_X" in tap
+    assert "HIGHLIGHT" not in tap
+
+    slots = [p for p in resolved.items if p.id in ("top_reading", "bottom_reading")]
+    assert len(slots) == 2
+    for placed in slots:
+        assert placed.highlight is not None
+        assert (placed.highlight.x, placed.highlight.width) == (0, device.width)
+        assert placed.highlight.width > placed.box.width
+
+
 def test_leaving_a_slot_in_the_editor_stops_skipping_it(write_design, bag, db):
     """Nothing but the editor's own edits can tell the view no slot is being
     animated any more: a `:type` other than COMPLICATION (null is "the end of

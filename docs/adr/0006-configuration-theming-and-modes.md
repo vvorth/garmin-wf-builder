@@ -291,13 +291,15 @@ fr955** — the compiler generates both paths from one declaration.
 > it; adding `on_hold: auto` to one slot costs a further **+9 B data, +90 B
 > code** on top of that -- matching the third amendment's per-style-sized
 > costs in kind, if not in exact figure (this is new code, not a resource
-> entry). **No behaviour of any of it is verified** -- whether the highlight
-> actually animates, whether it lines up with what is drawn, and whether
-> `onTap`'s hit regions read correctly on a real touchscreen are all
-> UNVERIFIED, same as every other editor claim in this ADR. What is verified:
-> real `monkeyc`, warning-free, on all three targets, `fr955` included --
-> which has no editor at all and never calls any of `onStart`'s flag,
-> `onTap` or `getComplicationDrawable`.
+> entry). The drawable is handed its own `_HIGHLIGHT` box, spanning every
+> screen column the pair can reach, because the editor clips the drawable to
+> it and the lints' estimate leaves out label and unit; `onTap` keeps the
+> estimate. **Seen on a fenix8solar47mm:** the highlight animates over the
+> selected slot and previews each choice. Not yet seen: that the wider box
+> ends the clipping the estimate caused, and whether `onTap`'s hit regions
+> read correctly on the touchscreen. Real `monkeyc` builds it warning-free
+> on all three targets, `fr955` included -- which has no editor at all and
+> never calls any of `onStart`'s flag, `onTap` or `getComplicationDrawable`.
 >
 > `docs/guide/configuration.md`'s "Configuration → The Data axis" carries the full
 > author-facing description; `examples/features/slots/face.yaml` now declares

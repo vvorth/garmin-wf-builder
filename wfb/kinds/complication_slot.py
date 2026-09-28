@@ -18,7 +18,7 @@ from ..layout import (
     alignment_shift, complication_slot_pair_geometry, longer,
 )
 from ..preview import baked_glyph
-from ..units import Box
+from ..units import Box, IntBox
 from ..emit.monkeyc import complication_slot as complication_slot_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc.common import NO_AOD, AodStyle
@@ -131,6 +131,34 @@ def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
     if element.when_absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
     return widest
+
+
+def highlight_box(box: IntBox, anchor_x: int, align: str, screen_width: int) -> IntBox:
+    """The box the native editor gets with a slot's drawable: the slot's own
+    rows, and every screen column its icon+reading pair could reach.
+
+    The editor clips the drawable to this box (seen on a fenix8solar47mm:
+    "STEPS 5068" drawn as "TEPS 506" with its icon gone), and `box` cannot
+    bound the pair -- it leaves out the label, the unit and a string value
+    such as a date's weekday, which have no documented width.  So the width
+    comes from the screen instead, the way the SDK's own
+    `ConfigurableWatchFace` sample makes its drawable the full screen width.
+    `align:` says which side of the anchor the pair grows on
+    (`wfb.layout.alignment_shift`, the device's own rule): `left` reaches
+    from the anchor to the right edge, `right` from the left edge to the
+    anchor, and `center` as far either way as the nearer edge allows, so the
+    editor's animation stays centred on the anchor; past that, a centred
+    pair is already off-screen on the other side.  `box` is kept inside,
+    for an anchor at the very edge.
+    """
+    if align == "left":
+        left, right = anchor_x, screen_width
+    elif align == "right":
+        left, right = 0, anchor_x
+    else:
+        half = max(min(anchor_x, screen_width - anchor_x), 0)
+        left, right = anchor_x - half, anchor_x + half
+    return IntBox(left, box.y, right - left, box.height).union(box)
 
 
 def _complication_slot_text(element: ComplicationSlot,
@@ -432,12 +460,14 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         # unshifted anchor at runtime.
         dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
         box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
+        rounded = box.rounded()
         return PlacedComplicationSlot(
-            element, box.rounded(), (round(cx), round(cy)), depth,
+            element, rounded, (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
             font=font.resolved(),
             widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
             icon_position=element.icon_position, icon_gap_px=gap_px,
+            highlight=highlight_box(rounded, round(cx), element.align, r.device.width),
         )
 
     def aod_refusal(self, key: str, shape: str | None,
@@ -571,13 +601,18 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
              "the icon+reading pair is centred here at runtime"),
             (f"{prefix}_CY", placed.anchor_point[1], ""),
         ]
-        # The editor's animated highlight needs a fixed box at build time --
-        # `getComplicationDrawable` hands the system a `Drawable` up front,
-        # before anything is pulled -- so this reuses the same estimated `box`
-        # the safe-area/overlap lints accept. Emitted for every slot regardless
-        # of `on_hold:`: the editor can animate any slot.
+        # The editor needs two boxes at build time -- `getComplicationDrawable`
+        # hands the system a `Drawable` up front, before anything is pulled.
+        # `onTap` hit-tests the same estimated `box` the safe-area/overlap
+        # lints accept, so side-by-side slots stay separate targets; the
+        # drawable gets `highlight`, wide enough for whatever the pick draws,
+        # because the editor clips it to that box. Emitted for every slot
+        # regardless of `on_hold:`: the editor can animate any slot.
         out.extend(layout_constants_mod.box_constants(
-            f"{prefix}_BOX", placed.box, "the editor's animated highlight box (estimated)"))
+            f"{prefix}_BOX", placed.box, "the editor's tap target (estimated)"))
+        out.extend(layout_constants_mod.box_constants(
+            f"{prefix}_HIGHLIGHT", placed.highlight or placed.box,
+            "the editor clips the slot's drawable to this box"))
         if placed.element.icon_gap is not None:
             # Only when the author wrote 'icon_gap:' -- otherwise the view keeps
             # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'

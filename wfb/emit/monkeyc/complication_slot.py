@@ -91,13 +91,11 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
     w.blank()
 
     w.doc(
-        "Build the Drawable the editor animates for one slot, from that slot's "
-        "own\nresolved box -- the same estimate the safe-area/overlap lints "
-        "already\naccept, since the real drawn extent depends on content this "
-        "element does\nnot know until the device pulls it.\n\n"
-        "UNVERIFIED whether the box the editor animates actually lines up with "
-        "what\nis drawn -- no simulator runs in this container and there is no "
-        "watch."
+        "Build the Drawable the editor animates for one slot, on that slot's "
+        "own\nhighlight box.  The editor clips the drawable to this box, and "
+        "what the\npick draws (label, value, unit, icon) is not known until "
+        "the device\npulls it, so the box spans every screen column the slot "
+        "could reach\nrather than the lints' estimate."
     )
     with w.block(
         "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null",
@@ -107,8 +105,8 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
             for element, unique_id in pairs:
                 prefix = const_prefix(element.id)
                 w.line(f"case {unique_id}: drawable = new {face.entry}SlotDrawable(self, {unique_id},")
-                w.line(f"    Layout.{prefix}_BOX_X, Layout.{prefix}_BOX_Y,")
-                w.line(f"    Layout.{prefix}_BOX_WIDTH, Layout.{prefix}_BOX_HEIGHT); break;")
+                w.line(f"    Layout.{prefix}_HIGHLIGHT_X, Layout.{prefix}_HIGHLIGHT_Y,")
+                w.line(f"    Layout.{prefix}_HIGHLIGHT_WIDTH, Layout.{prefix}_HIGHLIGHT_HEIGHT); break;")
         with w.block("if (drawable == null)"):
             w.line("return null;")
         w.line("return new WatchUi.ComplicationDrawableRef(")
@@ -143,11 +141,8 @@ def emit_slot_drawable(face: Face) -> SourceFile:
         "delegates straight back to the view's own drawSlot, so there is exactly\n"
         "one implementation of what a slot looks like.\n"
         "\n"
-        "UNVERIFIED whether the animation this exists to support actually "
-        "happens\nor lines up with what is drawn -- no simulator runs in this "
-        "container and\nthere is no watch.  What is verified: this compiles "
-        "warning-free on every\ntarget, including fr955, which has no editor "
-        "and so never constructs one."
+        "Seen on a fenix8solar47mm: the editor animates it over the slot.  A "
+        "watch\nwith no editor never constructs one."
     )
     with w.block(f"class {face.entry}SlotDrawable extends WatchUi.Drawable"):
         w.line(f"private var _view as {face.entry}View;")
