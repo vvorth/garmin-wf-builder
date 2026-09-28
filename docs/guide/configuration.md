@@ -599,8 +599,17 @@ the estimate's rows but takes every screen column the pair can reach from
 its anchor: as far as the nearer screen edge either way for `align:
 center` (the full width for a centred slot, like the SDK's own sample), and
 from the anchor to one edge for `left`/`right`. `onTap` still hit-tests the
-estimate, so two slots side by side stay separate tap targets. That the
-wider box ends the clipping is not yet seen on a watch.
+estimate, so two slots side by side stay separate tap targets. Seen on a
+fenix8solar47mm: the reading now shows in full.
+
+**Open: a static shape behind a slot vanishes while that slot's options are
+listed.** In the option list the editor clears a region around the slot,
+wider than the drawable's box, and draws only the drawable there, so a
+static card the slot sits on disappears until the wearer cancels or
+chooses (seen on the showcase face). Repainting the static content inside
+the drawable brought the card back but made it pulse with the slot, so it
+was withdrawn. `examples/probes/slot-editor/` is the test face for finding
+a fix.
 
 **`on_hold: auto` on a `complication_slot` is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`

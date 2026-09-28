@@ -6,7 +6,8 @@ user-facing index.
 **Layout (reorganised 2026-09-20).** Four faces at the top level were built
 to be worn -- `dashboard/`, `showcase/`, `analog-custom/` and `enduro/`
 (work in progress). `features/` holds one face per format feature, written
-as each landed, and `system-fonts/` holds the three calibration faces.
+as each landed, `system-fonts/` holds the three calibration faces, and
+`probes/` holds test faces for one open question each.
 `big-clock-3/` was deleted by the user the same day. Anything that walks the
 examples must recurse: `tests/test_templates.py` uses `rglob`, and a flat
 `examples/*/face.yaml` glob now sweeps up only the four wearable faces.
@@ -102,6 +103,18 @@ moving 2×2 pixel mask, on by default -- no key is written for it, the same
 "omitting `mask:` still masks" default every other AMOLED `aod:` design
 gets -- and the lint's own note now scores that masked frame at its worst
 of four phases: 1.0% lit, 0.1% luminance, down from 4.0%/0.3% unmasked.
+
+## `probes/`
+
+Test faces for one open question each, to be sideloaded and looked at on a
+real watch -- not designs, not feature demos. Named `Probe <thing>` so the
+`.prg` says what it is. The header comment is the record: the question,
+what the face puts on screen to answer it, the plan, and, once known, the
+answer. `probes/slot-editor/` (2026-09-28) is about the native editor's
+drawable for a `complication_slot`: a static card behind a slot vanishes
+while its options are listed (seen on showcase), and repainting static
+content in the drawable made it pulse, so it was reverted. It targets only
+the two fēnix 8s, the verification devices that have the editor.
 
 ## `system-fonts/`
 

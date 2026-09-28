@@ -74,3 +74,15 @@ says what it is on the watch.
 on a guide line, so `wfb preview` can be compared against a simulator
 screenshot pixel for pixel. They have no clock and no data, and they are
 split across three faces because the largest fonts cannot share one screen.
+
+## Probes
+
+[`probes/`](probes/) holds test faces built to answer one open question on a
+real watch. They are neither designs nor feature demos. Each one's header
+comment states the question, what the face puts on screen to answer it, and
+the plan. Each one's `name:` is `Probe <thing>`, so a sideloaded build says
+what it is.
+
+| Face | Question |
+|---|---|
+| [`probes/slot-editor/`](probes/slot-editor/face.yaml) | how the native editor draws a `complication_slot` while it pulses and while its options are listed, and why a static card behind the slot vanishes in the option list |

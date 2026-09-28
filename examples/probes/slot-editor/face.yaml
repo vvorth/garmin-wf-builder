@@ -1,0 +1,219 @@
+# Probe: how the native on-device editor draws a `complication_slot`.
+#
+# A test face, not a demo or a wearable face: it exists to answer one open
+# question on a real fēnix 8, then be kept as the record of how it was
+# answered. Named `Probe Slot Editor` so the sideloaded build
+# (`probe-slot-editor-<device>.prg`) cannot be mistaken for anything else.
+#
+# ## The open question
+#
+# In the editor's Data step, the selected slot's drawable (the generated
+# `SlotDrawable`, from `getComplicationDrawable`) is drawn in two ways:
+#
+# * **pulse** (a slot selected, select not pressed yet): the face is drawn
+#   as usual, minus the slot, with the drawable animating on top of it. The
+#   drawable should be the slot alone -- nothing static may pulse with it.
+# * **option list** (select pressed, scrolling the slot's choices): the
+#   editor clears a region around the slot, *wider than the drawable's box*,
+#   and draws only the drawable there. Seen on a fenix8solar47mm: the
+#   showcase face's static `left_card` behind its left register vanished
+#   whole, including a strip lying outside the box, and came back on cancel
+#   or choice.
+#
+# Repainting the static buffer inside the drawable fixed the option list but
+# made the card pulse too (commit c92c54a, reverted). The next fix needs
+# facts the SDK does not document: how big the cleared region is, and
+# whether the view can tell the pulse from the option list.
+#
+# ## What is on this face
+#
+# * `card_slot` (upper left) reproduces the bug: the showcase register's
+#   exact geometry -- a `complication_slot` at `dx: -50%r, dy: -30%r` with
+#   its icon on top, and a static card at `dy: -23%r` that is partly under
+#   the slot and reaches below the drawable's box.
+# * `ruler_slot` (upper right) measures the cleared region: the same slot
+#   with no card, inside a static grid of 1px dots every 4px
+#   (`ruler_dots`, reaching past the centre line into `card_slot`'s half). The dots that vanish in the option list trace the
+#   region the editor clears; counting them against the slot gives its
+#   extent in pixels.
+# * `boxed_slot` (bottom) is the other common design: a static card that
+#   fully contains its slot, to see whether that case behaves the same.
+# * A clock, so the face is recognisable.
+#
+# Only the two fēnix 8 verification devices are targets: the question is
+# about the native editor, which fr955 does not have (it edits `config:`
+# from the generated settings menu instead).
+#
+# ## Plan
+#
+# 1. **Reproduce and measure (this face as it is).** Sideload it, open
+#    Data, and photograph each slot in the pulse step and in the option
+#    list. Expected with the current compiler: `card_slot`'s card vanishes
+#    in the option list only; `ruler_slot`'s missing dots show the cleared
+#    region; the pulse shows no static content moving.
+# 2. **Instrument (planned, not built).** A build of this face that logs
+#    each editor callback with `System.println`: `getComplicationDrawable`
+#    (which slot), `onWatchFaceConfigEdited` (`:type`, `:committed`), every
+#    `SlotDrawable.draw` (the Dc's width and height, and the time),
+#    `onLayout` and `onUpdate`. On a watch, `println` goes to
+#    `/GARMIN/APPS/LOGS/<PRG name>.TXT`, which must be created by hand first
+#    (`$CIQ_SDK/doc/docs/Core_Topics/Debugging.html`). One run: pulse ->
+#    option list -> scroll -> cancel -> pulse -> option list -> choose.
+#    How the logging gets into the generated code is decided when this step
+#    is built; it must never reach an ordinary build.
+# 3. **Decide from the log.** If a callback or the drawable's Dc reliably
+#    tells the option list from the pulse, the drawable repaints the static
+#    content behind the slot in the option list only, and never while it
+#    pulses. If nothing does, static content under a slot stays lost while
+#    its options are listed: record that in `docs/limitations.md` and move
+#    showcase's cards out of the cleared region instead.
+#
+# Build it with:    ./wfb.py build examples/probes/slot-editor/face.yaml
+# Preview it with:  ./wfb.py preview examples/probes/slot-editor/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 7f3c1e58-2b9a-4d6e-8c05-1a9e4f7b2d63
+  name: Probe Slot Editor
+  version: 0.1.0
+
+targets: [fenix8solar47mm, fenix8solar51mm]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  card: "#555555"
+  dots: "#AAAAAA"
+  accent: "#00AAFF"
+
+config:
+  data:
+    card:
+      default: complication.steps
+      choices: [complication.steps, complication.heart_rate, complication.date]
+    ruler:
+      default: complication.heart_rate
+      choices: [complication.steps, complication.heart_rate, complication.date]
+    boxed:
+      default: complication.date
+      choices: [complication.steps, complication.heart_rate, complication.date]
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # the showcase register's card, exactly: partly under the slot, reaching
+  # below the drawable's box
+  - id: card
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dx: -50%r, dy: -23%r }
+    size: { width: 42%r, height: 19%r }
+    corner_radius: 3%r
+    color: palette.card
+    lint:
+      allow: [contrast]
+      reason: "showcase's own dark-grey card on black, reproduced exactly; the
+        slot's white reading drawn on it is what has to read, not the card"
+
+  # 1px dots every 4px around `ruler_slot`, in plain pixels from the centre
+  # so they can be counted: 36 columns from 24px left of the centre to 116px
+  # right of it, 20 rows from 84px above it to 8px above it -- two stacked
+  # grids, because a pattern draws at most 360 copies. The slot's drawable
+  # box already spans the whole right half of the screen, so the ruler
+  # reaches past the centre line and well above and below the slot;
+  # whichever dots vanish in the option list trace the region the editor
+  # clears.
+  - id: ruler_dots_upper
+    type: pattern
+    pattern: grid
+    at: { anchor: center, dx: -24px, dy: -84px }
+    count: 360
+    columns: 36
+    step: { dx: 4px, dy: 4px }
+    color: palette.dots
+    parts:
+      - { shape: circle, radius: 1px }
+    lint:
+      allow: [safe-area]
+      reason: "a ruler: its top-right dots fall under the bezel and are simply
+        not counted"
+
+  - id: ruler_dots_lower
+    type: pattern
+    pattern: grid
+    at: { anchor: center, dx: -24px, dy: -44px }
+    count: 360
+    columns: 36
+    step: { dx: 4px, dy: 4px }
+    color: palette.dots
+    parts:
+      - { shape: circle, radius: 1px }
+
+  # a card that fully contains its slot
+  - id: box
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dy: 46%r }
+    size: { width: 64%r, height: 20%r }
+    corner_radius: 3%r
+    color: palette.card
+    lint:
+      allow: [contrast]
+      reason: "the same dark-grey card as `card`, a backing, not something to read"
+
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dy: 20%r }
+    color: palette.fg
+
+  - id: card_slot
+    type: complication_slot
+    slot: config.data.card
+    at: { anchor: center, dx: -50%r, dy: -30%r }
+    font: FONT_XTINY
+    icon_size: 9%r
+    icon_position: top
+    icon_gap: 1%r
+    icon_color: palette.accent
+    color: palette.fg
+    label: none
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: ruler_slot
+    type: complication_slot
+    slot: config.data.ruler
+    at: { anchor: center, dx: 50%r, dy: -30%r }
+    font: FONT_XTINY
+    icon_size: 9%r
+    icon_position: top
+    icon_gap: 1%r
+    icon_color: palette.accent
+    color: palette.fg
+    label: none
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: boxed_slot
+    type: complication_slot
+    slot: config.data.boxed
+    at: { anchor: center, dy: 46%r }
+    font: FONT_XTINY
+    icon_size: 9%r
+    icon_color: palette.accent
+    color: palette.fg
+    label: short
+    when_absent: placeholder
+    placeholder: "--"

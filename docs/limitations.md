@@ -565,8 +565,15 @@ still true of the shipped feature:
   first config read `onLayout` also calls -- when it has not run yet.
   **Seen on a fenix8solar47mm:** the
   highlight animates over the selected slot and previews each choice as the
-  wearer scrolls. Not yet seen: that the wider box ends the clipping, and
-  whether `onTap`'s hit regions read correctly on the touchscreen. It
+  wearer scrolls, and with the wider box the reading shows in full. **Open:**
+  in the option list the editor clears a region around the slot, wider
+  than the drawable's box, and draws only the drawable there, so a static
+  shape behind the slot (showcase's register cards) vanishes until the
+  wearer cancels or chooses. Repainting the static buffer inside the
+  drawable fixed that but made the static content pulse with the slot, and
+  was reverted; `examples/probes/slot-editor/` is the probe face for it.
+  Not yet seen: whether `onTap`'s hit regions read correctly on the
+  touchscreen. It
   compiles warning-free on every target, including `fr955`, which has no
   native editor and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**
