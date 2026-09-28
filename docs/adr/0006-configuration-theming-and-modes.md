@@ -294,12 +294,10 @@ fr955** — the compiler generates both paths from one declaration.
 > entry). The drawable is handed its own `_HIGHLIGHT` box, spanning every
 > screen column the pair can reach, because the editor clips the drawable to
 > it and the lints' estimate leaves out label and unit; `onTap` keeps the
-> estimate. The drawable first copies the static buffer inside its box, and
-> the box grows over the static shapes the slot sits on, because in the
-> option list the editor clears around the slot and draws only the drawable.
-> **Seen on a fenix8solar47mm:** the highlight animates over the selected
-> slot, previews each choice, and shows the reading in full. Not yet seen:
-> whether `onTap`'s hit regions read correctly on the touchscreen. Real `monkeyc` builds it warning-free
+> estimate. **Seen on a fenix8solar47mm:** the highlight animates over the
+> selected slot and previews each choice. Not yet seen: that the wider box
+> ends the clipping the estimate caused, and whether `onTap`'s hit regions
+> read correctly on the touchscreen. Real `monkeyc` builds it warning-free
 > on all three targets, `fr955` included -- which has no editor at all and
 > never calls any of `onStart`'s flag, `onTap` or `getComplicationDrawable`.
 >
