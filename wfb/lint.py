@@ -73,7 +73,7 @@ ALL_CODES = frozenset({
     "font", "font-unavailable", "format", "format-version", "graph", "graphics-pool", "hands",
     "icon", "io",
     "layouts", "lint-allow", "memory",
-    "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
+    "metrics", "migrate", "missing-glyph", "monkeyc", "off-screen", "palette",
     "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "palette-mono", "partial-update", "partial-update-budget", "pattern",

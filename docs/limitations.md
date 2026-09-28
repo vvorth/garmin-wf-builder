@@ -733,7 +733,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
 | Ticks drawn by a `style: scale` progress itself | ADR 0004 §1 lists "ticks + coloured range band + pointer"; the band and the pointer are built, and ticks are a radial `pattern` sharing the scale's `start_angle`/`sweep` rather than a second tick mechanism |
 | `units:` on an expression, or on a `complication_slot` | a conversion needs the unit its value is in, which only a bare source states. A slot has no `units:`: each type's reading already follows the watch's own metric/statute settings (`docs/guide/configuration.md`, "The Data axis") |
-| `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
+| `wfb install`, `package`; the GUI | brief, Phase 3 (`wfb migrate` exists: format 1 to format 2, plan 22) |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `wfb.availability.source_unavailable` but set on no source, because none needs it today |

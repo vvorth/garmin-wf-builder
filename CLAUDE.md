@@ -281,7 +281,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
-  - `wfb install`/`package`/`migrate`.
+  - `wfb install`/`package`. (`wfb migrate` rewrites a format 1 file as
+    format 2, plan 22; the compiler reads format 2 from plan 22 slice 2.)
 - **Shipped:** all nine element types; `align:` everywhere, `static:`,
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,

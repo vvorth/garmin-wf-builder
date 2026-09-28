@@ -91,6 +91,23 @@ These cost real time to discover; do not rediscover them.
   `add`), and an injected mapping key needs
   `add_kv_line_col(k, [l, c, l, c])` — **four** values, because `key()`
   reads slots 0–1 and `value()` reads 2–3.
+- **Rewriting YAML with ruamel and keeping the author's layout** (`wfb
+  migrate`, plan 22). What the round-trip loader does *not* keep, and what
+  `wfb/migrate.py` does about each, all found on the example corpus:
+  a quoted scalar's line breaks (it re-emits a long `reason:` on one line:
+  swapped for a sentinel before dumping and its source text put back);
+  the spaces inside a flow mapping's braces (`{ a: 1 }`: a small emitter
+  subclass, used when the file writes them); a comment's column (ruamel
+  keeps its *absolute* column, and the lines of a multi-line comment carry
+  their indentation in the token text, so a subtree moved deeper has every
+  token shifted); and which key a comment belongs to -- the full-line
+  comments above a key are filed after the *previous* key's value, or, when
+  that value is a flow collection, as the key's own pre-comments
+  (`ca.items[key][1]`). With `preserve_quotes`, assigning a plain string to
+  a key that was quoted re-quotes it. `ruamel.yaml.util.
+  load_yaml_guess_indent` measures a list's dash from column 0, not from its
+  parent key, so it misreads a file whose first list is nested; the
+  migrator measures the offset itself.
 - Glyph rasterising at small pixel sizes is measurably asymmetric from
   sub-pixel positioning, not curve sampling (a plain square baked lopsided
   is the tell). Rasterising at 16x and box-averaging down cut measured

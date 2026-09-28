@@ -348,6 +348,20 @@ three verification devices.
 - Check: `wfb migrate --check` over every example and `wfb/templates/*.yaml`
   migrates everything without a refusal, or each refusal is expected and
   written down here.
+- *Done 2026-09-28.* `wfb/migrate.py`, `wfb/template.py` (the v2 template
+  parser, shared with slice 2) and `tests/test_migrate.py`. Every example,
+  template and fixture migrates and re-migrates unchanged, except two,
+  both refused for the §3.2 colour collision and both expected:
+  `examples/enduro/face.yaml` (palette `bg`, `fg`, `dim`, `dark` are also
+  scheme roles) and `examples/features/config/face.yaml` (palette `bg`,
+  `text`). Slice 3 renames those palette entries by hand before migrating.
+  Decided while building: a group's `aod: {format:}` becomes
+  `aod: {text: "{:spec}"}`, a placeholder with no expression, standing for
+  each descendant's own; a text element's `aod:` template repeats the
+  element's expression. `{unit}` stays the unit label, not a placeholder.
+  The refusals also cover a v1 format with no field or with two, a
+  `static: true` inside a `static:` block, and the placeholder text `hide`
+  (which would read as `absent: hide`).
 
 **Slice 2 — format 2 alongside format 1.**
 - Add `schema/wfb-face-2.schema.json`, normative, with every description

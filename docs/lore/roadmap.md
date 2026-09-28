@@ -123,7 +123,8 @@ specifies each item.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
-10. `wfb install`, `package`, `migrate`.
+10. `wfb install`, `package`. (`wfb migrate`, format 1 to format 2, is
+    plan 22 slice 1.)
 11. A `pattern`'s or `complication_slot`'s own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and
     `aod: {filled: ...}` on `shape: polygon` (plan 14 §4.3, slice 2 built
