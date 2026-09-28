@@ -35,23 +35,25 @@ hands:
         - shape: polygon
           color: palette.white
           points:
-            - { dx: -3%r, dy: 19%r }
-            - { dx: -3%r, dy: -53%r }
-            - { dy: -57%r }
-            - { dx: 3%r, dy: -53%r }
-            - { dx: 3%r, dy: 19%r }
-        - { shape: line, at: { dy: 17%r }, to: { dy: -52%r }, thickness: 1px, color: palette.silver }
+            - { dx: -4%r, dy: 19%r }
+            - { dx: -4%r, dy: -52%r }
+            - { dx: -1%r, dy: -57%r }
+            - { dx:  1%r, dy: -57%r }
+            - { dx: 4%r, dy: -52%r }
+            - { dx: 4%r, dy: 19%r }
+        - { shape: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 3px, color: palette.silver }
     minute:
       parts:
         - shape: polygon
           color: palette.white
           points:
-            - { dx: -2%r, dy: 12%r }
-            - { dx: -2%r, dy: -80%r }
-            - { dy: -83%r }
-            - { dx: 2%r, dy: -80%r }
-            - { dx: 2%r, dy: 12%r }
-        - { shape: line, at: { dy: 10%r }, to: { dy: -80%r }, thickness: 1px, color: palette.silver }
+            - { dx: -3%r, dy: 12%r }
+            - { dx: -3%r, dy: -80%r }
+            - { dx: -1%r, dy: -83%r }
+            - { dx:  1%r, dy: -83%r }
+            - { dx: 3%r, dy: -80%r }
+            - { dx: 3%r, dy: 12%r }
+        - { shape: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 3px, color: palette.silver }
     second:
       color: palette.silver
       parts:
