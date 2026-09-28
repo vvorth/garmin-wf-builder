@@ -834,9 +834,13 @@ realistic targets) and a route to exact geometry from the simulator skin;
 
 ### The simulator crashes when an app is pushed
 
-`wfb simulate` works where the Connect IQ simulator does, and so far that is
-nowhere: the simulator's app-load path is broken in this SDK build, in every
-environment tried, container or real desktop. It is a GUI application, and on
+`wfb simulate` works where the Connect IQ simulator does. That is not
+Linux: there the simulator's app-load path is broken in this SDK build, in every
+environment tried, container or real desktop. On macOS the user runs the
+simulator on their host, and `wfb simulate` opens the SDK's `ConnectIQ.app`
+itself, with no display setup. That path is tested only against a stand-in
+simulator (`tests/test_simulate.py`) and has not yet been run on a Mac from
+this repository. The simulator is a GUI application, and on
 Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
 `libjavascriptcoregtk-4.0`, which current distributions no longer ship.
 

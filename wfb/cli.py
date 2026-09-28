@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import os
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -329,6 +330,9 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT)
     simulate.add_argument("--screenshot", type=Path,
                           help="capture the simulator window to this PNG")
+    simulate.add_argument("-f", "--follow", action="store_true",
+                          help="stay attached and print the face's console output "
+                               "(System.println) until Ctrl-C")
     simulate.add_argument("--sdk")
     simulate.add_argument("--key")
     simulate.add_argument("--devices-dir")
@@ -719,12 +723,21 @@ def _preview(args: argparse.Namespace) -> int:
 def _simulate(args: argparse.Namespace) -> int:
     """launch the Connect IQ simulator and push a built face to it
 
-    Builds the design (like `wfb build`) and pushes the result to a
-    *running* simulator via `monkeydo` -- the simulator itself is not
-    started automatically, and in a sandboxed Linux container usually
-    cannot run at all (see docs/limitations.md); `wfb preview` covers that
-    gap. `--screenshot` captures the simulator window to a PNG once the
-    push succeeds.
+    Builds the design (like `wfb build`), starts the simulator if it is not
+    already running, and pushes the build for `-d`, or the first target,
+    with `monkeydo`. On macOS the simulator is the SDK's `ConnectIQ.app`,
+    opened for you. On Linux it needs a display (`DISPLAY`), and it
+    currently crashes as soon as an app is pushed to it (see
+    docs/limitations.md), which is the gap `wfb preview` covers.
+
+    The command returns once the face is running. `monkeydo` stays behind,
+    writing the face's console output (`System.println`) to `simulator.log`
+    beside the built .prg, until the face is replaced or the simulator is
+    closed. `-f/--follow` also prints it here, until Ctrl-C, which leaves
+    the face running.
+
+    `--screenshot` captures the simulator window to a PNG once the face is
+    running. On macOS the terminal needs the Screen Recording permission.
     """
     bag = Bag()
     toolchain = Toolchain.discover(args.sdk, args.key)
@@ -749,7 +762,7 @@ def _simulate(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        push(toolchain, prg, device_id)
+        session = push(toolchain, prg, device_id)
     except SimulatorError as exc:
         print(f"\nsimulator: {exc}", file=sys.stderr)
         for hint in exc.hints:
@@ -761,11 +774,23 @@ def _simulate(args: argparse.Namespace) -> int:
     print(f"\n{_status('pushed', color=color_out)} {prg.name} to the {device_id} simulator")
     if args.screenshot:
         try:
-            path = screenshot(args.screenshot)
+            path, note = screenshot(args.screenshot)
             print(f"{_status('screenshot', color=color_out)} {path}")
-        except SimulatorError as exc:
+            if note:
+                print(f"  {note}", file=sys.stderr)
+        except (SimulatorError, OSError, subprocess.CalledProcessError) as exc:
             print(f"screenshot failed: {exc}", file=sys.stderr)
             return 1
+    if not args.follow:
+        print(f"console output: {session.log}")
+        return 0
+    print("following the face's console output (Ctrl-C to stop)", flush=True)
+    try:
+        for chunk in session.follow():
+            print(chunk, end="", flush=True)
+    except KeyboardInterrupt:
+        print(f"\nstopped following; the face is still running, and its output "
+              f"still goes to {session.log}")
     return 0
 
 

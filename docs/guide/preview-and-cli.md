@@ -50,7 +50,7 @@ wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good templ
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator
-wfb simulate  design.yaml          # launch the simulator and push the built face
+wfb simulate  design.yaml [-d DEVICE] [-f] [--screenshot PNG]  # run it in the simulator
 wfb devices                        # installed device definitions and their limits
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
 wfb sources                        # the data-source catalogue, and the icon names
@@ -90,6 +90,16 @@ The skin is optional. If a device's files don't include it, that device
 renders the bare screen, as it would without `--skin`, under its usual
 file name, and one warning names it. Around the watch, the image keeps the
 skin's own background, which is white on most devices.
+
+`wfb simulate` builds the design, starts the Connect IQ simulator if it is
+not already running (on macOS it opens the SDK's `ConnectIQ.app`; on Linux it
+needs a display), and loads the face into it. It returns once the face is
+running. The face's console output (`System.println`) keeps going to
+`simulator.log` beside the built `.prg`; `-f/--follow` prints it in the
+terminal too, until Ctrl-C, which leaves the face running. `--screenshot
+face.png` captures the simulator window. On macOS that needs the terminal to
+have the Screen Recording permission (System Settings → Privacy & Security),
+or the capture shows only the desktop.
 
 `wfb help <command>` and `wfb <command> help` print the same thing as
 `wfb <command> --help`, byte for byte, because all three are read from that
