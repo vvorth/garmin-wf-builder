@@ -265,7 +265,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
                 _emit_complication_slot_hold_method(w, placed, guards)
         if slot_pairs:
-            _emit_complication_slot_editor_methods(w, face, slot_pairs)
+            _emit_complication_slot_editor_methods(
+                w, face, slot_pairs, STATIC_FIELD if static is not None else None)
         if static is not None:
             _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config,
                                  from_menu=guards.config_menu)

@@ -558,15 +558,24 @@ still true of the shipped feature:
   estimate (which leaves out label and unit, and cut "STEPS 5068" to
   "TEPS 506" on a fenix8solar47mm) but a per-device `_HIGHLIGHT` box
   spanning every screen column the pair can reach from its anchor;
-  `onTap` still hit-tests the estimate. Entering the editor's Data list
+  `onTap` still hit-tests the estimate. In the option list the editor
+  clears a region around the slot wider than that box and draws only the
+  drawable there (showcase's static `left_card` vanished whole), so the
+  drawable first copies the static buffer inside its box, and the box grows
+  over each static shape overlapping the slot that is no larger than the
+  box (`wfb.kinds.complication_slot.with_static_backing`). The cleared
+  region itself is undocumented: static content reaching past the grown
+  box, and any dynamic element under it, is not restored. Entering the
+  editor's Data list
   starts the face afresh and draws the preselected slot's drawable before
   `onLayout` runs (seen on a fenix8solar47mm: no icon, its font not yet
   loaded), so `drawableFor` first runs `loadResources` -- the fonts and
   first config read `onLayout` also calls -- when it has not run yet.
   **Seen on a fenix8solar47mm:** the
   highlight animates over the selected slot and previews each choice as the
-  wearer scrolls. Not yet seen: that the wider box ends the clipping, and
-  whether `onTap`'s hit regions read correctly on the touchscreen. It
+  wearer scrolls, and with the wider box the reading shows in full. Not
+  yet seen: whether `onTap`'s hit regions read correctly on the
+  touchscreen. It
   compiles warning-free on every target, including `fr955`, which has no
   native editor and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**

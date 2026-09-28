@@ -599,8 +599,19 @@ the estimate's rows but takes every screen column the pair can reach from
 its anchor: as far as the nearer screen edge either way for `align:
 center` (the full width for a centred slot, like the SDK's own sample), and
 from the anchor to one edge for `left`/`right`. `onTap` still hit-tests the
-estimate, so two slots side by side stay separate tap targets. That the
-wider box ends the clipping is not yet seen on a watch.
+estimate, so two slots side by side stay separate tap targets. Seen on a
+fenix8solar47mm: the reading now shows in full.
+
+**The drawable also repaints the static content behind the slot.** While a
+slot's options are listed, the editor clears a region around it, wider than
+its box, and draws only the drawable there: a static card behind the slot
+vanished whole. So the drawable first copies the static buffer's own pixels
+inside its box, then draws the slot, and the box grows over every static
+shape that overlaps the slot's estimated box and is no larger than the box
+itself -- a card, but not a full-screen background or a dial ring, which are
+still repainted inside the box, just not grown over. What the editor clears
+beyond the box is not documented; a static shape reaching past it, or a
+dynamic element under it, is not restored.
 
 **`on_hold: auto` on a `complication_slot` is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`

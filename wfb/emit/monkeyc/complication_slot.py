@@ -62,7 +62,8 @@ def _emit_pulsing_field(w: Writer) -> None:
 
 
 def _emit_complication_slot_editor_methods(w: Writer, face: Face,
-                                           pairs: list[tuple[ComplicationSlot, int]]) -> None:
+                                           pairs: list[tuple[ComplicationSlot, int]],
+                                           static_field: str | None = None) -> None:
     """`setPulsing`/`drawSlot`/`drawableFor` -- the view's half of the native
     editor's animated highlight (`onTap`/`getComplicationDrawable` live on
     the delegate).  Only ever emitted when ``pairs`` (`_editor_slot_pairs`)
@@ -103,9 +104,16 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
         "The editor is drawing the slot it animates, so the per-slot method's "
         "own\n_pulsing skip is lifted for this call: the face skips that slot "
         "so it is\nnot drawn under the animation, and this is what draws it "
-        "instead."
+        "instead.\n(x, y, width, height) is the drawable's own box."
     )
-    with w.block("function drawSlot(dc as Dc, unique as Number) as Void"):
+    with w.block("function drawSlot(dc as Dc, unique as Number,\n"
+                 "        x as Number, y as Number, width as Number, height as Number) as Void"):
+        if static_field is not None:
+            w.comment("the editor clears around the slot before drawing this, so repaint")
+            w.comment("the static content behind it -- a card the slot sits on, say")
+            w.line(f"var buffer = {static_field};")
+            with w.block("if (buffer != null)"):
+                w.line("dc.drawOffsetBitmap(x, y, x, y, width, height, buffer);")
         w.line("var pulsing = _pulsing;")
         w.line("_pulsing = 0;")
         with w.block("switch (unique)"):
@@ -193,7 +201,8 @@ def emit_slot_drawable(face: Face) -> SourceFile:
         with w.block("function draw(dc as Dc) as Void"):
             with w.block("if (!isVisible)"):
                 w.line("return;")
-            w.line("_view.drawSlot(dc, _unique);")
+            w.line("_view.drawSlot(dc, _unique, locX.toNumber(), locY.toNumber(),")
+            w.line("    width.toNumber(), height.toNumber());")
     return SourceFile(f"source/{face.entry}SlotDrawable.mc", w.render())
 
 

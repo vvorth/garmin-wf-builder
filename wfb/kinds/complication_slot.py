@@ -4,6 +4,7 @@ at."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING
 
 from .. import catalog, complications, formatting, icons, units
@@ -159,6 +160,33 @@ def highlight_box(box: IntBox, anchor_x: int, align: str, screen_width: int) -> 
         half = max(min(anchor_x, screen_width - anchor_x), 0)
         left, right = anchor_x - half, anchor_x + half
     return IntBox(left, box.y, right - left, box.height).union(box)
+
+
+def with_static_backing(highlight: IntBox, slot_box: IntBox, statics: Iterable[IntBox],
+                        screen_width: int, screen_height: int) -> IntBox:
+    """``highlight`` grown over every static shape the slot sits on, then
+    clamped to the screen.
+
+    In the editor's option list, the editor clears a region around the
+    edited slot wider than its box and draws only the slot's drawable
+    there, so the drawable repaints the static buffer inside its own box
+    before drawing the slot (seen on a fenix8solar47mm: showcase's
+    `left_card`, a static shape behind the left register, vanished whole
+    while its options were listed, the strip below the box included).  So
+    the box must cover the static shapes behind the slot: every static box
+    that overlaps the slot's own estimated box and is no larger in area than
+    ``highlight``.  The size bound is what leaves out a full-screen
+    background, a dial ring or a numeral pattern, whose boxes span the dial
+    -- they are scenery the slot sits *in*, and are still repainted inside
+    the box, just not grown over.
+    """
+    grown = highlight
+    for box in statics:
+        overlaps = (box.x < slot_box.right and slot_box.x < box.right
+                    and box.y < slot_box.bottom and slot_box.y < box.bottom)
+        if overlaps and box.area <= highlight.area:
+            grown = grown.union(box)
+    return grown.clamp_to(screen_width, screen_height)
 
 
 def _complication_slot_text(element: ComplicationSlot,

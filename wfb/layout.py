@@ -1232,6 +1232,7 @@ class Resolver:
         # static content first, then `z`, then document order -- the one key,
         # shared with `Face.draw_order` so the two can never disagree
         self.items.sort(key=lambda p: draw_sort_key(p.element))
+        self.items = self._back_slot_highlights(self.items)
         return ResolvedFace(
             face=self.face,
             device=self.device,
@@ -1242,6 +1243,23 @@ class Resolver:
             warnings=self.warnings,
             hidden=dict(self.hidden),
         )
+
+    def _back_slot_highlights(self, items: list[Placed]) -> list[Placed]:
+        """Grow each `complication_slot`'s highlight box over the static
+        shapes it sits on (`wfb.kinds.complication_slot.with_static_backing`),
+        which needs every static box, so it runs once everything is placed."""
+        from .kinds.complication_slot import with_static_backing
+
+        # what the static buffer paints: the same test as the emitter's `static_plan`
+        statics = [p.box for p in items
+                   if p.element.static_root is not None and p.kind != "group"
+                   and p.id not in self.hidden]
+        return [
+            replace(p, highlight=with_static_backing(
+                p.highlight or p.box, p.box, statics, self.device.width, self.device.height))
+            if isinstance(p, PlacedComplicationSlot) else p
+            for p in items
+        ]
 
     # -- traversal --------------------------------------------------------
 

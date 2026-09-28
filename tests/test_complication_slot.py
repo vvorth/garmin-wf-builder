@@ -779,7 +779,7 @@ def test_the_editor_drawable_draws_the_slot_the_face_skips(write_design, bag, db
     view = monkeyc.emit_view(resolved).text
     ids = config_data_ids(face)
 
-    body = _method_body(view, "function drawSlot(dc as Dc, unique as Number) as Void")
+    body = _method_body(view, "function drawSlot(dc as Dc, unique as Number,")
     cleared = body.index("_pulsing = 0;")
     restored = body.index("_pulsing = pulsing;")
     for method in ("drawTopReading", "drawBottomReading"):
@@ -827,6 +827,88 @@ def test_the_highlight_box_keeps_an_estimate_that_overhangs_the_edge():
 
     box = IntBox(-10, 41, 40, 32)
     assert highlight_box(box, 0, "center", 260) == box
+
+
+def test_static_backing_grows_over_a_card_the_slot_sits_on():
+    """In the option list the editor clears around the edited slot, wider
+    than its box, and draws only its drawable -- showcase's `left_card`
+    vanished whole on a fenix8solar47mm.  The drawable repaints the static
+    buffer inside its box, so the box grows over each static shape that
+    overlaps the slot and is no larger than the box itself."""
+    from wfb.kinds.complication_slot import with_static_backing
+    from wfb.units import IntBox
+
+    slot = IntBox(42, 74, 46, 34)
+    highlight = IntBox(0, 74, 130, 34)
+    card = IntBox(38, 88, 54, 24)            # overlaps the slot, below its rows
+    background = IntBox(0, 0, 260, 260)      # overlaps, but bigger than the box
+    ring = IntBox(40, 40, 180, 180)          # a dial's bounding box: bigger too
+    far = IntBox(168, 88, 54, 24)            # the other register's card
+    got = with_static_backing(highlight, slot, [background, ring, card, far], 260, 260)
+    assert got == IntBox(0, 74, 130, 38)
+    # no static shape under it: the box is unchanged
+    assert with_static_backing(highlight, slot, [background, far], 260, 260) == highlight
+
+
+def test_static_backing_clamps_to_the_screen():
+    """Nothing off-screen needs repainting, and `drawOffsetBitmap` must not
+    be asked to copy from outside the buffer."""
+    from wfb.kinds.complication_slot import with_static_backing
+    from wfb.units import IntBox
+
+    got = with_static_backing(IntBox(-10, 250, 40, 20), IntBox(-10, 250, 40, 20), [], 260, 260)
+    assert got == IntBox(0, 250, 30, 10)
+
+
+@pytest.mark.parametrize("device_id", ["fenix8solar47mm", "fenix8solar51mm"])
+def test_showcase_registers_cover_their_cards(db, device_id):
+    """The case seen on the watch: each register's drawable box covers the
+    static card behind it, on each target with the native editor."""
+    from tests.helpers import ROOT, resolved_example
+
+    resolved = resolved_example(ROOT / "examples/showcase/face.yaml", db, device_id)
+    by_id = {p.id: p for p in resolved.items}
+    for register, card in (("left_register", "left_card"), ("right_register", "right_card")):
+        highlight, box = by_id[register].highlight, by_id[card].box
+        assert highlight is not None
+        assert highlight.union(box) == highlight, (register, highlight, box)
+
+
+def test_the_drawable_repaints_the_static_buffer_behind_the_slot(write_design, bag, db):
+    """With a static buffer, `drawSlot` copies the buffer's own region under
+    the drawable's box before drawing the slot; the SlotDrawable passes that
+    box.  Without one there is nothing to copy and no reference to it."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    device = db.get("fenix8solar47mm")
+    signature = "function drawSlot(dc as Dc, unique as Number,"
+
+    static = DESIGN.replace("elements:\n", """static:
+  card:
+    type: shape
+    shape: rounded_rectangle
+    at: {anchor: center, dy: -15%}
+    size: {width: 40%, height: 12%}
+    corner_radius: 4px
+    color: palette.fg
+elements:
+""", 1)
+    face = _face(static, write_design, bag)
+    view = monkeyc.emit_view(resolve(face, device, bake_fonts(face, device))).text
+    body = [line for line in _method_body(view, signature) if line and not line.startswith("//")]
+    blit = body.index("dc.drawOffsetBitmap(x, y, x, y, width, height, buffer);")
+    dispatch = next(i for i, line in enumerate(body) if "drawTopReading(dc);" in line)
+    assert blit < dispatch, body
+
+    drawable = monkeyc.emit_slot_drawable(face).text
+    assert "_view.drawSlot(dc, _unique, locX.toNumber(), locY.toNumber()," in drawable
+    assert "width.toNumber(), height.toNumber());" in drawable
+
+    plain = _face(DESIGN, write_design, bag)
+    view = monkeyc.emit_view(resolve(plain, device, bake_fonts(plain, device))).text
+    assert "drawOffsetBitmap" not in "\n".join(_method_body(view, signature))
 
 
 def test_the_editor_drawable_gets_the_highlight_box_and_taps_the_estimate(
@@ -1391,7 +1473,7 @@ def test_slot_with_on_hold_auto_compiles_warning_free_on_every_target(
     view_text = (result.output_dir / "source" / "TestView.mc").read_text(encoding="utf-8")
     assert "holdTargetForTopReading" in view_text
     assert "_pulsing" in view_text
-    assert "function drawSlot(dc as Dc, unique as Number) as Void" in view_text
+    assert "function drawSlot(dc as Dc, unique as Number," in view_text
 
     delegate_text = (result.output_dir / "source" / "TestDelegate.mc").read_text(encoding="utf-8")
     assert "Complications.exitTo(_view.holdTargetForTopReading())" in delegate_text
