@@ -748,6 +748,69 @@ def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
     assert complication_slot_hold_method("bottom_reading") not in view
 
 
+def _method_body(source: str, signature: str) -> list[str]:
+    """The stripped lines of one generated method's body, from its
+    signature line to the closing brace at the signature's own indent."""
+    lines = source.splitlines()
+    start = next(i for i, line in enumerate(lines) if signature in line)
+    indent = len(lines[start]) - len(lines[start].lstrip())
+    body = []
+    for line in lines[start + 1:]:
+        if line.strip() == "}" and len(line) - len(line.lstrip()) == indent:
+            return body
+        body.append(line.strip())
+    raise AssertionError(f"no closing brace for {signature!r}")
+
+
+def test_the_editor_drawable_draws_the_slot_the_face_skips(write_design, bag, db):
+    """The pulsing slot is skipped by its own draw method, and the editor's
+    SlotDrawable reaches that same method through `drawSlot` -- so `drawSlot`
+    must lift the skip for its own call, or the slot is drawn by nobody (on
+    a fenix8solar47mm the selected slot vanished and never previewed a
+    choice).  Checked as an order: `_pulsing` cleared before the dispatch,
+    restored after it, while each per-slot method keeps its own skip."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    ids = config_data_ids(face)
+
+    body = _method_body(view, "function drawSlot(dc as Dc, unique as Number) as Void")
+    cleared = body.index("_pulsing = 0;")
+    restored = body.index("_pulsing = pulsing;")
+    for method in ("drawTopReading", "drawBottomReading"):
+        dispatch = next(i for i, line in enumerate(body) if f"{method}(dc);" in line)
+        assert cleared < dispatch < restored, body
+
+    for method, slot in (("drawTopReading", "top"), ("drawBottomReading", "bottom")):
+        own = [line for line in _method_body(view, f"private function {method}(dc as Dc) as Void")
+               if line and not line.startswith("//")]
+        assert own[0] == f"if (_pulsing == {ids[slot]}) {{", own[:3]
+
+
+def test_leaving_a_slot_in_the_editor_stops_skipping_it(write_design, bag, db):
+    """Nothing but the editor's own edits can tell the view no slot is being
+    animated any more: a `:type` other than COMPLICATION (null is "the end of
+    previous editing") clears `_pulsing`, or the last slot animated stays
+    hidden until another one is picked -- seen on a fenix8solar47mm."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    delegate = monkeyc.emit_delegate(resolved).text
+    body = _method_body(delegate, "function onWatchFaceConfigEdited(options as {")
+    guard = body.index(
+        "if (options[:type] != WatchUi.WATCH_FACE_CONFIG_TYPE_COMPLICATION) {")
+    assert body[guard + 1] == "_view.setPulsing(0);"
+
+
 def test_complication_slot_hold_method_symbol_is_reserved_against_collision(write_design):
     """`complication_slot_hold_method` must be checked the same way
     `complication_slot_icon_method` already is -- a later id that folds to

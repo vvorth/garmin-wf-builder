@@ -543,7 +543,14 @@ still true of the shipped feature:
   top of every `complication_slot`'s draw method) — the SDK sample's own
   comment on this exact hazard ("This prevents the complication from being
   drawn on the watch face while it is pulsing") is what makes this mandatory,
-  not optional. Measured on `examples/features/slots/face.yaml` at a fixed path,
+  not optional. The drawable reaches that same draw method through the
+  view's `drawSlot`, which lifts `_pulsing` for its own call, and the
+  delegate clears `_pulsing` once an edit's `:type` is not a complication
+  (null is the end of editing) — the SDK sample's `setVisible` dance and
+  `_editingComplication` reset. Without both, the selected slot was drawn
+  by nobody: seen on a fenix8solar47mm, it vanished while selected, showed
+  no preview while scrolling its choices, and stayed hidden until another
+  slot was selected. Measured on `examples/features/slots/face.yaml` at a fixed path,
   `fenix8solar47mm`: the editor machinery alone (no `on_hold:`) costs +161 B
   data / +693 B code over the same design without it; `on_hold: auto` on one
   slot adds a further +9 B data / +90 B code on top of that. **No behaviour

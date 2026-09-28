@@ -19,11 +19,13 @@ def _emit_pulsing_field(w: Writer) -> None:
 
     Read by every `complication_slot`'s own draw method
     (`emit_complication_slot`'s guard) and written only from `setPulsing`,
-    itself called only from the delegate's `getComplicationDrawable` -- which
-    fires solely inside the on-device config editor
+    itself called only from the delegate's `getComplicationDrawable` (set)
+    and `onWatchFaceConfigEdited` (cleared, once editing moves off a slot)
+    -- both of which fire solely inside the on-device config editor
     (`docs/research/07-carousel-interaction.md`), so this stays 0 for the
     entire life of the app on a device with no editor, or while the face is
-    simply being looked at.
+    simply being looked at.  `drawSlot` lifts it for its own call, so the
+    editor's drawable still draws the slot the face itself skips.
     """
     w.doc(
         "Which complication_slot the native editor is animating right now (a\n"
@@ -48,11 +50,22 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
     "Cannot find symbol ':drawTopReading'" into a clean build) -- so rather
     than making every per-slot draw method public, one small dispatcher is,
     and the per-slot methods stay private like every other element's.
+
+    `drawSlot` clears `_pulsing` around its own dispatch and restores it
+    after: the per-slot draw method skips the pulsing slot so the face does
+    not draw it under the editor's animation, and without the lift the
+    editor's own drawable -- which reaches that same method through here --
+    would skip it too, leaving the slot drawn by nobody (seen on a
+    fenix8solar47mm: the selected slot vanished and never previewed a
+    choice).  The SDK sample does the same with `setVisible(false)` around
+    `View.onUpdate` and `setVisible(true)` after it.
     """
     w.doc(
         "The native editor is telling this view which slot it is about to "
-        "animate.\n\nOnly ever called from getComplicationDrawable, which "
-        "fires solely inside\nthe on-device config editor (research 07 1a)."
+        "animate,\nor, with 0, that none is being animated any more.\n\n"
+        "Only ever called from getComplicationDrawable and "
+        "onWatchFaceConfigEdited,\nwhich fire solely inside the on-device "
+        "config editor (research 07 1a)."
     )
     with w.block("function setPulsing(unique as Number) as Void"):
         w.line("_pulsing = unique;")
@@ -62,12 +75,19 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
         "Draw one complication_slot by its config_data_ids unique id -- the "
         "one\npublic entry point the generated SlotDrawable needs, so every "
         "per-slot\ndraw method itself can stay private like every other "
-        "element's."
+        "element's.\n\n"
+        "The editor is drawing the slot it animates, so the per-slot method's "
+        "own\n_pulsing skip is lifted for this call: the face skips that slot "
+        "so it is\nnot drawn under the animation, and this is what draws it "
+        "instead."
     )
     with w.block("function drawSlot(dc as Dc, unique as Number) as Void"):
+        w.line("var pulsing = _pulsing;")
+        w.line("_pulsing = 0;")
         with w.block("switch (unique)"):
             for element, unique_id in pairs:
                 w.line(f"case {unique_id}: {element_method_name(element.id)}(dc); break;")
+        w.line("_pulsing = pulsing;")
     w.blank()
 
     w.doc(
@@ -279,7 +299,8 @@ def emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComp
     unique = config_data_ids(face)[element.slot]
 
     w.comment("the editor is animating this exact slot right now -- skip it, or the")
-    w.comment("system draws it twice while it pulses (SDK sample's own comment)")
+    w.comment("system draws it twice while it pulses (SDK sample's own comment);")
+    w.comment("drawSlot lifts this for the editor's own drawable")
     with w.block(f"if (_pulsing == {unique})"):
         w.line("return;")
     w.blank()

@@ -13,7 +13,7 @@ from .common import (
 from ..writer import Writer
 
 
-def _emit_on_watchface_config_edited(w: Writer) -> None:
+def _emit_on_watchface_config_edited(w: Writer, has_slots: bool = False) -> None:
     """`onWatchFaceConfigEdited` -- re-read settings after an on-device edit.
 
     The typed signature is copied verbatim from
@@ -27,6 +27,15 @@ def _emit_on_watchface_config_edited(w: Writer) -> None:
     itself is never invoked otherwise), so no `Application has :WatchFaceConfig`
     guard is needed here the way `onLayout`'s first read needs one -- unlike
     that first read, this one only runs *because* the editor just fired it.
+
+    With ``has_slots`` (the design has a `complication_slot`), an edit whose
+    `:type` is not `WATCH_FACE_CONFIG_TYPE_COMPLICATION` also clears the
+    view's `_pulsing`: `Toybox/WatchUi/WatchFaceDelegate.html` documents a
+    null `:type` as "the end of previous editing", and a style or colour
+    edit means no slot is being animated either -- the SDK sample's own
+    `_editingComplication = (editedType == WATCH_FACE_CONFIG_TYPE_COMPLICATION)`.
+    Nothing else clears it, so without this the last slot the editor
+    animated would stay hidden.
     """
     w.doc(
         "The wearer changed something in the native editor.  Re-read the whole\n"
@@ -40,6 +49,11 @@ def _emit_on_watchface_config_edited(w: Writer) -> None:
         "        :type as WatchFaceConfigType?,\n"
         "        :committed as $.Toybox.Lang.Boolean}) as Void",
     ):
+        if has_slots:
+            w.comment("a null :type is the end of editing; any other type means no slot")
+            w.comment("is being animated -- either way, stop skipping the last one")
+            with w.block("if (options[:type] != WatchUi.WATCH_FACE_CONFIG_TYPE_COMPLICATION)"):
+                w.line("_view.setPulsing(0);")
         w.line("var id = options[:configId] as WatchFaceConfig.Id?;")
         with w.block("if (id != null)"):
             w.line("var settings = WatchFaceConfig.getSettings(id);")
@@ -144,7 +158,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 w.line("_view = view;")
         w.blank()
         if has_config:
-            _emit_on_watchface_config_edited(w)
+            _emit_on_watchface_config_edited(w, has_slots=bool(slot_pairs))
         if slot_pairs:
             _emit_on_tap(w, slot_pairs)
             _emit_get_complication_drawable(w)
