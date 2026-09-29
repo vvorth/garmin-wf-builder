@@ -31,9 +31,9 @@ resources:
   hand_sets:
     main:
       hour:
+        color: color.white
         parts:
           - type: polygon
-            color: color.white
             points:
               - { dx: -4%r, dy: 19%r }
               - { dx: -4%r, dy: -52%r }
@@ -43,9 +43,9 @@ resources:
               - { dx: 4%r, dy: 19%r }
           - { type: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 1px, color: color.silver }
       minute:
+        color: color.white
         parts:
           - type: polygon
-            color: color.white
             points:
               - { dx: -3%r, dy: 12%r }
               - { dx: -3%r, dy: -80%r }
@@ -53,6 +53,8 @@ resources:
               - { dx: 1%r, dy: -83%r }
               - { dx: 3%r, dy: -80%r }
               - { dx: 3%r, dy: 12%r }
+          - { type: circle, radius: 5%r }
+          - { type: circle, radius: 4%r, color: color.silver }
           - { type: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 1px, color: color.silver }
       second:
         color: color.silver
@@ -151,12 +153,6 @@ static:
     font: font.label
     at: { anchor: center, dy: 38%r }
     color: color.white
-  auto_dash:
-    type: line
-    at: { anchor: center, dx: -2%r, dy: 47%r }
-    to: { anchor: center, dx: 2%r, dy: 47%r }
-    thickness: 1px
-    color: color.white
   date_frame:
     type: rectangle
     at: { anchor: center, dx: 51%r, dy: 2%r }
@@ -191,11 +187,27 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dx: 69.5%r, dy: 2%r }
     color: color.white
+  auto_dash:                        # the dash stands in when nothing is unread
+    type: line
+    visible: "device.notification_count == 0"
+    at: { anchor: center, dx: -2%r, dy: 47%r }
+    to: { anchor: center, dx: 2%r, dy: 47%r }
+    thickness: 1px
+    color: color.white
+  notifications:
+    type: text
+    visible: "device.notification_count > 0"
+    text: "{device.notification_count:d}"
+    font: font.label
+    at: { anchor: center, dy: 48%r }
+    color: color.white
   hands:
+    lint: { allow: [antialias-dither], reason: "soft hand edges are wanted; the 64-colour panel dithers them" }
     type: hands
     set: main
     at: { anchor: center }
     seconds: awake
+    antialias: true
   hub:
     lint: { allow: [contrast], reason: "the axle sits on the silver second-hand disc, not on the dial" }
     type: circle
