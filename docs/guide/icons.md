@@ -194,9 +194,14 @@ A text element doesn't get the icon's size correction or the build's
 glyph-exists check. Also avoid spaces between glyphs: a symbols-only font has
 no space character, and the preview draws it as an empty box.
 
+An icon takes `outline:` exactly as text does: the glyph stamped in the
+ring colour, so an opening inside the icon wider than twice the ring gets a
+ring of its own. See [Outlines](outlines.md).
+
 ## See also
 
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the icon clusters shown above.
+- [Outlines](outlines.md) — `outline:` on an icon, openings included.
 - [`wfb/assets/icons/README.md`](../../wfb/assets/icons/README.md) — finding a codepoint, licensing, and adding a name to the catalogue.
 - [Fonts](fonts.md#fonts) — the same TTF-to-bitmap pipeline an icon font uses.
 - [Elements: common keys and groups](elements.md) — `visible:`, `static:`, and the other keys an icon element shares with every other kind.

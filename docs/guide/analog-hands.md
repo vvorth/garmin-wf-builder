@@ -322,8 +322,9 @@ hand while asleep), `arc` hand parts, data-driven hand colours and 24-hour
 hands. `wfb new -t analog` starts a three-hand dial. A needle driven by a
 reading rather than the clock is a [gauge
 needle](progress-and-graphs.md#gauge-needles), a `gauge` with `style:
-needle`, which authors its parts the same way. `outline:` on a hand part is
-reserved in format 2.
+needle`, which authors its parts the same way. `outline:` on the `hands`
+element rings each hand whole ([Outlines](outlines.md#hands-and-patterns));
+`outline:` on a single hand part is reserved in format 2.
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 
@@ -333,5 +334,6 @@ See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 - [`examples/analog-custom/face.yaml`](../../examples/analog-custom/face.yaml) — a hand-tuned dial with a custom numeral font, hour numerals and date windows.
 - [Always-on display](always-on-display.md) — `aod:` on a `type: hands` element, applied uniformly to every part of every hand in the set.
 - [Patterns](patterns.md) — the ticks and numerals around a dial.
+- [Outlines](outlines.md#hands-and-patterns) — `outline:` on a `hands` element: each hand ringed whole, parted from the hand beneath it.
 - [Styles and layouts](styles-and-layouts.md#styles-and-layouts) — switching hand sets per style.
 - [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — why a hand element refuses `align:`.

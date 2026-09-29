@@ -522,6 +522,53 @@ These cost real time to discover; do not rediscover them.
   the *same* pattern from colliding with each other, not just with the
   copy loop's own `i`.
 
+- **`outline:` on every kind (plan 23, research 19): one `RingPass`, two
+  ways to draw it.** `wfb.emit.monkeyc.common.RingPass` is `(offsets,
+  width, color)` as Monkey C: literals and `Layout.OUTLINE_OFFSETS_<W>`
+  for an element's own ring (`own_ring`, dimmed in AOD), a `ring<Id>`
+  method's parameters for a group's pass.  Every `ringed` kind's
+  `emit_draw(..., ring=)` draws only its silhouette dilated by it when
+  given one.  A filled circle, rectangle or rounded rectangle, and a gauge
+  bar, draw one grown copy (`plus()` folds a literal width into one
+  constant term); everything else stamps through
+  `shapes.emit_stamp_loop`, shifting its draw anchor -- `Layout.<P>_CX +
+  offsets[i]` for a shape, `WfbGeom.fillTranslated(points, dx, dy)` for a
+  polygon, and for a `hands`/needle/pattern the `cx`/`cy` (or `ox`/`oy`)
+  locals every part already draws from, reset after the loop.
+
+  **Two real `monkeyc` findings, both caught only by a real build.**
+  (1) A method may declare `var offsets`/`var i` once: a `hands` element's
+  second and third hands reuse the first hand's loop locals
+  (`emit_stamp_loop(declare=False)`), and a pattern's stamp is `ringStamp`/
+  `ringI` because its copy loop owns `i`.  (2) Locals are block-scoped:
+  the AOD frame's `aod: {visible: ...}` guard locals were redeclared per
+  element, a `Redefinition of variable` as soon as two guards read one
+  source (a bug on main before this, and every outlined group member in
+  AOD hits it via its ring call), but reusing one declared inside another
+  `_configLayout` block is `Undefined symbol`.  `view._GuardScopes`
+  declares once per scope, afresh in each layout block
+  (`tests/test_outline_build.py`, `slow`).
+
+  **A group's ring is `ring<Id>` calls, not a group method.**  A group
+  emits no code; its ring pass calls every member's `ring<Id>` (the same
+  reads, guards and parameters as `draw<Id>`, plus `ringOffsets`/
+  `ringWidth`/`ringColor`) just before the group's first member in each
+  frame sequence -- active, AOD (each under its own `aod: visible` guard),
+  low-power and the static buffer's `drawStatic<Id>` (`view.Rings`).  The
+  widths come from `wfb.ir.rings`: a member's dilation is the group's
+  width plus its own ring plus every outlined group in between.  The
+  group's colour may not read data: the frame methods read only what
+  members bind.
+
+  **The preview rings a silhouette, not a geometry.**  `Renderer.
+  silhouette` paints once onto each of two scratch canvases of different
+  solid colours and keeps every pixel either changed -- so a black element
+  has a silhouette -- and `stamp_ring` pastes the ring colour through that
+  mask shifted by each disc-perimeter offset (times the preview scale).
+  Kinds whose ring is per hand or per copy draw it themselves
+  (`ElementKind.rings_itself`).  `Placed.ring_grow` records how far `box`
+  grew for rings; a kind that draws from its own box reads `inner_box`.
+
 - **`aod: {outline: ...}` on a `text` element: the ring is one more AOD
   override, but not a ternary alone, because a ring can exist in one frame
   and not the other.** `wfb.kinds.text._emit_ring` reads one decision,

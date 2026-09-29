@@ -1,0 +1,157 @@
+# A worked example for `outline:` on every kind (research 19, plan 23):
+# a ring of 1-3 px in a second colour round whatever an element draws.
+#
+# Build it with:  ./wfb.py build examples/features/rings/face.yaml
+#
+# * **Hands, ringed in the background's own colour** (`hands`): each hand
+#   is ringed whole, just before its own parts, so a hand's ring cuts the
+#   hand beneath it where they cross -- the gap that parts overlapping
+#   hands.  A ring that matches the backdrop is fine here: the hands
+#   themselves are what reads.
+# * **A pattern** (`ticks`): each copy ringed whole, polygon and line
+#   parts together.
+# * **A gauge** (`battery`): an arc gauge stamped round its whole track.
+# * **A group** (`heart_rate`): an icon and a reading ringed as one
+#   silhouette -- where they touch there is no seam between them.
+# * **An icon with an opening** (`alarm`): the stamp is an exact dilation,
+#   so the clock face inside the icon gets a ring of its own.
+# * **Grown shapes** (`hub`, `steps_bar`): a filled circle and a bar ringed
+#   by one grown copy of themselves instead of a stamp.
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 2e9b7c41-0d6a-4f38-95e2-6c1a8f4d7b30
+  name: Feature Rings
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    ring: "#FFFF00"
+    accent: "#0055FF"
+    heart: "#FF0000"
+    track: "#555555"
+
+  hand_sets:
+    main:
+      hour:
+        color: color.fg
+        parts:
+          - type: polygon
+            points:
+              - { dx: -4%r, dy: 8%r }
+              - { dx: -3%r, dy: -40%r }
+              - { dy: -48%r }
+              - { dx: 3%r, dy: -40%r }
+              - { dx: 4%r, dy: 8%r }
+      minute:
+        color: color.fg
+        parts:
+          - { type: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 76%r } }
+      second:
+        color: color.heart
+        parts:
+          - { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 2px }
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    step: 30deg
+    color: color.accent
+    outline: { color: color.ring, width: 1 }
+    parts:
+      - type: polygon
+        points:
+          - { dx: -3%r, dy: -80%r }
+          - { dy: -70%r }
+          - { dx: 3%r, dy: -80%r }
+
+elements:
+  battery:
+    type: gauge
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 88%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: color.accent
+    track_color: color.track
+    outline: { color: color.ring, width: 1 }
+
+  heart_rate:
+    type: group
+    at: { anchor: center, dy: -26% }
+    size: { width: 22%, height: 10% }
+    outline: { color: color.ring, width: 1 }
+    children:
+      heart_icon:
+        type: icon
+        icon: heart
+        size: 12%r
+        at: { anchor: left }
+        align: left
+        color: color.heart
+      heart_value:
+        type: text
+        text: "{heart_rate.current:d}"
+        absent: "--"
+        font: FONT_TINY
+        at: { anchor: left, dx: 11% }
+        align: left
+        color: color.fg
+
+  alarm:
+    type: icon
+    icon: alarm
+    size: 16%r
+    at: { anchor: center, dx: -26%, dy: 20% }
+    color: color.accent
+    outline: { color: color.ring, width: 1 }
+
+  steps_bar:
+    type: gauge
+    style: bar
+    value: activity.steps
+    max: activity.step_goal
+    absent: hide
+    at: { anchor: center, dx: 12%, dy: 20% }
+    size: { width: 30%, height: 4% }
+    color: color.accent
+    track_color: color.track
+    outline: { color: color.ring, width: 1 }
+
+  hands:
+    type: hands
+    set: main
+    at: { anchor: center }
+    seconds: awake
+    outline: { color: color.bg, width: 2 }
+
+  hub:
+    type: circle
+    at: { anchor: center }
+    radius: 4%r
+    color: color.heart
+    outline: { color: color.bg, width: 2 }

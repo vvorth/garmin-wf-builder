@@ -535,6 +535,10 @@ emits no code of its own, so there is nothing else it could mean), which is why
 nesting composes: an inner group's condition and the outer one both have to hold
 for a leaf to draw. See "`visible:`" above.
 
+**`outline:` on a group rings the union of its members**: every member's
+ring just before the first member, then the members, so members that touch
+share one ring with no seam. See [Outlines](outlines.md#groups).
+
 `align:` follows the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align). A group's
 placement box is its own `size:`. It defaults to `center`: the box centred

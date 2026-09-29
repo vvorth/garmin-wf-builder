@@ -136,8 +136,14 @@ enforces.
 
 See `examples/features/shapes/face.yaml` for every type on one face.
 
+Every shape takes `outline:`, a ring of 1–3 px in a second colour round it
+(not to be confused with `filled: false`, which strokes the shape itself). A
+filled circle or rectangle is ringed by one grown copy of itself; every
+other shape is stamped. See [Outlines](outlines.md).
+
 ## See also
 
 - [`examples/features/shapes/face.yaml`](../../examples/features/shapes/face.yaml) — every primitive on one face.
+- [Outlines](outlines.md) — `outline:`, a ring round any shape.
 - [Gauges and graphs](progress-and-graphs.md) — `type: gauge` / `style: arc`, for a span bound to a reading instead of a fixed decoration.
 - [Placement](placement.md#placement-at-and-align) — `at:` and `align:`.

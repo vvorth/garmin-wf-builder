@@ -506,7 +506,8 @@ Still open for [patterns](#pattern): a text part whose placeholder reads data,
 `on_hold:` and `sleep_update:` on a pattern, per-copy variation
 other than skipping, colour and visibility, rounded-rectangle/`ellipse`
 parts in a linear or grid pattern, an arc part off the pattern's centre,
-and `outline:` on a shape part (reserved in format 2).
+and `outline:` on a shape part (reserved in format 2; `outline:` on the
+pattern itself rings each copy whole -- [Outlines](outlines.md#hands-and-patterns)).
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 

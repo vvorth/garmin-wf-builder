@@ -66,6 +66,11 @@ or AOD-related has been observed on a watch or in the simulator.
   (`face:`) and `curve:` on `text` and pattern text parts, 44 of 136
   devices; `outline:` (the stamped ring) with lint
   `text-outline-interior`. `docs/guide/fonts.md`, `text.md`.
+- **`outline:` everywhere** (plan 23, research 19) — a 1–3 px ring on
+  shapes, icons, `hands` (each hand whole), `pattern` (each copy whole),
+  `arc`/`bar`/`needle` gauges and `group` (the members' union): grown
+  where one copy is exactly the dilation (filled circle, rectangle, a bar),
+  stamped otherwise. `docs/guide/outlines.md`.
 - **Gauge styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
   to `start_angle + fraction × sweep`; `Builder.build_hand_part`),
   `segments` and `scale` (`wfb.lint.check_progress_segments`); `absent:
@@ -174,6 +179,6 @@ specifies each item.
     `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
     rule lists, and an advisory `static-candidate` lint.
-    `docs/limitations.md` §2. `outline:` beyond text (every kind, groups)
-    is researched in `docs/research/19-outline-everything.md`, awaiting
-    decisions D1–D5.
+    `docs/limitations.md` §2. `outline:` on the element (every kind but
+    `data`, `graph` and a ticked gauge) and on a group is built (plan 23);
+    only the per-part form stays reserved.

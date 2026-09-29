@@ -217,12 +217,13 @@ treats an `outline:`-bearing element differently from a plain one: since the
 interior is *supposed* to match whatever is underneath it — that is the
 entire point of the idiom above — checking *it* for contrast would flag
 every correctly hollow element as illegible. Instead the ring is compared
-against the backdrop (a poor ring here means the whole character can vanish
-into the page, since a hollow interior draws no other ink at all) and
 against the element's own interior (a poor ring here means its inner edge
 disappears into the fill, so the glyph reads as one soft blob rather than a
-crisp outline) — two independent comparisons, either of which can warn on
-its own.
+crisp outline), and, whenever the interior does not itself read against
+the backdrop, against the backdrop too (a poor ring there means the whole
+character can vanish into the page, since a hollow interior draws no other
+ink at all) — two independent comparisons, either of which can warn on its
+own.
 
 **Stamp a non-anti-aliased (1-bit) font.** `outline:` stamps whatever the
 referenced font already is, unconditionally — there is no way to force
@@ -258,7 +259,9 @@ ring the same way it already composes with `curve:`, and `outline.color`
 may additionally read `copy`.
 
 See [`docs/research/14-stamped-ring-text.md`](../research/14-stamped-ring-text.md)
-for the full measurement record this feature is built from.
+for the full measurement record this feature is built from. `outline:` is
+not only for text: every other drawable and a whole `group` take the same
+key ([Outlines](outlines.md)).
 
 #### `curve:` — rotated and radial text
 

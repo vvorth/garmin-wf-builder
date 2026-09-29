@@ -736,6 +736,10 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | A `pattern`'s own `aod: {font: ...}` override, and a `data` element's `aod: {font: ...}` override | plan 14 §4.3, slice 2 built `color`/`track_color`/icon `color`/`thickness`/`bar_width`/`filled`/`text` overrides and a `text` element's `font:` override, but not these two -- the builder rejects them with a friendly "not implemented yet" error rather than silently keeping the element's awake font, whether the element writes the key itself or inherits it from a group (`Builder.aod_refusal`) |
 | An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | plan 14 §4.3, slice 2 -- same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
 | `aod: {filled: ...}` on `type: polygon` | there is no outline primitive for it to switch to (Dc has fillPolygon, no drawPolygon) -- a friendly build error, the same one the awake element's own `filled: false` already gets, and the same when the key is inherited from a group |
+| `outline:` on a `data` or `graph` element, or on a `segments`/`scale` gauge | research 19 -- a `data` and a `graph` have no ring op (and so cannot sit in an outlined group either), and a ticked gauge's cells would need their own; a friendly build error on the element and on an outlined group containing it |
+| `outline:` on a pattern whose `type: text` part has its own `outline:` | research 19 -- the part's ring inside the pattern's would be a stamp inside a stamp (N x M draws per copy); a friendly build error naming both keys |
+| `aod: {outline: ...}` on anything but `text` | research 19 -- every other kind's awake ring carries over into the AOD frame, dimmed like every AOD colour, but cannot be replaced there |
+| A group `outline.color` that reads data | research 19 -- the group's ring is drawn from the frame methods, which read only what the members bind; a friendly build error |
 
 **Reserved by format 2** (plan 22 §5): the vocabulary is fixed now, and
 writing any of these is a friendly "not implemented" error naming what it
@@ -746,7 +750,7 @@ will be, never an unknown key. Each needs its own plan before it is built.
 | Two or more placeholders in one `text:` template (`"{time.hour:02d}:{time.minute:02d}"`) | several readings in one text; any absent reading makes the element absent |
 | `resources: {components:}`, and `use:`/`with:` on an element | reusable element groups with parameters, `$name` standing for a whole value |
 | `effects:` on an element (`effects: {shadow: {color:, dx:, dy:}}`) | drop shadows, replacing duplicated shadow elements |
-| `outline:` on a hand, pattern or needle part | the text outline, on parts |
+| `outline:` on a single hand, pattern or needle part (other than a pattern's `type: text` part) | a ring round one part; the element-level `outline:` already rings each hand, copy or needle whole (`docs/guide/outlines.md`) |
 | `parts:`, `arrange:`, `requires:`, `fallback:` on `type: data` | a data widget built from an icon, value, label, graph or gauge (research 18 §10) |
 | A `[ {when: …, value: …}, …, {else: …} ]` rule list as any value | values chosen by rules over live data, never the power state |
 | An advisory `static-candidate` lint | not a format change; may be built at any time |

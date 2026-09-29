@@ -40,6 +40,7 @@ can't: why each key exists, and what the watch does with it.
 | [Gauges and graphs](guide/progress-and-graphs.md) | `gauge` (bar, arc, segments, scale, needle) and `graph` (history series: line, area, bars) |
 | [Analog hands](guide/analog-hands.md) | `hand_sets:`, part types, the `hands` element, second-hand behaviour |
 | [Patterns](guide/patterns.md) | Radial and linear repeats: ticks, numerals, skipping, text parts |
+| [Outlines](guide/outlines.md) | `outline:` on every drawable and on a group: a 1–3 px ring, grown or stamped, openings included |
 
 ### Data and behaviour
 

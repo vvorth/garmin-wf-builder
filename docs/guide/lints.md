@@ -21,7 +21,7 @@ messages; see `wfb/lint.py` if unsure.
 | `safe-area` | the element's ink falls outside the screen's visible area: the inscribed circle on a round screen, and the simulator skin's visible area on any other shape (one pixel of tolerance) |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
-| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour; a `data` element's icon colour is judged too, a gauge's `track_color` is not |
+| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring instead: against the element's own interior always, and against the backdrop when the interior does not read there (hollow text; a backdrop-coloured ring round something that reads is the gap idiom and passes); a `data` element's icon colour is judged too, a gauge's `track_color` is not |
 | `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
@@ -154,9 +154,11 @@ itself. A `data` element's icon colour is judged as well, and like a
 glyph's own colour it may not simply match the backdrop. A gauge's
 `track_color` is not judged: a track is meant to
 recede behind the fill, so a dim one (`#555555` on black is a 2.8 ratio)
-is the design, not a mistake. `contrast` also treats an `outline:`-bearing element differently: see
-`wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
-makes in place of judging the interior. On a `type: hands`/`type: pattern`
+is the design, not a mistake. `contrast` also treats an `outline:`-bearing
+element differently: it judges the ring against the element's own colour,
+and against the backdrop only when that colour does not itself read there
+([Outlines](outlines.md#cost-and-the-always-on-frame)); a hand or pattern
+part is judged against its element's ring. On a `type: hands`/`type: pattern`
 element, `contrast` is checked per **part**, not once for the whole
 element -- a `HandsElement` has no `color:` of its own at all (every colour
 lives on its hands' own parts) and a `PatternElement`'s `color:` is only

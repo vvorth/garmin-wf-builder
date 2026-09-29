@@ -7,6 +7,18 @@ included), hands, pattern and progress parts, and a whole `group` outlined
 as one silhouette. It also asks whether one mechanism should serve them all.
 The goal is a ring of 1–3 px. It is **not** a general stroke of any width.
 
+**Status: built** (plan 23, whose record is
+`git show 96462ed:docs/plans/23-outline-everything.md`; the author-facing
+reference is `docs/guide/outlines.md`). The decisions are in §7. Where the
+build departed from this document:
+
+- A partly static group cannot be written in format 2 (`static:` is a
+  block), so §5's static question did not arise.
+- The `contrast` lint now wants the ring to read against the backdrop only
+  when the interior does not.
+- `data`, `graph`, `segments`/`scale` gauges, and a ringed text part inside
+  a ringed pattern are refused for now (`docs/limitations.md` §2).
+
 **Short answer.**
 
 1. **Yes, for every kind.** Two techniques cover them all, and neither

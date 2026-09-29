@@ -226,6 +226,10 @@ to hold it. A scale draws no ticks of its own: ticks are a radial
 
 `examples/features/progress/face.yaml` shows both styles on both tracks.
 
+`outline:` rings an `arc`, `bar` or `needle` gauge: the whole track (or,
+with none, what is lit), or the needle whole. It is not built yet for
+`segments` or `scale`. See [Outlines](outlines.md).
+
 ### `graph`
 
 A time series, drawn as a line, a filled area or bars:
