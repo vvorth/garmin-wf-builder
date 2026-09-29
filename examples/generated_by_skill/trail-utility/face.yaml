@@ -1,0 +1,232 @@
+# Trail Utility -- a dense digital tool face with angular frame lines,
+# modelled on a photo of an outdoor watch (build/preview/test_end.png):
+# two-tone hours/minutes, seconds, a battery-days ring, sunrise/sunset,
+# weather, recovery and body battery arcs and a heart-rate bar graph.
+# The original's model-name wordmark is replaced by the face's own name.
+#
+# Preview:  ./wfb.py preview faces/trail-utility/face.yaml --time 07:53:35
+# Build:    ./wfb.py build faces/trail-utility/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: ffbf5db6-078b-43c7-9eb7-ed4e4750bcf8
+  name: Trail Utility
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  fonts:
+    clock: { source: assets/ChivoMono-Bold.ttf, size: 47%r, monospace: true, antialias: true }
+    small: { face: [RobotoCondensedBold], size: 13.8%r }
+  palette:                          # every channel 00 / 55 / AA / FF
+    bg: "#000000"
+    white: "#FFFFFF"
+    sand: "#AAAAAA"
+    track: "#AAAAAA"
+    frame: "#555555"
+
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+
+  # the two empty arcs across the top: tracks for the progress arcs below
+  arc_track_l: { type: arc, at: { anchor: center }, radius: 95%r, thickness: 6%r, start_angle: 315deg, sweep: 42deg, color: color.track, lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" } }
+  arc_track_r: { type: arc, at: { anchor: center }, radius: 95%r, thickness: 6%r, start_angle: 3deg, sweep: 42deg, color: color.track, lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" } }
+  divider: { type: line, at: { anchor: center, dy: -82.6%r }, to: { anchor: center, dy: -62.2%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "a dim divider, decoration only" } }
+  frame_top:
+    type: group
+    children:
+      ft1: { type: line, at: { anchor: center, dx: -71.8%r, dy: -69.4%r }, to: { anchor: center, dx: -56.3%r, dy: -55.1%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      ft2: { type: line, at: { anchor: center, dx: -56.3%r, dy: -55.1%r }, to: { anchor: center, dx: 56.8%r, dy: -55.1%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      ft3: { type: line, at: { anchor: center, dx: 56.8%r, dy: -55.1%r }, to: { anchor: center, dx: 73%r, dy: -69.4%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+  frame_sun:
+    type: group
+    children:
+      fs1: { type: line, at: { anchor: center, dx: -82.6%r, dy: -48.5%r }, to: { anchor: center, dx: 15.6%r, dy: -48.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fs2: { type: line, at: { anchor: center, dx: 15.6%r, dy: -48.5%r }, to: { anchor: center, dx: 27.5%r, dy: -27.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fs3: { type: line, at: { anchor: center, dx: 27.5%r, dy: -27.5%r }, to: { anchor: center, dx: 87.4%r, dy: -27.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+  frame_date:
+    type: group
+    children:
+      fd1: { type: line, at: { anchor: center, dx: -85%r, dy: 42.5%r }, to: { anchor: center, dx: -39.5%r, dy: 42.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fd2: { type: line, at: { anchor: center, dx: -39.5%r, dy: 42.5%r }, to: { anchor: center, dx: -27.5%r, dy: 25.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fd3: { type: line, at: { anchor: center, dx: -27.5%r, dy: 25.7%r }, to: { anchor: center, dx: 43.1%r, dy: 25.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+  frame_graph:
+    type: group
+    children:
+      fg1: { type: line, at: { anchor: center, dx: -73%r, dy: 67.6%r }, to: { anchor: center, dx: -62.2%r, dy: 52.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fg2: { type: line, at: { anchor: center, dx: -62.2%r, dy: 52.7%r }, to: { anchor: center, dx: 62.2%r, dy: 52.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fg3: { type: line, at: { anchor: center, dx: 62.2%r, dy: 52.7%r }, to: { anchor: center, dx: 73%r, dy: 67.6%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+  battery_ring: { type: circle, filled: false, at: { anchor: center, dx: 70.3%r, dy: 3.2%r }, radius: 26.3%r, thickness: 2.4%r, color: color.sand }
+  name_label: { type: text, text: "TRAIL", font: font.small, at: { anchor: center, dx: 7.2%r, dy: 34.7%r }, color: color.white }
+  sunrise_icon: { type: icon, icon: sunrise, size: 12%r, at: { anchor: center, dx: -43.9%r, dy: -37.7%r }, color: color.white }
+elements:
+  # --- top row: recovery | body battery ---
+  recovery_arc:
+    lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
+    type: gauge
+    style: arc
+    value: complication.recovery_time
+    max: 5760
+    at: { anchor: center }
+    radius: 95%r
+    thickness: 6%r
+    start_angle: 315deg
+    sweep: 42deg
+    color: color.white
+    absent: hide
+  body_battery_arc:
+    lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
+    type: gauge
+    style: arc
+    value: complication.body_battery
+    max: 100
+    at: { anchor: center }
+    radius: 95%r
+    thickness: 6%r
+    start_angle: 3deg
+    sweep: 42deg
+    color: color.white
+    absent: hide
+  recovery_icon: { type: icon, icon: recovery, size: 13.2%r, at: { anchor: center, dx: -34.7%r, dy: -69.4%r }, color: color.white }
+  recovery_value:
+    type: text
+    text: "{clamp(complication.recovery_time / 60, 0, 99):d}h"
+    font: font.small
+    at: { anchor: center, dx: -23.9%r, dy: -69.4%r }
+    align: left
+    color: color.white
+    absent: "--"
+  body_battery_icon: { type: icon, icon: body_battery, size: 13.2%r, at: { anchor: center, dx: 21.5%r, dy: -69.4%r }, color: color.white }
+  body_battery_value:
+    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-100, so at most 3 digits; the linter has no range for a complication" }
+    type: text
+    text: "{clamp(complication.body_battery, 0, 100):d}"
+    font: font.small
+    at: { anchor: center, dx: 32.3%r, dy: -69.4%r }
+    align: left
+    color: color.white
+    absent: "--"
+
+  # --- sunrise / sunset, from seconds since midnight ---
+  sunrise_h:
+    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-23, so at most 2 digits; the linter has no range for a complication" }
+    type: text
+    text: "{clamp(floor(complication.sunrise / 3600), 0, 23):d}"
+    font: font.small
+    at: { anchor: center, dx: -68.2%r, dy: -37.7%r }
+    align: right
+    color: color.white
+    absent: "--"
+  sunrise_m:
+    type: text
+    text: ":{complication.sunrise % 3600 / 60:02d}"
+    font: font.small
+    at: { anchor: center, dx: -68.2%r, dy: -37.7%r }
+    align: left
+    color: color.white
+    absent: hide
+  sunset_h:
+    type: text
+    text: "{clamp(floor(complication.sunset / 3600), 0, 23):d}"
+    font: font.small
+    at: { anchor: center, dx: -22.1%r, dy: -37.7%r }
+    align: right
+    color: color.white
+    absent: "--"
+  sunset_m:
+    type: text
+    text: ":{complication.sunset % 3600 / 60:02d}"
+    font: font.small
+    at: { anchor: center, dx: -22.1%r, dy: -37.7%r }
+    align: left
+    color: color.white
+    absent: hide
+
+  # --- weather ---
+  weather_icon: { type: icon, icon: { for: weather.condition }, size: 18%r, at: { anchor: center, dx: 45.5%r, dy: -38.3%r }, color: color.white }
+  temperature:
+    lint: { allow: [text-overflow, safe-area], reason: "clamped to -99..99; the linter has no range for this reading" }
+    type: text
+    text: "{clamp(weather.temperature, -99, 99):.0f}°"
+    font: font.small
+    at: { anchor: center, dx: 56.3%r, dy: -38.3%r }
+    align: left
+    color: color.white
+    absent: "--°"
+
+  # --- time ---
+  hours:
+    lint: { allow: [text-overflow, safe-area], reason: "the hours sit against the left edge by design, as in the reference photo" }
+    type: text
+    text: "{time.clock:%H}"
+    font: font.clock
+    at: { anchor: center, dx: -39.5%r, dy: 0%r }
+    align: right
+    color: color.white
+  minutes:
+    type: text
+    text: "{time.clock:%M}"
+    font: font.clock
+    at: { anchor: center, dx: -38.3%r, dy: 0%r }
+    align: left
+    color: color.sand
+  seconds:
+    type: text
+    text: "{time.second:02d}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 20.3%r, dy: -12%r }
+    align: left
+    color: color.white
+
+  # --- battery ---
+  battery_icon: { type: icon, icon: "U+F240", size: 10.8%r, at: { anchor: center, dx: 70.3%r, dy: -4.3%r }, color: color.white }
+  battery_days:
+    type: text
+    text: "{clamp(system.battery_in_days, 0, 99):.0f}d"
+    font: font.small
+    at: { anchor: center, dx: 70.6%r, dy: 8.4%r }
+    color: color.white
+    on_hold: battery
+
+  # --- date ---
+  date:
+    type: text
+    text: "{date.today:%a %e}"
+    font: font.small
+    at: { anchor: center, dx: -60.7%r, dy: 33.5%r }
+    color: color.white
+
+  # --- graph + solar ---
+  hr_graph:
+    type: graph
+    series: heart_rate
+    range: 4h
+    buckets: 24
+    style: bars
+    bar_width: 3px
+    min: 0
+    max: auto
+    at: { anchor: center, dy: 65.5%r }
+    size: { width: 111.3%r, height: 20.3%r }
+    color: color.sand
+    on_hold: heart_rate
+  solar_icon: { type: icon, icon: solar, size: 10.8%r, at: { anchor: center, dx: -5.3%r, dy: 87.4%r }, color: color.white }
+  solar_value:
+    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-100, so at most 3 digits; the linter has no range for a complication" }
+    type: text
+    text: "{clamp(complication.solar_input, 0, 100):d}"
+    font: font.small
+    at: { anchor: center, dx: 3.6%r, dy: 87.4%r }
+    align: left
+    color: color.white
+    absent: "--"
