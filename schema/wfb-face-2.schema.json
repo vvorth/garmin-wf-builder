@@ -2179,7 +2179,7 @@
           "$ref": "#/$defs/unsupported"
         },
         "absent": {
-          "description": "Required for a nullable 'value:' or 'max:'. A gauge has no placeholder text: 'hide' draws nothing while the reading is absent, and {value: <expression>} draws the gauge at that value instead.",
+          "description": "Required for a nullable 'value:' or 'max:'. A gauge has no placeholder text. 'hide' keeps what does not depend on the value -- the arc or bar track, every segment unlit, a scale's track and bands -- and leaves out the fill, the lit segments, the pointer; a needle, with no track, draws nothing. {value: <expression>} parks the gauge at that fill fraction, 0.0-1.0, instead. Use 'visible:' to hide a gauge completely.",
           "oneOf": [
             {
               "const": "hide"

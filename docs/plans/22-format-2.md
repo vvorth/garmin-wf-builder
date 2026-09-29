@@ -2,7 +2,7 @@
 
 **Status: approved for implementation (decisions F1–F7 and Q1–Q5, and
 the names in §2, 2026-09-28). Being built on branch `format-2`, one commit
-per slice; progress is recorded under each slice in §6. Slices 0–3 are
+per slice; progress is recorded under each slice in §6. Slices 0–4 are
 done: format 2 is the only format the compiler reads.** Delete this file once
 slice 5 has shipped (`docs/CLAUDE.md`).
 
@@ -498,6 +498,34 @@ three verification devices.
 - Check: the snapshot differs from slice 3 **only** for faces with a gauge
   under `absent: hide`. List those cases here. Update
   `docs/guide/progress-and-graphs.md` and ADR 0005 in the same commit.
+
+- *Done 2026-09-29.* `wfb.kinds.progress.keeps_track` is the one
+  definition (`absent: hide` and not a needle); codegen reads it through a
+  new `ElementKind.draws_while_absent` hook, so the view emits only the
+  non-value guards and the kind wraps the fill, the lit-cell count and the
+  pointer in `if (value != null && max != null) { ... }` -- a wrap, not an
+  early `return`, which would skip an `antialias:` override's restore. The
+  preview reads the same predicate, and now also hides a gauge whole when a
+  nullable colour is absent, as the device's guard does (it drew such a
+  colour white before). `tests/test_gauge_absent.py`: per style, the
+  preview keeps the track and drops the fill; the generated method draws the
+  track before the value's own guard and never returns early; a needle and
+  a nullable colour still hide whole; codegen and preview agree on the
+  predicate; and a real `monkeyc` build of all four track styles under
+  `antialias: true` is warning-free. Every one of those fast tests fails
+  with `keeps_track` returning `False`. The lint needed no change: a
+  gauge's box already covers its whole track. The schema's `absent`
+  description, the gauge chapter, `data.md`, ADR 0005's amendment and the
+  lore say so.
+  - Snapshot against slice 3: 407 cases unchanged, 36 changed, all of them
+    the nine designs with a gauge under `absent: hide`
+    (`examples/dashboard`, `enduro`, `features/align`, `features/progress`,
+    `features/styles`, `features/sun/bar` and `face`, `showcase`, and
+    `tests/fixtures/slice`) plus `wfb schema` for the description: the
+    generated view (and its golden, `SliceView.mc`) and, where the preview's
+    sample data has no reading, the preview image -- `dashboard`'s body
+    battery arc and both sun faces now show their track. No diagnostic
+    changed. `tools/docs-shots.py` regenerates every screenshot unchanged.
 
 **Slice 5 — tidy.**
 - Remove front-end code only v1 reached.

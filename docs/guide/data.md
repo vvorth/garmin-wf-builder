@@ -261,7 +261,7 @@ nullable binding rather than defaulting silently:
 
 | `absent:` | Effect |
 |---|---|
-| `hide` | the element is not drawn |
+| `hide` | the element is not drawn (a gauge still draws its track) |
 | a string, `"--"` | that text is drawn instead |
 | `{value: <expr>}` | another expression supplies the value, rendered through the same spec; it must not itself be nullable |
 
@@ -288,7 +288,9 @@ and it is forced: either `value:` or `max:` can be the absent reading, so the
 resulting proportion is the only well-defined thing to substitute. A constant
 outside 0.0–1.0 is a build error; a computed one is clamped on device. For "half
 full" write `0.5`, not the reading you would have shown. A gauge takes no
-substitute text.
+substitute text, and **`absent: hide` on a gauge keeps its track**: only
+what the value places (the fill, the lit cells, the pointer, a needle) is
+left out ([Gauges and graphs](progress-and-graphs.md#an-absent-reading-keeps-the-track)).
 
 ### Expressions
 

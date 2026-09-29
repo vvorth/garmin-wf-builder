@@ -31,7 +31,7 @@ the same placement rule as every other element with a box.
 | `color` | color expression | — | fill colour |
 | `track_color` | color expression | — | the unfilled track |
 | `align` | one of the nine anchor names, or a compass alias | `center` | box point at `at:`, not on a needle ([details](placement.md#placement-at-and-align)) |
-| `absent` | `hide` \| `{value: <fraction>}` | — | required once `value`/`max` can be absent |
+| `absent` | `hide` \| `{value: <fraction>}` | — | required once `value`/`max` can be absent; `hide` keeps the track ([below](#an-absent-reading-keeps-the-track)) |
 
 ### `graph`
 
@@ -93,6 +93,26 @@ step_ring:
   absent: hide
 ```
 
+#### An absent reading keeps the track
+
+With `absent: hide`, a gauge whose value or max is absent draws everything
+that does not depend on the value, and leaves out only what the value
+places:
+
+| Style | Still drawn while absent | Left out |
+|---|---|---|
+| `arc`, `bar` | the track (`track_color:`) | the fill |
+| `segments` | every cell, unlit (`track_color:`) | the lit cells |
+| `scale` | the track and every band | the pointer |
+| `needle` | nothing: a needle has no track | the needle |
+
+So a face never shows a gap where a gauge was, only an empty one. To hide
+a gauge completely while its reading is absent, use `visible:` (absent
+means hidden). A nullable `color:` or `track_color:` still hides the whole
+gauge, since the track has nothing to be drawn in; `unsupported: hide`
+hides it whole too. `absent: {value: …}` is unchanged: it parks the fill
+at a fraction instead.
+
 > **`style: arc` is a stroked ring, not a filled sector.** There is no `fillArc`,
 > `fillSector` or `drawSector` anywhere in the Connect IQ API. `thickness` is a
 > pen width; cap style is not selectable; true annuli and gradient sweeps do not
@@ -138,8 +158,8 @@ own colour may not, as on a hand.
 
 The needle's extent is the disc it sweeps (the axis plus its farthest
 part), which the visible-area checks read like a hand's. `absent:`
-works as on the other styles: `hide` draws nothing, `{value:}` supplies
-the fraction to park at. `aod: {color, thickness}` restyles every part.
+works as on the other styles, except that a needle has no track to keep:
+`hide` draws nothing, `{value:}` supplies the fraction to park at. `aod: {color, thickness}` restyles every part.
 `radius`, `thickness`, `size`, `track_color` and `align`
 are not read by a needle, and each is an error saying so: its length is
 its parts, and `at:` is the axis, not a box. Draw the dial itself with a

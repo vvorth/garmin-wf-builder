@@ -70,28 +70,25 @@ class SliceView extends WatchUi.WatchFace {
     //! `step_ring` -- an arc progress indicator.
     //!
     //! Bound to `activity.steps` and `activity.step_goal`.
-    //! When the value is absent: hide.
+    //! When the value is absent: hide -- the track still draws.
     //! Drawn in: active.
     private function drawStepRing(dc as Dc, activity as ActivityMonitor.Info) as Void {
         // the values this element is bound to
         var activitySteps = activity.steps;
         var activityStepGoal = activity.stepGoal;
 
-        // when_absent: hide
-        if (activitySteps == null || activityStepGoal == null) {
-            return;
-        }
-
         // the unfilled track
         dc.setColor(Palette.TRACK, Graphics.COLOR_TRANSPARENT);
         WfbArc.drawSpan(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
                         Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP);
 
-        // the filled portion
-        dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
-        WfbArc.drawProgress(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
-                            Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP,
-                            WfbMath.percent(activitySteps, activityStepGoal) / 100.0);
+        // the filled portion -- absent: hide, so only while the value is present
+        if (activitySteps != null && activityStepGoal != null) {
+            dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
+            WfbArc.drawProgress(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
+                                Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP,
+                                WfbMath.percent(activitySteps, activityStepGoal) / 100.0);
+        }
     }
 
     //! `clock` -- text.

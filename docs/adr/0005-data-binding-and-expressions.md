@@ -528,8 +528,12 @@ Plan 22 (format 2) changed how a binding is written, not how it compiles.
   element absent (Q3). A gauge keeps `value:`.
 - **`absent:`** replaced `when_absent:` + `placeholder:`/`fallback:`:
   `hide`, a string drawn instead, or `{value: <expr>}` substituted. It is
-  still required on a nullable binding. On a gauge, `absent: hide` is
-  planned to keep the value-independent track (plan 22 slice 4).
+  still required on a nullable binding. On a gauge, `absent: hide` keeps
+  the value-independent drawing -- the arc or bar track, every segment
+  unlit, a scale's track and bands -- and hides only what the value
+  places; a needle, with no track, hides whole (plan 22 slice 4, N7). This
+  is a behaviour change from format 1's `when_absent: hide`, which drew
+  nothing. `visible:` hides a gauge completely.
 - **References.** A colour is `color.<name>` inside an expression too
   (ADR 0006's amendment of the same date); source paths, the expression
   language and the catalogue are unchanged.

@@ -261,6 +261,13 @@ class ElementKind(Generic[E, P]):
 
     # -- codegen (wfb.emit) --
 
+    def draws_while_absent(self, element: E) -> bool:
+        """Whether the element still draws something when its value is
+        absent under `absent: hide` -- a gauge's track.  When true, the view
+        guards only the element's other bindings, and `emit_draw` guards the
+        value-dependent drawing itself (`value_guards`)."""
+        return False
+
     def emit_draw(self, w: "Writer", resolved: "ResolvedFace", placed: P,
                   value_guards: list[str] | None, plan: "ReadPlan",
                   aod: "AodStyle") -> None:

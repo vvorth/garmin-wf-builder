@@ -68,7 +68,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `text-outline-interior`. `docs/guide/fonts.md`, `text.md`.
 - **Gauge styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
   to `start_angle + fraction × sweep`; `Builder.build_hand_part`),
-  `segments` and `scale` (`wfb.lint.check_progress_segments`).
+  `segments` and `scale` (`wfb.lint.check_progress_segments`); `absent:
+  hide` keeps the track (`wfb.kinds.progress.keeps_track`).
   `docs/guide/progress-and-graphs.md`.
 - **Always-on display** — `aod:` overrides resolved element > group >
   face default, restyled by inline ternaries; `dim:`; the pixel `mask:`

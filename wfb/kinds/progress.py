@@ -83,6 +83,24 @@ def _fallback_fraction(element: Progress) -> str:
     return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
 
 
+def keeps_track(element: Progress) -> bool:
+    """Whether `absent: hide` still draws this gauge's value-independent
+    parts -- the arc or bar track, every segment unlit, a scale's track and
+    bands -- and hides only what the value places: the fill, the lit
+    segments, the pointer.  A needle has nothing that does not depend on the
+    value, so it hides whole.  The one definition codegen (`emit_draw`) and
+    the preview (`draw_preview`) both read."""
+    return element.when_absent == "hide" and element.style != "needle"
+
+
+def _present(guards: list[str] | None) -> str | None:
+    """The `if` header that wraps a gauge's value-dependent drawing when it
+    keeps its track while absent, else `None` (no wrap)."""
+    if not guards:
+        return None
+    return "if (" + " && ".join(f"{name} != null" for name in guards) + ")"
+
+
 def _fraction(element: Progress) -> str:
     assert element.value is not None and element.maximum is not None  # both required
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
@@ -281,11 +299,12 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
-def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float, color: RGB,
-                    track_color: RGB | None) -> None:
+def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float | None,
+                    color: RGB, track_color: RGB | None) -> None:
     """`segments`/`scale` in the preview, mirroring `_emit_ticked` rounding
     for rounding: `WfbArc.drawSpan`'s whole degrees from a Garmin start, and
-    `toNumber()`'s truncation on a bar."""
+    `toNumber()`'s truncation on a bar. ``fraction`` is `None` while the
+    value is absent under `absent: hide`: no cell lit, no pointer."""
     element = placed.element
     s = renderer.scale
     arc = element.geometry == "arc"
@@ -308,7 +327,7 @@ def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float,
 
     if element.style == "segments":
         assert element.count is not None  # `style: segments` requires count:
-        lit = _lit(fraction, element.count)
+        lit = 0 if fraction is None else _lit(fraction, element.count)
         for i in range(element.count):
             fill = color if i < lit else track_color
             if fill is None:
@@ -330,6 +349,8 @@ def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float,
             arc_cell(90.0 - a, b, fill)
         else:
             bar_cell(int(a), int(b), fill)
+    if fraction is None:
+        return
     if arc:
         angle = math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
         px = placed.center[0] + _mc_round(placed.radius * math.sin(angle))
@@ -343,12 +364,14 @@ def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float,
 
 def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
                  fraction_expr: str, color_code: str, track_color_code: str | None,
-                 aod: AodStyle) -> None:
+                 aod: AodStyle, present: str | None = None) -> None:
     """`style: segments`: `(fraction * COUNT + 0.5).toNumber()` cells lit in
     `color:`, the rest in `track_color:` (or not drawn). `style: scale`: the
     track, each band, then a dot at the value. An arc cell or band is one
     `WfbArc.drawSpan`, so it follows the whole-degree rule every arc here
-    does; a bar's cell edges truncate like `style: bar`'s fill."""
+    does; a bar's cell edges truncate like `style: bar`'s fill. ``present``
+    (`_present`) guards what the value places: while it is absent no cell
+    is lit and no pointer drawn."""
     arc = element.geometry == "arc"
     thickness_expr = shapes.thickness_expr(prefix, placed, aod) if arc else None
     L = f"Layout.{prefix}"
@@ -363,7 +386,14 @@ def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
 
     if element.style == "segments":
         count = element.count
-        w.line(f"var lit = (({fraction_expr}) * {count} + 0.5).toNumber();")
+        lit = f"(({fraction_expr}) * {count} + 0.5).toNumber()"
+        if present is None:
+            w.line(f"var lit = {lit};")
+        else:
+            w.comment("absent: hide -- every cell draws unlit while the value is absent")
+            w.line("var lit = 0;")
+            with w.block(present):
+                w.line(f"lit = {lit};")
         if track_color_code is None:
             w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         bound = "lit" if track_color_code is None else str(count)
@@ -392,22 +422,24 @@ def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
         else:
             w.line(f"dc.fillRectangle({L}_X + {L}_BAND_{index}_X0, {L}_Y, "
                    f"{L}_BAND_{index}_X1 - {L}_BAND_{index}_X0, {L}_HEIGHT);")
-    w.comment("the pointer")
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    if arc:
-        start = math.radians(placed.start_angle)
-        sweep = math.radians(placed.sweep)
-        w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
-        w.call("dc.fillCircle", [
-            f"{L}_CX + Math.round({L}_RADIUS * Math.sin(angle)).toNumber()",
-            f"{L}_CY - Math.round({L}_RADIUS * Math.cos(angle)).toNumber()",
-            f"{L}_POINTER",
-        ])
-    else:
-        w.call("dc.fillCircle", [
-            f"{L}_X + ({L}_WIDTH * ({fraction_expr})).toNumber()",
-            f"{L}_Y + {L}_HEIGHT / 2", f"{L}_POINTER",
-        ])
+    w.comment("the pointer" if present is None
+              else "the pointer -- absent: hide, so only while the value is present")
+    with w.block_if(present):
+        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+        if arc:
+            start = math.radians(placed.start_angle)
+            sweep = math.radians(placed.sweep)
+            w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
+            w.call("dc.fillCircle", [
+                f"{L}_CX + Math.round({L}_RADIUS * Math.sin(angle)).toNumber()",
+                f"{L}_CY - Math.round({L}_RADIUS * Math.cos(angle)).toNumber()",
+                f"{L}_POINTER",
+            ])
+        else:
+            w.call("dc.fillCircle", [
+                f"{L}_X + ({L}_WIDTH * ({fraction_expr})).toNumber()",
+                f"{L}_Y + {L}_HEIGHT / 2", f"{L}_POINTER",
+            ])
 
 
 class ProgressKind(ElementKind[Progress, PlacedProgress]):
@@ -530,12 +562,21 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         value = expr.evaluate(element.value.ast, renderer.values) if element.value.ast else None
         maximum = (expr.evaluate(element.maximum.ast, renderer.values)
                    if element.maximum.ast else None)
+        for other in (element.color, element.track_color):
+            # A nullable colour hides the whole gauge, as the device's own
+            # guard does (`view._emit_element_method`): there is nothing to
+            # draw the track with.
+            if (other is not None and other.constant is None and other.ast is not None
+                    and expr.evaluate(other.ast, renderer.values) is None):
+                return
+        fraction: float | None
         if value is None or maximum is None:
-            if element.when_absent == "hide":
+            if element.when_absent == "hide" and not keeps_track(element):
                 return
             # `fallback:` on a progress substitutes the fill fraction itself,
-            # not the value, as the device does (`_fallback_fraction`).
-            fraction = 0.0
+            # not the value, as the device does (`_fallback_fraction`);
+            # `hide` keeps the track (`keeps_track`) with nothing on it.
+            fraction = None if element.when_absent == "hide" else 0.0
             if element.when_absent == "fallback" and element.fallback is not None \
                     and element.fallback.ast is not None:
                 substitute = expr.evaluate(element.fallback.ast, renderer.values)
@@ -549,6 +590,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             )
         s = renderer.scale
         if element.style == "needle":
+            assert fraction is not None  # an absent needle hides whole
             angle = _needle_angle_rad(placed, fraction)
             sin_t, cos_t = math.sin(angle), math.cos(angle)
             for part in placed.needle:
@@ -572,7 +614,8 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             if element.track_color is not None and track is not None:
                 track_color = renderer.aod_color(element, "track_color", element.track_color)
                 renderer.draw.arc(box, *track, fill=track_color, width=width)
-            fill = arc_span(placed.start_angle, placed.sweep * fraction) if fraction > 0 else None
+            fill = (arc_span(placed.start_angle, placed.sweep * fraction)
+                    if fraction is not None and fraction > 0 else None)
             if fill is not None:
                 renderer.draw.arc(box, *fill, fill=color, width=width)
             return
@@ -581,7 +624,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         if element.track_color is not None:
             track_color = renderer.aod_color(element, "track_color", element.track_color)
             renderer.draw.rectangle(box, fill=track_color)
-        filled = int(placed.box.width * fraction) * s
+        filled = 0 if fraction is None else int(placed.box.width * fraction) * s
         if filled > 0:
             renderer.draw.rectangle([box[0], box[1], box[0] + filled, box[3]], fill=color)
 
@@ -594,6 +637,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         color_code = aod.color(element, "color")
         track_color_code = (aod.color(element, "track_color")
                             if element.track_color is not None else None)
+        present = _present(value_guards) if keeps_track(element) else None
         if element.when_absent == "fallback" and value_guards:
             # The fill fraction falls back, not the raw value/max -- 'fallback:'
             # supplies a number in the same 0.0-1.0 range _fraction() computes, so
@@ -616,7 +660,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             return
         if element.style in ("segments", "scale"):
             _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
-                         track_color_code, aod)
+                         track_color_code, aod, present)
             return
         if element.style == "arc":
             thickness_expr = shapes.thickness_expr(prefix, placed, aod)
@@ -625,13 +669,15 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
                 shapes.emit_arc_span(w, prefix, thickness_expr)
                 w.blank()
-            w.comment("the filled portion")
-            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-            w.call("WfbArc.drawProgress", [
-                f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
-                f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
-                fraction_expr,
-            ])
+            w.comment("the filled portion" if present is None
+                      else "the filled portion -- absent: hide, so only while the value is present")
+            with w.block_if(present):
+                w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+                w.call("WfbArc.drawProgress", [
+                    f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
+                    f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
+                    fraction_expr,
+                ])
             return
 
         if element.track_color is not None:
@@ -641,11 +687,18 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
             )
             w.blank()
-        w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.line(
-            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, Layout.{prefix}_HEIGHT);"
-        )
+        if present is not None:
+            w.comment("the fill -- absent: hide, so only while the value is present")
+        with w.block_if(present):
+            w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
+            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+            w.line(
+                f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, "
+                f"Layout.{prefix}_HEIGHT);"
+            )
+
+    def draws_while_absent(self, element: Progress) -> bool:
+        return keeps_track(element)
 
     def describe(self, placed: PlacedProgress) -> str:
         return article(f"{placed.element.style} progress indicator")

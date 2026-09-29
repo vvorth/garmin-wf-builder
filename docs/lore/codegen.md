@@ -91,6 +91,15 @@ These cost real time to discover; do not rediscover them.
   `add`), and an injected mapping key needs
   `add_kv_line_col(k, [l, c, l, c])` — **four** values, because `key()`
   reads slots 0–1 and `value()` reads 2–3.
+- **A guard inside a kind's `emit_draw` wraps, it never returns.** The
+  view emits an element's null guards before an `antialias:` override's
+  `applyAntiAlias` and restores the default after `emit_draw`, so an early
+  `return;` inside `emit_draw` would leave the Dc anti-aliased for every
+  later element. A gauge that keeps its track while absent (`absent:
+  hide`, `ElementKind.draws_while_absent`) therefore wraps only its
+  value-dependent drawing in `if (x != null && y != null) { ... }`, where
+  `monkeyc` narrows the locals, confirmed by a strict warning-free build
+  (`tests/test_gauge_absent.py`).
 - **Format 2 is lowered, not compiled (plan 22).** `wfb/lower.py` rewrites a
   schema-valid format 2 document in place into the internal shape the IR
   builder has always read -- `targets:`, `palette.x`, `when_absent:`,

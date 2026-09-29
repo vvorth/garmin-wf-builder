@@ -1199,6 +1199,9 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
         bool(element.VALUE_ROLES)
         and getattr(element, "when_absent", None) in ("placeholder", "fallback")
     )
+    # A gauge under `when_absent: hide` still draws its track: the kind
+    # guards the value-dependent drawing itself.
+    draws_while_absent = kind.draws_while_absent(element)
     with w.block(signature):
         if subscreen_guarded:
             # Before any read: where it does not draw, it reads nothing.
@@ -1225,7 +1228,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
             kind.emit_draw(w, resolved, placed, None, plan, aod)
             return
         value_guards = plan.value_guards(placed)
-        if substitutes_value:
+        if substitutes_value or (draws_while_absent and value_guards):
             other_guards = plan.other_guards(placed)
             if other_guards:
                 _emit_guard(w, placed, other_guards,
@@ -1273,7 +1276,9 @@ def _method_doc(placed: Placed) -> str:
                      "(absent readings count as hidden).")
     policy = getattr(element, "when_absent", None)
     if policy:
-        lines.append(f"When the value is absent: {policy}.")
+        keeps = policy == "hide" and kinds.for_placed(placed).draws_while_absent(element)
+        lines.append(f"When the value is absent: {policy}"
+                     + (" -- the track still draws." if keeps else "."))
     modes = ", ".join(element.modes)
     lines.append(f"Drawn in: {modes}.")
     return "\n".join(lines)

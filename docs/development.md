@@ -112,28 +112,25 @@ Running `wfb` and the full command list moved to
 //! `step_ring` -- an arc progress indicator.
 //!
 //! Bound to `activity.steps` and `activity.step_goal`.
-//! When the value is absent: hide.
+//! When the value is absent: hide -- the track still draws.
 //! Drawn in: active.
 private function drawStepRing(dc as Dc, activity as ActivityMonitor.Info) as Void {
     // the values this element is bound to
     var activitySteps = activity.steps;
     var activityStepGoal = activity.stepGoal;
 
-    // when_absent: hide
-    if (activitySteps == null || activityStepGoal == null) {
-        return;
-    }
-
     // the unfilled track
     dc.setColor(Palette.TRACK, Graphics.COLOR_TRANSPARENT);
     WfbArc.drawSpan(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
                     Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP);
 
-    // the filled portion
-    dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
-    WfbArc.drawProgress(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
-                        Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP,
-                        WfbMath.percent(activitySteps, activityStepGoal) / 100.0);
+    // the filled portion -- absent: hide, so only while the value is present
+    if (activitySteps != null && activityStepGoal != null) {
+        dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
+        WfbArc.drawProgress(dc, Layout.STEP_RING_CX, Layout.STEP_RING_CY, Layout.STEP_RING_RADIUS,
+                            Layout.STEP_RING_THICKNESS, Layout.STEP_RING_START, Layout.STEP_RING_SWEEP,
+                            WfbMath.percent(activitySteps, activityStepGoal) / 100.0);
+    }
 }
 ```
 
@@ -141,7 +138,8 @@ Readable output is a requirement, not a nicety: it is what gets debugged when
 something misbehaves on the wrist, and it is the substrate the escape hatch will
 drop into. Symbol names derive from element ids, every block cites its YAML
 element, layout constants are named rather than inlined, and every nullable read
-is guarded with the `absent:` policy that produced the guard. (The generated
+is guarded with the `absent:` policy that produced the guard -- here, as
+`absent: hide` on a gauge, around the fill alone, so the track still draws. (The generated
 comments name keys in the compiler's internal spelling, `when_absent:` here:
 format 2 is lowered into it, `wfb/lower.py`.)
 
