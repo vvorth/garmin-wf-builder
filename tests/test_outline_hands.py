@@ -41,26 +41,23 @@ def test_each_hand_is_ringed_just_before_its_own_parts(view):
                      "dc.setColor(Palette.BG", "dc.setColor(Palette.ACCENT"], order
 
 
-def test_the_stamp_moves_the_axis_and_puts_it_back(view):
+def test_each_part_is_ringed_once_without_moving_the_axis(view):
+    """One ring op per part: the polygon rotated once and shifted in place,
+    the filled circle grown 1px, the line's ends rotated once -- never a
+    loop re-rotating (and re-allocating) the part per offset, which is what
+    made a stamped hand cost 18ms on a watch (research 19 §4.5)."""
     body = _hands(view)
-    assert body.count("cx = Layout.HANDS_CX + offsets[i];") == 3
-    assert body.count("\n        cx = Layout.HANDS_CX;") + body.count("\n            cx = Layout.HANDS_CX;") == 3
-    # every part of the minute hand is inside its one loop
-    minute = body[body.index("// minute"):body.index("// second")]
-    loop = minute[minute.index("while"):minute.index("i += 2;")]
-    assert "HANDS_MINUTE_0_POINTS" in loop and "HANDS_MINUTE_1_RADIUS" in loop
-
-
-def test_the_loop_locals_are_declared_once(view):
-    """Monkey C rejects a second `var` of one name in a method."""
-    body = _hands(view)
-    assert body.count("var offsets") == 1 and body.count("var i ") == 1
+    assert body.count("WfbGeom.ringRotated(dc, Layout.HANDS_HOUR_0_POINTS, cx, cy, sin, cos);") == 1
+    assert "Layout.HANDS_MINUTE_1_RADIUS + 1," in body
+    assert "WfbGeom.ringLineRotated(dc, Layout.HANDS_SECOND_0_X1" in body
+    assert "offsets" not in body and "cx = " not in body.replace("var cx = ", "")
 
 
 def test_an_awake_only_second_hand_keeps_its_ring_inside_the_gate(view):
     body = _hands(view)
     gate = body[body.index("if (!_sleeping)"):]
-    assert "offsets = Layout.OUTLINE_OFFSETS;" in gate
+    assert "WfbGeom.ringLineRotated(" in gate
+    assert "ringLineRotated" not in body[:body.index("if (!_sleeping)")]
 
 
 def test_no_outline_emits_no_ring(tmp_path, write_design):

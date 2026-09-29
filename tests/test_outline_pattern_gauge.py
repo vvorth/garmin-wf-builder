@@ -34,19 +34,22 @@ def _method(view: str, name: str) -> str:
 # -- pattern -----------------------------------------------------------------------
 
 
-def test_a_radial_copy_is_ringed_by_moving_its_centre(view):
+def test_a_radial_copy_rings_each_part_once(view):
+    """Inside the copy loop: the ring colour, each part's one ring op, then
+    the parts -- no per-offset loop re-rotating each part."""
     body = _method(view, "drawTicks")
-    loop = body[body.index("while (ringI"):body.index("ringI += 2;")]
-    assert "cx = Layout.TICKS_X + ringStamp[ringI];" in loop
-    assert "TICKS_0_POINTS" in loop and "TICKS_1_X1" in loop  # every part, one loop
-    after = body[body.index("ringI += 2;"):]
-    assert after.index("cx = Layout.TICKS_X;") < after.index("dc.setColor(Palette.ACCENT")
+    loop = body[body.index("for (var i"):]
+    ring = loop[loop.index("Palette.RING"):loop.index("Palette.ACCENT")]
+    assert "WfbGeom.ringRotated(dc, Layout.TICKS_0_POINTS, cx, cy, sin, cos);" in ring
+    assert "WfbGeom.ringLineRotated(dc, Layout.TICKS_1_X1" in ring
+    assert "while" not in body
 
 
-def test_the_stamp_names_never_collide_with_the_copy_loop(view):
-    """The copy loop owns `i`; Monkey C rejects a second `var i`."""
-    body = _method(view, "drawTicks")
-    assert body.count("var i ") == 1 and "var ringI = 0;" in body
+def test_only_a_text_parts_ring_needs_a_stamp_loop_and_its_names_are_its_own(view):
+    """The copy loop owns `i`; Monkey C rejects a second `var i` -- a text
+    part's stamp loop names its locals after the part."""
+    body = _method(view, "drawNumerals")
+    assert body.count("var i ") == 1 and "var ringINUMERALS_0 = 0;" in body
 
 
 def test_a_ringed_pattern_sets_its_colour_every_copy(view):
@@ -58,10 +61,10 @@ def test_a_ringed_pattern_sets_its_colour_every_copy(view):
     assert loop.index("Palette.RING") < loop.index("Palette.ACCENT")
 
 
-def test_a_linear_copy_is_ringed_by_moving_its_origin(view):
+def test_a_linear_copy_rings_a_filled_circle_by_growing_it(view):
     body = _method(view, "drawDots")
-    assert "ox = Layout.DOTS_X + i * Layout.DOTS_DX + ringStamp[ringI];" in body
-    assert "\n            ox = Layout.DOTS_X + i * Layout.DOTS_DX;" in body
+    assert ("dc.fillCircle(ox + Layout.DOTS_0_X, oy + Layout.DOTS_0_Y, "
+            "Layout.DOTS_0_RADIUS + 1);") in body
 
 
 def test_a_ringed_text_part_inside_a_ringed_pattern_is_refused(write_design, minimal):
@@ -129,9 +132,9 @@ def test_a_bar_with_a_track_is_grown_round_the_whole_track(write_design, tmp_pat
 
 def test_a_needle_is_ringed_whole(view):
     body = _method(view, "drawNeedle")
-    loop = body[body.index("while"):body.index("i += 2;")]
-    assert "cx = Layout.NEEDLE_CX + offsets[i];" in loop
-    assert "NEEDLE_NEEDLE_0_POINTS" in loop and "NEEDLE_NEEDLE_1_RADIUS" in loop
+    ring = body[body.index("Palette.BG"):body.index("Palette.FG")]
+    assert "WfbGeom.ringRotated(dc, Layout.NEEDLE_NEEDLE_0_POINTS, cx, cy, sin, cos);" in ring
+    assert "Layout.NEEDLE_NEEDLE_1_RADIUS + 1," in ring
 
 
 @pytest.mark.parametrize("style", ["segments", "scale"])

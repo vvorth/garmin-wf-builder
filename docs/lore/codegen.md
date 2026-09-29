@@ -543,16 +543,21 @@ These cost real time to discover; do not rediscover them.
   given one.  A filled circle, rectangle or rounded rectangle, and a gauge
   bar, draw one grown copy (`plus()` folds a literal width into one
   constant term); everything else stamps through
-  `shapes.emit_stamp_loop`, shifting its draw anchor -- `Layout.<P>_CX +
-  offsets[i]` for a shape, `WfbGeom.fillTranslated(points, dx, dy)` for a
-  polygon, and for a `hands`/needle/pattern the `cx`/`cy` (or `ox`/`oy`)
-  locals every part already draws from, reset after the loop.
+  `shapes.emit_stamp_loop`, shifting its draw anchor (`Layout.<P>_CX +
+  offsets[i]`).  A polygon, and every part of a `hands`/needle/pattern,
+  goes through one ring op per part instead (`rotated.emit_part_ring`):
+  `WfbGeom.ringRotated`/`ringTranslated` transform the points **once** into
+  a fresh array and `shift` it in place between the four fills (a
+  `Point2D` element assignment typechecks under `-l 3`, confirmed by a
+  real build); `ringLineRotated`/`ringCircleRotated` rotate once and draw
+  four; a filled circle part grows by 1.  Measured on a fenix 8, a stamp
+  that re-rotated and re-allocated per offset cost about twice its own
+  fills (research 19 §4.5).
 
   **Two real `monkeyc` findings, both caught only by a real build.**
-  (1) A method may declare `var offsets`/`var i` once: a `hands` element's
-  second and third hands reuse the first hand's loop locals
-  (`emit_stamp_loop(declare=False)`), and a pattern's stamp is `ringStamp`/
-  `ringI` because its copy loop owns `i`.  (2) Locals are block-scoped:
+  (1) A method may declare `var offsets`/`var i` once: a pattern text
+  part's stamp names its locals after the part (`ringI<P>`) because the
+  copy loop owns `i`.  (2) Locals are block-scoped:
   the AOD frame's `aod: {visible: ...}` guard locals were redeclared per
   element, a `Redefinition of variable` as soon as two guards read one
   source (a bug on main before this, and every outlined group member in

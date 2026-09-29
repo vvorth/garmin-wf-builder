@@ -108,9 +108,6 @@ def test_a_rounded_rectangle_grows_its_corner_radius_too(write_design, tmp_path)
     ("type: rectangle\n    at: {anchor: center}\n    size: {width: 40px, height: 20px}\n"
      "    thickness: 2px\n    filled: false",
      "dc.drawRectangle(Layout.EL_X + offsets[i], Layout.EL_Y + offsets[i + 1],"),
-    ("type: polygon\n    points: [{anchor: center}, {anchor: center, dx: 20px}, "
-     "{anchor: center, dy: 20px}]",
-     "WfbGeom.fillTranslated(dc, Layout.EL_POINTS, offsets[i], offsets[i + 1]);"),
     ("type: line\n    at: {anchor: center}\n    to: {anchor: center, dx: 30px}\n    thickness: 2px",
      "dc.drawLine(Layout.EL_CX + offsets[i], Layout.EL_CY + offsets[i + 1], "
      "Layout.EL_END_X + offsets[i], Layout.EL_END_Y + offsets[i + 1]);"),
@@ -130,6 +127,20 @@ def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
     assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
     assert call in body, body
     assert "+ 1" not in body.split("while")[0]
+
+
+def test_a_polygon_translates_once_and_shifts_in_place(write_design, tmp_path):
+    """No per-stamp array: `WfbGeom.ringTranslated` builds one copy and
+    shifts it between the four fills (research 19 §4.5)."""
+    body = _method(_view("""
+  tri:
+    type: polygon
+    points: [{anchor: center}, {anchor: center, dx: 20px}, {anchor: center, dy: 20px}]
+    color: color.fg
+    outline: color.ring
+""", write_design, tmp_path), "drawTri")
+    assert "WfbGeom.ringTranslated(dc, Layout.TRI_POINTS, 0, 0);" in body
+    assert "offsets" not in body
 
 
 def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):

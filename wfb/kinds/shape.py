@@ -220,10 +220,7 @@ def _emit_primitive(w: Writer, placed: PlacedShape, aod: AodStyle, prefix: str,
         # and an `aod: {filled: ...}` override on a polygon are both rejected
         # in wfb/ir/builder/aod.py (`Builder._build_aod_authored`), so there is
         # never an outline form to switch to here.
-        if dx is None:
-            w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
-        else:
-            w.line(f"WfbGeom.fillTranslated(dc, Layout.{prefix}_POINTS, {dx}, {dy});")
+        w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
     elif element.shape == "line":
         w.line(f"dc.setPenWidth({shapes.thickness_expr(prefix, placed, aod)});")
         w.line(
@@ -480,6 +477,13 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             if _grows(element, aod):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
                 _emit_grown(w, prefix, element.shape, RING_WIDTH_CODE)
+                if ring is None:
+                    w.blank()
+            elif element.shape == "polygon":
+                # One translated copy shifted in place between the four
+                # fills, not a fresh array per stamp (research 19 §4.5).
+                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                w.line(f"WfbGeom.ringTranslated(dc, Layout.{prefix}_POINTS, 0, 0);")
                 if ring is None:
                     w.blank()
             else:

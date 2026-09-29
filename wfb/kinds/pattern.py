@@ -13,6 +13,7 @@ from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..fonts import BakedFont
 from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
+from ..ir import RING_OFFSETS
 from ..ir.model import (
     AnyHandPart, Element, Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
     ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
@@ -24,7 +25,7 @@ from ..layout import (
 from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated, shapes
+from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
     NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr,
     mc_float, own_ring,
@@ -515,9 +516,11 @@ def _emit_pattern_text_call(
 
 def _emit_pattern_text_draw(
     w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str, aod: AodStyle,
+    font_expr: str, value_code: str, justify: str, aod: AodStyle, ring: str | None = None,
 ) -> None:
-    """One copy's `shape: text` part: this copy's own anchor, then --
+    """One copy's `shape: text` part -- or with ``ring``, only its 1px ring
+    stamped in that colour (the pattern's own `outline:`): this copy's own
+    anchor, then --
     ahead of the interior pass, inside the same vector-font null guard --
     the part's own `outline:` stamp loop, if it has one (plan 15 §14
     slice 2), then the interior call itself (`_emit_pattern_text_call`).
@@ -581,6 +584,15 @@ def _emit_pattern_text_draw(
             oy_expr, part.vertical_align, font_expr)
 
     with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
+        if ring is not None:
+            emit_outline_loop(
+                w, RING_OFFSETS_CODE, ring, x_expr, y_expr,
+                lambda ox_, oy_: _emit_pattern_text_call(
+                    w, element, part, part_prefix, radial, font_expr, value_code, justify,
+                    ox_, oy_),
+                index_var=f"ringI{part_prefix}", offsets_var=f"ringOffsets{part_prefix}",
+                blank_after=False)
+            return
         if part.outline_color is not None:
             # `index_var`/`offsets_var` are unique per part (`part_prefix`
             # already is): the copy loop wrapping this whole method already
@@ -603,7 +615,8 @@ def _emit_pattern_text_draw(
 
 def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: int,
                        part: ResolvedHandPart, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
-                       thickness_override: str | None, aod: AodStyle) -> None:
+                       thickness_override: str | None, aod: AodStyle,
+                       ring: str | None = None) -> None:
     """One template part, drawn for the current copy `i`: polygon/line/
     circle parts go through `rotated.emit_transformed_part` (rotated for a radial
     pattern, translated for a linear one, exactly as a hand's parts are).
@@ -614,7 +627,9 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     the IR part's `text:` literal or `value:` compiled through
     `formatting.emit`, since geometry resolution never touches either.
     ``text_fonts`` maps a custom font's resource name to the local
-    `emit_draw` loaded it into before the loop.
+    `emit_draw` loaded it into before the loop.  With ``ring`` (the
+    pattern's `outline:` colour, already set), only the part's 1px ring is
+    drawn (research 19).
     """
     part_prefix = f"{prefix}_{index}"
     if part.shape == "text":
@@ -636,12 +651,13 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
         else:
             font_expr = f"Graphics.{part.font.reference}"
         _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code,
-                                justify, aod)
+                                justify, aod, ring)
         return
     thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
     if part.shape != "arc":
-        rotated.emit_transformed_part(w, part, part_prefix, radial=radial,
-                                      thickness_expr=thickness_expr, set_pen=not hoist_pen)
+        emit = rotated.emit_part_ring if ring is not None else rotated.emit_transformed_part
+        emit(w, part, part_prefix, radial=radial, thickness_expr=thickness_expr,
+             set_pen=not hoist_pen)
         return
     # arc: always centred on the copy's own origin.  A radial pattern
     # turns the author start angle by plain degree subtraction -- the same
@@ -660,10 +676,13 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     else:
         start_arg = g0
         cx_arg, cy_arg = "ox", "oy"
-    w.call("WfbArc.drawSpan", [
-        f"dc, {cx_arg}, {cy_arg}, Layout.{part_prefix}_RADIUS, {thickness_expr}",
-        f"{start_arg}, {sweep}",
-    ])
+    for dx, dy in (RING_OFFSETS if ring is not None else ((0, 0),)):
+        x = cx_arg if dx == 0 else f"{cx_arg} {'+' if dx > 0 else '-'} {abs(dx)}"
+        y = cy_arg if dy == 0 else f"{cy_arg} {'+' if dy > 0 else '-'} {abs(dy)}"
+        w.call("WfbArc.drawSpan", [
+            f"dc, {x}, {y}, Layout.{part_prefix}_RADIUS, {thickness_expr}",
+            f"{start_arg}, {sweep}",
+        ])
 
 
 class PatternKind(ElementKind[PatternElement, PlacedPattern]):
@@ -1073,23 +1092,17 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                     w.line("var cos = Math.cos(angle);")
             elif element.pattern == "grid":
                 # Number / Number is integer division in Monkey C: the row.
-                origin = (f"Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX",
-                          f"Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY")
-                w.line(f"var ox = {origin[0]};")
-                w.line(f"var oy = {origin[1]};")
+                w.line(f"var ox = Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX;")
+                w.line(f"var oy = Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY;")
             else:
-                origin = (f"Layout.{prefix}_X + i * Layout.{prefix}_DX",
-                          f"Layout.{prefix}_Y + i * Layout.{prefix}_DY")
-                w.line(f"var ox = {origin[0]};")
-                w.line(f"var oy = {origin[1]};")
-            if radial:
-                origin = (f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
-            names = ("cx", "cy") if radial else ("ox", "oy")
+                w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
+                w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
 
-            def parts(colored: bool) -> None:
+            def parts(ring_color: str | None) -> None:
                 current_color = distinct_colors[0] if hoist_color else None
                 for color, (index, part) in zip(colors, live):
-                    if colored and not hoist_color and color != current_color:
+                    if (ring_color is None and not hoist_color
+                            and color != current_color):
                         w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
                         current_color = color
                     visible = element.parts[index].visible
@@ -1098,23 +1111,14 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                         w.comment(f"visible: {visible.text}")
                     with w.block_if(f"if ({visible.code})" if visible is not None else None):
                         _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
-                                           text_fonts, thickness_override, aod)
+                                           text_fonts, thickness_override, aod, ring_color)
 
             if stamp is not None:
-                # This copy ringed whole: every part, stamped by moving the
-                # copy's own origin, which every part draws from.
-                def shifted(dx: str, dy: str) -> None:
-                    w.line(f"{names[0]} = {origin[0]} + {dx};")
-                    w.line(f"{names[1]} = {origin[1]} + {dy};")
-                    parts(colored=False)
-
-                shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, shifted,
-                                       index_var="ringI", offsets_var="ringStamp",
-                                       blank_after=False)
-                w.line(f"{names[0]} = {origin[0]};")
-                w.line(f"{names[1]} = {origin[1]};")
+                # This copy ringed whole: every part's 1px ring, then the parts.
+                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                parts(stamp.color)
             if ring is None:
-                parts(colored=True)
+                parts(None)
         if hoist_pen:
             w.line("dc.setPenWidth(1);")
 

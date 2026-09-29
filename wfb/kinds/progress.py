@@ -325,30 +325,27 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
     w.line("var cos = Math.cos(angle);")
     thickness_override = rotated.aod_thickness_override(placed, prefix)
 
-    def parts(colored: bool) -> None:
-        current = None
-        for index, part in enumerate(placed.needle):
-            part_prefix = f"{prefix}_NEEDLE_{index}"
-            color = aod.part_color(element, part.color)
-            if colored and color != current:
-                w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-                current = color
-            rotated.emit_transformed_part(
-                w, part, part_prefix, radial=True,
-                thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+    def thickness(part_prefix: str) -> str:
+        return aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
 
     if stamp is not None:
         # The needle ringed whole, as a hand is (`wfb.kinds.hands._emit_one_hand`).
-        def shifted(dx: str, dy: str) -> None:
-            w.line(f"cx = Layout.{prefix}_CX + {dx};")
-            w.line(f"cy = Layout.{prefix}_CY + {dy};")
-            parts(colored=False)
-
-        shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, shifted, blank_after=False)
-        w.line(f"cx = Layout.{prefix}_CX;")
-        w.line(f"cy = Layout.{prefix}_CY;")
-    if not ring_only:
-        parts(colored=True)
+        w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+        for index, part in enumerate(placed.needle):
+            part_prefix = f"{prefix}_NEEDLE_{index}"
+            rotated.emit_part_ring(w, part, part_prefix, radial=True,
+                                   thickness_expr=thickness(part_prefix))
+    if ring_only:
+        return
+    current = None
+    for index, part in enumerate(placed.needle):
+        part_prefix = f"{prefix}_NEEDLE_{index}"
+        color = aod.part_color(element, part.color)
+        if color != current:
+            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+            current = color
+        rotated.emit_transformed_part(w, part, part_prefix, radial=True,
+                                      thickness_expr=thickness(part_prefix))
 
 
 def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float | None,
