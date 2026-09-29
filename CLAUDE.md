@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1; 22 (format 2: a designed revision of the YAML format; slices 0–4 built, format 2 is the only format read; slice 5, a tidy, remains, before D1). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1 and is to be rebased onto format 2's key names (plan 22 F7). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -240,8 +240,8 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 | YAML load with source spans | `wfb/yamlsrc.py` | no |
 | JSON Schema, reported on author lines | `wfb/validate.py` | no |
 | Format 2 → internal shape (spans and author names kept) | `wfb/lower.py` | no |
+| Element blocks (`elements:`, `static:`, layouts) → one element list | `wfb/desugar.py` | no |
 | Semantic pass (sources, types, nulls) | `wfb/ir/` (`model.py`, `naming.py`, `builder/`), `wfb/catalog.py`, `wfb/expr.py` | no |
-| Mapping form → list form, other sugar | `wfb/desugar.py` | no |
 | Per-device layout resolve | `wfb/layout.py` | device files |
 | Lint | `wfb/lint.py` | device files |
 | Font baking (TTF → BMFont) | `wfb/fonts/` | no |

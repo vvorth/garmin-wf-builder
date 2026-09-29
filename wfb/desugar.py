@@ -1,26 +1,16 @@
-"""Stage 0.5: rewrite the author's conveniences into the one shape everything
-downstream already understands.
+"""Rewrite a lowered design's element blocks into the one shape the IR
+builder reads.  Runs after `wfb.validate` and `wfb.lower`, so its input is
+schema-valid format 2 in the internal key names.
 
-Three rewrites live here.  The first is **an element list written as a mapping
-whose key is the element id**.
+Three rewrites live here.  The first turns **an element mapping, keyed by
+id,** into the list the builder walks, the key injected as the element's
+``id``:
 
 .. code-block:: yaml
 
     elements:            #  is rewritten to        elements:
       clock:             #                           - id: clock
         type: text       #                             type: text
-        value: time.clock#                             value: time.clock
-
-Both spellings are legal and neither is a new format version (ADR 0009: the
-format did not change -- the *surface syntax* grew a second way to write
-something the schema already accepted).  Putting the rewrite here, between
-:func:`wfb.yamlsrc.load` and :func:`wfb.validate.validate`, is what keeps that
-promise cheap: the JSON Schema, the IR, layout, lint, preview and codegen see
-only the list form and are untouched by this file's existence.  Two spellings
-that share every stage after this one cannot drift into meaning different
-things -- which is the same anti-drift argument ADR 0004 makes for resolving
-geometry once, and the reason the gate on this feature is that a mapping-form
-design and its list-form twin generate byte-identical output.
 
 Spans are the whole difficulty.  A diagnostic must point at the author's own
 line (ADR 0002), so the rewritten sequence is not a fresh data structure: it is
@@ -30,12 +20,11 @@ the key that named it, and with the injected ``id`` key recorded in the body's
 own ``lc`` so ``doc.span(node, "id")`` -- which is what the IR builder
 calls for a duplicate id -- lands on the author's key rather than on nothing.
 
-Only two places in the schema take a list of elements -- the top-level
-``elements:`` and a ``group``'s ``children:`` -- and this pass rewrites
-exactly those two, recursing only into a body whose ``type`` is ``group``. A
-non-element list field elsewhere in the format (e.g. a `shape: polygon`'s
-`points:`) is never touched, because nothing here scans for such fields --
-the recursion is keyed on `type: group`, not on any particular field name.
+Only the element blocks take elements -- ``elements:``, ``static:`` and a
+``group``'s ``children:`` -- and this pass rewrites exactly those, recursing
+only into a body whose ``type`` is ``group``. A non-element list field
+elsewhere (a polygon's `points:`) is never touched, because nothing here
+scans for such fields.
 
 The second rewrite is the top-level ``static:`` block:
 
@@ -51,20 +40,17 @@ The second rewrite is the top-level ``static:`` block:
                          #                             - id: clock
                          #                               type: text
 
-Same argument as above, and the same payoff: `static:` is a *spelling*, not a
-second feature.  Everything downstream sees one ordinary ``group`` carrying
-``static: true``, so the IR's gates, the emitter's buffer and the
-``graphics-pool`` lint have exactly one shape to handle -- and the group lands
-at the **front** of draw order for free, which is where an opaque static buffer
+Everything downstream sees one ordinary ``group`` carrying ``static:
+true``, so the IR's gates, the emitter's buffer and the ``graphics-pool``
+lint have exactly one shape to handle -- and the group lands at the
+**front** of draw order for free, which is where an opaque static buffer
 has to be (`docs/research/probes/static-buffer/`).
 
 The synthetic group's id, :data:`STATIC_GROUP_ID`, is reserved: a design that
 already uses it gets an error naming the collision rather than a confusing
 ``duplicate-id`` against a line that does not exist in the source.
 
-The third rewrite is a ``layouts:`` entry's own ``static:``/``elements:``
--- form A is the only one this format builds; there is no element-level
-membership key:
+The third rewrite is a ``layouts:`` entry's own ``static:``/``elements:``:
 
 .. code-block:: yaml
 
@@ -89,17 +75,21 @@ membership key:
     layouts:
       digital: {}                #  static:/elements: popped -- only lint:, if any, remains
 
-Same argument as the other two rewrites, extended one step further: a layout
-body is not even a second *spelling*, it is authoring sugar for two more
-``group``\\ s the IR, layout, lint and emitter never have to know are special
--- ``Element.layout`` is assigned to these groups and their descendants
-afterwards, by id (``Builder._assign_layouts``), which is the only place
-"this element belongs to layout X" is decided at all.  The two reserved ids
-one layout named ``<name>`` claims -- ``layout_<name>_static``/
-``layout_<name>`` -- are minted by :func:`layout_ids`, the one place that
-naming convention is defined.  A layout's own content is always **appended**
-after the top-level ``static:`` block's group (if any); draw order itself is
+A layout body is authoring sugar for two more ``group``\\ s the IR, layout,
+lint and emitter never have to know are special -- ``Element.layout`` is
+assigned to these groups and their descendants afterwards, by id
+(``Builder._assign_layouts``), which is the only place "this element
+belongs to layout X" is decided at all.  The two reserved ids one layout
+named ``<name>`` claims -- ``layout_<name>_static``/``layout_<name>`` --
+are minted by :func:`layout_ids`, the one place that naming convention is
+defined.  A layout's own content is always **appended** after the top-level
+``static:`` block's group (if any); draw order itself is
 ``draw_sort_key``'s job (layout content gets its own rank), not this pass's.
+
+The schema has already refused what this pass cannot represent: a key that
+is not an identifier, an ``id:`` inside a body, a non-mapping block.  What
+it cannot see is a YAML alias giving one body two keys, which is reported
+here (`element-mapping`).
 """
 
 from __future__ import annotations
@@ -191,26 +181,18 @@ def _elements_list(data: Any) -> Any:
 def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
     """Fold ``static:`` into one ``group`` at the front of ``elements:``.
 
-    Runs *after* the mapping-form rewrite above so that ``elements:`` is already
-    a sequence to insert into; the block's own children are then put through the
-    same rewrite, so ``static:`` accepts both spellings exactly as ``elements:``
-    does.
+    Runs *after* the rewrite of ``elements:`` so that it is already a
+    sequence to insert into; the block's own children are then put through
+    the same rewrite.  An empty block is no static content, the same as a
+    layout's (:func:`_layouts_block`).
     """
     if "static" not in data:
         return True
     node = data["static"]
     span = doc.span(data, "static", of="key")
-    if not isinstance(node, (dict, list)) or not node:
-        bag.error(
-            "static",
-            "the top-level `static:` block must be a list of elements or a "
-            "mapping of id -> element",
-            span,
-            notes=["it takes the same two spellings `elements:` does",
-                   "`static: true` on a single element is the other spelling of "
-                   "this feature, and belongs *inside* `elements:`"],
-        )
-        return False
+    if not node:
+        del data["static"]
+        return True
 
     group = _synthetic_group(STATIC_GROUP_ID, node, static=True, span=span)
     ok = _rewrite(doc, group, "children", bag)
@@ -256,15 +238,12 @@ def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
     (if any) is already at the front of ``elements:`` and this pass only ever
     appends after it.  Each group is built exactly the way
     :func:`_static_block` builds its own (:func:`_synthetic_group`), and the
-    content put through :func:`_rewrite` first so a layout's own
-    ``static:``/``elements:`` accept both spellings too.
+    content put through :func:`_rewrite` first.
 
     After this returns, ``data["layouts"]`` is left as a mapping of name ->
     ``{}`` (or ``{lint: ...}``, if the author wrote one) -- ``static:``/
     ``elements:`` are popped from each body, an empty list or mapping treated
-    as absent the same way an absent key is (popped either way, so the
-    schema never sees an empty ``static: []``, which its own ``minItems: 1``
-    would otherwise reject).  That trimmed mapping is what carries the
+    as absent the same way an absent key is.  That trimmed mapping is what carries the
     declared names, in declaration order, plus each layout's own ``lint:``,
     into the IR (``Builder._build_layouts``).  A non-mapping ``layouts:``, or
     a body that is not itself a mapping, is left untouched for the schema to
@@ -371,7 +350,8 @@ def _collect_ids(node: Any, out: dict[str, str], label: str) -> None:
 
 
 def _rewrite(doc: YamlDocument, parent: Any, key: str, bag: Bag) -> bool:
-    """Convert ``parent[key]`` to the list form if needed, then recurse."""
+    """Convert the element mapping at ``parent[key]`` to a list, then recurse
+    into each group's ``children:``."""
     node = parent.get(key) if isinstance(parent, dict) else None
     ok = True
     if isinstance(node, dict):
@@ -389,7 +369,8 @@ def _rewrite(doc: YamlDocument, parent: Any, key: str, bag: Bag) -> bool:
 
 
 def _to_sequence(doc: YamlDocument, mapping: Any, bag: Bag) -> CommentedSeq | None:
-    """Build the list-form twin of ``mapping``, carrying every span across."""
+    """The list the IR builder reads, built from ``mapping`` with every span
+    carried across."""
     seq = CommentedSeq()
     lc = getattr(mapping, "lc", None)
     if lc is not None:
@@ -403,21 +384,7 @@ def _to_sequence(doc: YamlDocument, mapping: Any, bag: Bag) -> CommentedSeq | No
             # uses for an integer index into a sequence.
             seq.lc.add_idx_line_col(index, list(pos))
         key_span = doc.span(mapping, name, of="key")
-
-        if not isinstance(name, str) or not IDENTIFIER.match(name):
-            bag.error(
-                "element-mapping",
-                f"{name!r} is not a valid element id",
-                key_span,
-                notes=[
-                    "in the mapping form of `elements:`/`children:` the key *is* "
-                    "the element id",
-                    "an id starts with a letter or underscore and continues with "
-                    "letters, digits or underscores",
-                ],
-            )
-            ok = False
-        elif isinstance(body, dict):
+        if isinstance(body, dict):
             ok = _inject_id(doc, body, name, pos, key_span, seen, bag) and ok
         seq.append(body)
     return seq if ok else None
@@ -436,17 +403,6 @@ def _inject_id(doc: YamlDocument, body: Any, name: str, pos: Any,
         )
         return False
     seen[id(body)] = name
-
-    if "id" in body:
-        bag.error(
-            "element-mapping",
-            "an element written in the mapping form must not also declare 'id:'",
-            doc.span(body, "id", of="key") or key_span,
-            notes=[f"the key {name!r} already is this element's id",
-                   "delete the 'id:' line, or write this element as a list "
-                   "item instead"],
-        )
-        return False
 
     if isinstance(body, CommentedMap):
         body.insert(0, "id", name)

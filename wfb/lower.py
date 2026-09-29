@@ -18,9 +18,9 @@ document into that shape, in place, before :mod:`wfb.desugar` runs:
 Each moved key keeps the author's source position, and each renamed or
 rewritten one records an :class:`~wfb.yamlsrc.Origin` naming the key the
 author wrote, so a diagnostic points at, names and quotes the author's own
-text.  The rewritten text reproduces exactly what format 1 wrote for the
-same design (``wfb migrate``), which is what makes a format 1 face and its
-migrated twin generate byte-identical projects.
+text.  The rewritten document is what the same design said in format 1,
+which is why moving a face to format 2 (``wfb migrate``) changed no
+generated project.
 
 The format 2 semantics the schema cannot check are checked here: a colour
 name that is unknown, ambiguous, or a role where a build-time colour is

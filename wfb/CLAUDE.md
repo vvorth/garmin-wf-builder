@@ -7,9 +7,12 @@ in the root `CLAUDE.md` §6.
   builder reads (older key names), recording each key's author name as a
   `yamlsrc.Origin`; a diagnostic names what the author wrote through
   `wfb/vocab.py` and `Expression.shown`, never the internal name.
-- `wfb/desugar.py` rewrites every alternative spelling (the mapping form of
-  `elements:`, the top-level `static:` block) into one form **before** anything
-  else runs. New sugar belongs there, gated by a byte-identical-output test.
+- `wfb/desugar.py` runs after `wfb/lower.py` and rewrites the element
+  blocks (the id-keyed mappings, the `static:` blocks, a layout's content)
+  into the one list-of-elements shape the IR builder walks. The pipeline is
+  load → validate → lower → desugar → build. New sugar belongs in `lower`
+  or `desugar`, gated by a snapshot proving the output unchanged
+  (`tools/snapshot.py`).
 - Any change to `wfb/build.py` or to how `monkeyc` is invoked or measured:
   read `docs/lore/toolchain.md` first. (A `.prg`'s size depends on its build
   path; prefer `--build-stats`.)

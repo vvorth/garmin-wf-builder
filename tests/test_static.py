@@ -206,6 +206,23 @@ def test_low_power_inside_a_static_subtree_is_an_error(write_design):
 #: that drove it (`test_mixed_modes_inside_one_buffer_are_an_error`).
 
 
+def test_an_empty_static_block_is_no_static_content(write_design, bag):
+    """The same as a layout's empty `static:`: nothing to buffer, so no
+    buffer -- not an error."""
+    text = HEAD + """static: {}
+elements:
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center}
+    color: color.fg
+"""
+    face = _face(text, write_design, bag)
+    assert face.static_roots() == []
+    assert [e.id for e in face.walk()] == ["clock"]
+
+
 def test_the_format_1_flag_inside_the_block_is_named(write_design):
     """Format 2 has no `static: true`: the block is the only spelling, so the
     flag is an unknown key whose note names the block."""
