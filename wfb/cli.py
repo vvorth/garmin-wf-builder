@@ -29,13 +29,14 @@ from pathlib import Path
 from typing import Callable, TextIO
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
-from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
+from .build import BuildResult, Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
 from .devices import Device, DeviceDatabase, DeviceError, FontMetric
 from .diagnostics import Bag
 from .lint import MemoryStats
 
 DEFAULT_OUTPUT = Path("build")
+DEFAULT_PROFILE_REPS = 10
 
 
 def _error(message: str, *, file: TextIO | None = None) -> None:
@@ -255,6 +256,11 @@ def _parser() -> argparse.ArgumentParser:
                        help=f"build directory (default: {DEFAULT_OUTPUT})")
     build.add_argument("--no-compile", action="store_true",
                        help="generate the project but do not run monkeyc")
+    build.add_argument("--profile", nargs="?", type=int, const=DEFAULT_PROFILE_REPS,
+                       metavar="REPS",
+                       help="time every element's draw on the watch and show the average "
+                            f"per call over it (default: {DEFAULT_PROFILE_REPS} repetitions "
+                            "per sample) -- a build for measuring, not for wearing")
     build.add_argument("--sdk", help="Connect IQ SDK root (default: $CIQ_SDK)")
     build.add_argument("--key", help="developer key .der (default: ~/ciq/developer_key.der)")
     build.add_argument("--devices-dir", help="device definitions directory")
@@ -414,6 +420,7 @@ def _build(args: argparse.Namespace) -> int:
         db=DeviceDatabase.discover(args.devices_dir),
         toolchain=Toolchain.discover(args.sdk, args.key),
         compile_prg=not args.no_compile,
+        profile=args.profile,
     )
     bag.print()
     if result is None or not bag.ok():
@@ -427,9 +434,31 @@ def _build(args: argparse.Namespace) -> int:
         print(line)
     if not result.products and args.no_compile:
         print("           (not compiled: --no-compile)")
+    if args.profile and result.products:
+        _print_profile_report(result, args.profile)
     _verdict(bag, sys.stdout, "succeeded", "bold", "green", before="\nbuild ",
              after=f" in {result.duration:.1f}s")
     return 0
+
+
+def _print_profile_report(result: BuildResult, reps: int) -> None:
+    """`--profile`'s code-size table for the first target built -- the
+    view is shared, so its methods are the same on every target -- also
+    written to `profile.txt` beside the `.prg` files."""
+    from .build import method_code_sizes
+    from .emit.monkeyc import profile
+
+    device_id, prg = next(iter(result.products.items()))
+    debug = prg.with_name(prg.name + ".debug.xml")
+    if not debug.exists():
+        return
+    plan = profile.plan_for(result.project.resolved[device_id], reps)
+    lines = profile.code_report(plan, result.face, method_code_sizes(debug))
+    (result.output_dir / "profile.txt").write_text("\n".join(lines) + "\n")
+    print(f"\ncode per entry ({device_id}; draw time is on the watch), "
+          f"also in {result.output_dir / 'profile.txt'}:")
+    for line in lines:
+        print(f"  {line}")
 
 
 def _validate(args: argparse.Namespace) -> int:

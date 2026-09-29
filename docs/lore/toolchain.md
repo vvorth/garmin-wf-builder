@@ -153,6 +153,20 @@ glitch.
 
 ---
 
+- **2026-09-29: a `.prg.debug.xml` gives every method's code size exactly.**
+  Each `<functionEntry>` carries `startPc`/`endPc`, and `endPc - startPc + 1`
+  summed over every function is `--build-stats`' code figure to within a byte
+  (`examples/features/profile/`, fr955: 10,792 against 10,793). Method names
+  are XML-escaped and wrapped, as in `<globals/FooView/<>drawBar>`.
+  `wfb.build.method_code_sizes` reads it, and `wfb build --profile` prints it
+  per element. Data (the `Layout` constants, the offset tables) is not in it.
+- **2026-09-29: the only clock a face can read is `System.getTimer()`, in
+  whole milliseconds** (`$CIQ_SDK/doc/Toybox/System.html`). No per-call cost
+  is exposed. The partial-update budget is reported only once it is exceeded
+  (`WatchFacePowerInfo.executionTimeAverage`/`executionTimeLimit`, in
+  `onPowerBudgetExceeded`). So `--profile` times `REPS` draws of one element
+  per frame and averages across frames (`wfb.emit.monkeyc.profile`).
+
 ## 8. Useful SDK paths
 
 Everything below is offline inside `$CIQ_SDK` — **prefer it over the website**,

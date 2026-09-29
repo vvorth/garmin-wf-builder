@@ -101,12 +101,16 @@ class Divergence:
 
 def generate(face: Face, devices: list[Device], root: Path,
              baked: dict[str, dict[str, BakedFont]] | None = None, *,
-             resolved: Mapping[str, ResolvedFace] | None = None) -> GeneratedProject:
+             resolved: Mapping[str, ResolvedFace] | None = None,
+             profile: int | None = None) -> GeneratedProject:
     """Build the project in memory.  :func:`write` puts it on disk.
 
     `resolved` is `wfb.build.resolve_all`'s result, used as is. A device it
     does not cover is resolved here, from its `baked` fonts or freshly baked
     ones -- the path a caller without a resolved face (a test) takes.
+
+    `profile` is `wfb build --profile`'s repetition count: the view times
+    its active frame (`wfb.emit.monkeyc.profile`).
     """
     project = GeneratedProject(face=face, devices=devices, root=root)
 
@@ -129,7 +133,7 @@ def generate(face: Face, devices: list[Device], root: Path,
                 fonts = resources.bake_fonts(face, device)
             device_resolved = resolve(face, device, fonts)
         project.resolved[device.id] = device_resolved
-        project.sources.append(monkeyc.emit_layout(device_resolved, guards))
+        project.sources.append(monkeyc.emit_layout(device_resolved, guards, profile))
         project.bundles.append(resources.build_bundle(face, device, device_resolved.fonts))
 
     # The view and delegate are shared across devices: only the Layout
@@ -144,7 +148,7 @@ def generate(face: Face, devices: list[Device], root: Path,
     )
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
-    project.sources.append(_check_shared(project, lambda r: monkeyc.emit_view(r, guards)))
+    project.sources.append(_check_shared(project, lambda r: monkeyc.emit_view(r, guards, profile)))
     if monkeyc.complication_slots(face):
         # The native editor's animated highlight over a complication_slot --
         # the callback that constructs it never fires outside the editor

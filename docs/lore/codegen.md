@@ -522,6 +522,18 @@ These cost real time to discover; do not rediscover them.
   the *same* pattern from colliding with each other, not just with the
   copy loop's own `i`.
 
+- **`wfb build --profile` (`wfb.emit.monkeyc.profile`) instruments only the
+  active frame.** Every call site becomes `if (_profNext == k) { var t0 =
+  ...; for (var r = 0; ...) { call } ... } else { call }`. Each `t0`/`r` is
+  declared in its own block, which Monkey C scopes separately (the same
+  finding as the AOD guard locals, `view._GuardScopes`). Entry 0 is the
+  empty loop, the baseline the overlay subtracts, and it is always
+  "shared", so the advance to the next entry drawn in the layout on screen
+  always terminates. The static buffer is off in a profiled build, so
+  static content is timed live. The entries are device-independent (ids in
+  draw order), so the shared view and each device's `PROF_X`/`PROF_Y`
+  anchors in `Layout` agree.
+
 - **`outline:` on every kind (plan 23, research 19): one `RingPass`, two
   ways to draw it.** `wfb.emit.monkeyc.common.RingPass` is `(offsets,
   width, color)` as Monkey C: literals and `Layout.OUTLINE_OFFSETS_<W>`

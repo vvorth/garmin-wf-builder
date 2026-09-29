@@ -10,6 +10,7 @@ makes the compiler testable in CI, where device files are unavailable.
 
 from __future__ import annotations
 
+import html
 import os
 import re
 import subprocess
@@ -38,6 +39,27 @@ class BuildResult:
     products: dict[str, Path] = field(default_factory=dict)
     memory: dict[str, lint.MemoryStats] = field(default_factory=dict)
     duration: float = 0.0
+
+
+#: One `<functionEntry>` of a compiled `.prg.debug.xml`: its bytecode span.
+_FUNCTION_RE = re.compile(
+    r'<functionEntry [^>]*endPc="(\d+)" name="([^"]+)" parent="([^"]+)" startPc="(\d+)"')
+
+
+def method_code_sizes(debug_xml: Path) -> dict[str, int]:
+    """Every compiled method's code, in bytes, from the `.prg.debug.xml`
+    `monkeyc` writes beside a `.prg`: each `<functionEntry>`'s `endPc -
+    startPc + 1`, keyed `Class.method`.  Their sum is `--build-stats`'
+    own code figure to within a byte (checked on `examples/features/
+    profile/`, fr955: 10,792 against 10,793), so this is a measurement,
+    not an estimate.  A method's name is XML-escaped and wrapped, as in
+    `<globals/FooView/<>drawBar>`; the last `>`-delimited word is kept."""
+    out: dict[str, int] = {}
+    for end, name, parent, start in _FUNCTION_RE.findall(debug_xml.read_text(errors="replace")):
+        name = html.unescape(name)
+        short = (name[:-1].rsplit(">", 1)[-1] if name.startswith("<globals/") else name)
+        out[f"{parent}.{short}"] = int(end) - int(start) + 1
+    return out
 
 
 @dataclass
@@ -166,7 +188,8 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
 
 def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None = None,
           db: DeviceDatabase | None = None, toolchain: Toolchain | None = None,
-          compile_prg: bool = True, clean: bool = True) -> BuildResult | None:
+          compile_prg: bool = True, clean: bool = True,
+          profile: int | None = None) -> BuildResult | None:
     started = time.monotonic()
 
     face = load(path, bag)
@@ -183,7 +206,7 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
         return None
 
     build_dir = (output / slug(face.name)).resolve()
-    project = generate(face, devices, build_dir, resolved=resolved)
+    project = generate(face, devices, build_dir, resolved=resolved, profile=profile)
     for divergence in project.divergences:
         bag.error(
             "shared-source",

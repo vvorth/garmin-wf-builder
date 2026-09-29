@@ -31,6 +31,7 @@ from .complication_slot import (
     LOAD_RESOURCES_METHOD, RESOURCES_LOADED_FIELD,
 )
 from . import config_menu
+from . import profile as profile_mod
 from .graph import _emit_graph_fields, _emit_graph_rebuild
 from .readplan import ReadPlan
 from ..writer import Writer
@@ -229,7 +230,12 @@ def _has_partial_update(resolved: ResolvedFace, guards: "Guards") -> bool:
     return bool(resolved.drawn_in_mode("low_power")) and not guards.partial_update_unsupported
 
 
-def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
+def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
+              profile: int | None = None) -> SourceFile:
+    """The shared view.  ``profile`` (`wfb build --profile`'s repetition
+    count) times the active frame and draws the readings over it
+    (`wfb.emit.monkeyc.profile`); it also leaves the static buffer out, so
+    static content is timed like everything else."""
     face = resolved.face
     guards = guards if guards is not None else _NO_GUARDS
     plan = ReadPlan(resolved, guards)
@@ -262,8 +268,9 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     aod_on = guards.amoled_target
     aod = AodStyle(on=aod_on, dim=dim_fraction(face.aod_dim)
                    if aod_on and face.aod_dim is not None else None)
-    static = static_plan(resolved)
+    static = static_plan(resolved) if not profile else None
     rings = Rings(ring_groups(face.elements), aod)
+    prof = profile_mod.plan_for(resolved, profile) if profile else None
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
     # `aod: {font: ...}` (plan 14 §4.3): baked fonts only an AOD override
@@ -271,6 +278,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     aod_only_fonts = _aod_only_fonts(resolved) if aod.on else []
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved, aod_only_fonts)
+        if prof is not None:
+            _emit_profile_fields(w, prof)
         _emit_config_fields(w, face, guards)
         if guards.config_menu:
             config_menu.emit_fields(w, face)
@@ -312,7 +321,9 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards, has_slots=bool(slot_pairs))
         _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards,
-                        editor_slots=bool(slot_pairs), rings=rings)
+                        editor_slots=bool(slot_pairs), rings=rings, profile=prof)
+        if prof is not None:
+            _emit_profile_overlay(w, prof)
         if _has_partial_update(resolved, guards):
             _emit_on_partial_update(w, resolved, plan, antialias_default, rings)
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
@@ -970,7 +981,8 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
                     static: "StaticPlan | None" = None,
                     antialias_default: bool | None = None,
                     guards: "Guards" = _NO_GUARDS,
-                    editor_slots: bool = False, rings: Rings = _NO_RINGS) -> None:
+                    editor_slots: bool = False, rings: Rings = _NO_RINGS,
+                    profile: "profile_mod.ProfilePlan | None" = None) -> None:
     """`onUpdate`.
 
     With ``editor_slots`` (a `complication_slot` the native editor can
@@ -1010,14 +1022,87 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
             with w.block("if (_aod)"):
                 _emit_aod_body(w, resolved, plan, guards, rings)
             with w.block("else"):
-                _emit_mode_body(w, resolved, plan, "active", static, rings)
+                _emit_mode_body(w, resolved, plan, "active", static, rings, profile)
         else:
-            _emit_mode_body(w, resolved, plan, "active", static, rings)
+            _emit_mode_body(w, resolved, plan, "active", static, rings, profile)
         if editor_slots:
             w.blank()
             w.comment("the editor's slot skip covers this one redraw: its next move asks")
             w.comment("for a drawable again, but moving on to \"Done\" only redraws")
             w.line("_pulsing = 0;")
+    w.blank()
+
+
+def _emit_timed(w: Writer, profile: "profile_mod.ProfilePlan", index: int,
+                body: Callable[[], object], baseline: bool = False) -> None:
+    """Entry ``index``'s draw: timed ``reps`` times on its own frame,
+    once on every other.  Each block's `t0`/`r` are its own (Monkey C
+    scopes a local to its block)."""
+    reps = profile.reps
+    with w.block(f"if ({profile_mod.NEXT} == {index})"):
+        w.line("var t0 = System.getTimer();")
+        with w.block(f"for (var r = 0; r < {reps}; r++)"):
+            body()
+        w.line(f"{profile_mod.MS}[{index}] += System.getTimer() - t0;")
+        w.line(f"{profile_mod.REPS}[{index}] += {reps};")
+    if not baseline:
+        with w.block("else"):
+            body()
+
+
+def _emit_profile_fields(w: Writer, profile: "profile_mod.ProfilePlan") -> None:
+    zeros = ", ".join("0" for _ in profile.entries)
+    w.doc("`wfb build --profile`: which entry this frame times, and every entry's "
+          "accumulated\nmilliseconds and repetitions -- " + ", ".join(
+              f"{i} {entry.label}" for i, entry in enumerate(profile.entries)) + ".")
+    w.line(f"private var {profile_mod.NEXT} as Number = 0;")
+    w.line(f"private var {profile_mod.MS} as Array<Number> = [{zeros}] as Array<Number>;")
+    w.line(f"private var {profile_mod.REPS} as Array<Number> = [{zeros}] as Array<Number>;")
+    w.line(f"private var {profile_mod.FRAME} as Number = 0;")
+    w.blank()
+
+
+def _emit_profile_advance(w: Writer, profile: "profile_mod.ProfilePlan") -> None:
+    """Move to the next entry drawn in the layout on screen; the baseline
+    (entry 0, shared) always is, so the search ends."""
+    count = len(profile.entries)
+    w.line(f"var next = ({profile_mod.NEXT} + 1) % {count};")
+    if profile.layouts:
+        with w.block(f"while (Layout.PROF_LAYOUT[next] != -1 "
+                     f"&& Layout.PROF_LAYOUT[next] != {CONFIG_LAYOUT_FIELD})"):
+            w.line(f"next = (next + 1) % {count};")
+    w.line(f"{profile_mod.NEXT} = next;")
+
+
+def _emit_profile_overlay(w: Writer, profile: "profile_mod.ProfilePlan") -> None:
+    count = len(profile.entries)
+    w.doc("`wfb build --profile`: every timed entry's average draw time per call, "
+          "in\nmicroseconds less the empty-loop baseline, above its own box; and a "
+          "header with\nthe last frame's milliseconds, the app's memory in KiB and "
+          "the baseline.")
+    with w.block("private function drawProfile(dc as Dc) as Void"):
+        w.line("var stats = System.getSystemStats();")
+        w.line(f"var loop = ({profile_mod.REPS}[0] > 0) "
+               f"? {profile_mod.MS}[0] * 1000 / {profile_mod.REPS}[0] : 0;")
+        w.line("dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);")
+        w.call("dc.drawText", [
+            "Layout.PROF_HEAD_X, Layout.PROF_HEAD_Y, Graphics.FONT_XTINY",
+            f'{profile_mod.FRAME} + "ms " + (stats.usedMemory / 1024) + "/" '
+            '+ (stats.totalMemory / 1024) + "K loop " + loop + "us"',
+            "Graphics.TEXT_JUSTIFY_CENTER",
+        ])
+        w.line("var h = dc.getFontHeight(Graphics.FONT_XTINY);")
+        with w.block(f"for (var k = 1; k < {count}; k++)"):
+            conditions = [f"{profile_mod.REPS}[k] > 0"]
+            if profile.layouts:
+                conditions.append(f"(Layout.PROF_LAYOUT[k] == -1 "
+                                  f"|| Layout.PROF_LAYOUT[k] == {CONFIG_LAYOUT_FIELD})")
+            with w.block(f"if ({' && '.join(conditions)})"):
+                w.line(f"var us = {profile_mod.MS}[k] * 1000 / {profile_mod.REPS}[k] - loop;")
+                w.call("dc.drawText", [
+                    "Layout.PROF_X[k], Layout.PROF_Y[k] - h, Graphics.FONT_XTINY",
+                    '(us > 0 ? us : 0).format("%d")', "Graphics.TEXT_JUSTIFY_CENTER",
+                ])
     w.blank()
 
 
@@ -1057,8 +1142,11 @@ def _draw_call(plan: "ReadPlan", placed: Placed) -> str:
 
 
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
-                    static: "StaticPlan | None", rings: Rings = _NO_RINGS) -> None:
-    """One mode's draw sequence: the static blit, then everything dynamic."""
+                    static: "StaticPlan | None", rings: Rings = _NO_RINGS,
+                    profile: "profile_mod.ProfilePlan | None" = None) -> None:
+    """One mode's draw sequence: the static blit, then everything dynamic.
+    With ``profile``, each call is also the timed one on its own frame, and
+    the frame ends with the readings (`wfb.emit.monkeyc.profile`)."""
     if static is not None and mode in static.modes:
         _emit_static_blit(w, static)
         w.blank()
@@ -1071,12 +1159,33 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     skip = static.ids if static is not None else set()
     items = _drawn_in(resolved, mode, skip)
     prelude = rings.prelude(items)
+    if profile is not None:
+        w.line("var profT0 = System.getTimer();")
+        w.comment("the empty loop: the timing overhead every reading includes")
+        _emit_timed(w, profile, 0, lambda: None, baseline=True)
 
     def one(placed: Placed) -> None:
-        rings.emit_before(w, plan, prelude, placed)
-        w.line(_draw_call(plan, placed))
+        if profile is None:
+            rings.emit_before(w, plan, prelude, placed)
+            w.line(_draw_call(plan, placed))
+            return
+        for ring, members in prelude.get(placed.id, []):
+            w.comment(f"'{ring.group.id}' outline: every member's ring, then the members")
+
+            def ring_calls(ring: RingGroup = ring, members: list[Placed] = members) -> None:
+                for member in members:
+                    w.line(rings.calls(plan, ring, member))
+
+            _emit_timed(w, profile, profile.index(f"{ring.group.id}.ring"), ring_calls)
+        _emit_timed(w, profile, profile.index(placed.id),
+                    lambda: w.line(_draw_call(plan, placed)))
 
     _emit_layout_guarded(w, resolved.face, items, one)
+    if profile is not None:
+        w.blank()
+        w.line(f"{profile_mod.FRAME} = System.getTimer() - profT0;")
+        w.line("drawProfile(dc);")
+        _emit_profile_advance(w, profile)
 
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",

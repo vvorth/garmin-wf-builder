@@ -125,8 +125,8 @@ def test_a_per_device_fact_in_the_view_fails_the_build(write_design, db, tmp_pat
     comes out differently per target, and the build refuses it."""
     real = monkeyc.emit_view
 
-    def leaky(resolved, guards=None):
-        source = real(resolved, guards)
+    def leaky(resolved, guards=None, profile=None):
+        source = real(resolved, guards, profile)
         return monkeyc.SourceFile(source.path, source.text + f"// {resolved.device.id}\n")
 
     monkeypatch.setattr(monkeyc, "emit_view", leaky)

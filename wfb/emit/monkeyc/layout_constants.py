@@ -17,6 +17,7 @@ from .common import (
 )
 from ..writer import Writer
 from . import config_menu
+from . import profile as profile_mod
 
 
 #: One `Layout` block: `(name, value, note)` per constant, the note (if any)
@@ -138,7 +139,10 @@ def _outline_offsets_constants(width: int) -> Constants:
     )]
 
 
-def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> SourceFile:
+def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
+                profile: int | None = None) -> SourceFile:
+    """One device's `Layout` module.  ``profile`` (the repetition count of
+    `wfb build --profile`) adds the overlay's anchors (`profile.py`)."""
     face, device = resolved.face, resolved.device
     w = Writer()
     w.doc(
@@ -230,6 +234,13 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
             w.line(f"const LOW_POWER_CLIP_Y as Number = {clip.y};")
             w.line(f"const LOW_POWER_CLIP_WIDTH as Number = {clip.width};")
             w.line(f"const LOW_POWER_CLIP_HEIGHT as Number = {clip.height};")
+        if profile:
+            w.blank()
+            w.doc("`wfb build --profile`: where each timed entry's reading is drawn "
+                  "(the top\ncentre of its box), which layout it belongs to (-1: shared), "
+                  "and the\nheader line.")
+            for line in profile_mod.layout_lines(resolved, profile_mod.plan_for(resolved, profile)):
+                w.line(line)
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
 
 
