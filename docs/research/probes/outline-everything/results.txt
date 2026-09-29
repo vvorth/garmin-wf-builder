@@ -1,0 +1,26 @@
+## 1. Hand polygon: build-time mitred offset, rotated at runtime
+sword hand, 8 px wide, 100 px long, sharp tip; 60 rotations (every minute)
+offset=1 (ring 1px): 6 vertices (from 5); gap px/frame mean 12.93 worst 69; extra px/frame 56.5; ring IoU vs dilation min 0.594 mean 0.763
+offset=1.5 (ring 1px): 6 vertices (from 5); gap px/frame mean 1.07 worst 3; extra px/frame 151.1; ring IoU vs dilation min 0.526 mean 0.600
+offset=2 (ring 2px): 6 vertices (from 5); gap px/frame mean 0.88 worst 2; extra px/frame 71.2; ring IoU vs dilation min 0.762 mean 0.834
+offset=3 (ring 3px): 6 vertices (from 5); gap px/frame mean 0.55 worst 2; extra px/frame 70.5; ring IoU vs dilation min 0.827 mean 0.888
+
+## 2. Line part: pen + 2w, ends extended by w (build time, local frame)
+pen=2 w=1: gap px/frame 20.75, extra px/frame 48.4
+pen=2 w=2: gap px/frame 1.30, extra px/frame 74.7
+pen=3 w=1: gap px/frame 29.93, extra px/frame 39.0
+pen=3 w=2: gap px/frame 1.67, extra px/frame 69.9
+pen=5 w=1: gap px/frame 22.35, extra px/frame 58.4
+pen=5 w=2: gap px/frame 0.93, extra px/frame 80.4
+
+## 3. Icons: the stamp is a true dilation, so openings get a ring too
+per enclosed opening: background px still open after the ring / px before
+  heart@20px openings=0 w1 open px: - w2 open px: - | alarm@20px openings=2 w1 open px: 0/2,52/103 w2 open px: 0/2,14/103 | battery@20px openings=0 w1 open px: - w2 open px: - | sunrise@20px openings=1 w1 open px: 3/13 w2 open px: 0/13 | steps@20px openings=0 w1 open px: - w2 open px: -
+  heart@28px openings=0 w1 open px: - w2 open px: - | alarm@28px openings=1 w1 open px: 115/185 w2 open px: 57/185 | battery@28px openings=0 w1 open px: - w2 open px: - | sunrise@28px openings=1 w1 open px: 8/22 w2 open px: 0/22 | steps@28px openings=0 w1 open px: - w2 open px: -
+  heart@40px openings=0 w1 open px: - w2 open px: - | alarm@40px openings=1 w1 open px: 278/384 w2 open px: 182/384 | battery@40px openings=0 w1 open px: - w2 open px: - | sunrise@40px openings=1 w1 open px: 19/39 w2 open px: 5/39 | steps@40px openings=0 w1 open px: - w2 open px: -
+  (icons.png: each icon at w=0, 1, 2)
+
+## 4. Group union: per-member rings vs. two passes
+w=2: ring px inside the union silhouette -- per member 160, two-pass 0; two-pass ring == dilation of the union: True
+  (group.png: left per member, right two-pass)
+

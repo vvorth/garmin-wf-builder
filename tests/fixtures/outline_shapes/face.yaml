@@ -1,0 +1,116 @@
+# Coverage for `outline:` beyond text (research 19, plan 23): every shape,
+# grown (filled circle, rectangle, rounded rectangle) and stamped (ellipse,
+# stroked shapes, arc, line, polygon), and an icon with an opening.
+#
+# A test fixture, not an example: tests/test_outline_shapes.py reads it.
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 3f0b8c52-9d41-4e7a-b6c2-7a15e0d94c21
+  name: OutlineShapes
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    ring: "#FFFF00"
+    cool: "#0055AA"
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  dial:
+    type: arc
+    at: { anchor: center }
+    radius: 88%r
+    thickness: 4px
+    start_angle: 210deg
+    sweep: 300deg
+    color: color.cool
+    outline: { color: color.fg, width: 1 }
+
+  disc:
+    type: circle
+    at: { anchor: center, dx: -27%, dy: -20% }
+    radius: 9%r
+    color: color.cool
+    outline: color.ring
+
+  card:
+    type: rectangle
+    at: { anchor: center, dy: -20% }
+    size: { width: 22%, height: 12% }
+    color: color.cool
+    outline: { color: color.ring, width: 1 }
+
+  pill:
+    type: rectangle
+    at: { anchor: center, dx: 27%, dy: -20% }
+    size: { width: 22%, height: 12% }
+    corner_radius: 4px
+    color: color.cool
+    outline: { color: color.ring, width: 3 }
+
+  hoop:
+    type: circle
+    at: { anchor: center, dx: -30%, dy: 5% }
+    radius: 9%r
+    thickness: 3px
+    filled: false
+    color: color.cool
+    outline: color.ring
+
+  egg:
+    type: ellipse
+    at: { anchor: center, dy: 5% }
+    size: { width: 22%, height: 14% }
+    color: color.cool
+    outline: color.ring
+
+  frame:
+    type: rectangle
+    at: { anchor: center, dx: 30%, dy: 5% }
+    size: { width: 22%, height: 12% }
+    thickness: 2px
+    filled: false
+    color: color.cool
+    outline: { color: color.ring, width: 1 }
+
+  arrow:
+    type: polygon
+    points:
+      - { anchor: center, dx: -32%, dy: 32% }
+      - { anchor: center, dx: -18%, dy: 20% }
+      - { anchor: center, dx: -24%, dy: 32% }
+    color: color.cool
+    outline: color.ring
+
+  rule:
+    type: line
+    at: { anchor: center, dx: -10%, dy: 32% }
+    to: { anchor: center, dx: 10%, dy: 32% }
+    thickness: 2px
+    color: color.cool
+    outline: { color: color.ring, width: 1 }
+
+  alarm:
+    type: icon
+    icon: alarm
+    size: 14%r
+    at: { anchor: center, dx: 22%, dy: 28% }
+    color: color.cool
+    outline: { color: color.ring, width: 1 }

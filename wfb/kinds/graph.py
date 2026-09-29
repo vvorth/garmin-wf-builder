@@ -13,7 +13,7 @@ from ..series import Acquisition, SeriesDef
 from ..units import Axis, Box, Duration, UnitError
 from ..emit.monkeyc import graph as graph_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, article
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, article
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -407,7 +407,7 @@ class GraphKind(ElementKind[Graph, PlacedGraph]):
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedGraph,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         graph_mod.emit_graph(w, placed, aod)
 
     def describe(self, placed: PlacedGraph) -> str:

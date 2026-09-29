@@ -285,7 +285,7 @@
       ]
     },
     "outline": {
-      "description": "The stamped-ring outline (research 13/14, plan 15): draws the text N times at small pixel offsets in this colour, then once more, unshifted, in the element's own 'color:' -- the fill pass every text element already has. 'none' (the default) draws no ring at all, byte-identical to today. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",
+      "description": "A ring of 'width' pixels in this colour around everything the element draws (research 14, 19). Text and icons, and every other shape, are stamped: drawn N times at small pixel offsets in the ring colour, then once more, unshifted, in their own colours -- the exact dilation of the drawn pixels, so an opening wider than twice the ring gets a ring too. A filled circle or rectangle draws one grown copy of itself instead, which is exactly its dilation. On a group the ring goes round the members' union. 'none' (the default) draws no ring at all. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",
       "oneOf": [
         {
           "const": "none"
@@ -1473,8 +1473,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -1560,8 +1564,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -1647,8 +1655,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -1734,8 +1746,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -1821,8 +1837,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -1908,8 +1928,12 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round this shape (research 19): a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "filled": {
-          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
+          "description": "false strokes the shape's edge at `thickness` instead of filling it (a ring round the shape in a second colour is `outline:`). Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },
@@ -2311,6 +2335,10 @@
         },
         "color": {
           "$ref": "#/$defs/colorExpression"
+        },
+        "outline": {
+          "description": "A ring of 'width' px round the glyph, stamped exactly as a text 'outline:' is (research 19): an opening inside the icon wider than twice the ring gets a ring of its own. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
         },
         "at": {
           "$ref": "#/$defs/position"

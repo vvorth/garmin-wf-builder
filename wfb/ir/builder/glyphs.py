@@ -139,7 +139,7 @@ class GlyphHelpers(AbsenceChecks):
             return None
         if width > MAX_OUTLINE_WIDTH:
             self.bag.error(
-                "text-outline",
+                "outline",
                 f"{label}: 'outline: width: {width}' is more than "
                 f"{MAX_OUTLINE_WIDTH}px",
                 width_span,

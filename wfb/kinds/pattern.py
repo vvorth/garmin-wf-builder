@@ -26,6 +26,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
+    RingPass,
     NO_AOD, AodStyle, const_prefix, font_field, glyph_y_expr, mc_float,
 )
 from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
@@ -929,7 +930,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         """`type: pattern` -- loop over the drawn copies, turning (radial) or
         translating (linear) the template resolved once at build time.  The
         same bargain `wfb.kinds.hands.HandsKind.emit_draw` already struck for

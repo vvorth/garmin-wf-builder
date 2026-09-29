@@ -13,8 +13,8 @@ from ..layout import Placed, PlacedIcon, alignment_shift
 from ..preview import baked_glyph
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, const_prefix, font_field
-from ..emit.monkeyc.shapes import emit_plain_text_call
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, const_prefix, font_field, own_ring
+from ..emit.monkeyc.shapes import emit_outline_loop, emit_plain_text_call
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
 
@@ -50,6 +50,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
     name = "icon"
     ir_class = IconElement
     placed_class = PlacedIcon
+    ringed = True
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         name = node.get("icon")
@@ -182,11 +183,11 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
             return  # the font failed to bake, or the glyph is missing from it
         s = renderer.scale
         color = renderer.aod_color(placed.element, "color", placed.element.color)
-        renderer.paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
+        renderer.paste_glyph(font.sheet, glyph, placed.inner_box.x * s, placed.inner_box.y * s, color)
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedIcon,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
         an icon is a one-character string drawn with a bitmap font, the same
         mechanism any other bound text uses, not a hand-drawn shape.
@@ -206,6 +207,10 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         subtracting the *icon* font's own `dc.getFontHeight` -- the anchor
         itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
         literal flags whether or not `align`/`vertical_align` are given.
+
+        `outline:` stamps the glyph exactly as a `text` ring does (research
+        19): an opening inside the icon wider than twice the ring gets a
+        ring of its own.
         """
         element = placed.element
         prefix = const_prefix(placed.id)
@@ -221,9 +226,20 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
             w.comment(f"{element.icon!r}")
             glyph_expr = f'"{element.codepoint}"'
         justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
+        x, y = f"Layout.{prefix}_CX", f"Layout.{prefix}_CY"
+
+        def glyph(x_expr: str, y_expr: str) -> None:
+            emit_plain_text_call(w, x_expr, y_expr, "font", glyph_expr, justify,
+                                 element.vertical_align)
+
+        stamp = ring or own_ring(element, aod)
+        if stamp is not None:
+            emit_outline_loop(w, stamp.offsets, stamp.color, x, y, glyph,
+                              blank_after=ring is None)
+        if ring is not None:
+            return
         w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-        emit_plain_text_call(w, f"Layout.{prefix}_CX", f"Layout.{prefix}_CY", "font", glyph_expr,
-                             justify, element.vertical_align)
+        glyph(x, y)
 
     def describe(self, placed: PlacedIcon) -> str:
         element = placed.element

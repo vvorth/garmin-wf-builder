@@ -174,4 +174,6 @@ specifies each item.
     `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
     rule lists, and an advisory `static-candidate` lint.
-    `docs/limitations.md` §2.
+    `docs/limitations.md` §2. `outline:` beyond text (every kind, groups)
+    is researched in `docs/research/19-outline-everything.md`, awaiting
+    decisions D1–D5.

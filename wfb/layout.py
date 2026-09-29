@@ -39,6 +39,17 @@ class Placed:
     box: IntBox
     center: tuple[int, int]
     depth: int = 0
+    #: How far `box` was grown for `outline:` rings past what the kind
+    #: itself placed: its own ring (a `text` element's is already in its ink
+    #: box, so not here) plus every outlined enclosing group's (research
+    #: 19).  Added to a `circular_extent` by :func:`circular_extent`.
+    ring_grow: int = 0
+
+    @property
+    def inner_box(self) -> IntBox:
+        """`box` without the ring growth: what the kind itself placed, for
+        a kind that draws from its own box."""
+        return self.box.inflate(-self.ring_grow) if self.ring_grow else self.box
 
     @property
     def id(self) -> str:
@@ -1246,9 +1257,11 @@ class Resolver:
     # -- traversal --------------------------------------------------------
 
     def _resolve_list(self, elements: list[Element], parent: Box, depth: int,
-                      hidden: str | None = None) -> None:
+                      hidden: str | None = None, ring: int = 0) -> None:
         """Place ``elements`` inside ``parent``.  ``hidden`` is a hidden
-        group's reason, which every child inherits."""
+        group's reason, which every child inherits; ``ring`` the width of
+        every outlined enclosing group's ring, which grows each leaf's box
+        (`Placed.ring_px`)."""
         for element in elements:
             here, reason = parent, hidden
             if element.in_subscreen:
@@ -1267,10 +1280,17 @@ class Resolver:
                         Placed(element, box.rounded(min_1px=element.resolved_min_1px),
                                (round(box.center_x), round(box.center_y)), depth)
                     )
-                    self._resolve_list(element.items, box, depth + 1, reason)
+                    inner = ring + (element.outline.width if element.outline is not None else 0)
+                    self._resolve_list(element.items, box, depth + 1, reason, inner)
                 else:
                     kind = kinds.for_element(element)
                     placed = kind.resolve(self, element, here, depth)
+                    own = element.outline.width if element.outline is not None else 0
+                    # A `text` element's own ring is already in its ink box.
+                    grow = ring + (0 if element.kind == "text" else own)
+                    if grow:
+                        placed.ring_grow = grow
+                        placed.box = placed.box.inflate(grow)
                     self.items.append(placed)
                     reason = reason or kind.hidden_reason(placed)
             if reason is not None:
@@ -1679,7 +1699,11 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     A ring's *bounding box* has corners far outside the ring itself, so checking
     the box against a round screen would report every full-width arc as cropped.
     """
-    return kinds.for_placed(placed).circular_extent(placed)
+    extent = kinds.for_placed(placed).circular_extent(placed)
+    if extent is None or not placed.ring_grow:
+        return extent
+    cx, cy, reach = extent
+    return cx, cy, reach + placed.ring_grow
 
 
 def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:

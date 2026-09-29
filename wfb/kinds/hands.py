@@ -16,7 +16,7 @@ from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
-from ..emit.monkeyc.common import NO_AOD, AodStyle, and_list, const_prefix
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, and_list, const_prefix
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -249,7 +249,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
         draw each of its parts, shaped exactly like the analog-hands probe's
         `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,

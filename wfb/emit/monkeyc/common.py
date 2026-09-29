@@ -335,6 +335,49 @@ class AodStyle:
 NO_AOD = AodStyle()
 
 
+@dataclass(frozen=True)
+class RingPass:
+    """One `outline:` ring for a kind's `emit_draw` to paint instead of its
+    interior (research 19): the element's own silhouette dilated by
+    ``width`` px, in ``color``.  Every field is Monkey C: literals and
+    `Layout` constants for an element's own ring, a `ring<Id>` method's
+    parameters for a group's.
+
+    ``offsets`` is the `disc-perimeter` table for ``width``
+    (`Layout.OUTLINE_OFFSETS_<W>`) that a stamped kind loops over; a kind
+    that grows its primitive instead (a filled circle or rectangle) reads
+    ``width`` and ignores it.
+    """
+
+    offsets: str
+    width: str
+    color: str
+
+
+def own_ring(element: Element, aod: AodStyle = NO_AOD) -> RingPass | None:
+    """``element``'s own `outline:` as a `RingPass`, or `None`.  The ring
+    carries over into the AOD frame, dimmed like every AOD colour; only a
+    `text` element has an `aod: {outline: ...}` of its own
+    (`wfb.kinds.text`)."""
+    outline = element.outline
+    if outline is None:
+        return None
+    return RingPass(f"Layout.OUTLINE_OFFSETS_{outline.width}", str(outline.width),
+                    aod.dimmed(element, outline.color))
+
+
+def plus(expr: str, amount: str, times: int = 1) -> str:
+    """``expr`` grown by ``times * amount`` (negative shrinks) -- folded to one literal when
+    ``amount`` is a literal, so an element's own ring reads
+    `Layout.P_RADIUS + 2` rather than `Layout.P_RADIUS + 1 * 2`."""
+    if amount.lstrip("-").isdigit():
+        value = times * int(amount)
+        return f"{expr} + {value}" if value >= 0 else f"{expr} - {-value}"
+    sign = "+" if times > 0 else "-"
+    return (f"{expr} {sign} {amount}" if abs(times) == 1
+            else f"{expr} {sign} {abs(times)} * {amount}")
+
+
 def _mc_bool(value: bool) -> str:
     return "true" if value else "false"
 

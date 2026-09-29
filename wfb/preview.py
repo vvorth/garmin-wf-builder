@@ -596,14 +596,63 @@ class Renderer:
 
     # -- dispatch ---------------------------------------------------------
 
-    def render_element(self, placed: Placed) -> None:
-        # `--aod`: the fully resolved AOD gate (`element.visible` already
-        # folded in), which an `aod: {visible: ...}` may narrow further.
+    def shows(self, placed: Placed) -> bool:
+        """Does ``placed`` draw in this frame?  `--aod` reads the fully
+        resolved AOD gate (`element.visible` already folded in), which an
+        `aod: {visible: ...}` may narrow further."""
         visible = (placed.element.aod.visible if self.options.aod and placed.element.aod
                    else placed.element.visible)
-        if not self.visible(visible):
+        return self.visible(visible)
+
+    def render_element(self, placed: Placed) -> None:
+        if not self.shows(placed):
             return
-        kinds.for_placed(placed).draw_preview(self, placed)
+        kind = kinds.for_placed(placed)
+        outline = placed.element.outline
+        if outline is not None and placed.kind != "text":
+            # A `text` element stamps its own ring (`draw_outlined`), with
+            # its `aod: {outline: ...}` override; every other kind's ring
+            # is the stamp of whatever it draws (research 19).
+            self.stamp_ring(self.silhouette(lambda: kind.draw_preview(self, placed)),
+                            self.aod_dimmed(placed.element, outline.color), outline.width)
+        kind.draw_preview(self, placed)
+
+    # -- outline rings ----------------------------------------------------
+
+    def silhouette(self, paint: Callable[[], None]) -> Image.Image:
+        """The pixels ``paint`` touches, as an `L` mask: it paints twice, on
+        two scratch canvases of different solid colours, and a pixel is in
+        the mask when either canvas changed there -- so an element of any
+        colour, black included, has a silhouette.  The real canvas is left
+        untouched."""
+        grounds = ((1, 2, 3), (254, 253, 252))
+        mask = Image.new("L", self.image.size, 0)
+        image, draw = self.image, self.draw
+        try:
+            for ground in grounds:
+                scratch = Image.new("RGB", image.size, ground)
+                self.image, self.draw = scratch, ImageDraw.Draw(scratch)
+                paint()
+                changed = ImageChops.difference(scratch, Image.new("RGB", image.size, ground))
+                mask = ImageChops.lighter(mask, changed.convert("L").point(lambda v: 255 if v else 0))
+        finally:
+            self.image, self.draw = image, draw
+        return mask
+
+    def dilate(self, mask: Image.Image, width: int) -> Image.Image:
+        """``mask`` stamped at every `disc_perimeter_offsets(width)` offset
+        (device pixels, upscaled), the host twin of the codegen stamp loop
+        -- the ring alone, without ``mask`` itself."""
+        ring = Image.new("L", mask.size, 0)
+        for dx, dy in disc_perimeter_offsets(width):
+            shifted = Image.new("L", mask.size, 0)
+            shifted.paste(mask, (dx * self.scale, dy * self.scale))
+            ring = ImageChops.lighter(ring, shifted)
+        return ring
+
+    def stamp_ring(self, mask: Image.Image, color: RGB, width: int) -> None:
+        """Paint the ring of ``width`` round ``mask`` in ``color``."""
+        self.image.paste(color, (0, 0), self.dilate(mask, width))
 
     # -- elements ---------------------------------------------------------
 

@@ -17,7 +17,9 @@ from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve,
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, aod_font_field, const_prefix, font_field, mc_color
+from ..emit.monkeyc.common import (
+    NO_AOD, AodStyle, RingPass, aod_font_field, const_prefix, font_field, mc_color,
+)
 from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
@@ -244,13 +246,15 @@ def _emit_ring(w: Writer, element: Text, aod: AodStyle, x_expr: str, y_expr: str
 
 
 def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
-                    aod: AodStyle = NO_AOD) -> None:
+                    aod: AodStyle = NO_AOD, ring: RingPass | None = None) -> None:
+    """Draw the text, its `outline:` ring first -- or, with ``ring`` (an
+    outlined group's pass, research 19), only that ring."""
     element = placed.element
     prefix = const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     color_code = aod.color(element, "color")
     if placed.font.is_vector:
-        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code, aod)
+        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code, aod, ring)
         return
     override_expr = None
     if aod.on and element.aod is not None and element.aod.font is not None:
@@ -282,11 +286,15 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
             font_expr = "font"
     else:
         font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
-    _emit_ring(
-        w, element, aod, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-        lambda x, y: shapes.emit_plain_text_call(
-            w, x, y, font_expr, value_code, justify, element.vertical_align),
-    )
+    def draw(x: str, y: str) -> None:
+        shapes.emit_plain_text_call(w, x, y, font_expr, value_code, justify,
+                                    element.vertical_align)
+
+    if ring is not None:
+        shapes.emit_outline_loop(w, ring.offsets, ring.color, f"Layout.{prefix}_X",
+                                 f"Layout.{prefix}_Y", draw, blank_after=False)
+        return
+    _emit_ring(w, element, aod, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", draw)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     shapes.emit_plain_text_call(
         w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
@@ -326,7 +334,7 @@ def _emit_vector_draw_call(
 
 def _emit_vector_text_draw(
     w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str, color_code: str,
-    aod: AodStyle,
+    aod: AodStyle, ring: RingPass | None = None,
 ) -> None:
     """A `face:` (vector) font's draw call (plan 11 §3-4): plain
     `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
@@ -354,6 +362,12 @@ def _emit_vector_text_draw(
     field = f"_{font_field(placed.font.reference)}"
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
+        if ring is not None:
+            shapes.emit_outline_loop(
+                w, ring.offsets, ring.color, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+                lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
+                blank_after=False)
+            return
         _emit_ring(
             w, element, aod, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
             lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
@@ -445,6 +459,7 @@ def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
 
 class TextKind(ElementKind[Text, PlacedText]):
     name = "text"
+    ringed = True
     ir_class = Text
     placed_class = PlacedText
 
@@ -613,14 +628,14 @@ class TextKind(ElementKind[Text, PlacedText]):
         elif outline is not None:
             ring_color = renderer.color(outline.color)
         renderer.draw_outlined(draw, placed.anchor_point, color, ring_color,
-                               outline.width if outline is not None else 0, box=placed.box)
+                               outline.width if outline is not None else 0, box=placed.inner_box)
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedText,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         element = placed.element
         if element.literal is not None:
-            _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
+            _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod, ring)
             return
 
         value = element.value
@@ -666,9 +681,9 @@ class TextKind(ElementKind[Text, PlacedText]):
             with w.block(f"if ({available})"):
                 w.line(f"text = {value_code};")
             w.blank()
-            _emit_text_draw(w, resolved, placed, "text", aod)
+            _emit_text_draw(w, resolved, placed, "text", aod, ring)
             return
-        _emit_text_draw(w, resolved, placed, value_code, aod)
+        _emit_text_draw(w, resolved, placed, value_code, aod, ring)
 
     def describe(self, placed: PlacedText) -> str:
         return "text" if placed.element.value is not None else "fixed text"

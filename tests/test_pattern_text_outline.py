@@ -119,7 +119,7 @@ def test_pattern_outline_width_over_cap_is_a_build_error(write_design, bag, mini
         minimal, _pattern_outline("{color: color.fg, width: 4}"))), bag)
     assert face is None
     assert not bag.ok()
-    diag = next(d for d in bag.errors if d.code == "text-outline")
+    diag = next(d for d in bag.errors if d.code == "outline")
     assert "ring.parts[0]" in diag.message
     assert "3" in diag.message or "3px" in " ".join(diag.notes)
 

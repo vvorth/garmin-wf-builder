@@ -492,8 +492,8 @@ class HandParts(ConfigAxes):
                 "element",
                 f"{part_where}: 'thickness' is not used by {reason}",
                 self.doc.span(node, "thickness") or self.doc.span(node),
-                notes=["thickness is the pen width of an outline; add 'filled: false' "
-                       "to a circle part to outline it, or drop 'thickness'"]
+                notes=["thickness is the pen width of a stroke; add 'filled: false' "
+                       "to a circle part to stroke it, or drop 'thickness'"]
                       if shape == "circle" else
                       [f"only {only} and an unfilled 'circle' part read 'thickness'"],
             )

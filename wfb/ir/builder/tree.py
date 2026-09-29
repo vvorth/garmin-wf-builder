@@ -96,6 +96,11 @@ class ElementTree(StaticPass):
         element = kinds.get(node["type"]).build(cast("Builder", self), node, common, path)
         if element is not None:
             self._resolve_hold_auto(element)
+            if "outline" in node and element.outline is None and element.kind != "text":
+                # `text` builds its own ring, alongside `curve:`; the schema
+                # decides which other kinds accept one (research 19).
+                element.outline = cast("Builder", self).build_outline(
+                    node, "outline", element_id, element=element)
         return element
 
     def _check_subscreen(self, node: dict[str, Any], at: Position, path: tuple[str | int, ...],

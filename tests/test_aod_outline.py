@@ -150,7 +150,7 @@ def test_the_override_width_cap_is_the_same_build_error(write_design, bag):
     assert load(write_design(BASE + _clock(aod="{outline: {color: color.dim, width: 4}}")),
                 bag) is None
     [error] = bag.errors
-    assert error.code == "text-outline" and error.message.startswith("clock.aod: "), bag.render()
+    assert error.code == "outline" and error.message.startswith("clock.aod: "), bag.render()
 
 
 def test_a_group_passes_its_outline_down_to_a_text(write_design, bag):

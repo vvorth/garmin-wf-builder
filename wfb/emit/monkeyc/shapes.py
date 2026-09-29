@@ -12,7 +12,8 @@ if TYPE_CHECKING:
     from ...layout import PlacedProgress, PlacedShape
 
 
-def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> None:
+def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
+                  dx: str | None = None, dy: str | None = None) -> None:
     """The two-line `WfbArc.drawSpan(...)` call against one arc's own
     `_CX/_CY/_RADIUS/_THICKNESS/_START/_SWEEP` constants -- identical whether
     it is a plain `shape: arc` or a `progress` arc's unfilled track, which is
@@ -22,11 +23,14 @@ def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> 
     to the plain `Layout.<P>_THICKNESS` constant; a `progress` arc's track
     passes its own `aod: {thickness: ...}` ternary instead, so the unfilled
     track and the filled portion always agree on which pen width is current.
+    ``dx``/``dy`` shift the centre, for an `outline:` stamp.
     """
     if thickness_expr is None:
         thickness_expr = f"Layout.{prefix}_THICKNESS"
+    cx = f"Layout.{prefix}_CX" + (f" + {dx}" if dx else "")
+    cy = f"Layout.{prefix}_CY" + (f" + {dy}" if dy else "")
     w.call("WfbArc.drawSpan", [
-        f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
+        f"dc, {cx}, {cy}, Layout.{prefix}_RADIUS",
         f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
     ])
 
@@ -90,11 +94,25 @@ def emit_outline_loop(
     real `monkeyc` run).  ``blank_after=False`` leaves out the trailing
     blank line, for a loop that is the whole body of an enclosing block.
     """
+    emit_stamp_loop(w, offsets_code, color_code,
+                    lambda dx, dy: draw(f"{x_expr} + {dx}", f"{y_expr} + {dy}"),
+                    index_var=index_var, offsets_var=offsets_var, blank_after=blank_after)
+
+
+def emit_stamp_loop(
+    w: Writer, offsets_code: str, color_code: str, draw: Callable[[str, str], None], *,
+    index_var: str = "i", offsets_var: str = "offsets", blank_after: bool = True,
+) -> None:
+    """The stamp itself (research 14, 19): set the ring colour once, then
+    call ``draw(dx, dy)`` once per `(dx, dy)` pair in ``offsets_code``, with
+    the two offsets as Monkey C expressions for the caller to add to every
+    coordinate it draws at.  ``draw`` never sets a colour: every stamp
+    shares the ring's."""
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     w.line(f"var {offsets_var} = {offsets_code};")
     w.line(f"var {index_var} = 0;")
     with w.block(f"while ({index_var} < {offsets_var}.size())"):
-        draw(f"{x_expr} + {offsets_var}[{index_var}]", f"{y_expr} + {offsets_var}[{index_var} + 1]")
+        draw(f"{offsets_var}[{index_var}]", f"{offsets_var}[{index_var} + 1]")
         w.line(f"{index_var} += 2;")
     if blank_after:
         w.blank()

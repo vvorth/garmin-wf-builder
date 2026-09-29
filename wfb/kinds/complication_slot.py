@@ -20,7 +20,7 @@ from ..preview import baked_glyph
 from ..units import Box, IntBox
 from ..emit.monkeyc import complication_slot as complication_slot_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass
 from ..emit.resources import COMPLICATION_TEXT_ALPHABET
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
@@ -626,7 +626,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         complication_slot_mod.emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
 
     def describe(self, placed: PlacedComplicationSlot) -> str:

@@ -14,7 +14,7 @@ from ..preview import RGB, arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, article, const_prefix, mc_float
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -317,7 +317,7 @@ def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float 
             span = _device_arc_span(garmin_start, sweep)
             if span is not None:
                 renderer.draw.arc(box, *span, fill=fill, width=width)
-    rect = placed.rect or placed.box
+    rect = placed.rect or placed.inner_box
     x, y, w, h = rect.x, rect.y, rect.width, rect.height
 
     def bar_cell(x0: int, x1: int, fill: RGB) -> None:
@@ -620,17 +620,17 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 renderer.draw.arc(box, *fill, fill=color, width=width)
             return
 
-        box = renderer.rect(placed.box)
+        box = renderer.rect(placed.inner_box)
         if element.track_color is not None:
             track_color = renderer.aod_color(element, "track_color", element.track_color)
             renderer.draw.rectangle(box, fill=track_color)
-        filled = 0 if fraction is None else int(placed.box.width * fraction) * s
+        filled = 0 if fraction is None else int(placed.inner_box.width * fraction) * s
         if filled > 0:
             renderer.draw.rectangle([box[0], box[1], box[0] + filled, box[3]], fill=color)
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedProgress,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         element = placed.element
         prefix = const_prefix(placed.id)
         fraction_expr = _fraction(element)
@@ -720,7 +720,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 out.extend(layout_constants_mod.hand_part_constants(
                     f"{prefix}_NEEDLE_{index}", "needle", index, part))
         else:
-            out.extend(layout_constants_mod.box_constants(prefix, placed.rect or placed.box))
+            out.extend(layout_constants_mod.box_constants(prefix, placed.rect or placed.inner_box))
         if element.style == "segments":
             unit = "degrees" if element.geometry == "arc" else "px"
             out.append((f"{prefix}_CELL", float(placed.cell), f"one cell, {unit}"))

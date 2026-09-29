@@ -13,7 +13,9 @@ from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import McLiteral, NO_AOD, AodStyle, article, const_prefix
+from ..emit.monkeyc.common import (
+    McLiteral, NO_AOD, AodStyle, RingPass, article, const_prefix, own_ring, plus,
+)
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -80,10 +82,10 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
             "element",
             f"'thickness' is not used by a filled 'type: {vocab.kind(shape)}'",
             b.doc.span(node, "thickness") or b.doc.span(node),
-            notes=["thickness is the pen width of an outline; a filled shape has "
-                   "no outline to draw",
-                   "add 'filled: false' to outline this shape, or drop "
-                   "'thickness'"],
+            notes=["thickness is the pen width of a stroked shape; a filled shape has "
+                   "no stroke to draw",
+                   "add 'filled: false' to stroke this shape, or drop "
+                   "'thickness' -- a ring round a filled shape is 'outline:'"],
         )
 
 
@@ -143,11 +145,99 @@ def _needs_thickness_constant(element: Shape) -> bool:
     return aod is not None and aod.filled is False
 
 
+#: The shapes whose `outline:` ring is one grown copy of the primitive
+#: (plan 23 D2): the dilation of a filled circle is a circle `w` larger, and
+#: of a filled rectangle a rounded rectangle `w` larger on every side with
+#: its corner radius grown by `w`.  Every other shape is stamped -- an
+#: ellipse's offset curve is not an ellipse, a stroke's or an arc's ends are
+#: undocumented, and a polygon's sharp corners have no one-draw dilation.
+_GROWN = frozenset({"circle", "rectangle", "rounded_rectangle"})
+
+
+def _grows(element: Shape, aod: AodStyle) -> bool:
+    """Is this shape's ring one grown copy (`_GROWN`)?  Only while it is
+    filled in every frame it draws: an `aod: {filled: ...}` flip stamps."""
+    return (element.shape in _GROWN and element.filled
+            and not _shape_filled_override(element, aod))
+
+
+def _emit_grown(w: Writer, prefix: str, shape: str, width: str) -> None:
+    """The one grown copy `_grows` promises, in whatever colour is set."""
+    p = f"Layout.{prefix}"
+    if shape == "circle":
+        w.line(f"dc.fillCircle({p}_CX, {p}_CY, {plus(f'{p}_RADIUS', width)});")
+        return
+    corner = plus(f"{p}_CORNER", width) if shape == "rounded_rectangle" else width
+    w.call("dc.fillRoundedRectangle", [
+        f"{plus(f'{p}_X', width, -1)}, {plus(f'{p}_Y', width, -1)}",
+        f"{plus(f'{p}_WIDTH', width, 2)}, {plus(f'{p}_HEIGHT', width, 2)}",
+        corner,
+    ])
+
+
+def _emit_primitive(w: Writer, placed: PlacedShape, aod: AodStyle, prefix: str,
+                    dx: str | None = None, dy: str | None = None) -> None:
+    """The shape's own `Dc` call(s) in whatever colour is set, shifted by
+    ``dx``/``dy`` for one `outline:` stamp."""
+    element = placed.element
+
+    def at(suffix: str, offset: str | None) -> str:
+        return f"Layout.{prefix}_{suffix}" + (f" + {offset}" if offset else "")
+
+    if element.shape in _FILLABLE_SHAPES:
+        name, groups = _FILLABLE_SHAPES[element.shape]
+        first = groups[0]
+        shifted = [at(first[0], dx), at(first[1], dy)] + [at(s, None) for s in first[2:]]
+        args = [", ".join(shifted)] + [
+            ", ".join(f"Layout.{prefix}_{suffix}" for suffix in group) for group in groups[1:]]
+        if element.shape == "circle":
+            # A circle's pen width is a plain per-device literal, not a
+            # `Layout` constant (`layout_constants`), so its `aod:
+            # {thickness: ...}` override is inlined the same way.
+            override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
+            thickness_expr = aod.value(override, str(placed.thickness))
+        else:
+            thickness_expr = shapes.thickness_expr(prefix, placed, aod)
+
+        def draw_filled() -> None:
+            w.call(f"dc.fill{name}", args)
+
+        def draw_outline() -> None:
+            w.line(f"dc.setPenWidth({thickness_expr});")
+            w.call(f"dc.draw{name}", args)
+            w.line("dc.setPenWidth(1);")
+
+        _emit_filled_toggle(w, element.filled, _shape_filled_override(element, aod),
+                            draw_filled, draw_outline)
+    elif element.shape == "arc":
+        # The same barrel call a `progress` track uses, so the two arcs cannot
+        # disagree about the angle convention or about the full-circle case
+        # (drawArc draws a complete circle when start == end).
+        shapes.emit_arc_span(w, prefix, shapes.thickness_expr(prefix, placed, aod), dx, dy)
+    elif element.shape == "polygon":
+        # There is no drawPolygon in Dc, only fillPolygon -- `filled: false`
+        # and an `aod: {filled: ...}` override on a polygon are both rejected
+        # in wfb/ir/builder/aod.py (`Builder._build_aod_authored`), so there is
+        # never an outline form to switch to here.
+        if dx is None:
+            w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
+        else:
+            w.line(f"WfbGeom.fillTranslated(dc, Layout.{prefix}_POINTS, {dx}, {dy});")
+    elif element.shape == "line":
+        w.line(f"dc.setPenWidth({shapes.thickness_expr(prefix, placed, aod)});")
+        w.line(
+            f"dc.drawLine({at('CX', dx)}, {at('CY', dy)}, "
+            f"{at('END_X', dx)}, {at('END_Y', dy)});"
+        )
+        w.line("dc.setPenWidth(1);")
+
+
 class ShapeKind(ElementKind[Shape, PlacedShape]):
     name = "shape"
     ir_class = Shape
     placed_class = PlacedShape
     antialiased = True
+    ringed = True
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         shape = node["shape"]
@@ -327,13 +417,13 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         thickness = renderer.aod_geometry(placed, "thickness", placed.thickness)
         s = renderer.scale
         if element.shape == "rectangle":
-            box = renderer.rect(placed.rect or placed.box)
+            box = renderer.rect(placed.rect or placed.inner_box)
             if filled:
                 renderer.draw.rectangle(box, fill=fill)
             else:
                 renderer.draw.rectangle(box, outline=fill, width=max(1, thickness * s))
         elif element.shape == "rounded_rectangle":
-            box = renderer.rect(placed.rect or placed.box)
+            box = renderer.rect(placed.rect or placed.inner_box)
             radius = placed.corner_radius * s
             if filled:
                 renderer.draw.rounded_rectangle(box, radius=radius, fill=fill)
@@ -376,51 +466,30 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedShape,
                   value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD) -> None:
+                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
+        """The primitive's `Dc` call, after its `outline:` ring when it has
+        one (research 19, plan 23 D2): a filled circle or rectangle grows
+        one copy of itself -- exactly its dilation -- and every other shape
+        is stamped at the ring's offsets, the exact dilation of the drawn
+        pixels.  With `ring`, only the ring is drawn."""
         element = placed.element
         prefix = const_prefix(placed.id)
-        w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-
-        if element.shape in _FILLABLE_SHAPES:
-            name, groups = _FILLABLE_SHAPES[element.shape]
-            args = [", ".join(f"Layout.{prefix}_{suffix}" for suffix in group) for group in groups]
-            if element.shape == "circle":
-                # A circle's pen width is a plain per-device literal, not a
-                # `Layout` constant (`layout_constants`), so its `aod:
-                # {thickness: ...}` override is inlined the same way.
-                override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
-                thickness_expr = aod.value(override, str(placed.thickness))
+        stamp = ring or own_ring(element, aod)
+        if stamp is not None:
+            if _grows(element, aod):
+                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                _emit_grown(w, prefix, element.shape, stamp.width)
+                if ring is None:
+                    w.blank()
             else:
-                thickness_expr = shapes.thickness_expr(prefix, placed, aod)
-
-            def draw_filled() -> None:
-                w.call(f"dc.fill{name}", args)
-
-            def draw_outline() -> None:
-                w.line(f"dc.setPenWidth({thickness_expr});")
-                w.call(f"dc.draw{name}", args)
-                w.line("dc.setPenWidth(1);")
-
-            _emit_filled_toggle(w, element.filled, _shape_filled_override(element, aod),
-                                draw_filled, draw_outline)
-        elif element.shape == "arc":
-            # The same barrel call a `progress` track uses, so the two arcs cannot
-            # disagree about the angle convention or about the full-circle case
-            # (drawArc draws a complete circle when start == end).
-            shapes.emit_arc_span(w, prefix, shapes.thickness_expr(prefix, placed, aod))
-        elif element.shape == "polygon":
-            # There is no drawPolygon in Dc, only fillPolygon -- `filled: false`
-            # and an `aod: {filled: ...}` override on a polygon are both rejected
-            # in wfb/ir/builder/aod.py (`Builder._build_aod_authored`), so there is
-            # never an outline form to switch to here.
-            w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
-        elif element.shape == "line":
-            w.line(f"dc.setPenWidth({shapes.thickness_expr(prefix, placed, aod)});")
-            w.line(
-                f"dc.drawLine(Layout.{prefix}_CX, Layout.{prefix}_CY, "
-                f"Layout.{prefix}_END_X, Layout.{prefix}_END_Y);"
-            )
-            w.line("dc.setPenWidth(1);")
+                shapes.emit_stamp_loop(
+                    w, stamp.offsets, stamp.color,
+                    lambda dx, dy: _emit_primitive(w, placed, aod, prefix, dx, dy),
+                    blank_after=ring is None)
+        if ring is not None:
+            return
+        w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
+        _emit_primitive(w, placed, aod, prefix)
 
     def describe(self, placed: PlacedShape) -> str:
         element = placed.element
@@ -467,7 +536,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
             ))
         else:
-            rect = placed.rect or placed.box
+            rect = placed.rect or placed.inner_box
             out.extend(layout_constants_mod.box_constants(prefix, rect))
             if element.shape == "rounded_rectangle":
                 out.append((f"{prefix}_CORNER", placed.corner_radius, ""))

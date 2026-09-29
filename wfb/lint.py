@@ -83,7 +83,7 @@ ALL_CODES = frozenset({
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label", "subscreen",
-    "text-antialias", "text-curve", "text-outline", "text-outline-interior",
+    "text-antialias", "text-curve", "outline", "text-outline-interior",
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
@@ -2214,10 +2214,17 @@ def _outlined_interiors(element: Element) -> list[Expression | None]:
     A ringed label with no ink of its own (a `text` element with no
     `color:`) contributes `None`, which no backdrop can provably match --
     so its overlap is still reported, never silently skipped.
+
+    Text only: the hollow idiom this guards (an interior painted to look
+    empty) is a text one.  Any other outlined kind (research 19) paints
+    its interior like any shape does, ring or no ring.
     """
     roles = [role for role in element.color_roles() if not role.aod]
+    text_labels = ({element.id} if element.kind == "text" else
+                   {role.label for role in roles if role.label != element.id and role.is_glyph})
     interiors: list[Expression | None] = []
-    for label in dict.fromkeys(role.label for role in roles if role.role == "ring"):
+    for label in dict.fromkeys(role.label for role in roles
+                               if role.role == "ring" and role.label in text_labels):
         inks = [role.expression for role in roles if role.role == "ink" and role.label == label]
         interiors.extend(inks or [None])
     return interiors

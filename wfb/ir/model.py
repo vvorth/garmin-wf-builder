@@ -781,6 +781,11 @@ class Element:
     #: AOD (`Builder._resolve_aod`).  Every downstream consumer reads this
     #: and never re-walks the ancestry.
     aod: "AodOverride | None" = None
+    #: `outline:` -- a ring of `width` px in `color` around everything this
+    #: element draws (research 19), or `None`.  Each kind draws it its own
+    #: way (`wfb.kinds.ElementKind.outline`); on a `group` it rings the
+    #: members' union.
+    outline: "Outline | None" = None
 
     @property
     def symbol(self) -> str:
@@ -806,6 +811,8 @@ class Element:
         for free, exactly as they do a conditional colour.
         """
         out = self._own_roles()
+        if self.outline is not None:
+            out.append((ROLE_OUTLINE_COLOR, self.outline.color))
         if self.visible is not None:
             out.append((ROLE_VISIBLE, self.visible))
         return out
@@ -1085,12 +1092,15 @@ class HandsElement(Element):
         `PatternElement.parts`) -- hand sets live on `Face.hands`, keyed by
         name, not on the placing element -- so there is no finer label to
         give each colour than the element that draws them all.  A `hands`
-        element accepts no `track_color:`/`icon_color:`/outline at all, so
-        those roles never apply here; its resolved `aod:` override (`color`/
-        `thickness` uniformly, plan 14 §5.1 -- no `track_color`/`icon_color`
-        key even reaches this element's `AodOverride`) still does.
+        element accepts no `track_color:`/`icon_color:` at all, so those
+        roles never apply here; its `outline:` ring and its resolved `aod:`
+        override (`color`/`thickness` uniformly, plan 14 §5.1 -- no
+        `track_color`/`icon_color` key even reaches this element's
+        `AodOverride`) still do.
         """
         out = [ColorRole(self.id, e, "ink", False) for e in self.colors]
+        if self.outline is not None:
+            out.append(ColorRole(self.id, self.outline.color, "ring", False))
         if self.aod is not None and self.aod.color is not None:
             out.append(ColorRole(self.id, self.aod.color, "ink", False, aod=True))
         return out
@@ -1184,6 +1194,8 @@ class PatternElement(Element):
                 out.append(ColorRole(label, part.color, "ink", part_is_glyph))
             if part.shape == "text" and part.outline is not None:
                 out.append(ColorRole(label, part.outline.color, "ring", part_is_glyph))
+        if self.outline is not None:
+            out.append(ColorRole(self.id, self.outline.color, "ring", is_glyph))
         if self.aod is not None and self.aod.color is not None:
             out.append(ColorRole(self.id, self.aod.color, "ink", is_glyph, aod=True))
         return out
@@ -1202,9 +1214,6 @@ class Text(Element):
     fallback: Expression | None = None
     #: `curve:`, or `None` for upright text; needs a `face:` (vector) font.
     curve: "Curve | None" = None
-    #: `outline:` (plan 15), or `None` for a plain fill; wraps whichever
-    #: draw call `curve:` selects.
-    outline: "Outline | None" = None
     #: `units:` (`auto`/`metric`/`statute`), or `None`.  When set, `value`
     #: is already the converted expression (`wfb.conversion`), and the
     #: fields below describe its display.
@@ -1225,8 +1234,6 @@ class Text(Element):
         out = [(role, e) for role, e in (
             (ROLE_VALUE, self.value), (ROLE_COLOR, self.color), (ROLE_FALLBACK, self.fallback),
         ) if e]
-        if self.outline is not None:
-            out.append((ROLE_OUTLINE_COLOR, self.outline.color))
         if self.unit_label is not None:
             out.append((ROLE_UNIT_LABEL, self.unit_label))
         return out
