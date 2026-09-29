@@ -45,20 +45,22 @@ def _emit_pulsing_field(w: Writer) -> None:
     animating (a `config_data_ids` unique id), or 0 for none.
 
     Read by every `complication_slot`'s own draw method
-    (`emit_complication_slot`'s guard) and written only from `setPulsing`,
-    itself called only from the delegate's `getComplicationDrawable` (set)
-    and `onWatchFaceConfigEdited` (cleared, once editing moves off a slot)
-    -- both of which fire solely inside the on-device config editor
-    (`docs/research/07-carousel-interaction.md`), so this stays 0 for the
-    entire life of the app on a device with no editor, or while the face is
-    simply being looked at.  `drawSlot` lifts it for its own call, so the
+    (`emit_complication_slot`'s guard), set by `setPulsing` from the
+    delegate's `getComplicationDrawable` and cleared by it from
+    `onWatchFaceConfigEdited` -- both of which fire solely inside the
+    on-device config editor (`docs/research/07-carousel-interaction.md`),
+    so this stays 0 for the entire life of the app on a device with no
+    editor, or while the face is simply being looked at -- and cleared again
+    at the end of every `onUpdate`, so the skip covers one redraw
+    (`_emit_on_update`).  `drawSlot` lifts it for its own call, so the
     editor's drawable still draws the slot the face itself skips.
     """
     w.doc(
         "Which complication_slot the native editor is animating right now (a\n"
         "config_data_ids unique id), or 0 for none.  Read by every\n"
         "complication_slot's own draw method so the system does not see it drawn\n"
-        "twice while it pulses."
+        "twice while it pulses, and cleared after every onUpdate: the skip covers\n"
+        "the one redraw that follows the editor's request for the drawable."
     )
     w.line("private var _pulsing as Number = 0;")
     w.blank()

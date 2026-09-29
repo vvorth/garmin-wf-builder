@@ -53,10 +53,13 @@ PATCHES: list[tuple[str, str, str]] = [
      "        drawClock(dc, clock);\n",
      ""),
     (VIEW,
-     "        drawBoxedSlot(dc);\n    }\n",
-     "        drawBoxedSlot(dc);\n        EditorTrace.draw(dc, _pulsing);\n    }\n\n"
+     "        drawBoxedSlot(dc);\n",
+     "        drawBoxedSlot(dc);\n        EditorTrace.draw(dc, _pulsing);\n"),
+    (VIEW,
+     "    //! Awake: full-power updates resume.\n",
      "    function onShow() as Void {\n        EditorTrace.note(\"V\");\n    }\n\n"
-     "    function onHide() as Void {\n        EditorTrace.note(\"H\");\n    }\n"),
+     "    function onHide() as Void {\n        EditorTrace.note(\"H\");\n    }\n\n"
+     "    //! Awake: full-power updates resume.\n"),
     (VIEW,
      "        // data for this frame\n        var clock = System.getClockTime();\n\n",
      ""),

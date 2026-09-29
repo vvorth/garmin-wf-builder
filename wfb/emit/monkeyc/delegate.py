@@ -34,8 +34,8 @@ def _emit_on_watchface_config_edited(w: Writer, has_slots: bool = False) -> None
     null `:type` as "the end of previous editing", and a style or colour
     edit means no slot is being animated either -- the SDK sample's own
     `_editingComplication = (editedType == WATCH_FACE_CONFIG_TYPE_COMPLICATION)`.
-    Nothing else clears it, so without this the last slot the editor
-    animated would stay hidden.
+    The view's `onUpdate` also clears it after every frame, which is what
+    covers the move to "Done": no callback fires there (`_emit_on_update`).
     """
     w.doc(
         "The wearer changed something in the native editor.  Re-read the whole\n"

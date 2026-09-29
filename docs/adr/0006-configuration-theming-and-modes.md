@@ -280,8 +280,10 @@ fr955** — the compiler generates both paths from one declaration.
 > field, checked first in every `complication_slot`'s draw method), matching
 > the SDK sample's own comment on why that is mandatory rather than optional;
 > `drawSlot` lifts that check for the drawable's own call, and the delegate
-> clears `_pulsing` when an edit's `:type` is not a complication, so the
-> editor always has the slot drawn by exactly one of the two callers.
+> clears `_pulsing` when an edit's `:type` is not a complication, and
+> `onUpdate` clears it after every frame -- the move to "Done" fires no
+> callback, only a redraw -- so the editor always has the slot drawn by
+> exactly one of the two callers.
 > A design with no `complication_slot` gets none of this: `onTap` never
 > fires on a live face (research 07 §1), so it would be dead weight there.
 >

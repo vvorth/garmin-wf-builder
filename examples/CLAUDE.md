@@ -116,11 +116,12 @@ answer. `probes/slot-editor/` (2026-09-28) is about the native editor's
 Data step. Its first question, why static cards behind a slot go dark while
 editing, is answered by `probes/slot-editor-dim/` (2026-09-29), which adds
 a static and a per-frame row of swatches: the editor dims the whole screen,
-and `#555555` dims to black. Nothing is cleared. Its open question is why the
-last slot goes blank at "Done" (the face keeps skipping it as `_pulsing`).
-`probes/slot-editor/trace.py` builds a throwaway `Probe Slot Editor Trace`
-with `EditorTrace.mc` patched into the generated code, drawing the editor's
-callbacks on the face. Both target only the two fēnix 8s, the verification
+and `#555555` dims to black. Nothing is cleared. Its second, why the last
+slot went blank at "Done", was answered by `probes/slot-editor/trace.py`, a
+throwaway `Probe Slot Editor Trace` with `EditorTrace.mc` patched into the
+generated code, drawing the editor's callbacks on the face: "Done" fires no
+callback, only a redraw, so `onUpdate` now clears `_pulsing` itself. The
+option list is not traced yet. Both target only the two fēnix 8s, the verification
 devices that have the editor.
 
 ## `system-fonts/`

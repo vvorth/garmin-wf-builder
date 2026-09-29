@@ -527,7 +527,12 @@ still true of the shipped feature:
   view's `drawSlot`, which lifts `_pulsing` for its own call, and the
   delegate clears `_pulsing` once an edit's `:type` is not a complication
   (null is the end of editing) — the SDK sample's `setVisible` dance and
-  `_editingComplication` reset. Without both, the selected slot was drawn
+  `_editingComplication` reset. `onUpdate` also clears it after every frame,
+  so the skip covers one redraw: traced on a fenix8solar47mm
+  (`examples/probes/slot-editor/`), each move in the Data step asks for the
+  drawable, draws it once and redraws the face once, but the move past the
+  last slot to "Done" fires no callback, only a redraw, and the last slot
+  stayed blank there. Without these, the selected slot was drawn
   by nobody: seen on a fenix8solar47mm, it vanished while selected, showed
   no preview while scrolling its choices, and stayed hidden until another
   slot was selected. Measured on `examples/features/slots/face.yaml` at a fixed path,

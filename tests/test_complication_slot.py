@@ -881,6 +881,27 @@ def test_leaving_a_slot_in_the_editor_stops_skipping_it(write_design, bag, db):
     assert body[guard + 1] == "_view.setPulsing(0);"
 
 
+def test_the_slot_skip_covers_one_redraw(write_design, bag, db):
+    """Moving past the last slot to "Done" fires no editor callback, only
+    one more onUpdate (traced on a fenix8solar47mm,
+    `examples/probes/slot-editor/`), so onUpdate itself must end by clearing
+    `_pulsing`, after every slot has been drawn -- or the last slot stays
+    blank at "Done"."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    body = [line for line in _method_body(view, "function onUpdate(dc as Dc) as Void")
+            if line and not line.startswith("//")]
+    assert body[-1] == "_pulsing = 0;", body[-4:]
+    for method in ("drawTopReading", "drawBottomReading"):
+        assert any(f"{method}(dc" in line for line in body[:-1]), method
+
+
 def test_complication_slot_hold_method_symbol_is_reserved_against_collision(write_design):
     """`complication_slot_hold_method` must be checked the same way
     `complication_slot_icon_method` already is -- a later id that folds to

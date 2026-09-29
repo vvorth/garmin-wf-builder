@@ -251,7 +251,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards, has_slots=bool(slot_pairs))
-        _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards)
+        _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards,
+                        editor_slots=bool(slot_pairs))
         if _has_partial_update(resolved, guards):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
@@ -899,7 +900,18 @@ def _emit_first_config_read(w: Writer) -> None:
 def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bool,
                     static: "StaticPlan | None" = None,
                     antialias_default: bool | None = None,
-                    guards: "Guards" = _NO_GUARDS) -> None:
+                    guards: "Guards" = _NO_GUARDS,
+                    editor_slots: bool = False) -> None:
+    """`onUpdate`.
+
+    With ``editor_slots`` (a `complication_slot` the native editor can
+    animate), the frame ends by clearing `_pulsing`: the skip covers one
+    redraw only.  Seen on a fenix8solar47mm with the slot-editor trace
+    probe: each move in the editor's Data step asks for the slot's drawable,
+    draws it once and redraws the face once, but moving past the last slot to
+    "Done" fires no callback at all -- only one more redraw -- so a skip that
+    waited for a callback to clear it left the last slot blank there.
+    """
     w.doc(
         "Draw the full face.\n"
         "\n"
@@ -932,6 +944,11 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
                 _emit_mode_body(w, resolved, plan, "active", static)
         else:
             _emit_mode_body(w, resolved, plan, "active", static)
+        if editor_slots:
+            w.blank()
+            w.comment("the editor's slot skip covers this one redraw: its next move asks")
+            w.comment("for a drawable again, but moving on to \"Done\" only redraws")
+            w.line("_pulsing = 0;")
     w.blank()
 
 
