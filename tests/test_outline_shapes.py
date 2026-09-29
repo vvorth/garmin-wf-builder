@@ -303,3 +303,68 @@ def test_the_preview_rings_the_inside_of_an_opening_too(write_design, bag, db):
     first_fg = column.index(FG)
     assert first_ring < first_fg, column
     assert column[first_fg:].count(RING) > 0, column  # the outer ring beyond the stroke
+
+
+# -- the partial-update lint -----------------------------------------------------
+
+
+def _low_power(body: str) -> str:
+    return _PALETTE.replace("[fenix8solar47mm]", "[fr955]") + body
+
+
+def test_a_stamped_ring_in_a_partial_update_warns(write_design, db):
+    """Four more draws of the element every second: measured about 4x its
+    own cost on a watch (research 19 §4.5)."""
+    from tests.helpers import lint_text
+
+    bag = lint_text(_low_power("""
+  secs:
+    type: text
+    text: "{time.second:02d}"
+    at: {anchor: center}
+    color: color.fg
+    outline: color.ring
+    sleep_update: true
+"""), write_design, db, "fr955")
+    [warning] = [d for d in bag.items if d.code == "partial-update-budget"]
+    assert warning.message.startswith("secs: its 'outline:' ring is stamped -- 4 more draws")
+
+
+def test_a_grown_ring_in_a_partial_update_does_not_warn(write_design, db):
+    from tests.helpers import lint_text
+
+    bag = lint_text(_low_power("""
+  dot:
+    type: circle
+    at: {anchor: center}
+    radius: 5px
+    color: color.fg
+    outline: color.ring
+    sleep_update: true
+"""), write_design, db, "fr955")
+    assert not [d for d in bag.items if d.code == "partial-update-budget"], bag.render()
+
+
+def test_a_group_rings_share_in_a_partial_update_warns_and_can_be_allowed(write_design, db):
+    from tests.helpers import lint_text
+
+    body = """
+  g:
+    type: group
+    outline: color.ring
+    ALLOW
+    children:
+      secs:
+        type: text
+        text: "{time.second:02d}"
+        at: {anchor: center}
+        color: color.fg
+        sleep_update: true
+"""
+    bag = lint_text(_low_power(body.replace("ALLOW", "")), write_design, db, "fr955")
+    [warning] = [d for d in bag.items if d.code == "partial-update-budget"]
+    assert "its share of a group's 'outline:' ring" in warning.message
+    allowed = lint_text(_low_power(body.replace(
+        "ALLOW", 'lint: {allow: [partial-update-budget], reason: "measured, fits"}')),
+        write_design, db, "fr955")
+    assert not [d for d in allowed.items if d.code == "partial-update-budget"], allowed.render()

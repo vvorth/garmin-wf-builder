@@ -237,6 +237,10 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
     antialiased = True
     ringed = True
 
+    def ring_draws(self, element: Shape) -> int:
+        # MIP partial updates never see an AOD `filled:` flip.
+        return 1 if element.shape in _GROWN and element.filled else 4
+
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         shape = node["shape"]
         raw_points = node.get("points") or []

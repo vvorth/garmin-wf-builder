@@ -29,6 +29,7 @@ from .layout import (
     ResolvedFace, inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
+from .ir.rings import ring_groups
 from .palette import LUMINANCE_WEIGHTS, Color, has_palette_rule
 from .units import IntBox
 
@@ -1358,7 +1359,10 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     # "you have overrun" -- there is no measurement here either -- just "this
     # specific read is the expensive kind", independent of the clip-fraction
     # heuristic above.
+    in_group_ring = {leaf.id for ring in ring_groups(resolved.face.elements)
+                     for leaf in ring.members}
     for placed in low_power:
+        _check_low_power_ring(bag, placed, placed.id in in_group_ring)
         if placed.kind == "graph":
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
@@ -1397,6 +1401,37 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags a known-expensive read, not a measured overrun",
         ))
+
+
+def _check_low_power_ring(bag: Bag, placed: Placed, group_ring: bool) -> None:
+    """A stamped `outline:` ring drawn in `onPartialUpdate` -- the element's
+    own, or its share of an outlined group's.  A stamp draws the element four
+    more times; on a fenix 8 that measured about 4x the element's own draw
+    time (research 19 §4.5).  A grown ring (one extra draw, about 0.1ms
+    there) is not reported."""
+    if placed.element.outline is None and not group_ring:
+        return
+    draws = kinds.for_placed(placed).ring_draws(placed.element)
+    if draws <= 1:
+        return
+    whose = ("its 'outline:' ring" if not group_ring else
+             "its share of a group's 'outline:' ring")
+    _emit(bag, placed, Diagnostic(
+        Severity.WARNING,
+        "partial-update-budget",
+        f"{placed.id}: {whose} is stamped -- {draws} more draws of it on every "
+        f"onPartialUpdate, once a second",
+        placed.element.span,
+        notes=["measured on a fenix 8, a stamped ring costs about 4x the element's own "
+               "draw time (docs/research/19-outline-everything.md §4.5)",
+               "exceeding the power budget calls onPowerBudgetExceeded and disables "
+               "partial updates PERMANENTLY for the rest of the app's lifecycle",
+               "drop the ring or this element's 'sleep_update: true', ring a filled "
+               "circle or rectangle instead (one grown copy), or accept the cost with "
+               "'lint: {allow: [partial-update-budget], reason: ...}'"],
+        confidence="HEURISTIC -- Garmin does not publish the numeric budget; the "
+                   "multiplier is measured, the overrun is not",
+    ))
 
 
 def _always_false(expression: Expression | None) -> TypeGuard[Expression]:

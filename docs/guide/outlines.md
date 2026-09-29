@@ -127,7 +127,9 @@ update.
   fēnix 8 ([research 19 §4.5](../research/19-outline-everything.md)): a
   grown ring adds about 0.1 ms, a stamped one about four times the
   element's own draw time. That matters most for an element drawn in
-  `sleep_update:`, where an overrun disables partial updates for good.
+  `sleep_update:`, where an overrun disables partial updates for good, so
+  the `partial-update-budget` lint warns about a stamped ring there (its
+  own, or its share of a group's); a grown ring passes.
 - **Placement.** The ring grows the element's box by 1 px. The clip,
   `off-screen`, `safe-area` and overlap checks all see the ring.
 - **AOD.** On an AMOLED target the awake ring is drawn in the always-on

@@ -498,6 +498,9 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
     antialiased = True
     ringed = True
 
+    def ring_draws(self, element: Progress) -> int:
+        return 1 if element.style == "bar" else 4
+
     def ring_refusal(self, element: Progress) -> str | None:
         if element.style in ("segments", "scale"):
             return f"on a 'style: {element.style}' gauge is not implemented yet"

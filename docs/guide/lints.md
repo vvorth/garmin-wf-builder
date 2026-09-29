@@ -22,7 +22,7 @@ messages; see `wfb/lint.py` if unsure.
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
 | `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring instead: against the element's own interior always, and against the backdrop when the interior does not read there (hollow text; a backdrop-coloured ring round something that reads is the gap idiom and passes); a `data` element's icon colour is judged too, a gauge's `track_color` is not |
-| `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent |
+| `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent: a wide clip, a known-expensive read, or a stamped `outline:` ring (four more draws each second; a grown ring is not reported) |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
 | `api-gated` | the element's binding names a source, symbol or complication type this device's API lacks; it reads as absent there |

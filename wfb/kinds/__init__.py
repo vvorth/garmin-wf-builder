@@ -216,6 +216,12 @@ class ElementKind(Generic[E, P]):
     #: `Renderer.render_element` rings the whole of what it draws.
     rings_itself: ClassVar[bool] = False
 
+    def ring_draws(self, element: E) -> int:
+        """How many extra draws of the element its 1px ring costs: 4 for a
+        stamp (the default), 1 for a grown copy or a baked ring glyph.
+        The `partial-update-budget` lint reads it (research 19 §4.5)."""
+        return 4
+
     def ring_refusal(self, element: E) -> str | None:
         """Why this element, of a `ringed` kind, cannot draw an `outline:`
         ring yet, or `None` when it can -- a friendly build error on its
