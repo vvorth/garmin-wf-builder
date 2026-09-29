@@ -86,3 +86,4 @@ what it is.
 | Face | Question |
 |---|---|
 | [`probes/slot-editor/`](probes/slot-editor/face.yaml) | how the native editor draws a `data` element while it pulses and while its options are listed, and why a static card behind the slot vanishes in the option list |
+| [`probes/slot-editor-dim/`](probes/slot-editor-dim/face.yaml) | whether the editor dims the whole face or only the static layer: two rows of swatches, one static, one drawn every frame |

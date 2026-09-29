@@ -117,6 +117,11 @@ drawable for a `data` element: a static card behind a slot vanishes
 while its options are listed (seen on showcase), and repainting static
 content in the drawable made it pulse, so it was reverted. It targets only
 the two fēnix 8s, the verification devices that have the editor.
+`probes/slot-editor-dim/` (2026-09-29) follows its first photos: in some
+editor frames the cards looked gone and the dot ruler dimmer and dithered
+while the clock looked normal, which a dim pass would explain. It adds two
+rows of swatches, one static and one per-frame, to tell a whole-face dim
+from one that hits only the static layer.
 
 ## `system-fonts/`
 
