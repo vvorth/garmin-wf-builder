@@ -349,12 +349,13 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         colour, `ResolvedHandPart.color`) -- it has no per-part structure on
         the IR to give `Element.color_roles()` a label finer than the whole
         element."""
+        ring = placed.element.outline.color if placed.element.outline is not None else None
         for hand in ("hour", "minute", "second"):
             resolved_hand = getattr(placed, hand)
             if resolved_hand is None:
                 continue
             for index, part in enumerate(resolved_hand.parts):
-                yield f"{placed.id}.{hand}.parts[{index}]", part.color, None, True
+                yield f"{placed.id}.{hand}.parts[{index}]", part.color, ring, True
 
 
 KIND = HandsKind()

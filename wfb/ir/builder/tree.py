@@ -102,6 +102,12 @@ class ElementTree(StaticPass):
                 # decides which other kinds accept one (research 19).
                 element.outline = cast("Builder", self).build_outline(
                     node, "outline", element_id, element=element)
+            refusal = kinds.get(element.kind).ring_refusal(element)
+            if element.outline is not None and refusal is not None:
+                self.bag.error("outline", f"{element_id}: 'outline:' {refusal}",
+                               self.doc.span(node, "outline", of="key") or span,
+                               notes=["not implemented yet -- docs/limitations.md §2"])
+                return None
         return element
 
     def check_group_outlines(self, elements: list[Element]) -> None:
@@ -123,14 +129,24 @@ class ElementTree(StaticPass):
             assert group.outline is not None
             span = group.span
             for leaf, _ in ring.members:
-                if not kinds.get(leaf.kind).ringed:
+                refusal = kinds.get(leaf.kind).ring_refusal(leaf)
+                if refusal is not None and kinds.get(leaf.kind).ringed:
+                    self.bag.error(
+                        "outline",
+                        f"{group.id}: 'outline:' on a group needs every member to draw a "
+                        f"ring, and {leaf.id!r} cannot: 'outline:' {refusal}",
+                        leaf.span or span,
+                        notes=["not implemented yet -- docs/limitations.md §2"],
+                    )
+                elif not kinds.get(leaf.kind).ringed:
                     self.bag.error(
                         "outline",
                         f"{group.id}: 'outline:' on a group needs every member to draw a "
                         f"ring, and {leaf.id!r} is a '{leaf.kind}', which cannot yet",
                         leaf.span or span,
-                        notes=["text, icons, shapes and hands can be ringed; move this "
-                               "element out of the group, or drop the group's 'outline:'"],
+                        notes=["text, icons, shapes, hands, patterns and gauges can be "
+                               "ringed; move this element out of the group, or drop the "
+                               "group's 'outline:'"],
                     )
             if group.outline.color.sources:
                 self.bag.error(

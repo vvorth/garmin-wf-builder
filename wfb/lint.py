@@ -1120,14 +1120,16 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
     The arithmetic is exact; the 3.0 threshold is a judgement call, which is why
     this is a warning and is suppressible.
 
-    **An `outline:`-bearing element or pattern part (plan 15) is judged on
-    its ring, never its interior**: the interior is *supposed* to match what
-    is underneath (the hollow-text idiom, `docs/guide/text.md`), so the ring
-    is the only ink that reads.  It can fail two ways independently:
+    **An `outline:`-bearing element or part (plan 15, research 19) is
+    judged on its ring**, which can fail two ways independently:
 
-    * **ring vs. backdrop** -- the whole character vanishes into the page;
+    * **ring vs. backdrop**, when the interior does not itself read against
+      the backdrop -- the hollow-text idiom (`docs/guide/text.md`), where
+      the ring is the only ink, so the whole character vanishes into the
+      page.  An interior that reads needs no ring that does: a ring in the
+      backdrop's own colour is the idiom that parts overlapping hands;
     * **ring vs. interior** -- the ring's inner edge disappears into the
-      fill and the glyph reads as one soft blob instead of an outline.
+      fill and the shape reads as one soft blob instead of an outline.
     """
     for index, placed in enumerate(resolved.items):
         if _backdrop_color(resolved, placed) is not None:
@@ -1177,14 +1179,15 @@ def _check_outline_contrast(
     ring = _constant_color(ring_expression)
     if ring is None:
         return
+    interior = _constant_color(interior_expression)
     ratio = ring.contrast_ratio(backdrop)
-    if ratio < 3.0:
+    interior_reads = interior is not None and interior.contrast_ratio(backdrop) >= 3.0
+    if ratio < 3.0 and not interior_reads:
         _contrast_warning(
             bag, placed,
             f"{label}: outline ring {ring} on {backdrop} has a contrast ratio of {ratio:.1f}",
             "with a hollow interior the ring is the only ink drawn -- "
             "below 3.0 the whole character can disappear into the page")
-    interior = _constant_color(interior_expression)
     if interior is None:
         return
     inner_ratio = ring.contrast_ratio(interior)

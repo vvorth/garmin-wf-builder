@@ -24,10 +24,9 @@ from ..layout import (
 from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated
+from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import (
-    RingPass,
-    NO_AOD, AodStyle, const_prefix, font_field, glyph_y_expr, mc_float,
+    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr, mc_float, own_ring,
 )
 from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
 from ..emit.writer import Writer
@@ -671,6 +670,14 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
     ir_class = PatternElement
     placed_class = PlacedPattern
     antialiased = True
+    ringed = True
+    rings_itself = True
+
+    def ring_refusal(self, element: PatternElement) -> str | None:
+        if any(part.shape == "text" and part.outline is not None for part in element.parts):
+            return ("round a pattern with a ringed text part is not implemented yet: "
+                    "drop the part's own 'outline:' or the pattern's")
+        return None
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         """`type: pattern` -- one template, drawn `count:` times, turned
@@ -918,15 +925,26 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             # `copy` is the generated loop's `i`: a colour reading it is
             # evaluated afresh for every copy, exactly as the device does.
             values = {**renderer.values, expr.COPY: index}
-            for part_index, part in enumerate(placed.parts):
-                if not renderer.visible(element.parts[part_index].visible, values):
-                    continue
-                if part.shape == "arc":
-                    _pattern_arc(renderer, placed, part, ox, oy, index, values)
-                elif part.shape == "text":
-                    _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
-                else:
-                    renderer.hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
+
+            def draw_copy(index: int = index, ox: float = ox, oy: float = oy,
+                          sin_t: float = sin_t, cos_t: float = cos_t,
+                          values: dict[str, object] = values) -> None:
+                for part_index, part in enumerate(placed.parts):
+                    if not renderer.visible(element.parts[part_index].visible, values):
+                        continue
+                    if part.shape == "arc":
+                        _pattern_arc(renderer, placed, part, ox, oy, index, values)
+                    elif part.shape == "text":
+                        _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
+                    else:
+                        renderer.hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
+
+            if element.outline is not None:
+                # Each copy ringed whole, just before it -- `emit_draw`'s order.
+                renderer.stamp_ring(renderer.silhouette(draw_copy),
+                                    renderer.aod_dimmed(element, element.outline.color),
+                                    element.outline.width)
+            draw_copy()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
                   value_guards: list[str] | None, plan: ReadPlan,
@@ -1015,7 +1033,10 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         distinct_colors = list(dict.fromkeys(colors))
         per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
                        if part.color is not None)
-        hoist_color = len(distinct_colors) == 1 and not per_copy
+        # `outline:` rings each copy whole just before its parts (research
+        # 19), setting the ring colour every copy -- so nothing is hoisted.
+        stamp = ring or own_ring(element, aod)
+        hoist_color = len(distinct_colors) == 1 and not per_copy and stamp is None
 
         # Pen width: hoisted when every line/outlined-circle part shares one
         # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
@@ -1052,23 +1073,48 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                     w.line("var cos = Math.cos(angle);")
             elif element.pattern == "grid":
                 # Number / Number is integer division in Monkey C: the row.
-                w.line(f"var ox = Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX;")
-                w.line(f"var oy = Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY;")
+                origin = (f"Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX",
+                          f"Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY")
+                w.line(f"var ox = {origin[0]};")
+                w.line(f"var oy = {origin[1]};")
             else:
-                w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
-                w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
-            current_color = distinct_colors[0] if hoist_color else None
-            for color, (index, part) in zip(colors, live):
-                if not hoist_color and color != current_color:
-                    w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-                    current_color = color
-                visible = element.parts[index].visible
-                if visible is not None:
-                    # Non-constant, or `live` would have excluded it above.
-                    w.comment(f"visible: {visible.text}")
-                with w.block_if(f"if ({visible.code})" if visible is not None else None):
-                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
-                                       text_fonts, thickness_override, aod)
+                origin = (f"Layout.{prefix}_X + i * Layout.{prefix}_DX",
+                          f"Layout.{prefix}_Y + i * Layout.{prefix}_DY")
+                w.line(f"var ox = {origin[0]};")
+                w.line(f"var oy = {origin[1]};")
+            if radial:
+                origin = (f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
+            names = ("cx", "cy") if radial else ("ox", "oy")
+
+            def parts(colored: bool) -> None:
+                current_color = distinct_colors[0] if hoist_color else None
+                for color, (index, part) in zip(colors, live):
+                    if colored and not hoist_color and color != current_color:
+                        w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+                        current_color = color
+                    visible = element.parts[index].visible
+                    if visible is not None:
+                        # Non-constant, or `live` would have excluded it above.
+                        w.comment(f"visible: {visible.text}")
+                    with w.block_if(f"if ({visible.code})" if visible is not None else None):
+                        _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
+                                           text_fonts, thickness_override, aod)
+
+            if stamp is not None:
+                # This copy ringed whole: every part, stamped by moving the
+                # copy's own origin, which every part draws from.
+                def shifted(dx: str, dy: str) -> None:
+                    w.line(f"{names[0]} = {origin[0]} + {dx};")
+                    w.line(f"{names[1]} = {origin[1]} + {dy};")
+                    parts(colored=False)
+
+                shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted,
+                                       index_var="ringI", offsets_var="ringStamp",
+                                       blank_after=False)
+                w.line(f"{names[0]} = {origin[0]};")
+                w.line(f"{names[1]} = {origin[1]};")
+            if ring is None:
+                parts(colored=True)
         if hoist_pen:
             w.line("dc.setPenWidth(1);")
 
@@ -1114,9 +1160,10 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         either.  `allow_backdrop_match` is false only for a `shape: text` part,
         the one shape where an exact backdrop match is invisible content by
         mistake."""
+        ring = placed.element.outline.color if placed.element.outline is not None else None
         for index, part in enumerate(placed.parts):
             outline_color = part.outline_color if part.shape == "text" else None
-            yield (f"{placed.id}.parts[{index}]", part.color, outline_color,
+            yield (f"{placed.id}.parts[{index}]", part.color, outline_color or ring,
                    part.shape != "text")
 
 

@@ -216,6 +216,12 @@ class ElementKind(Generic[E, P]):
     #: `Renderer.render_element` rings the whole of what it draws.
     rings_itself: ClassVar[bool] = False
 
+    def ring_refusal(self, element: E) -> str | None:
+        """Why this element, of a `ringed` kind, cannot draw an `outline:`
+        ring yet, or `None` when it can -- a friendly build error on its
+        own `outline:` and on an outlined group it sits in."""
+        return None
+
     # -- semantic pass (wfb.ir.builder) --
 
     def build(self, b: "Builder", node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> "Element | None":

@@ -2169,6 +2169,10 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "outline": {
+          "description": "A ring of 'width' px round everything the gauge draws, track and value alike (research 19). 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "track_color": {
           "$ref": "#/$defs/colorExpression"
         },
@@ -2733,6 +2737,10 @@
         "color": {
           "description": "Default colour for every part that declares none of its own. May read 'copy' -- the index of the copy being drawn, 0-based, bound nowhere else -- and any data source, including one that can be absent -- but a nullable source anywhere in the pattern (this colour, a part's colour, or a part's 'visible:') requires 'absent: hide' on the pattern (see 'absent'). e.g. \"copy == (date.weekday + 5) % 7 ? color.on : color.off\".",
           "$ref": "#/$defs/colorExpression"
+        },
+        "outline": {
+          "description": "A ring of 'width' px round each copy as one silhouette (research 19): every part's ring, then the parts. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
         },
         "parts": {
           "type": "array",

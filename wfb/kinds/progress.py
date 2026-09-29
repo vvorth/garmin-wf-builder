@@ -14,7 +14,9 @@ from ..preview import RGB, arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float
+from ..emit.monkeyc.common import (
+    NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float, own_ring, plus,
+)
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -272,8 +274,42 @@ def _needle_angle_rad(placed: PlacedProgress, fraction: float) -> float:
     return math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
 
 
+def _emit_grown_bar(w: Writer, prefix: str, width_expr: str, ring_width: str) -> None:
+    """A bar's ring: one rounded rectangle ``ring_width`` larger all round,
+    corners of that radius -- exactly the dilation of the rectangle."""
+    p = f"Layout.{prefix}"
+    w.call("dc.fillRoundedRectangle", [
+        f"{plus(f'{p}_X', ring_width, -1)}, {plus(f'{p}_Y', ring_width, -1)}",
+        f"{plus(width_expr, ring_width, 2)}, {plus(f'{p}_HEIGHT', ring_width, 2)}",
+        ring_width,
+    ])
+
+
+def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: str,
+                   fraction_expr: str, present: str | None, stamp: RingPass) -> None:
+    """An arc gauge's ring, stamped (an arc's ends are undocumented, so it
+    has no one-draw dilation): the whole track when there is one -- the lit
+    arc lies inside it -- else the lit arc alone, only while it draws."""
+    if element.track_color is not None:
+        shapes.emit_stamp_loop(
+            w, stamp.offsets, stamp.color,
+            lambda dx, dy: shapes.emit_arc_span(w, prefix, thickness_expr, dx, dy),
+            blank_after=False)
+        return
+    def lit(dx: str, dy: str) -> None:
+        w.call("WfbArc.drawProgress", [
+            f"dc, Layout.{prefix}_CX + {dx}, Layout.{prefix}_CY + {dy}, Layout.{prefix}_RADIUS",
+            f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
+            fraction_expr,
+        ])
+
+    with w.block_if(present):
+        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, lit, blank_after=False)
+
+
 def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
-                 fraction_expr: str, aod: AodStyle) -> None:
+                 fraction_expr: str, aod: AodStyle, stamp: RingPass | None = None,
+                 ring_only: bool = False) -> None:
     """`style: needle`: one `sin`/`cos` pair for the needle's angle, then each
     part rotated and drawn -- an analog hand's own draw (`wfb.kinds.hands.
     _emit_one_hand`) with `start + fraction * sweep` in place of the clock.
@@ -287,16 +323,31 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
     w.line("var sin = Math.sin(angle);")
     w.line("var cos = Math.cos(angle);")
     thickness_override = rotated.aod_thickness_override(placed, prefix)
-    current = None
-    for index, part in enumerate(placed.needle):
-        part_prefix = f"{prefix}_NEEDLE_{index}"
-        color = aod.part_color(element, part.color)
-        if color != current:
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            current = color
-        rotated.emit_transformed_part(
-            w, part, part_prefix, radial=True,
-            thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+    def parts(colored: bool) -> None:
+        current = None
+        for index, part in enumerate(placed.needle):
+            part_prefix = f"{prefix}_NEEDLE_{index}"
+            color = aod.part_color(element, part.color)
+            if colored and color != current:
+                w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+                current = color
+            rotated.emit_transformed_part(
+                w, part, part_prefix, radial=True,
+                thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+    if stamp is not None:
+        # The needle ringed whole, as a hand is (`wfb.kinds.hands._emit_one_hand`).
+        def shifted(dx: str, dy: str) -> None:
+            w.line(f"cx = Layout.{prefix}_CX + {dx};")
+            w.line(f"cy = Layout.{prefix}_CY + {dy};")
+            parts(colored=False)
+
+        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted, blank_after=False)
+        w.line(f"cx = Layout.{prefix}_CX;")
+        w.line(f"cy = Layout.{prefix}_CY;")
+    if not ring_only:
+        parts(colored=True)
 
 
 def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float | None,
@@ -447,6 +498,12 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
     ir_class = Progress
     placed_class = PlacedProgress
     antialiased = True
+    ringed = True
+
+    def ring_refusal(self, element: Progress) -> str | None:
+        if element.style in ("segments", "scale"):
+            return f"on a 'style: {element.style}' gauge is not implemented yet"
+        return None
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         value = b.expression(node, "value")
@@ -655,15 +712,23 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 w.line(f"fraction = {fraction_expr};")
             w.blank()
             fraction_expr = "fraction"
+        stamp = ring or own_ring(element, aod)
         if element.style == "needle":
-            _emit_needle(w, element, placed, prefix, fraction_expr, aod)
+            _emit_needle(w, element, placed, prefix, fraction_expr, aod, stamp,
+                         ring_only=ring is not None)
             return
         if element.style in ("segments", "scale"):
+            # `outline:` is refused on these at build time (`build`).
             _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
                          track_color_code, aod, present)
             return
         if element.style == "arc":
             thickness_expr = shapes.thickness_expr(prefix, placed, aod)
+            if stamp is not None:
+                _emit_arc_ring(w, element, prefix, thickness_expr, fraction_expr, present, stamp)
+                if ring is not None:
+                    return
+                w.blank()
             if element.track_color is not None:
                 w.comment("the unfilled track")
                 w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
@@ -680,6 +745,14 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 ])
             return
 
+        if stamp is not None and element.track_color is not None:
+            # The whole bar is the silhouette: one grown copy is its
+            # dilation (`wfb.kinds.shape._emit_grown`).
+            w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+            _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", stamp.width)
+            if ring is not None:
+                return
+            w.blank()
         if element.track_color is not None:
             w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
             w.line(
@@ -691,6 +764,13 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             w.comment("the fill -- absent: hide, so only while the value is present")
         with w.block_if(present):
             w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
+            if stamp is not None and element.track_color is None:
+                # No track: the lit length alone is the silhouette.
+                with w.block("if (filled > 0)"):
+                    w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                    _emit_grown_bar(w, prefix, "filled", stamp.width)
+                if ring is not None:
+                    return
             w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
             w.line(
                 f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, "
@@ -745,8 +825,9 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         if placed.element.style != "needle":
             yield from super().contrast_subjects(placed)
             return
+        ring = placed.element.outline.color if placed.element.outline is not None else None
         for index, part in enumerate(placed.needle):
-            yield f"{placed.id}.needle[{index}]", part.color, None, True
+            yield f"{placed.id}.needle[{index}]", part.color, ring, True
 
 
 KIND = ProgressKind()
