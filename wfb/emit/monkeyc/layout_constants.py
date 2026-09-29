@@ -5,6 +5,7 @@ from __future__ import annotations
 from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
+from ...ir.rings import ring_groups
 from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
     PlacedShape, ResolvedFace, ResolvedHandPart,
@@ -89,9 +90,19 @@ def _outline_widths_used(resolved: ResolvedFace, aod_on: bool = False) -> list[i
     With ``aod_on`` (this build emits AOD code, `Guards.amoled_target`), a
     `text` element's own `aod: {outline: ...}` ring counts too; without it
     that ring is never drawn, so its width generates nothing.
+
+    An outlined group's pass dilates each member by a total width
+    (`wfb.ir.rings`), which counts too; the group's own width counts only
+    through those totals.
     """
     out: list[int] = []
+    for ring in ring_groups(resolved.face.elements):
+        for _, width in ring.members:
+            if width not in out:
+                out.append(width)
     for placed in resolved.items:
+        if placed.kind == "group":
+            continue
         outline = getattr(placed.element, "outline", None)
         if outline is not None and outline.width not in out:
             out.append(outline.width)

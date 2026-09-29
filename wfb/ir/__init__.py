@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from .naming import (
     local_name, config_field, config_data_ids, element_const_prefix,
-    element_method_name, static_group_method, complication_slot_icon_method,
+    element_method_name, element_ring_method, static_group_method, complication_slot_icon_method,
     complication_slot_hold_method, graph_series_field, graph_min_field,
     graph_max_field, graph_built_field, graph_rebuild_method,
     font_resource_id, config_label_id, config_style_label_id,
@@ -49,7 +49,7 @@ from .builder import (
 
 __all__ = [
     "local_name", "config_field", "config_data_ids", "element_const_prefix",
-    "element_method_name", "static_group_method", "complication_slot_icon_method",
+    "element_method_name", "element_ring_method", "static_group_method", "complication_slot_icon_method",
     "complication_slot_hold_method", "graph_series_field", "graph_min_field",
     "graph_max_field", "graph_built_field", "graph_rebuild_method",
     "font_resource_id", "config_label_id", "config_style_label_id",

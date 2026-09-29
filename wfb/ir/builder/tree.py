@@ -10,6 +10,7 @@ from ...diagnostics import Span
 
 from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE, Position
 from ..naming import element_const_prefix, element_method_name
+from ..rings import ring_groups
 from .state import _lint_suppression
 from .static import StaticPass
 
@@ -102,6 +103,43 @@ class ElementTree(StaticPass):
                 element.outline = cast("Builder", self).build_outline(
                     node, "outline", element_id, element=element)
         return element
+
+    def check_group_outlines(self, elements: list[Element]) -> None:
+        """What an outlined `group` needs of its members (research 19): a
+        ring every member can draw, and a colour the frame can compute
+        without the members' data.
+
+        - Every leaf must be a `ringed` kind: its ring pass is its own
+          `ring<Id>` method.
+        - `outline.color` reads no data source: the ring is drawn from the
+          frame methods, which read only what the members themselves bind.
+
+        A group is never partly static: `static:` is a block, and its root
+        is always a whole subtree (`_apply_static`), so every member of an
+        outlined group draws in the same frame sequence.
+        """
+        for ring in ring_groups(elements):
+            group = ring.group
+            assert group.outline is not None
+            span = group.span
+            for leaf, _ in ring.members:
+                if not kinds.get(leaf.kind).ringed:
+                    self.bag.error(
+                        "outline",
+                        f"{group.id}: 'outline:' on a group needs every member to draw a "
+                        f"ring, and {leaf.id!r} is a '{leaf.kind}', which cannot yet",
+                        leaf.span or span,
+                        notes=["text, icons, shapes and hands can be ringed; move this "
+                               "element out of the group, or drop the group's 'outline:'"],
+                    )
+            if group.outline.color.sources:
+                self.bag.error(
+                    "outline",
+                    f"{group.id}: a group's 'outline.color' cannot read data "
+                    f"({', '.join(group.outline.color.sources)})",
+                    span,
+                    notes=["use a palette, scheme or config colour, or a literal"],
+                )
 
     def _check_subscreen(self, node: dict[str, Any], at: Position, path: tuple[str | int, ...],
                          span: Span | None) -> bool:

@@ -119,6 +119,9 @@ class Builder(ElementTree):
         self._apply_static(elements)
         if not self.bag.ok():
             return None
+        self.check_group_outlines(elements)
+        if not self.bag.ok():
+            return None
         self._resolve_inherited_flag(elements, "antialias", self.face_antialias)
         self._resolve_inherited_flag(elements, "min_1px", self.face_min_1px)
         self._resolve_aod(elements)

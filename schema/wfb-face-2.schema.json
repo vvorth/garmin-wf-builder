@@ -1387,6 +1387,10 @@
         "size": {
           "$ref": "#/$defs/size"
         },
+        "outline": {
+          "description": "A ring of 'width' px round the union of every member, members' own rings included (research 19): every member's ring is drawn just before the group's first member, then the members. Every member must be a kind that can carry an outline. 'none' (the default) draws no ring.",
+          "$ref": "#/$defs/outline"
+        },
         "z": {
           "$ref": "#/$defs/zOrder"
         },

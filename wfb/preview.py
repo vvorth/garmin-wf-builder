@@ -36,6 +36,7 @@ from .devices import Device, FontMetric
 from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
 from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
+from .ir.rings import RingGroup, ring_groups
 from .layout import (
     Placed, PlacedHands, PlacedPattern, PlacedProgress, ResolvedFace, RotatablePart,
     alignment_shift,
@@ -285,6 +286,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # `if (_configLayout == N)`.
     active_layout = entry.layout if entry is not None else None
     renderer = Renderer(resolved, draw, image, scale, values, options, used_faces)
+    drawn: list[Placed] = []
     for placed in resolved.shown_items:  # not what this device hides (`if_unavailable: hide`)
         if placed.kind == "group":
             continue
@@ -297,7 +299,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
             continue
         if placed.element.layout is not None and placed.element.layout != active_layout:
             continue
-        renderer.render_element(placed)
+        drawn.append(placed)
+    renderer.render_sequence(drawn, ring_groups(resolved.face.elements))
 
     if options.aod and resolved.face.aod_mask and options.aod_mask:
         # The same moving 2x2 mask the device applies, at the frame's own
@@ -615,6 +618,27 @@ class Renderer:
             self.stamp_ring(self.silhouette(lambda: kind.draw_preview(self, placed)),
                             self.aod_dimmed(placed.element, outline.color), outline.width)
         kind.draw_preview(self, placed)
+
+    def render_sequence(self, items: list[Placed], rings: list[RingGroup],
+                        scope: RingGroup | None = None) -> None:
+        """Draw ``items`` in order, each outlined group's ring just before
+        its first member here -- the order `wfb.emit.monkeyc.view.Rings`
+        emits.  The ring is the stamp of every member drawn together,
+        inner groups' rings included: ``scope`` is the group whose
+        silhouette this is, and only groups inside it ring here."""
+        for placed in items:
+            for ring in rings:
+                if scope is not None and (ring is scope or not ring.ids <= scope.ids):
+                    continue
+                members = [p for p in items if p.id in ring.ids]
+                if not members or members[0] is not placed:
+                    continue
+                outline = ring.group.outline
+                assert outline is not None
+                self.stamp_ring(
+                    self.silhouette(lambda: self.render_sequence(members, rings, ring)),
+                    self.aod_dimmed(ring.group, outline.color), outline.width)
+            self.render_element(placed)
 
     # -- outline rings ----------------------------------------------------
 

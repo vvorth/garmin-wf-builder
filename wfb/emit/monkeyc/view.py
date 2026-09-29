@@ -12,14 +12,15 @@ from ...availability import Guards
 from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
-    HOLD_AUTO, Expression, Face, config_data_ids, config_field, font_resource_id, local_name,
-    static_group_method,
+    HOLD_AUTO, Expression, Face, config_data_ids, config_field, element_ring_method,
+    font_resource_id, local_name, static_group_method,
 )
+from ...ir.rings import RingGroup, ring_groups
 from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
-    NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
+    NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, RingPass, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
     _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _method,
     _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
@@ -88,6 +89,64 @@ class StaticPlan:
         """The method that paints one root: its own for a leaf, a wrapper else."""
         return (static_group_method(placed.id) if placed.kind == "group"
                 else _method(placed.id))
+
+
+#: A `ring<Id>` method's own parameters (research 19): the offsets table,
+#: the width and the colour of the group pass it draws for.
+RING_PARAMETERS = ", ringOffsets as Array<Number>, ringWidth as Number, ringColor as Number"
+RING_PASS = RingPass("ringOffsets", "ringWidth", "ringColor")
+
+
+@dataclass
+class Rings:
+    """The face's outlined groups (`wfb.ir.rings`), and how a frame
+    sequence draws their rings: every member's `ring<Id>`, just before the
+    group's first member in that sequence, outermost group first."""
+
+    groups: list[RingGroup]
+    aod: AodStyle = NO_AOD
+
+    @property
+    def member_ids(self) -> set[str]:
+        return {leaf_id for ring in self.groups for leaf_id in ring.ids}
+
+    def prelude(self, items: list[Placed]) -> dict[str, list[tuple[RingGroup, list[Placed]]]]:
+        """For one sequence (``items``, in draw order): the id of each
+        outlined group's first member drawn here -> the groups whose rings
+        go before it, each with its members drawn here."""
+        out: dict[str, list[tuple[RingGroup, list[Placed]]]] = {}
+        for ring in self.groups:
+            present = [placed for placed in items if placed.id in ring.ids]
+            if present:
+                out.setdefault(present[0].id, []).append((ring, present))
+        return out
+
+    def calls(self, plan: "ReadPlan", ring: RingGroup, member: Placed) -> str:
+        """One member's `ring<Id>(...)` call for ``ring``'s pass."""
+        outline = ring.group.outline
+        assert outline is not None
+        width = ring.width_of(member.id)
+        color = self.aod.dimmed(ring.group, outline.color)
+        return (f"{element_ring_method(member.id)}(dc{plan.arguments(member)}, "
+                f"Layout.OUTLINE_OFFSETS_{width}, {width}, {color});")
+
+    def emit_before(self, w: Writer, plan: "ReadPlan",
+                    prelude: dict[str, list[tuple[RingGroup, list[Placed]]]], placed: Placed,
+                    emit_call: "Callable[[Placed, str], None] | None" = None) -> None:
+        """Every ring due before ``placed`` in this sequence.  ``emit_call``
+        wraps one member's call (the AOD frame's `aod: {visible: ...}`
+        guard); by default it is one plain line."""
+        for ring, members in prelude.get(placed.id, []):
+            w.comment(f"'{ring.group.id}' outline: every member's ring, then the members")
+            for member in members:
+                line = self.calls(plan, ring, member)
+                if emit_call is None:
+                    w.line(line)
+                else:
+                    emit_call(member, line)
+
+
+_NO_RINGS = Rings([])
 
 
 def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
@@ -204,6 +263,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     aod = AodStyle(on=aod_on, dim=dim_fraction(face.aod_dim)
                    if aod_on and face.aod_dim is not None else None)
     static = static_plan(resolved)
+    rings = Rings(ring_groups(face.elements), aod)
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
     # `aod: {font: ...}` (plan 14 §4.3): baked fonts only an AOD override
@@ -252,9 +312,9 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards, has_slots=bool(slot_pairs))
         _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards,
-                        editor_slots=bool(slot_pairs))
+                        editor_slots=bool(slot_pairs), rings=rings)
         if _has_partial_update(resolved, guards):
-            _emit_on_partial_update(w, resolved, plan, antialias_default)
+            _emit_on_partial_update(w, resolved, plan, antialias_default, rings)
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
@@ -269,13 +329,18 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
             _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config,
-                                 from_menu=guards.config_menu)
+                                 from_menu=guards.config_menu, plan=plan, rings=rings)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
             w.blank()
             _emit_element_method(w, resolved, placed, plan, antialias_default, aod,
                                  subscreen_guarded=placed.id in guards.subscreen_hidden)
+            if placed.id in rings.member_ids:
+                w.blank()
+                _emit_element_method(w, resolved, placed, plan, antialias_default, aod,
+                                     subscreen_guarded=placed.id in guards.subscreen_hidden,
+                                     ring=True)
 
     body_text = w.render()
     modules = sorted(set(_BASE_IMPORTS) | usage.toybox_modules(body_text))
@@ -346,7 +411,8 @@ def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
 
 def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                          antialias_default: bool | None = None,
-                         needs_repaint: bool = False, from_menu: bool = False) -> None:
+                         needs_repaint: bool = False, from_menu: bool = False,
+                         plan: "ReadPlan | None" = None, rings: Rings = _NO_RINGS) -> None:
     """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
 
     `renderStatic` takes a Dc rather than the buffer, and is called with the
@@ -423,8 +489,11 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
             continue  # a static leaf is drawn by its own method, called above
         w.blank()
         w.doc(f"`{root.element.id}` -- the static subtree, in draw order.")
+        prelude = rings.prelude(members)
         with w.block(f"private function {static.method(root)}(dc as Dc) as Void"):
             for placed in members:
+                if plan is not None:
+                    rings.emit_before(w, plan, prelude, placed)
                 w.line(f"{_method(placed.id)}(dc);")
 
 
@@ -901,7 +970,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
                     static: "StaticPlan | None" = None,
                     antialias_default: bool | None = None,
                     guards: "Guards" = _NO_GUARDS,
-                    editor_slots: bool = False) -> None:
+                    editor_slots: bool = False, rings: Rings = _NO_RINGS) -> None:
     """`onUpdate`.
 
     With ``editor_slots`` (a `complication_slot` the native editor can
@@ -939,11 +1008,11 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         if aod:
             with w.block("if (_aod)"):
-                _emit_aod_body(w, resolved, plan, guards)
+                _emit_aod_body(w, resolved, plan, guards, rings)
             with w.block("else"):
-                _emit_mode_body(w, resolved, plan, "active", static)
+                _emit_mode_body(w, resolved, plan, "active", static, rings)
         else:
-            _emit_mode_body(w, resolved, plan, "active", static)
+            _emit_mode_body(w, resolved, plan, "active", static, rings)
         if editor_slots:
             w.blank()
             w.comment("the editor's slot skip covers this one redraw: its next move asks")
@@ -988,7 +1057,7 @@ def _draw_call(plan: "ReadPlan", placed: Placed) -> str:
 
 
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
-                    static: "StaticPlan | None") -> None:
+                    static: "StaticPlan | None", rings: Rings = _NO_RINGS) -> None:
     """One mode's draw sequence: the static blit, then everything dynamic."""
     if static is not None and mode in static.modes:
         _emit_static_blit(w, static)
@@ -1000,12 +1069,18 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     plan.emit_reads(w, mode)
     w.blank()
     skip = static.ids if static is not None else set()
-    _emit_layout_guarded(w, resolved.face, _drawn_in(resolved, mode, skip),
-                         lambda placed: w.line(_draw_call(plan, placed)))
+    items = _drawn_in(resolved, mode, skip)
+    prelude = rings.prelude(items)
+
+    def one(placed: Placed) -> None:
+        rings.emit_before(w, plan, prelude, placed)
+        w.line(_draw_call(plan, placed))
+
+    _emit_layout_guarded(w, resolved.face, items, one)
 
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
-                   guards: "Guards" = _NO_GUARDS) -> None:
+                   guards: "Guards" = _NO_GUARDS, rings: Rings = _NO_RINGS) -> None:
     """The AMOLED always-on frame (plan 14): every element whose resolved
     `aod:` is not `None`, calling the same per-element method the active
     frame calls (restyled inside by `AodStyle`'s `_aod` ternaries), then
@@ -1050,8 +1125,16 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     w.blank()
     ids = set(plan.aod_ids())
     entries = [placed for placed in resolved.items if placed.id in ids]
-    _emit_layout_guarded(w, resolved.face, entries,
-                         lambda placed: _emit_one_aod_call(w, plan, placed))
+    prelude = rings.prelude(entries)
+    scopes = _GuardScopes()
+
+    def one(placed: Placed) -> None:
+        declared = scopes.declared_for(placed.element.layout)
+        rings.emit_before(w, plan, prelude, placed,
+                          lambda member, line: _emit_one_aod_call(w, plan, member, line, declared))
+        _emit_one_aod_call(w, plan, placed, declared=declared)
+
+    _emit_layout_guarded(w, resolved.face, entries, one)
     # The moving 2x2 pixel mask, drawn last; an empty frame is already black.
     if resolved.face.aod_mask and entries:
         w.blank()
@@ -1059,21 +1142,51 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
         w.line("WfbAodMask.apply(dc, System.getClockTime().min);")
 
 
-def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed: Placed) -> None:
+class _GuardScopes:
+    """Which guard locals the AOD frame has already declared where the next
+    call is.  Two guards reading one source (two elements' `aod: {visible:
+    ...}`, or a group member's ring and its own draw) declare its local
+    once per scope: Monkey C rejects a redefinition, and a local declared
+    inside one `_configLayout` block is out of scope in the next.  A run of
+    one layout is one block (`_emit_layout_guarded`), which starts out
+    seeing whatever the shared frame body declared before it."""
+
+    def __init__(self) -> None:
+        self.shared: set[str] = set()
+        self.layout: str | None = None
+        self.block: set[str] = self.shared
+
+    def declared_for(self, layout: str | None) -> set[str]:
+        if layout is None:
+            self.layout, self.block = None, self.shared
+        elif layout != self.layout:
+            self.layout, self.block = layout, set(self.shared)
+        return self.block
+
+
+def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed: Placed,
+                       line: str | None = None, declared: set[str] | None = None) -> None:
     """One element's call in the AOD frame, behind its `aod: {visible: ...}`
-    extra condition when it has one (`ReadPlan.aod_guard_condition`)."""
+    extra condition when it has one (`ReadPlan.aod_guard_condition`).
+    ``line`` replaces the `draw<Id>` call -- an outlined group's
+    `ring<Id>`, under the same guard.  ``declared`` holds the guard locals
+    already declared in this frame; a later guard reuses them."""
     extra = plan.aod_visible_override(placed)
     condition = plan.aod_guard_condition(placed)
     if extra is not None:
         for name, read in plan.aod_guard_declarations(placed):
-            w.line(f"var {name} = {read};")
+            if declared is None or name not in declared:
+                w.line(f"var {name} = {read};")
+            if declared is not None:
+                declared.add(name)
         w.comment(f"aod: visible: {extra.text}")
     with w.block_if(f"if ({condition})" if condition is not None else None):
-        w.line(_draw_call(plan, placed))
+        w.line(line if line is not None else _draw_call(plan, placed))
 
 
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
-                            antialias_default: bool | None = None) -> None:
+                            antialias_default: bool | None = None,
+                            rings: Rings = _NO_RINGS) -> None:
     w.doc(
         "Redraw only the low-power elements, once a second, while asleep.\n"
         "\n"
@@ -1097,8 +1210,14 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         plan.emit_reads(w, "low_power")
         w.blank()
-        _emit_layout_guarded(w, resolved.face, _drawn_in(resolved, "low_power"),
-                             lambda placed: w.line(_draw_call(plan, placed)))
+        items = _drawn_in(resolved, "low_power")
+        prelude = rings.prelude(items)
+
+        def one(placed: Placed) -> None:
+            rings.emit_before(w, plan, prelude, placed)
+            w.line(_draw_call(plan, placed))
+
+        _emit_layout_guarded(w, resolved.face, items, one)
         w.line("dc.clearClip();")
     w.blank()
 
@@ -1200,11 +1319,22 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan: "ReadPlan",
                          antialias_default: bool | None = None,
-                         aod: AodStyle = NO_AOD, subscreen_guarded: bool = False) -> None:
+                         aod: AodStyle = NO_AOD, subscreen_guarded: bool = False,
+                         ring: bool = False) -> None:
+    """`draw<Id>`, or with ``ring`` its `ring<Id>` twin: the same reads and
+    guards, then only the element's silhouette dilated by the ring its
+    parameters name -- one member's share of an outlined group's ring
+    (research 19)."""
     element = placed.element
     kind = kinds.for_placed(placed)
-    w.doc(_method_doc(placed))
-    signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
+    if ring:
+        w.doc(f"`{element.id}`'s share of an outlined group's ring: what `{_method(placed.id)}` "
+              "draws,\ndilated by `ringWidth` px in `ringColor`, and nothing else.")
+        signature = (f"private function {element_ring_method(placed.id)}"
+                     f"(dc as Dc{plan.parameters(placed)}{RING_PARAMETERS}) as Void")
+    else:
+        w.doc(_method_doc(placed))
+        signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
     # 'placeholder'/'fallback' are policies for the *value* -- a substitute
     # text or fill fraction takes over instead of the element simply not
     # drawing.  They say nothing about a nullable colour, track colour or
@@ -1273,7 +1403,10 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
         if overrides_antialias:
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
-        kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
+        if ring:
+            kind.emit_draw(w, resolved, placed, value_guards, plan, aod, ring=RING_PASS)
+        else:
+            kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
         if overrides_antialias and antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 

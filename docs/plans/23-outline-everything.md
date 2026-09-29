@@ -42,8 +42,7 @@ has landed (`docs/CLAUDE.md`).
   - A group's ring pass is a `ring<Id>(dc{args}, offsets, width, color)`
     method per member, with the member's own guard preamble. The frame
     methods call these for every member of an outlined group, just before
-    the group's first member. An outlined group's members must all be
-    static or all dynamic.
+    the group's first member.
 - **Layout.** A ring grows the element's box by its width. A group's ring
   grows every member's box by the group's width.
 - **Preview.** An outlined element or group is rendered as a layer. Its

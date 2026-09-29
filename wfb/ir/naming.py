@@ -75,6 +75,13 @@ def element_method_name(element_id: str) -> str:
     return "draw" + _element_suffix(element_id)
 
 
+def element_ring_method(element_id: str) -> str:
+    """The private method that draws one member's part of an outlined
+    group's ring (``ringTempLow``, research 19).  It shares `draw<Id>`'s
+    suffix, so :meth:`Builder._check_symbol_collision` already covers it."""
+    return "ring" + _element_suffix(element_id)
+
+
 def static_group_method(element_id: str) -> str:
     """The method that paints one static subtree (``drawStaticTicks``).
 
