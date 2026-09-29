@@ -347,7 +347,8 @@ and `outline:` takes a colour or `none`, nothing else. So a member of an
 outlined group rings nothing of its own and outlined groups do not nest:
 either would put the group's ring 2 px out. The ring is cheaper where it
 can be: no per-stamp allocation for polygons, and baked fonts (text and
-icons) carry a dilated copy of the glyphs they draw.
+icons) carry a dilated copy of the glyphs they draw, built as research
+§3.4 describes -- one extra `drawText` per ring.
 
 The options as they were put:
 

@@ -13,6 +13,7 @@ from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
 from ..ir.model import OUTLINE_WIDTH, Element, Expression, Outline, Text, aod_outline_choice
+from ..ir.rings import ring_groups
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -22,7 +23,7 @@ from ..emit.monkeyc.common import (
     mc_color,
 )
 from ..emit.writer import Writer
-from . import ElementKind, TextRun
+from . import ElementKind, TextRun, ring_font
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
@@ -240,6 +241,28 @@ def _emit_ring(w: Writer, element: Text, aod: AodStyle,
     w.blank()
 
 
+def baked_ring(element: Element, face: Face) -> str | None:
+    """The ring font this element draws its ring with (`kinds.ring_font`),
+    or `None` when it stamps."""
+    members = {leaf.id for ring in ring_groups(face.elements) for leaf in ring.members}
+    found = ring_font(element, face, members)
+    return found[0] if found is not None else None
+
+
+def _baked(w: Writer, ring_font_name: str, x_expr: str, y_expr: str, value_code: str,
+           justify: str, vertical_align: str) -> Callable[[str], None]:
+    """A text ring from its baked ring font (research 19): the same string,
+    anchor and justification in the dilated glyphs -- one `drawText`.  A
+    ring font that failed to load draws no ring, like its base."""
+    def ring(color: str) -> None:
+        w.line(f"var ringFont = _{font_field(ring_font_name)};")
+        with w.block("if (ringFont != null)"):
+            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+            shapes.emit_plain_text_call(w, x_expr, y_expr, "ringFont", value_code, justify,
+                                        vertical_align)
+    return ring
+
+
 def _stamp(w: Writer, x_expr: str, y_expr: str,
            draw: Callable[[str, str], None]) -> Callable[[str], None]:
     """A text ring by stamping: ``draw`` at the four offsets."""
@@ -290,15 +313,19 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
             font_expr = "font"
     else:
         font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
+
     def draw(x: str, y: str) -> None:
         shapes.emit_plain_text_call(w, x, y, font_expr, value_code, justify,
                                     element.vertical_align)
 
+    x, y = f"Layout.{prefix}_X", f"Layout.{prefix}_Y"
+    baked = baked_ring(element, resolved.face)
+    ring_draw = (_baked(w, baked, x, y, value_code, justify, element.vertical_align)
+                 if baked is not None else _stamp(w, x, y, draw))
     if ring is not None:
-        shapes.emit_outline_loop(w, RING_OFFSETS_CODE, ring.color, f"Layout.{prefix}_X",
-                                 f"Layout.{prefix}_Y", draw, blank_after=False)
+        ring_draw(ring.color)
         return
-    _emit_ring(w, element, aod, _stamp(w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", draw))
+    _emit_ring(w, element, aod, ring_draw)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     shapes.emit_plain_text_call(
         w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
@@ -464,6 +491,9 @@ class TextKind(ElementKind[Text, PlacedText]):
     name = "text"
     ringed = True
     rings_itself = True
+
+    def ring_draws(self, element: Text, face: Face) -> int:
+        return 1 if baked_ring(element, face) is not None else 4
     ir_class = Text
     placed_class = PlacedText
 

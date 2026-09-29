@@ -13,7 +13,7 @@ Two things here are worth more than they look:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw
 from .. import complications, icons, kinds, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
-from ..fonts.bmfont import write as write_font
+from ..fonts.bmfont import dilate, write as write_font
 from ..ir import (
     CONFIG_SYMBOL, Face, FontSpec, config_data_ids, config_label_id, config_style_label_id,
 )
@@ -156,7 +156,21 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
             spec.source, name=name, size=spec.pixel_size(device.minor_radius),
             glyphs=spec.glyphs, antialias=spec.antialias,
         )
+
+    # Last: each ring font is dilated from its base's own sheet, glyph for
+    # glyph, so it has to exist first (research 19).
+    for name, (base, glyphs) in kinds.ring_fonts(face).items():
+        baked[name], _ = dilate(baked[base], name=name, glyphs="".join(sorted(glyphs)))
     return baked
+
+
+def _ring_font_specs(face: Face, specs: dict[str, FontSpec]) -> dict[str, FontSpec]:
+    """A ring font's resource entry: its base font's spec under the ring
+    font's own name, holding just its ringed glyphs."""
+    return {
+        name: replace(specs[base], name=name, glyphs="".join(sorted(glyphs)))
+        for name, (base, glyphs) in kinds.ring_fonts(face).items()
+    }
 
 
 def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> ResourceBundle:
@@ -166,6 +180,7 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
     # they are synthesised from whichever `icon:` elements the design has), so
     # the lookup below needs both merged.
     specs: dict[str, FontSpec] = {**face.fonts, **icon_font_specs(face, device)}
+    specs.update(_ring_font_specs(face, specs))
 
     if baked:
         lines = [f"<fonts {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]

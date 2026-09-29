@@ -47,17 +47,17 @@ def test_each_part_is_ringed_once_without_moving_the_axis(view):
     loop re-rotating (and re-allocating) the part per offset, which is what
     made a stamped hand cost 18ms on a watch (research 19 §4.5)."""
     body = _hands(view)
-    assert body.count("WfbGeom.ringRotated(dc, Layout.HANDS_HOUR_0_POINTS, cx, cy, sin, cos);") == 1
+    assert body.count("WfbRing.rotated(dc, Layout.HANDS_HOUR_0_POINTS, cx, cy, sin, cos);") == 1
     assert "Layout.HANDS_MINUTE_1_RADIUS + 1," in body
-    assert "WfbGeom.ringLineRotated(dc, Layout.HANDS_SECOND_0_X1" in body
+    assert "WfbRing.lineRotated(dc, Layout.HANDS_SECOND_0_X1" in body
     assert "offsets" not in body and "cx = " not in body.replace("var cx = ", "")
 
 
 def test_an_awake_only_second_hand_keeps_its_ring_inside_the_gate(view):
     body = _hands(view)
     gate = body[body.index("if (!_sleeping)"):]
-    assert "WfbGeom.ringLineRotated(" in gate
-    assert "ringLineRotated" not in body[:body.index("if (!_sleeping)")]
+    assert "WfbRing.lineRotated(" in gate
+    assert "WfbRing.lineRotated" not in body[:body.index("if (!_sleeping)")]
 
 
 def test_no_outline_emits_no_ring(tmp_path, write_design):

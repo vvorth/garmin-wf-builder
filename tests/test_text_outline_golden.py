@@ -63,13 +63,22 @@ def test_one_offsets_table_serves_every_ring(generated):
     assert "OUTLINE_OFFSETS_" not in layout
 
 
-def test_stamp_loop_appears_ahead_of_every_interior_draw(generated):
-    """Every element carrying `outline:` gets a `while (i < offsets.size())`
-    loop, and the loop's own `dc.setColor`/draw call precedes the interior
-    (unshifted) one in the generated method -- proving the ring is drawn
-    first, the fill last, on top (plan 15 §8)."""
+def test_the_baked_font_ring_is_one_draw_in_its_ring_font(generated):
+    """`clock` is in a baked font: its ring is one `drawText` in the ring
+    font, ahead of the interior (research 19)."""
     view = generated.files()["source/OutlineTextView.mc"]
-    for method_name in ("drawClock", "drawUprightVector", "drawBrand", "drawBezelText"):
+    method = view.split("private function drawClock")[1].split("\n\n    //!")[0]
+    assert "while" not in method
+    assert method.index("ringFont") < method.rindex("dc.setColor(")
+
+
+def test_stamp_loop_appears_ahead_of_every_interior_draw(generated):
+    """Every vector-font element carrying `outline:` gets a `while (i <
+    offsets.size())` loop -- no sheet to dilate -- and the loop's own
+    `dc.setColor`/draw call precedes the interior (unshifted) one in the
+    generated method: the ring first, the fill last, on top (plan 15 §8)."""
+    view = generated.files()["source/OutlineTextView.mc"]
+    for method_name in ("drawUprightVector", "drawBrand", "drawBezelText"):
         method = view.split(f"private function {method_name}")[1]
         method = method.split("\n\n    //!")[0]
         assert "while (i < offsets.size())" in method
@@ -96,8 +105,8 @@ def test_both_curve_styles_still_appear_with_outline(generated):
     assert "dc.drawRadialText(" in view
 
 
-def test_baked_font_outline_stamps_through_plain_drawtext(generated):
-    """The baked-font clock's own outline loop draws through plain
+def test_baked_font_outline_draws_through_plain_drawtext(generated):
+    """The baked-font clock's ring and interior draw through plain
     `dc.drawText`, never `drawAngledText`/`drawRadialText` -- it has no
     `curve:`."""
     view = generated.files()["source/OutlineTextView.mc"]

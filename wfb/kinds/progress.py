@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from . import ContrastSubject
     from ..ir.builder import Builder
     from ..emit.monkeyc.readplan import ReadPlan
+    from ..ir.model import Face
     from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
@@ -498,7 +499,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
     antialiased = True
     ringed = True
 
-    def ring_draws(self, element: Progress) -> int:
+    def ring_draws(self, element: Progress, face: Face) -> int:
         return 1 if element.style == "bar" else 4
 
     def ring_refusal(self, element: Progress) -> str | None:

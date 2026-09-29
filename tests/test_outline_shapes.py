@@ -130,7 +130,7 @@ def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
 
 
 def test_a_polygon_translates_once_and_shifts_in_place(write_design, tmp_path):
-    """No per-stamp array: `WfbGeom.ringTranslated` builds one copy and
+    """No per-stamp array: `WfbRing.translated` builds one copy and
     shifts it between the four fills (research 19 §4.5)."""
     body = _method(_view("""
   tri:
@@ -139,7 +139,7 @@ def test_a_polygon_translates_once_and_shifts_in_place(write_design, tmp_path):
     color: color.fg
     outline: color.ring
 """, write_design, tmp_path), "drawTri")
-    assert "WfbGeom.ringTranslated(dc, Layout.TRI_POINTS, 0, 0);" in body
+    assert "WfbRing.translated(dc, Layout.TRI_POINTS, 0, 0);" in body
     assert "offsets" not in body
 
 
@@ -178,7 +178,7 @@ def test_no_outline_emits_exactly_the_plain_draw(write_design, tmp_path):
 # -- icons ---------------------------------------------------------------------
 
 
-def test_an_icon_stamps_its_glyph(write_design, tmp_path):
+def test_an_icon_draws_its_ring_from_its_ring_font(write_design, tmp_path):
     body = _method(_view("""
   alarm:
     type: icon
@@ -188,8 +188,8 @@ def test_an_icon_stamps_its_glyph(write_design, tmp_path):
     color: color.fg
     outline: color.ring
 """, write_design, tmp_path), "drawAlarm")
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
-    assert "dc.drawText(Layout.ALARM_CX + offsets[i], Layout.ALARM_CY + offsets[i + 1], font," in body
+    assert "offsets" not in body
+    assert "dc.drawText(Layout.ALARM_CX, Layout.ALARM_CY, ringFont," in body
     assert body.index("Palette.RING") < body.index("Palette.FG")
 
 

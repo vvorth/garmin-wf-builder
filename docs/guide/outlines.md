@@ -27,7 +27,8 @@ the colour spelling.
 | Kind | How the ring is drawn |
 |---|---|
 | `circle`, `rectangle` (filled, square or rounded corners) | one grown copy of the shape, drawn first |
-| every other shape, `text`, `icon` | the shape stamped at the ring's offsets |
+| `icon`, `text` in a baked font | one `drawText` in a baked font of the same glyphs dilated by 1 px |
+| every other shape, `text` in a system or vector font | the shape stamped at the ring's four offsets |
 | `hands` | each hand ringed whole, over the hand beneath it |
 | `pattern` | each copy ringed whole |
 | `gauge` | `arc`: its track stamped (or, with no track, the lit arc); `bar`: one grown rounded rectangle round the track (or the lit length); `needle`: ringed whole, like a hand; `segments`/`scale`: not yet |
@@ -36,7 +37,7 @@ the colour spelling.
 `outline.color` follows `color:`'s grammar: a `color.<name>`, a literal, or
 a conditional expression over them. On a `group` it cannot read data.
 
-## Two exact ways to draw a ring
+## Three exact ways to draw a ring
 
 The ring is the set of pixels 1 px from the element: its *dilation*. The
 element is then drawn over it.
@@ -50,21 +51,30 @@ element is then drawn over it.
 
 These draw that one grown copy first, which costs one extra draw.
 
+**Baked ring font.** An icon, and a `text` in a baked font (`fonts:` with a
+`source:`), draw their ring from a companion font the build makes: only the
+glyphs those elements ring, each dilated by 1 px. The same string at the
+same anchor in that font is exactly the ring, so it costs one extra
+`drawText`. A system `FONT_*` and a vector (`face:`) font have no sheet to
+dilate, so they are stamped, and so is a text whose `aod: {font: ...}`
+swaps the font in the always-on frame.
+
 **Stamp.** Everything else is drawn four times in the ring colour, each
 time shifted 1 px up, down, left or right, and then once more in its own
-colours. The result is exactly the dilation of the
-pixels the watch draws, whatever the shape:
+colours. The result is exactly the dilation of the pixels the watch draws,
+whatever the shape:
 
 - an ellipse, whose grown outline is not an ellipse;
 - a stroked shape (`filled: false`), which is ringed on its inner edge too;
 - an arc or a line, whose ends are undocumented;
-- a polygon with sharp corners;
-- a glyph.
+- a polygon with sharp corners: transformed once, then shifted between the
+  four fills, with nothing allocated per stamp;
+- text in a system or vector font, and a pattern's text parts.
 
-Stamping is also why **openings are outlined**. The hole in a stroked
-circle, the face of the `alarm` icon, the counter of an `O`: each gets a
-ring of its own whenever it is wider than 2 px. A narrower opening fills
-with the ring colour.
+**Openings are outlined** either way. The hole in a stroked circle, the face
+of the `alarm` icon, the counter of an `O`: each gets a ring of its own
+whenever it is wider than 2 px. A narrower opening fills with the ring
+colour.
 
 "Outline" here always means the ring. A shape drawn as a stroke only is
 `filled: false`, and it can carry an `outline:` of its own.

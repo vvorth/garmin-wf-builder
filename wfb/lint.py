@@ -1362,7 +1362,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     in_group_ring = {leaf.id for ring in ring_groups(resolved.face.elements)
                      for leaf in ring.members}
     for placed in low_power:
-        _check_low_power_ring(bag, placed, placed.id in in_group_ring)
+        _check_low_power_ring(bag, placed, placed.id in in_group_ring, resolved.face)
         if placed.kind == "graph":
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
@@ -1403,15 +1403,15 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
-def _check_low_power_ring(bag: Bag, placed: Placed, group_ring: bool) -> None:
+def _check_low_power_ring(bag: Bag, placed: Placed, group_ring: bool, face: Face) -> None:
     """A stamped `outline:` ring drawn in `onPartialUpdate` -- the element's
     own, or its share of an outlined group's.  A stamp draws the element four
     more times; on a fenix 8 that measured about 4x the element's own draw
-    time (research 19 §4.5).  A grown ring (one extra draw, about 0.1ms
-    there) is not reported."""
+    time (research 19 §4.5).  A grown ring or a baked ring font (one extra
+    draw -- about 0.1ms there for a grown one) is not reported."""
     if placed.element.outline is None and not group_ring:
         return
-    draws = kinds.for_placed(placed).ring_draws(placed.element)
+    draws = kinds.for_placed(placed).ring_draws(placed.element, face)
     if draws <= 1:
         return
     whose = ("its 'outline:' ring" if not group_ring else

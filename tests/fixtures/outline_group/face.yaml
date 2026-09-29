@@ -106,6 +106,9 @@ elements:
     at: { anchor: center, dy: 14% }
     size: { width: 20%, height: 8% }
     outline: color.ring
+    lint:
+      allow: [partial-update-budget]
+      reason: "the fixture exists to put a group's ring into onPartialUpdate"
     children:
       secs:
         type: text

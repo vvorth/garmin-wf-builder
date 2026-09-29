@@ -40,8 +40,8 @@ def test_a_radial_copy_rings_each_part_once(view):
     body = _method(view, "drawTicks")
     loop = body[body.index("for (var i"):]
     ring = loop[loop.index("Palette.RING"):loop.index("Palette.ACCENT")]
-    assert "WfbGeom.ringRotated(dc, Layout.TICKS_0_POINTS, cx, cy, sin, cos);" in ring
-    assert "WfbGeom.ringLineRotated(dc, Layout.TICKS_1_X1" in ring
+    assert "WfbRing.rotated(dc, Layout.TICKS_0_POINTS, cx, cy, sin, cos);" in ring
+    assert "WfbRing.lineRotated(dc, Layout.TICKS_1_X1" in ring
     assert "while" not in body
 
 
@@ -133,7 +133,7 @@ def test_a_bar_with_a_track_is_grown_round_the_whole_track(write_design, tmp_pat
 def test_a_needle_is_ringed_whole(view):
     body = _method(view, "drawNeedle")
     ring = body[body.index("Palette.BG"):body.index("Palette.FG")]
-    assert "WfbGeom.ringRotated(dc, Layout.NEEDLE_NEEDLE_0_POINTS, cx, cy, sin, cos);" in ring
+    assert "WfbRing.rotated(dc, Layout.NEEDLE_NEEDLE_0_POINTS, cx, cy, sin, cos);" in ring
     assert "Layout.NEEDLE_NEEDLE_1_RADIUS + 1," in ring
 
 

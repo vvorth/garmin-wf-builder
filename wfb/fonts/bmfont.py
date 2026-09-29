@@ -16,7 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
+
+from ..ir.model import RING_OFFSETS
 
 #: Glyph sheets are padded to a power of two, as BMFont's exports are.
 _MAX_SHEET = 1024
@@ -253,6 +255,54 @@ def bake(
             xadvance=advance,
         )
     return baked, sheet
+
+
+def dilate(base: BakedFont, *, name: str, glyphs: str) -> tuple[BakedFont, Image.Image]:
+    """A companion to ``base`` holding ``glyphs`` dilated by 1px: a pixel is
+    ink where the glyph or any of its four neighbours is (`wfb.ir.
+    RING_OFFSETS`, the exact 1px dilation research 14 §1 measured), and for
+    an anti-aliased sheet the brightest of the five.  Every glyph grows one
+    pixel each way -- its offsets move by -1 -- while its advance and the
+    line metrics stay ``base``'s, so one `drawText` of the same string at the
+    same anchor and justification draws exactly the `outline:` ring
+    (research 19): one extra draw instead of four stamps.
+    """
+    assert base.sheet is not None, f"{base.name}: no sheet to dilate"
+    rendered: list[tuple[str, Image.Image, int, int, int]] = []
+    for char in _ordered_unique(glyphs):
+        box = base.glyphs.get(char)
+        if box is None:
+            continue
+        if box.width == 0 or box.height == 0:
+            rendered.append((char, Image.new("L", (1, 1), 0), 0, 0, box.xadvance))
+            continue
+        tile = base.sheet.crop((box.x, box.y, box.x + box.width, box.y + box.height))
+        grown = Image.new("L", (box.width + 2, box.height + 2), 0)
+        for dx, dy in ((0, 0), *RING_OFFSETS):
+            shifted = Image.new("L", grown.size, 0)
+            shifted.paste(tile, (1 + dx, 1 + dy))
+            grown = ImageChops.lighter(grown, shifted)
+        rendered.append((char, grown, box.xoffset - 1, box.yoffset - 1, box.xadvance))
+    if not rendered:
+        raise ValueError(f"font {name!r}: no glyphs to dilate")
+    sheet_width, sheet_height, placements = _pack([(c, im) for c, im, *_ in rendered])
+    sheet = Image.new("L", (sheet_width, sheet_height), 0)
+    ring = BakedFont(
+        name=name, face=base.face, size=base.size, line_height=base.line_height,
+        base=base.base, sheet_width=sheet_width, sheet_height=sheet_height,
+        antialias=base.antialias, monospace=base.monospace, cell_width=base.cell_width,
+        fnt_name=f"{name}.fnt", png_name=f"{name}.png", sheet=sheet,
+    )
+    for (char, tile, left, top, advance), (x, y) in zip(rendered, placements):
+        empty = _is_empty(tile)
+        if not empty:
+            sheet.paste(tile, (x, y))
+        ring.glyphs[char] = GlyphBox(
+            char=char, x=x, y=y,
+            width=0 if empty else tile.width, height=0 if empty else tile.height,
+            xoffset=left, yoffset=top, xadvance=advance,
+        )
+    return ring, sheet
 
 
 def _cell_width(rendered: list[tuple[str, Image.Image, int, int, int]]) -> int:

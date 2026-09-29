@@ -175,6 +175,12 @@ outline: none                        # default -- no ring, today's plain fill
 outline: color.text_outline          # a 1px ring in this colour
 ```
 
+**In a baked font the ring is one draw.** The build bakes a companion font
+holding just the glyphs your ringed text uses, each dilated by 1px, and
+draws the string once in it before the interior
+([Outlines](outlines.md#three-exact-ways-to-draw-a-ring)). A system or
+vector font is stamped as above.
+
 **Every ring is 1px.** A 2px ring measured about 1.8× the draw time of a
 1px one on a watch, for no gain in legibility
 (`docs/research/19-outline-everything.md` §4.5), so there is no `width:`;

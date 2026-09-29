@@ -522,6 +522,21 @@ These cost real time to discover; do not rediscover them.
   the *same* pattern from colliding with each other, not just with the
   copy loop's own `i`.
 
+- **Baked ring fonts (research 19): a ringed icon, or ringed text in a
+  baked font, rings in one `drawText`.** `wfb.kinds.ring_fonts(face)` is
+  the one answer to "which fonts need a ring companion, with which glyphs"
+  (the union over every ringed run, a group member's share included; a
+  text with an `aod: {font: ...}` override keeps the stamp).  The build
+  bakes each as `<font>_ring_glyphs` (`wfb.fonts.bmfont.dilate`: every
+  glyph dilated by the four `RING_OFFSETS` plus itself, offsets -1,
+  advance and line metrics unchanged), writes it as an ordinary `<font>`
+  resource, and loads it right after its base (`_loaded_fonts`).  The
+  resource compiler accepts the resulting negative `xoffset`/`yoffset`
+  (a real build on all three targets).  UNVERIFIED on a watch: that
+  `TEXT_JUSTIFY_VCENTER` places the ring font's glyphs on the base font's
+  -- they share `lineHeight`/`base`, which is all the `.fnt` gives it.
+  The preview keeps stamping, which paints the same pixels.
+
 - **`wfb build --profile` (`wfb.emit.monkeyc.profile`) instruments only the
   active frame.** Every call site becomes `if (_profNext == k) { var t0 =
   ...; for (var r = 0; ...) { call } ... } else { call }`. Each `t0`/`r` is
@@ -546,10 +561,10 @@ These cost real time to discover; do not rediscover them.
   `shapes.emit_stamp_loop`, shifting its draw anchor (`Layout.<P>_CX +
   offsets[i]`).  A polygon, and every part of a `hands`/needle/pattern,
   goes through one ring op per part instead (`rotated.emit_part_ring`):
-  `WfbGeom.ringRotated`/`ringTranslated` transform the points **once** into
+  `WfbRing.rotated`/`translated` transform the points **once** into
   a fresh array and `shift` it in place between the four fills (a
   `Point2D` element assignment typechecks under `-l 3`, confirmed by a
-  real build); `ringLineRotated`/`ringCircleRotated` rotate once and draw
+  real build); `WfbRing.lineRotated`/`circleRotated` rotate once and draw
   four; a filled circle part grows by 1.  Measured on a fenix 8, a stamp
   that re-rotated and re-allocated per offset cost about twice its own
   fills (research 19 §4.5).

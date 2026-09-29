@@ -153,6 +153,56 @@ def placed_text_runs(
             yield placed, run
 
 
+def ring_font_name(font: str) -> str:
+    """The companion font a baked font's ringed glyphs are dilated into
+    (`wfb.fonts.bmfont.dilate`)."""
+    return f"{font}_ring_glyphs"
+
+
+def ring_font(element: "Element", face: "Face",
+              group_ringed: "frozenset[str] | set[str]") -> tuple[str, str, frozenset[str]] | None:
+    """``(ring font, base font, glyphs)`` when ``element`` draws its ring as
+    one `drawText` in a baked ring font rather than four stamps (research
+    19 §4.5): an icon, or a `text` element in a baked font, that is ringed
+    -- its own `outline:`, an `aod: {outline: ...}` of a text, or its share
+    of an outlined group's (``group_ringed``, the members' ids).  A text
+    whose `aod: {font: ...}` changes the font in the always-on frame keeps
+    the stamp: its ring font would be the wrong one there.  A pattern's
+    text parts keep the stamp too."""
+    aod = element.aod
+    ringed = (element.outline is not None or element.id in group_ringed
+              or (element.kind == "text" and aod is not None and aod.outline is not None))
+    if not ringed:
+        return None
+    if element.kind == "text" and aod is not None and aod.font is not None:
+        return None
+    for run in text_runs(element, face):
+        if run.part_index is not None or run.aod_only:
+            continue
+        if run.icon is not None:
+            return ring_font_name(run.font), run.font, frozenset(run.icon.glyphs)
+        if element.kind == "text" and not run.is_vector(face):
+            return ring_font_name(run.font), run.font, run.glyphs
+    return None
+
+
+def ring_fonts(face: "Face") -> dict[str, tuple[str, frozenset[str]]]:
+    """Every ring font the design needs: ring font -> (base font, the glyphs
+    ringed runs draw with it), glyphs merged across elements."""
+    from ..ir.rings import ring_groups
+
+    members = {leaf.id for ring in ring_groups(face.elements) for leaf in ring.members}
+    out: dict[str, tuple[str, frozenset[str]]] = {}
+    for element in face.walk():
+        found = ring_font(element, face, members)
+        if found is None:
+            continue
+        name, base, glyphs = found
+        _, seen = out.get(name, (base, frozenset()))
+        out[name] = (base, seen | glyphs)
+    return out
+
+
 def placed_font(placed: "Placed", run: TextRun) -> "ResolvedFont":
     """The `ResolvedFont` layout decided for `run` on this device: a
     pattern part's, or the element's own."""
@@ -216,10 +266,11 @@ class ElementKind(Generic[E, P]):
     #: `Renderer.render_element` rings the whole of what it draws.
     rings_itself: ClassVar[bool] = False
 
-    def ring_draws(self, element: E) -> int:
+    def ring_draws(self, element: E, face: "Face") -> int:
         """How many extra draws of the element its 1px ring costs: 4 for a
-        stamp (the default), 1 for a grown copy or a baked ring glyph.
-        The `partial-update-budget` lint reads it (research 19 §4.5)."""
+        stamp (the default), 1 for a grown copy or a baked ring font
+        (`ring_fonts`).  The `partial-update-budget` lint reads it
+        (research 19 §4.5)."""
         return 4
 
     def ring_refusal(self, element: E) -> str | None:

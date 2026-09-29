@@ -397,16 +397,22 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     through `WatchUi.loadResource`, in first-appearance draw order: an
     author's baked text fonts (a `text` element's, a `complication_slot`'s,
     a pattern `shape: text` part's) and the synthetic per-size icon fonts
-    (`wfb.icons.font_key`) alike.
+    (`wfb.icons.font_key`) alike, and each one's ring font
+    (`wfb.kinds.ring_fonts`) when ringed text or an icon draws with it.
 
     **A `face:` (vector) font is never in this list** (plan 11): it is not
     a resource at all, and `_vector_fonts_used` covers it instead.
     """
     face = resolved.face
-    return list(dict.fromkeys(
+    loaded = list(dict.fromkeys(
         run.font for _, run in kinds.placed_text_runs(resolved.items, face)
         if not run.aod_only and not run.is_vector(face)
     ))
+    # Each ring font (research 19) right after its base.
+    for ring, (base, _) in kinds.ring_fonts(face).items():
+        if base in loaded:
+            loaded.insert(loaded.index(base) + 1, ring)
+    return loaded
 
 
 def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:

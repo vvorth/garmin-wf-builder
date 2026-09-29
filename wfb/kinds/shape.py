@@ -23,6 +23,7 @@ from . import ElementKind
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..emit.monkeyc.readplan import ReadPlan
+    from ..ir.model import Face
     from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
@@ -237,7 +238,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
     antialiased = True
     ringed = True
 
-    def ring_draws(self, element: Shape) -> int:
+    def ring_draws(self, element: Shape, face: Face) -> int:
         # MIP partial updates never see an AOD `filled:` flip.
         return 1 if element.shape in _GROWN and element.filled else 4
 
@@ -487,7 +488,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 # One translated copy shifted in place between the four
                 # fills, not a fresh array per stamp (research 19 §4.5).
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                w.line(f"WfbGeom.ringTranslated(dc, Layout.{prefix}_POINTS, 0, 0);")
+                w.line(f"WfbRing.translated(dc, Layout.{prefix}_POINTS, 0, 0);")
                 if ring is None:
                     w.blank()
             else:

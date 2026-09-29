@@ -85,12 +85,12 @@ def emit_part_ring(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | Res
         w.line(f"dc.setPenWidth({thickness_expr});")
     if part.shape == "polygon":
         if radial:
-            w.line(f"WfbGeom.ringRotated(dc, {constant}_POINTS, cx, cy, sin, cos);")
+            w.line(f"WfbRing.rotated(dc, {constant}_POINTS, cx, cy, sin, cos);")
         else:
-            w.line(f"WfbGeom.ringTranslated(dc, {constant}_POINTS, ox, oy);")
+            w.line(f"WfbRing.translated(dc, {constant}_POINTS, ox, oy);")
     elif part.shape == "line":
         if radial:
-            w.call("WfbGeom.ringLineRotated", [
+            w.call("WfbRing.lineRotated", [
                 f"dc, {constant}_X1, {constant}_Y1",
                 f"{constant}_X2, {constant}_Y2, cx, cy, sin, cos",
             ])
@@ -108,7 +108,7 @@ def emit_part_ring(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | Res
         else:
             w.line(f"dc.fillCircle(ox + {constant}_X, oy + {constant}_Y, {constant}_RADIUS + 1);")
     elif radial:
-        w.call("WfbGeom.ringCircleRotated", [
+        w.call("WfbRing.circleRotated", [
             f"dc, {constant}_X, {constant}_Y, {constant}_RADIUS", "cx, cy, sin, cos",
         ])
     else:

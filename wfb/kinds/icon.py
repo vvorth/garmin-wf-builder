@@ -19,6 +19,7 @@ from ..emit.monkeyc.common import (
 from ..emit.monkeyc.shapes import emit_outline_loop, emit_plain_text_call
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
+from .text import baked_ring
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
@@ -53,6 +54,9 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
     ir_class = IconElement
     placed_class = PlacedIcon
     ringed = True
+
+    def ring_draws(self, element: IconElement, face: Face) -> int:
+        return 1 if baked_ring(element, face) is not None else 4
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         name = node.get("icon")
@@ -210,9 +214,10 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
         literal flags whether or not `align`/`vertical_align` are given.
 
-        `outline:` stamps the glyph exactly as a `text` ring does (research
-        19): an opening inside the icon wider than twice the ring gets a
-        ring of its own.
+        `outline:` draws the glyph once more in its baked ring font -- the
+        same glyph dilated by 1px (`wfb.fonts.bmfont.dilate`, research 19)
+        -- ahead of the glyph itself: an opening inside the icon wider than
+        2px keeps a ring of its own.
         """
         element = placed.element
         prefix = const_prefix(placed.id)
@@ -235,7 +240,17 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
                                  element.vertical_align)
 
         stamp = ring or own_ring(element, aod)
-        if stamp is not None:
+        baked = baked_ring(element, resolved.face) if stamp is not None else None
+        if stamp is not None and baked is not None:
+            # One `drawText` in the dilated glyphs (research 19).
+            w.line(f"var ringFont = _{font_field(baked)};")
+            with w.block("if (ringFont != null)"):
+                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                emit_plain_text_call(w, x, y, "ringFont", glyph_expr, justify,
+                                     element.vertical_align)
+            if ring is None:
+                w.blank()
+        elif stamp is not None:
             emit_outline_loop(w, RING_OFFSETS_CODE, stamp.color, x, y, glyph,
                               blank_after=ring is None)
         if ring is not None:

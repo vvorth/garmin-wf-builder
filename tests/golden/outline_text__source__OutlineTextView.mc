@@ -19,6 +19,7 @@ class OutlineTextView extends WatchUi.WatchFace {
     //! Bitmap fonts -- custom text and icon glyphs alike -- loaded once in
     //! onLayout rather than per frame.
     private var _fontClock as FontResource?;
+    private var _fontClockRingGlyphs as FontResource?;
 
     //! Device-resident scalable ('face:') fonts (plan 11) -- a Graphics.
     //! VectorFont handed back by Graphics.getVectorFont, not a loaded
@@ -33,6 +34,7 @@ class OutlineTextView extends WatchUi.WatchFace {
     //! Load resources once.  Loading is expensive and must not happen per frame.
     function onLayout(dc as Dc) as Void {
         _fontClock = WatchUi.loadResource(Rez.Fonts.FontClock) as FontResource;
+        _fontClockRingGlyphs = WatchUi.loadResource(Rez.Fonts.FontClockRingGlyphs) as FontResource;
 
         _fontBezel = Graphics.getVectorFont({:face => Layout.FONT_BEZEL_FACE, :size => Layout.FONT_BEZEL_SIZE});
     }
@@ -84,14 +86,12 @@ class OutlineTextView extends WatchUi.WatchFace {
             return;  // the font resource failed to load
         }
 
-        dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-        var offsets = Layout.OUTLINE_OFFSETS;
-        var i = 0;
-        while (i < offsets.size()) {
-            dc.drawText(Layout.CLOCK_X + offsets[i], Layout.CLOCK_Y + offsets[i + 1], font,
+        var ringFont = _fontClockRingGlyphs;
+        if (ringFont != null) {
+            dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, ringFont,
                         WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
                         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            i += 2;
         }
 
         dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
