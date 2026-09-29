@@ -2,8 +2,8 @@
 #
 # A profiling face for `outline:` (research 19): sixteen drawables on a 4x4
 # grid -- the three grown shapes, every stamped shape, text, an icon, a
-# pattern, two gauges, hands and a group -- in three layouts: no outline, a
-# 1px ring and a 2px ring.  Switch between them with the watch's style
+# pattern, two gauges, hands and a group -- in two layouts: no outline, and
+# a 1px ring.  Switch between them with the watch's style
 # setting (the native editor, or the generated settings menu on fr955).
 #
 # Build it instrumented, sideload it and read the numbers off the watch:
@@ -54,8 +54,7 @@ config:
     default: plain
     choices:
       plain: { label: "No outline", layout: plain }
-      ring1: { label: "1px outline", layout: ring1 }
-      ring2: { label: "2px outline", layout: ring2 }
+      ring: { label: "1px outline", layout: ring }
 
 static:
   background:
@@ -192,56 +191,56 @@ layouts:
         set: mini
         at: { anchor: center, dx: 27%, dy: 29% }
 
-  ring1:
+  ring:
     elements:
-      disc_ring1:
+      disc_ring:
         type: circle
         at: { anchor: center, dx: -27%, dy: -22% }
         radius: 6%r
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      card_ring1:
+      card_ring:
         type: rectangle
         at: { anchor: center, dx: -9%, dy: -22% }
         size: { width: 12%, height: 7% }
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      pill_ring1:
+      pill_ring:
         type: rectangle
         at: { anchor: center, dx: 9%, dy: -22% }
         size: { width: 12%, height: 7% }
         corner_radius: 4px
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      egg_ring1:
+      egg_ring:
         type: ellipse
         at: { anchor: center, dx: 27%, dy: -22% }
         size: { width: 13%, height: 8% }
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      hoop_ring1:
+      hoop_ring:
         type: circle
         at: { anchor: center, dx: -27%, dy: -5% }
         radius: 6%r
         thickness: 3px
         filled: false
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      frame_ring1:
+      frame_ring:
         type: rectangle
         at: { anchor: center, dx: -9%, dy: -5% }
         size: { width: 12%, height: 7% }
         thickness: 2px
         filled: false
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      arc_ring1:
+      arc_ring:
         type: arc
         at: { anchor: center, dx: 9%, dy: -5% }
         radius: 6%r
@@ -249,45 +248,45 @@ layouts:
         start_angle: 300deg
         sweep: 120deg
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      tri_ring1:
+      tri_ring:
         type: polygon
         points:
           - { anchor: center, dx: 21%, dy: -1% }
           - { anchor: center, dx: 27%, dy: -9% }
           - { anchor: center, dx: 33%, dy: -1% }
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      rule_ring1:
+      rule_ring:
         type: line
         at: { anchor: center, dx: -33%, dy: 12% }
         to: { anchor: center, dx: -21%, dy: 12% }
         thickness: 2px
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      digits_ring1:
+      digits_ring:
         type: text
         text: "12:34"
         font: FONT_XTINY
         at: { anchor: center, dx: -9%, dy: 12% }
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
         lint:
           allow: [text-outline-interior]
           reason: "a ringed, filled numeral: the interior is meant to show"
 
-      alarm_ring1:
+      alarm_ring:
         type: icon
         icon: alarm
         size: 12%r
         at: { anchor: center, dx: 9%, dy: 12% }
         color: color.fill
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      ticks_ring1:
+      ticks_ring:
         type: pattern
         pattern: radial
         at: { anchor: center, dx: 27%, dy: 12% }
@@ -296,9 +295,9 @@ layouts:
         color: color.fill
         parts:
           - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      battery_ring1:
+      battery_ring:
         type: gauge
         style: arc
         value: system.battery
@@ -310,9 +309,9 @@ layouts:
         sweep: 240deg
         color: color.fill
         track_color: color.track
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      steps_ring1:
+      steps_ring:
         type: gauge
         style: bar
         value: system.battery
@@ -321,165 +320,19 @@ layouts:
         size: { width: 13%, height: 3% }
         color: color.fill
         track_color: color.track
-        outline: { color: color.ring, width: 1 }
+        outline: color.ring
 
-      badge_ring1:
+      badge_ring:
         type: group
         at: { anchor: center, dx: 9%, dy: 29% }
         size: { width: 16%, height: 8% }
         children:
-          badge_ring1_icon: { type: icon, icon: heart, size: 8%r, at: { anchor: left }, align: left, color: color.fill }
-          badge_ring1_value: { type: text, text: "72", font: FONT_XTINY, at: { anchor: right }, align: right, color: color.fill }
-        outline: { color: color.ring, width: 1 }
+          badge_ring_icon: { type: icon, icon: heart, size: 8%r, at: { anchor: left }, align: left, color: color.fill }
+          badge_ring_value: { type: text, text: "72", font: FONT_XTINY, at: { anchor: right }, align: right, color: color.fill }
+        outline: color.ring
 
-      hands_ring1:
+      hands_ring:
         type: hands
         set: mini
         at: { anchor: center, dx: 27%, dy: 29% }
-        outline: { color: color.ring, width: 1 }
-
-  ring2:
-    elements:
-      disc_ring2:
-        type: circle
-        at: { anchor: center, dx: -27%, dy: -22% }
-        radius: 6%r
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      card_ring2:
-        type: rectangle
-        at: { anchor: center, dx: -9%, dy: -22% }
-        size: { width: 12%, height: 7% }
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      pill_ring2:
-        type: rectangle
-        at: { anchor: center, dx: 9%, dy: -22% }
-        size: { width: 12%, height: 7% }
-        corner_radius: 4px
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      egg_ring2:
-        type: ellipse
-        at: { anchor: center, dx: 27%, dy: -22% }
-        size: { width: 13%, height: 8% }
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      hoop_ring2:
-        type: circle
-        at: { anchor: center, dx: -27%, dy: -5% }
-        radius: 6%r
-        thickness: 3px
-        filled: false
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      frame_ring2:
-        type: rectangle
-        at: { anchor: center, dx: -9%, dy: -5% }
-        size: { width: 12%, height: 7% }
-        thickness: 2px
-        filled: false
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      arc_ring2:
-        type: arc
-        at: { anchor: center, dx: 9%, dy: -5% }
-        radius: 6%r
-        thickness: 3px
-        start_angle: 300deg
-        sweep: 120deg
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      tri_ring2:
-        type: polygon
-        points:
-          - { anchor: center, dx: 21%, dy: -1% }
-          - { anchor: center, dx: 27%, dy: -9% }
-          - { anchor: center, dx: 33%, dy: -1% }
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      rule_ring2:
-        type: line
-        at: { anchor: center, dx: -33%, dy: 12% }
-        to: { anchor: center, dx: -21%, dy: 12% }
-        thickness: 2px
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      digits_ring2:
-        type: text
-        text: "12:34"
-        font: FONT_XTINY
-        at: { anchor: center, dx: -9%, dy: 12% }
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-        lint:
-          allow: [text-outline-interior]
-          reason: "a ringed, filled numeral: the interior is meant to show"
-
-      alarm_ring2:
-        type: icon
-        icon: alarm
-        size: 12%r
-        at: { anchor: center, dx: 9%, dy: 12% }
-        color: color.fill
-        outline: { color: color.ring, width: 2 }
-
-      ticks_ring2:
-        type: pattern
-        pattern: radial
-        at: { anchor: center, dx: 27%, dy: 12% }
-        count: 8
-        step: 45deg
-        color: color.fill
-        parts:
-          - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
-        outline: { color: color.ring, width: 2 }
-
-      battery_ring2:
-        type: gauge
-        style: arc
-        value: system.battery
-        max: 100
-        at: { anchor: center, dx: -27%, dy: 29% }
-        radius: 6%r
-        thickness: 3px
-        start_angle: 240deg
-        sweep: 240deg
-        color: color.fill
-        track_color: color.track
-        outline: { color: color.ring, width: 2 }
-
-      steps_ring2:
-        type: gauge
-        style: bar
-        value: system.battery
-        max: 100
-        at: { anchor: center, dx: -9%, dy: 29% }
-        size: { width: 13%, height: 3% }
-        color: color.fill
-        track_color: color.track
-        outline: { color: color.ring, width: 2 }
-
-      badge_ring2:
-        type: group
-        at: { anchor: center, dx: 9%, dy: 29% }
-        size: { width: 16%, height: 8% }
-        children:
-          badge_ring2_icon: { type: icon, icon: heart, size: 8%r, at: { anchor: left }, align: left, color: color.fill }
-          badge_ring2_value: { type: text, text: "72", font: FONT_XTINY, at: { anchor: right }, align: right, color: color.fill }
-        outline: { color: color.ring, width: 2 }
-
-      hands_ring2:
-        type: hands
-        set: mini
-        at: { anchor: center, dx: 27%, dy: 29% }
-        outline: { color: color.ring, width: 2 }
+        outline: color.ring

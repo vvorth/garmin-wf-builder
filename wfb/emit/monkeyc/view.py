@@ -92,10 +92,10 @@ class StaticPlan:
                 else _method(placed.id))
 
 
-#: A `ring<Id>` method's own parameters (research 19): the offsets table,
-#: the width and the colour of the group pass it draws for.
-RING_PARAMETERS = ", ringOffsets as Array<Number>, ringWidth as Number, ringColor as Number"
-RING_PASS = RingPass("ringOffsets", "ringWidth", "ringColor")
+#: A `ring<Id>` method's own parameter (research 19): the colour of the
+#: group pass it draws for.
+RING_PARAMETERS = ", ringColor as Number"
+RING_PASS = RingPass("ringColor")
 
 
 @dataclass
@@ -126,10 +126,8 @@ class Rings:
         """One member's `ring<Id>(...)` call for ``ring``'s pass."""
         outline = ring.group.outline
         assert outline is not None
-        width = ring.width_of(member.id)
         color = self.aod.dimmed(ring.group, outline.color)
-        return (f"{element_ring_method(member.id)}(dc{plan.arguments(member)}, "
-                f"Layout.OUTLINE_OFFSETS_{width}, {width}, {color});")
+        return f"{element_ring_method(member.id)}(dc{plan.arguments(member)}, {color});"
 
     def emit_before(self, w: Writer, plan: "ReadPlan",
                     prelude: dict[str, list[tuple[RingGroup, list[Placed]]]], placed: Placed,
@@ -1438,7 +1436,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
     kind = kinds.for_placed(placed)
     if ring:
         w.doc(f"`{element.id}`'s share of an outlined group's ring: what `{_method(placed.id)}` "
-              "draws,\ndilated by `ringWidth` px in `ringColor`, and nothing else.")
+              "draws,\ndilated by 1px in `ringColor`, and nothing else.")
         signature = (f"private function {element_ring_method(placed.id)}"
                      f"(dc as Dc{plan.parameters(placed)}{RING_PARAMETERS}) as Void")
     else:

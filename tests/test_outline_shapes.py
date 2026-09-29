@@ -63,12 +63,12 @@ def test_a_filled_circle_grows_one_copy(write_design, tmp_path):
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: {color: color.ring, width: 3}
+    outline: color.ring
 """, write_design, tmp_path), "drawDisc")
-    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 3);" in body
+    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 1);" in body
     assert "OUTLINE_OFFSETS" not in body
     # the ring comes first, the interior over it
-    assert body.index("RADIUS + 3") < body.index("dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS);")
+    assert body.index("RADIUS + 1") < body.index("dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS);")
 
 
 def test_a_filled_rectangle_grows_into_a_rounded_one(write_design, tmp_path):
@@ -79,7 +79,7 @@ def test_a_filled_rectangle_grows_into_a_rounded_one(write_design, tmp_path):
     at: {anchor: center}
     size: {width: 40px, height: 20px}
     color: color.fg
-    outline: {color: color.ring, width: 1}
+    outline: color.ring
 """, write_design, tmp_path), "drawCard")
     assert re.search(r"dc\.fillRoundedRectangle\(Layout\.CARD_X - 1, Layout\.CARD_Y - 1,\s+"
                      r"Layout\.CARD_WIDTH \+ 2, Layout\.CARD_HEIGHT \+ 2,\s+1\);", body), body
@@ -96,7 +96,7 @@ def test_a_rounded_rectangle_grows_its_corner_radius_too(write_design, tmp_path)
     color: color.fg
     outline: color.ring
 """, write_design, tmp_path), "drawPill")
-    assert re.search(r"Layout\.PILL_WIDTH \+ 4, Layout\.PILL_HEIGHT \+ 4,\s+Layout\.PILL_CORNER \+ 2\);",
+    assert re.search(r"Layout\.PILL_WIDTH \+ 2, Layout\.PILL_HEIGHT \+ 2,\s+Layout\.PILL_CORNER \+ 1\);",
                      body), body
 
 
@@ -125,11 +125,11 @@ def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
   el:
     {shape}
     color: color.fg
-    outline: {{color: color.ring, width: 2}}
+    outline: color.ring
 """, write_design, tmp_path), "drawEl")
-    assert "var offsets = Layout.OUTLINE_OFFSETS_2;" in body
+    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
     assert call in body, body
-    assert "+ 2" not in body.split("while")[0]
+    assert "+ 1" not in body.split("while")[0]
 
 
 def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):
@@ -149,8 +149,8 @@ def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):
     files = generate_for_targets(path, tmp_path / "out").files()
     view = next(body for name, body in files.items() if name.endswith("View.mc"))
     body = _method(view, "drawDisc")
-    assert "var offsets = Layout.OUTLINE_OFFSETS_2;" in body
-    assert "RADIUS + 2" not in body
+    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
+    assert "RADIUS + 1" not in body
 
 
 def test_no_outline_emits_exactly_the_plain_draw(write_design, tmp_path):
@@ -175,9 +175,9 @@ def test_an_icon_stamps_its_glyph(write_design, tmp_path):
     size: 20%r
     at: {anchor: center}
     color: color.fg
-    outline: {color: color.ring, width: 1}
+    outline: color.ring
 """, write_design, tmp_path), "drawAlarm")
-    assert "var offsets = Layout.OUTLINE_OFFSETS_1;" in body
+    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
     assert "dc.drawText(Layout.ALARM_CX + offsets[i], Layout.ALARM_CY + offsets[i + 1], font," in body
     assert body.index("Palette.RING") < body.index("Palette.FG")
 
@@ -185,17 +185,17 @@ def test_an_icon_stamps_its_glyph(write_design, tmp_path):
 # -- the IR and layout -----------------------------------------------------------
 
 
-def test_the_width_cap_applies_to_every_kind(write_design):
+def test_the_removed_object_form_is_refused_on_every_kind(write_design):
     errors = load_errors(_PALETTE + """
   disc:
     type: circle
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: {color: color.ring, width: 4}
+    outline: {color: color.ring, width: 2}
 """, write_design)
     assert [e.code for e in errors] == ["outline"], errors
-    assert errors[0].message.startswith("disc: ")
+    assert errors[0].message.startswith("elements.disc.outline: ")
 
 
 def test_the_ring_grows_the_box_but_not_what_is_drawn(write_design, bag, db):
@@ -209,12 +209,12 @@ def test_the_ring_grows_the_box_but_not_what_is_drawn(write_design, bag, db):
     color: color.fg
 """
     _, before = resolve_text(_PALETTE + plain, write_design, bag, db)
-    _, after = resolve_text(_PALETTE + plain + "    outline: {color: color.ring, width: 3}\n",
+    _, after = resolve_text(_PALETTE + plain + "    outline: color.ring\n",
                             write_design, bag, db)
     old, new = find(before, "card"), find(after, "card")
-    assert new.box == old.box.inflate(3)
+    assert new.box == old.box.inflate(1)
     assert new.inner_box == old.box
-    assert new.ring_grow == 3
+    assert new.ring_grow == 1
 
 
 def test_a_circles_round_extent_grows_with_its_ring(write_design, bag, db):
@@ -230,7 +230,7 @@ def test_a_circles_round_extent_grows_with_its_ring(write_design, bag, db):
     _, before = resolve_text(_PALETTE + text, write_design, bag, db)
     _, after = resolve_text(_PALETTE + text + "    outline: color.ring\n", write_design, bag, db)
     (_, _, r0), (_, _, r1) = circular_extent(find(before, "disc")), circular_extent(find(after, "disc"))
-    assert r1 == r0 + 2
+    assert r1 == r0 + 1
 
 
 def test_a_shape_ring_is_linted_for_contrast_against_its_fill(write_design, db):
@@ -263,7 +263,7 @@ def test_the_preview_rings_a_disc(write_design, bag, db):
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: {color: color.ring, width: 2}
+    outline: color.ring
 """, write_design, bag, db)
     cx, cy = find(resolved, "disc").center
     assert image.getpixel((cx, cy)) == FG
@@ -283,7 +283,7 @@ def test_the_preview_rings_the_inside_of_an_opening_too(write_design, bag, db):
     thickness: 4px
     filled: false
     color: color.fg
-    outline: {color: color.ring, width: 2}
+    outline: color.ring
 """, write_design, bag, db)
     cx, cy = find(resolved, "hoop").center
     column = [image.getpixel((cx, cy - dy)) for dy in range(0, 40)]

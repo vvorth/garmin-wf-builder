@@ -144,9 +144,7 @@ elements:
     aod:
       text: "{time.clock:%H %M}"
       color: color.black
-      outline:
-        width: 2
-        color: color.dim
+      outline: color.dim
 
       # font: FONT_NUMBER_MILD
 

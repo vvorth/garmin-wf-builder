@@ -26,7 +26,8 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr, mc_float, own_ring,
+    NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr,
+    mc_float, own_ring,
 )
 from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
 from ..emit.writer import Writer
@@ -405,7 +406,7 @@ def _pattern_text(renderer: Renderer, placed: PlacedPattern, part: ResolvedTextP
         def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
             renderer.draw_text(font, text, at, part.align, part.vertical_align,
                                part.font.metric, fill)
-    renderer.draw_outlined(draw, anchor, color, ring_color, part.outline_width)
+    renderer.draw_outlined(draw, anchor, color, ring_color)
 
 
 def _pattern_needs_math(placed: PlacedPattern) -> bool:
@@ -586,7 +587,7 @@ def _emit_pattern_text_draw(
             # declares its own `var i`, and several outlined text parts can
             # share this one generated method (`emit_outline_loop`).
             emit_outline_loop(
-                w, f"Layout.OUTLINE_OFFSETS_{part.outline_width}",
+                w, RING_OFFSETS_CODE,
                 aod.dimmed(element, part.outline_color), x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
@@ -942,8 +943,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             if element.outline is not None:
                 # Each copy ringed whole, just before it -- `emit_draw`'s order.
                 renderer.stamp_ring(renderer.silhouette(draw_copy),
-                                    renderer.aod_dimmed(element, element.outline.color),
-                                    element.outline.width)
+                                    renderer.aod_dimmed(element, element.outline.color))
             draw_copy()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
@@ -1108,7 +1108,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                     w.line(f"{names[1]} = {origin[1]} + {dy};")
                     parts(colored=False)
 
-                shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted,
+                shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, shifted,
                                        index_var="ringI", offsets_var="ringStamp",
                                        blank_after=False)
                 w.line(f"{names[0]} = {origin[0]};")

@@ -9,7 +9,7 @@ from typing import Iterable
 
 from ... import __version__, kinds
 from ...availability import Guards
-from ...ir import ComplicationSlot, Element, Expression, Face, aod_color_choice, config_data_ids, \
+from ...ir import ComplicationSlot, Element, Expression, Face, OUTLINE_WIDTH, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name
 from ...layout import Placed, PlacedText, ResolvedFace
 from ...palette import Color
@@ -339,19 +339,19 @@ NO_AOD = AodStyle()
 class RingPass:
     """One `outline:` ring for a kind's `emit_draw` to paint instead of its
     interior (research 19): the element's own silhouette dilated by
-    ``width`` px, in ``color``.  Every field is Monkey C: literals and
-    `Layout` constants for an element's own ring, a `ring<Id>` method's
-    parameters for a group's.
+    `wfb.ir.OUTLINE_WIDTH` px, in ``color`` -- Monkey C: an element's own
+    ring colour, or a `ring<Id>` method's `ringColor` for a group's pass.
+    A stamping kind loops over `Layout.OUTLINE_OFFSETS`
+    (:data:`RING_OFFSETS_CODE`)."""
 
-    ``offsets`` is the `disc-perimeter` table for ``width``
-    (`Layout.OUTLINE_OFFSETS_<W>`) that a stamped kind loops over; a kind
-    that grows its primitive instead (a filled circle or rectangle) reads
-    ``width`` and ignores it.
-    """
-
-    offsets: str
-    width: str
     color: str
+
+
+#: The stamp's offsets table (`wfb.emit.monkeyc.layout_constants`).
+RING_OFFSETS_CODE = "Layout.OUTLINE_OFFSETS"
+
+#: `wfb.ir.OUTLINE_WIDTH` as a Monkey C literal, for a grown copy.
+RING_WIDTH_CODE = str(OUTLINE_WIDTH)
 
 
 def own_ring(element: Element, aod: AodStyle = NO_AOD) -> RingPass | None:
@@ -362,8 +362,7 @@ def own_ring(element: Element, aod: AodStyle = NO_AOD) -> RingPass | None:
     outline = element.outline
     if outline is None:
         return None
-    return RingPass(f"Layout.OUTLINE_OFFSETS_{outline.width}", str(outline.width),
-                    aod.dimmed(element, outline.color))
+    return RingPass(aod.dimmed(element, outline.color))
 
 
 def plus(expr: str, amount: str, times: int = 1) -> str:

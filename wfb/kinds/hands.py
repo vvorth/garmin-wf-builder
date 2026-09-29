@@ -16,7 +16,9 @@ from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, and_list, const_prefix, own_ring
+from ..emit.monkeyc.common import (
+    NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, and_list, const_prefix, own_ring,
+)
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -122,7 +124,7 @@ def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str
             w.line(f"cy = Layout.{prefix}_CY + {dy};")
             parts(colored=False)
 
-        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted,
+        shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, shifted,
                                declare=not stamp_declared, blank_after=False)
         w.line(f"cx = Layout.{prefix}_CX;")
         w.line(f"cy = Layout.{prefix}_CY;")
@@ -281,8 +283,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
                 # Each hand ringed whole, over the hand beneath it -- the
                 # generated `_emit_one_hand`'s own order.
                 renderer.stamp_ring(renderer.silhouette(draw_hand),
-                                    renderer.aod_dimmed(element, element.outline.color),
-                                    element.outline.width)
+                                    renderer.aod_dimmed(element, element.outline.color))
             draw_hand()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,

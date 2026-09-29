@@ -31,13 +31,10 @@ module Layout {
     const FONT_BEZEL_FACE as String = "RobotoCondensedBold";  // requested, in author order: RobotoCondensedBold, RobotoCondensedRegular
     const FONT_BEZEL_SIZE as Number = 8;
 
-    //! 'outline:' stamp offsets (plan 15): the disc-perimeter table for
-    //! each ring width this design actually uses, shared by every element
-    //! drawing with that width -- the array the generated stamp loop
+    //! 'outline:' stamp offsets: the four points 1px away, shared by every
+    //! element that stamps its ring -- the array the generated stamp loop
     //! iterates over, index i/i+1 per (dx, dy) pair.
-    const OUTLINE_OFFSETS_2 as Array<Number> = [-2, 0, -1, -1, -1, 1, 0, -2, 0, 2, 1, -1, 1, 1, 2, 0];  // 8 disc-perimeter points, 2px ring (plan 15, docs/research/14-stamped-ring-text.md §1)
-    const OUTLINE_OFFSETS_1 as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0];  // 4 disc-perimeter points, 1px ring (plan 15, docs/research/14-stamped-ring-text.md §1)
-    const OUTLINE_OFFSETS_3 as Array<Number> = [-3, 0, -2, -2, -2, -1, -2, 1, -2, 2, -1, -2, -1, 2, 0, -3, 0, 3, 1, -2, 1, 2, 2, -2, 2, -1, 2, 1, 2, 2, 3, 0];  // 16 disc-perimeter points, 3px ring (plan 15, docs/research/14-stamped-ring-text.md §1)
+    const OUTLINE_OFFSETS as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0];  // the 1px ring's stamp offsets (research 19)
 
     //! `background` -- a rectangle
     const BACKGROUND_X as Number = 0;

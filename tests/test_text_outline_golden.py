@@ -55,21 +55,12 @@ def test_generated_file_matches_golden(pytestconfig, generated, name):
 # -- properties the golden files should never silently lose ------------------
 
 
-def test_offset_constants_are_emitted_once_per_distinct_width(generated):
-    """The fixture uses three distinct `outline.width`s (2, default-2, 1,
-    3) -- 1, 2 and 3 -- so `Layout.mc` must carry exactly one
-    `OUTLINE_OFFSETS_<W>` array per distinct width, not one per element
-    (dedup, plan 15 §8)."""
+def test_one_offsets_table_serves_every_ring(generated):
+    """Every ring is 1px, so `Layout.mc` carries one `OUTLINE_OFFSETS`
+    array -- the four points 1px away -- however many elements stamp."""
     layout = generated.files()["source-fenix8solar47mm/Layout.mc"]
-    assert layout.count("OUTLINE_OFFSETS_1 as Array<Number>") == 1
-    assert layout.count("OUTLINE_OFFSETS_2 as Array<Number>") == 1
-    assert layout.count("OUTLINE_OFFSETS_3 as Array<Number>") == 1
-    # 4/8/16 points -- research 14 §1's own measured table -- each point a
-    # (dx, dy) pair, so 8/16/32 numbers.
-    for width, count in ((1, 4), (2, 8), (3, 16)):
-        line = next(l for l in layout.splitlines() if f"OUTLINE_OFFSETS_{width} as" in l)
-        numbers = line.split("[", 1)[1].split("]", 1)[0]
-        assert len([n for n in numbers.split(",") if n.strip()]) == count * 2
+    assert layout.count("OUTLINE_OFFSETS as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0];") == 1
+    assert "OUTLINE_OFFSETS_" not in layout
 
 
 def test_stamp_loop_appears_ahead_of_every_interior_draw(generated):

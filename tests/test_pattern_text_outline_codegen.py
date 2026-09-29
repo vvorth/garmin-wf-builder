@@ -98,7 +98,7 @@ def _radial_ring(element_id: str, outline: str = "") -> str:
 
 
 _OUTLINE = """
-        outline: {color: color.fg, width: 3}"""
+        outline: color.fg"""
 
 
 # -- layout: box growth -------------------------------------------------------
@@ -190,7 +190,7 @@ def test_off_screen_catches_a_pattern_box_that_only_overflows_once_ringed(write_
         font: font.bezel
         color: color.fg
         align: top_left
-        outline: {color: color.fg, width: 3}
+        outline: color.fg
 """
     )
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
@@ -259,13 +259,13 @@ def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, 
         font: font.bezel
         color: color.fg
         at: {{dy: -30%r}}
-        outline: {{color: color.fg, width: 1}}
+        outline: color.fg
       - type: text
         text: "B"
         font: font.bezel
         color: color.fg
         at: {{dy: 30%r}}
-        outline: {{color: color.fg, width: 2}}
+        outline: color.fg
 """
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     device = db.get("fenix8solar47mm")
@@ -308,28 +308,6 @@ def test_pattern_outline_vector_gate_wraps_loop_and_interior_together(write_desi
     method = view.split("private function drawRing")[1]
     method = method.split("\n\n    //!")[0]
     assert method.count("if (font0 != null) {") == 1
-
-
-def test_pattern_outline_offset_width_dedups_with_a_standalone_elements_own(write_design, bag, db):
-    """`OUTLINE_OFFSETS_<W>` is emitted once per distinct width used
-    ANYWHERE in the design -- a pattern part reusing a width a standalone
-    `text` element already uses must not emit a second, duplicate
-    constant (plan 15 §8/§14 slice 2: "dedup already covers it")."""
-    elements = (
-        """  clock:
-    type: text
-    text: "12:34"
-    font: font.bezel
-    color: color.fg
-    at: {anchor: center, dy: -60%r}
-    outline: {color: color.fg, width: 3}
-"""
-        + _upright_ring("ring", _OUTLINE)
-    )
-    face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
-    device = db.get("fenix8solar47mm")
-    layout = emit_layout(resolve(face, device, {})).text
-    assert layout.count("OUTLINE_OFFSETS_3 as Array<Number>") == 1
 
 
 # -- the shared golden fixture (extends tests/fixtures/outline_text) --------

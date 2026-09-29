@@ -11,10 +11,8 @@
 #
 # * **The canonical hollow idiom** (`clock`): `color:` repeats the
 #   background's own `color.bg`, so the interior reads as empty and
-#   `outline:`'s ring colour is the only visible ink -- the object form,
-#   `{color, width}`.
-# * **The shorthand spelling** (`today`): `outline: color.ring` alone,
-#   `width: 2` implied -- the same hollow idiom, written the short way.
+#   `outline:`'s ring colour is the only visible ink.
+# * **The same idiom again** (`today`), in a smaller font.
 # * **A solid-interior ring** (`label`): the interior is a real, visible
 #   fill (`color.slate`, not the background), so this is NOT the hollow
 #   idiom -- both the ring and the interior read as ink.  Because it still
@@ -110,7 +108,7 @@ elements:
     font: font.clock
     at: { anchor: center, dy: -6% }
     color: color.bg
-    outline: { color: color.ring, width: 2 }
+    outline: color.ring
   today:
     type: text
     text: "{date.today:%a %e}"
@@ -128,7 +126,7 @@ elements:
     font: font.label
     at: { anchor: center, dy: 26% }
     color: color.slate
-    outline: { color: color.white, width: 2 }
+    outline: color.white
     lint:
       allow: [text-outline-interior]
       reason: "Deliberately not the hollow idiom -- palette.slate is a real,
@@ -146,7 +144,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center, dx: 34%r, dy: -50%r }
-    outline: { color: color.white, width: 1 }
+    outline: color.white
     curve:
       style: angled
       angle: 35deg
@@ -158,7 +156,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center }
-    outline: { color: color.cyan, width: 2 }
+    outline: color.cyan
     curve:
       style: radial
       angle: 165deg
@@ -183,7 +181,7 @@ elements:
         font: font.bezel
         color: color.bg
         at: { dy: -80%r }
-        outline: { color: color.ring, width: 2 }
+        outline: color.ring
 
   # A pattern `type: text` part with outline: AND curve: -- the per-copy
   # rotation composes with the ring exactly as it already composes with
@@ -200,7 +198,7 @@ elements:
         text: "{copy + 1}"
         font: font.bezel
         color: color.bg
-        outline: { color: color.white, width: 1 }
+        outline: color.white
         curve:
           style: radial
           angle: 0deg

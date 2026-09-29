@@ -85,7 +85,7 @@ class OutlineTextView extends WatchUi.WatchFace {
         }
 
         dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-        var offsets = Layout.OUTLINE_OFFSETS_2;
+        var offsets = Layout.OUTLINE_OFFSETS;
         var i = 0;
         while (i < offsets.size()) {
             dc.drawText(Layout.CLOCK_X + offsets[i], Layout.CLOCK_Y + offsets[i + 1], font,
@@ -106,7 +106,7 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS_2;
+            var offsets = Layout.OUTLINE_OFFSETS;
             var i = 0;
             while (i < offsets.size()) {
                 dc.drawText(Layout.UPRIGHT_VECTOR_X + offsets[i], Layout.UPRIGHT_VECTOR_Y + offsets[i + 1], font,
@@ -128,7 +128,7 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS_1;
+            var offsets = Layout.OUTLINE_OFFSETS;
             var i = 0;
             while (i < offsets.size()) {
                 dc.drawAngledText(Layout.BRAND_X + offsets[i], Layout.BRAND_Y + offsets[i + 1], font, "GARMIN",
@@ -148,7 +148,7 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS_3;
+            var offsets = Layout.OUTLINE_OFFSETS;
             var i = 0;
             while (i < offsets.size()) {
                 dc.drawRadialText(Layout.BEZEL_TEXT_X + offsets[i], Layout.BEZEL_TEXT_Y + offsets[i + 1], font, "BEZEL",
@@ -178,7 +178,7 @@ class OutlineTextView extends WatchUi.WatchFace {
             var cos = Math.cos(angle);
             if (font0 != null) {
                 dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-                var outlineOffsetsDIAL_NUMBERS_0 = Layout.OUTLINE_OFFSETS_2;
+                var outlineOffsetsDIAL_NUMBERS_0 = Layout.OUTLINE_OFFSETS;
                 var outlineIDIAL_NUMBERS_0 = 0;
                 while (outlineIDIAL_NUMBERS_0 < outlineOffsetsDIAL_NUMBERS_0.size()) {
                     dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + outlineOffsetsDIAL_NUMBERS_0[outlineIDIAL_NUMBERS_0],
@@ -209,7 +209,7 @@ class OutlineTextView extends WatchUi.WatchFace {
             var cos = Math.cos(angle);
             if (font0 != null) {
                 dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-                var outlineOffsetsDIAL_RING_0 = Layout.OUTLINE_OFFSETS_1;
+                var outlineOffsetsDIAL_RING_0 = Layout.OUTLINE_OFFSETS;
                 var outlineIDIAL_RING_0 = 0;
                 while (outlineIDIAL_RING_0 < outlineOffsetsDIAL_RING_0.size()) {
                     dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos) + outlineOffsetsDIAL_RING_0[outlineIDIAL_RING_0],

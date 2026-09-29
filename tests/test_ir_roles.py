@@ -55,7 +55,7 @@ elements:
     text: "{system.battery:.0f}"
     absent: {value: 0}
     color: color.fg
-    outline: {color: color.bg, width: 2}
+    outline: color.bg
     visible: "system.battery > 50"
     at: {anchor: center}
     aod:
@@ -210,7 +210,7 @@ elements:
         text: "{copy:.0f}"
         font: FONT_MEDIUM
         color: color.bg
-        outline: {color: color.fg, width: 2}
+        outline: color.fg
         visible: "copy == 0"
       - type: circle
         radius: 5px

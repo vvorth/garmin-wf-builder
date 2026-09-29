@@ -10,7 +10,7 @@ from ...diagnostics import Span
 
 from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE, Position
 from ..naming import element_const_prefix, element_method_name
-from ..rings import ring_groups
+from ..rings import ring_groups, ringed_below
 from .state import _lint_suppression
 from .static import StaticPass
 
@@ -102,7 +102,7 @@ class ElementTree(StaticPass):
                 # `text` builds its own ring, alongside `curve:`; the schema
                 # decides which other kinds accept one (research 19).
                 element.outline = cast("Builder", self).build_outline(
-                    node, "outline", element_id, element=element)
+                    node, "outline", element=element)
             refusal = kinds.get(element.kind).ring_refusal(element)
             if element.outline is not None and refusal is not None:
                 self.bag.error("outline", f"{element_id}: 'outline:' {refusal}",
@@ -120,6 +120,8 @@ class ElementTree(StaticPass):
           `ring<Id>` method.
         - `outline.color` reads no data source: the ring is drawn from the
           frame methods, which read only what the members themselves bind.
+        - No member rings itself, and no outlined group nests inside it:
+          every ring is 1px (`wfb.ir.rings`).
 
         A group is never partly static: `static:` is a block, and its root
         is always a whole subtree (`_apply_static`), so every member of an
@@ -129,7 +131,18 @@ class ElementTree(StaticPass):
             group = ring.group
             assert group.outline is not None
             span = group.span
-            for leaf, _ in ring.members:
+            for inner in ringed_below(group):
+                self.bag.error(
+                    "outline",
+                    f"{group.id}: {inner.id!r} has an 'outline:' of its own inside an "
+                    "outlined group",
+                    inner.span or span,
+                    notes=["the group's ring goes round every member already; a ring of "
+                           "the member's own would put the group's 2px out, and every "
+                           "ring is 1px",
+                           f"drop {inner.id!r}'s 'outline:' or the group's"],
+                )
+            for leaf in ring.members:
                 refusal = kinds.get(leaf.kind).ring_refusal(leaf)
                 if refusal is not None and kinds.get(leaf.kind).ringed:
                     self.bag.error(

@@ -9,6 +9,8 @@ preview are covered separately (`tests/test_text_outline_layout.py`,
 
 from __future__ import annotations
 
+import pytest
+
 from wfb.build import load
 
 
@@ -57,90 +59,39 @@ def test_outline_omitted_key_is_also_none(write_design, bag, minimal):
     assert clock.outline is None
 
 
-def test_outline_shorthand_colour_defaults_width_2(write_design, bag, minimal):
-    """The bare-colour shorthand (D7) is 'width: 2' with that colour --
-    checked against the actual resolved width, not just "it parsed", since
-    an implementation that accepted the shorthand but defaulted to some
-    other width would still pass a weaker "no error" test."""
+def test_outline_is_a_colour_and_nothing_else(write_design, bag, minimal):
+    """Every ring is 1px (research 19 §4.5): the colour is all an
+    `Outline` carries."""
     face = load(write_design(_design(minimal, _outline_text("color.fg"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
-    assert clock.outline.width == 2
     assert clock.outline.color.shown == "color.fg"
-
-
-def test_outline_object_form_with_explicit_width(write_design, bag, minimal):
-    face = load(write_design(_design(
-        minimal, _outline_text("{color: color.fg, width: 3}"))), bag)
-    assert face is not None, bag.render()
-    clock = next(e for e in face.elements if e.id == "clock")
-    assert clock.outline is not None
-    assert clock.outline.width == 3
-
-
-def test_outline_object_form_defaults_width_2(write_design, bag, minimal):
-    face = load(write_design(_design(
-        minimal, _outline_text("{color: color.fg}"))), bag)
-    assert face is not None, bag.render()
-    clock = next(e for e in face.elements if e.id == "clock")
-    assert clock.outline is not None
-    assert clock.outline.width == 2
+    assert not hasattr(clock.outline, "width")
 
 
 def test_outline_hex_literal_shorthand(write_design, bag, minimal):
-    """A bare hex literal is also legal shorthand -- `colorExpression`
-    covers both a palette reference and a literal colour."""
+    """A bare hex literal is legal too -- `colorExpression` covers both a
+    palette reference and a literal colour."""
     face = load(write_design(_design(minimal, _outline_text('"#FF0000"'))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
 
 
-# -- missing 'color:' in object form is a schema error -----------------------
+# -- the removed {color, width} form -------------------------------------------
 
 
-def test_outline_object_form_without_color_is_a_schema_error(write_design, bag, minimal):
-    face = load(write_design(_design(minimal, _outline_text("{width: 2}"))), bag)
+@pytest.mark.parametrize("spelling", ["{color: color.fg, width: 2}", "{color: color.fg}",
+                                      "{width: 1, color: color.fg}"])
+def test_the_removed_object_form_names_its_replacement(write_design, bag, minimal, spelling):
+    """One friendly error naming the colour spelling -- never the schema's
+    generic oneOf failure."""
+    face = load(write_design(_design(minimal, _outline_text(spelling))), bag)
     assert face is None
-    assert not bag.ok()
-
-
-def test_outline_object_form_with_width_zero_is_a_schema_error(write_design, bag, minimal):
-    """`width:` has a schema `minimum: 1` -- 0 is rejected before the
-    builder's own cap ever runs."""
-    face = load(write_design(_design(
-        minimal, _outline_text("{color: color.fg, width: 0}"))), bag)
-    assert face is None
-    assert not bag.ok()
-
-
-# -- width cap (D6): red-then-green -------------------------------------------
-
-
-def test_outline_width_over_cap_is_a_build_error(write_design, bag, minimal):
-    """`width: 4` is schema-legal (no `maximum:` in the schema, D6) but a
-    build error, citing the measured evidence, not jsonschema's generic
-    message -- the red half of red-then-green."""
-    face = load(write_design(_design(
-        minimal, _outline_text("{color: color.fg, width: 4}"))), bag)
-    assert face is None
-    assert not bag.ok()
-    diag = next(d for d in bag.errors if d.code == "outline")
-    assert "3" in diag.message or "3px" in " ".join(diag.notes)
-
-
-def test_outline_width_at_cap_builds_clean(write_design, bag, minimal):
-    """`width: 3` -- the cap itself -- is accepted: the green half of the
-    same contrast the previous test drives red.  Without this test, a
-    builder that rejected everything above `width: 1` would still pass the
-    red half alone."""
-    face = load(write_design(_design(
-        minimal, _outline_text("{color: color.fg, width: 3}"))), bag)
-    assert face is not None, bag.render()
-    clock = next(e for e in face.elements if e.id == "clock")
-    assert clock.outline is not None
-    assert clock.outline.width == 3
+    assert [d.code for d in bag.errors] == ["outline"], bag.render()
+    assert "a ring is always 1px" in bag.errors[0].message
+    assert "outline: color.fg" in " ".join(bag.errors[0].notes)
 
 
 # -- outline.color has full parity with color: (D8) --------------------------

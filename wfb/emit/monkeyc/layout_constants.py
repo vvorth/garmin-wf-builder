@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ... import kinds
 from ...availability import Guards, vector_font_face
-from ...ir import disc_perimeter_offsets
+from ...ir import RING_OFFSETS
 from ...ir.rings import ring_groups
 from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
@@ -76,66 +76,37 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     return out
 
 
-def _outline_widths_used(resolved: ResolvedFace, aod_on: bool = False) -> list[int]:
-    """Every distinct `outline.width` a `text` element or a pattern's own
-    `shape: text` part (plan 15 §14 slice 2) actually draws with in this
-    design, in first-appearance draw order -- the same "only what's
-    actually used generates code" rule `_vector_fonts_used`/`_loaded_fonts`
-    already follow (`wfb.emit.monkeyc.common`). `getattr(..., "outline",
-    None)` rather than `isinstance(placed, PlacedText)` so a standalone
-    element needs no special-casing; a `PatternElement`'s own `parts`
-    (`getattr(..., "parts", None)`, true only for a pattern -- neither
-    `Text` nor `HandsElement` has one) are walked too, since `outline:`
-    lives per-part there, not on the element itself.
-
-    With ``aod_on`` (this build emits AOD code, `Guards.amoled_target`), a
-    `text` element's own `aod: {outline: ...}` ring counts too; without it
-    that ring is never drawn, so its width generates nothing.
-
-    An outlined group's pass dilates each member by a total width
-    (`wfb.ir.rings`), which counts too; the group's own width counts only
-    through those totals.
-    """
-    out: list[int] = []
-    for ring in ring_groups(resolved.face.elements):
-        for _, width in ring.members:
-            if width not in out:
-                out.append(width)
+def _draws_rings(resolved: ResolvedFace, aod_on: bool = False) -> bool:
+    """Does anything in this design draw an `outline:` ring -- an element's,
+    a pattern text part's, an outlined group's, or (with ``aod_on``, this
+    build emitting AOD code) a `text` element's `aod: {outline: ...}` --
+    so the view may read `OUTLINE_OFFSETS`?  Only what is used generates
+    code, the same rule `_vector_fonts_used`/`_loaded_fonts` follow."""
+    if ring_groups(resolved.face.elements):
+        return True
     for placed in resolved.items:
-        if placed.kind == "group":
-            continue
-        outline = getattr(placed.element, "outline", None)
-        if outline is not None and outline.width not in out:
-            out.append(outline.width)
+        if placed.element.outline is not None:
+            return True
         aod = placed.element.aod
-        if aod_on and aod is not None and aod.outline is not None and aod.outline.width not in out:
-            out.append(aod.outline.width)
-        for part in getattr(placed.element, "parts", None) or ():
-            part_outline = getattr(part, "outline", None)
-            if part_outline is not None and part_outline.width not in out:
-                out.append(part_outline.width)
-    return out
+        if aod_on and aod is not None and aod.outline is not None:
+            return True
+        if any(getattr(part, "outline", None) is not None
+               for part in getattr(placed.element, "parts", None) or ()):
+            return True
+    return False
 
 
-def _outline_offsets_constants(width: int) -> Constants:
-    """`OUTLINE_OFFSETS_<W>` -- the flat `Array<Number>` (`[dx0, dy0, dx1,
-    dy1, ...]`) the stamp loop iterates over (plan 15 §8), one per distinct
-    ring width actually used anywhere in the design, deduplicated the same
-    way a `face:` font's `_FACE`/`_SIZE` constants are emitted once per
-    font name rather than once per element. The `_POINTS` precedent (a
-    polygon's own vertex array, above) is the reason this is an
-    `Array<Graphics.Point2D>`-shaped exception rather than a plain
-    `Number`: `Dc.drawText`'s own `(x, y)` are two separate `Number`
-    arguments, not a `Point2D`, so a flat `Array<Number>` (index `i`/`i+1`
-    per stamp) is what the call site actually wants, not a tuple array.
-    """
-    offsets = disc_perimeter_offsets(width)
-    flat = ", ".join(str(v) for pair in offsets for v in pair)
+def _outline_offsets_constants() -> Constants:
+    """`OUTLINE_OFFSETS` -- the flat `Array<Number>` (`[dx0, dy0, dx1, dy1,
+    ...]`) the stamp loop iterates over: `wfb.ir.RING_OFFSETS`, the four
+    points one pixel away.  Flat rather than `Array<Graphics.Point2D>`
+    because `Dc.drawText`'s own `(x, y)` are two separate `Number`
+    arguments."""
+    flat = ", ".join(str(v) for pair in RING_OFFSETS for v in pair)
     return [(
-        f"OUTLINE_OFFSETS_{width}",
+        "OUTLINE_OFFSETS",
         McLiteral("Array<Number>", f"[{flat}]"),
-        f"{len(offsets)} disc-perimeter points, {width}px ring (plan 15, "
-        "docs/research/14-stamped-ring-text.md §1)",
+        "the 1px ring's stamp offsets (research 19)",
     )]
 
 
@@ -202,17 +173,14 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 w.blank()
                 w.doc(f"`font.{name}`")
                 _emit_constants(w, _vector_font_constants(resolved, name, guards))
-        outline_widths = _outline_widths_used(resolved, guards.amoled_target)
-        if outline_widths:
+        if _draws_rings(resolved, guards.amoled_target):
             w.blank()
             w.doc(
-                "'outline:' stamp offsets (plan 15): the disc-perimeter table for\n"
-                "each ring width this design actually uses, shared by every element\n"
-                "drawing with that width -- the array the generated stamp loop\n"
+                "'outline:' stamp offsets: the four points 1px away, shared by every\n"
+                "element that stamps its ring -- the array the generated stamp loop\n"
                 "iterates over, index i/i+1 per (dx, dy) pair."
             )
-            for width in outline_widths:
-                _emit_constants(w, _outline_offsets_constants(width))
+            _emit_constants(w, _outline_offsets_constants())
         for placed, constants in per_item:
             if not constants:
                 continue

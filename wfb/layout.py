@@ -24,7 +24,7 @@ from .fonts import BakedFont, fallback
 from .ir import (
     ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
     AnyHandPart, HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
-    Text, TextPart, draw_sort_key,
+    OUTLINE_WIDTH, Text, TextPart, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
 
@@ -1280,12 +1280,12 @@ class Resolver:
                         Placed(element, box.rounded(min_1px=element.resolved_min_1px),
                                (round(box.center_x), round(box.center_y)), depth)
                     )
-                    inner = ring + (element.outline.width if element.outline is not None else 0)
+                    inner = ring + (OUTLINE_WIDTH if element.outline is not None else 0)
                     self._resolve_list(element.items, box, depth + 1, reason, inner)
                 else:
                     kind = kinds.for_element(element)
                     placed = kind.resolve(self, element, here, depth)
-                    own = element.outline.width if element.outline is not None else 0
+                    own = OUTLINE_WIDTH if element.outline is not None else 0
                     # A `text` element's own ring is already in its ink box.
                     grow = ring + (0 if element.kind == "text" else own)
                     if grow:
@@ -1518,7 +1518,7 @@ class Resolver:
                 vertical_align=part.vertical_align, line_height=font.line_height,
                 texts=part.texts, widths=tuple(font.width(t) for t in part.texts),
                 curve=curve,
-                outline_width=outline.width if outline is not None else 0,
+                outline_width=OUTLINE_WIDTH if outline is not None else 0,
                 outline_color=outline.color if outline is not None else None,
             )
 
@@ -1727,7 +1727,7 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
             placed.line_height, placed.element.align, placed.element.vertical_align,
             curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
             radius_px=placed.curve.radius_px, direction=placed.curve.direction,
-            metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
+            metric=placed.font.metric, pad=float(OUTLINE_WIDTH) if outline is not None else 0.0,
             fonts_root=fonts_root)
     return None
 

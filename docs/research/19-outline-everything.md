@@ -235,6 +235,46 @@ A circle and a bar overlap, with w = 2:
 **VERIFIED in the model**; see `group.png`. This holds for any mix of
 techniques, as long as each member's ring op is a dilation of that member.
 
+### 4.5 On a watch: draw time per call (`wfb build --profile`)
+
+**VERIFIED on a fēnix 8 (MIP), 2026-09-29**, from photographs of
+`examples/features/profile/` built with `--profile` (10 repetitions per
+sample). The figures are the overlay's average µs per draw call. Each is
+still coarse: they are multiples of 100 µs, so each is one or two samples
+of a millisecond timer.
+
+| element | how | none | 1 px | 2 px |
+|---|---|---|---|---|
+| filled circle | grown | 200 | 350 | 300 |
+| rectangle | grown | 200 | 400 | 300 |
+| rounded rectangle | grown | 200 | 400 | 400 |
+| ellipse | stamp | 200 | 1,100 | 1,800 |
+| stroked circle | stamp | 300 | 1,500 | 2,500 |
+| stroked rectangle | stamp | 300 | 1,500 | 2,500 |
+| arc | stamp | 500 | 2,900 | 5,200 |
+| triangle (polygon) | stamp | 400 | 4,000 | 7,200 |
+| line | stamp | 300 | 1,600 | 2,600 |
+| text `12:34` | stamp | 1,100 | 4,900 | 8,500 |
+| alarm icon | stamp | 1,400 | 5,800 | 10,400 |
+| tick pattern (8 copies) | stamp per copy | 2,400 | 13,500 | 23,000 |
+| arc gauge | stamp | 1,600 | 4,000 | 6,200 |
+| bar gauge | grown | 500 | 900 | 800 |
+| hands | stamp per hand | 2,300 | 10,100 | 18,000 |
+
+What this settles:
+
+- **The draw-count model holds.** A grown copy costs about one more draw,
+  whatever the width. A stamp costs about (offsets + 1) × the element:
+  roughly 5× at 1 px and 9× at 2 px.
+- **2 px costs about 1.8× what 1 px does.** Decided the same day: `outline:`
+  is 1 px only (§7).
+- **The polygon and the hands were over the model** (10× and 18× for the
+  polygon). Each stamp went through `WfbGeom.fillTranslated`/`fillRotated`,
+  which build a fresh point array per call. The ring now transforms once
+  and shifts in place.
+- **Text and icons are stamped at 4-5× their own cost.** A baked font can
+  carry a dilated copy of each glyph instead, one extra `drawText`.
+
 ## 5. Per kind
 
 | kind | ring op | openings | notes |
@@ -301,6 +341,13 @@ techniques, as long as each member's ring op is a dilation of that member.
 - D3: each hand is outlined whole.
 - D4: the order as recommended.
 - D5: members' own rings are included in the group's.
+
+**Revised the same day, from §4.5's measurements:** every ring is 1 px,
+and `outline:` takes a colour or `none`, nothing else. So a member of an
+outlined group rings nothing of its own and outlined groups do not nest:
+either would put the group's ring 2 px out. The ring is cheaper where it
+can be: no per-stamp allocation for polygons, and baked fonts (text and
+icons) carry a dilated copy of the glyphs they draw.
 
 The options as they were put:
 

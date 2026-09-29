@@ -69,30 +69,13 @@ def test_pattern_outline_omitted_key_is_also_none(write_design, bag, minimal):
     assert ring.parts[0].outline is None
 
 
-def test_pattern_outline_shorthand_colour_defaults_width_2(write_design, bag, minimal):
+def test_pattern_outline_is_a_colour_and_nothing_else(write_design, bag, minimal):
     face = load(write_design(_design(minimal, _pattern_outline("color.fg"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     outline = ring.parts[0].outline
     assert outline is not None
-    assert outline.width == 2
     assert outline.color.shown == "color.fg"
-
-
-def test_pattern_outline_object_form_with_explicit_width(write_design, bag, minimal):
-    face = load(write_design(_design(
-        minimal, _pattern_outline("{color: color.fg, width: 1}"))), bag)
-    assert face is not None, bag.render()
-    ring = next(e for e in face.elements if e.id == "ring")
-    assert ring.parts[0].outline.width == 1
-
-
-def test_pattern_outline_object_form_defaults_width_2(write_design, bag, minimal):
-    face = load(write_design(_design(
-        minimal, _pattern_outline("{color: color.fg}"))), bag)
-    assert face is not None, bag.render()
-    ring = next(e for e in face.elements if e.id == "ring")
-    assert ring.parts[0].outline.width == 2
 
 
 def test_pattern_outline_hex_literal_shorthand(write_design, bag, minimal):
@@ -102,34 +85,12 @@ def test_pattern_outline_hex_literal_shorthand(write_design, bag, minimal):
     assert ring.parts[0].outline is not None
 
 
-# -- missing 'color:' in object form is a schema error -----------------------
-
-
-def test_pattern_outline_object_form_without_color_is_a_schema_error(write_design, bag, minimal):
-    face = load(write_design(_design(minimal, _pattern_outline("{width: 2}"))), bag)
-    assert face is None
-    assert not bag.ok()
-
-
-# -- width cap (D6): red-then-green, part_where names the part ---------------
-
-
-def test_pattern_outline_width_over_cap_is_a_build_error(write_design, bag, minimal):
+def test_pattern_outline_removed_object_form_names_the_part(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _pattern_outline("{color: color.fg, width: 4}"))), bag)
+        minimal, _pattern_outline("{color: color.fg, width: 1}"))), bag)
     assert face is None
-    assert not bag.ok()
-    diag = next(d for d in bag.errors if d.code == "outline")
-    assert "ring.parts[0]" in diag.message
-    assert "3" in diag.message or "3px" in " ".join(diag.notes)
-
-
-def test_pattern_outline_width_at_cap_builds_clean(write_design, bag, minimal):
-    face = load(write_design(_design(
-        minimal, _pattern_outline("{color: color.fg, width: 3}"))), bag)
-    assert face is not None, bag.render()
-    ring = next(e for e in face.elements if e.id == "ring")
-    assert ring.parts[0].outline.width == 3
+    assert [d.code for d in bag.errors] == ["outline"], bag.render()
+    assert "ring.parts[0].outline" in bag.errors[0].message
 
 
 # -- outline.color has full parity with color:, INCLUDING 'copy' (D8) -------
@@ -224,7 +185,7 @@ def test_pattern_outline_rejected_on_a_non_text_shape(write_design, bag, minimal
     parts:
       - type: circle
         radius: 10px
-        outline: {color: color.fg, width: 2}
+        outline: color.fg
 """)
     face = load(write_design(design), bag)
     assert face is None

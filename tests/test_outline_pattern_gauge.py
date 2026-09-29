@@ -105,7 +105,7 @@ def test_a_trackless_arc_gauge_is_stamped_round_its_lit_arc_only_while_present(v
 def test_a_trackless_bar_is_grown_round_its_lit_length(view):
     body = _method(view, "drawStepsBar")
     assert "if (filled > 0) {" in body
-    assert "filled + 4, Layout.STEPS_BAR_HEIGHT + 4," in body
+    assert "filled + 2, Layout.STEPS_BAR_HEIGHT + 2," in body
     assert body.index("fillRoundedRectangle") < body.index("fillRectangle(Layout.STEPS_BAR_X")
 
 
@@ -120,7 +120,7 @@ def test_a_bar_with_a_track_is_grown_round_the_whole_track(write_design, tmp_pat
     size: {width: 40%, height: 4%}
     color: color.fg
     track_color: color.bg
-    outline: {color: color.fg, width: 1}
+    outline: color.fg
 """), tmp_path / "out").files()
     body = _method(next(b for n, b in files.items() if n.endswith("View.mc")), "drawBar")
     assert re.search(r"dc\.fillRoundedRectangle\(Layout\.BAR_X - 1, Layout\.BAR_Y - 1,\s+"

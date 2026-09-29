@@ -60,20 +60,20 @@ def test_the_loop_locals_are_declared_once(view):
 def test_an_awake_only_second_hand_keeps_its_ring_inside_the_gate(view):
     body = _hands(view)
     gate = body[body.index("if (!_sleeping)"):]
-    assert "offsets = Layout.OUTLINE_OFFSETS_2;" in gate
+    assert "offsets = Layout.OUTLINE_OFFSETS;" in gate
 
 
 def test_no_outline_emits_no_ring(tmp_path, write_design):
-    text = FIXTURE.read_text().replace("    outline: { color: color.bg, width: 2 }\n", "")
+    text = FIXTURE.read_text().replace("    outline: color.bg\n", "")
     files = generate_for_targets(write_design(text), tmp_path / "out").files()
     view = next(body for name, body in files.items() if name.endswith("View.mc"))
     assert "offsets" not in _hands(view)
 
 
-def _render(write_design, bag, db, ring: str | None, time: tuple[int, int, int]):
+def _render(write_design, bag, db, ring: bool, time: tuple[int, int, int]):
     text = FIXTURE.read_text().replace('accent: "#FF5500"', 'accent: "#FF5500"\n    ring: "#FFFF00"')
-    replacement = "" if ring is None else f"    outline: {{ color: color.ring, width: {ring} }}\n"
-    text = text.replace("    outline: { color: color.bg, width: 2 }\n", replacement)
+    replacement = "" if not ring else "    outline: color.ring\n"
+    text = text.replace("    outline: color.bg\n", replacement)
     resolved = resolve_design(write_design(text), bag, db, "fenix8solar47mm")
     return resolved, render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False,
                                                       time=time))
@@ -84,8 +84,8 @@ def test_the_preview_rings_a_hand_over_the_hand_beneath_it(write_design, bag, db
     ring, some pixel white in the plain render (the hour hand) turns ring
     coloured -- the minute hand's ring drawn over it -- while the minute
     hand itself, drawn after its ring, stays white."""
-    _, plain = _render(write_design, bag, db, None, (3, 0, 30))
-    resolved, ringed = _render(write_design, bag, db, "2", (3, 0, 30))
+    _, plain = _render(write_design, bag, db, False, (3, 0, 30))
+    resolved, ringed = _render(write_design, bag, db, True, (3, 0, 30))
     cx, cy = find(resolved, "hands").center
     white = (255, 255, 255)
     cut = [(x, y) for x in range(cx - 12, cx + 13) for y in range(cy - 12, cy + 13)

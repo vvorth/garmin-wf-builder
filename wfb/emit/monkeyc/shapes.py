@@ -76,10 +76,9 @@ def emit_outline_loop(
 ) -> None:
     """The stamp loop `outline:` runs ahead of a text draw call's own
     (unshifted) interior pass (plan 15 §5, §8): loops over
-    ``offsets_code`` -- `Layout.OUTLINE_OFFSETS_<width>` (`layout_constants`'
-    disc-perimeter table for one width), or an `_aod ? ... : ...` choice
-    between two -- calling ``draw(x, y)`` at each shifted screen-space
-    anchor in the ring colour.
+    ``offsets_code`` -- `Layout.OUTLINE_OFFSETS`, the four points 1px away
+    -- calling ``draw(x, y)`` at each shifted screen-space anchor in the
+    ring colour.
 
     ``draw`` emits exactly the call the interior pass makes at the given
     anchor: a screen-space anchor shift commutes with everything else the

@@ -14,7 +14,8 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import (
-    McLiteral, NO_AOD, AodStyle, RingPass, article, const_prefix, own_ring, plus,
+    McLiteral, NO_AOD, RING_OFFSETS_CODE, RING_WIDTH_CODE, AodStyle, RingPass, article,
+    const_prefix, own_ring, plus,
 )
 from ..emit.writer import Writer
 from . import ElementKind
@@ -478,12 +479,12 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if stamp is not None:
             if _grows(element, aod):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                _emit_grown(w, prefix, element.shape, stamp.width)
+                _emit_grown(w, prefix, element.shape, RING_WIDTH_CODE)
                 if ring is None:
                     w.blank()
             else:
                 shapes.emit_stamp_loop(
-                    w, stamp.offsets, stamp.color,
+                    w, RING_OFFSETS_CODE, stamp.color,
                     lambda dx, dy: _emit_primitive(w, placed, aod, prefix, dx, dy),
                     blank_after=ring is None)
         if ring is not None:

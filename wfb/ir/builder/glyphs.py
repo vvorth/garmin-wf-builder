@@ -11,7 +11,7 @@ from typing import Any, Final, Literal
 from ... import icons, vocab
 from ...diagnostics import Span
 
-from ..model import Curve, Element, MAX_OUTLINE_WIDTH, Outline
+from ..model import Curve, Element, Outline
 from .absence import AbsenceChecks
 
 #: Sentinels for `Builder._resolve_choice_icon_override`'s result: "no
@@ -99,22 +99,15 @@ class GlyphHelpers(AbsenceChecks):
 
 
     def build_outline(
-        self, node: dict[str, Any], key: str, label: str, *, element: Element | None = None,
+        self, node: dict[str, Any], key: str, *, element: Element | None = None,
     ) -> Outline | None:
-        """`outline:` (plan 15) on a `text` element, or -- with
-        `element=None` -- on a pattern's `shape: text` part: the stamped ring
-        research 14 measured, drawn N times at small pixel offsets in
-        `outline.color`, then once more, unshifted, in the fill colour.
+        """`outline:` -- a colour, or `none` (research 19): the ring is
+        always :data:`OUTLINE_WIDTH` px, so the colour is all there is to
+        say.  It goes through the same `color_expression` `color:` uses.
+        The removed `{color, width}` form never reaches here: validation
+        names its replacement (`wfb.validate._check_reserved`).
 
-        Two spellings collapse to one `Outline` (D7): a bare colour
-        expression (`width: 2` implied) or an explicit `{color, width}`
-        mapping.  `outline.color` goes through the same `color_expression`
-        `color:` uses (D8).  `width` is capped at `MAX_OUTLINE_WIDTH` with a
-        build error rather than a schema `maximum`, so the message can cite
-        the evidence the cap rests on (D6).  `label` leads the width-cap
-        error (the element id, or the part's `part_where`).
-
-        **Absence.** A `text` element (`element` given) gets its own
+        **Absence.** An element (`element` given) gets its own
         `check_other_absence` here.  A pattern part does not: a pattern
         polices absence once for the whole element over
         `PatternElement.colors` (`wfb.kinds.pattern._check_pattern_absence`),
@@ -122,40 +115,15 @@ class GlyphHelpers(AbsenceChecks):
         would double-report the same source.
         """
         raw = node.get(key)
-        if raw is None or raw == "none":
+        if raw is None or raw == "none" or isinstance(raw, dict):
             return None
-        span = self.doc.span(node, key)
-        if isinstance(raw, dict):
-            color = self.color_expression(raw, "color")
-            color_span = self.doc.span(raw, "color") or span
-            width = raw.get("width", 2)
-            width_span = self.doc.span(raw, "width") or span
-        else:
-            color = self.color_expression(node, key)
-            color_span = span
-            width = 2
-            width_span = span
+        color = self.color_expression(node, key)
         if color is None:
             return None
-        if width > MAX_OUTLINE_WIDTH:
-            self.bag.error(
-                "outline",
-                f"{label}: 'outline: width: {width}' is more than "
-                f"{MAX_OUTLINE_WIDTH}px",
-                width_span,
-                notes=[
-                    "every offset set research 14 measured stops at "
-                    f"{MAX_OUTLINE_WIDTH}px -- a wider ring was never evidenced "
-                    "(docs/research/14-stamped-ring-text.md §1)",
-                    "the ring/solid pixel ratio keeps climbing past this width "
-                    "with no measurement to say it still reads as an outline "
-                    "rather than a second, blockier glyph (§4.1)",
-                ],
-            )
-            return None
         if element is not None:
-            self.check_other_absence(node, element, "outline.color", color, span=color_span)
-        return Outline(color=color, width=width)
+            self.check_other_absence(node, element, "outline.color", color,
+                                     span=self.doc.span(node, key))
+        return Outline(color=color)
 
     def _check_curve_keys(self, node: dict[str, Any], style: str) -> None:
         """Reject a `curve:` key the chosen `style:` does not read -- the same

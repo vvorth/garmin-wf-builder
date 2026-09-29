@@ -35,7 +35,7 @@ from . import aod_mask, expr, kinds, visible_area
 from .devices import Device, FontMetric
 from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
-from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
+from .ir import RING_OFFSETS, Element, Expression, Face, StyleEntry, aod_color_choice
 from .ir.rings import RingGroup, ring_groups
 from .layout import (
     Placed, PlacedHands, PlacedPattern, PlacedProgress, ResolvedFace, RotatablePart,
@@ -616,7 +616,7 @@ class Renderer:
             # Every other kind's ring is the stamp of whatever it draws
             # (research 19).
             self.stamp_ring(self.silhouette(lambda: kind.draw_preview(self, placed)),
-                            self.aod_dimmed(placed.element, outline.color), outline.width)
+                            self.aod_dimmed(placed.element, outline.color))
         kind.draw_preview(self, placed)
 
     def render_sequence(self, items: list[Placed], rings: list[RingGroup],
@@ -637,7 +637,7 @@ class Renderer:
                 assert outline is not None
                 self.stamp_ring(
                     self.silhouette(lambda: self.render_sequence(members, rings, ring)),
-                    self.aod_dimmed(ring.group, outline.color), outline.width)
+                    self.aod_dimmed(ring.group, outline.color))
             self.render_element(placed)
 
     # -- outline rings ----------------------------------------------------
@@ -662,20 +662,20 @@ class Renderer:
             self.image, self.draw = image, draw
         return mask
 
-    def dilate(self, mask: Image.Image, width: int) -> Image.Image:
-        """``mask`` stamped at every `disc_perimeter_offsets(width)` offset
-        (device pixels, upscaled), the host twin of the codegen stamp loop
-        -- the ring alone, without ``mask`` itself."""
+    def dilate(self, mask: Image.Image) -> Image.Image:
+        """``mask`` stamped at every `RING_OFFSETS` offset (device pixels,
+        upscaled), the host twin of the codegen stamp loop -- the ring
+        alone, without ``mask`` itself."""
         ring = Image.new("L", mask.size, 0)
-        for dx, dy in disc_perimeter_offsets(width):
+        for dx, dy in RING_OFFSETS:
             shifted = Image.new("L", mask.size, 0)
             shifted.paste(mask, (dx * self.scale, dy * self.scale))
             ring = ImageChops.lighter(ring, shifted)
         return ring
 
-    def stamp_ring(self, mask: Image.Image, color: RGB, width: int) -> None:
-        """Paint the ring of ``width`` round ``mask`` in ``color``."""
-        self.image.paste(color, (0, 0), self.dilate(mask, width))
+    def stamp_ring(self, mask: Image.Image, color: RGB) -> None:
+        """Paint the 1px ring round ``mask`` in ``color``."""
+        self.image.paste(color, (0, 0), self.dilate(mask))
 
     # -- elements ---------------------------------------------------------
 
@@ -711,17 +711,17 @@ class Renderer:
                 self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
 
     def draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color: RGB,
-                      ring_color: RGB | None, ring_width: int, box: IntBox | None = None) -> None:
+                      ring_color: RGB | None, box: IntBox | None = None) -> None:
         """`draw(anchor, color, box)` once for the interior, preceded by one
-        ring-coloured stamp per `wfb.ir.disc_perimeter_offsets(ring_width)`
-        offset when `ring_color` is set -- the host twin of the codegen stamp
+        ring-coloured stamp per `wfb.ir.RING_OFFSETS` offset when
+        `ring_color` is set -- the host twin of the codegen stamp
         loop, using the same offset table, so preview and device stamp the
         same pixels. `anchor` and the offsets are device pixels; `draw`
         applies the preview's own upscale. Only the interior gets `box` (the
         "no face at all" outline fallback)."""
         if ring_color is not None:
             ax, ay = anchor
-            for dx, dy in disc_perimeter_offsets(ring_width):
+            for dx, dy in RING_OFFSETS:
                 draw((ax + dx, ay + dy), ring_color)
         draw(anchor, color, box)
 

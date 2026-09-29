@@ -1,6 +1,6 @@
 # Outlines
 
-`outline:` draws a ring of 1–3 px in a second colour round whatever an
+`outline:` draws a 1 px ring in a second colour round whatever an
 element draws: text, an icon, any shape, each hand of a `hands` element,
 each copy of a `pattern`, a `gauge`, or a whole `group`, where the ring
 goes round the members together. The platform has no outline primitive.
@@ -16,9 +16,13 @@ bar gauges, a group, and an icon whose opening gets a ring of its own, from
 
 ```yaml
 outline: none                        # the default: no ring
-outline: color.ring                  # a colour: a 2 px ring
-outline: { color: color.ring, width: 1 }   # 1, 2 or 3 px
+outline: color.ring                  # a 1 px ring in this colour
 ```
+
+**Every ring is 1 px.** On a watch a 2 px ring cost about 1.8× the draw time
+of a 1 px one ([research 19 §4.5](../research/19-outline-everything.md)), so
+there is no `width:`; the old `{color, width}` form is an error that names
+the colour spelling.
 
 | Kind | How the ring is drawn |
 |---|---|
@@ -34,21 +38,21 @@ a conditional expression over them. On a `group` it cannot read data.
 
 ## Two exact ways to draw a ring
 
-A ring of width `w` is the set of pixels within `w` of the element: its
-*dilation*. The element is then drawn over it.
+The ring is the set of pixels 1 px from the element: its *dilation*. The
+element is then drawn over it.
 
 **Grown copy.** Some shapes have a dilation that is itself one shape:
 
-- a filled circle's is a circle `w` larger;
-- a filled rectangle's is a rectangle `w` larger on every side, with
-  corners rounded to radius `w`;
-- a rounded rectangle's is the same, with its corner radius grown by `w`.
+- a filled circle's is a circle 1 px larger;
+- a filled rectangle's is a rectangle 1 px larger on every side, with
+  corners rounded to radius 1;
+- a rounded rectangle's is the same, with its corner radius grown by 1.
 
 These draw that one grown copy first, which costs one extra draw.
 
-**Stamp.** Everything else is drawn several times in the ring colour, each
-time shifted by a few pixels (4, 8 or 16 times at widths 1, 2 and 3), and
-then once more in its own colours. The result is exactly the dilation of the
+**Stamp.** Everything else is drawn four times in the ring colour, each
+time shifted 1 px up, down, left or right, and then once more in its own
+colours. The result is exactly the dilation of the
 pixels the watch draws, whatever the shape:
 
 - an ellipse, whose grown outline is not an ellipse;
@@ -59,9 +63,8 @@ pixels the watch draws, whatever the shape:
 
 Stamping is also why **openings are outlined**. The hole in a stroked
 circle, the face of the `alarm` icon, the counter of an `O`: each gets a
-ring of its own whenever it is wider than twice the ring. A narrower
-opening fills with the ring colour, so a small icon usually wants
-`width: 1`.
+ring of its own whenever it is wider than 2 px. A narrower opening fills
+with the ring colour.
 
 "Outline" here always means the ring. A shape drawn as a stroke only is
 `filled: false`, and it can carry an `outline:` of its own.
@@ -78,7 +81,7 @@ they cross:
 hands:
   type: hands
   set: main
-  outline: { color: color.bg, width: 2 }
+  outline: color.bg
 ```
 
 A `pattern` does the same for each copy, and a needle `gauge` for its
@@ -93,14 +96,15 @@ implemented yet.
 `outline:` on a `group` rings the **union** of its members. Every member's
 ring is drawn just before the group's first member, then the members
 themselves, so two members that touch or overlap share one ring with no
-seam between them. A member's own `outline:` counts as part of the group:
-the group's ring goes round it.
+seam between them. A member may not carry an `outline:` of its own, and an
+outlined group may not sit inside another: either would put the group's
+ring 2 px out.
 
 ```yaml
 badge:
   type: group
   at: { anchor: center, dy: 30% }
-  outline: { color: color.fg, width: 1 }
+  outline: color.fg
   children:
     disc:  { type: circle, at: { anchor: center }, radius: 8%r, color: color.accent }
     label: { type: text, text: "7", font: FONT_XTINY, at: { anchor: center }, color: color.bg }
@@ -119,12 +123,12 @@ update.
 
 ## Cost and the always-on frame
 
-- **Draws.** A grown copy is one extra draw. A stamp is 4, 8 or 16 extra
-  draws of the element at widths 1, 2 and 3, and the time one takes is not
-  known on this platform. That matters most for an element drawn in
-  `sleep_update:`, where an overrun disables partial updates for good. A
-  1 px ring is the cheapest stamp.
-- **Placement.** The ring grows the element's box by `width:`. The clip,
+- **Draws.** A grown copy is one extra draw; a stamp is four. Measured on a
+  fēnix 8 ([research 19 §4.5](../research/19-outline-everything.md)): a
+  grown ring adds about 0.1 ms, a stamped one about four times the
+  element's own draw time. That matters most for an element drawn in
+  `sleep_update:`, where an overrun disables partial updates for good.
+- **Placement.** The ring grows the element's box by 1 px. The clip,
   `off-screen`, `safe-area` and overlap checks all see the ring.
 - **AOD.** On an AMOLED target the awake ring is drawn in the always-on
   frame too, dimmed like every AOD colour. Only a `text` element has an

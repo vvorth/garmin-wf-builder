@@ -23,7 +23,7 @@ wordmark on this platform.
 | `curve.radius:` | `Length` | — | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.direction:` | `clockwise`/`counter_clockwise` | `clockwise` | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `unsupported:` | `error`/`hide` | inherits the font's own (`error` for the subscreen) | [Fonts](fonts.md#unsupported--and-what-error-actually-promises) |
-| `outline:` | `none`, a colour expression, or `{color, width}` | `none` | [`outline:`](#outline--the-stamped-ring) |
+| `outline:` | `none`, or a colour expression (a 1px ring) | `none` | [`outline:`](#outline--the-stamped-ring) |
 
 ## Example
 
@@ -157,36 +157,31 @@ clock:
   text: "{time.clock:%h:%M}"
   font: font.clock
   color: color.bg                  # interior -- reads as empty against a flat background
-  outline: { color: color.text_outline, width: 2 }
+  outline: color.text_outline
 ```
 
 There is no filled-outline draw mode on this platform (`Dc.drawText` has no
 switch for it, and the one that exists in Garmin's own font engine is not
 reachable from Connect IQ — `docs/research/13-outline-vector-text.md`).
 `outline:` is the workable substitute this project measured instead: the
-string drawn a handful of times at small pixel offsets in the ring colour,
-then once more, unshifted, in the element's existing `color:` — the ordinary
-fill pass every `text` element already has, doing double duty as the
-interior. `none` (the default, and simply omitting the key) draws no ring at
-all, byte-identical to plain text.
+string drawn four times, one pixel off in each direction, in the ring
+colour, then once more, unshifted, in the element's existing `color:` — the
+ordinary fill pass every `text` element already has, doing double duty as
+the interior. `none` (the default, and simply omitting the key) draws no
+ring at all, byte-identical to plain text.
 
 ```yaml
 outline: none                        # default -- no ring, today's plain fill
-
-outline: color.text_outline          # shorthand -- colour only, width: 2 implied
-
-outline:
-  color: color.text_outline          # required in object form -- same grammar as color:
-  width: 2                           # px, 1-3, default 2
+outline: color.text_outline          # a 1px ring in this colour
 ```
 
-`width:` is always pixels, never `%`/`%r` — a fixed visual stroke weight,
-the same way Garmin's own font engine strokes at a fixed 2.0px regardless of
-device. It is capped at **3px**: a build error above that, citing the
-measured evidence (`docs/research/14-stamped-ring-text.md` §1, §4.1), not a
-bare schema bound. `outline.color` follows exactly the same rules as
-`color:` — a `color.<name>`, a literal, or a full conditional
-expression over either, data sources included.
+**Every ring is 1px.** A 2px ring measured about 1.8× the draw time of a
+1px one on a watch, for no gain in legibility
+(`docs/research/19-outline-everything.md` §4.5), so there is no `width:`;
+the old `{color, width}` form is an error naming the colour spelling.
+`outline:` takes exactly the rules `color:` does — a `color.<name>`, a
+literal, or a full conditional expression over either, data sources
+included.
 
 **The interior pass paints over whatever is beneath it — it does not reveal
 it.** There is no `background` colour role in this format (a face's
@@ -243,7 +238,7 @@ upright text, `curve: {style: angled}`, and `curve: {style: radial}` alike
 — wrapping whichever single draw call `curve:`/`unsupported:` already
 selected in one more loop, ahead of the interior pass; it changes nothing
 about which call runs or which string is drawn. The element's own
-placement box grows by `width:` on every side to cover the ring, so
+placement box grows by the 1px ring on every side, so
 `off-screen`/`safe-area`/`static-overlap`/the partial-update clip are all
 already correct for a ringed element with no separate check of their own.
 

@@ -15,7 +15,8 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float, own_ring, plus,
+    NO_AOD, RING_OFFSETS_CODE, RING_WIDTH_CODE, AodStyle, RingPass, article, const_prefix,
+    mc_float, own_ring, plus,
 )
 from ..emit.writer import Writer
 from . import ElementKind
@@ -292,7 +293,7 @@ def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: st
     arc lies inside it -- else the lit arc alone, only while it draws."""
     if element.track_color is not None:
         shapes.emit_stamp_loop(
-            w, stamp.offsets, stamp.color,
+            w, RING_OFFSETS_CODE, stamp.color,
             lambda dx, dy: shapes.emit_arc_span(w, prefix, thickness_expr, dx, dy),
             blank_after=False)
         return
@@ -304,7 +305,7 @@ def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: st
         ])
 
     with w.block_if(present):
-        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, lit, blank_after=False)
+        shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, lit, blank_after=False)
 
 
 def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
@@ -343,7 +344,7 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             w.line(f"cy = Layout.{prefix}_CY + {dy};")
             parts(colored=False)
 
-        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted, blank_after=False)
+        shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, shifted, blank_after=False)
         w.line(f"cx = Layout.{prefix}_CX;")
         w.line(f"cy = Layout.{prefix}_CY;")
     if not ring_only:
@@ -749,7 +750,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             # The whole bar is the silhouette: one grown copy is its
             # dilation (`wfb.kinds.shape._emit_grown`).
             w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-            _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", stamp.width)
+            _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", RING_WIDTH_CODE)
             if ring is not None:
                 return
             w.blank()
@@ -768,7 +769,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 # No track: the lit length alone is the silhouette.
                 with w.block("if (filled > 0)"):
                     w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                    _emit_grown_bar(w, prefix, "filled", stamp.width)
+                    _emit_grown_bar(w, prefix, "filled", RING_WIDTH_CODE)
                 if ring is not None:
                     return
             w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")

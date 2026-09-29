@@ -100,11 +100,11 @@ def test_the_code_report_totals_each_layout(tmp_path, bag, db):
     resolved = resolve_design(PROFILE_FACE, bag, db, "fr955")
     plan = profile_mod.plan_for(resolved, 10)
     view = f"{resolved.face.entry}View"
-    sizes = {f"{view}.drawDiscPlain": 36, f"{view}.drawDiscRing1": 69,
-             f"{view}.ringBadgeRing1Icon": 10, f"{view}.ringBadgeRing1Value": 20}
+    sizes = {f"{view}.drawDiscPlain": 36, f"{view}.drawDiscRing": 69,
+             f"{view}.ringBadgeRingIcon": 10, f"{view}.ringBadgeRingValue": 20}
     lines = profile_mod.code_report(plan, resolved.face, sizes)
-    assert any(re.fullmatch(r"disc_ring1\s+69 B", line) for line in lines)
-    assert any(re.fullmatch(r"badge_ring1\.ring\s+30 B", line) for line in lines)
+    assert any(re.fullmatch(r"disc_ring\s+69 B", line) for line in lines)
+    assert any(re.fullmatch(r"badge_ring\.ring\s+30 B", line) for line in lines)
     assert any(re.fullmatch(r"layout plain\s+36 B", line) for line in lines)
 
 

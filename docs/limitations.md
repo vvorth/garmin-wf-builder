@@ -737,7 +737,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | plan 14 §4.3, slice 2 -- same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
 | `aod: {filled: ...}` on `type: polygon` | there is no outline primitive for it to switch to (Dc has fillPolygon, no drawPolygon) -- a friendly build error, the same one the awake element's own `filled: false` already gets, and the same when the key is inherited from a group |
 | `outline:` on a `data` or `graph` element, or on a `segments`/`scale` gauge | research 19 -- a `data` and a `graph` have no ring op (and so cannot sit in an outlined group either), and a ticked gauge's cells would need their own; a friendly build error on the element and on an outlined group containing it |
-| `outline:` on a pattern whose `type: text` part has its own `outline:` | research 19 -- the part's ring inside the pattern's would be a stamp inside a stamp (N x M draws per copy); a friendly build error naming both keys |
+| `outline:` on a pattern whose `type: text` part has its own `outline:`, on a member of an outlined group, or on a group inside an outlined group | research 19 -- a ring round a ring would be 2px from the element, and every ring is 1px; a friendly build error naming the element |
 | `aod: {outline: ...}` on anything but `text` | research 19 -- every other kind's awake ring carries over into the AOD frame, dimmed like every AOD colour, but cannot be replaced there |
 | A group `outline.color` that reads data | research 19 -- the group's ring is drawn from the frame methods, which read only what the members bind; a friendly build error |
 
