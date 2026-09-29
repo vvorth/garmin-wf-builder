@@ -532,10 +532,12 @@ These cost real time to discover; do not rediscover them.
   advance and line metrics unchanged), writes it as an ordinary `<font>`
   resource, and loads it right after its base (`_loaded_fonts`).  The
   resource compiler accepts the resulting negative `xoffset`/`yoffset`
-  (a real build on all three targets).  UNVERIFIED on a watch: that
-  `TEXT_JUSTIFY_VCENTER` places the ring font's glyphs on the base font's
-  -- they share `lineHeight`/`base`, which is all the `.fnt` gives it.
-  The preview keeps stamping, which paints the same pixels.
+  (a real build on all three targets).  The ring font's glyphs land on
+  the base font's under `TEXT_JUSTIFY_VCENTER` -- they share
+  `lineHeight`/`base`, which is all the `.fnt` gives it: VERIFIED in the
+  Connect IQ simulator (the user's host, 2026-09-29, the profile face),
+  not yet on a watch.  The preview keeps stamping, which paints the same
+  pixels.
 
 - **`wfb build --profile` (`wfb.emit.monkeyc.profile`) instruments only the
   active frame.** Every call site becomes `if (_profNext == k) { var t0 =
