@@ -15,8 +15,8 @@ from ..ir.model import Element, Expression, HandsElement
 from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated
-from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, and_list, const_prefix
+from ..emit.monkeyc import rotated, shapes
+from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, and_list, const_prefix, own_ring
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -77,38 +77,65 @@ _HAND_ANGLE_FUNCTIONS = tuple(
 
 def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str, angle_fn: str,
                    hand: ResolvedHand,
-                   declared: bool, thickness_override: str | None, aod: AodStyle) -> None:
+                   declared: bool, thickness_override: str | None, aod: AodStyle,
+                   stamp: RingPass | None = None, stamp_declared: bool = False,
+                   ring_only: bool = False) -> None:
     """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
 
     `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
     method -- the first hand declares them, every later one reuses the same
     three locals (the probe's own shape: Monkey C has no block scoping that
     would need a fresh declaration per hand).
+
+    `stamp` rings the hand as one silhouette first (research 19, plan 23
+    D3): every part, stamped in the ring colour at each offset by moving
+    the `cx`/`cy` the parts rotate about, then the parts themselves -- so
+    a hand's own parts never ring each other, and each hand's ring is drawn
+    over the hand beneath it.  `stamp_declared` says whether an earlier
+    hand already declared the loop's locals; `ring_only` (an outlined
+    group's pass) stops after the ring.
     """
     keyword = "" if declared else "var "
     w.line(f"{keyword}angle = WfbHands.{angle_fn}(clock);")
     w.line(f"{keyword}sin = Math.sin(angle);")
     w.line(f"{keyword}cos = Math.cos(angle);")
-    # One setColor per colour *change*: consecutive parts of one hand
-    # usually share its default colour.  Reset per hand rather than
-    # carried across hands, because an `awake` second hand sits inside its
-    # own `if` block and cannot rely on a colour set before it.
-    current = None
-    for index, part in enumerate(hand.parts):
-        part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
-        color = aod.part_color(element, part.color)
-        if color != current:
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            current = color
-        rotated.emit_transformed_part(
-            w, part, part_prefix, radial=True,
-            thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+    def parts(colored: bool) -> None:
+        # One setColor per colour *change*: consecutive parts of one hand
+        # usually share its default colour.  Reset per hand rather than
+        # carried across hands, because an `awake` second hand sits inside
+        # its own `if` block and cannot rely on a colour set before it.
+        current = None
+        for index, part in enumerate(hand.parts):
+            part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
+            color = aod.part_color(element, part.color)
+            if colored and color != current:
+                w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+                current = color
+            rotated.emit_transformed_part(
+                w, part, part_prefix, radial=True,
+                thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+    if stamp is not None:
+        def shifted(dx: str, dy: str) -> None:
+            w.line(f"cx = Layout.{prefix}_CX + {dx};")
+            w.line(f"cy = Layout.{prefix}_CY + {dy};")
+            parts(colored=False)
+
+        shapes.emit_stamp_loop(w, stamp.offsets, stamp.color, shifted,
+                               declare=not stamp_declared, blank_after=False)
+        w.line(f"cx = Layout.{prefix}_CX;")
+        w.line(f"cy = Layout.{prefix}_CY;")
+    if not ring_only:
+        parts(colored=True)
 
 
 class HandsKind(ElementKind[HandsElement, PlacedHands]):
     name = "hands"
     ir_class = HandsElement
     placed_class = PlacedHands
+    ringed = True
+    rings_itself = True
     static_forbidden = (
         "analog hands",
         "a hand's angle is the time -- a buffer filled once would freeze "
@@ -244,8 +271,19 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             if hand_name == "second" and element.seconds == "awake" and asleep:
                 continue
             sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
-            for part in hand.parts:
-                renderer.hand_part(placed, part, cx, cy, sin_t, cos_t)
+
+            def draw_hand(hand: ResolvedHand = hand, sin_t: float = sin_t,
+                          cos_t: float = cos_t) -> None:
+                for part in hand.parts:
+                    renderer.hand_part(placed, part, cx, cy, sin_t, cos_t)
+
+            if element.outline is not None:
+                # Each hand ringed whole, over the hand beneath it -- the
+                # generated `_emit_one_hand`'s own order.
+                renderer.stamp_ring(renderer.silhouette(draw_hand),
+                                    renderer.aod_dimmed(element, element.outline.color),
+                                    element.outline.width)
+            draw_hand()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,
                   value_guards: list[str] | None, plan: ReadPlan,
@@ -259,12 +297,16 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
         every part of every hand: one ternary against one element-level override,
         reused by every part's own colour/pen-width line.
+
+        `outline:` rings each hand whole, just before its parts
+        (`_emit_one_hand`); with `ring`, only the rings are drawn.
         """
         element = placed.element
         prefix = const_prefix(placed.id)
         w.line(f"var cx = Layout.{prefix}_CX;")
         w.line(f"var cy = Layout.{prefix}_CY;")
         thickness_override = rotated.aod_thickness_override(placed, prefix)
+        stamp = ring or own_ring(element, aod)
         declared = False
         for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
             hand = getattr(placed, hand_name)
@@ -275,7 +317,8 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
             with w.block_if("if (!_sleeping)" if gated else None):
                 _emit_one_hand(w, element, prefix, hand_name, angle_fn, hand, declared,
-                               thickness_override, aod)
+                               thickness_override, aod, stamp, stamp_declared=declared,
+                               ring_only=ring is not None)
             declared = True
 
     def describe(self, placed: PlacedHands) -> str:

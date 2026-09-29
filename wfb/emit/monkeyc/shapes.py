@@ -102,15 +102,18 @@ def emit_outline_loop(
 def emit_stamp_loop(
     w: Writer, offsets_code: str, color_code: str, draw: Callable[[str, str], None], *,
     index_var: str = "i", offsets_var: str = "offsets", blank_after: bool = True,
+    declare: bool = True,
 ) -> None:
     """The stamp itself (research 14, 19): set the ring colour once, then
     call ``draw(dx, dy)`` once per `(dx, dy)` pair in ``offsets_code``, with
     the two offsets as Monkey C expressions for the caller to add to every
     coordinate it draws at.  ``draw`` never sets a colour: every stamp
-    shares the ring's."""
+    shares the ring's.  ``declare=False`` reuses the two locals an earlier
+    loop in the same method declared (Monkey C rejects a second `var`)."""
+    keyword = "var " if declare else ""
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"var {offsets_var} = {offsets_code};")
-    w.line(f"var {index_var} = 0;")
+    w.line(f"{keyword}{offsets_var} = {offsets_code};")
+    w.line(f"{keyword}{index_var} = 0;")
     with w.block(f"while ({index_var} < {offsets_var}.size())"):
         draw(f"{offsets_var}[{index_var}]", f"{offsets_var}[{index_var} + 1]")
         w.line(f"{index_var} += 2;")

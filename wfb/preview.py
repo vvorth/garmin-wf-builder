@@ -609,10 +609,9 @@ class Renderer:
             return
         kind = kinds.for_placed(placed)
         outline = placed.element.outline
-        if outline is not None and placed.kind != "text":
-            # A `text` element stamps its own ring (`draw_outlined`), with
-            # its `aod: {outline: ...}` override; every other kind's ring
-            # is the stamp of whatever it draws (research 19).
+        if outline is not None and not kind.rings_itself:
+            # Every other kind's ring is the stamp of whatever it draws
+            # (research 19).
             self.stamp_ring(self.silhouette(lambda: kind.draw_preview(self, placed)),
                             self.aod_dimmed(placed.element, outline.color), outline.width)
         kind.draw_preview(self, placed)

@@ -211,6 +211,10 @@ class ElementKind(Generic[E, P]):
     #: so this kind can carry its own `outline:` and be a member of an
     #: outlined group.  The schema decides who may *write* one.
     ringed: ClassVar[bool] = False
+    #: `draw_preview` draws the element's own `outline:` itself (a `text`
+    #: element's AOD ring, each hand of a `hands` element); otherwise
+    #: `Renderer.render_element` rings the whole of what it draws.
+    rings_itself: ClassVar[bool] = False
 
     # -- semantic pass (wfb.ir.builder) --
 

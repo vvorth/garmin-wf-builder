@@ -15,7 +15,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("fixture", ["outline_shapes"])
+@pytest.mark.parametrize("fixture", ["outline_shapes", "outline_hands"])
 def test_outline_fixture_compiles_warning_free(fixture, db, tmp_path, toolchain):
     """Every outlined kind in the fixture, on all three verification
     targets: warning-free is the build bar (root CLAUDE.md §7)."""

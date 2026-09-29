@@ -460,6 +460,7 @@ def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
 class TextKind(ElementKind[Text, PlacedText]):
     name = "text"
     ringed = True
+    rings_itself = True
     ir_class = Text
     placed_class = PlacedText
 
