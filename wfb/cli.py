@@ -814,6 +814,7 @@ TEMPLATE_BLURB = {
     "calendar": "the time over a Monday-first month of dots, today lit",
     "themed": "light/dark schemes, accent colours and two complication slots set on the watch",
     "amoled": "adds an AMOLED target, with a sparse always-on sleep frame",
+    "palette": "all 64 MIP colours as named swatches, with a colour scheme and colour axes",
 }
 
 

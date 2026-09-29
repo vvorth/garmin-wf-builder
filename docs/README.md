@@ -26,6 +26,7 @@ can't: why each key exists, and what the watch does with it.
 |---|---|
 | [Placement](guide/placement.md) | `at:`, anchors, polar positions, units (`px`, `%`, `%r`), angles, `align:` and its compass aliases |
 | [Colours](guide/colors.md) | `color.<name>`, `palette:`, the 64-colour MIP rule, `theme: schemes:`, conditional colours |
+| [The 64 MIP colours, named](guide/mip-palette.md) | Every colour a MIP panel shows exactly, with a name, as palette entries to paste |
 | [Fonts](guide/fonts.md) | System fonts, your own TTFs converted to bitmap fonts, `monospace:`, vector (`face:`) fonts, `unsupported:` |
 
 ### Elements

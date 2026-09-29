@@ -1,0 +1,155 @@
+# The full 64-colour MIP palette, named, as a starting point. Keep the
+# swatches you use and delete the rest, or leave them all: an unused swatch
+# costs nothing on screen.
+#
+# Every colour here has each channel at 0x00, 0x55, 0xAA or 0xFF, so a MIP
+# panel shows it exactly, with no dithering. The names come from
+# https://apps.bliemel.net/colors/, in its order (white to black, one
+# channel stepping at a time). That page calls both #00FF00 and #005500
+# "Green", so the second is `dark_green` here. The same table, with the
+# ready-to-paste block, is docs/guide/mip-palette.md.
+#
+# `label:` is what the watch shows for a swatch when a `config:` colour axis
+# offers it. `accent_color: choices: any` below opens the fēnix 8 editor's
+# own colour picker; on a watch without that editor (the Forerunner 955) the
+# settings menu the build generates lists all 64 swatches by label instead.
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+resources:
+  palette:
+    white:                { value: "#FFFFFF", label: "White" }
+    shalimar:             { value: "#FFFFAA", label: "Shalimar" }
+    laser_lemon:          { value: "#FFFF55", label: "Laser Lemon" }
+    yellow:               { value: "#FFFF00", label: "Yellow" }
+    lavender_rose:        { value: "#FFAAFF", label: "Lavender Rose" }
+    sundown:              { value: "#FFAAAA", label: "Sundown" }
+    texas_rose:           { value: "#FFAA55", label: "Texas Rose" }
+    web_orange:           { value: "#FFAA00", label: "Web Orange" }
+    pink_flamingo:        { value: "#FF55FF", label: "Pink Flamingo" }
+    brilliant_rose:       { value: "#FF55AA", label: "Brilliant Rose" }
+    sunset_orange:        { value: "#FF5555", label: "Sunset Orange" }
+    international_orange: { value: "#FF5500", label: "International Orange" }
+    magenta_fuchsia:      { value: "#FF00FF", label: "Magenta Fuchsia" }
+    hollywood_cerise:     { value: "#FF00AA", label: "Hollywood Cerise" }
+    razzmatazz:           { value: "#FF0055", label: "Razzmatazz" }
+    red:                  { value: "#FF0000", label: "Red" }
+    pale_turquoise:       { value: "#AAFFFF", label: "Pale Turquoise" }
+    mint_green:           { value: "#AAFFAA", label: "Mint Green" }
+    conifer:              { value: "#AAFF55", label: "Conifer" }
+    spring_bud:           { value: "#AAFF00", label: "Spring Bud" }
+    perano:               { value: "#AAAAFF", label: "Perano" }
+    silver_chalice:       { value: "#AAAAAA", label: "Silver Chalice" }
+    olive_green:          { value: "#AAAA55", label: "Olive Green" }
+    citrus:               { value: "#AAAA00", label: "Citrus" }
+    medium_purple:        { value: "#AA55FF", label: "Medium Purple" }
+    violet_blue:          { value: "#AA55AA", label: "Violet Blue" }
+    apple_blossom:        { value: "#AA5555", label: "Apple Blossom" }
+    rust:                 { value: "#AA5500", label: "Rust" }
+    electric_violet:      { value: "#AA00FF", label: "Electric Violet" }
+    dark_magenta:         { value: "#AA00AA", label: "Dark Magenta" }
+    jazzberry_jam:        { value: "#AA0055", label: "Jazzberry Jam" }
+    bright_red:           { value: "#AA0000", label: "Bright Red" }
+    baby_blue:            { value: "#55FFFF", label: "Baby Blue" }
+    medium_aquamarine:    { value: "#55FFAA", label: "Medium Aquamarine" }
+    screamin_green:       { value: "#55FF55", label: "Screamin' Green" }
+    bright_green:         { value: "#55FF00", label: "Bright Green" }
+    cornflower_blue:      { value: "#55AAFF", label: "Cornflower Blue" }
+    cadet_blue:           { value: "#55AAAA", label: "Cadet Blue" }
+    fruit_salad:          { value: "#55AA55", label: "Fruit Salad" }
+    kelly_green:          { value: "#55AA00", label: "Kelly Green" }
+    neon_blue:            { value: "#5555FF", label: "Neon Blue" }
+    rich_blue:            { value: "#5555AA", label: "Rich Blue" }
+    emperor:              { value: "#555555", label: "Emperor" }
+    verdun_green:         { value: "#555500", label: "Verdun Green" }
+    electric_indigo:      { value: "#5500FF", label: "Electric Indigo" }
+    indigo:               { value: "#5500AA", label: "Indigo" }
+    tyrian_purple:        { value: "#550055", label: "Tyrian Purple" }
+    maroon:               { value: "#550000", label: "Maroon" }
+    aqua:                 { value: "#00FFFF", label: "Aqua" }
+    medium_green:         { value: "#00FFAA", label: "Medium Green" }
+    malachite:            { value: "#00FF55", label: "Malachite" }
+    green:                { value: "#00FF00", label: "Green" }
+    azure_radiance:       { value: "#00AAFF", label: "Azure Radiance" }
+    persian_green:        { value: "#00AAAA", label: "Persian Green" }
+    pigment_green:        { value: "#00AA55", label: "Pigment Green" }
+    japanese_laurel:      { value: "#00AA00", label: "Japanese Laurel" }
+    navy_blue:            { value: "#0055FF", label: "Navy Blue" }
+    cobalt:               { value: "#0055AA", label: "Cobalt" }
+    mosque:               { value: "#005555", label: "Mosque" }
+    dark_green:           { value: "#005500", label: "Dark Green" }
+    blue:                 { value: "#0000FF", label: "Blue" }
+    midnight_blue:        { value: "#0000AA", label: "Midnight Blue" }
+    navy:                 { value: "#000055", label: "Navy" }
+    black:                { value: "#000000", label: "Black" }
+
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, fg: color.white, dim: color.silver_chalice }
+    navy:
+      label: "Navy"
+      colors: { bg: color.navy, fg: color.shalimar, dim: color.cornflower_blue }
+
+config:
+  style:
+    default: dark
+    choices:
+      dark: { scheme: dark }
+      navy: { scheme: navy }
+  accent_color:
+    default: color.web_orange
+    choices: any # every palette swatch, by its label
+  data_color:
+    default: color.baby_blue
+    choices: [color.baby_blue, color.white, color.laser_lemon, color.screamin_green]
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  accent_ring:
+    type: arc
+    at: { anchor: center }
+    radius: 94%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: color.accent
+
+elements:
+  date:
+    type: text
+    text: "{date.today:%a %d}"
+    font: FONT_TINY
+    at: { anchor: center, dy: -40%r }
+    color: color.dim
+
+  clock:
+    type: text
+    text: "{time.clock:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: 6%r }
+    color: color.fg
+
+  steps:
+    type: text
+    text: "{activity.steps:d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 52%r }
+    color: color.data
+    absent: "--"

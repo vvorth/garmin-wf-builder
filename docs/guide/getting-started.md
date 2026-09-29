@@ -237,6 +237,7 @@ wfb new --list                    # what else there is
 | `gauge` | a battery needle gauge across the top half, the time below it |
 | `calendar` | the time over a Monday-first month of dots, today lit |
 | `themed` | colour schemes, accent and data colours, and two complication slots the wearer sets on the watch ([configuration](configuration.md)) |
+| `palette` | all 64 MIP colours as named swatches ([the list](mip-palette.md)), two schemes, and accent and data colours |
 | `amoled` | adds an AMOLED target (`fenix847mm`) with a sparse always-on frame ([always-on display](always-on-display.md)) |
 
 Every template builds warning-free on each of its targets.

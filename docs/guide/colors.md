@@ -88,7 +88,9 @@ resources:
     aqua: { value: "#00FFFF", label: "Aqua" }   # long form -- see below
 ```
 
-Elements reference `color.orange`, never a raw hex value. A literal colour is
+Elements reference `color.orange`, never a raw hex value. [The 64 MIP
+colours, named](mip-palette.md) lists every colour the panel shows exactly,
+as palette entries ready to paste. A literal colour is
 accepted but produces a note, because a palette is what makes a colour change
 one edit and a lint one rule.
 
@@ -189,6 +191,7 @@ from the generated settings menu
 
 ## See also
 
+- [The 64 MIP colours, named](mip-palette.md) — every legal colour as a palette entry; `wfb new -t palette` starts with all of them.
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the status row and battery arcs shown above.
 - [Configuration](configuration.md) — `config: style:`, `accent_color`, `data_color`.
 - [Data binding, expressions and formats](data.md) — the expression language a `color:` key uses.
