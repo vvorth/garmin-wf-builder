@@ -44,6 +44,15 @@
 # * the `#555555` swatch vanishes while the brighter ones only look
 #   speckled: dimming, not a region being cleared.
 #
+# ## Answer (2026-09-29, fenix8solar47mm)
+#
+# **The editor dims the whole screen.** With any slot selected, both rows
+# lost the `#555555` swatch and every other swatch looked dimmer too, as did
+# the clock and the unselected slots' text; the cards behind slots 1 and 3
+# went dark and the dot ruler thinned out. Nothing is cleared, and the static
+# layer is not treated differently. A static card that must stay visible
+# while editing needs a colour brighter than `#555555`.
+#
 # Build it with:    ./wfb.py build examples/probes/slot-editor-dim/face.yaml
 # Preview it with:  ./wfb.py preview examples/probes/slot-editor-dim/face.yaml
 #

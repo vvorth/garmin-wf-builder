@@ -113,15 +113,15 @@ real watch -- not designs, not feature demos. Named `Probe <thing>` so the
 `.prg` says what it is. The header comment is the record: the question,
 what the face puts on screen to answer it, the plan, and, once known, the
 answer. `probes/slot-editor/` (2026-09-28) is about the native editor's
-drawable for a `data` element: a static card behind a slot vanishes
-while its options are listed (seen on showcase), and repainting static
-content in the drawable made it pulse, so it was reverted. It targets only
-the two fēnix 8s, the verification devices that have the editor.
-`probes/slot-editor-dim/` (2026-09-29) follows its first photos: in some
-editor frames the cards looked gone and the dot ruler dimmer and dithered
-while the clock looked normal, which a dim pass would explain. It adds two
-rows of swatches, one static and one per-frame, to tell a whole-face dim
-from one that hits only the static layer.
+Data step. Its first question, why static cards behind a slot go dark while
+editing, is answered by `probes/slot-editor-dim/` (2026-09-29), which adds
+a static and a per-frame row of swatches: the editor dims the whole screen,
+and `#555555` dims to black. Nothing is cleared. Its open question is why the
+last slot goes blank at "Done" (the face keeps skipping it as `_pulsing`).
+`probes/slot-editor/trace.py` builds a throwaway `Probe Slot Editor Trace`
+with `EditorTrace.mc` patched into the generated code, drawing the editor's
+callbacks on the face. Both target only the two fēnix 8s, the verification
+devices that have the editor.
 
 ## `system-fonts/`
 
