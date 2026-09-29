@@ -49,7 +49,7 @@ What the preview genuinely cannot show:
   other). Match the *time* with `--time`; the other
   values will differ from the picture's and that is fine;
 - **`complication.*` readings** show as absent, graphs draw a synthetic
-  curve, and an `icon_for:` weather icon always draws;
+  curve, and an `icon: {for: weather.condition}` icon always draws;
 - **fonts the doctor did not find**: those draw in a stand-in face, and
   `wfb preview` prints a warning naming each one. Only then is a glyph-shape
   difference not your design's fault;
@@ -98,6 +98,14 @@ wfb help <command>     # any command's full flags
 > **Never bind a data source that `wfb sources` does not list.** An
 > invented path such as `weather.temp` is the one mistake the tools cannot
 > repair for you.
+
+**The design format is format 2** (`format: 2` on the first line). It is
+the only one the compiler reads. An older face, or a spelling you remember
+from elsewhere (`- id:` lists, `type: shape`, `type: progress`, `value:`
+plus `format:` on text, `palette.x`, `when_absent:`, `vertical_align:`,
+`modes:`), is an error, and the error names the format 2 replacement. If
+you are handed a whole `format: 1` file, `wfb migrate --in-place <file>`
+rewrites it once; `docs/guide/format-2-migration.md` lists every rename.
 
 ---
 
@@ -172,20 +180,20 @@ Angles run **clockwise from 12 o'clock**: `0deg` top, `90deg` 3 o'clock,
 
 | You see | Use | Chapter in `docs/guide/` |
 |---|---|---|
-| any text, digital time, date, a number | `text` (a `face:` font plus `curve:` for rotated or curved text) | `text.md`, `fonts.md`, `data.md` |
-| a sunrise time, recovery hours, a race time, a pace | `text` with a duration format on a number of seconds (`{:%h:%M}`, `{:%-H:%M:%S}`, `{:%-M:%S}{unit}`) | `data.md` |
-| a distance, temperature, elevation or speed with its unit | `text` with `units: auto` and `{unit}` in `format:` | `data.md` |
-| outlined or hollow digits, a halo round text | `text` with `outline:` (a pattern's `shape: text` part takes it too) | `text.md` |
-| rectangle, card, pill, disc, ring, wedge, divider | `shape` | `shapes.md` |
-| a goal ring or bar that fills | `progress` (`style: arc` or `bar`) | `progress-and-graphs.md` |
-| a ring or bar of separate cells, some lit | `progress` with `style: segments` | `progress-and-graphs.md` |
-| coloured zones with a dot at the value | `progress` with `style: scale` | `progress-and-graphs.md` |
-| a gauge needle driven by a reading (battery, HR) | `progress` with `style: needle` | `progress-and-graphs.md` |
+| any text, digital time, date, a number | `text` with a `text:` template, `"{time.clock:%h:%M}"` (a `face:` font plus `curve:` for rotated or curved text) | `text.md`, `fonts.md`, `data.md` |
+| a sunrise time, recovery hours, a race time, a pace | `text` with a duration spec on a number of seconds (`"{complication.sunrise:%h:%M}"`, `%-H:%M:%S`, `"{…:%-M:%S}{unit}"`) | `data.md` |
+| a distance, temperature, elevation or speed with its unit | `text` with `units: auto` and `{unit}` in the `text:` template | `data.md` |
+| outlined or hollow digits, a halo round text | `text` with `outline:` (a pattern's `type: text` part takes it too) | `text.md` |
+| rectangle, card, pill, disc, ring, wedge, divider | `type: rectangle`, `circle`, `ellipse`, `polygon`, `line` or `arc` (a pill is a `rectangle` with `corner_radius:`) | `shapes.md` |
+| a goal ring or bar that fills | `gauge` (`style: arc` or `bar`) | `progress-and-graphs.md` |
+| a ring or bar of separate cells, some lit | `gauge` with `style: segments` | `progress-and-graphs.md` |
+| coloured zones with a dot at the value | `gauge` with `style: scale` | `progress-and-graphs.md` |
+| a gauge needle driven by a reading (battery, HR) | `gauge` with `style: needle` | `progress-and-graphs.md` |
 | a line, area or bar chart | `graph` | `progress-and-graphs.md` |
 | a small symbol (heart, steps, battery, weather) | `icon` | `icons.md` |
-| analog hands | top-level `hands:` set plus a `type: hands` element | `analog-hands.md` |
+| analog hands | a `resources: {hand_sets:}` entry plus a `type: hands` element with `set:` | `analog-hands.md` |
 | ticks, indices, numerals round a dial, a row of dots | `pattern` (`radial` or `linear`) | `patterns.md` |
-| a wearer-selectable data spot | `complication_slot` | `configuration.md` |
+| a wearer-selectable data spot | `type: data` with a `config: {slots:}` entry | `configuration.md` |
 | a gauge or number in an Instinct's small round window | any element at `at: { anchor: subscreen }` | `placement.md` |
 | several things that move together | `group` | `elements.md` |
 
@@ -193,7 +201,7 @@ Anything that never changes (background, ticks, printed numerals, fixed
 labels) belongs in **`static:`**: it is drawn once and blitted each frame.
 
 **Inventory the small things too**, because they are the ones a first draft
-drops: a centre hub or cap over the hands (a `shape: circle` element placed
+drops: a centre hub or cap over the hands (a `type: circle` element placed
 *after* the `type: hands` element), a hand's tail or counterweight, a
 second tick at 12, a date window's frame, a thin separator line. Zoom into
 the centre and the rim of the picture before you write YAML.
@@ -206,10 +214,10 @@ listed:
 - a **system font** (`font: FONT_SMALL`) is the cheapest, and its height is
   fixed per device (the table gives it). Pick the one whose line height
   matches the picture's text;
-- a **vector face** (`fonts: {x: {face: [RobotoCondensedBold], size: 8%r}}`)
-  scales to any size and is the only way to rotate or curve text, but
-  exists on only some devices;
-- a **baked TTF** (`fonts: {x: {source: assets/Font.ttf, size: 20%r}}`)
+- a **vector face** (`resources: {fonts: {x: {face: [RobotoCondensedBold],
+  size: 8%r}}}`, used as `font: font.x`) scales to any size and is the only
+  way to rotate or curve text, but exists on only some devices;
+- a **baked TTF** (`resources: {fonts: {x: {source: assets/Font.ttf, size: 20%r}}}`)
   matches a distinctive typeface exactly. A font needs a file the repository
   has or the person supplies; look in `examples/*/assets/` for what is
   already here. Use `monospace: true` for a clock so it does not jitter.
@@ -224,8 +232,8 @@ what to show when a reading is missing, or which watches to build for. Put
 your interpretation and a proposed default for each open point in **one
 numbered message**. Defaults to propose: the design's shown colours
 snapped to the palette, `%h` for the hour (follows the watch's 12/24-hour
-setting), `when_absent: placeholder` with `"--"` for a lone reading, `hide`
-inside a cluster, and targets `fenix8solar47mm, fenix8solar51mm, fr955`
+setting), `absent: "--"` for a lone reading, `absent: hide` inside a
+cluster, and targets `fenix8solar47mm, fenix8solar51mm, fr955`
 for a round picture (a watch of the picture's own shape otherwise).
 
 **If the person says to use your judgement, or gave no room for questions,
@@ -270,73 +278,97 @@ are known-good and warning-free:
 | graphs | `examples/features/graph/face.yaml` |
 | an Instinct: black and white, the subscreen window | `examples/features/instinct/face.yaml` |
 | every shape | `examples/features/shapes/face.yaml` |
+| earlier output of this skill, from a photo | `examples/generated_by_skill/` (`navy-classic`, a dress dial; `trail-utility`, a digital sports face), with the prompts in `prompts.md` |
 
 ### Rules that otherwise cost you a round
 
-1. **Every length that should scale is `%r`.** `px` is the same pixel count
+1. **Elements are a mapping keyed by id**, under `static:`, `elements:` and
+   a group's `children:`: `clock: {type: text, ...}`, never a `- id:` list.
+   The key *is* the id; YAML order is draw order.
+2. **Every length that should scale is `%r`.** `px` is the same pixel count
    on every watch; use it only for deliberate hairlines (`thickness: 2px`).
    A bare number is `px`. `%` is of the *parent box* (the screen, or a
    group), per axis.
-2. **Every reading can be absent**, so a binding to a nullable source
-   (`wfb sources` marks them) needs `when_absent:`: `hide`, `placeholder`
-   (with `placeholder: "--"`) or `fallback`.
-3. **Colours: each channel is `00`, `55`, `AA` or `FF`**, or the MIP panel
+3. **Every reading can be absent**, so a binding to a nullable source
+   (`wfb sources` marks them) needs `absent:`: `hide`, a string drawn in
+   its place (`absent: "--"`), or `{value: <expression>}` substituted into
+   the placeholder. On a `gauge`, `absent: hide` still draws the track and
+   leaves out only the fill; use `visible:` to hide it whole.
+4. **Colours: each channel is `00`, `55`, `AA` or `FF`**, or the MIP panel
    dithers it. Snap every colour you measured to the nearest legal one,
-   declare it in `palette:` and reference `palette.<name>`. On an
-   **Instinct** (2 colours) only `#000000` and `#FFFFFF` are safe
-   (`palette-mono` warns on anything else): turn the picture's shades into
-   black-or-white shapes, not greys.
-4. **Time needs a time format**: `value: time.clock`, `format: "{:%h:%M}"`.
-   Dates: `value: date.today`, `format: "{:%a %e}"`. Text around a field is
-   kept, and one spec may hold several fields (`"{:%a}, {:%e %b}"`), but
-   every spec needs a `{}` field: a bare `%H:%M` is an error. `text:` is a
-   literal string, `value:` is an expression; never put a literal in
-   `value:`.
-5. **An arc is a stroke**: `radius`, `thickness` (pen width), `start_angle`,
+   declare it in `resources: {palette:}` and reference it as
+   `color.<name>` (the one colour namespace: palette entries and theme
+   roles alike). On an **Instinct** (2 colours) only `#000000` and
+   `#FFFFFF` are safe (`palette-mono` warns on anything else): turn the
+   picture's shades into black-or-white shapes, not greys.
+5. **Text is one `text:` template**: literal text around at most one
+   `{expression:spec}` placeholder. The time is `text: "{time.clock:%h:%M}"`,
+   a date `"{date.today:%a %e}"`, a number `"{activity.steps:d}"`, a label
+   `"STEPS"`. A time value needs a spec in its placeholder. Text outside the
+   braces is drawn as written, so `"%H:%M"` without braces draws those five
+   characters. Two readings in one text (`"{time.hour:02d}:{time.minute:02d}"`)
+   are not implemented: use two elements, or a source that combines them
+   (`time.clock`). A literal brace is written twice (`"{{"`). A ternary in a
+   placeholder goes in parentheses.
+6. **An arc is a stroke**: `radius`, `thickness` (pen width), `start_angle`,
    `sweep`. There is no filled arc, no round cap, no gradient. A solid wedge
    is a `polygon`; a disc is a `circle`.
-6. **`style: arc` and `style: bar` take different keys.** An arc progress
+7. **A gauge's `style: arc` and `style: bar` take different keys.** An arc
    needs `radius`/`thickness`/`start_angle`/`sweep`, a bar needs `size`.
    `segments` (`count:`, `gap:`) and `scale` (`bands:`) take either track.
    A `needle` takes neither: its `needle:` parts are authored like a hand's
-   (rule 9), about `at:`, turned to `start_angle + fraction × sweep`.
-7. **A font or icon `size:` is `px` or `%r` only.** No bare number, no
+   (rule 10), about `at:`, turned to `start_angle + fraction × sweep`.
+8. **A font or icon `size:` is `px` or `%r` only.** No bare number, no
    `scale:`.
-8. **Icons:** `icon: <name>` for a catalogue name (`wfb sources` lists
-   them), or `glyph: "U+XXXX"` for any other Nerd Fonts glyph. Never paste
-   a raw character. Never use an icon for something it does not mean.
-9. **Hands and pattern parts are drawn at 12 o'clock with the axis at the
-   origin**, so a tip is at a *negative* `dy`. Their lengths are `px`/`%r`,
-   no `anchor:`. A pattern of 60 ticks with `skip_every: 5` leaves room for
-   12 hour ticks drawn by a second pattern.
-10. **`align:`/`vertical_align:` say which edge of the element's box sits
-    on `at:`**; both default to `center`. `vertical_align` is
-    `top`/`center`/`bottom` (no `baseline`). Polygons, lines, patterns and
-    hands take neither.
-11. **Draw order is document order.** `static:` content is always drawn
-    first. A pin that sits over the hands is a `shape: circle` after the
+9. **Icons:** `icon: <name>` for a catalogue name (`wfb sources` lists
+   them), `icon: "U+XXXX"` for any other Nerd Fonts glyph, or
+   `icon: {for: weather.condition}` for a glyph chosen by the weather.
+   Never paste a raw character. Never use an icon for something it does not
+   mean.
+10. **Hands and pattern parts are drawn at 12 o'clock with the axis at the
+    origin**, so a tip is at a *negative* `dy`. Each part names its own
+    `type:` (`polygon`, `rectangle`, `line`, `circle`; a pattern also takes
+    `arc` and `text`). Their lengths are `px`/`%r`, no `anchor:`. A pattern
+    of 60 ticks with `skip_every: 5` leaves room for 12 hour ticks drawn by
+    a second pattern.
+11. **`align:` says which point of the element's box sits on `at:`**: one
+    of the nine anchor names, `top_left`, `top`, `top_right`, `left`,
+    `center` (the default), `right`, `bottom_left`, `bottom`,
+    `bottom_right`. There is no separate vertical key. Polygons, lines,
+    patterns and hands take no `align:`.
+12. **Draw order is document order.** `static:` content is always drawn
+    first. A pin that sits over the hands is a `type: circle` after the
     `type: hands` element.
-12. **`antialias: true` on a shape, pattern, hands, progress or graph
-    warns `antialias-dither` on a 64-colour MIP panel**: the soft edge is
+13. **`antialias: true` on a shape, pattern, hands, gauge or graph warns
+    `antialias-dither` on a 64-colour MIP panel**: the soft edge is
     dithered. Leave it off unless the picture's smooth edges matter more
     than the grain, and then accept the warning with a `lint:` reason. On a
-    `fonts:` entry it is free and usually looks better.
-13. **`outline:` stamps a ring round text**: `outline: palette.x` (2 px)
-    or `outline: {color: palette.x, width: 1}`, 1–3 px, on a `text` element
-    or a pattern's `shape: text` part. The interior is then painted in the
-    element's own `color:`, **over** whatever is underneath: there is no
-    transparency. For hollow digits, make `color:` the exact palette entry
-    of the background beneath them, or `text-outline-interior` warns.
-14. **Not available**: `image` and `raw` elements, per-device `overrides`,
+    `resources: {fonts:}` entry it is free and usually looks better. A
+    face-wide default goes in `defaults: {antialias:}`.
+14. **`outline:` stamps a ring round text**: `outline: color.x` (2 px)
+    or `outline: {color: color.x, width: 1}`, 1–3 px, on a `text` element
+    or a pattern's `type: text` part (not on a hand, needle or shape part). The
+    interior is then painted in the element's own `color:`, **over**
+    whatever is underneath: there is no transparency. For hollow digits,
+    make `color:` the exact palette entry of the background beneath them,
+    or `text-outline-interior` warns.
+15. **Not available**: `image` and `raw` elements, per-device `overrides:`,
     transparency, animation, and taps or swipes (a face gets only touch and
-    hold, via `on_hold:`). `modes: [always_on]` is gone: an AMOLED sleep
-    frame is `aod:` (below). There are no wearer settings beyond `config:`
-    (no on/off switches, no choice lists of your own). If the picture needs
-    something missing, say so and use the closest thing that exists.
-15. **`anchor: subscreen`** (Instinct 2/2X/3 Solar 45mm/E 45mm) goes on a
+    hold, via `on_hold:`). There are no wearer settings beyond `config:`
+    (no on/off switches, no choice lists of your own). Format 2 reserves
+    some vocabulary that is not built yet (several placeholders in one
+    text, `components:`, `effects:`, `when:` rules, a `data` element's
+    `parts:`); writing it is a friendly "not implemented" error. If the
+    picture needs something missing, say so and use the closest thing that
+    exists.
+16. **`anchor: subscreen`** (Instinct 2/2X/3 Solar 45mm/E 45mm) goes on a
     top-level element's own `at:`, and inside it `%` is of the 62 px window;
     `%r` is still the whole screen's. A target without the window is a build
-    error unless that element sets `if_unavailable: hide`.
+    error unless that element sets `unsupported: hide`.
+17. **`sleep_update: true`** also redraws an element every second while a
+    MIP watch sleeps (a seconds readout). Everything else redraws once a
+    minute asleep. Leave it off unless the picture needs it: it costs
+    power budget, and it is a build error on an AMOLED target.
 
 `wfb schema` prints the normative definition; `docs/guide/` explains every
 key with examples. `docs/README.md` is the index.
@@ -345,10 +377,15 @@ key with examples. `docs/README.md` is the index.
 
 If the picture comes with colour variants, or a data spot the wearer should
 pick, that is `config:` (`docs/guide/configuration.md`,
-`styles-and-layouts.md`; `wfb new -t themed` starts one). A fēnix 8 edits it
-in Garmin's own face editor; an fr955 gets the same choices in a generated
-settings menu, where a data slot's optional `label:` is its title. You
-design it once for both.
+`styles-and-layouts.md`; `wfb new -t themed` starts one). Colour variants
+are `theme: {schemes:}` whose roles are read as `color.<role>`, picked
+through `config: {style:}` entries; the accent and data colours are
+`config: {accent_color:, data_color:}` (read as `color.accent` and
+`color.data`); a data spot is a `config: {slots:}` entry drawn by a
+`type: data` element with `slot: <name>`. A fēnix 8 edits it in Garmin's
+own face editor; an fr955 gets the same choices in a generated settings
+menu, where a slot's optional `label:` is its title. You design it once for
+both.
 
 ### AMOLED targets: the always-on frame
 
@@ -356,24 +393,26 @@ design it once for both.
 If the person names an **AMOLED** watch (`fenix847mm`, `epix2`, `venu`, …),
 two things change:
 
-- `modes: [low_power]` is a **build error** there: AMOLED has no partial
+- `sleep_update: true` is a **build error** there: AMOLED has no partial
   updates.
 - While asleep the watch draws an **always-on (AOD) frame**, and a design
   with nothing in it warns `aod-empty`. Say what shows in AOD with `aod:`,
   overrides on the same design, not a second layout:
 
 ```yaml
-aod: { default: hide, dim: 0.6 }     # top level: hide everything, dim what shows
+defaults:
+  aod: hide                          # every element hides in AOD unless it says otherwise
+aod:
+  dim: 0.6                           # dim every colour AOD draws without an override
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: font.clock
-    color: palette.fg
+    color: color.fg
     aod:                             # this element shows in AOD, restyled
-      color: palette.bg              # hollow digits: the ring is the only ink
-      outline: palette.dim
+      color: color.bg                # hollow digits: the ring is the only ink
+      outline: color.dim
 ```
 
 Garmin's rule is under 10 % of pixels and luminance lit, and
@@ -510,69 +549,67 @@ difference you could not remove and why.
 ## Quick reference
 
 ```yaml
-format: 1
+format: 2
 face:
   id: <uuid>                      # `wfb new` mints one; never copy another face's
   name: My Face
   version: 1.0.0
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 
-palette:                          # every channel 00 / 55 / AA / FF
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FF5500"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 
-fonts:                            # optional
-  clock: { source: assets/ChivoMono-Bold.ttf, size: 30%r, monospace: true, antialias: true }
-  dial:  { face: [RobotoCondensedBold], size: 8%r }        # device vector face
-
-hands:                            # optional; one named set, drawn at 12 o'clock
-  main:
-    hour:   { color: palette.fg, parts: [{ shape: rectangle, at: { dy: -20%r }, size: { width: 6%r, height: 55%r } }] }
-    minute: { color: palette.fg, parts: [{ shape: polygon, points: [{ dx: -3%r, dy: 15%r }, { dx: -2%r, dy: -88%r }, { dx: 2%r, dy: -88%r }, { dx: 3%r, dy: 15%r }] }] }
-    second: { color: palette.accent, parts: [{ shape: line, at: { dy: 20%r }, to: { dy: -85%r }, thickness: 2px },
-                                             { shape: circle, radius: 3%r }] }
+resources:
+  palette:                        # every channel 00 / 55 / AA / FF
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FF5500"
+  fonts:                          # optional
+    clock: { source: assets/ChivoMono-Bold.ttf, size: 30%r, monospace: true, antialias: true }
+    dial:  { face: [RobotoCondensedBold], size: 8%r }        # device vector face
+  hand_sets:                      # optional; each drawn at 12 o'clock
+    main:
+      hour:   { color: color.fg, parts: [{ type: rectangle, at: { dy: -20%r }, size: { width: 6%r, height: 55%r } }] }
+      minute: { color: color.fg, parts: [{ type: polygon, points: [{ dx: -3%r, dy: 15%r }, { dx: -2%r, dy: -88%r }, { dx: 2%r, dy: -88%r }, { dx: 3%r, dy: 15%r }] }] }
+      second: { color: color.accent, parts: [{ type: line, at: { dy: 20%r }, to: { dy: -85%r }, thickness: 2px },
+                                              { type: circle, radius: 3%r }] }
 
 static:                           # drawn once, blitted each frame
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
-  - id: minute_ticks
+    color: color.bg
+  minute_ticks:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 60
     skip_every: 5
-    color: palette.fg
-    parts: [{ shape: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 2px }]
-  - id: hour_numerals
+    color: color.fg
+    parts: [{ type: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 2px }]
+  hour_numerals:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 12
-    color: palette.fg
-    parts: [{ shape: text, value: "(copy + 11) % 12 + 1", font: FONT_SMALL, at: { dy: -75%r } }]
+    color: color.fg
+    parts: [{ type: text, text: "{(copy + 11) % 12 + 1}", font: FONT_SMALL, at: { dy: -75%r } }]
 
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: font.clock
     at: { anchor: center, dy: -10%r }
-    color: palette.fg
-  - id: date
+    color: color.fg
+  date:
     type: text
-    value: date.today
-    format: "{:%a %e}"
+    text: "{date.today:%a %e}"
     font: FONT_TINY
     at: { anchor: center, dy: 25%r }
-    color: palette.fg
-  - id: steps_ring
-    type: progress
+    color: color.fg
+  steps_ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -581,48 +618,48 @@ elements:
     thickness: 3%r
     start_angle: 210deg
     sweep: 300deg
-    color: palette.accent
-    track_color: palette.bg
-    when_absent: hide
-  - id: hr
+    color: color.accent
+    track_color: color.bg
+    absent: hide
+  hr:
     type: group
     at: { anchor: center, dy: 45%r }
     size: { width: 40%r, height: 12%r }
     on_hold: heart_rate
     children:
-      - { id: hr_icon, type: icon, icon: heart, size: 9%r, at: { anchor: left }, align: left, color: palette.accent }
-      - { id: hr_value, type: text, value: heart_rate.current, format: "{:d}", font: FONT_TINY,
-          at: { anchor: right }, align: right, color: palette.fg,
-          when_absent: placeholder, placeholder: "--" }
-  - id: hands
+      hr_icon:  { type: icon, icon: heart, size: 9%r, at: { anchor: left }, align: left, color: color.accent }
+      hr_value: { type: text, text: "{heart_rate.current:d}", font: FONT_TINY,
+                  at: { anchor: right }, align: right, color: color.fg, absent: "--" }
+  hands:
     type: hands
-    hands: main
+    set: main
     at: { anchor: center }
     seconds: awake                # hidden while the watch sleeps
 ```
 
-Elements may also be written as a mapping keyed by id (`clock: {type:
-text, ...}`); it means the same thing. The list form above is what the
-schema describes.
+`static:`, `elements:` and a group's `children:` are mappings keyed by id,
+as above. `wfb schema` prints the normative definition.
 
 ## Errors you will meet
 
 | Message | What to do |
 |---|---|
+| `... is format 1's spelling ...`, `'<key>:' is format 1; format 2 writes ...`, `unknown element type 'shape'` | A format 1 habit: write what the note says (`docs/guide/format-2-migration.md` has every rename) |
+| `this file is format 1, which this compiler no longer reads` | `wfb migrate --in-place <file>` once, then carry on in format 2 |
 | `unknown key ('x', 'y' were unexpected)` | Positions go in `at:`, sizes in `size:`; there are no absolute coordinates |
-| `... can be absent, so 'when_absent:' is required` | Add `when_absent: hide`, or a placeholder |
+| `... can be absent, so 'absent:' is required` | Add `absent: hide`, or `absent: "--"` |
 | `unknown data source ...` | Use the suggestion; check `wfb sources`. Never invent one |
-| `a time value needs a strftime-style format` | `format: "{:%h:%M}"` |
+| `a time value needs a format spec in its placeholder` | `text: "{time.clock:%h:%M}"` |
 | `will be dithered` / `palette-dither` | Use the nearest legal colour it names |
 | `palette-mono` | An Instinct shows black and white only: use the one it names |
-| `'...' has no {} field` | Wrap the codes in a field, `"{:%H:%M}"` not `"%H:%M"`; a fixed string goes in `text:` |
-| `... have no subscreen window` | Target only Instincts, or give the element `if_unavailable: hide` |
+| `several placeholders in one text are not implemented yet` | One reading per `text:`; split it into two elements, or use `time.clock` |
+| `... have no subscreen window` | Target only Instincts, or give the element `unsupported: hide` |
 | `safe-area` / `off-screen` | Move it inward or shrink it: it is under the bezel (or outside a rectangle's rounded corners, or the Instinct's window) |
 | `text-overflow` | The widest value does not fit: smaller font, or more room |
-| `curve: requires a face: font` | Rotated or curved text needs a `fonts:` entry with `face:` |
-| `font-unavailable` | That vector face is missing on a target; add a fallback face to the list, or `if_unavailable: hide` |
+| `'curve:' needs a 'face:' (vector) font` | Rotated or curved text needs a `resources: {fonts:}` entry with `face:` |
+| `font-unavailable` | That vector face is missing on a target; add a fallback face to the list, or `unsupported: hide` |
 | `text-outline-interior` | An outlined text's interior paints over something drawn earlier: make its `color:` the palette entry underneath, or move it |
-| `... is an AMOLED device and does not support onPartialUpdate` | Drop `low_power` from `modes:`; the AMOLED sleep frame is `aod:` |
+| `... is an AMOLED device and does not support onPartialUpdate` | Drop `sleep_update: true`; the AMOLED sleep frame is `aod:` |
 | `aod-empty` | Nothing draws in always-on display on an AMOLED target: give the time `aod: show` (or an override block) |
 | `aod-burn-in` | The AOD frame lights too much: show less, dim it (`aod: {dim: ...}`), use hollow or thinner digits |
 | `Invalid device id specified` (build) | Device definitions are missing: run `wfb doctor` |
