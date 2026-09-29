@@ -6,7 +6,7 @@
 # Preview:  ./wfb.py preview faces/navy-classic/face.yaml --time 10:10:37
 # Build:    ./wfb.py build faces/navy-classic/face.yaml
 #
-# yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
 format: 2
 
@@ -41,7 +41,7 @@ resources:
               - { dx: 1%r, dy: -57%r }
               - { dx: 4%r, dy: -52%r }
               - { dx: 4%r, dy: 19%r }
-          - { type: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 3px, color: color.silver }
+          - { type: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 1px, color: color.silver }
       minute:
         parts:
           - type: polygon
@@ -53,7 +53,7 @@ resources:
               - { dx: 1%r, dy: -83%r }
               - { dx: 3%r, dy: -80%r }
               - { dx: 3%r, dy: 12%r }
-          - { type: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 3px, color: color.silver }
+          - { type: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 1px, color: color.silver }
       second:
         color: color.silver
         parts:
