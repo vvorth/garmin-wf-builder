@@ -226,7 +226,7 @@ def _has_partial_update(resolved: ResolvedFace, guards: "Guards") -> bool:
     declaring a `low_power` mode and some target supporting partial updates
     (AMOLED forbids it, CLAUDE.md constraint 5). Read off the build-wide
     `guards`, not `resolved.device`: the view is shared by every target."""
-    return bool(resolved.in_mode("low_power")) and not guards.partial_update_unsupported
+    return bool(resolved.drawn_in_mode("low_power")) and not guards.partial_update_unsupported
 
 
 def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:

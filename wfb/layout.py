@@ -1123,17 +1123,17 @@ class ResolvedFace:
             sub_pixel=[sp for sp in self.sub_pixel if sp.element.id not in self.hidden],
             warnings=[w for w in self.warnings if w.element.id not in self.hidden])
 
-    def in_mode(self, mode: str) -> list[Placed]:
-        return [p for p in self.items if mode in p.element.modes]
-
     def drawn_in_mode(self, mode: str) -> list[Placed]:
-        """``in_mode`` minus groups -- everything that actually paints in ``mode``.
+        """Everything that actually paints in ``mode`` -- never a group.
 
         A group paints nothing of its own, and one with no ``size:`` resolves
-        to its whole parent box, so its box is no evidence of drawing.  A
-        clip rectangle or an element count wants this, not ``in_mode``.
+        to its whole parent box, so its box is no evidence of drawing.  There
+        is deliberately no variant that counts groups: one once decided that
+        `onPartialUpdate` exists while the clip, built from this, found
+        nothing to cover (a `sleep_update:` group), and `monkeyc` failed on
+        the missing clip constants.
         """
-        return [p for p in self.in_mode(mode) if p.kind != "group"]
+        return [p for p in self.items if p.kind != "group" and mode in p.element.modes]
 
     def clip_for(self, mode: str) -> IntBox | None:
         """The tightest rectangle covering everything drawn in ``mode``.

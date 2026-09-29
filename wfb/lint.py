@@ -132,7 +132,7 @@ def _emit_for_users(bag: Bag, users: Iterable[Element], diag: Diagnostic) -> Non
     everywhere it is drawn, so acknowledging it on any one use acknowledges
     the declaration itself.
     """
-    if not _suppressed(diag.code, (user.lint_allow for user in users)):
+    if not _suppressed(diag.code, (user.all_lint_allow for user in users)):
         bag.add(diag)
 
 
@@ -383,7 +383,7 @@ def check_vector_font_availability(
                 confidence="exact -- resolved per-device gates 1-3",
             )
             continue
-        if _suppressed("font-unavailable", [element.lint_allow]):
+        if _suppressed("font-unavailable", [element.all_lint_allow]):
             continue
         bag.warning(
             "font-unavailable",

@@ -305,14 +305,13 @@ def test_low_power_clip_clamps_a_fully_off_screen_element(write_design, bag, db)
 
 
 def test_drawn_in_mode_excludes_groups(resolved_for):
-    """`drawn_in_mode` is `in_mode` minus groups -- the accessor `clip_for`
-    (and the partial-update-budget lint's element count) now use, so what
-    actually draws is never confused with a container that merely gates."""
+    """`drawn_in_mode` never counts a group -- the one accessor `clip_for`,
+    the partial-update-budget lint and the `onPartialUpdate` decision all
+    use, so what actually draws is never confused with a container."""
     resolved = resolved_for("fenix8solar47mm")
-    assert all(p.kind != "group" for p in resolved.drawn_in_mode("active"))
-    assert resolved.drawn_in_mode("active") == [
-        p for p in resolved.in_mode("active") if p.kind != "group"
-    ]
+    drawn = resolved.drawn_in_mode("active")
+    assert drawn and all(p.kind != "group" for p in drawn)
+    assert not hasattr(resolved, "in_mode")
 
 
 def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):

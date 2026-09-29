@@ -27,6 +27,45 @@ from .naming import _pascal, config_field, font_resource_id
 #: MIP partial-update modes.
 MODES = ("active", "low_power")
 
+#: Every key the schema accepts on a `group`, and what it does to the
+#: members.  A group draws nothing, so a key it accepts either shapes the
+#: group itself or reaches its members -- and one that silently did
+#: neither was a bug (`sleep_update:`, `z:` and `lint:` all were, until
+#: this table).  `tests/test_group_keys.py` holds it equal to the schema's
+#: own `groupElement` keys, so a new group key cannot land without a
+#: policy here, and exercises every inherited one on a real member.
+#:
+#: * ``structural`` -- the group's own frame (`at:`, `size:`, `align:`,
+#:   the member list itself);
+#: * ``conjoined`` -- ANDed into every member's own (`Builder.push_visible`);
+#: * ``nearest`` -- a member without its own takes the nearest enclosing
+#:   group's (`Builder._resolve_inherited_flag`);
+#: * ``merged`` -- merged key by key with the member's own
+#:   (`Builder._resolve_aod`);
+#: * ``union`` -- added to the member's own (`Element.all_lint_allow`);
+#: * ``group`` -- means something for the group as a whole, not per
+#:   member (a hold target is the group's box; a ring goes round the
+#:   union; a subscreen window hides the whole subtree);
+#: * ``refused`` -- accepted by the schema only to be a friendly error.
+GROUP_KEYS: dict[str, str] = {
+    "type": "structural",
+    "at": "structural",
+    "size": "structural",
+    "align": "structural",
+    "children": "structural",
+    "visible": "conjoined",
+    "antialias": "nearest",
+    "min_1px": "nearest",
+    "sleep_update": "nearest",
+    "z": "nearest",
+    "aod": "merged",
+    "lint": "union",
+    "on_hold": "group",
+    "outline": "group",
+    "unsupported": "group",
+    "overrides": "refused",
+}
+
 #: `Element.bound_expressions()` role tags (plan 19 A2): what a compiled
 #: expression *is*, not just that it exists.  Each is read by exactly the
 #: downstream logic named on it, so a role is added here once, not
@@ -706,7 +745,12 @@ class Element:
     id: str
     kind: str
     at: Position
+    #: The modes this element draws in: `("active",)`, plus `"low_power"`
+    #: under `sleep_update: true` -- its own, or the nearest enclosing
+    #: group's (`Builder._resolve_group_keys`; the kind's own build sees
+    #: only what was written here).
     modes: tuple[str, ...]
+    #: `z:` as written; `resolved_z` is the one drawing order reads.
     z: int | None
     span: Span | None
     lint_allow: frozenset[str] = frozenset()
@@ -762,6 +806,15 @@ class Element:
     #: (`HandPart.min_1px`, which inherits `resolved_min_1px`).
     min_1px: bool | None = None
     resolved_min_1px: bool = False
+    #: `sleep_update:` as written (`None` = inherit) and resolved, and `z:`
+    #: resolved -- inherited the same nearest-wins way (`GROUP_KEYS`).
+    sleep_update: bool | None = None
+    resolved_sleep_update: bool = False
+    resolved_z: int = 0
+    #: Every enclosing group's `lint: allow`, which covers this element too
+    #: (`GROUP_KEYS`); its own stays in `lint_allow`, where
+    #: `wfb.lint.check_lint_allow` validates each code once, where written.
+    inherited_lint_allow: frozenset[str] = frozenset()
     #: The placement box's edge (or centre) that sits at `at:`.  The schema
     #: decides which kinds accept it; `wfb.layout` applies it through
     #: `alignment_shift` (box-drawn kinds) or `Resolver.justify` (glyph-drawn
@@ -786,6 +839,12 @@ class Element:
     #: way (`wfb.kinds.ElementKind.outline`); on a `group` it rings the
     #: members' union.
     outline: "Outline | None" = None
+
+    @property
+    def all_lint_allow(self) -> frozenset[str]:
+        """Every lint code this element accepts: its own `lint: allow` and
+        every enclosing group's."""
+        return self.lint_allow | self.inherited_lint_allow
 
     @property
     def symbol(self) -> str:
@@ -1613,10 +1672,7 @@ def authored_draw_order(elements: list[Element]) -> list[Element]:
     flag.
     """
     drawn = [e for e in walk_elements(elements) if e.kind != "group"]
-    return sorted(drawn, key=lambda e: (
-        0 if e.layout is None else 1,
-        e.z if e.z is not None else 0,
-    ))
+    return sorted(drawn, key=lambda e: (0 if e.layout is None else 1, e.resolved_z))
 
 
 def draw_sort_key(element: Element) -> tuple[int, int, int, int]:
@@ -1653,7 +1709,7 @@ def draw_sort_key(element: Element) -> tuple[int, int, int, int]:
     in step (`tests/test_static.py` pins the two together).
     """
     layer = 0 if element.layout is None else 1
-    z = element.z if element.z is not None else 0
+    z = element.resolved_z
     if element.static_root is None:
         return (1, layer, 0, z)
     return (0, layer, element.static_rank if element.static_rank is not None else 0, z)

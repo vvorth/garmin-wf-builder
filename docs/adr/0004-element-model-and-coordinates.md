@@ -545,3 +545,24 @@ the model; the IR keeps its internal names (`wfb/lower.py`).
   per-element `static: true` flag is removed.
 - `if_unavailable:` became `unsupported:`. §4's per-device `overrides:`
   remains specified and unbuilt, now in format 2's key names.
+
+## Amendment (2026-09-29): what a group passes to its members
+
+§1 says a `group` "applies inherited anchor/visibility/mode". Visibility was
+built (the conjoined `visible:` above), and so were `antialias:`, `min_1px:`
+and `aod:`, each with a propagation pass of its own. Mode never was: a
+group's `sleep_update:` reached no member, and the build failed outright,
+with `onPartialUpdate` emitted and no clip constants for it. The same audit
+found a group's `z:` and `lint: allow` equally inert.
+
+- `sleep_update:` and `z:` are inherited like `antialias:`, nearest ancestor
+  wins. An explicit `sleep_update: false` on a member opts it out. A kind
+  that refuses `sleep_update:` (`hands`, `pattern`) refuses an inherited
+  one too, naming the group.
+- A group's `lint: allow` covers every member, added to the member's own;
+  each code is validated once, where it is written.
+- Every key the schema accepts on `group` has a declared policy in
+  `wfb.ir.model.GROUP_KEYS`: structural, conjoined, nearest, merged, union,
+  whole-group or refused. `tests/test_group_keys.py` holds the table equal to
+  the schema, so a new group key cannot land without deciding what it does
+  to members.

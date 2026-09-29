@@ -3,7 +3,7 @@
 `wfb validate` and `wfb build` run a linter against every target device. A
 warning means the design might not look or behave as intended on that watch —
 it never fails the build. Suppress an individual warning deliberately with
-`lint: {allow: [...], reason: ...}`; a handful of checks reflect hard
+`lint: {allow: [...], reason: ...}` (on a `group`, it covers every member); a handful of checks reflect hard
 platform limits and can never be suppressed. One check, `aod-burn-in`, is
 the one deliberate exception to "an error always fails the build with no way
 out" — see its own paragraph below.

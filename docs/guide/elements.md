@@ -40,7 +40,7 @@ Z-order is document order, with an optional `z:` override. Every element takes
 | `min_1px` | `group`, the primitives, `gauge`, `graph`, `hands`, `pattern`, and a hand/pattern part (not `text`, `icon`, `data`) | `true`\|`false` | `defaults:` (`false`) | [clamp a length to at least 1px](#min_1px--never-let-a-relative-length-round-to-nothing) |
 | `sleep_update` | every element | `true`\|`false` | `false` | also redraw every second while a MIP watch sleeps — see [Power modes](modes-and-interaction.md) |
 | `aod` | every element, `group` | `hide`\|`show`\|an override block | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
-| `z` | every element | integer | document order | z-order override |
+| `z` | every element | integer | document order | z-order override; on a `group`, the default for every member |
 | `unsupported` | an element anchored to the [subscreen](placement.md#the-subscreen-window), or a `text` with a `face:` font | `error`\|`hide` | `error` (a `text`: its font's own) | what to do on a target that lacks the window, or the face |
 | `on_hold` | kinds with a fixed box (not `hands`, not `pattern`) | a complication name, or `auto` | — | touch-and-hold target — see [Interactivity](modes-and-interaction.md#interactivity-on_hold) |
 | `lint` | every element | `{allow: [...], reason: ...}` | — | suppress a specific warning — see [Lints](lints.md) |
@@ -534,6 +534,13 @@ group's condition is conjoined into each descendant's own at build time (a group
 emits no code of its own, so there is nothing else it could mean), which is why
 nesting composes: an inner group's condition and the outer one both have to hold
 for a leaf to draw. See "`visible:`" above.
+
+**A group passes `sleep_update:`, `z:`, `antialias:` and `min_1px:` down**
+to every member that does not set its own, the nearest group winning; an
+explicit `sleep_update: false` keeps one member out of a sleep-updating
+group. Its `lint: allow` covers every member too, added to each member's
+own. `aod:` merges key by key with the member's own ([Always-on
+display](always-on-display.md)), and `visible:` is ANDed in (above).
 
 **`outline:` on a group rings the union of its members**: every member's
 ring just before the first member, then the members, so members that touch

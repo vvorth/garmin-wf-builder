@@ -239,9 +239,9 @@ class AodPass(HandParts):
             )
             del inherited[key]
 
-    def _resolve_inherited_flag(self, elements: list[Element], key: str, default: bool) -> None:
-        """Resolve a boolean key as an inherited default, root to leaf --
-        `antialias:` and `min_1px:`.  `Element.<key>` holds what the author
+    def _resolve_inherited_flag(self, elements: list[Element], key: str, default: object) -> None:
+        """Resolve a key as an inherited default, root to leaf -- every
+        ``nearest`` key of `GROUP_KEYS`.  `Element.<key>` holds what the author
         wrote (`None` = inherit); the answer is stamped into
         `Element.resolved_<key>`, with `default` (the face-wide value) at the
         root.  The nearest declaration wins outright -- unlike `visible:`,
@@ -250,7 +250,7 @@ class AodPass(HandParts):
         """
         resolved = f"resolved_{key}"
 
-        def visit(items: list[Element], inherited: bool) -> None:
+        def visit(items: list[Element], inherited: object) -> None:
             for element in items:
                 authored_value = getattr(element, key)
                 resolved_value = authored_value if authored_value is not None else inherited
@@ -258,3 +258,36 @@ class AodPass(HandParts):
                 visit(element.children(), resolved_value)
 
         visit(elements, default)
+
+    def _resolve_group_keys(self, elements: list[Element]) -> None:
+        """The `GROUP_KEYS` a member inherits that later build stages already
+        read: `z:` (drawing order, and the static hoist's own ranking),
+        `sleep_update:` (the static check), and `lint: allow`.  Runs right
+        after the tree is built.  A kind that refuses `sleep_update:`
+        (`hands`, `pattern`) refuses an inherited one too, naming the group
+        it came from: dropping it there would be the same silent no-op this
+        pass exists to end."""
+        self._resolve_inherited_flag(elements, "z", 0)
+        self._resolve_inherited_flag(elements, "sleep_update", False)
+
+        def visit(items: list[Element], allow: frozenset[str],
+                  sleeper: Element | None) -> None:
+            for element in items:
+                element.inherited_lint_allow = allow
+                element.modes = (("active", "low_power") if element.resolved_sleep_update
+                                 else ("active",))
+                source = element if element.sleep_update else (
+                    sleeper if element.sleep_update is None else None)
+                if (element.sleep_update is None and element.resolved_sleep_update
+                        and element.kind in ("hands", "pattern") and sleeper is not None):
+                    self.bag.error(
+                        element.kind,
+                        f"{element.id}: inherits 'sleep_update: true' from group "
+                        f"{sleeper.id!r}, which a '{element.kind}' does not accept",
+                        element.span,
+                        notes=[f"write 'sleep_update: false' on {element.id!r} to keep it "
+                               "out of the partial update"],
+                    )
+                visit(element.children(), allow | element.lint_allow, source)
+
+        visit(elements, frozenset(), None)

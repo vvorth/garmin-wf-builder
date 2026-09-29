@@ -34,6 +34,10 @@ readout, say. It is structural, not styling, because AMOLED forbids
 `sleep_update: true` is a hard build error on an AMOLED target, pointing at
 `aod:` instead.
 
+On a `group`, `sleep_update: true` reaches every member that does not say
+otherwise; `sleep_update: false` on a member keeps it out. A `hands` or
+`pattern` member, which never takes it, is an error naming the group.
+
 The compiler computes the **tightest `setClip` rectangle** around all
 `sleep_update: true` elements, because clip cost is charged by region *area*
 — every pixel inside the clip counts as modified whenever any does.

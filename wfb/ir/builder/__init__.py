@@ -109,6 +109,9 @@ class Builder(ElementTree):
         elements = self.build_elements(data.get("elements") or [], ("elements",))
         if not self.bag.ok():
             return None
+        self._resolve_group_keys(elements)
+        if not self.bag.ok():
+            return None
         # Before `_apply_static`: a `complication_slot` inside a layout's own
         # `static:` must get the layout error alone, not also the
         # static-subtree one, so `Element.layout` has to be assigned -- and

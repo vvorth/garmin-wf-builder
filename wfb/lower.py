@@ -436,11 +436,11 @@ class _Lowering:
 
     def common(self, node: CommentedMap, kind: Any) -> None:
         if "sleep_update" in node:
-            if node["sleep_update"] is True:
-                modes = CommentedSeq(["active", "low_power"])
-                self.rekey(node, "sleep_update", "modes", modes, author="sleep_update")
-            else:
-                del node["sleep_update"]
+            # An explicit `false` is kept: `sleep_update:` is inherited from
+            # an enclosing group, and `false` is how a member opts out.
+            modes = CommentedSeq(["active", "low_power"] if node["sleep_update"] is True
+                                 else ["active"])
+            self.rekey(node, "sleep_update", "modes", modes, author="sleep_update")
         if "unsupported" in node:
             self.rekey(node, "unsupported", "if_unavailable", author="unsupported")
         self.align(node)

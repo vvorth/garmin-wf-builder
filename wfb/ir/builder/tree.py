@@ -76,6 +76,7 @@ class ElementTree(StaticPass):
             kind=node["type"],
             at=at,
             modes=tuple(node.get("modes") or ("active",)),
+            sleep_update=("low_power" in node["modes"]) if "modes" in node else None,
             z=node.get("z"),
             span=span,
             **_lint_suppression(node),
