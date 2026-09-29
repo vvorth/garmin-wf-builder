@@ -12,7 +12,9 @@ as each landed, `system-fonts/` holds the three calibration faces, and
 examples must recurse: `tests/test_templates.py` uses `rglob`, and a flat
 `examples/*/face.yaml` glob now sweeps up only the four wearable faces.
 
-Every example lints clean on every target. Where a design deliberately
+Every example, template and fixture is format 2 (migrated with `wfb
+migrate`, 2026-09-29); a format 1 face no longer loads. Every example lints
+clean on every target. Where a design deliberately
 touches the bezel or accepts a platform gap (no Complications), the element
 says so with `lint: {allow: [...], reason:}`. No verification target needs a
 `config-unsupported` allow: fr955 edits `config:` from the settings menu.
@@ -23,62 +25,62 @@ Each face's header comment explains what it exercises, and every face here
 is named `Feature <thing>` (2026-09-20) so a sideloaded build is obviously a
 demo on the watch -- keep that convention for new ones; it also decides the
 `.prg` name (`feature-graph-fr955.prg`). `features/slots/` is
-the only one using the Data axis (`config: data:`), `features/config/` the
-colour axes and `color_scheme:`, `features/styles/` `layouts:` and `config:
-style:` (widget-set switching, not just colour).
+the only one using the Data axis (`config: slots:`), `features/config/` the
+colour axes and a colour scheme (`theme: schemes:`), `features/styles/`
+`layouts:` and `config: style:` (widget-set switching, not just colour).
 
 `features/analog/` is analog hands (plan 04, 2026-09-14) -- two hand sets in
 two layouts, an off-centre small-seconds subdial, all four rotatable part
-shapes, and a `config.*` hand colour. **Keep it the generated plan-04
+types, and a `config:` colour role on a hand. **Keep it the generated plan-04
 design**: `tests/test_hands_*.py` assert against it, and it was restored
 from `bf1e4d0` on 2026-09-20 after a session's worth of hand-tuning had
 drifted it away from them. That hand-tuned work lives on as the wearable
 `analog-custom/`, which the tests do not read.
 
 `features/patterns/` is `type: pattern` (plan 05, 2026-09-14) -- radial and
-linear repeats, every part shape including `arc`, `start:`,
+linear repeats, every part type including `arc`, `start:`,
 `skip:`/`skip_every:`, in and out of `static:`, a per-copy colour (`copy` +
-`date.weekday`: `week_dots` lights today, 2026-09-15), `when_absent: hide`
+`date.weekday`: `week_dots` lights today, 2026-09-15), `absent: hide`
 with a per-copy part `visible:` (`test_visibility`, a move-bar row,
-2026-09-15), and `shape: text` parts (plan 06, 2026-09-15: `hour_numerals`,
+2026-09-15), and `type: text` parts (plan 06, 2026-09-15: `hour_numerals`,
 a radial ring, and `weekday_labels`, a linear row).
 
-`features/align/` is `align:`/`vertical_align:` as one placement rule on
-every accepting kind (plan 07, 2026-09-15) -- an hour/minute dial with four
-diagonal readouts (`complication_slot`, a `group`, a `graph`, `text`), each
-aligned to grow away from the centre, covering all four
-`align`×`vertical_align` combinations, plus every accepting shape, both
-`progress` styles, a static `icon`, and aligned hand/pattern parts.
+`features/align/` is `align:` as one placement rule on every accepting
+kind (plan 07, 2026-09-15) -- an hour/minute dial with four diagonal
+readouts (a `data` element, a `group`, a `graph`, `text`), each aligned to
+grow away from the centre, covering all four corner alignments, plus every
+accepting primitive, a bar and an arc `gauge`, a static `icon`, and aligned
+hand/pattern parts.
 
-`features/progress/` (2026-09-26) is `progress` `style: segments` (ten
+`features/progress/` (2026-09-26) is a `gauge` with `style: segments` (ten
 battery cells round the rim with a track; five step cells on a bar with
 none) and `style: scale` (heart-rate zones as `bands:` with a pointer dot on
 an arc; a battery bar with its bottom 20% banded red).
 
-`features/gauge/` (2026-09-26) is `progress` with `style: needle`: a
+`features/gauge/` (2026-09-26) is a `gauge` with `style: needle`: a
 battery needle over a radial tick `pattern` sharing its start angle and
 sweep, with a data-driven colour and a hub part, and an off-centre
-heart-rate sub-gauge parked at zero by `when_absent: fallback`.
+heart-rate sub-gauge parked at zero by `absent: {value: 0}`.
 
 `features/grid/` (2026-09-26) is `pattern: grid`: a 31-dot month in rows
 of 7 (today lit, past days dimmed, via `copy` and `date.day`) under a
-one-row grid of weekday initials as a `shape: text` part.
+one-row grid of weekday initials as a `type: text` part.
 
 `features/units/` (2026-09-26) is `units:` (ADR 0005 §4): distance,
 temperature and wind in the wearer's own units with `units: auto`, altitude
-pinned to feet with `units: statute`, each labelled by `format:`'s
-`{unit}`. The preview's sample has no weather or altitude, so those rows
-draw their placeholder; `--units statute` flips the distance row.
+pinned to feet with `units: statute`, each labelled by its `text:`
+template's `{unit}`. The preview's sample has no weather or altitude, so
+those rows draw their `absent:` text; `--units statute` flips the distance row.
 
 `features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-4, 2026-09-23)
 is the first, and so far only, example to add a fourth target, `fenix847mm`
 -- the first AMOLED device this project has ever built for. An ordinary
 small face (digital time, a date, a battery ring, a bezel) rather than a
-format-feature dump: a face-wide `aod: {default: hide, dim: 0.6}` hides
+format-feature dump: `defaults: {aod: hide}` and `aod: {dim: 0.6}` hide
 everything but `clock`, a small accent dot and the battery ring -- the
 canonical "everything off but the time" AOD shape (plan 14 §3), plus enough
 variety to exercise slice 2's restyling and slice 3's dimming: `clock`
-overrides `format:` and turns hollow in AOD -- an `aod: {outline: ...}`
+overrides its `text:` template and turns hollow in AOD -- an `aod: {outline: ...}`
 ring the awake design does not have, around a black `color:` interior
 (both override colours are the author's final word, left undimmed by
 `dim: 0.6`) -- `accent_dot` flips
@@ -111,7 +113,7 @@ real watch -- not designs, not feature demos. Named `Probe <thing>` so the
 `.prg` says what it is. The header comment is the record: the question,
 what the face puts on screen to answer it, the plan, and, once known, the
 answer. `probes/slot-editor/` (2026-09-28) is about the native editor's
-drawable for a `complication_slot`: a static card behind a slot vanishes
+drawable for a `data` element: a static card behind a slot vanishes
 while its options are listed (seen on showcase), and repainting static
 content in the drawable made it pulse, so it was reverted. It targets only
 the two fēnix 8s, the verification devices that have the editor.
@@ -124,9 +126,8 @@ project measures (`wfb.devices.Device.system_fonts`, plan 09) drawn as a
 short literal digits/glyphs sample on a 1px guide line, `align: left` at a
 common `px` x so left edges compare across a real simulator screenshot and
 `wfb preview`'s own PNG pixel-for-pixel (plan 09 S7, open until the user
-sends screenshots). `text/` holds FONT_XTINY..FONT_LARGE plus a
-`vertical_align: center` and a `vertical_align: bottom` repeat of
-FONT_XTINY, all on one screen. The four `FONT_NUMBER_*` sizes do not fit one
+sends screenshots). `text/` holds FONT_XTINY..FONT_LARGE plus an
+`align: left` and an `align: bottom_left` repeat of FONT_XTINY, all on one screen. The four `FONT_NUMBER_*` sizes do not fit one
 screen together -- even the lighter pair's own line heights leave little
 room, and the heaviest pair (FONT_NUMBER_HOT + FONT_NUMBER_THAI_HOT, up to
 129px tall) genuinely cannot share a round 260/280px screen with a common
@@ -142,24 +143,24 @@ rows the other targets fit, accepted per element with `lint: {allow}`.
 ## The wearable four
 
 `showcase/` is the widest single face here: three `layouts:` switched by
-Styles -- a quiet classic three-hand `analog` dial (`hands:`, a radial tick
-`pattern`, twelve numerals as one `shape: text` pattern part), a
+Styles -- a quiet classic three-hand `analog` dial (`hand_sets:`, a radial tick
+`pattern`, twelve numerals as one `type: text` pattern part), a
 data-rich `digital` dashboard (a monospaced two-tone clock, a weather row
-with a dynamic `icon_for:` condition icon, a heart-rate `graph`,
-`group`+`on_hold:` icon/value clusters, both `progress` styles, and a
+with a dynamic `icon: {for:}` condition icon, a heart-rate `graph`,
+`group`+`on_hold:` icon/value clusters, a bar and an arc `gauge`, and a
 conditional-colour status row), and a vintage `roman` dial (plan 13,
 2026-09-21: big roman numerals curved tangent to their own radius with a
-device-resident `face:` font and `curve:`, a second `hands:` set --
+device-resident `face:` font and `curve:`, a second hand set --
 `vintage` -- with Breguet/moon-style hour and minute hands, the two
 shared registers doubling as sub-dials at 2 and 10 o'clock (`skip: [2,
-10]` on the numeral ring -- a `complication_slot` can't move, so the
+10]` on the numeral ring -- a `data` element can't move, so the
 numeral gives way instead), and a mechanical-looking day/date aperture --
 a light well with dark text and a 1 px frame, reading as a wheel cut
 through the dial rather than a UI chip, since `alphaBlendingSupport` is
 false and nothing can be cut out) -- plus
-two shared `complication_slot` "registers" (the Data axis, one with
-per-choice icon overrides, one `choices: any` drawn `short: true`), several `color_scheme:`
-entries and the `config: style:` entries pairing them with the three
+two shared `data` "registers" (the Data axis, one with
+per-choice icon overrides, one `choices: any` drawn `short: true`), several
+schemes and the `config: style:` entries pairing them with the three
 layouts, and several-colour `accent_color`/`data_color` axes. Builds
 warning-free on all three targets at 24.0% of the 128 KB budget
 (2026-09-28).

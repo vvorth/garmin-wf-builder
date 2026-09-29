@@ -20,24 +20,25 @@ INSTINCT = "instinct2"
 ROUND = "fenix8solar47mm"
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 3d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a
   name: Sub
-targets: [instinct2, fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [instinct2, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: FONT_SMALL
     at: {anchor: center, dy: 10%}
-    color: palette.fg
-  - id: ring
-    type: progress
+    color: color.fg
+  ring:
+    type: gauge
     style: arc
     at: {anchor: subscreen}
     radius: 40%
@@ -46,25 +47,24 @@ elements:
     sweep: 360deg
     value: system.battery
     max: 100
-    color: palette.fg
+    color: color.fg
     IF_UNAVAILABLE
-  - id: pack
+  pack:
     type: group
     at: {anchor: subscreen, dy: 10%}
     size: {width: 50%, height: 20%}
     IF_UNAVAILABLE
     children:
-      - id: dot
-        type: shape
-        shape: circle
+      dot:
+        type: circle
         at: {anchor: center}
         radius: 10%r
-        color: palette.fg
+        color: color.fg
 """
 
 
 def _text(policy: str | None) -> str:
-    line = f"if_unavailable: {policy}" if policy else ""
+    line = f"unsupported: {policy}" if policy else ""
     return DESIGN.replace("IF_UNAVAILABLE", line)
 
 
@@ -221,27 +221,29 @@ def test_subscreen_is_a_top_level_at_only(write_design):
     child = _text(None).replace("        at: {anchor: center}\n        radius: 10%r",
                                 "        at: {anchor: subscreen}\n        radius: 10%r")
     assert any("not accepted on a group's child" in m for m in _errors(write_design, child))
-    line = _text(None).replace("""  - id: clock""", """  - id: rule
-    type: shape
-    shape: line
+    line = _text(None).replace("""  clock:\n""", """  rule:
+    type: line
     at: {anchor: left}
     to: {anchor: subscreen}
     thickness: 1px
-    color: palette.fg
-  - id: clock""")
+    color: color.fg
+  clock:\n""")
     assert any("not accepted in 'to:'" in m for m in _errors(write_design, line))
 
 
 def test_if_unavailable_needs_something_that_can_be_unavailable(write_design):
-    shape = _text(None).replace("      - id: dot", "      - id: dot\n        if_unavailable: hide")
+    shape = _text(None).replace("      dot:\n", """      dot:
+        unsupported: hide\n""")
     assert any("dot: 'unsupported:' is not accepted here" in m
                for m in _errors(write_design, shape))
     # A system-font text anchored to the window may say it; unanchored, not.
     anchored = _text(None).replace("    at: {anchor: center, dy: 10%}",
-                                   "    at: {anchor: subscreen}\n    if_unavailable: hide")
+                                   """    at: {anchor: subscreen}
+    unsupported: hide""")
     assert _errors(write_design, anchored) == []
     loose = _text(None).replace("    at: {anchor: center, dy: 10%}",
-                                "    at: {anchor: center}\n    if_unavailable: hide")
+                                """    at: {anchor: center}
+    unsupported: hide""")
     assert any("'unsupported:' is not accepted here" in m for m in _errors(write_design, loose))
 
 

@@ -19,23 +19,25 @@ MIP = "fenix8solar47mm"
 #: `#FF0000` is legal on a 64-colour panel, so it can only be flagged by the
 #: 2-colour rule; `#FF8000` is off both grids, so it shows which code fires.
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [instinct2, fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  red: "#FF0000"
-  orange: "#FF8000"
-  navy: "#5555AA"
+build:
+  targets: [instinct2, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    red: "#FF0000"
+    orange: "#FF8000"
+    navy: "#5555AA"
 elements:
-  - {id: back, type: shape, shape: rectangle, at: {anchor: center}, size: {width: 100%, height: 100%}, color: palette.bg}
-  - {id: red_dot, type: shape, shape: circle, at: {anchor: center, dx: -20%}, radius: 10px, color: palette.red}
-  - {id: orange_dot, type: shape, shape: circle, at: {anchor: center}, radius: 10px, color: palette.orange}
-  - {id: navy_dot, type: shape, shape: circle, at: {anchor: center, dx: 20%}, radius: 10px, color: palette.navy}
-  - {id: white_dot, type: shape, shape: circle, at: {anchor: center, dy: 20%}, radius: 10px, color: palette.fg}
+  back: {type: rectangle, at: {anchor: center}, size: {width: 100%, height: 100%}, color: color.bg}
+  red_dot: {type: circle, at: {anchor: center, dx: -20%}, radius: 10px, color: color.red}
+  orange_dot: {type: circle, at: {anchor: center}, radius: 10px, color: color.orange}
+  navy_dot: {type: circle, at: {anchor: center, dx: 20%}, radius: 10px, color: color.navy}
+  white_dot: {type: circle, at: {anchor: center, dy: 20%}, radius: 10px, color: color.fg}
 """
 
 
@@ -75,8 +77,8 @@ def test_palette_mono_names_the_nearest_and_says_the_mapping_is_a_guess(write_de
 def test_palette_mono_is_suppressible_on_an_element_that_draws_it(write_design, db):
     _need(db, MONO)
     allowed = DESIGN.replace(
-        "color: palette.red}",
-        "color: palette.red, lint: {allow: [palette-mono], reason: deliberate}}")
+        "color: color.red}",
+        "color: color.red, lint: {allow: [palette-mono], reason: deliberate}}")
     bag = lint_text(allowed, write_design, db, MONO)
     flagged = [d.message.split(" ", 1)[0] for d in bag.items if d.code == "palette-mono"]
     assert "color.red" not in flagged and "color.navy" in flagged
@@ -88,9 +90,9 @@ def test_a_config_colour_goes_through_the_same_rule(write_design, db):
   accent_color:
     default: "#AAAAAA"
     choices: any
-elements:""").replace("color: palette.fg}", "color: config.accent_color}")
+elements:""").replace("color: color.fg}", "color: color.accent}")
     bag = lint_text(design, write_design, db, MONO)
-    assert any("config.accent_color" in d.message for d in bag.items if d.code == "palette-mono")
+    assert any("config.accent_color:" in d.message for d in bag.items if d.code == "palette-mono")
 
 
 def test_a_palette_size_without_a_rule_is_reported_not_checked(write_design, bag, db):

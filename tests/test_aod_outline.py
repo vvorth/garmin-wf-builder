@@ -23,31 +23,39 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#555555"
-  red: "#FF0000"
+build:
+  targets: [fenix847mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#555555"
+    red: "#FF0000"
 """
 
-DIM = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n")
+DIM = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.4
+resources:
+  palette:
+""")
 
 
-def _clock(outline: str = "", aod: str = "{outline: palette.dim}") -> str:
+def _clock(outline: str = "", aod: str = "{outline: color.dim}") -> str:
     own = f"\n    outline: {outline}" if outline else ""
     return f"""
 elements:
-  - id: clock
+  clock:
     type: text
     text: "88"
     font: FONT_NUMBER_HOT
     at: {{anchor: center}}
-    color: palette.fg{own}
+    color: color.fg{own}
     aod: {aod}
 """
 
@@ -89,11 +97,11 @@ def test_an_unknown_aod_key_is_named_and_pointed_at(write_design, bag):
     that the `hide`/`show`-or-block choice produced before."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "88"
     aod:
-      format: "{}"
+      text: "{}"
       thickness: 2px
 """
     assert load(write_design(text), bag) is None
@@ -101,7 +109,7 @@ elements:
     assert "unknown key ('thickness' was unexpected)" in error.message, bag.render()
     assert "not valid under any" not in error.message
     assert error.span.line == text.splitlines().index("      thickness: 2px") + 1
-    assert any("keys allowed here: color, font, format, outline, visible" in n
+    assert any("keys allowed here: color, font, outline, text, visible" in n
                for n in error.notes), error.notes
 
 
@@ -111,7 +119,7 @@ def test_a_misspelled_aod_keyword_lists_hide_and_show(write_design, bag):
     that a string is not an object."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "88"
     aod: hid
@@ -126,20 +134,20 @@ elements:
 
 
 def test_the_override_parses_in_both_spellings_and_none(write_design, bag):
-    shorthand = _face(BASE + _clock(aod="{outline: palette.dim}"), write_design, bag)
+    shorthand = _face(BASE + _clock(aod="{outline: color.dim}"), write_design, bag)
     aod = shorthand.elements[0].aod
-    assert (aod.outline.color.text, aod.outline.width, aod.outline_none) == (
-        "palette.dim", 2, False)
-    full = _face(BASE + _clock(aod="{outline: {color: palette.red, width: 3}}"),
+    assert (aod.outline.color.shown, aod.outline.width, aod.outline_none) == (
+        "color.dim", 2, False)
+    full = _face(BASE + _clock(aod="{outline: {color: color.red, width: 3}}"),
                  write_design, bag)
-    assert (full.elements[0].aod.outline.color.text, full.elements[0].aod.outline.width) == (
-        "palette.red", 3)
-    none = _face(BASE + _clock("palette.dim", aod="{outline: none}"), write_design, bag)
+    assert (full.elements[0].aod.outline.color.shown, full.elements[0].aod.outline.width) == (
+        "color.red", 3)
+    none = _face(BASE + _clock("color.dim", aod="{outline: none}"), write_design, bag)
     assert none.elements[0].aod.outline is None and none.elements[0].aod.outline_none
 
 
 def test_the_override_width_cap_is_the_same_build_error(write_design, bag):
-    assert load(write_design(BASE + _clock(aod="{outline: {color: palette.dim, width: 4}}")),
+    assert load(write_design(BASE + _clock(aod="{outline: {color: color.dim, width: 4}}")),
                 bag) is None
     [error] = bag.errors
     assert error.code == "text-outline" and error.message.startswith("clock.aod: "), bag.render()
@@ -148,17 +156,17 @@ def test_the_override_width_cap_is_the_same_build_error(write_design, bag):
 def test_a_group_passes_its_outline_down_to_a_text(write_design, bag):
     text = BASE + """
 elements:
-  - id: group
+  group:
     type: group
-    aod: {outline: palette.dim}
+    aod: {outline: color.dim}
     children:
-      - id: clock
+      clock:
         type: text
         text: "88"
-        color: palette.fg
+        color: color.fg
 """
     clock = _face(text, write_design, bag).elements[0].items[0]
-    assert clock.aod.outline.color.text == "palette.dim"
+    assert clock.aod.outline.color.shown == "color.dim"
 
 
 # -- codegen -------------------------------------------------------------------
@@ -175,7 +183,7 @@ def test_a_ring_only_in_aod_is_guarded_by_aod(write_design, bag, db):
 
 
 def test_outline_none_keeps_the_awake_ring_out_of_aod(write_design, bag, db):
-    method = _method(_view(BASE + _clock("palette.dim", aod="{outline: none}"),
+    method = _method(_view(BASE + _clock("color.dim", aod="{outline: none}"),
                            write_design, bag, db), "drawClock")
     ring = method.split("if (!_aod) {")[1].split("\n        }")[0]
     assert "var offsets = Layout.OUTLINE_OFFSETS_2;" in ring
@@ -184,7 +192,7 @@ def test_outline_none_keeps_the_awake_ring_out_of_aod(write_design, bag, db):
 
 def test_a_ring_in_both_frames_is_one_loop_with_ternaries(write_design, bag, db):
     method = _method(_view(
-        BASE + _clock("palette.dim", aod="{outline: {color: palette.red, width: 1}}"),
+        BASE + _clock("color.dim", aod="{outline: {color: color.red, width: 1}}"),
         write_design, bag, db), "drawClock")
     assert method.count("while (") == 1 and "if (_aod) {" not in method
     assert "dc.setColor((_aod ? Palette.RED : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in method
@@ -193,13 +201,13 @@ def test_a_ring_in_both_frames_is_one_loop_with_ternaries(write_design, bag, db)
 
 
 def test_the_same_width_in_both_frames_needs_no_offsets_ternary(write_design, bag, db):
-    method = _method(_view(BASE + _clock("palette.dim", aod="{outline: palette.red}"),
+    method = _method(_view(BASE + _clock("color.dim", aod="{outline: color.red}"),
                            write_design, bag, db), "drawClock")
     assert "var offsets = Layout.OUTLINE_OFFSETS_2;" in method
 
 
 def test_an_aod_only_width_gets_its_offsets_table(write_design, bag, db):
-    layout = _layout(BASE + _clock("palette.dim", aod="{outline: {color: palette.dim, width: 3}}"),
+    layout = _layout(BASE + _clock("color.dim", aod="{outline: {color: color.dim, width: 3}}"),
                      write_design, bag, db)
     assert "OUTLINE_OFFSETS_2 " in layout and "OUTLINE_OFFSETS_3 " in layout
 
@@ -208,25 +216,32 @@ def test_an_all_mip_build_ignores_the_override(write_design, bag, db):
     """With no AMOLED target no AOD code is emitted, so the override's own
     ring and its width's offsets table must not be either -- the view is
     byte-identical to the same design without the key."""
-    mip = BASE.replace("targets: [fenix847mm]", "targets: [fenix8solar47mm]")
-    with_key = mip + _clock("palette.dim", aod="{outline: {color: palette.red, width: 3}}")
-    without = mip + _clock("palette.dim", aod="show")
+    mip = BASE.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix8solar47mm]""")
+    with_key = mip + _clock("color.dim", aod="{outline: {color: color.red, width: 3}}")
+    without = mip + _clock("color.dim", aod="show")
     assert (_view(with_key, write_design, bag, db, "fenix8solar47mm")
             == _view(without, write_design, bag, db, "fenix8solar47mm"))
     assert "OUTLINE_OFFSETS_3" not in _layout(with_key, write_design, bag, db, "fenix8solar47mm")
 
 
 def test_a_vector_font_takes_the_override_too(write_design, bag, db):
-    text = BASE.replace("palette:\n", "fonts:\n  bezel: {face: RobotoCondensedBold, size: 8%r}\n"
-                                      "palette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """resources:
+  fonts:
+    bezel: {face: RobotoCondensedBold, size: 8%r}
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "88"
     font: font.bezel
     at: {anchor: center}
-    color: palette.fg
-    aod: {outline: palette.dim}
+    color: color.fg
+    aod: {outline: color.dim}
 """
     method = _method(_view(text, write_design, bag, db), "drawClock")
     guarded = method.split("if (font != null) {")[1]
@@ -240,29 +255,29 @@ def test_the_awake_ring_is_dimmed_in_aod_and_the_override_is_not(write_design, b
     """0x55 * 0.4 rounds to 0x22. Must fail against the ring colour going
     out undimmed (as it did before) -- and the override in the same build
     must stay exactly as written."""
-    carried = _method(_view(DIM + _clock("palette.dim", aod="show"), write_design, bag, db),
+    carried = _method(_view(DIM + _clock("color.dim", aod="show"), write_design, bag, db),
                       "drawClock")
     assert "dc.setColor((_aod ? 0x222222 : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in carried
-    overridden = _method(_view(DIM + _clock("palette.fg", aod="{outline: palette.dim}"),
+    overridden = _method(_view(DIM + _clock("color.fg", aod="{outline: color.dim}"),
                                write_design, bag, db), "drawClock")
     assert "dc.setColor((_aod ? Palette.DIM : Palette.FG), Graphics.COLOR_TRANSPARENT);" in overridden
 
 
 _PATTERN = """
 elements:
-  - id: ring
+  ring:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
-    aod: {color: palette.red}
+    color: color.fg
+    aod: {color: color.red}
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: FONT_XTINY
         at: {dy: -40%r}
-        outline: palette.dim
+        outline: color.dim
 """
 
 
@@ -293,16 +308,16 @@ def _ring_pixels(text, write_design, bag, db, *, aod: bool, dim: bool = False):
 
 
 def test_preview_draws_the_aod_ring_in_its_own_colour(write_design, bag, db):
-    colours = _ring_pixels(BASE + _clock("palette.dim", aod="{outline: palette.red}"),
+    colours = _ring_pixels(BASE + _clock("color.dim", aod="{outline: color.red}"),
                            write_design, bag, db, aod=True)
     assert (255, 0, 0) in colours and (0x55, 0x55, 0x55) not in colours
-    awake = _ring_pixels(BASE + _clock("palette.dim", aod="{outline: palette.red}"),
+    awake = _ring_pixels(BASE + _clock("color.dim", aod="{outline: color.red}"),
                          write_design, bag, db, aod=False)
     assert (0x55, 0x55, 0x55) in awake and (255, 0, 0) not in awake
 
 
 def test_preview_draws_no_ring_for_outline_none(write_design, bag, db):
-    colours = _ring_pixels(BASE + _clock("palette.red", aod="{outline: none}"),
+    colours = _ring_pixels(BASE + _clock("color.red", aod="{outline: none}"),
                            write_design, bag, db, aod=True)
     assert (255, 0, 0) not in colours and (255, 255, 255) in colours
 
@@ -311,8 +326,8 @@ def test_preview_dims_the_awake_ring_in_aod(write_design, bag, db):
     """A black interior leaves the ring the only ink, so the brightest pixel
     is the ring's full colour (edges only anti-alias darker): 0x55 awake,
     0x22 in the dimmed AOD frame."""
-    text = DIM + _clock("palette.dim", aod="show").replace("color: palette.fg",
-                                                           "color: palette.bg")
+    text = DIM + _clock("color.dim", aod="show").replace("color: color.fg",
+                                                           "color: color.bg")
     assert max(c[0] for c in _ring_pixels(text, write_design, bag, db, aod=False)) == 0x55
     assert max(c[0] for c in _ring_pixels(text, write_design, bag, db, aod=True)) == 0x22
 
@@ -327,38 +342,47 @@ def test_every_ring_shape_compiles_warning_free(write_design, db, tmp_path, tool
     `monkeyc` build for an AMOLED and a MIP target -- the Python-level
     tests above read the source text, which cannot see a Monkey C typing
     or scoping error in it."""
-    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix847mm, fr955]").replace(
-        "palette:\n", "aod:\n  dim: 0.5\nfonts:\n  bezel: {face: RobotoCondensedBold, size: 8%r}\n"
-                      "palette:\n") + """
+    text = BASE.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix847mm, fr955]""").replace(
+        """resources:
+  palette:
+""", """aod:
+  dim: 0.5
+resources:
+  fonts:
+    bezel: {face: RobotoCondensedBold, size: 8%r}
+  palette:
+""") + """
 elements:
-  - id: only_aod
+  only_aod:
     type: text
     text: "12"
     at: {anchor: center, dy: -30%}
-    color: palette.fg
-    aod: {outline: palette.dim}
-  - id: only_awake
+    color: color.fg
+    aod: {outline: color.dim}
+  only_awake:
     type: text
     text: "34"
     at: {anchor: center}
-    color: palette.fg
-    outline: palette.red
+    color: color.fg
+    outline: color.red
     aod: {outline: none}
-  - id: both
+  both:
     type: text
     text: "56"
     at: {anchor: center, dy: 30%}
-    color: palette.fg
-    outline: palette.red
-    aod: {outline: {color: palette.dim, width: 1}}
-  - id: curved
+    color: color.fg
+    outline: color.red
+    aod: {outline: {color: color.dim, width: 1}}
+  curved:
     type: text
     text: "78"
     font: font.bezel
     at: {anchor: center}
     curve: {style: radial, angle: 90deg, radius: 40%r}
-    color: palette.fg
-    outline: palette.red
+    color: color.fg
+    outline: color.red
     aod: show
 """
     bag = Bag()

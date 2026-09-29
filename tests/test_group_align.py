@@ -11,37 +11,36 @@ height: 30px}`. The centred (default) box is therefore
 before this feature existed.
 """
 
-from tests.helpers import find
+from tests.helpers import align_value, find
 from wfb.build import load
 
 
 def _design(align: str = "", vertical_align: str = "") -> str:
     extra = ""
-    if align:
-        extra += f"    align: {align}\n"
-    if vertical_align:
-        extra += f"    vertical_align: {vertical_align}\n"
+    if align or vertical_align:
+        extra = f"    align: {align_value(align or 'center', vertical_align or 'center')}\n"
     return f"""
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: box
+  box:
     type: group
     at: {{anchor: center, dx: 20px}}
     size: {{width: 40px, height: 30px}}
 {extra}    children:
-      - id: child
-        type: shape
-        shape: rectangle
+      child:
+        type: rectangle
         at: {{anchor: center}}
         size: {{width: 100%, height: 100%}}
-        color: palette.fg
+        color: color.fg
 """
 
 

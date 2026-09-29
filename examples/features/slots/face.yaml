@@ -1,12 +1,12 @@
-# `config: data:` -- the native editor's **Data axis**: named complication
+# `config: slots:` -- the native editor's **Data axis**: named complication
 # slots the wearer re-points at a different Garmin metric, on the watch, with
 # the editor's own instant preview (docs/research/09-data-library-and-config-
-# axes.md §4). `type: complication_slot` is the element that draws one.
+# axes.md §4). `type: data` is the element that draws one.
 #
 # Two slots below, deliberately different shapes of the feature:
 #
 # * `top_reading` has an explicit `choices:` list (steps, heart rate,
-#   calories) and `icon_size:`, so its icon is chosen **on-device** from
+#   calories) and `icon: {size:}`, so its icon is chosen **on-device** from
 #   `Complications.Id.getType()` -- a generated `switch` maps the wearer's
 #   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`, all 42 native
 #   types since 2026-09-13), and `IconGlyphs.glyph()` turns that name into the
@@ -14,17 +14,16 @@
 #   weather icon already uses.
 #   - Per-choice icon overrides (plan 03 §6.1/§6.2): `steps` keeps its
 #     catalogue default (`steps`); `heart_rate` swaps its default (`heart`)
-#     for a custom glyph from the vendored font, `glyph: "U+F05F6"` (Material
+#     for a custom glyph from the vendored font, `icon: "U+F05F6"` (Material
 #     Design `md-heart_pulse`, which the catalogue does not name); `calories`
 #     draws no icon at all with `icon: none`, even though the catalogue maps
 #     it to `flame`. Overrides live on the choice, so every element drawing
 #     this slot shares them.
-#   - On the element: `icon_size: 8%r` is the icon's height, `icon_position:
-#     right` puts it after the reading, `icon_gap: 2px` tightens the space
-#     between them (the default is 4px), and `icon_color: palette.accent`
-#     draws the icon in the accent colour while the reading stays
-#     `palette.fg`. The last three are rejected with an explanation unless
-#     `icon_size:` is also declared.
+#   - On the element: `icon: {size: 8%r}` is the icon's height, `position:
+#     right` puts it after the reading, `gap: 2px` tightens the space
+#     between them (the default is 4px), and `color: color.accent` draws
+#     the icon in the accent colour while the reading stays `color.fg`.
+#     `icon:` needs `size:`: without an icon the other three mean nothing.
 #   `label: short` draws whatever `Complication.shortLabel` the device
 #   supplies before the reading, and `unit: true` adds the reading's own unit
 #   (`bpm` after heart rate; steps and calories have none). It also
@@ -36,8 +35,8 @@
 #   wearer repoints the slot -- see `wfb/kinds/complication_slot.py`'s
 #   `build` for the error this produces if you try.
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
-#   complication picker -- and still declares `icon_size:`. **Superseded
-#   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon_size:` outright,
+#   complication picker -- and still declares `icon: {size:}`. **Superseded
+#   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon: {size:}` outright,
 #   since the set of icons an unbounded picker could need was unbounded and
 #   nothing could be baked ahead of time. Now that every native complication
 #   type has a catalogue icon, `any` resolves against the whole of
@@ -53,17 +52,17 @@
 #   snow" would run off both edges of the screen, which the layout lint
 #   reports.
 #
-# Neither slot declares `format:` -- it is a schema-and-IR error on this
+# Neither slot declares a format spec -- `format:` is a schema error on this
 # element, on purpose: `Complications.Complication.value` is a `String or
 # Number or Float or Long or Double` union whose concrete type genuinely
 # varies by which choice the wearer makes, so a format string written for one
 # choice would be silently wrong for another. Both slots format the
 # reading by its type's own rule instead (steps past 10,000 as "12.9K",
 # sunrise as a time of day, a race prediction as "24:40", a weather
-# condition as its name) and fall back to `placeholder:` while the platform
-# has not (yet) delivered a reading -- `when_absent: hide` (the default) would
+# condition as its name) and fall back to their `absent:` text while the platform
+# has not (yet) delivered a reading -- `absent: hide` (the default) would
 # instead blank just the *reading* and leave the icon drawn, which is what a
-# `complication_slot` does differently from every other element's `hide`.
+# `data` element does differently from every other element's `hide`.
 #
 # `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
 # ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
@@ -75,7 +74,7 @@
 # What is verified: this design compiles warning-free, through the real
 # `monkeyc`, on all three targets -- including the generated manifest's
 # `minApiLevel="4.2.0"` and `<iq:uses-permission id="ComplicationSubscriber"/>`,
-# which a `config: data:` slot needs even though it binds no ordinary
+# which a `config: slots:` slot needs even though it binds no ordinary
 # `complication.<name>` data source at all. Both the live-face hold
 # (`top_reading`'s `on_hold: auto` -> `Complications.exitTo`) and the native
 # editor's machinery (`AppBase.onStart`'s edit-mode flag, `WatchFaceDelegate.
@@ -86,7 +85,7 @@
 # on-device editor itself (no simulator in this container, no watch) --
 # whether the two slots list correctly, whether switching a slot's type
 # previews instantly, whether the animated highlight actually animates or
-# lines up with what is drawn, whether `icon_position: right`'s icon+reading
+# lines up with what is drawn, whether the right-hand icon+reading
 # pair actually looks right on the wrist, and whether `on_hold`'s hit region
 # reads correctly on a real touchscreen are all UNVERIFIED. What is verified
 # is only that all of it compiles warning-free, that `wfb preview` renders
@@ -95,79 +94,73 @@
 #
 # Build it with:  ./wfb.py build examples/features/slots/face.yaml
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 3d9e5c1a-6f27-4b8d-9a4e-7c2f6d8b1e93
   name: Feature Slots
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
 
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - { type: complication.heart_rate, glyph: "U+F05F6" }  # custom glyph
-        - { type: complication.calories, icon: none }          # no icon
+        - steps
+        - { type: heart_rate, icon: "U+F05F6" }                # custom glyph
+        - { type: calories, icon: none }                       # no icon
     bottom:
       label: "Lower reading"  # its title in fr955's settings menu (else "Bottom")
-      default: complication.body_battery
+      default: body_battery
       choices: any          # the editor's own full complication picker
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_HOT
     at: { anchor: center, dy: -4% }
-    color: palette.fg
+    color: color.fg
 
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: { anchor: center, dy: -28% }
     font: FONT_SMALL
-    icon_size: 18%r
-    icon_position: right
-    icon_gap: 2%r
-    # icon_gap: 2px
-    icon_color: palette.accent
-    color: palette.fg
+    icon: { size: 18%r, position: right, gap: 2%r, color: color.accent }
+    # icon: { size: 18%r, position: right, gap: 2px, color: color.accent }
+    color: color.fg
     label: short
     unit: true
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
     on_hold: auto
 
-  - id: bottom_reading
-    type: complication_slot
-    slot: config.data.bottom
+  bottom_reading:
+    type: data
+    slot: bottom
     at: { anchor: center, dy: 28% }
     font: FONT_SMALL
-    icon_gap: 2%r
-    icon_size: 18%r
-    color: palette.fg
+    icon: { size: 18%r, gap: 2%r }
+    color: color.fg
     short: true
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"

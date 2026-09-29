@@ -179,7 +179,7 @@ class Expression:
 class FontSpec:
     """One `fonts:` entry -- a **baked** bitmap sheet (`source:`) or a
     **vector** device-resident face (`face:`, plan 11).  The two are
-    mutually exclusive and jointly required (`schema/wfb-face-1.schema.json`
+    mutually exclusive and jointly required (`schema/wfb-face-2.schema.json`
     `$defs/font`'s own `oneOf`), so exactly one of `source`/`face` is set on
     any `FontSpec` that reaches the IR -- see :attr:`is_baked`/:attr:`is_vector`,
     which every downstream reader should test instead of `source is None`

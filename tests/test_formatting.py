@@ -216,90 +216,44 @@ def test_clock_and_date_formats_keep_the_text_around_the_field(
     assert set("at UTC") - {" "} <= formatting.glyphs("at {:%H:%M} UTC", None, Type.TIME)
 
 
-def test_every_field_of_a_clock_format_is_checked(write_design, bag):
-    """A bad code in a second field is an error too, not silently dropped."""
-    from wfb.build import load
-
-    text = """
-format: 1
-face:
-  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
-  name: Test
-targets: [fenix8solar47mm]
-palette:
-  fg: "#FFFFFF"
-elements:
-  - id: clock
-    type: text
-    value: time.clock
-    format: "{:%H} and {:%b}"
-    font: FONT_SMALL
-    at: {anchor: center}
-    color: palette.fg
-"""
-    assert load(write_design(text), bag) is None
-    [error] = bag.errors
-    assert error.code == "format" and "unknown time code %b" in error.message
-
-
 # -- a malformed spec is a diagnostic, never a crash -------------------------
 
-_TEXT = """format: 1
+_TEXT = """format: 2
 face:
   id: 7ed9e962-7b9d-4a2f-af79-639f4fb96641
   name: Fmt
-targets: [fr955]
+build:
+  targets: [fr955]
 elements:
-  - id: reading
+  reading:
     type: text
-    value: {value}
-    format: "{spec}"
+    text: "{{{value}:{spec}}}"
 """
-
-
-@pytest.mark.parametrize("value", ["time.hour", "activity.steps\n    when_absent: hide",
-                                   "time.clock"])
-@pytest.mark.parametrize("spec, message", [
-    ("%02d", "'%02d' has no {} field"),
-    ("{unit}", "'{unit}' has no {} field"),
-    ("x{", "'x{' has no {} field"),
-])
-def test_a_spec_with_no_field_is_one_format_error(write_design, value, spec, message):
-    """These used to pass the builder and crash later, in layout or codegen,
-    with a raw FormatError traceback -- whatever the value's type."""
-    from tests.helpers import load_errors
-
-    (error,) = load_errors(_TEXT.format(value=value, spec=spec), write_design)
-    assert (error.code, message in error.message) == ("format", True), error.message
-
-
-def test_a_bare_percent_code_is_told_to_use_a_field(write_design):
-    from tests.helpers import load_errors
-
-    (error,) = load_errors(_TEXT.format(value="time.hour", spec="%02d"), write_design)
-    assert any("'{:02d}'" in note for note in error.notes), error.notes
 
 
 def test_an_unsupported_numeric_spec_is_one_format_error(write_design):
     """`{:zz}` used to validate cleanly and crash `wfb build` in codegen."""
     from tests.helpers import load_errors
 
-    (error,) = load_errors(_TEXT.format(value="time.hour", spec="{:zz}"), write_design)
+    (error,) = load_errors(_TEXT.format(value="time.hour", spec="zz"), write_design)
     assert error.code == "format"
-    assert "{:zz} is not a supported format" in error.message
+    assert "'zz' is not a supported format spec" in error.message
 
 
 def test_an_aod_format_override_gets_the_same_check(write_design):
     from tests.helpers import load_errors
 
-    text = _TEXT.format(value="time.hour", spec="{:02d}").replace(
-        "targets: [fr955]", "targets: [fenix847mm]") + '    aod: {format: "%02d"}\n'
+    text = _TEXT.format(value="time.hour", spec="02d").replace(
+        "  targets: [fr955]", "  targets: [fenix847mm]") + '    aod: {text: "{:zz}"}\n'
     (error,) = load_errors(text, write_design)
-    assert "'%02d' has no {} field" in error.message
+    assert "'zz' is not a supported format spec" in error.message
 
 
-@pytest.mark.parametrize("spec", ["{}", "{:d}", "{:02d}", "{:.1f}", "a {} b {}"])
-def test_supported_numeric_specs_still_pass(write_design, spec):
+@pytest.mark.parametrize("template", ["{time.hour}", "{time.hour:d}", "{time.hour:02d}",
+                                      "{time.hour:.1f}", "a {time.hour} b"])
+def test_supported_numeric_specs_still_pass(write_design, template):
     from tests.helpers import load_errors
 
-    assert load_errors(_TEXT.format(value="time.hour", spec=spec), write_design) == []
+    text = _TEXT.format(value="time.hour", spec="d").replace(
+        '"{time.hour:d}"', f'"{template}"')
+    assert load_errors(text, write_design) == []

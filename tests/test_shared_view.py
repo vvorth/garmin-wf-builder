@@ -18,33 +18,34 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate, monkeyc
 from wfb.emit import project as project_mod
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
-CLOCK = """  - id: clock
+CLOCK = """  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
-LOW_POWER = HEAD + CLOCK + "    modes: [active, low_power]\n"
+LOW_POWER = HEAD + CLOCK + """    sleep_update: true
+"""
 
 MIXED = ["fenix847mm", "fr955"]  # AMOLED first: the old "device 0" trap
 

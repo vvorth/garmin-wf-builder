@@ -140,26 +140,27 @@ def test_measured_width_differs_from_the_pillow_default_stand_in(db):
 
 
 DESIGN_TEMPLATE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 {elements}
 """
 
-_LABEL_ELEMENT = """  - id: label
+_LABEL_ELEMENT = """  label:
     type: text
     text: "88888"
     font: FONT_MEDIUM
-    align: left
-    vertical_align: top
+    align: top_left
     at: {anchor: top_left, dx: 4px, dy: 4px}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -202,22 +203,20 @@ def test_a_monkeypatched_em_moves_layout_width_and_preview_ink_the_same_way(
 # -- 4. vertical_align top/bottom ink vs. the anchor, in a rendered preview -
 
 
-_ALIGN_ELEMENTS = """  - id: top_line
+_ALIGN_ELEMENTS = """  top_line:
     type: text
     text: "Hxg"
     font: FONT_LARGE
-    align: left
-    vertical_align: top
+    align: top_left
     at: {{anchor: top_left, dx: 10px, dy: {top_y}px}}
-    color: palette.fg
-  - id: bottom_line
+    color: color.fg
+  bottom_line:
     type: text
     text: "Hxg"
     font: FONT_LARGE
-    align: left
-    vertical_align: bottom
+    align: bottom_left
     at: {{anchor: top_left, dx: 10px, dy: {bottom_y}px}}
-    color: palette.fg
+    color: color.fg
 """
 
 

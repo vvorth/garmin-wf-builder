@@ -58,6 +58,7 @@
   },
   "$defs": {
     "identifier": {
+      "description": "A name or id: a letter or underscore, then letters, digits and underscores -- no '-' or spaces, because it becomes a Monkey C identifier.",
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     },
@@ -89,7 +90,7 @@
       }
     },
     "hexColor": {
-      "description": "A literal colour, '#RRGGBB' or '#RGB'. Not a palette/config reference -- used where a build-time literal is required, such as a 'config:' entry's own 'default:' and 'choices:'.",
+      "description": "A literal colour, '#RRGGBB' or '#RGB'. Not a 'color.<name>' reference: a palette swatch's own value is always a literal.",
       "type": "string",
       "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
     },

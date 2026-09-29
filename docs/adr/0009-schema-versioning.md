@@ -74,6 +74,9 @@ A deprecated key warns for one major version and is removed in the next, with
 the warning naming the replacement. `wfb migrate` performs mechanical upgrades
 and is expected to handle the common cases rather than all of them.
 
+> **Superseded for the format 1 → 2 break (2026-09-29, plan 22):** see the
+> amendment below. Format 1 was migrated, not kept for a major.
+
 ## Consequences
 
 - Golden-file tests must be kept per format major, so a 1.x compiler's output
@@ -83,3 +86,30 @@ and is expected to handle the common cases rather than all of them.
 - The generated-catalogue dependency means the schema is partly *derived*, not
   purely hand-written — a strength for accuracy, but it makes SDK regeneration a
   release-blocking step.
+
+## Amendment (2026-09-29): format 2 is migrated, not deprecated
+
+Plan 22 revised the format in one designed break: one colour namespace,
+author-shaped names, one spelling per idea and a grouped top level
+(`docs/guide/format-2-migration.md` lists every rename). §5's path -- a
+deprecated key warning for a major, then removed -- was not used for it.
+The user decided (F4) that `wfb migrate` rewrites a format 1 file once,
+keeping its comments, key order and quoting, and that the compiler then
+reads format 2 only: `format: 1` is an error naming the command, and a
+format 1 key in a format 2 file is a schema error naming its replacement.
+
+The reasons: nearly every key moved, so a face written against format 1
+would have warned on most of its lines for a whole major; the migrator is
+exact rather than best-effort, because format 2 is a front-end change
+(`wfb/lower.py` rewrites it into the same internal shape, so a migrated face
+generates the same Monkey C, byte for byte, apart from each file's header);
+and there is one user, whose every face is in this repository. What the
+migrator cannot rewrite faithfully it refuses, with the line and what to do
+by hand, and writes nothing.
+
+Consequences for this ADR: the schema is `schema/wfb-face-2.schema.json`
+and the only one shipped; golden files were regenerated for format 2
+(their header line is the only change); §2's unknown-key rule is unchanged.
+Format 2 also reserves vocabulary for designed but unbuilt features, each a
+friendly "not implemented" error rather than an unknown key, so building
+one later is additive (`docs/limitations.md` §2).

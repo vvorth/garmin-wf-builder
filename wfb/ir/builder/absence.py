@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ... import catalog, formatting, vocab
@@ -18,6 +19,13 @@ ABSENCE_IS_NORMAL = ("every ActivityMonitor field is nullable and sensors are si
 _WHEN_ABSENT_CHOICES = ("choose one of: 'absent: hide', a text to draw instead "
                         "('absent: \"--\"'), or a value to use instead "
                         "('absent: {value: <expression>}')")
+
+
+def _template(spec: str, bound: Expression) -> str:
+    """An internal ``{:spec}`` format as the author's ``text:`` template,
+    with the bound expression back inside each placeholder."""
+    return re.sub(r"\{(:[^{}]*)?\}", lambda m: "{" + bound.shown + (m.group(1) or "") + "}",
+                  spec)
 
 
 class AbsenceChecks(Readers):
@@ -218,11 +226,7 @@ class AbsenceChecks(Readers):
         try:
             formatting.parse(spec)
         except formatting.FormatError as exc:
-            notes = []
-            if "%" in spec and "{" not in spec:
-                notes.append("a format is text with '{}' fields: write the %-code "
-                             "inside one, e.g. '{:02d}' or '{:%H:%M}'")
-            self.bag.error("format", str(exc), span, notes=notes)
+            self.bag.error("format", str(exc), span)
             return
         coded = formatting.is_time_spec(spec)
         if formatting.is_duration(spec, bound.value.type):
@@ -236,8 +240,8 @@ class AbsenceChecks(Readers):
         elif coded and not bound.value.type.is_formatted():
             self.bag.error(
                 "format",
-                f"strftime-style format {spec!r} needs a time, date or number value, "
-                f"got {bound.value}",
+                f"strftime-style format {_template(spec, bound)!r} needs a time, date or "
+                f"number value, got {bound.value}",
                 span,
             )
         elif not coded and bound.value.type.is_formatted():
@@ -245,7 +249,7 @@ class AbsenceChecks(Readers):
             self.bag.error(
                 "format",
                 f"a {bound.value.type.value} value needs a strftime-style format "
-                f"such as '{example}'",
+                f"such as {_template(example, bound)!r}",
                 span,
             )
         elif coded:

@@ -138,30 +138,32 @@ def test_every_type_has_a_rule_and_every_short_name_fits():
 
 # -- the generated SlotText.mc ---------------------------------------------------
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 6b2f9a3e-5c1d-4e8a-9f7b-3a1d6c8e2f40
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
 def _design(choices: str, element: str = "", second: str = "") -> str:
     return HEAD + f"""config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices: {choices}
 elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: {{anchor: center, dy: -20%}}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {{size: 8%r}}
+    color: color.fg
 {element}{second}"""
 
 
@@ -175,8 +177,8 @@ def _slot_text(text: str, write_design) -> str:
 def test_slot_text_carries_a_case_only_for_the_slots_choices(write_design):
     """Steps, heart rate and calories: no weather table, no training-status
     table, and no settings read, which none of the three follows."""
-    text = _slot_text(_design("[complication.steps, complication.heart_rate, "
-                              "complication.calories]"), write_design)
+    text = _slot_text(_design("[steps, heart_rate, "
+                              "calories]"), write_design)
     assert "case Complications.COMPLICATION_TYPE_STEPS:" in text
     assert "COMPLICATION_TYPE_HEART_RATE: return WfbReading.suffixed(" in text
     assert "COMPLICATION_TYPE_SUNRISE" not in text
@@ -186,7 +188,7 @@ def test_slot_text_carries_a_case_only_for_the_slots_choices(write_design):
 
 
 def test_slot_text_carries_only_the_name_table_a_slot_draws(write_design):
-    weather = "[complication.steps, complication.current_weather]"
+    weather = "[steps, current_weather]"
     long = _slot_text(_design(weather), write_design)
     assert "function conditionName(" in long and "conditionShort" not in long
     assert "Mostly clear|" in long
@@ -195,11 +197,11 @@ def test_slot_text_carries_only_the_name_table_a_slot_draws(write_design):
     assert "function conditionShort(" in short and "conditionName" not in short
     assert "Mo clr|" in short
 
-    both = _slot_text(_design(weather, "", """  - id: again
-    type: complication_slot
-    slot: config.data.top
+    both = _slot_text(_design(weather, "", """  again:
+    type: data
+    slot: top
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
     short: true
 """), write_design)
     assert "function conditionName(" in both and "function conditionShort(" in both
@@ -212,11 +214,11 @@ def test_slot_text_tables_match_the_python_ones(write_design):
     Python ones; parse them back and compare, so neither can drift."""
     import re
 
-    text = _slot_text(_design("any", "    short: true\n", """  - id: again
-    type: complication_slot
-    slot: config.data.top
+    text = _slot_text(_design("any", "    short: true\n", """  again:
+    type: data
+    slot: top
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
 """), write_design)
 
     def table(method: str) -> dict[int, str]:
@@ -267,12 +269,11 @@ def test_a_design_with_no_slots_has_no_slot_text(write_design, db, tmp_path):
     from wfb.emit import generate
 
     text = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, Bag())
     project = generate(face, [db.get("fenix8solar47mm")], tmp_path)
@@ -287,7 +288,7 @@ def test_a_weather_choice_icon_follows_the_pulled_condition(write_design, db):
     from wfb.emit import monkeyc
     from wfb.ir import complication_slot_icon_method
 
-    _, resolved = _resolved(_design("[complication.steps, complication.current_weather]"),
+    _, resolved = _resolved(_design("[steps, current_weather]"),
                             write_design, Bag(), db)
     view = monkeyc.emit_view(resolved).text
     method = complication_slot_icon_method("top_reading")
@@ -309,7 +310,7 @@ def test_an_authored_weather_icon_stays_as_written(write_design, db):
     from wfb.emit import monkeyc
 
     _, resolved = _resolved(_design(
-        "[complication.steps, {type: complication.current_weather, icon: weather_rain}]"),
+        "[steps, {type: current_weather, icon: weather_rain}]"),
         write_design, Bag(), db)
     view = monkeyc.emit_view(resolved).text
     assert 'COMPLICATION_TYPE_CURRENT_WEATHER: return "weather_rain";' in view
@@ -322,15 +323,15 @@ def test_an_authored_weather_icon_stays_as_written(write_design, db):
 def test_a_baked_font_gets_every_character_the_readings_draw(write_design):
     from wfb.kinds.complication_slot import _text_glyphs
 
-    face = _face(_design("[complication.steps, complication.sunrise, "
-                         "complication.recovery_time, complication.current_temperature]"),
+    face = _face(_design("[steps, sunrise, "
+                         "recovery_time, current_temperature]"),
                  write_design, Bag())
     element = next(e for e in face.walk() if e.id == "top_reading")
     glyphs = _text_glyphs(element, face)
     assert {":", "h", "°"} <= glyphs
     assert "a" not in glyphs  # nothing here draws words
 
-    face = _face(_design("[complication.steps, complication.current_weather]",
+    face = _face(_design("[steps, current_weather]",
                          "    short: true\n"), write_design, Bag())
     element = next(e for e in face.walk() if e.id == "top_reading")
     glyphs = _text_glyphs(element, face)
@@ -360,11 +361,11 @@ def test_every_reading_rule_compiles_warning_free_on_every_target(
     from wfb.build import build as run_build
 
     lint = "    lint:\n      allow: [config-unsupported, off-screen]\n      reason: test\n"
-    text = _design("any", lint, """  - id: again
-    type: complication_slot
-    slot: config.data.top
+    text = _design("any", lint, """  again:
+    type: data
+    slot: top
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
     unit: true
     short: true
 """ + lint)

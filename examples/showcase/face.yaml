@@ -1,10 +1,10 @@
 # Showcase -- one face, three layouts switched by Styles: `analog` (a quiet
 # three-hand dial with tick and numeral patterns), `digital` (a dense
 # dashboard: two-tone clock, weather row, heart-rate graph, data clusters,
-# progress bar and ring, status row), and `roman` (a vintage roman-numeral
+# gauge bar and ring, status row), and `roman` (a vintage roman-numeral
 # dial with Breguet-style hands and a mechanical day/date aperture -- plan
 # 13, `docs/plans/13-showcase-roman-layout.md`). Two shared
-# `complication_slot` registers draw beneath all three.
+# `data` element registers draw beneath all three.
 #
 # Config: several colour schemes paired with the layouts as `config: style:`
 # entries, both colour axes, and the Data axis (the two registers). fr955
@@ -13,145 +13,89 @@
 # Build it:    ./wfb.py build examples/showcase/face.yaml
 # Preview it:  ./wfb.py preview examples/showcase/face.yaml --all-styles
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 5ca5867b-1d30-4581-94c0-617033e6824c
   name: Showcase
   version: 1.2.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-fonts:
-  digitalclock:
-    source: assets/ChivoMono-Bold.ttf
-    size: 60%r
-    monospace: true
-    align: center
-    antialias: true
-  dialfont:
-    source: assets/Dynalight-Regular.ttf
-    size: 13%r
-    antialias: true
-  # Device-resident, scalable -- `docs/guide/fonts.md` "Vector (`face:`) fonts".
-  # RobotoCondensedBold is the one Latin face all three targets publish
-  # (checked against each device's `scalable_faces`), so this needs no
-  # `if_unavailable:` -- the roman layout's numeral ring turns it with
-  # `curve:`, which only a `face:` font can do (a baked sheet cannot rotate).
-  romandial:
-    # face: [RobotoCondensedBold]
-    face: [RobotoCondensedRegular]
-    size: 32%r
+resources:
+  fonts:
+    digitalclock:
+      source: assets/ChivoMono-Bold.ttf
+      size: 60%r
+      monospace: true
+      align: center
+      antialias: true
+    dialfont:
+      source: assets/Dynalight-Regular.ttf
+      size: 13%r
+      antialias: true
+    # Device-resident, scalable -- `docs/guide/fonts.md` "Vector (`face:`) fonts".
+    # RobotoCondensedBold is the one Latin face all three targets publish
+    # (checked against each device's `scalable_faces`), so this needs no
+    # `unsupported:` -- the roman layout's numeral ring turns it with
+    # `curve:`, which only a `face:` font can do (a baked sheet cannot rotate).
+    romandial:
+      # face: [RobotoCondensedBold]
+      face: [RobotoCondensedRegular]
+      size: 32%r
 
-palette:
-  black: { value: "#000000", label: "Black" }
-  white: { value: "#FFFFFF", label: "White" }
-  light_gray: { value: "#AAAAAA", label: "Light Gray" }
-  dark_gray: { value: "#555555", label: "Dark Gray" }
-  darkest_blue: { value: "#000055", label: "Midnight" }
-  red: { value: "#FF0000", label: "Red" }
-  orange: { value: "#FF5500", label: "Orange" }
-  amber: { value: "#FFAA00", label: "Amber" }
-  yellow: { value: "#FFFF00", label: "Yellow" }
-  green: { value: "#00FF00", label: "Green" }
-  lime_green: { value: "#AAFF00", label: "Lime Green" }
-  cyan: { value: "#00FFFF", label: "Cyan" }
-  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
-  light_blue: { value: "#55FFFF", label: "Light Blue" }
-  magenta: { value: "#FF00FF", label: "Magenta" }
-  dark_green: { value: "#005500", label: "Dark Green" }
-  dark_red: { value: "#550000", label: "Dark Red" }
+  palette:
+    black: { value: "#000000", label: "Black" }
+    white: { value: "#FFFFFF", label: "White" }
+    light_gray: { value: "#AAAAAA", label: "Light Gray" }
+    dark_gray: { value: "#555555", label: "Dark Gray" }
+    darkest_blue: { value: "#000055", label: "Midnight" }
+    red: { value: "#FF0000", label: "Red" }
+    orange: { value: "#FF5500", label: "Orange" }
+    amber: { value: "#FFAA00", label: "Amber" }
+    yellow: { value: "#FFFF00", label: "Yellow" }
+    green: { value: "#00FF00", label: "Green" }
+    lime_green: { value: "#AAFF00", label: "Lime Green" }
+    cyan: { value: "#00FFFF", label: "Cyan" }
+    sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+    light_blue: { value: "#55FFFF", label: "Light Blue" }
+    magenta: { value: "#FF00FF", label: "Magenta" }
+    dark_green: { value: "#005500", label: "Dark Green" }
+    dark_red: { value: "#550000", label: "Dark Red" }
 
-color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: palette.black, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
-  light:
-    label: "Light"
-    colors: { bg: palette.white, fg: palette.black, dim: palette.dark_gray, dark: palette.light_gray, track: palette.dark_gray, notify: palette.white }
-  navy:
-    label: "Navy"
-    colors: { bg: palette.darkest_blue, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
-  crimson:
-    label: "Crimson"
-    colors: { bg: palette.dark_red, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
-
-config:
-  accent_color:
-    default: palette.red
-    choices:
-      - palette.orange
-      - palette.red
-      - palette.amber
-      - palette.cyan
-      - palette.lime_green
-      - palette.green
-      - palette.magenta
-      - palette.yellow
-  data_color:
-    default: palette.amber
-    choices:
-      - palette.red
-      - palette.cyan
-      - palette.lime_green
-      - palette.green
-      - palette.amber
-      - palette.magenta
-      - palette.yellow
-  style:
-    default: digital_dark
-    choices:
-      analog_dark:   { label: "Analog · Dark",  layout: analog,  colors: dark }
-      analog_light:  { label: "Analog · Light", layout: analog,  colors: light }
-      # analog_navy:   { label: "Analog · Navy",  layout: analog,  colors: navy }
-      analog_crimson: { label: "Analog · Crimson",  layout: analog,  colors: crimson }
-      digital_dark:  { label: "Digital · Dark", layout: digital, colors: dark }
-      digital_light: { label: "Digital · Light", layout: digital, colors: light }
-      roman_dark:    { label: "Roman · Dark",    layout: roman,   colors: dark }
-      roman_crimson: { label: "Roman · Crimson", layout: roman,   colors: crimson }
-  data:
-    left_register:
-      default: complication.steps
-      choices:
-        - complication.steps
-        - complication.heart_rate
-        - { type: complication.calories, icon: none }
-    right_register:
-      default: complication.body_battery
-      choices: any
-
-# One named hand set, authored pointing at 12 o'clock, origin = the axis
-# (docs/guide/analog-hands.md). Tapered hour/minute polygons plus a
-# needle-thin second hand whose tip is the one native accent-colour axis.
-hands:
-  classic:
-    hour:
-      color: config.colors.fg
-      parts:
-        - shape: polygon
-          points:
-            - { dx: -3%r, dy: 8%r }
-            - { dx: -2%r, dy: -38%r }
-            - { dy: -46%r }
-            - { dx: 2%r, dy: -38%r }
-            - { dx: 3%r, dy: 8%r }
-    minute:
-      color: config.colors.fg
-      parts:
-        - { shape: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
-        - { shape: circle, radius: 4%r }
-    second:
-      color: config.colors.dim
-      parts:
-        - { shape: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 1px }
-        - { shape: circle, at: { dy: 14%r }, radius: 3%r }
-        - { shape: circle, radius: 2%r, color: config.accent_color }
-        - { shape: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: config.accent_color }
+  # One named hand set, authored pointing at 12 o'clock, origin = the axis
+  # (docs/guide/analog-hands.md). Tapered hour/minute polygons plus a
+  # needle-thin second hand whose tip is the one native accent-colour axis.
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - type: polygon
+            points:
+              - { dx: -3%r, dy: 8%r }
+              - { dx: -2%r, dy: -38%r }
+              - { dy: -46%r }
+              - { dx: 2%r, dy: -38%r }
+              - { dx: 3%r, dy: 8%r }
+      minute:
+        color: color.fg
+        parts:
+          - { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
+          - { type: circle, radius: 4%r }
+      second:
+        color: color.dim
+        parts:
+          - { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 1px }
+          - { type: circle, at: { dy: 14%r }, radius: 3%r }
+          - { type: circle, radius: 2%r, color: color.accent }
+          - { type: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: color.accent }
 
   # A second hand set for the roman layout -- `classic` above is untouched,
   # since the analog layout still uses it. "Vintage" here means Breguet
@@ -166,7 +110,7 @@ hands:
   #
   # Revised after rendering `--style roman_crimson --time 4:38:12` showed a
   # visible gap at the hub: the first draft's shaft tails were too thin to
-  # read as "meeting" anything, and a separate `config.colors.bg` pin
+  # read as "meeting" anything, and a separate `color.bg` pin
   # (`roman_center_pin`, drawn last, over every hand) was punching a hole
   # bigger than those thin tails -- fine on `classic`'s much thicker hands
   # (a deliberate "drilled screw" look there), but on these it erased the
@@ -181,169 +125,221 @@ hands:
   # hour/minute/second order) rides on top of that with its own small
   # accent-coloured pivot dot as the jewel at dead centre -- no separate
   # trailing pin element needed, so `roman_center_pin` is gone.
-  vintage:
-    hour:
-      color: config.colors.fg
-      parts:
-        # bg 
-        - shape: polygon                    # tapered shaft, heavier than the minute's
-          color: palette.black
-          points:
-            - { dx: -3%r, dy: 11%r }         # a short tail past the axis
-            - { dx: -2.5%r, dy: -27%r }
-            - { dx: 2.5%r, dy: -27%r }
-            - { dx: 3%r, dy: 11%r }
-        - shape: circle                      # the open "moon" ring -- bigger, chunkier
-          color: palette.black
-          at: { dy: -32%r }
-          radius: 5%r
-          filled: false
-          thickness: 4px
-        - shape: polygon                     # the point beyond the ring
-          color: palette.black
-          points:
-            - { dx: -2.5%r, dy: -35%r }
-            - { dy: -42%r }
-            - { dx: 2.5%r, dy: -35%r }
+    vintage:
+      hour:
+        color: color.fg
+        parts:
+          # bg 
+          - type: polygon                     # tapered shaft, heavier than the minute's
+            color: color.black
+            points:
+              - { dx: -3%r, dy: 11%r }         # a short tail past the axis
+              - { dx: -2.5%r, dy: -27%r }
+              - { dx: 2.5%r, dy: -27%r }
+              - { dx: 3%r, dy: 11%r }
+          - type: circle                       # the open "moon" ring -- bigger, chunkier
+            color: color.black
+            at: { dy: -32%r }
+            radius: 5%r
+            filled: false
+            thickness: 4px
+          - type: polygon                      # the point beyond the ring
+            color: color.black
+            points:
+              - { dx: -2.5%r, dy: -35%r }
+              - { dy: -42%r }
+              - { dx: 2.5%r, dy: -35%r }
         # fg 
-        - shape: polygon                    # tapered shaft, heavier than the minute's
-          points:
-            - { dx: -2%r, dy: 10%r }         # a short tail past the axis
-            - { dx: -1.5%r, dy: -26%r }
-            - { dx: 1.5%r, dy: -26%r }
-            - { dx: 2%r, dy: 10%r }
-        - shape: circle                      # the open "moon" ring -- bigger, chunkier
-          at: { dy: -32%r }
-          radius: 4%r
-          filled: false
-          thickness: 2px
-        - shape: polygon                     # the point beyond the ring
-          points:
-            - { dx: -1.5%r, dy: -34%r }
-            - { dy: -40%r }
-            - { dx: 1.5%r, dy: -34%r }
-    minute:
-      color: config.colors.fg
-      parts:
-        # bg
-        - shape: circle                      # the hub: covers the hour/minute joint
-          color: palette.black
-          radius: 4%r                        # `at:` defaults to the axis
-        - shape: polygon
-          color: palette.black
-          points:
-            - { dx: -2.2%r, dy: 13%r }        # a longer tail than the hour's --
-            - { dx: -2%r, dy: -45%r }         # the counterweight below reads as its mass
-            - { dx: 2%r, dy: -45%r }
-            - { dx: 2.2%r, dy: 13%r }
-        - shape: circle                      # a small counterweight, past the axis
-          color: palette.black
-          at: { dy: 12%r }
-          radius: 3%r
-        - shape: circle                      # the open "moon" ring -- bigger, chunkier
-          color: palette.black
-          at: { dy: -52%r }
-          radius: 5.5%r
-          filled: false
-          thickness: 4px
-        - shape: polygon                     # the point beyond the ring
-          color: palette.black
-          points:
-            - { dx: -2%r, dy: -55%r }
-            - { dy: -66%r }
-            - { dx: 2%r, dy: -55%r }
+          - type: polygon                     # tapered shaft, heavier than the minute's
+            points:
+              - { dx: -2%r, dy: 10%r }         # a short tail past the axis
+              - { dx: -1.5%r, dy: -26%r }
+              - { dx: 1.5%r, dy: -26%r }
+              - { dx: 2%r, dy: 10%r }
+          - type: circle                       # the open "moon" ring -- bigger, chunkier
+            at: { dy: -32%r }
+            radius: 4%r
+            filled: false
+            thickness: 2px
+          - type: polygon                      # the point beyond the ring
+            points:
+              - { dx: -1.5%r, dy: -34%r }
+              - { dy: -40%r }
+              - { dx: 1.5%r, dy: -34%r }
+      minute:
+        color: color.fg
+        parts:
+          # bg
+          - type: circle                       # the hub: covers the hour/minute joint
+            color: color.black
+            radius: 4%r                        # `at:` defaults to the axis
+          - type: polygon
+            color: color.black
+            points:
+              - { dx: -2.2%r, dy: 13%r }        # a longer tail than the hour's --
+              - { dx: -2%r, dy: -45%r }         # the counterweight below reads as its mass
+              - { dx: 2%r, dy: -45%r }
+              - { dx: 2.2%r, dy: 13%r }
+          - type: circle                       # a small counterweight, past the axis
+            color: color.black
+            at: { dy: 12%r }
+            radius: 3%r
+          - type: circle                       # the open "moon" ring -- bigger, chunkier
+            color: color.black
+            at: { dy: -52%r }
+            radius: 5.5%r
+            filled: false
+            thickness: 4px
+          - type: polygon                      # the point beyond the ring
+            color: color.black
+            points:
+              - { dx: -2%r, dy: -55%r }
+              - { dy: -66%r }
+              - { dx: 2%r, dy: -55%r }
         # fg
-        - shape: circle                      # the hub: covers the hour/minute joint
-          radius: 3%r                        # `at:` defaults to the axis
-        - shape: polygon
-          points:
-            - { dx: -1.2%r, dy: 12%r }        # a longer tail than the hour's --
-            - { dx: -1%r, dy: -44%r }         # the counterweight below reads as its mass
-            - { dx: 1%r, dy: -44%r }
-            - { dx: 1.2%r, dy: 12%r }
-        - shape: circle                      # a small counterweight, past the axis
-          at: { dy: 12%r }
-          radius: 2%r
-        - shape: circle                      # the open "moon" ring -- bigger, chunkier
-          at: { dy: -52%r }
-          radius: 4.5%r
-          filled: false
-          thickness: 2px
-        - shape: polygon                     # the point beyond the ring
-          points:
-            - { dx: -1%r, dy: -54%r }
-            - { dy: -64%r }
-            - { dx: 1%r, dy: -54%r }
-    second:
-      # A thin needle with a counterweight tail, same convention as
-      # `classic`'s own second hand (R2.4): config.accent_color at the tip,
-      # `seconds: awake` on the element so the sleeping frame drops it. Its
-      # own small circle at the axis (radius 1.5%r, accent-coloured) is the
-      # final pivot jewel, riding on top of `minute`'s wider hub circle
-      # above -- the last thing drawn, dead centre.
-      # color: config.colors.dim
-      color: config.accent_color
-      parts:
-        - { shape: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
-        - { shape: circle, at: { dy: 16%r }, radius: 2.5%r }
-        - { shape: circle, radius: 1.5%r, color: config.accent_color }
-        # - { shape: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: config.accent_color }
+          - type: circle                       # the hub: covers the hour/minute joint
+            radius: 3%r                        # `at:` defaults to the axis
+          - type: polygon
+            points:
+              - { dx: -1.2%r, dy: 12%r }        # a longer tail than the hour's --
+              - { dx: -1%r, dy: -44%r }         # the counterweight below reads as its mass
+              - { dx: 1%r, dy: -44%r }
+              - { dx: 1.2%r, dy: 12%r }
+          - type: circle                       # a small counterweight, past the axis
+            at: { dy: 12%r }
+            radius: 2%r
+          - type: circle                       # the open "moon" ring -- bigger, chunkier
+            at: { dy: -52%r }
+            radius: 4.5%r
+            filled: false
+            thickness: 2px
+          - type: polygon                      # the point beyond the ring
+            points:
+              - { dx: -1%r, dy: -54%r }
+              - { dy: -64%r }
+              - { dx: 1%r, dy: -54%r }
+      second:
+        # A thin needle with a counterweight tail, same convention as
+        # `classic`'s own second hand (R2.4): color.accent at the tip,
+        # `seconds: awake` on the element so the sleeping frame drops it. Its
+        # own small circle at the axis (radius 1.5%r, accent-coloured) is the
+        # final pivot jewel, riding on top of `minute`'s wider hub circle
+        # above -- the last thing drawn, dead centre.
+        # color: color.dim
+        color: color.accent
+        parts:
+          - { type: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
+          - { type: circle, at: { dy: 16%r }, radius: 2.5%r }
+          - { type: circle, radius: 1.5%r, color: color.accent }
+        # - { type: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: color.accent }
 
 # Shared: drawn underneath every layout, roman included -- two side
 # "registers" (a re-pointable complication behind a card) and a small date
 # window, the same three shapes every layout benefits from.
+
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, fg: color.white, dim: color.light_gray, dark: color.dark_gray, track: color.light_gray, notify: color.black }
+    light:
+      label: "Light"
+      colors: { bg: color.white, fg: color.black, dim: color.dark_gray, dark: color.light_gray, track: color.dark_gray, notify: color.white }
+    navy:
+      label: "Navy"
+      colors: { bg: color.darkest_blue, fg: color.white, dim: color.light_gray, dark: color.dark_gray, track: color.light_gray, notify: color.black }
+    crimson:
+      label: "Crimson"
+      colors: { bg: color.dark_red, fg: color.white, dim: color.light_gray, dark: color.dark_gray, track: color.light_gray, notify: color.black }
+
+config:
+  accent_color:
+    default: color.red
+    choices:
+      - color.orange
+      - color.red
+      - color.amber
+      - color.cyan
+      - color.lime_green
+      - color.green
+      - color.magenta
+      - color.yellow
+  data_color:
+    default: color.amber
+    choices:
+      - color.red
+      - color.cyan
+      - color.lime_green
+      - color.green
+      - color.amber
+      - color.magenta
+      - color.yellow
+  style:
+    default: digital_dark
+    choices:
+      analog_dark: { label: "Analog · Dark", layout: analog, scheme: dark }
+      analog_light: { label: "Analog · Light", layout: analog, scheme: light }
+      # analog_navy:   { label: "Analog · Navy",  layout: analog,  colors: navy }
+      analog_crimson: { label: "Analog · Crimson", layout: analog, scheme: crimson }
+      digital_dark: { label: "Digital · Dark", layout: digital, scheme: dark }
+      digital_light: { label: "Digital · Light", layout: digital, scheme: light }
+      roman_dark: { label: "Roman · Dark", layout: roman, scheme: dark }
+      roman_crimson: { label: "Roman · Crimson", layout: roman, scheme: crimson }
+  slots:
+    left_register:
+      default: steps
+      choices:
+        - steps
+        - heart_rate
+        - { type: calories, icon: none }
+    right_register:
+      default: body_battery
+      choices: any
+
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: config.colors.bg
+    color: color.bg
 
   left_card:
-    type: shape
-    shape: rounded_rectangle
+    type: rectangle
     at: { anchor: center, dx: -50%r, dy: -23%r }
     size: { width: 42%r, height: 19%r }
     corner_radius: 3%r
-    color: config.colors.dark
+    color: color.dark
 
   right_card:
-    type: shape
-    shape: rounded_rectangle
-    at: { anchor: center, dx:  50%r, dy: -23%r }
+    type: rectangle
+    at: { anchor: center, dx: 50%r, dy: -23%r }
     size: { width: 42%r, height: 19%r }
     corner_radius: 3%r
-    color: config.colors.dark
+    color: color.dark
 
-  # date_window:
-  #   type: shape
-  #   shape: rounded_rectangle
-  #   at: { anchor: center, dy: 48%r }
-  #   size: { width: 30%r, height: 12%r }
-  #   corner_radius: 2%r
-  #   color: config.colors.dark
-  #   lint:
-  #     allow: [static-overlap]
-  #     reason: "the digital layout's bottom status row (dnd/notification/alarm)
-  #       draws well clear of this window on every target; the overlap the
-  #       linter flags is between the two elements' declared boxes, not their
-  #       ink -- see docs/guide/elements.md 'static:'"
+# date_window:
+#   type: rectangle
+#   at: { anchor: center, dy: 48%r }
+#   size: { width: 30%r, height: 12%r }
+#   corner_radius: 2%r
+#   color: color.dark
+#   lint:
+#     allow: [static-overlap]
+#     reason: "the digital layout's bottom status row (dnd/notification/alarm)
+#       draws well clear of this window on every target; the overlap the
+#       linter flags is between the two elements' declared boxes, not their
+#       ink -- see docs/guide/elements.md 'static:'"
 
 elements:
   left_register:
-    type: complication_slot
-    slot: config.data.left_register
+    type: data
+    slot: left_register
     at: { anchor: center, dx: -50%r, dy: -30%r }
     font: FONT_XTINY
-    icon_size: 9%r
-    icon_position: top
-    icon_gap: 1%r
-    icon_color: config.data_color
-    color: config.colors.fg
+    icon: { size: 9%r, position: top, gap: 1%r, color: color.data }
+    color: color.fg
     label: none
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
     on_hold: auto
     lint:
       allow: [static-overlap]
@@ -365,21 +361,17 @@ elements:
         the skip"
 
   right_register:
-    type: complication_slot
-    slot: config.data.right_register
+    type: data
+    slot: right_register
     at: { anchor: center, dx: 50%r, dy: -30%r }
     font: FONT_XTINY
-    icon_size: 9%r
-    icon_position: top
-    icon_gap: 1%r
-    icon_color: config.data_color
-    color: config.colors.fg
+    icon: { size: 9%r, position: top, gap: 1%r, color: color.data }
+    color: color.fg
     label: none
     # `choices: any`: weather conditions and training status get their
     # 7-character names, so they stay inside this small register.
     short: true
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
     lint:
       allow: [static-overlap]
       reason: "Same full-dial-pattern bounding-box overstatement as
@@ -387,18 +379,17 @@ elements:
         own only true after `skip: [2, 10]` -- see that reason), mirrored at
         dx +42%r"
 
-  # date_text:
-  #   type: text
-  #   value: date.today
-  #   format: "{:%a %e %b}"
-  #   font: FONT_XTINY
-  #   at: { anchor: center, dy: 48%r }
-  #   color: config.colors.fg
-  #   lint:
-  #     allow: [static-overlap]
-  #     reason: "same full-dial-pattern bounding-box overstatement as the two
-  #       registers above -- this window sits on the 6 o'clock radius, clear
-  #       of the tick rings and numerals"
+# date_text:
+#   type: text
+#   text: "{date.today:%a %e %b}"
+#   font: FONT_XTINY
+#   at: { anchor: center, dy: 48%r }
+#   color: color.fg
+#   lint:
+#     allow: [static-overlap]
+#     reason: "same full-dial-pattern bounding-box overstatement as the two
+#       registers above -- this window sits on the 6 o'clock radius, clear
+#       of the tick rings and numerals"
 
 layouts:
   # -------------------------------------------------------------------
@@ -408,14 +399,13 @@ layouts:
   analog:
     static:
       dial_ring:
-        type: shape
-        shape: arc
+        type: arc
         at: { anchor: center }
         radius: 94%r
         thickness: 2px
         start_angle: 0deg
         sweep: 360deg
-        color: config.colors.track
+        color: color.track
 
       minute_ticks:
         type: pattern
@@ -423,7 +413,7 @@ layouts:
         at: { anchor: center }
         count: 60
         skip_every: 5
-        color: config.colors.track
+        color: color.track
         antialias: true
         lint:
           allow: [antialias-dither]
@@ -431,7 +421,7 @@ layouts:
             so the turned ticks do not stair-step -- reported against this
             element, the first to draw anti-aliased, for the whole device"
         parts:
-          - { shape: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }
+          - { type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }
 
       hour_ticks:
         type: pattern
@@ -439,39 +429,38 @@ layouts:
         at: { anchor: center }
         count: 12
         step: 30deg
-        color: config.colors.fg
+        color: color.fg
         antialias: true
         parts:
-          - { shape: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
+          - { type: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
 
-      # Twelve numerals as one radial `shape: text` pattern part, rather
+      # Twelve numerals as one radial `type: text` pattern part, rather
       # than twelve polar `text` elements (docs/guide/patterns.md "Text parts").
       hour_numerals:
         type: pattern
         pattern: radial
         at: { anchor: center }
         count: 12
-        color: config.colors.fg
+        color: color.fg
         parts:
-          - shape: text
-            value: "(copy + 11) % 12 + 1"
+          - type: text
+            text: "{(copy + 11) % 12 + 1}"
             font: font.dialfont
             at: { dy: -78%r }
 
       bottom_card:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: 30%r }
         size: { width: 42%r, height: 19%r }
         corner_radius: 3%r
-        color: config.colors.dark
+        color: color.dark
 
       bottom_icon:
         type: icon
-        glyph: "U+E241"
+        icon: "U+E241"
         size: 9%r
         at: { anchor: center, dy: 45%r }
-        color: config.data_color
+        color: color.data
 
 
 
@@ -479,18 +468,13 @@ layouts:
     elements:
       bottom_data:
         type: text
-        value: "activity.steps / 1000.0"
-        format: "{:.1f}k" # always one decimal, so the width holds still
-        # value: complication.steps
+        text: "{activity.steps / 1000.0:.1f}k" # always one decimal, so the width holds still
+        # text: "{complication.steps}"
         at: { anchor: center, dy: 30%r }
         font: FONT_XTINY
-        # icon_size: 9%r
-        # icon_position: top
-        # icon_gap: 1%r
-        # icon_color: config.data_color
-        color: config.colors.fg
-        when_absent: placeholder
-        placeholder: "--"
+        # icon: { size: 9%r, position: top, gap: 1%r, color: color.data }
+        color: color.fg
+        absent: "--"
 
       top_data:
         type: group
@@ -503,31 +487,29 @@ layouts:
             icon: notification
             size: 25%r
             at: { anchor: center, dx: 1%r, dy: 1%r }
-            color: palette.black
+            color: color.black
           top_icon:
             type: icon
             icon: notification
             size: 25%r
             at: { anchor: center }
-            color: config.colors.track
+            color: color.track
           top_text_bg:
             type: text
-            value: device.notification_count
-            format: "{:d}"
+            text: "{device.notification_count:d}"
             font: FONT_TINY
             at: { anchor: center, dx: -1%r, dy: -3%r }
-            color: palette.black
+            color: color.black
           top_text:
             type: text
-            value: device.notification_count
-            format: "{:d}"
+            text: "{device.notification_count:d}"
             font: FONT_TINY
             at: { anchor: center, dy: -2%r }
-            color: config.colors.bg
+            color: color.bg
 
       analog_hands:
         type: hands
-        hands: classic
+        set: classic
         at: { anchor: center }
         seconds: awake
         antialias: true
@@ -537,11 +519,10 @@ layouts:
             so the rotated hands do not stair-step"
 
       center_pin:
-        type: shape
-        shape: circle
+        type: circle
         at: { anchor: center }
         radius: 3%r
-        color: config.colors.bg
+        color: color.bg
 
   # -------------------------------------------------------------------
   # Digital: dense and data-rich.
@@ -549,24 +530,22 @@ layouts:
   digital:
     static:
       sep_top:
-        type: shape
-        shape: line
+        type: line
         at: { anchor: top, dy: 24%, dx: 38% }
         to: { anchor: top, dy: 24%, dx: -38% }
         thickness: 1px
-        color: config.colors.dark
+        color: color.dark
         lint:
           allow: [contrast]
           reason: "a hairline rule is meant to be barely there; full contrast
             would make it compete with the data around it"
 
       # sep_bottom:
-      #   type: shape
-      #   shape: line
+      #   type: line
       #   at: { anchor: bottom, dy: -20%, dx: 33% }
       #   to: { anchor: bottom, dy: -20%, dx: -33% }
       #   thickness: 1px
-      #   color: config.colors.dark
+      #   color: color.dark
       #   lint:
       #     allow: [contrast]
       #     reason: "a hairline rule is meant to be barely there; full contrast
@@ -575,18 +554,17 @@ layouts:
     elements:
       date_line:
         type: text
-        value: date.today
-        format: "{:%a, %e %b}"
+        text: "{date.today:%a, %e %b}"
         font: FONT_XTINY
         at: { anchor: top, dy: 10% }
-        color: config.colors.dim
+        color: color.dim
 
       weather_icon:
         type: icon
-        icon_for: weather.condition_today
+        icon: { for: weather.condition_today }
         size: 16%r
         at: { anchor: top, dy: 20% }
-        color: config.colors.fg
+        color: color.fg
 
       # `weather.*` has no documented value range in the catalogue, so the
       # text-overflow lint sizes its box from the format's conservative
@@ -596,14 +574,12 @@ layouts:
       # well inside the round bezel regardless.
       weather_now:
         type: text
-        value: weather.feels_like_temperature
-        format: "{:d}°"
+        text: "{weather.feels_like_temperature:d}°"
         font: FONT_XTINY
         at: { anchor: top, dy: 20%, dx: -10% }
         align: center
-        color: config.colors.fg
-        when_absent: placeholder
-        placeholder: "--°"
+        color: color.fg
+        absent: "--°"
         lint:
           allow: [text-overflow]
           reason: "weather.feels_like_temperature has no documented range, so
@@ -613,19 +589,18 @@ layouts:
 
       hr_graph_icon:
         type: icon
-        glyph: "U+F21E"
+        icon: "U+F21E"
         size: 9%r
         at: { anchor: top, dy: 30% }
         align: center
-        color: config.data_color
+        color: color.data
 
       center_card:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: -23%r }
         size: { width: 54%r, height: 19%r }
         corner_radius: 3%r
-        color: config.colors.dark
+        color: color.dark
 
       hr_graph:
         type: graph
@@ -636,26 +611,24 @@ layouts:
         size: { width: 52%r, height: 17%r }
         min: auto
         max: auto
-        color: config.data_color
+        color: color.data
         on_hold: heart_rate
 
       hours:
         type: text
-        value: time.hour
-        format: "{:02d}"
+        text: "{time.hour:02d}"
         font: font.digitalclock
         at: { anchor: center, dx: -1%, dy: 7% }
         align: right
-        color: config.colors.fg
+        color: color.fg
 
       minutes:
         type: text
-        value: time.minute
-        format: "{:02d}"
+        text: "{time.minute:02d}"
         font: font.digitalclock
         at: { anchor: center, dx: 1%, dy: 7% }
         align: left
-        color: config.accent_color
+        color: color.accent
 
       bb_cluster:
         type: group
@@ -668,19 +641,17 @@ layouts:
             type: icon
             icon: body_battery
             size: 9%r
-            color: config.colors.fg
+            color: color.fg
             # at: { anchor: center, dx: -30% }
             at: { anchor: left }
           hr_value:
             type: text
-            value: complication.body_battery
-            format: "{:d}"
+            text: "{complication.body_battery:d}"
             font: FONT_XTINY
             # at: { anchor: center, dx: 25% }
             at: { anchor: left, dx: 14%r }
-            color: config.colors.fg
-            when_absent: placeholder
-            placeholder: "--"
+            color: color.fg
+            absent: "--"
 
       steps_cluster:
         type: group
@@ -692,21 +663,19 @@ layouts:
             type: icon
             icon: steps
             size: 9%r
-            color: config.colors.fg
+            color: color.fg
             # at: { anchor: center, dx: -10%r }
             at: { anchor: left }
             align: left
           steps_value:
             type: text
-            value: "activity.steps / 1000.0"
-            format: "{:.1f}k"
+            text: "{activity.steps / 1000.0:.1f}k"
             font: FONT_XTINY
             # at: { anchor: center, dx: 15%r }
             at: { anchor: left, dx: 13%r }
             align: left
-            color: config.colors.fg
-            when_absent: placeholder
-            placeholder: "--"
+            color: color.fg
+            absent: "--"
 
       calories_cluster:
         type: group
@@ -719,35 +688,33 @@ layouts:
             type: icon
             icon: flame
             size: 9%r
-            color: config.colors.fg
+            color: color.fg
             # at: { anchor: center, dx: -30% }
             at: { anchor: left }
             align: left
           calories_value:
             type: text
-            value: activity.calories
-            format: "{:d}"
+            text: "{activity.calories:d}"
             font: FONT_XTINY
             # at: { anchor: center, dx: 30% }
             at: { anchor: left, dx: 10%r }
             align: left
-            color: config.colors.fg
-            when_absent: placeholder
-            placeholder: "--"
+            color: color.fg
+            absent: "--"
 
       steps_bar:
-        type: progress
+        type: gauge
         style: bar
         value: activity.steps
         max: activity.step_goal
         at: { anchor: top, dy: 82% }
         size: { width: 60%, height: 3%r }
-        color: config.accent_color
-        track_color: config.colors.dark
-        when_absent: hide
+        color: color.accent
+        track_color: color.dark
+        absent: hide
 
       battery_arc_l:
-        type: progress
+        type: gauge
         style: arc
         value: system.battery
         max: 100
@@ -756,8 +723,8 @@ layouts:
         thickness: 3%r
         start_angle: 180deg
         sweep: 30deg
-        color: config.data_color
-        track_color: config.colors.dark
+        color: color.data
+        track_color: color.dark
         lint:
           allow: [safe-area]
           reason: "hugs the bezel by design, the same as a real chronograph's
@@ -765,7 +732,7 @@ layouts:
             mask at this radius on every target"
 
       battery_arc_r:
-        type: progress
+        type: gauge
         style: arc
         value: system.battery
         max: 100
@@ -774,8 +741,8 @@ layouts:
         thickness: 3%r
         start_angle: 180deg
         sweep: -30deg
-        color: config.data_color
-        track_color: config.colors.dark
+        color: color.data
+        track_color: color.dark
         lint:
           allow: [safe-area]
           reason: "hugs the bezel by design, the same as a real chronograph's
@@ -785,10 +752,10 @@ layouts:
       charging_bolt:
         type: icon
         # icon: battery
-        glyph: "U+F140B"
+        icon: "U+F140B"
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: -18% }
-        color: config.accent_color
+        color: color.accent
         visible: system.charging
         lint:
           allow: [safe-area]
@@ -800,42 +767,41 @@ layouts:
         icon: dnd
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: -12% }
-        color: "device.do_not_disturb ? config.accent_color : config.colors.dark"
+        color: "device.do_not_disturb ? color.accent : color.dark"
 
       notification_badge:
         type: icon
         icon: notification
         size: 25%r
         at: { anchor: bottom, dy: -10% }
-        color: "device.notification_count > 0 ? config.accent_color : config.colors.dark"
+        color: "device.notification_count > 0 ? color.accent : color.dark"
 
       notification_count:
         type: text
-        value: device.notification_count
-        format: "{:d}"
+        text: "{device.notification_count:d}"
         font: FONT_TINY
         at: { anchor: bottom, dy: -11% }
         visible: device.notification_count > 0
-        color: config.colors.notify
+        color: color.notify
 
       alarm_icon:
         type: icon
         icon: alarm
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: 12% }
-        color: "device.alarm_count > 0 ? config.accent_color : config.colors.dark"
+        color: "device.alarm_count > 0 ? color.accent : color.dark"
 
   # -------------------------------------------------------------------
   # Roman: a classy, vintage dial (plan 13,
   # docs/plans/13-showcase-roman-layout.md). Big roman numerals curved
   # around the rim (with II and X given up to the two shared registers,
   # which read as sub-dials at 2 and 10 o'clock -- see `skip:` below),
-  # Breguet-style hands (see `hands: vintage:` above), and a
+  # Breguet-style hands (see `hand_sets: vintage:` above), and a
   # mechanical-looking day/date aperture above and below the axle.
   # -------------------------------------------------------------------
   roman:
     static:
-      # Twelve numerals as one radial `shape: text` pattern part, the same
+      # Twelve numerals as one radial `type: text` pattern part, the same
       # device-resident-font route `analog`'s own `hour_numerals` uses for
       # plain digits (docs/guide/patterns.md "Text parts") -- except this one turns
       # each numeral with `curve:` so its own bottom faces the centre
@@ -852,12 +818,12 @@ layouts:
       # ink reached past the round panel's own visible disc
       # (`wfb.layout.BEZEL_MARGIN`, a 2% inset). 26%r/-69%r is
       # warning-free on all three targets and reads as big and vintage
-      # rather than cramped; the minute hand's own tip (-64%r, `hands:
+      # rather than cramped; the minute hand's own tip (-64%r, `hand_sets:
       # vintage:` below) sits just inside the ring's inner edge, which is
       # deliberate -- a real dress watch's hands do pass close beneath the
       # chapter ring.
       # `skip: [2, 10]` leaves out II and X. This is not decoration -- a
-      # `complication_slot` cannot appear inside a `layouts:` body
+      # `data` element cannot appear inside a `layouts:` body
       # (docs/guide/configuration.md), so the two shared registers are fixed at
       # `dx: ±50%r, dy: -30%r` for every layout, which resolves to ~58%r
       # from the axis at ~59° either side of 12 -- almost exactly where II
@@ -876,19 +842,19 @@ layouts:
         at: { anchor: center }
         count: 12
         # skip: [2, 10]
-        color: config.colors.fg
+        color: color.fg
         parts:
-          - shape: text
-            value: >-
-              copy == 0 ? "XII" : copy == 1 ? "I"   : copy == 2 ? "II" :
+          - type: text
+            text: >-
+              {(copy == 0 ? "XII" : copy == 1 ? "I"   : copy == 2 ? "II" :
               copy == 3 ? "III" : copy == 4 ? "IV"  : copy == 5 ? "V" :
               copy == 6 ? "VI"  : copy == 7 ? "VII" : copy == 8 ? "VIII" :
-              copy == 9 ? "IX" : copy == 10 ? "X" : "XI"
+              copy == 9 ? "IX" : copy == 10 ? "X" : "XI")}
             font: font.romandial
             # at: { dy: -69%r }
             # curve: { style: angled, angle: 0deg }
             curve: { style: radial, angle: 0deg, radius: 80%r }
-            vertical_align: bottom
+            align: bottom
         lint:
           allow: [off-screen]
           reason: "big roman numerals run to the rim on purpose, like a dress
@@ -904,10 +870,10 @@ layouts:
       # draft) read as a grey UI chip sitting on the dial, not a cut
       # through it -- a real date window shows a *light* wheel through a
       # *dark* dial plate, with the text dark-on-light on the wheel itself.
-      # So this inverts the first draft: the well is `config.colors.fg`
-      # (the light wheel), the text on top of it is `config.colors.bg`
+      # So this inverts the first draft: the well is `color.fg`
+      # (the light wheel), the text on top of it is `color.bg`
       # (dark, so it reads against its own wheel rather than the dial), and
-      # a `config.colors.dark` frame -- the same role the two register
+      # a `color.dark` frame -- the same role the two register
       # cards fill their own boxes with -- rings it for the bevel. That
       # frame colour, not `fg`, is deliberate: it has to read as a third,
       # distinct tone against a light (`fg`) well, which a same-colour
@@ -927,38 +893,34 @@ layouts:
       # place, and a convincing window shape matters more here than which
       # of the two reads bigger.
       day_window_well:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: -26%r }
         size: { width: 26%r, height: 20%r }
         corner_radius: 3%r
-        color: config.colors.track
+        color: color.track
       day_window_frame:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: -26%r }
         size: { width: 26%r, height: 20%r }
         corner_radius: 3%r
         filled: false
         thickness: 1px
-        color: config.colors.dark
+        color: color.dark
 
       date_window_well:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: 26%r }
         size: { width: 22%r, height: 20%r }
         corner_radius: 3%r
-        color: config.colors.track
+        color: color.track
       date_window_frame:
-        type: shape
-        shape: rounded_rectangle
+        type: rectangle
         at: { anchor: center, dy: 26%r }
         size: { width: 22%r, height: 20%r }
         corner_radius: 3%r
         filled: false
         thickness: 1px
-        color: config.colors.dark
+        color: color.dark
 
     elements:
       # The day/date readings themselves are data-bound, so they cannot
@@ -974,28 +936,26 @@ layouts:
       # here rather than silently claimed otherwise.
       day_text:
         type: text
-        value: date.today
-        format: "{:%a}"
+        text: "{date.today:%a}"
         font: FONT_XTINY
         at: { anchor: center, dy: -26%r }
-        color: config.colors.bg
+        color: color.bg
 
       date_text:
         type: text
-        value: date.today
-        format: "{:%e}"
+        text: "{date.today:%e}"
         font: FONT_XTINY
         at: { anchor: center, dy: 26%r }
-        color: config.colors.bg
+        color: color.bg
 
       # No trailing "center pin" element here, unlike `analog`'s own
-      # `center_pin` -- see `hands: vintage:`'s own comment above for why:
+      # `center_pin` -- see `hand_sets: vintage:`'s own comment above for why:
       # `minute`'s hub circle plus `second`'s own pivot dot already cap the
-      # joint, and a `config.colors.bg` pin big enough to matter on these
+      # joint, and a `color.bg` pin big enough to matter on these
       # thinner hands punched a hole through both instead of covering them.
       roman_hands:
         type: hands
-        hands: vintage
+        set: vintage
         at: { anchor: center }
         seconds: awake
         antialias: true

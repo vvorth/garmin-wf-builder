@@ -82,17 +82,17 @@ NEW_TEMPLATES = {
 # so a variant that no longer fits the design fails with the reason.
 VARIANTS = [
     {},
-    {"accent_color": "palette.lime_green",
-     "data_color": "palette.magenta",
-     "data.left_register": "complication.heart_rate"},
-    {"accent_color": "palette.magenta",
-     "data_color": "palette.cyan",
-     "data.right_register": "complication.calories"},
+    {"accent_color": "color.lime_green",
+     "data_color": "color.magenta",
+     "slots.left_register": "heart_rate"},
+    {"accent_color": "color.magenta",
+     "data_color": "color.cyan",
+     "slots.right_register": "calories"},
 ]
 
 
 # The README's top image: every style, with the design's own defaults unless
-# set here (e.g. {"data_color": "palette.amber"} when the accent and data
+# set here (e.g. {"data_color": "color.amber"} when the accent and data
 # defaults coincide and would render as one colour).
 STYLES_DEFAULTS = {}
 

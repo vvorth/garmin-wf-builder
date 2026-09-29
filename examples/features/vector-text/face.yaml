@@ -36,7 +36,7 @@
 #   unrotated text, and this ribbon's `35deg` is 35 degrees clockwise from
 #   level -- not "35 degrees clockwise from 12 o'clock" the way a `radial`
 #   angle or an arc's `start_angle:` would read it.
-# * **A pattern `shape: text` part with `curve:`** (`hour_numerals`): the
+# * **A pattern `type: text` part with `curve:`** (`hour_numerals`): the
 #   twelve-hour-numerals case `docs/limitations.md` used to carry as
 #   impossible ("a bitmap font cannot turn, so only the anchor turns") --
 #   one authored `angle: 0deg`, in the template's own local frame, composed
@@ -49,10 +49,10 @@
 #   the rotation convention actually pays for itself: the natural "no extra
 #   tilt" angle for a tangent ring is the same `0deg` you would reach for
 #   for level text anywhere else, not a value you have to look up.
-# * **`if_unavailable: hide` doing real work, not a decorative key**:
+# * **`unsupported: hide` doing real work, not a decorative key**:
 #   `solar_badge`'s own font, `accent`, names `BionicSemiBold` alone -- no
 #   fallback list -- and that face does not exist on fr955. Without
-#   `if_unavailable: hide` on it, the build would fail on fr955 naming the
+#   `unsupported: hide` on it, the build would fail on fr955 naming the
 #   missing face. With it, the badge simply is not drawn there, which is
 #   also the thematically correct outcome: fr955 is not a solar watch, and
 #   fenix8solar47mm/51mm are. Nothing about *that* correctness is checked by
@@ -63,108 +63,106 @@
 # Build it with:    ./wfb.py build examples/features/vector-text/face.yaml
 # Preview it with:  ./wfb.py preview examples/features/vector-text/face.yaml
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: a3c8a862-4713-431e-a51f-27e99a4edcd2
   name: Feature Vector Text
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
 # Every colour is one the 64-colour MIP panel shows without dithering: each
 # channel is 0x00, 0x55, 0xAA or 0xFF (CLAUDE.md constraint 13).
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  gray: "#AAAAAA"
-  amber: "#FF5500"
+resources:
+  fonts:
+    clock:
+      source: assets/ChivoMono-Bold.ttf   # baked: the ordinary case
+      size: 24%r
+      monospace: true
+      antialias: true
 
-fonts:
-  clock:
-    source: assets/ChivoMono-Bold.ttf   # baked: the ordinary case
-    size: 24%r
-    monospace: true
-    antialias: true
+    dial:
+      # device-resident, scalable -- resolved per device from this list, not
+      # rasterised at build time. BionicSemiBold is on the two fenix8 solar
+      # targets; fr955 falls through to RobotoCondensedBold.
+      face: [BionicSemiBold, RobotoCondensedBold]
+      size: 14%r
 
-  dial:
-    # device-resident, scalable -- resolved per device from this list, not
-    # rasterised at build time. BionicSemiBold is on the two fenix8 solar
-    # targets; fr955 falls through to RobotoCondensedBold.
-    face: [BionicSemiBold, RobotoCondensedBold]
-    size: 14%r
+    accent:
+      # a single name, deliberately with no fallback: fr955 does not publish
+      # it, so unsupported: hide (below) is load-bearing, not decorative.
+      face: BionicSemiBold
+      size: 7%r
+      unsupported: hide
 
-  accent:
-    # a single name, deliberately with no fallback: fr955 does not publish
-    # it, so if_unavailable: hide (below) is load-bearing, not decorative.
-    face: BionicSemiBold
-    size: 7%r
-    if_unavailable: hide
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    gray: "#AAAAAA"
+    amber: "#FF5500"
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.black
+    color: color.black
 
-  - id: bezel_ring
-    type: shape
-    shape: circle
+  bezel_ring:
+    type: circle
     at: { anchor: center }
     radius: 95%r
     filled: false
     thickness: 1px
-    color: palette.gray
+    color: color.gray
 
   # Twelve hour numerals, each rotated to sit tangent to its own radius --
   # docs/guide/patterns.md "Text parts". One authored angle, not twelve.
-  - id: hour_numerals
+  hour_numerals:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 12
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         font: font.dial
         at: { dy: -82%r }
         curve:
           style: angled
           angle: 0deg
 
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: font.clock
     at: { anchor: center, dy: -6% }
-    color: palette.white
+    color: color.white
 
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{:%a %e}"
+    text: "{date.today:%a %e}"
     font: FONT_TINY
     at: { anchor: center, dy: 14% }
-    color: palette.gray
+    color: color.gray
 
   # A wordmark bent along the bottom rim. curve: radial's `at:` is the
   # CENTRE of the circle, not a point the text sits on -- docs/guide/text.md.
   # counter_clockwise faces the glyphs inward, so text along the bottom of
   # the dial still reads right-side up.
-  - id: wordmark
+  wordmark:
     type: text
     text: "FIELD TRACK"
     font: font.dial
-    color: palette.gray
+    color: color.gray
     at: { anchor: center }
     curve:
       style: radial
@@ -172,11 +170,11 @@ elements:
       radius: 60%r
       direction: counter_clockwise
 
-  - id: left_cw
+  left_cw:
     type: text
     text: "WORLD'S END"
     font: font.dial
-    color: palette.gray
+    color: color.gray
     at: { anchor: center }
     curve:
       style: radial
@@ -184,28 +182,26 @@ elements:
       radius: 60%r
       direction: clockwise
 
-  - id: top_ccw
+  top_ccw:
     type: text
     text: "TOP CCW"
     font: font.dial
-    color: palette.gray
+    color: color.gray
     at: { anchor: center }
-    align: left
-    vertical_align: top
+    align: top_left
     curve:
       style: radial
       angle: 350deg
       radius: 60%r
       direction: counter_clockwise
 
-  - id: top_cw
+  top_cw:
     type: text
     text: "TOP CW"
     font: font.dial
-    color: palette.white
+    color: color.white
     at: { anchor: center }
-    align: left
-    vertical_align: top
+    align: top_left
     curve:
       style: radial
       angle: 350deg
@@ -214,13 +210,13 @@ elements:
 
   # A tilted "SOLAR" ribbon, upper right -- only on the two solar-charging
   # targets, because font.accent's face is only published there. This is
-  # the if_unavailable: hide that matters: without it this element's own
+  # the unsupported: hide that matters: without it this element's own
   # font would fail gate 3 on fr955 and the whole build would error.
-  - id: solar_badge
+  solar_badge:
     type: text
     text: "SOLAR"
     font: font.accent
-    color: palette.amber
+    color: color.amber
     at: { anchor: center, dx: 34%r, dy: -50%r }
     curve:
       style: angled

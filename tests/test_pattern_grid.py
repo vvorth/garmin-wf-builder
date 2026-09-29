@@ -21,29 +21,31 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FFAA00"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FFAA00"
 elements:
 """
 
 GRID = """
-  - id: month
+  month:
     type: pattern
     pattern: grid
     at: {anchor: center, dx: -30%r, dy: -20%r}
     count: 10
     columns: 4
     step: {dx: 20px, dy: 16px}
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: circle, radius: 4px}
+      - {type: circle, radius: 4px}
 """
 
 
@@ -97,9 +99,11 @@ def test_the_extent_covers_every_row(write_design, bag, db):
 
 
 def test_copy_and_skip_keep_their_meaning(write_design, bag, db):
-    text = BASE + GRID.replace("    color: palette.fg\n",
-                               "    color: \"copy == 5 ? palette.accent : palette.fg\"\n"
-                               "    skip: [0]\n")
+    text = BASE + GRID.replace("""    color: color.fg
+""",
+                               """    color: "copy == 5 ? color.accent : color.fg"
+    skip: [0]
+""")
     resolved = _resolved(text, write_design, bag, db)
     placed = _placed(resolved)
     x0, y0 = placed.center
@@ -145,19 +149,23 @@ def test_a_row_step_that_rounds_away_is_an_error_naming_the_rows(write_design, b
 
 @pytest.mark.slow
 def test_a_grid_compiles_warning_free(write_design, db, tmp_path, toolchain):
-    text = BASE.replace("targets: [fenix8solar47mm]", "targets: [fenix8solar47mm, fr955]") + \
-        GRID.replace("    color: palette.fg\n",
-                     "    color: \"copy == date.day - 1 ? palette.accent : palette.fg\"\n") + """
-  - id: labels
+    text = BASE.replace("""build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix8solar47mm, fr955]""") + \
+        GRID.replace("""    color: color.fg
+""",
+                     """    color: "copy == date.day - 1 ? color.accent : color.fg"
+""") + """
+  labels:
     type: pattern
     pattern: grid
     at: {anchor: center, dx: -20%r, dy: 40%r}
     count: 6
     columns: 3
     step: {dx: 20%r, dy: 14%r}
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: text, value: "copy + 1", font: FONT_XTINY}
+      - {type: text, text: "{copy + 1}", font: FONT_XTINY}
 """
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)

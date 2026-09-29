@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.helpers import find
+from tests.helpers import find, with_resources
 from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import (
@@ -11,44 +11,47 @@ from wfb.layout import (
 )
 
 GRAPH_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: hr_graph
+  hr_graph:
     type: graph
     series: heart_rate
     range: 4h
     style: line
     thickness: 3px
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     size: {width: 60%, height: 20%}
 """
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: ring
-    type: progress
+    color: color.bg
+  ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -57,20 +60,19 @@ elements:
     thickness: 10px
     start_angle: 180deg
     sweep: 340deg
-    color: palette.fg
-    when_absent: hide
-  - id: dot
-    type: shape
-    shape: circle
+    color: color.fg
+    absent: hide
+  dot:
+    type: circle
     at: {anchor: center, angle: 90deg, radius: 40%r}
     radius: 6px
-    color: palette.fg
-  - id: badge
+    color: color.fg
+  badge:
     type: icon
     icon: steps
     size: 20px
     at: {anchor: center, dy: 25%}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -152,7 +154,10 @@ def test_draw_order_follows_the_document(resolved_for):
 
 
 def test_explicit_z_overrides_document_order(write_design, bag, db):
-    design = DESIGN.replace("  - id: background\n", "  - id: background\n    z: 5\n")
+    design = DESIGN.replace("""  background:
+""", """  background:
+    z: 5
+""")
     face = load(write_design(design), bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
@@ -161,16 +166,20 @@ def test_explicit_z_overrides_document_order(write_design, bag, db):
 
 def test_text_extent_comes_from_real_font_metrics(write_design, bag, db, repo_root):
     design = DESIGN + """
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: font.clock
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
-    design = design.replace("targets:", f"fonts:\n  clock:\n    source: {ttf}\n    size: 60px\ntargets:")
+    design = with_resources(design, f"""resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 60px
+""")
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -187,8 +196,11 @@ def test_low_power_clip_is_none_when_nothing_is_low_power(resolved_for):
 
 def test_low_power_clip_is_the_tight_union(write_design, bag, db):
     design = DESIGN.replace(
-        "    at: {anchor: center, dy: 25%}\n    color: palette.fg",
-        "    at: {anchor: center, dy: 25%}\n    color: palette.fg\n    modes: [active, low_power]",
+        """    at: {anchor: center, dy: 25%}
+    color: color.fg""",
+        """    at: {anchor: center, dy: 25%}
+    color: color.fg
+    sleep_update: true""",
     )
     face = load(write_design(design), bag)
     device = db.get("fenix8solar47mm")
@@ -210,28 +222,31 @@ def test_low_power_clip_ignores_a_wrapping_groups_box(write_design, bag, db):
     grouped design vs. 26x22 for the ungrouped one.
     """
     ungrouped = DESIGN.replace(
-        "    at: {anchor: center, dy: 25%}\n    color: palette.fg",
-        "    at: {anchor: center, dy: 25%}\n    color: palette.fg\n    modes: [active, low_power]",
+        """    at: {anchor: center, dy: 25%}
+    color: color.fg""",
+        """    at: {anchor: center, dy: 25%}
+    color: color.fg
+    sleep_update: true""",
     )
     grouped = DESIGN.replace(
-        """  - id: badge
+        """  badge:
     type: icon
     icon: steps
     size: 20px
     at: {anchor: center, dy: 25%}
-    color: palette.fg
+    color: color.fg
 """,
-        """  - id: badge_group
+        """  badge_group:
     type: group
-    modes: [active, low_power]
+    sleep_update: true
     children:
-      - id: badge
+      badge:
         type: icon
         icon: steps
         size: 20px
         at: {anchor: center, dy: 25%}
-        color: palette.fg
-        modes: [active, low_power]
+        color: color.fg
+        sleep_update: true
 """,
     )
     device = db.get("fenix8solar47mm")
@@ -271,10 +286,12 @@ def test_low_power_clip_clamps_a_fully_off_screen_element(write_design, bag, db)
     `IntBox.clamp_to` this fails with a negative `clip.width`.
     """
     design = DESIGN.replace(
-        "    at: {anchor: center, dy: 25%}\n    color: palette.fg",
-        "    at: {anchor: center, dy: 25%, dx: 500%}\n    color: palette.fg\n"
-        "    modes: [active, low_power]\n"
-        '    lint: {allow: [off-screen], reason: "probing"}',
+        """    at: {anchor: center, dy: 25%}
+    color: color.fg""",
+        """    at: {anchor: center, dy: 25%, dx: 500%}
+    color: color.fg
+    sleep_update: true
+    lint: {allow: [off-screen], reason: "probing"}""",
     )
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -310,28 +327,28 @@ def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):
     regression check rather than one the existing estimate would pass anyway.
     """
     design = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: status
+    color: color.bg
+  status:
     type: text
-    value: complication.training_status
+    text: "{complication.training_status}"
     at: {anchor: center}
-    color: palette.fg
-    when_absent: fallback
-    fallback: "'Not Available'"
+    color: color.fg
+    absent: {value: "'Not Available'"}
 """
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -350,21 +367,23 @@ def test_a_percent_r_font_size_reaches_the_placed_text_per_device(
     """
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     design = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: 18%r
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 18%r
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -387,22 +406,24 @@ def test_a_monospaced_font_widens_the_placed_text_box(write_design, bag, db, rep
 
     def box(extra: str):
         face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: 40px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 40px
 {extra}
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: clock
+  clock:
     type: text
     text: "00:00"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """, name=f"box-{abs(hash(extra))}.yaml"), bag)
         assert face is not None, bag.render()
         device = db.get("fenix8solar47mm")
@@ -410,7 +431,7 @@ elements:
         return find(resolve(face, device, fonts), "clock").box, fonts["clock"]
 
     proportional, _ = box("")
-    mono, font = box("    monospace: true")
+    mono, font = box("      monospace: true")
     assert font.measure("00:00")[0] == 5 * font.cell_width
     # The placed box is that advance rounded outward from a fractional centre
     # (`Box.rounded`), so it is the cell width times five give or take a pixel.

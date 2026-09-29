@@ -1,11 +1,9 @@
 # Always-on display (docs/guide/always-on-display.md, plan 14 slices 1-3):
-# `aod:` as overrides on the one design, replacing `modes: [always_on]`
-# outright (D3) -- the format key that slice 0 exercised here no longer
-# exists at all.
+# `aod:` as overrides on the one design.
 #
 # This stays the small, ordinary face slice 0 introduced -- digital time, a
 # date, a battery ring, a bezel -- not a format-feature dump. The face-wide
-# `aod: {default: hide, dim: 0.6}` below is the canonical "everything off
+# `defaults: {aod: hide}` and `aod: {dim: 0.6}` below are the canonical "everything off
 # but the time" shape (plan 14 §3), plus a face-wide dim (slice 3, §4.5):
 # every element the ancestry says nothing about is hidden in AOD, and each
 # `aod:` block below is now actually read by codegen (slice 2) -- ternaries
@@ -15,7 +13,7 @@
 #   design does not have, and `color:` paints the interior black, so only
 #   the ring lights -- the "outlined digits" shape research 14 §8.1 was
 #   modelled on, far fewer lit pixels than solid digits. It also swaps
-#   `format:` to a different separator (the same mechanism a design would
+#   its `text:` template to a different separator (the same mechanism a design would
 #   use to drop seconds -- free, since AOD redraws once a minute anyway --
 #   kept as a same-width swap here so the widest-rendering estimate, which
 #   is measured against the *awake* format only, still fits fēnix 8's
@@ -54,64 +52,64 @@
 # Build it with:     ./wfb.py build examples/features/aod/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 5a3e9c71-2f84-4b6d-9e10-7c8a2d4f61b5
   name: Feature AOD
   version: 1.0.0
 
-targets:
-  - fenix847mm
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix847mm
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
+defaults:
+  aod: hide
 aod:
-  default: hide
   dim: 0.6
 
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  gray: "#AAAAAA"
-  dim: "#555555"
-  accent: "#00AAFF"
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    gray: "#AAAAAA"
+    dim: "#555555"
+    accent: "#00AAFF"
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.black
+    color: color.black
 
-  - id: bezel_ring
-    type: shape
-    shape: circle
+  bezel_ring:
+    type: circle
     at: { anchor: center }
     radius: 95%r
     filled: false
     thickness: 1px
-    color: palette.gray
+    color: color.gray
 
   # An explicit group hide is unconditional and sticky (plan 14 §3): no
   # descendant can undo it, whatever it writes itself. `date_text`'s own
   # `aod: show` is deliberately unreachable, to demonstrate exactly that --
   # see the header comment above.
-  - id: info
+  info:
     type: group
     aod: hide
     children:
-      - id: date_text
+      date_text:
         type: text
-        value: date.today
-        format: "{:%a %d}"
+        text: "{date.today:%a %d}"
         font: FONT_XTINY
         at: { anchor: center, dy: -30% }
-        color: palette.gray
+        color: color.gray
         aod: show
         lint:
           allow: [aod-unreachable]
@@ -123,13 +121,12 @@ elements:
   # §2.3's "solid disc becomes a thin ring" guidance), in its own awake blue
   # dimmed automatically to 60% (no `color:` override here -- slice 3's
   # `dim:` reaches it anyway, which is the point of leaving it out).
-  - id: accent_dot
-    type: shape
-    shape: circle
+  accent_dot:
+    type: circle
     at: { anchor: center, dy: 24% }
     radius: 3%r
     filled: true
-    color: palette.accent
+    color: color.accent
     aod:
       filled: false
       thickness: 2px
@@ -138,24 +135,23 @@ elements:
   # back on -- the canonical "everything off but the time" shape (plan 14
   # §3), hollow in AOD: a ring the awake design does not draw, around a
   # black interior, and a different (same-width) format string.
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: { anchor: center }
-    color: palette.white
+    color: color.white
     aod:
-      format: "{:%H %M}"
-      color: palette.black
+      text: "{time.clock:%H %M}"
+      color: color.black
       outline:
         width: 2
-        color: palette.dim
+        color: color.dim
 
       # font: FONT_NUMBER_MILD
 
-  - id: battery_ring
-    type: progress
+  battery_ring:
+    type: gauge
     style: arc
     value: system.battery
     max: 100
@@ -164,8 +160,8 @@ elements:
     thickness: 3%r
     start_angle: 270deg
     sweep: 300deg
-    color: palette.accent
-    track_color: palette.dim
+    color: color.accent
+    track_color: color.dim
     aod:
-      color: palette.dim
+      color: color.dim
       thickness: 1%r

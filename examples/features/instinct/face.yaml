@@ -17,7 +17,7 @@
 #     at (113, 0) on all four targets, from simulator.json), so the ring's
 #     `radius: 39%` is 39% of the window, not of the screen. A target with
 #     no window would be a build error, unless the element set
-#     `if_unavailable: hide` (docs/guide/placement.md).
+#     `unsupported: hide` (docs/guide/placement.md).
 #
 # What is verified: this design lints clean and compiles warning-free on
 # all four targets, and `wfb preview` renders it. What is not: how it looks
@@ -26,37 +26,38 @@
 # Build it with:     ./wfb.py build examples/features/instinct/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/instinct/face.yaml
 #
-# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 5e0f2a7c-9b41-4d6e-8c3a-71d2b8e4f915
   name: Feature Instinct
   version: 1.0.0
 
-targets:
-  - instinct2
-  - instinct2x
-  - instinct3solar45mm
-  - instincte45mm
+build:
+  targets:
+    - instinct2
+    - instinct2x
+    - instinct3solar45mm
+    - instincte45mm
 
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 
 static:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
 elements:
   # -- the subscreen window: battery, as a ring and a number ----------------
-  - id: battery_ring
-    type: progress
+  battery_ring:
+    type: gauge
     style: arc
     at: { anchor: subscreen }
     radius: 39%
@@ -65,73 +66,65 @@ elements:
     sweep: 360deg
     value: system.battery
     max: 100
-    color: palette.fg
+    color: color.fg
 
-  - id: battery_value
+  battery_value:
     type: text
-    value: system.battery
-    format: "{:d}"
+    text: "{system.battery:d}"
     font: FONT_XTINY
     at: { anchor: subscreen }
-    color: palette.fg
+    color: color.fg
 
   # -- the main face ----------------------------------------------------------
-  - id: date
+  date:
     type: text
-    value: date.today
-    format: "{:%a %e}"
+    text: "{date.today:%a %e}"
     font: FONT_SMALL
     at: { anchor: left, dx: 12%, dy: -22% }
     align: left
-    color: palette.fg
+    color: color.fg
 
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: FONT_NUMBER_MEDIUM
     at: { anchor: center, dy: 4% }
-    color: palette.fg
+    color: color.fg
 
-  - id: divider
-    type: shape
-    shape: rectangle
+  divider:
+    type: rectangle
     at: { anchor: center, dy: 24% }
     size: { width: 60%, height: 2px }
-    color: palette.fg
+    color: color.fg
 
-  - id: steps_icon
+  steps_icon:
     type: icon
     icon: steps
     size: 9%r
     at: { anchor: center, dx: -30%, dy: 34% }
-    color: palette.fg
+    color: color.fg
 
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
+    text: "{activity.steps:d}"
     font: FONT_TINY
     at: { anchor: center, dx: -24%, dy: 34% }
     align: left
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 
-  - id: heart_icon
+  heart_icon:
     type: icon
     icon: heart
     size: 9%r
     at: { anchor: center, dx: 10%, dy: 34% }
-    color: palette.fg
+    color: color.fg
 
-  - id: heart
+  heart:
     type: text
-    value: heart_rate.current
-    format: "{:d}"
+    text: "{heart_rate.current:d}"
     font: FONT_TINY
     at: { anchor: center, dx: 16%, dy: 34% }
     align: left
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"

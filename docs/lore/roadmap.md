@@ -12,18 +12,24 @@ Verified means a warning-free real `monkeyc` build on the three
 verification devices plus `wfb preview`. Nothing config-, hands-, pattern-
 or AOD-related has been observed on a watch or in the simulator.
 
-- **All nine element types** — `group`, `text`, `icon`,
-  `complication_slot`, `shape` (seven shapes), `progress`, `graph`,
-  `hands`, `pattern` (`radial`, `linear`, `grid`). `hands` and `pattern`
+- **Format 2** (plan 22) — the only format the compiler reads; `wfb
+  migrate` rewrites a format 1 file once, keeping its comments. Lowered
+  into the internal shape by `wfb/lower.py`, so output is unchanged.
+  `docs/guide/format-2-migration.md`.
+- **Every element type** — `group`, `text`, `icon`, `data`, the six
+  primitives (`rectangle`, `circle`, `ellipse`, `arc`, `polygon`, `line`),
+  `gauge`, `graph`, `hands`, `pattern` (`radial`, `linear`, `grid`); nine
+  internal kinds. `hands` and `pattern`
   are the two places the watch does layout arithmetic (`WfbHands.mc`,
   `WfbGeom.mc`); baked pattern copies measured ~30× the memory
   (`docs/research/probes/pattern-cost/`). `docs/guide/elements.md`,
   `shapes.md`, `analog-hands.md`, `patterns.md`.
-- **Placement and drawing** — `align:`/`vertical_align:` everywhere,
-  `static:`, `antialias:`, `visible:`, `monospace:`, `min_1px:`, the
-  mapping form of `elements:`. `docs/guide/placement.md`.
+- **Placement and drawing** — `align:` everywhere (nine anchor names and
+  compass aliases), `static:` blocks, `antialias:`, `visible:`,
+  `monospace:`, `min_1px:`. `docs/guide/placement.md`.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
+  `text:` templates (`"{expr:spec}"`, one placeholder), `absent:`;
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
   `wfb/conversion.py`) and duration formats on a number of seconds
   (`wfb.formatting.DURATION_CODES`, `WfbTime.durationPart`).
@@ -31,8 +37,9 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Interactivity** — `on_hold:` (including `on_hold: auto`) on every
   element; `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
 - **Configuration: all four native axes** — `accent_color`, `data_color`,
-  Styles with `color_scheme:` and `layouts:` (form A), the Data axis as
-  `complication_slot`. `docs/guide/configuration.md`,
+  Styles with `theme: schemes:` and `layouts:` (form A), the Data axis as
+  `config: slots:` drawn by `type: data`; one `color.<name>` namespace for
+  swatches and roles. `docs/guide/configuration.md`,
   `styles-and-layouts.md`.
 - **A slot's reading per complication type** — times of day, durations,
   paces, rounded temperatures, hours, `K` counts and condition names,
@@ -59,7 +66,7 @@ or AOD-related has been observed on a watch or in the simulator.
   (`face:`) and `curve:` on `text` and pattern text parts, 44 of 136
   devices; `outline:` (the stamped ring) with lint
   `text-outline-interior`. `docs/guide/fonts.md`, `text.md`.
-- **Progress styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
+- **Gauge styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
   to `start_angle + fraction × sweep`; `Builder.build_hand_part`),
   `segments` and `scale` (`wfb.lint.check_progress_segments`).
   `docs/guide/progress-and-graphs.md`.
@@ -85,12 +92,23 @@ or AOD-related has been observed on a watch or in the simulator.
 - A font `size:` given as a bare number, and `scale:`. Lengths are always
   `%r`/`px`.
 - A pasted raw character in `icon:`. Use a catalogue name or
-  `glyph: "U+XXXX"`.
+  `icon: "U+XXXX"`.
 - Refresh tiers (`WfbCache.mc`, `catalog.Tier`).
 - `config: colors:`. Use `config: style:`.
 - `vertical_align: baseline`, renamed `bottom`.
 - `modes: [always_on]`. Use `aod:` (plan 14 D3) -- the schema error names
   the replacement.
+- **Format 1** (plan 22): `format: 1` is an error naming `wfb migrate`,
+  which rewrites the file once. Every format 1 key is gone with it, among
+  them the list form of `elements:` (`- id:`), `targets:`/`fonts:`/
+  `palette:`/`hands:` at the top level, `color_scheme:`, `palette.x`/
+  `config.colors.x` references, `type: shape`/`progress`/
+  `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
+  `when_absent:`/`placeholder:`/`fallback:`, `vertical_align:`,
+  `if_unavailable:`, `modes:`, the `static: true` flag, `glyph:`/
+  `icon_for:` and the `icon_*` keys; a format 1 key in a format 2 file is
+  a schema error naming its replacement. The table is
+  `docs/guide/format-2-migration.md`.
 
 ## Not implemented
 
@@ -100,10 +118,11 @@ specifies each item.
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
 2. Per-device `overrides`: writing one is a build error. Plan 20 slice 4
-   proposes the geometry-only subset, with `shape:` selectors.
-3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
+   proposes the geometry-only subset, with `shape:` selectors, to be
+   rebased onto format 2.
+3. Ticks drawn by a `style: scale` gauge itself (a radial `pattern`
    does them today).
-4. `units:` on an expression or a `complication_slot`.
+4. `units:` on an expression or a `data` element.
 5. **Phone-side settings and `wfb package`.** Phone editing needs a Store
    install, which needs `wfb package` (research 17 §2); wearer settings
    beyond `config:` were decided against, and there is no `.SET` writer
@@ -123,11 +142,10 @@ specifies each item.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
-10. `wfb install`, `package`. (`wfb migrate`, format 1 to format 2, is
-    plan 22 slice 1.)
-11. A `pattern`'s or `complication_slot`'s own `aod: {font: ...}` override,
+10. `wfb install`, `package`.
+11. A `pattern`'s or `data` element's own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and
-    `aod: {filled: ...}` on `shape: polygon` (plan 14 §4.3, slice 2 built
+    `aod: {filled: ...}` on `type: polygon` (plan 14 §4.3, slice 2 built
     every other override key and a `text` element's baked-font override)
     -- all three are friendly build errors, whether the element writes
     the key or inherits it from a group (`Builder.aod_refusal`), never a
@@ -150,3 +168,9 @@ specifies each item.
   user has not decided; read the analysis with
   `git show d325e77:docs/plans/19-architecture-refactor.md`, and write a
   new plan before starting it.
+13. **Reserved by format 2** (plan 22 §5), each a friendly "not
+    implemented" error today: several placeholders in one `text:`,
+    `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
+    data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
+    rule lists, and an advisory `static-candidate` lint.
+    `docs/limitations.md` §2.

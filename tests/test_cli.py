@@ -123,7 +123,9 @@ def test_new_only_reads_its_own_templates(tmp_path, escape):
     was joined onto the template directory unchecked, so `../x` or an
     absolute path read any `.yaml` on disk."""
     outside = tmp_path / "outside.yaml"
-    outside.write_text("format: 1\nface: {name: MARKER}\n", encoding="utf-8")
+    outside.write_text("""format: 2
+face: {name: MARKER}
+""", encoding="utf-8")
     template_dir = ROOT / "wfb" / "templates"
     name = (str(outside.with_suffix("")) if escape == "absolute"
             else os.path.relpath(outside.with_suffix(""), template_dir))
@@ -599,23 +601,24 @@ def test_preview_to_stdout_refuses_to_watch(db):
 #: layer without depending on which symbols happen to be `exact`-matched
 #: today.
 _FONT_WARNING_DESIGN = """
-format: 1
+format: 2
 face:
   id: 8f4c1e92-4a5b-4d81-9e6f-2b0c8d4a1f58
   name: FontWarningTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     text: "88"
     font: FONT_NUMBER_HOT
     align: center
-    vertical_align: center
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 

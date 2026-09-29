@@ -112,7 +112,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from .diagnostics import Bag
 from .yamlsrc import YamlDocument
 
-#: ``#/$defs/identifier`` from ``schema/wfb-face-1.schema.json``, kept in step
+#: ``#/$defs/identifier`` from ``schema/wfb-face-2.schema.json``, kept in step
 #: with it by ``tests/test_desugar.py``, which reads the pattern out of the
 #: schema rather than repeating it.
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

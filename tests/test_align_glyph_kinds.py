@@ -23,7 +23,7 @@ import re
 
 import pytest
 
-from tests.helpers import find
+from tests.helpers import align_value, find
 from wfb.build import load
 from wfb.emit.monkeyc import emit_view
 from wfb.emit.resources import bake_fonts
@@ -47,26 +47,27 @@ def _white_pixels(image, x_range, y_range) -> set[tuple[int, int]]:
 # =============================================================================
 
 ICON_BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
 def _icon_yaml(element_id: str, align: str, vertical_align: str, dynamic: bool = False) -> str:
-    body = "    icon_for: weather.condition\n" if dynamic else "    icon: heart\n"
-    return f"""  - id: {element_id}
+    body = "    icon: {for: weather.condition}\n" if dynamic else "    icon: heart\n"
+    return f"""  {element_id}:
     type: icon
 {body}    size: 20px
     at: {{anchor: center}}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 """
 
 
@@ -100,12 +101,12 @@ def test_icon_box_default_matches_no_keys_at_all(write_design, bag, db):
     resolve to the exact same box (and the same `justify`) as writing
     neither key at all."""
     with_keys = find(_resolve_icon(write_design, bag, db, _icon_yaml("i", "center", "center")), "i")
-    without_keys = find(_resolve_icon(write_design, bag, db, """  - id: i
+    without_keys = find(_resolve_icon(write_design, bag, db, """  i:
     type: icon
     icon: heart
     size: 20px
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """), "i")
     a, b = with_keys.box, without_keys.box
     assert (a.x, a.y, a.width, a.height) == (b.x, b.y, b.width, b.height)
@@ -191,20 +192,18 @@ def _icon_preview_design(align: str, vertical_align: str) -> str:
     return ICON_BASE + f"""
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 elements:
-  - id: label
+  label:
     type: icon
     icon: heart
     size: 40px
     at: {{anchor: center}}
-    color: palette.fg
-    align: {align}
-    vertical_align: {vertical_align}
+    color: color.fg
+    align: {align_value(align, vertical_align)}
 """
 
 
@@ -238,34 +237,34 @@ def test_icon_preview_bottom_ink_lies_above_the_anchor_row(write_design, bag, db
 # =============================================================================
 
 CS_BASE = """
-format: 1
+format: 2
 face:
   id: 6b2f9a3e-5c1d-4e8a-9f7b-3a1d6c8e2f40
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - complication.heart_rate
+        - steps
+        - heart_rate
 """
 
 
 def _cs_yaml(element_id: str, icon_position: str, align: str, vertical_align: str) -> str:
-    return f"""  - id: {element_id}
-    type: complication_slot
-    slot: config.data.top
+    return f"""  {element_id}:
+    type: data
+    slot: top
     at: {{anchor: center}}
-    icon_size: 8%r
-    icon_position: {icon_position}
-    color: palette.fg
-    align: {align}
-    vertical_align: {vertical_align}
+    icon: {{size: 8%r, position: {icon_position}}}
+    color: color.fg
+    align: {align_value(align, vertical_align)}
 """
 
 
@@ -309,12 +308,12 @@ def test_estimated_box_right_bottom_puts_bottom_right_corner_on_anchor(write_des
 def test_default_codegen_matches_no_keys_at_all(write_design, bag, db):
     with_keys = _view_cs(write_design, bag, db, "left", "center", "center")
     face = load(write_design(CS_BASE + """elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {size: 8%r}
+    color: color.fg
 """), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -332,13 +331,12 @@ def test_default_codegen_matches_no_keys_at_all_off_the_fast_path(write_design, 
     plan 07 phase C when neither key is authored either."""
     with_keys = _view_cs(write_design, bag, db, icon_position, "center", "center")
     face = load(write_design(CS_BASE + f"""elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {{anchor: center}}
-    icon_size: 8%r
-    icon_position: {icon_position}
-    color: palette.fg
+    icon: {{size: 8%r, position: {icon_position}}}
+    color: color.fg
 """), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -416,21 +414,18 @@ def _cs_preview_design(icon_position: str, align: str, vertical_align: str) -> s
     return CS_BASE + f"""
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {{anchor: center}}
-    icon_size: 10%r
-    icon_position: {icon_position}
-    color: palette.fg
-    align: {align}
-    vertical_align: {vertical_align}
+    icon: {{size: 10%r, position: {icon_position}}}
+    color: color.fg
+    align: {align_value(align, vertical_align)}
 """
 
 
@@ -498,37 +493,37 @@ def _unused_locals(body: str) -> list[str]:
 
 def _cs_codegen_design(icon_position: str, align: str, vertical_align: str, has_icon: bool) -> str:
     choices = (
-        "        - complication.steps\n        - complication.heart_rate\n"
+        "        - steps\n        - heart_rate\n"
         if has_icon else
-        "        - { type: complication.steps, icon: none }\n"
-        "        - { type: complication.calories, icon: none }\n"
+        "        - { type: steps, icon: none }\n"
+        "        - { type: calories, icon: none }\n"
     )
     return f"""
-format: 1
+format: 2
 face:
   id: 5a1e7c2b-9d4f-4e8a-b3c6-2f7d9e1a4b58
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
 {choices}elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {{anchor: center}}
     font: FONT_XTINY
-    icon_size: 8%r
-    icon_position: {icon_position}
-    color: palette.fg
-    align: {align}
-    vertical_align: {vertical_align}
-    when_absent: hide
+    icon: {{size: 8%r, position: {icon_position}}}
+    color: color.fg
+    align: {align_value(align, vertical_align)}
+    absent: hide
 """
 
 

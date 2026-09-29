@@ -23,26 +23,28 @@ LACKS_FACE = "fr955"
 INSTINCT = "instinct2"
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
   name: Hidden
-targets: [TARGETS]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-fonts:
-  bezel:
-    face: BionicSemiBold
-    size: 6%r
-    if_unavailable: hide
+build:
+  targets: [TARGETS]
+resources:
+  fonts:
+    bezel:
+      face: BionicSemiBold
+      size: 6%r
+      unsupported: hide
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: badge
+  badge:
     type: text
     text: "SOLAR"
     font: font.bezel
     at: {anchor: top}
-    color: palette.fg
+    color: color.fg
     on_hold: battery
 """
 
@@ -104,7 +106,8 @@ def test_the_font_lint_leaves_out_a_device_the_subscreen_hides(write_design, db)
     not a second finding. On instinct2 the window exists and only the font
     hides it."""
     text = (DESIGN.replace("at: {anchor: top}", "at: {anchor: subscreen}")
-            .replace("    on_hold: battery\n", "    if_unavailable: hide\n"))
+            .replace("    on_hold: battery\n", """    unsupported: hide
+"""))
     _, _, resolved, bag = _resolve(write_design, db, text, (INSTINCT, LACKS_FACE))
     assert dict(resolved[LACKS_FACE].hidden) == {"badge": "subscreen"}
     assert dict(resolved[INSTINCT].hidden) == {"badge": "font-unavailable"}
@@ -119,37 +122,39 @@ def test_the_font_lint_leaves_out_a_device_the_subscreen_hides(write_design, db)
 NO_METRICS = "fenix847mm"
 
 SUBSCREEN_TEXT = """
-format: 1
+format: 2
 face:
   id: 5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
   name: Hidden
-targets: [TARGETS]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [TARGETS]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: level
+  level:
     type: text
     text: "42"
     font: FONT_SYSTEM_LARGE
     at: {anchor: subscreen}
-    color: palette.fg
-    if_unavailable: hide
-  - id: tick
-    type: shape
-    shape: rectangle
+    color: color.fg
+    unsupported: hide
+  tick:
+    type: rectangle
     at: {anchor: subscreen}
     size: {width: 0.1%r, height: 10px}
     min_1px: false
-    color: palette.fg
-    if_unavailable: hide
+    color: color.fg
+    unsupported: hide
 """
 
 
 def _drawn(text: str) -> str:
     """The same design with nothing anchored to the subscreen."""
     return (text.replace("at: {anchor: subscreen}", "at: {anchor: center}")
-            .replace("    if_unavailable: hide\n", ""))
+            .replace("""    unsupported: hide
+""", ""))
 
 
 def _metrics_notes(bag: Bag) -> list:

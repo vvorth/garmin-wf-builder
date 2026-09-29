@@ -40,15 +40,17 @@ from wfb.emit.project import RUNTIME_LIB
 DEVICE = "fenix8solar47mm"
 
 DESIGN = """
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f70, name: Parity}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - id: t
+  t:
     type: text
     text: "x"
-    color: palette.fg
+    color: color.fg
 """
 
 #: Expressions over literals only, each one the compiler folds. Negative

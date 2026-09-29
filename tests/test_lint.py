@@ -3,6 +3,8 @@
 import re
 from types import SimpleNamespace
 
+import textwrap
+
 import pytest
 
 from wfb.build import load
@@ -12,28 +14,31 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
 {palette}
-elements:
-  - id: background
-    type: shape
-    shape: rectangle
+{top}elements:
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {extra}
 """
 
 
 @pytest.fixture
 def check(write_design, bag, db):
-    def _check(extra: str = "", palette: str = '  bg: "#000000"\n  fg: "#FFFFFF"'):
-        face = load(write_design(BASE.format(palette=palette, extra=extra)), bag)
+    def _check(extra: str = "", palette: str = '  bg: "#000000"\n  fg: "#FFFFFF"',
+               top: str = ""):
+        face = load(write_design(BASE.format(palette=textwrap.indent(palette, "  "),
+                                             extra=extra, top=top)), bag)
         assert face is not None, bag.render()
         device = db.get("fenix8solar47mm")
         resolved = resolve(face, device, bake_fonts(face, device))
@@ -65,7 +70,7 @@ def test_a_legal_palette_is_silent(check):
 def test_a_dithered_colour_names_an_unused_entry_as_unsuppressible(check):
     """The note must not claim a suppression mechanism that does not exist.
 
-    Nothing in this design uses palette.fg, so there is nowhere to hang
+    Nothing in this design uses color.fg, so there is nowhere to hang
     'lint: {allow: [palette-dither]}' -- the note has to say that honestly
     rather than repeat instructions that would silently do nothing (Bug 1).
     """
@@ -85,12 +90,11 @@ def test_a_dithered_colour_can_be_suppressed_on_the_element_that_uses_it(check):
     """
     bag = check(
         """
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [palette-dither]
       reason: "probing"
@@ -105,8 +109,8 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
     not just `color:` -- both are named in the warning's own note."""
     bag = check(
         """
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: 5
     max: 10
@@ -115,8 +119,8 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
     thickness: 4px
     start_angle: 0deg
     sweep: 360deg
-    color: palette.bg
-    track_color: palette.fg
+    color: color.bg
+    track_color: color.fg
     lint:
       allow: [palette-dither]
       reason: "probing"
@@ -132,11 +136,11 @@ def test_a_dithered_outline_color_can_be_suppressed_on_its_text(check):
     there is "nowhere to put" the suppression, and the text's own
     `lint: allow` must work."""
     extra = """
-  - id: label
+  label:
     type: text
     text: "12"
-    color: palette.bg
-    outline: {color: palette.fg}
+    color: color.bg
+    outline: {color: color.fg}
 """
     bag = check(extra, palette='  bg: "#000000"\n  fg: "#123456"')
     warning = next(d for d in bag.items if d.code == "palette-dither")
@@ -154,13 +158,12 @@ def test_a_dithered_aod_color_can_be_suppressed_on_its_element(check):
     """The same for an `aod: {color: ...}` override: the element whose AOD
     frame draws the colour is its user."""
     bag = check("""
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: palette.bg
-    aod: {color: palette.fg}
+    color: color.bg
+    aod: {color: color.fg}
     lint:
       allow: [palette-dither]
       reason: "probing"
@@ -235,12 +238,11 @@ def test_a_declaration_scoped_warning_stops_honouring_lint_allow_if_withdrawn_fr
     monkeypatch.setattr(lint, "SUPPRESSIBLE", lint.SUPPRESSIBLE - {"palette-dither"})
     bag = check(
         """
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [palette-dither]
       reason: "probing"
@@ -267,12 +269,11 @@ def test_an_element_off_the_framebuffer_warns_but_does_not_fail_the_build(check)
     `off-screen` is a warning, not an error, and the build proceeds.
     """
     bag = check("""
-  - id: stray
-    type: shape
-    shape: circle
+  stray:
+    type: circle
     at: {anchor: center, dx: 200%}
     radius: 10px
-    color: palette.fg
+    color: color.fg
 """)
     assert "off-screen" in codes(bag)
     assert "off-screen" not in {d.code for d in bag.errors}
@@ -282,12 +283,11 @@ def test_an_element_off_the_framebuffer_warns_but_does_not_fail_the_build(check)
 def test_off_screen_is_suppressible(check):
     """`lint: {allow: [off-screen], reason: ...}` silences the warning."""
     bag = check("""
-  - id: stray
-    type: shape
-    shape: circle
+  stray:
+    type: circle
     at: {anchor: center, dx: 200%}
     radius: 10px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [off-screen]
       reason: "deliberately runs off screen"
@@ -301,12 +301,11 @@ def test_suppressing_off_screen_also_suppresses_the_redundant_safe_area_warning(
     is nothing left for `safe-area` to add, so acknowledging the crop must
     not leave a second, redundant `safe-area` warning behind."""
     bag = check("""
-  - id: stray
-    type: shape
-    shape: circle
+  stray:
+    type: circle
     at: {anchor: center, dx: 200%}
     radius: 10px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [off-screen]
       reason: "deliberately runs off screen"
@@ -316,24 +315,22 @@ def test_suppressing_off_screen_also_suppresses_the_redundant_safe_area_warning(
 
 def test_an_element_under_the_bezel_warns(check):
     bag = check("""
-  - id: corner
-    type: shape
-    shape: circle
+  corner:
+    type: circle
     at: {anchor: top_left, dx: 6px, dy: 6px}
     radius: 5px
-    color: palette.fg
+    color: color.fg
 """)
     assert "safe-area" in codes(bag)
 
 
 def test_suppression_needs_a_reason_and_then_silences(check):
     bag = check("""
-  - id: corner
-    type: shape
-    shape: circle
+  corner:
+    type: circle
     at: {anchor: top_left, dx: 6px, dy: 6px}
     radius: 5px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [safe-area]
       reason: "deliberately tucked behind the bezel"
@@ -351,14 +348,16 @@ def test_suppression_needs_a_reason_and_then_silences(check):
 HAIRLINE = "0.3%r"
 
 _SUB_PIXEL_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-{face_min_1px}palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+{face_min_1px}resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 {elements}
 """
@@ -370,7 +369,9 @@ def _lint_design(write_design, bag, db, elements: str, *,
     fenix8solar47mm -- independent of the `check` fixture's fixed template
     above, which has no top-level line to put a face-wide `min_1px:` on.
     """
-    face_line = (f"min_1px: {'true' if face_min_1px else 'false'}\n"
+    face_line = (f"""defaults:
+  min_1px: {'true' if face_min_1px else 'false'}
+"""
                  if face_min_1px is not None else "")
     text = _SUB_PIXEL_DESIGN.format(face_min_1px=face_line, elements=elements)
     face = load(write_design(text, name=name), bag)
@@ -385,12 +386,11 @@ def test_sub_pixel_length_warns_naming_element_key_length_value_and_device(write
     """Drives the check red: a relative hairline with the switch off must
     warn, naming everything the plan requires -- the element, the key, the
     authored length, the resolved value and the device -- plus both fixes."""
-    elements = f"""  - id: dot
-    type: shape
-    shape: circle
+    elements = f"""  dot:
+    type: circle
     at: {{anchor: center}}
     radius: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
 """
     bag = _lint_design(write_design, bag, db, elements)
     warning = next(d for d in bag.items if d.code == "sub-pixel-length")
@@ -413,54 +413,50 @@ def test_sub_pixel_length_warns_naming_element_key_length_value_and_device(write
 
 
 def test_sub_pixel_length_is_silent_when_the_length_is_not_actually_sub_pixel(write_design, bag, db):
-    elements = """  - id: dot
-    type: shape
-    shape: circle
+    elements = """  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: palette.fg
+    color: color.fg
 """
     bag = _lint_design(write_design, bag, db, elements)
     assert "sub-pixel-length" not in codes(bag)
 
 
 def test_sub_pixel_length_is_silent_once_the_face_turns_min_1px_on(write_design, bag, db):
-    elements = f"""  - id: dot
-    type: shape
-    shape: circle
+    elements = f"""  dot:
+    type: circle
     at: {{anchor: center}}
     radius: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
 """
     bag = _lint_design(write_design, bag, db, elements, face_min_1px=True)
     assert "sub-pixel-length" not in codes(bag)
 
 
 def test_sub_pixel_length_is_silent_once_the_group_turns_min_1px_on(write_design, bag, db):
-    elements = f"""  - id: g
+    elements = f"""  g:
     type: group
     min_1px: true
     at: {{anchor: center}}
     size: {{width: 200px, height: 200px}}
     children:
-      - id: dot
-        type: shape
-        shape: circle
+      dot:
+        type: circle
         at: {{anchor: center}}
         radius: {HAIRLINE}
-        color: palette.fg
+        color: color.fg
 """
     bag = _lint_design(write_design, bag, db, elements)
     assert "sub-pixel-length" not in codes(bag)
 
 
 def test_sub_pixel_length_is_silent_once_the_element_turns_min_1px_on(write_design, bag, db):
-    elements = f"""  - id: dot
-    type: shape
-    shape: circle
+    elements = f"""  dot:
+    type: circle
     at: {{anchor: center}}
     radius: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: true
 """
     bag = _lint_design(write_design, bag, db, elements)
@@ -468,14 +464,14 @@ def test_sub_pixel_length_is_silent_once_the_element_turns_min_1px_on(write_desi
 
 
 def test_sub_pixel_length_is_silent_once_a_pattern_part_turns_min_1px_on(write_design, bag, db):
-    elements = f"""  - id: pat
+    elements = f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: circle, radius: {HAIRLINE}, min_1px: true}}
+      - {{type: circle, radius: {HAIRLINE}, min_1px: true}}
 """
     bag = _lint_design(write_design, bag, db, elements)
     assert "sub-pixel-length" not in codes(bag)
@@ -487,19 +483,17 @@ def test_sub_pixel_length_fires_once_per_offending_length_not_once_per_device(wr
     on element 'b' -- must produce three diagnostics, each naming its own
     element and key. Collapsing them into one device-wide note would hide
     two of the three fixes."""
-    elements = f"""  - id: a
-    type: shape
-    shape: circle
+    elements = f"""  a:
+    type: circle
     at: {{anchor: center}}
     radius: {HAIRLINE}
-    color: palette.fg
-  - id: b
-    type: shape
-    shape: arc
+    color: color.fg
+  b:
+    type: arc
     at: {{anchor: center}}
     radius: {HAIRLINE}
     thickness: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
 """
     bag = _lint_design(write_design, bag, db, elements)
     warnings = [d for d in bag.items if d.code == "sub-pixel-length"]
@@ -511,12 +505,11 @@ def test_sub_pixel_length_fires_once_per_offending_length_not_once_per_device(wr
 
 
 def test_sub_pixel_length_is_suppressed_by_lint_allow_on_the_element(write_design, bag, db):
-    elements = f"""  - id: dot
-    type: shape
-    shape: circle
+    elements = f"""  dot:
+    type: circle
     at: {{anchor: center}}
     radius: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [sub-pixel-length]
       reason: "deliberately hairline; only meant to draw on the larger targets"
@@ -528,14 +521,14 @@ def test_sub_pixel_length_is_suppressed_by_lint_allow_on_the_element(write_desig
 def test_sub_pixel_length_on_a_pattern_part_names_the_part_and_warns_it_has_no_lint_key(
     write_design, bag, db,
 ):
-    elements = f"""  - id: pat
+    elements = f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: circle, radius: {HAIRLINE}}}
+      - {{type: circle, radius: {HAIRLINE}}}
 """
     bag = _lint_design(write_design, bag, db, elements)
     warning = next(d for d in bag.items if d.code == "sub-pixel-length")
@@ -550,17 +543,17 @@ def test_sub_pixel_length_on_a_pattern_part_is_suppressed_via_the_owning_element
     """A part has no `lint:` of its own -- suppression is honoured on the
     `SubPixelLength.element` the record carries, the owning `pattern`
     element, not the part."""
-    elements = f"""  - id: pat
+    elements = f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [sub-pixel-length]
       reason: "hairline template on purpose"
     parts:
-      - {{shape: circle, radius: {HAIRLINE}}}
+      - {{type: circle, radius: {HAIRLINE}}}
 """
     bag = _lint_design(write_design, bag, db, elements)
     assert "sub-pixel-length" not in codes(bag)
@@ -571,19 +564,21 @@ def test_sub_pixel_length_on_a_hand_part_names_the_hand_and_part(write_design, b
     read `<id>.<hand>.parts[<i>]`, not the pattern's bare `<id>.parts[<i>]`
     -- otherwise the hour hand's first part and the minute hand's first part
     would be indistinguishable in the warning."""
-    elements = f"""  - id: hd
+    elements = f"""  hd:
     type: hands
-    hands: h
+    set: h
     at: {{anchor: center}}
 """
     text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
-    text = text.replace("targets: [fenix8solar47mm]", f"""targets: [fenix8solar47mm]
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: circle, radius: {HAIRLINE}}}""")
+    text = text.replace("""resources:
+""", f"""resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: circle, radius: {HAIRLINE}}}
+""")
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -599,26 +594,27 @@ hands:
 def test_a_glyph_missing_from_a_subsetted_font_is_an_error(write_design, bag, db, repo_root):
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     design = f"""
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  fg: "#FFFFFF"
-fonts:
-  clock:
-    source: {ttf}
-    size: 40px
-    glyphs: "0123456789"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 40px
+      glyphs: "0123456789"
+  palette:
+    fg: "#FFFFFF"
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -634,39 +630,39 @@ elements:
 
 
 DAY_NIGHT = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f66
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  black: "#000000"
-  white: "#FFFFFF"
-  navy: "#000055"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    black: "#000000"
+    white: "#FFFFFF"
+    navy: "#000055"
 layouts:
   day:
     static:
       day_bg:
-        type: shape
-        shape: rectangle
+        type: rectangle
         at: {anchor: center}
         size: {width: 100%, height: 100%}
-        color: palette.white
+        color: color.white
   night:
     static:
       night_bg:
-        type: shape
-        shape: rectangle
+        type: rectangle
         at: {anchor: center}
         size: {width: 100%, height: 100%}
-        color: palette.black
+        color: color.black
     elements:
       night_text:
         type: text
         text: "hi"
         at: {anchor: center}
-        color: palette.{night_ink}
+        color: color.{night_ink}
 config:
   style:
     default: day
@@ -687,7 +683,7 @@ def _contrast_hits(write_design, bag, db, text):
 def test_night_layout_text_is_judged_against_the_night_backdrop(write_design, bag, db):
     """Plan 18 item 7, false positive: white text on the night layout's
     black backdrop was judged against the day layout's white one."""
-    text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", "  []")
+    text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", "  {}")
     hits = _contrast_hits(write_design, bag, db, text)
     assert not hits, bag.render()
 
@@ -695,7 +691,7 @@ def test_night_layout_text_is_judged_against_the_night_backdrop(write_design, ba
 def test_dark_night_layout_text_warns_against_the_night_backdrop(write_design, bag, db):
     """Plan 18 item 7, missed warning: navy on black is unreadable, but it
     passed because it was compared with the day layout's white."""
-    text = DAY_NIGHT.replace("{night_ink}", "navy").replace("{shared}", "  []")
+    text = DAY_NIGHT.replace("{night_ink}", "navy").replace("{shared}", "  {}")
     hits = _contrast_hits(write_design, bag, db, text)
     assert [h.message.split(":")[0] for h in hits] == ["night_text"], bag.render()
     assert "#000000" in hits[0].message
@@ -704,56 +700,25 @@ def test_dark_night_layout_text_warns_against_the_night_backdrop(write_design, b
 def test_shared_text_is_judged_against_every_layouts_backdrop(write_design, bag, db):
     """Shared content is on screen in both layouts: white text reads on the
     night backdrop but vanishes on the day one, and that must be reported."""
-    shared = """  - id: shared_text
+    shared = """  shared_text:
     type: text
     text: "hi"
     at: {anchor: center, dy: 30%}
-    color: palette.white"""
+    color: color.white"""
     text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", shared)
     hits = _contrast_hits(write_design, bag, db, text)
     assert [h.message.split(":")[0] for h in hits] == ["shared_text"], bag.render()
     assert "#FFFFFF on #FFFFFF" in hits[0].message
 
 
-def test_a_low_power_background_is_not_the_active_backdrop(write_design, bag, db):
-    """A `modes: [low_power]` full-screen shape is never drawn under an
-    active-only element; the active frame's backdrop is palette.bg."""
-    text = """
-format: 1
-face:
-  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f67
-  name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#FFFFFF"
-  black: "#000000"
-elements:
-  - id: sleep_bg
-    type: shape
-    shape: rectangle
-    modes: [low_power]
-    at: {anchor: center}
-    size: {width: 100%, height: 100%}
-    color: palette.black
-  - id: label
-    type: text
-    text: "hi"
-    modes: [active]
-    at: {anchor: center}
-    color: palette.black
-"""
-    hits = _contrast_hits(write_design, bag, db, text)
-    assert not hits, bag.render()
-
-
 def test_low_contrast_warns_and_labels_the_threshold_as_a_judgement(check):
     bag = check(
         """
-  - id: label
+  label:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.dim
+    color: color.dim
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"',
     )
@@ -761,11 +726,8 @@ def test_low_contrast_warns_and_labels_the_threshold_as_a_judgement(check):
     assert "judgement call" in warning.confidence
 
 
-_SLOT_PALETTE = (
-    '  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"\n'
-    "config:\n  data:\n    top:\n      default: complication.steps\n"
-    "      choices: [complication.steps]"
-)
+_SLOT_PALETTE = '  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"'
+_SLOT_CONFIG = "config:\n  slots:\n    top:\n      default: steps\n      choices: [steps]\n"
 
 
 def test_a_low_contrast_slot_icon_colour_warns_by_its_own_key(check):
@@ -773,18 +735,17 @@ def test_a_low_contrast_slot_icon_colour_warns_by_its_own_key(check):
     reading's own `color:`."""
     bag = check(
         """
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
-    icon_color: palette.dim
+    icon: {size: 8%r, color: color.dim}
+    color: color.fg
 """,
-        palette=_SLOT_PALETTE,
+        palette=_SLOT_PALETTE, top=_SLOT_CONFIG,
     )
     hits = [d for d in bag.items if d.code == "contrast"]
-    assert [d.message.split(":")[0] for d in hits] == ["slot.icon_color"], bag.render()
+    assert [d.message.split(":")[0] for d in hits] == ["slot.icon.color"], bag.render()
 
 
 def test_a_slot_icon_matching_the_backdrop_warns(check):
@@ -792,17 +753,16 @@ def test_a_slot_icon_matching_the_backdrop_warns(check):
     invisible by mistake, not a deliberate cut-out."""
     bag = check(
         """
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
+  slot:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
-    icon_color: palette.bg
+    icon: {size: 8%r, color: color.bg}
+    color: color.fg
 """,
-        palette=_SLOT_PALETTE,
+        palette=_SLOT_PALETTE, top=_SLOT_CONFIG,
     )
-    assert any(d.code == "contrast" and d.message.startswith("slot.icon_color")
+    assert any(d.code == "contrast" and d.message.startswith("slot.icon.color")
                for d in bag.items), bag.render()
 
 
@@ -812,19 +772,19 @@ def test_a_dim_progress_track_is_not_judged_for_contrast(check):
     fill colour is judged."""
     bag = check(
         """
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
-    when_absent: hide
+    absent: hide
     at: {anchor: center}
     radius: 40%r
     thickness: 4px
     start_angle: 0deg
     sweep: 360deg
-    color: palette.fg
-    track_color: palette.dim
+    color: color.fg
+    track_color: color.dim
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"',
     )
@@ -840,12 +800,12 @@ def test_outline_interior_matching_the_backdrop_is_not_judged_for_contrast(check
     must be silent."""
     bag = check(
         """
-  - id: label
+  label:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.bg
-    outline: {color: palette.fg, width: 2}
+    color: color.bg
+    outline: {color: color.fg, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"',
     )
@@ -859,12 +819,12 @@ def test_outline_ring_with_poor_contrast_against_the_backdrop_warns(check):
     (correct, by-design) interior, which still equals the backdrop here."""
     bag = check(
         """
-  - id: label
+  label:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.bg
-    outline: {color: palette.dim, width: 2}
+    color: color.bg
+    outline: {color: color.dim, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#0A0A0A"',
     )
@@ -881,12 +841,12 @@ def test_outline_ring_with_poor_contrast_against_its_own_interior_warns(check):
     rather than a crisp ring-plus-fill shape."""
     bag = check(
         """
-  - id: label
+  label:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.mid
-    outline: {color: palette.fg, width: 2}
+    color: color.mid
+    outline: {color: color.fg, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  mid: "#DADADA"',
     )
@@ -902,20 +862,22 @@ def test_a_hand_parts_low_contrast_color_warns(write_design, bag, db):
     fix `check_contrast`'s `getattr(element, "color", None)` always read
     `None` for a `type: hands` element and silently skipped every hand,
     no matter how badly it blended into the backdrop."""
-    elements = """  - id: hd
+    elements = """  hd:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """
     text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
-    text = text.replace("targets: [fenix8solar47mm]", """targets: [fenix8solar47mm]
-hands:
-  h:
-    hour:
-      color: palette.dim
-      parts:
-        - {shape: circle, radius: 20px}""")
-    text = text.replace('bg: "#000000"', 'bg: "#000000"\n  dim: "#0A0A0A"')
+    text = text.replace("""resources:
+""", """resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.dim
+        parts:
+          - {type: circle, radius: 20px}
+""")
+    text = text.replace('bg: "#000000"', 'bg: "#000000"\n    dim: "#0A0A0A"')
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -931,17 +893,17 @@ def test_a_pattern_parts_own_override_color_is_checked_not_just_the_default(writ
     `check_contrast`'s old `getattr(element, "color", None)` never looked
     at.  Here the element default (`fg`) is fine against the backdrop but
     the one part's own override (`dim`) is not."""
-    elements = """  - id: pat
+    elements = """  pat:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: circle, radius: 20px, color: palette.dim}
+      - {type: circle, radius: 20px, color: color.dim}
 """
     text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
-    text = text.replace('bg: "#000000"', 'bg: "#000000"\n  dim: "#0A0A0A"')
+    text = text.replace('bg: "#000000"', 'bg: "#000000"\n    dim: "#0A0A0A"')
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -957,13 +919,12 @@ def test_a_pattern_parts_own_override_color_is_checked_not_just_the_default(writ
 def test_the_power_budget_check_says_it_is_a_heuristic(check):
     """Garmin does not publish the number, so the message must not imply one."""
     bag = check("""
-  - id: wide
-    type: shape
-    shape: rectangle
+  wide:
+    type: rectangle
     at: {anchor: center}
     size: {width: 90%, height: 60%}
-    color: palette.fg
-    modes: [active, low_power]
+    color: color.fg
+    sleep_update: true
 """)
     warning = next(d for d in bag.items if d.code == "partial-update-budget")
     assert "HEURISTIC" in warning.confidence
@@ -972,13 +933,12 @@ def test_the_power_budget_check_says_it_is_a_heuristic(check):
 
 def test_a_tight_low_power_clip_does_not_warn(check):
     bag = check("""
-  - id: small
-    type: shape
-    shape: rectangle
+  small:
+    type: rectangle
     at: {anchor: center}
     size: {width: 20%, height: 10%}
-    color: palette.fg
-    modes: [active, low_power]
+    color: color.fg
+    sleep_update: true
 """)
     assert "partial-update-budget" not in codes(bag)
 
@@ -992,13 +952,12 @@ def test_the_power_budget_warning_can_be_suppressed_on_a_low_power_element(check
     could be silenced.
     """
     bag = check("""
-  - id: wide
-    type: shape
-    shape: rectangle
+  wide:
+    type: rectangle
     at: {anchor: center}
     size: {width: 90%, height: 60%}
-    color: palette.fg
-    modes: [active, low_power]
+    color: color.fg
+    sleep_update: true
     lint:
       allow: [partial-update-budget]
       reason: "probing"
@@ -1021,14 +980,13 @@ def test_a_small_weather_binding_in_low_power_warns_even_with_a_tiny_clip(check)
     the pre-fix clip-fraction-only body, which emits nothing here).
     """
     bag = check("""
-  - id: temp
+  temp:
     type: text
-    value: weather.temperature
-    format: "{:d}"
-    when_absent: hide
+    text: "{weather.temperature:d}"
+    absent: hide
     at: {anchor: center}
-    modes: [active, low_power]
-    color: palette.fg
+    sleep_update: true
+    color: color.fg
 """)
     warning = next(d for d in bag.items if d.code == "partial-update-budget")
     assert "temp" in warning.message
@@ -1038,14 +996,13 @@ def test_a_small_weather_binding_in_low_power_warns_even_with_a_tiny_clip(check)
 
 def test_the_expensive_source_warning_names_the_element_and_can_be_suppressed(check):
     bag = check("""
-  - id: temp
+  temp:
     type: text
-    value: weather.temperature
-    format: "{:d}"
-    when_absent: hide
+    text: "{weather.temperature:d}"
+    absent: hide
     at: {anchor: center}
-    modes: [active, low_power]
-    color: palette.fg
+    sleep_update: true
+    color: color.fg
     lint:
       allow: [partial-update-budget]
       reason: "known and accepted"
@@ -1055,16 +1012,16 @@ def test_the_expensive_source_warning_names_the_element_and_can_be_suppressed(ch
 
 def test_a_low_power_graph_element_warns_regardless_of_clip_size(check):
     bag = check("""
-  - id: hr_graph
+  hr_graph:
     type: graph
     series: heart_rate
     range: 1h
     style: line
     thickness: 2px
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     size: {width: 20%, height: 10%}
-    modes: [active, low_power]
+    sleep_update: true
 """)
     warning = next(d for d in bag.items if d.code == "partial-update-budget")
     assert "hr_graph" in warning.message
@@ -1076,21 +1033,19 @@ def test_clip_fraction_and_expensive_source_do_not_both_fire(check):
     fired for a face, an expensive-source element sharing that same clip
     must not also get the per-source warning."""
     bag = check("""
-  - id: wide
-    type: shape
-    shape: rectangle
+  wide:
+    type: rectangle
     at: {anchor: center}
     size: {width: 90%, height: 60%}
-    color: palette.fg
-    modes: [active, low_power]
-  - id: temp
+    color: color.fg
+    sleep_update: true
+  temp:
     type: text
-    value: weather.temperature
-    format: "{:d}"
-    when_absent: hide
+    text: "{weather.temperature:d}"
+    absent: hide
     at: {anchor: center}
-    modes: [active, low_power]
-    color: palette.fg
+    sleep_update: true
+    color: color.fg
 """)
     warnings = [d for d in bag.items if d.code == "partial-update-budget"]
     assert len(warnings) == 1
@@ -1152,15 +1107,14 @@ def test_a_permission_a_watch_face_cannot_hold_is_an_error(write_design, bag, mo
         ),
     )
     face = load(write_design(BASE.format(
-        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        top="", palette='    bg: "#000000"\n    fg: "#FFFFFF"',
         extra="""
-  - id: hr
+  hr:
     type: text
-    value: hr.raw
-    format: "{:d}"
+    text: "{hr.raw:d}"
     at: {anchor: center}
-    color: palette.fg
-    when_absent: hide
+    color: color.fg
+    absent: hide
 """)), bag)
     assert face is not None, bag.render()
     lint.check_permissions(face, bag)
@@ -1195,12 +1149,11 @@ def test_heart_rate_needs_no_permission():
 #: One element carrying a `lint:` block, appended to BASE the same way the
 #: geometry checks above append 'corner'.  The code under test varies.
 _ALLOW_ELEMENT = """
-  - id: corner
-    type: shape
-    shape: circle
+  corner:
+    type: circle
     at: {{anchor: top_left, dx: 6px, dy: 6px}}
     radius: 5px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [{code}]
       reason: "{reason}"
@@ -1209,7 +1162,7 @@ _ALLOW_ELEMENT = """
 
 def _face_allowing(write_design, bag, code: str, reason: str = "probing"):
     face = load(write_design(BASE.format(
-        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        top="", palette='    bg: "#000000"\n    fg: "#FFFFFF"',
         extra=_ALLOW_ELEMENT.format(code=code, reason=reason),
     )), bag)
     assert face is not None, bag.render()
@@ -1282,11 +1235,13 @@ def test_lint_allow_runs_once_per_build_regardless_of_target_count(write_design,
     from wfb.diagnostics import Bag
 
     design = BASE.format(
-        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        top="", palette='    bg: "#000000"\n    fg: "#FFFFFF"',
         extra=_ALLOW_ELEMENT.format(code="safearea", reason="typo for safe-area"),
     ).replace(
-        "targets: [fenix8solar47mm]",
-        "targets: [fenix8solar47mm, fenix8solar51mm, fr955]",
+        """build:
+  targets: [fenix8solar47mm]""",
+        """build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]""",
     )
     bag = Bag()
     face = build.load(write_design(design), bag)
@@ -1410,52 +1365,53 @@ def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
 # `since` against `Device.api_level` instead.
 
 COMPLICATION_DATA_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: score
+    color: color.bg
+  score:
     type: text
-    value: complication.sleep_score
-    format: "{:d}"
-    when_absent: hide
-    color: palette.fg
+    text: "{complication.sleep_score:d}"
+    absent: hide
+    color: color.fg
     at: {anchor: center}
 """
 
 COMPLICATION_HOLD_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: hr
+    color: color.bg
+  hr:
     type: icon
     icon: heart
     size: 14%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: sleep_score
 """
 
@@ -1524,9 +1480,15 @@ def test_a_hold_target_above_the_devices_ceiling_warns_and_says_it_is_a_no_op(
 
 def test_complication_gated_is_suppressible_on_the_bound_element(write_design, bag, db):
     design = COMPLICATION_DATA_DESIGN.replace(
-        "    color: palette.fg\n    at: {anchor: center}\n",
-        "    color: palette.fg\n    at: {anchor: center}\n"
-        "    lint:\n      allow: [api-gated]\n      reason: \"probing\"\n",
+        """    color: color.fg
+    at: {anchor: center}
+""",
+        """    color: color.fg
+    at: {anchor: center}
+    lint:
+      allow: [api-gated]
+      reason: "probing"
+""",
     )
     resolved = _resolved_for(write_design, bag, db, design, "fr955")
     lint.check_api_gated(resolved, bag)
@@ -1563,86 +1525,88 @@ def _skip_unless_installed(db, *device_ids: str) -> None:
 
 
 FIELD_GAP_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f62
   name: Test
-targets: [fenix6, fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix6, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: stress
+    color: color.bg
+  stress:
     type: text
-    value: activity.stress_score
-    format: "{:d}"
-    when_absent: hide
-    color: palette.fg
+    text: "{activity.stress_score:d}"
+    absent: hide
+    color: color.fg
     at: {anchor: center}
 """
 
 MODULE_READ_DESIGN = FIELD_GAP_DESIGN.replace(
-    "value: activity.stress_score", "value: complication.body_battery")
+    "text: \"{activity.stress_score:d}\"", "text: \"{complication.body_battery:d}\"")
+assert MODULE_READ_DESIGN != FIELD_GAP_DESIGN
 
 ON_HOLD_MODULE_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f63
   name: Test
-targets: [fenix6, fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix6, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: hr
+    color: color.bg
+  hr:
     type: icon
     icon: heart
     size: 14%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: body_battery
 """
 
 SLOT_MODULE_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f64
   name: Test
-targets: [fenix6, fenix8solar47mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix6, fenix8solar47mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate]
+      default: steps
+      choices: [steps, heart_rate]
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+    color: color.bg
+  top_reading:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 """
 
 
@@ -1694,26 +1658,26 @@ def test_api_gated_unguardable_function_is_an_error(write_design, bag, db, monke
     face that crashes on the wrist.
     """
     design = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f65
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: hour
+    color: color.bg
+  hour:
     type: text
-    value: time.hour
-    format: "{:d}"
-    color: palette.fg
+    text: "{time.hour:d}"
+    color: color.fg
     at: {anchor: center}
 """
     resolved = _resolved_for(write_design, bag, db, design, "fenix8solar47mm")
@@ -1737,26 +1701,26 @@ elements:
 
 def test_api_gated_unguardable_is_not_silenced_by_lint_allow(write_design, bag, db, monkeypatch):
     design = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f66
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: hour
+    color: color.bg
+  hour:
     type: text
-    value: time.hour
-    format: "{:d}"
-    color: palette.fg
+    text: "{time.hour:d}"
+    color: color.fg
     at: {anchor: center}
     lint:
       allow: [api-gated-unguardable]
@@ -1840,7 +1804,7 @@ def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missin
     # config-unsupported must not claim the slot keeps a default it cannot
     # actually resolve on a device that also lacks Complications.
     assert "keep their declared defaults" not in config_hits[0].message
-    assert "config.data.top" in config_hits[0].message
+    assert "slot 'top'" in config_hits[0].message
     assert "show as absent" in config_hits[0].message
     assert "Complications" in config_hits[0].message
     # api-gated says the same fact from the slot's own side.
@@ -1868,7 +1832,7 @@ def test_config_unsupported_still_says_keeps_default_when_complications_works(
     api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
     assert config_hits, bag.render()
     assert "keep their declared defaults" in config_hits[0].message
-    assert "config.data.top" in config_hits[0].message
+    assert "slot 'top'" in config_hits[0].message
     assert not api_gated_hits, bag.render()
 
 
@@ -1952,8 +1916,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
 # -- check_text_outline_interior (plan 15 §7, D10) --------------------------
 
 
-_OUTLINE_TEXT = """\
-  - id: clock
+_OUTLINE_TEXT = """  clock:
     type: text
     text: "12:34"
     color: {color}
@@ -1968,20 +1931,21 @@ def test_no_outline_is_silent(check):
     `outline:`-bearing element (the check `check` fixture's `background`
     element is a full-screen rectangle, drawn first, so `clock` always
     overlaps it -- the overlap alone is not the trigger)."""
-    bag = check(_OUTLINE_TEXT.format(color="palette.fg", outline=""))
+    bag = check(_OUTLINE_TEXT.format(color="color.fg", outline=""))
     assert "text-outline-interior" not in codes(bag)
 
 
 def test_outline_over_an_earlier_element_with_a_different_colour_warns(check):
-    """Green: `clock`'s interior (`palette.fg`) cannot be shown to match
-    `background`'s own colour (`palette.bg`) -- a real, unresolved risk,
+    """Green: `clock`'s interior (`color.fg`) cannot be shown to match
+    `background`'s own colour (`color.bg`) -- a real, unresolved risk,
     not the false positive the next test is about -- so this fires, naming
     the element it may paint over and stating the "boxes, not ink"
     confidence every geometry-overlap check in this project states for
     itself."""
     bag = check(_OUTLINE_TEXT.format(
-        color="palette.fg",
-        outline="\n    outline: {color: palette.fg, width: 2}"))
+        color="color.fg",
+        outline="""
+    outline: {color: color.fg, width: 2}"""))
     warnings = [d for d in bag.items if d.code == "text-outline-interior"]
     assert len(warnings) == 1
     assert "'clock'" in warnings[0].message
@@ -1992,14 +1956,15 @@ def test_outline_over_an_earlier_element_with_a_different_colour_warns(check):
 
 def test_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
     """The false positive this fix removes: `clock`'s interior
-    (`palette.bg`) is the *same* build-time constant as the earlier,
+    (`color.bg`) is the *same* build-time constant as the earlier,
     full-screen `background` element's own colour, and a filled rectangle
     is trusted to paint every pixel of its own box -- repainting it in the
     colour it already is changes nothing on screen, so there is nothing
     to warn about, even though the boxes plainly overlap."""
     bag = check(_OUTLINE_TEXT.format(
-        color="palette.bg",
-        outline="\n    outline: {color: palette.fg, width: 2}"))
+        color="color.bg",
+        outline="""
+    outline: {color: color.fg, width: 2}"""))
     assert "text-outline-interior" not in codes(bag)
 
 
@@ -2009,7 +1974,8 @@ def test_outline_interior_with_no_colour_still_warns(check):
     under it and the overlap must still be reported -- not skipped because
     there is no interior colour to compare (plan 19 A2 review)."""
     bag = check(_OUTLINE_TEXT.replace("    color: {color}\n", "").format(
-        outline="\n    outline: {color: palette.fg, width: 2}"))
+        outline="""
+    outline: {color: color.fg, width: 2}"""))
     assert "text-outline-interior" in codes(bag), bag.render()
 
 
@@ -2018,26 +1984,25 @@ def test_outline_interior_can_be_suppressed(check):
     against the same design plus `lint: {allow: [...], reason: ...}}` --
     the finding disappears."""
     bag = check(_OUTLINE_TEXT.format(
-        color="palette.fg",
-        outline="\n    outline: {color: palette.fg, width: 2}"
-                '\n    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}'))
+        color="color.fg",
+        outline="""
+    outline: {color: color.fg, width: 2}
+    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}"""))
     assert "text-outline-interior" not in codes(bag)
 
 
-_PARTIAL_OVERLAP_DESIGN = """\
-  - id: dot
-    type: shape
-    shape: circle
+_PARTIAL_OVERLAP_DESIGN = """  dot:
+    type: circle
     at: {anchor: center, dx: 20px}
     radius: 10px
-    color: palette.bg
-  - id: clock
+    color: color.bg
+  clock:
     type: text
     text: "12:34"
-    color: palette.bg
+    color: color.bg
     at: {anchor: center}
     font: FONT_MEDIUM
-    outline: {color: palette.fg, width: 2}
+    outline: {color: color.fg, width: 2}
 """
 
 
@@ -2048,7 +2013,7 @@ def test_outline_interior_matching_colour_but_only_partial_coverage_still_warns(
     colour exactly, but its small circle does not reach every pixel of
     `clock`'s box, so whatever the rest of that box actually sits on has
     never been checked -- the warning still fires, naming `dot`, even
-    though the full-screen `background` (also `palette.bg`, also
+    though the full-screen `background` (also `color.bg`, also
     overlapping, and this time *fully* covering) is correctly not named
     at all."""
     bag = check(_PARTIAL_OVERLAP_DESIGN)
@@ -2058,15 +2023,14 @@ def test_outline_interior_matching_colour_but_only_partial_coverage_still_warns(
     assert "'background'" not in warnings[0].message
 
 
-_DATA_DRIVEN_COLOR_DESIGN = """\
-  - id: clock
+_DATA_DRIVEN_COLOR_DESIGN = """  clock:
     type: text
     text: "12:34"
-    color: "heart_rate.current > 100 ? palette.bg : palette.fg"
-    when_absent: hide
+    color: "heart_rate.current > 100 ? color.bg : color.fg"
+    absent: hide
     at: {anchor: center}
     font: FONT_MEDIUM
-    outline: {color: palette.fg, width: 2}
+    outline: {color: color.fg, width: 2}
 """
 
 
@@ -2074,7 +2038,7 @@ def test_outline_interior_data_driven_colour_still_warns(check):
     """Provably equal means provably equal at build time -- a data-
     conditional interior colour never folds to one (`Expression.constant`
     stays `None` for a real conditional over a catalogue reading), so even
-    though one branch of this ternary reads the exact same `palette.bg`
+    though one branch of this ternary reads the exact same `color.bg`
     the fully-covering `background` element paints, the check cannot show
     the two are *always* the same colour and must keep warning rather than
     gamble on which branch runs at any given moment."""
@@ -2085,30 +2049,30 @@ def test_outline_interior_data_driven_colour_still_warns(check):
 
 
 _NO_OVERLAP_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: corner
+  corner:
     type: text
     text: "AB"
-    color: palette.fg
+    color: color.fg
     at: {{anchor: top_left, dx: 0px, dy: 0px}}
-    align: left
-    vertical_align: top
+    align: top_left
     font: FONT_XTINY
-  - id: clock
+  clock:
     type: text
     text: "12:34"
-    color: palette.bg
+    color: color.bg
     at: {{anchor: bottom_right, dx: 0px, dy: 0px}}
-    align: right
-    vertical_align: bottom
+    align: bottom_right
     font: FONT_XTINY{outline}
 """
 
@@ -2124,7 +2088,8 @@ def test_outline_interior_is_silent_when_boxes_do_not_overlap(write_design, bag,
     `background`)."""
     resolved = _resolved_for(
         write_design, bag, db,
-        _NO_OVERLAP_DESIGN.format(outline="\n    outline: {color: palette.fg, width: 2}"),
+        _NO_OVERLAP_DESIGN.format(outline="""
+    outline: {color: color.fg, width: 2}"""),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)
@@ -2137,14 +2102,14 @@ def test_outline_interior_fires_once_the_pair_is_moved_to_overlap(write_design, 
     this, a check that never fires at all would also pass the "silent"
     test above."""
     overlapping = _NO_OVERLAP_DESIGN.replace(
-        "at: {{anchor: bottom_right, dx: 0px, dy: 0px}}\n    align: right\n"
-        "    vertical_align: bottom\n",
-        "at: {{anchor: top_left, dx: 0px, dy: 0px}}\n    align: left\n"
-        "    vertical_align: top\n",
+        "at: {{anchor: bottom_right, dx: 0px, dy: 0px}}\n    align: bottom_right\n",
+        "at: {{anchor: top_left, dx: 0px, dy: 0px}}\n    align: top_left\n",
     )
+    assert overlapping != _NO_OVERLAP_DESIGN
     resolved = _resolved_for(
         write_design, bag, db,
-        overlapping.format(outline="\n    outline: {color: palette.fg, width: 2}"),
+        overlapping.format(outline="""
+    outline: {color: color.fg, width: 2}"""),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)
@@ -2153,101 +2118,43 @@ def test_outline_interior_fires_once_the_pair_is_moved_to_overlap(write_design, 
     assert "'clock'" in hits[0].message and "'corner'" in hits[0].message
 
 
-_DISJOINT_MODES_DESIGN = """
-format: 1
-face:
-  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
-  name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-elements:
-  - id: low_power_text
-    type: text
-    text: "AOD"
-    color: palette.fg
-    modes: [{first_modes}]
-    at: {{anchor: center}}
-    font: FONT_MEDIUM
-  - id: clock
-    type: text
-    text: "12:34"
-    color: palette.bg
-    modes: [{second_modes}]
-    at: {{anchor: center}}
-    font: FONT_MEDIUM
-    outline: {{color: palette.fg, width: 2}}
-"""
-
-
-def test_outline_interior_is_silent_across_disjoint_modes(write_design, bag, db):
-    """Two elements at the *same* position (boxes definitely overlap), but
-    never on screen at the same time (disjoint `modes:`) -- must not warn,
-    the same "never on screen together" guard `check_static_overlap`
-    already applies, reused here rather than re-derived."""
-    resolved = _resolved_for(
-        write_design, bag, db,
-        _DISJOINT_MODES_DESIGN.format(first_modes="low_power", second_modes="active"),
-        "fenix8solar47mm",
-    )
-    lint.check_text_outline_interior(resolved, bag)
-    assert "text-outline-interior" not in codes(bag), bag.render()
-
-
-def test_outline_interior_fires_once_modes_overlap(write_design, bag, db):
-    """Same overlapping position, `modes:` widened so the two elements
-    genuinely share at least one mode -- the red half of the contrast the
-    previous test's green half relies on (a check that ignored `modes:`
-    entirely would also pass the "silent" test above)."""
-    resolved = _resolved_for(
-        write_design, bag, db,
-        _DISJOINT_MODES_DESIGN.format(
-            first_modes="active, low_power", second_modes="active"),
-        "fenix8solar47mm",
-    )
-    lint.check_text_outline_interior(resolved, bag)
-    hits = [d for d in bag.items if d.code == "text-outline-interior"]
-    assert hits, bag.render()
-
-
 # -- check_text_outline_interior on a pattern's own text part (plan 15 §14
 # slice 2, D10: element-level, via `_outlined_interiors`) ------------------
 
 
 _PATTERN_OUTLINE = """\
-  - id: ring
+  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: FONT_MEDIUM
         color: {color}
-        outline: {{color: palette.fg, width: 2}}{lint}
+        outline: {{color: color.fg, width: 2}}{lint}
 """
 
 
 def test_pattern_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
     """The same false positive `text-outline-interior`'s own docstring
     describes for a `text` element, for a pattern's `shape: text` part
-    instead: the part's own interior (`palette.bg`) is the same build-time
+    instead: the part's own interior (`color.bg`) is the same build-time
     constant as the full-screen `background` element's own colour, and
     `background` is a filled rectangle trusted to paint every pixel of its
     own box -- nothing to warn about even though the pattern's own
     (ring-grown) box plainly overlaps it."""
-    bag = check(_PATTERN_OUTLINE.format(color="palette.bg", lint=""))
+    bag = check(_PATTERN_OUTLINE.format(color="color.bg", lint=""))
     assert "text-outline-interior" not in codes(bag), bag.render()
 
 
 def test_pattern_outline_over_an_earlier_element_with_a_different_colour_warns(check):
-    """Green: the part's interior (`palette.fg`) cannot be shown to match
-    `background`'s own colour (`palette.bg`) -- a real, unresolved risk --
+    """Green: the part's interior (`color.fg`) cannot be shown to match
+    `background`'s own colour (`color.bg`) -- a real, unresolved risk --
     so this fires, naming the *pattern* element (not a per-copy id) and
     the element it may paint over."""
-    bag = check(_PATTERN_OUTLINE.format(color="palette.fg", lint=""))
+    bag = check(_PATTERN_OUTLINE.format(color="color.fg", lint=""))
     warnings = [d for d in bag.items if d.code == "text-outline-interior"]
     assert len(warnings) == 1
     assert "'ring'" in warnings[0].message
@@ -2256,29 +2163,28 @@ def test_pattern_outline_over_an_earlier_element_with_a_different_colour_warns(c
 
 def test_pattern_outline_interior_can_be_suppressed(check):
     bag = check(_PATTERN_OUTLINE.format(
-        color="palette.fg",
+        color="color.fg",
         lint='\n    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}'))
     assert "text-outline-interior" not in codes(bag), bag.render()
 
 
-_PATTERN_TWO_PARTS_OUTLINE = """\
-  - id: ring
+_PATTERN_TWO_PARTS_OUTLINE = """  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: FONT_MEDIUM
-        color: palette.bg
-        outline: {{color: palette.fg, width: 2}}
-      - shape: text
+        color: color.bg
+        outline: {{color: color.fg, width: 2}}
+      - type: text
         text: "34"
         font: FONT_MEDIUM
         at: {{dy: 20px}}
         color: {second_color}
-        outline: {{color: palette.fg, width: 2}}
+        outline: {{color: color.fg, width: 2}}
 """
 
 
@@ -2293,7 +2199,7 @@ def test_pattern_outline_interior_all_outlined_parts_must_match_to_suppress(chec
     unaccounted for, so this must still warn (the contrast this test
     claims: an implementation that suppressed on *any* matching part,
     rather than *every* one, would wrongly pass this design silent)."""
-    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="palette.fg"))
+    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="color.fg"))
     warnings = [d for d in bag.items if d.code == "text-outline-interior"]
     assert len(warnings) == 1
     assert "'ring'" in warnings[0].message
@@ -2304,7 +2210,7 @@ def test_pattern_outline_interior_silent_when_every_outlined_part_matches(check)
     """The green half of the previous test's contrast: both parts' own
     interior colours match the fully-covering backdrop, so the pair is
     provably safe and the warning disappears."""
-    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="palette.bg"))
+    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="color.bg"))
     assert "text-outline-interior" not in codes(bag), bag.render()
 
 

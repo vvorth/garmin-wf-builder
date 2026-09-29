@@ -5,20 +5,20 @@ import pytest
 from wfb.build import load
 from wfb.palette import BLACK, MIP64_LEVELS, WHITE, Color, ColorError, has_palette_rule
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
+build:
+  targets: [fenix8solar47mm]
 """
 
 BODY = """elements:
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: palette.bg
+    color: color.bg
 """
 
 
@@ -95,7 +95,10 @@ def test_contrast_ratio_matches_wcag_endpoints():
 
 
 def test_long_form_entry_is_accepted_and_records_its_label(write_design, bag):
-    text = HEAD + 'palette:\n  bg: { value: "#00FFFF", label: "Aqua" }\n' + BODY
+    text = HEAD + '''resources:
+  palette:
+    bg: { value: "#00FFFF", label: "Aqua" }
+''' + BODY
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     assert face.palette["bg"] == Color.parse("#00FFFF")
@@ -103,7 +106,10 @@ def test_long_form_entry_is_accepted_and_records_its_label(write_design, bag):
 
 
 def test_long_form_with_no_label_gets_no_palette_label(write_design, bag):
-    text = HEAD + 'palette:\n  bg: { value: "#00FFFF" }\n' + BODY
+    text = HEAD + '''resources:
+  palette:
+    bg: { value: "#00FFFF" }
+''' + BODY
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     assert face.palette["bg"] == Color.parse("#00FFFF")
@@ -111,10 +117,16 @@ def test_long_form_with_no_label_gets_no_palette_label(write_design, bag):
 
 
 def test_short_and_long_form_agree_on_colour(write_design, bag):
-    short = load(write_design(HEAD + 'palette:\n  bg: "#00FFFF"\n' + BODY), bag)
+    short = load(write_design(HEAD + '''resources:
+  palette:
+    bg: "#00FFFF"
+''' + BODY), bag)
     assert short is not None, bag.render()
 
-    bag2_text = HEAD + 'palette:\n  bg: { value: "#00FFFF" }\n' + BODY
+    bag2_text = HEAD + '''resources:
+  palette:
+    bg: { value: "#00FFFF" }
+''' + BODY
     from wfb.diagnostics import Bag
     bag2 = Bag()
     long_ = load(write_design(bag2_text, "face2.yaml"), bag2)
@@ -123,7 +135,10 @@ def test_short_and_long_form_agree_on_colour(write_design, bag):
 
 
 def test_long_form_missing_value_is_a_schema_error_on_the_entrys_own_line(write_design, bag):
-    text = HEAD + 'palette:\n  bg: { label: "Aqua" }\n' + BODY
+    text = HEAD + '''resources:
+  palette:
+    bg: { label: "Aqua" }
+''' + BODY
     face = load(write_design(text), bag)
     assert face is None
     errors = [d for d in bag.items if d.severity.value == "error"]
@@ -134,26 +149,20 @@ def test_long_form_missing_value_is_a_schema_error_on_the_entrys_own_line(write_
     assert "bg:" in lines[schema_error.span.line - 1]
 
 
-def test_long_form_entry_may_not_reference_config(write_design, bag):
-    text = HEAD + 'palette:\n  bg: { value: config.accent_color }\n' + BODY
+def test_a_long_form_entry_is_a_literal(write_design, bag):
+    """A swatch's own value is a literal: `color.accent` there is one schema
+    error on the author's line, and the design's own `color: color.bg`
+    adds no second "unknown colour" error on top of it."""
+    text = HEAD + '''resources:
+  palette:
+    bg: { value: color.accent }
+''' + BODY
     face = load(write_design(text), bag)
     assert face is None
     errors = [d for d in bag.items if d.severity.value == "error"]
-    assert any(d.code == "palette" for d in errors)
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "color: color.accent" in note
-
-
-def test_a_rejected_long_form_palette_entry_does_not_cascade(write_design, bag):
-    """The same cascade fix `rejected_fonts`/`rejected_config` exist for:
-
-    the design's own `color: palette.bg` should not add a second "unknown
-    data source" error on top of the real one against the `palette:` block.
-    """
-    text = HEAD + 'palette:\n  bg: { value: config.accent_color }\n' + BODY
-    face = load(write_design(text), bag)
-    assert face is None
-    errors = [d for d in bag.items if d.severity.value == "error"]
-    assert [d.code for d in errors] == ["palette"], (
+    assert [d.code for d in errors] == ["schema"], (
         "expected exactly the one real error, got: "
         + "; ".join(f"{d.code}: {d.message}" for d in errors))
+    assert "palette.bg.value" in errors[0].message
+    assert "bg: { value: color.accent }" in text.splitlines()[errors[0].span.line - 1]
+    assert "a palette swatch's own value is always a literal" in " ".join(errors[0].notes)

@@ -18,42 +18,42 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `accent_color:` | `config:` | `default:` + `choices: any` or a list | — | the one native accent-colour axis |
 | `data_color:` | `config:` | `default:` + `choices: any` or a list | — | the one native data-colour axis |
 | `style:` | `config:` | ordered mapping of named entries | — | [the Styles axis](#all-four-axes-are-wired-up) |
-| `data:` | `config:` | mapping of named slots | — | [the Data axis](#the-data-axis) |
-| `label:` | a `data:` slot | string | the slot's name, humanised | the slot's title in the [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor); the native editor shows none |
-| `default:` | a `config:` axis/entry | hex/`palette.*` colour, entry name, or `complication.*` type | — | starting value; must be in `choices:` when explicit |
+| `slots:` | `config:` | mapping of named slots | — | [the Data axis](#the-data-axis) |
+| `label:` | a `slots:` entry | string | the slot's name, humanised | the slot's title in the [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor); the native editor shows none |
+| `default:` | a `config:` axis/entry | hex or `color.<swatch>`, entry name, or complication type | — | starting value; must be in `choices:` when explicit |
 | `choices:` | a `config:` axis/entry | `any`, or an explicit list | — | the editor's picklist |
 | `label:` | a `style:` entry | string | falls back to the scheme's own `label:` | shown in the editor's Styles list |
-| `colors:` | a `style:` entry | bare `color_scheme:` name | — | required unless `layout:` given; all-or-none per `choices:` list |
+| `scheme:` | a `style:` entry | bare `theme: schemes:` name | — | required unless `layout:` given; all-or-none per `choices:` list |
 | `layout:` | a `style:` entry | bare `layouts:` name | — | see [Styles and layouts](styles-and-layouts.md) |
-| `slot:` | `complication_slot` | `config.data.<name>` | required | which declared slot this element draws |
-| `icon_size:` | `complication_slot` | length, px or `%r` | omit = no icon | icon height, chosen on-device |
-| `icon_position:` / `icon_gap:` / `icon_color:` | `complication_slot` | `left`/`right`/`top`/`bottom`; px/`%r`; colour | `left`; `4px`; = `color:` | icon placement, gap and colour — need `icon_size:` |
-| `label:` | `complication_slot` | `none`/`short`/`long` | `none` | `Complication.shortLabel`/`.longLabel` before the reading |
-| `unit:` / `short:` | `complication_slot` | boolean | `false` | the reading's own unit (`%`, `hPa`, `km`, `/km`, ...); 7-character forms |
-| `when_absent:` | `complication_slot` | `hide` / `placeholder` | `hide` | blanks only the reading; the icon still draws |
-| `on_hold:` | `complication_slot` | `auto` only | — | resolves to the wearer's current pick, on every hold |
+| `slot:` | `data` | a `slots:` name | required | which declared slot this element draws |
+| `icon: {size:}` | `data` | length, px or `%r` | omit `icon:` = no icon | icon height, chosen on-device |
+| `icon: {position:, gap:, color:}` | `data` | `left`/`right`/`top`/`bottom`; px/`%r`; colour | `left`; `4px`; = `color:` | icon placement, gap and colour |
+| `label:` | `data` | `none`/`short`/`long` | `none` | `Complication.shortLabel`/`.longLabel` before the reading |
+| `unit:` / `short:` | `data` | boolean | `false` | the reading's own unit (`%`, `hPa`, `km`, `/km`, ...); 7-character forms |
+| `absent:` | `data` | `hide` / a string | `hide` | blanks only the reading; the icon still draws |
+| `on_hold:` | `data` | `auto` only | — | resolves to the wearer's current pick, on every hold |
 
 ## Example
 
 ```yaml
-color_scheme:
-  dark:  { label: "Dark",  colors: { bg: palette.black, fg: palette.white, ... } }
-  light: { label: "Light", colors: { bg: palette.white, fg: palette.black, ... } }
+theme:
+  schemes:
+    dark:  { label: "Dark",  colors: { bg: color.black, fg: color.white, ... } }
+    light: { label: "Light", colors: { bg: color.white, fg: color.black, ... } }
 
 config:
   style:                             # layout × colour scheme, as named entries
     default: digital_dark
     choices:
-      analog_dark:  { label: "Analog · Dark",  layout: analog,  colors: dark }
-      digital_dark: { label: "Digital · Dark", layout: digital, colors: dark }
-  accent_color: { default: palette.red,   choices: [palette.red, palette.lime_green, ...] }
-  data_color:   { default: palette.amber, choices: [palette.amber, palette.magenta, ...] }
-  data:
+      analog_dark:  { label: "Analog · Dark",  layout: analog,  scheme: dark }
+      digital_dark: { label: "Digital · Dark", layout: digital, scheme: dark }
+  accent_color: { default: color.red,   choices: [color.red, color.lime_green, ...] }
+  data_color:   { default: color.amber, choices: [color.amber, color.magenta, ...] }
+  slots:
     left_register:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate,
-                { type: complication.calories, icon: none }]
-    right_register: { default: complication.body_battery, choices: any }
+      default: steps
+      choices: [steps, heart_rate, { type: calories, icon: none }]
+    right_register: { default: body_battery, choices: any }
 ```
 
 ![three accent / data colour / slot selections](../screenshots/showcase-config.png)
@@ -68,82 +68,81 @@ four configurations. On fr955, the same picks come from the settings menu.
 ## Configuration
 
 ```yaml
-palette:
-  aqua: { value: "#00FFFF", label: "Aqua" }
-  amber: { value: "#FFAA00", label: "Amber" }
+resources:
+  palette:
+    aqua: { value: "#00FFFF", label: "Aqua" }
+    amber: { value: "#FFAA00", label: "Amber" }
 
-color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: "#000000", fg: "#FFFFFF" }
-  light:
-    label: "Light"
-    colors: { bg: "#FFFFFF", fg: "#000000" }
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: "#000000", fg: "#FFFFFF" }
+    light:
+      label: "Light"
+      colors: { bg: "#FFFFFF", fg: "#000000" }
 
 config:
   accent_color:
     default: "#FF8000"
     choices: any                       # the editor's own full colour picker
   data_color:
-    default: palette.aqua              # a palette reference, or a literal hex
+    default: color.aqua                # a palette swatch, or a literal hex
     choices:                           # or an explicit list
-      - palette.aqua                   # a bare palette reference ...
-      - palette.amber
+      - color.aqua                     # a bare swatch ...
+      - color.amber
       - { color: "#FFFFFF", label: "White" }   # ... or the inline form
   style:
     default: dark                      # names a choices: entry, not a scheme
     choices:                           # an ORDERED mapping -- index = styleId
-      dark:  { colors: dark }          # a bare color_scheme name
-      light: { label: "Light!", colors: light }
-  data:
+      dark: { scheme: dark }           # a bare theme: schemes: name
+      light: { label: "Light!", scheme: light }
+  slots:
     top:
-      default: complication.steps      # a wfb.complications type -- see below
+      default: steps                   # a complication type (wfb complications) -- see below
       choices:
-        - complication.steps
-        - complication.heart_rate
-        - complication.calories
+        - steps
+        - heart_rate
+        - calories
     bottom:
-      default: complication.body_battery
+      default: body_battery
       choices: any                     # the editor's own full complication picker
 ```
 
 Four user-editable axes, read through the fēnix 8's **native on-device watch
 face editor** (`Core_Topics/Editing_Watch_Faces_On_Device.html`, API 5.1.0).
-All four keys are optional, and `accent_color`/`data_color`/`style`/`data`
+All four keys are optional, and `accent_color`/`data_color`/`style`/`slots`
 are the **only** keys this block accepts -- Garmin's editor offers exactly one
 accent colour, one data colour, one Styles axis and one Data axis, and
 nothing else. Declaring anything else is a schema error naming what is
 accepted.
 
-`style` is shaped differently from the other two colour keys, and replaces
-the earlier `config: colors:` outright (removed, no shim): `choices:` is an
+`style` is shaped differently from the two colour keys: `choices:` is an
 **ordered mapping of author-chosen entry name -> entry**, not a list, so
 `default:` names one *entry* (a `choices:` key), not a colour or a scheme --
-and an entry's own `colors:` is what names a declared `color_scheme:` entry,
-as a **bare name** (`colors: dark`, not `color_scheme.dark`). Editor order is
+and an entry's own `scheme:` is what names a declared `theme: schemes:`
+entry, as a **bare name** (`scheme: dark`). Editor order is
 declaration order, and it is also the `<style id="N">` numbering
-`resolveStyle` decodes `styleId` against (index 0 first) -- see [Color
-scheme](colors.md#color-scheme). Every entry needs at least one of `colors:`/`layout:` -- the
+`resolveStyle` decodes `styleId` against (index 0 first) -- see [Colour
+schemes](colors.md#colour-schemes). Every entry needs at least one of `scheme:`/`layout:` -- the
 second names a declared `layouts:` entry, the same bare-name spelling; see
-[Styles and layouts](styles-and-layouts.md#styles-and-layouts). **`colors:` is all-or-none across every entry in
+[Styles and layouts](styles-and-layouts.md#styles-and-layouts). **`scheme:` is all-or-none across every entry in
 one `choices:`**, independent of `layout:` -- a design cannot mix an entry
-that has `colors:` with one that does not; the first entry that violates
-this is one error, not one per offending entry. `data` is shaped differently
+that has `scheme:` with one that does not; the first entry that violates
+this is one error, not one per offending entry. `slots` is shaped differently
 again: it is a **mapping of
-named slots**, each with its own `default:`/`choices:` naming
-`complication.<name>` types (the same table `on_hold:` and the
+named slots**, each with its own `default:`/`choices:` naming complication
+types by their bare names (`steps`: the same table `on_hold:` and the
 `complication.*` data-source namespace already resolve against -- run `wfb
 complications` for the full list); see "The Data axis" below for the slot
-names, and the `complication_slot` element that draws one. Everything in the
+names, and the `data` element that draws one. Everything in the
 rest of this section describes `accent_color`/`data_color`; `style`'s/
-`data`'s own rules are in this section (below) and "The Data axis"
+`slots`' own rules are in this section (below) and "The Data axis"
 respectively.
 
 **Label fallback.** An entry's own `label:` is shown in the editor's Styles
-list. An entry with **no** `label:` and only `colors:` (no `layout:`) falls
-back to that scheme's own `label:` instead -- this is what makes migrating a
-`config: colors:` block a pure re-spelling: the generated `<style
-label=...>` text does not move. A layout-carrying entry gets no fallback,
+list. An entry with **no** `label:` and only `scheme:` (no `layout:`) falls
+back to that scheme's own `label:` instead. A layout-carrying entry gets no fallback,
 colour or not; an entry with neither gets no `label` attribute, same as
 everywhere else a label is optional.
 
@@ -152,7 +151,7 @@ Garmin defines no behaviour for a default outside the list, and the error
 lists the declared entry names.
 
 **`duplicate-style` (suppressible).** Two entries that resolve to the same
-`colors:` (and, from a later format, the same `layout:`) are indistinguishable
+`scheme:` and the same `layout:` are indistinguishable
 on the wrist. This is a warning, not an error -- a designer may still want two
 labels while iterating -- reported once per design at the second entry of the
 pair, and suppressed with `lint: {allow: [duplicate-style], reason: ...}` on
@@ -160,33 +159,40 @@ that **entry** (not on an element: `style:` entries have no element of their
 own to hang `lint:` on otherwise).
 
 Each entry needs both `default:` and `choices:`. `default:` is a literal
-`#RRGGBB`/`#RGB` or a `palette.<name>` reference, compiled into the view as the
-starting value either way -- once resolved, a palette reference and a literal
-are the same colour to every check below. `choices:` is either the literal
+`#RRGGBB`/`#RGB` or a `color.<swatch>`, compiled into the view as the
+starting value either way -- once resolved, a swatch and a literal
+are the same colour to every check below. A role is not accepted here: it
+has no value until the watch runs. `choices:` is either the literal
 string `any`, which hands the wearer the editor's own unrestricted colour
 picker, or an explicit list whose items are each **either** a bare
-`palette.<name>` reference **or** an inline `{color, label}`. A bare palette
-reference contributes that entry's colour and, if the entry declared one, its
+`color.<swatch>` **or** an inline `{color, label}`. A bare swatch
+contributes its colour and, if the palette entry declared one, its
 `label:` -- unlabelled long-form entries and the short form both produce an
 unlabelled choice, same as omitting `label:` on the inline form. **When
 `choices:` is an explicit list, `default:` must be one of the listed
-colours** -- compared by colour value, so `default: palette.aqua` matches a
-listed `palette.aqua` (or an inline choice with the identical hex) equally --
+colours** -- compared by colour value, so `default: color.aqua` matches a
+listed `color.aqua` (or an inline choice with the identical hex) equally --
 the editor marks one listed colour `default="true"`, and Garmin defines no
 behaviour for a default that is not in the list.
 
-**Naming a palette entry that was never declared, or was declared and
-rejected (an out-of-range colour, a `config.*` reference), is an error** at
+**Naming a swatch that was never declared, or was declared and
+rejected (an out-of-range colour), is an error** at
 the `default:`/`choices:` line, naming every entry `palette:` actually
 declares.
 
-Reference a declared entry as an ordinary colour expression, exactly like a
-palette entry:
+A colour axis binds a **role**: `accent_color` binds `color.accent` and
+`data_color` binds `color.data`. Reference it as an ordinary colour, exactly
+like a swatch:
 
 ```yaml
-color: config.accent_color
-color: heart_rate.current > 120 ? config.accent_color : palette.dim
+color: color.accent
+color: "heart_rate.current > 120 ? color.accent : color.dim"
 ```
+
+An optional `role:` on the axis names the role differently
+(`accent_color: {role: highlight, ...}` binds `color.highlight`). A scheme
+role with the same name as an axis's role is an error, as is a swatch with
+that name ([Colour references](colors.md#colour-references)).
 
 ### All four axes are wired up
 
@@ -195,25 +201,25 @@ Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and all four
 are wired up: the two colour axes, **Styles**, which carries no colour of
 its own and is the only axis Garmin gives no meaning to at all
 (`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why
-this compiler gives each `config: style:` entry a meaning -- today a declared
-`color_scheme:`, read back through `config.colors.<role>`), and **Data** --
-named native complication slots, `config.data.<name>`, drawn by a `type:
-complication_slot` element (see "The Data axis" below). `accent_color`/
-`data_color`/`data` are keyed by the axis itself rather than an author-chosen
-name, because Garmin gives exactly one of each (`data` alone is a mapping,
+this compiler gives each `config: style:` entry a meaning -- a declared
+scheme, read back through `color.<role>`, and a layout), and **Data** --
+named native complication slots under `config: slots:`, drawn by a `type:
+data` element (see "The Data axis" below). `accent_color`/
+`data_color`/`slots` are keyed by the axis itself rather than an author-chosen
+name, because Garmin gives exactly one of each (`slots` alone is a mapping,
 because Garmin's Data axis itself holds several independent slots); `style`
 is the odd one out, an author-named, ordered set of entries, because Styles
 is the one axis with no meaning of its own for this compiler to key on.
 
 **The editor's own animated highlight is built too**, and it is
-automatic: any design with at least one `complication_slot` element gets
+automatic: any design with at least one `data` element gets
 `AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
 `setSelectedComplication` (hit-testing each slot's own resolved box), and
 `WatchFaceDelegate.getComplicationDrawable` returning a generated
 `<Face>SlotDrawable` that delegates straight back to the view's own per-slot
 draw method -- so there is exactly one implementation of what a slot looks
 like, drawn either by `onUpdate` or by the editor's own `Drawable`. A design
-with no `complication_slot` element gets none of this: `onTap` (unlike
+with no `data` element gets none of this: `onTap` (unlike
 `onPress`) never fires on a live face (research 07 §1), so all of it would be
 dead weight there. On a fenix8solar47mm the highlight animates over the
 selected slot and previews each choice as the wearer scrolls; the rest is
@@ -223,36 +229,32 @@ unverified -- see "What this compiler cannot tell you" below.
 
 ```yaml
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - complication.heart_rate
-        - { type: complication.calories, icon: none }
-        - { type: complication.stress, glyph: "U+F1340" }
+        - steps
+        - heart_rate
+        - { type: calories, icon: none }
+        - { type: stress, icon: "U+F1340" }
     bottom:
-      default: complication.body_battery
+      default: body_battery
       choices: any
 
 elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: { anchor: center, dy: -20% }
     font: FONT_SMALL
-    icon_size: 8%r          # omit to draw no icon
-    icon_position: right    # left (default) | right | top | bottom
-    icon_gap: 2px            # px or %r; default 4px, today's fixed gap
-    icon_color: palette.accent  # defaults to color: when omitted
-    color: palette.fg
+    icon: { size: 8%r, position: right, gap: 2px, color: color.accent } # omit to draw no icon
+    color: color.fg
     label: short             # none (default) | short | long
     unit: true                # append Complication.unit's suffix
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 ```
 
-Each `data:` entry is a **named slot** with its own `default:`/`choices:`,
+Each `slots:` entry is a **named slot** with its own `default:`/`choices:`,
 resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
 `wfb complications`) -- `default:` compiles into the view as the starting
 `Complications.Id`, and is the only type a device with no native editor
@@ -267,35 +269,33 @@ it: Garmin's `<complication>` resource takes no label (`resources.xsd`,
 `complicationWatchfaceType`); the editor picks a slot out by highlighting
 it on the face (`getComplicationDrawable`, research 08 §3).
 
-**A `choices:` list item** is either a bare `complication.<name>` reference
-(today's only form) or a mapping naming the same reference plus a per-choice
-icon override (plan 03 §6.1/§6.2): `{ type: complication.<name>, icon:
-<catalogue name> }`, `{ type: complication.<name>, icon: none }` (explicitly
-draw no icon for this one choice, even though the catalogue maps it), or
-`{ type: complication.<name>, glyph: "U+XXXX" }` (any codepoint the vendored
-font has, for a glyph the catalogue does not name). `icon:`/`glyph:` are
-mutually exclusive and validated exactly like a plain `icon` element's own
-`icon:`/`glyph:` -- an unknown catalogue name is an error with suggestions, a
-glyph outside the font's character map is an error, and a glyph that
-duplicates a catalogue entry gets the same "say `icon: <name>` instead" note.
-A choice with neither key keeps the catalogue default
+**A `choices:` list item** is either a bare complication type (`steps`) or
+a mapping naming the same type plus a per-choice icon override: `{ type:
+<name>, icon: <catalogue name> }`, `{ type: <name>, icon: none }`
+(explicitly draw no icon for this one choice, even though the catalogue maps
+it), or `{ type: <name>, icon: "U+XXXX" }` (any codepoint the vendored font
+has, for a glyph the catalogue does not name). `icon:` is validated exactly
+like a plain `icon` element's own `icon:` -- an unknown catalogue name is an
+error with suggestions, a codepoint outside the font's character map is an
+error, and a codepoint that duplicates a catalogue entry gets the same "say
+`icon: <name>` instead" note. A choice with no `icon:` keeps the catalogue default
 (`wfb.icons.COMPLICATION_ICON`), same as the bare form. **A type listed more
 than once across the whole `choices:` list -- in either shape -- is an IR
 error**: the schema's own `uniqueItems` only catches two identical bare
 entries, not a bare reference and a mapping-form entry naming the same type.
 
-`type: complication_slot` draws one slot, naming it as `slot:
-config.data.<name>`. Unlike every other element, **which complication is
-showing is not known at build time** -- the wearer picks it on-device, and
-`Complications.Id.getType()` only resolves at runtime -- so this element binds
-no ordinary `value:` expression at all. Instead:
+`type: data` draws one slot, naming it as `slot: <name>`. Unlike every
+other element, **which complication is showing is not known at build time**
+-- the wearer picks it on-device, and `Complications.Id.getType()` only
+resolves at runtime -- so this element has no `text:` template at all.
+Instead:
 
 * **`color:`** is an ordinary colour expression, but it must not be nullable
-  -- there is no `when_absent:` for the element's own appearance, only for the
-  reading (see below).
-* **No `format:`.** `Complications.Complication.value` is a `String or Number
+  -- `absent:` covers only the reading, not the element's own appearance
+  (see below).
+* **No format spec.** `Complications.Complication.value` is a `String or Number
   or Float or Long or Double` union whose concrete type genuinely varies by
-  which choice the wearer makes -- a format string written for one choice
+  which choice the wearer makes -- a spec written for one choice
   would be silently wrong for another. `format:` is a schema error naming
   this reason. Instead **every complication type has its own rule**
   (`wfb.complications.READING`), which the generated `source/SlotText.mc`
@@ -337,29 +337,29 @@ no ordinary `value:` expression at all. Instead:
   (`doc/Toybox/Weather.html`), in English whatever the watch's language.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the reading, when the device supplies one.
-* **`when_absent:`** is `hide` (default) or `placeholder` (needs
-  `placeholder:`) -- and unlike every other element, `hide` blanks only the
+* **`absent:`** is `hide` (default) or a string drawn instead (`"--"`) --
+  and unlike every other element, `hide` blanks only the
   *reading*, leaving the icon drawn: the icon says which metric the slot is
   pointed at, which stays true even on a frame the reading itself could not be
   pulled.
-* **`icon_size:`** (omit to draw no icon) chooses the icon **on-device**, from
+* **`icon: {size:}`** (omit `icon:` to draw no icon) chooses the icon **on-device**, from
   the wearer's picked *type* -- `Complications.Id.getType()`, `switch`ed
   against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`, or a
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
-  `glyph:` override's canonical `U+XXXX` spelling) into a character, exactly
+  `U+XXXX` override's canonical spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
   **A weather type's icon follows the pulled condition** (`WfbWeather.
-  chooseIcon`, the same mapping as `icon_for: weather.condition`), and falls
+  chooseIcon`, the same mapping as `icon: {for: weather.condition}`), and falls
   back to the type's own `weather` icon on a frame with no reading; the
   slot's icon font then carries every condition glyph. A weather choice
-  with an authored `icon:`/`glyph:` keeps it.
+  with an authored `icon:` keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
   `wfb.complications.TYPES` entirely) simply draws no icon, since this
   compiler cannot know what it is. Run `wfb complications` for the current
   mapping (it lists each type's catalogue icon alongside its Monkey C
   constant).
-  **`choices: any` + `icon_size:` is accepted**: `any` resolves against the
+  **`choices: any` with an `icon:` is accepted**: `any` resolves against the
   whole of `wfb.icons.COMPLICATION_ICON`. It builds warning-free on all three targets. A Connect IQ-app
   complication picked in such a slot draws its reading with no icon.
   (monkeyc 9.2.0 crashes when two different string literals share a Java
@@ -367,23 +367,20 @@ no ordinary `value:` expression at all. Instead:
   `temperature`. The compiler handles that for slot and weather icons
   itself; see `docs/lore/toolchain.md`. The one case it cannot fix is
   reported as a `string-label` build error, listed below.)
-* **`icon_position:`** (`left` default, `right`, `top`, `bottom`) places the
-  icon relative to the reading; **`icon_gap:`** (px or `%r`, non-negative;
-  default 4px, today's fixed gap) sets the space between them. Both need
-  `icon_size:` -- an error naming why, without it, since neither means
-  anything with no icon to place or space. `top`/`bottom` stack the pair
+* **`icon: {position:}`** (`left` default, `right`, `top`, `bottom`) places the
+  icon relative to the reading; **`icon: {gap:}`** (px or `%r`, non-negative;
+  default 4px) sets the space between them. `icon:` itself requires `size:`,
+  since neither means anything with no icon to place or space. `top`/`bottom` stack the pair
   vertically and centre both horizontally, using `Dc.getFontHeight` for each
   piece's height -- the gap is measured between the two font *line boxes*,
   not the ink, so a system font's internal leading adds to it (not
   corrected). When the wearer's current pick has no icon (an explicit
   `icon: none`, or the whole slot mapped nothing), the gap drops too and the
   reading centres alone, in every position.
-* **`icon_color:`** the icon's own colour, distinct from `color:` (the
+* **`icon: {color:}`** the icon's own colour, distinct from `color:` (the
   reading's). Must not be nullable, for the same reason `color:` must not be.
-  Needs `icon_size:` -- an error naming why, without it. Defaults to
-  `color:` when omitted -- one shared colour for icon and reading alike,
-  today's only behaviour, and what an unauthored design keeps generating
-  byte-for-byte.
+  Defaults to `color:` when omitted -- one shared colour for icon and
+  reading alike.
 * The icon and the reading are centred together, as one pair, on this
   element's own anchor -- at **runtime**, via `Dc.getTextWidthInPixels`/
   `Dc.getFontHeight`, because the actual text is not known until the value
@@ -391,16 +388,16 @@ no ordinary `value:` expression at all. Instead:
   not fully resolved at build time (ADR 0004's one deliberate exception, and
   for exactly that reason); the geometry lints below size its box from the
   value alone (see "What this compiler cannot tell you"). The pair's
-  geometry -- for every `icon_position:` -- is computed by one pure function,
+  geometry -- for every icon `position:` -- is computed by one pure function,
   `wfb.layout.complication_slot_pair_geometry`, shared by the layout
   resolver (the estimated box) and `wfb preview`, and mirrored (not called
   -- the real text is not known at build time) by the generated Monkey C.
-  **`align`/`vertical_align`** follow the one placement rule every accepting
+  **`align:`** follows the one placement rule every accepting
   kind shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) --
   but because the pair is measured on the device, its alignment arithmetic
-  runs there too, for every `icon_position:`, rather than moving a
+  runs there too, for every icon `position:`, rather than moving a
   build-time box (the same runtime exception as the centring above).
-* A `complication_slot` **cannot be static** (its reading changes every frame,
+* A `data` element **cannot be static** (its reading changes every frame,
   and the wearer can repoint it at any time) -- an error, naming why.
 * **`on_hold:`** accepts exactly one value here: **`auto`**. Touch and hold
   opens whichever glance the wearer's *current* pick belongs to
@@ -417,8 +414,8 @@ no ordinary `value:` expression at all. Instead:
 
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice
-could render (there is no per-choice `format:` to size against), and the icon
-font -- when `icon_size:` is set -- carries every mapped choice's glyph,
+could render (there is no per-choice format spec to size against), and the icon
+font -- when `icon:` is set -- carries every mapped choice's glyph,
 normalised to the *default* choice's own ink height (the same one-reference-
 glyph trade-off `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set: no
 single nominal size fits every icon set's glyphs equally, so the other
@@ -432,10 +429,10 @@ device with the native editor** -- checked with `Device.has_symbol`, never an
 API-level compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own
 documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
 and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
-`minApiLevel` bump on any device, `data:` included: `manifest.xml`'s
+`minApiLevel` bump on any device, `slots:` included: `manifest.xml`'s
 `minApiLevel` is one number shared by every target device in the build, so it
 stays at the generator's own base floor (`3.1.0`) regardless of what a design
-uses (`wfb/emit/manifest.py::BASE_API_LEVEL`). A `data:` slot needs
+uses (`wfb/emit/manifest.py::BASE_API_LEVEL`). A slot needs
 `Toybox.Complications` (`Complications.Id`, `COMPLICATION_TYPE_*`) the same as
 any other complication use, but a target device that lacks the module gets a
 runtime `Toybox has :Complications` guard in the generated code instead of a
@@ -473,7 +470,7 @@ option applies it at once.
 |---|---|
 | `style:` | every entry, by its label (else its scheme's label, else its name) |
 | `accent_color:`/`data_color:` | the `choices:` list, by palette label or hex; for `choices: any`, every `palette:` entry, plus the default first if it is not one of them |
-| a `data:` slot | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
+| a `slots:` entry | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
 
 Which editor runs is decided on the watch, with the same `Application has
 :WatchFaceConfig` check the view already makes, so one build serves a fēnix 8
@@ -495,18 +492,18 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
 
 * An unknown key under `config:` -- schema error, naming what is accepted.
 * `default:`/`choices:` naming an undeclared (or declared-and-rejected)
-  `palette.<name>` -- error, naming the declared palette entries.
+  swatch, or a role -- error, naming the declared palette entries.
 * `default:` not among an explicit `choices:` list -- error. For `style`,
   this compares **entry names**, not scheme names or colour values -- two
   entries may legitimately reference the same scheme (see `duplicate-style`
   below).
-* A `style` entry with no `colors:` (today, every entry needs one), or some
-  entries with `colors:` and others without -- one error, at the first entry
-  that lacks it.
-* A `style` entry's `colors:` naming an undeclared (or declared-and-rejected)
-  `color_scheme:` entry -- error, naming the declared schemes.
+* A `style` entry with neither `scheme:` nor `layout:`, or some
+  entries with `scheme:` and others without -- one error, at the first entry
+  that breaks the rule.
+* A `style` entry's `scheme:` naming an undeclared (or declared-and-rejected)
+  scheme -- error, naming the declared schemes.
 * `duplicate-style` (suppressible) -- two `style` entries resolve to the same
-  `colors:` -- warning, once per design, at the second entry of the pair;
+  `scheme:` and `layout:` -- warning, once per design, at the second entry of the pair;
   suppress on that entry's own `lint:`.
 * Every declared colour goes through the same palette-legality check a
   `palette:` entry gets (`palette-dither` on a 64-colour panel, `palette-mono`
@@ -516,22 +513,22 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
   and, for `style`, every role of every scheme some entry actually
   references (a scheme no entry references is unreachable on any device, so
   it is not checked). Reported as `palette-dither` against whichever
-  element draws exactly `config.<name>`/`config.colors.<role>` -- as its
-  `color:`/`track_color:`/`icon_color:`, a text's `outline: {color: ...}`,
-  or an `aod:` override's colour (a plain `palette.<name>` reference is
+  element draws exactly that `color.<role>` -- as its
+  `color:`/`track_color:`/`icon: {color:}`, a text's `outline: {color: ...}`,
+  or an `aod:` override's colour (a plain `color.<swatch>` is
   checked the same way, against the same fields).
 * `config-unsupported` (suppressible) -- at least one target has neither the
   native editor nor the settings menu (`fenix5`/`fenix5x`), so the declared
   defaults are all that device ever shows (including every slot's default);
   when `style` has more than one entry, the message also names the
   non-default entries as unreachable on that device.
-* `data:`'s `default:`/`choices:` naming an unknown `complication.<name>` --
+* A slot's `default:`/`choices:` naming an unknown complication type --
   error, with a near-miss suggestion, the same as an `on_hold:` typo.
-* `data:`'s `default:` not among an explicit `choices:` list -- error, the
+* A slot's `default:` not among an explicit `choices:` list -- error, the
   same shape as the colour axes'.
-* A `complication_slot`'s `slot:` naming an undeclared (or declared-and-
-  rejected) `config.data.<name>` -- error, naming the declared slots.
-* `format:` on a `complication_slot` -- error, naming why (see "The Data
+* A `data` element's `slot:` naming an undeclared (or declared-and-
+  rejected) slot -- error, naming the declared slots.
+* `format:` on a `data` element -- error, naming why (see "The Data
   axis").
 * `string-label` -- two different string literals in the generated program
   share a Java hash code, which monkeyc 9.2.0 crashes on (see "The Data
@@ -539,19 +536,18 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
   glyph is fixed automatically, so this error only reaches you for a
   collision the compiler cannot rewrite, such as two static `icon` elements
   showing `distance` and `temperature`. It names both strings; change one.
-* `icon_position:`/`icon_gap:`/`icon_color:` without `icon_size:` -- error,
-  naming why (none of the three means anything with no icon to place, space
-  or colour).
-* `icon_gap:` in a unit other than px/`%r`, or negative -- error, the same
-  restriction `icon_size:` has.
-* A per-choice `icon:`/`glyph:` naming an unknown catalogue entry, an
-  out-of-font codepoint, or both keys at once -- error, the same messages a
-  plain `icon` element's own `icon:`/`glyph:` get.
-* A `complication.<name>` type listed more than once in one slot's
+* `icon:` without `size:` -- error, naming why (none of the others means
+  anything with no icon to place, space or colour).
+* An icon `gap:` in a unit other than px/`%r`, or negative -- error, the same
+  restriction `size:` has.
+* A per-choice `icon:` naming an unknown catalogue entry or an
+  out-of-font codepoint -- error, the same messages a
+  plain `icon` element's own `icon:` gets.
+* A complication type listed more than once in one slot's
   `choices:`, in either shape -- error, naming where it was already listed.
-* `static:` on a `complication_slot` -- a permanent error: the whole point of
+* A `data` element in a `static:` block -- a permanent error: the whole point of
   a slot is that its content changes, and static content is painted once.
-* `on_hold:` on a `complication_slot` naming anything other than `auto` --
+* `on_hold:` on a `data` element naming anything other than `auto` --
   error, naming why (see "The Data axis" above) and pointing at the
   alternative (a plain element bound to the matching `complication.<name>`).
 * `api-gated` (suppressible) -- *any* catalogue binding a target device
@@ -559,7 +555,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
   `api.debug.xml` rather than an API level (`wfb/availability.py`; CLAUDE.md
   constraint 6/6e). Five shapes, all WARNING, all reading as absent rather
   than failing the build:
-  - a `value:`/`color:`/etc. source path whose reader needs a `Toybox`
+  - a `text:`/`value:`/`color:`/etc. source path whose reader needs a `Toybox`
     module (`Complications`, `Weather`) or a field the device's own symbol
     table lacks -- covers every `complication.*` and `weather.*` read this
     way, for free, via its reader's module gate (`fenix5`/`fenix5x` lack
@@ -578,7 +574,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
     compiles in but does nothing there, unless `hold-unsupported` already
     covers that same element (the device also lacks `onPress`) -- "it never
     fires" stays true either way, so this one really is the same fact twice;
-  - a `complication_slot`'s slot on a device with no `Toybox.Complications`
+  - a `data` element's slot on a device with no `Toybox.Complications`
     -- it shows its absent state forever, **never** its declared `default:`
     (the default is itself read through `Toybox.Complications`, so a device
     missing the module cannot resolve it either). This does **not** dedupe
@@ -611,7 +607,7 @@ since-removed `settings:` block, whose choices cycled rather than opening a
 list): the Watch Face menu entry appears and a change applies at once. The
 `config:` menu, and its lists of options, have not been seen on a watch yet.
 
-**A `complication_slot`'s geometry is sized from its readings alone.** The
+**A `data` element's geometry is sized from its readings alone.** The
 estimate is the widest reading any of its choices can draw under its
 `unit:`/`short:` (`wfb.complications.widest_reading`): a clock is `88:88`,
 a race prediction `8:88:88`, a weather condition its longest name -- so
@@ -648,7 +644,7 @@ the drawable brought the card back but made it pulse with the slot, so it
 was withdrawn. `examples/probes/slot-editor/` is the test face for finding
 a fix.
 
-**`on_hold: auto` on a `complication_slot` is a third shape of `auto`,
+**`on_hold: auto` on a `data` element is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`
 resolves once, at build time, to a fixed `wfb.complications.TYPES` name
 (`Source.launch_complication`); a slot's resolves on-device, every hold,
@@ -657,11 +653,11 @@ Both compile to `Complications.exitTo`, but a slot's is never a build-time
 constant -- there is nothing for `wfb complications`/`wfb validate` to name
 as "the" target of a slot's hold, because there isn't one.
 
-### `complication_slot`
+### `data`
 
 Draws the native **Data axis**'s current pick — a slot the wearer re-points
 at a different Garmin metric, on the watch. Documented in full under
-[Configuration → The Data axis](#the-data-axis), alongside `config: data:`,
+[Configuration → The Data axis](#the-data-axis), alongside `config: slots:`,
 the block that declares a slot's own `default:`/`choices:` — the two cannot
 be understood apart from each other, since the element only ever draws a
 declared slot.
@@ -669,6 +665,6 @@ declared slot.
 ## See also
 
 - [`examples/features/config/face.yaml`](../../examples/features/config/face.yaml) — accent/data colour axes and a `style:` entry over a static colour role.
-- [`examples/features/slots/face.yaml`](../../examples/features/slots/face.yaml) — two `config: data:` slots, icon overrides.
+- [`examples/features/slots/face.yaml`](../../examples/features/slots/face.yaml) — two `config: slots:`, icon overrides.
 - [Styles and layouts](styles-and-layouts.md) — `layout:` on a `style:` entry, and the `layouts:` bodies it points at.
-- [Data](data.md) — the `complication.*` source namespace and the `complication_slot` element.
+- [Data](data.md) — the `complication.*` source namespace.

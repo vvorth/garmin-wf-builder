@@ -5,8 +5,8 @@
 # centimetres, weather.temperature in °C, weather.wind_speed in m/s,
 # ambient.altitude in metres -- whatever the watch's settings say.
 # `units: auto` converts it at runtime to the wearer's own distance,
-# temperature and elevation setting (System.DeviceSettings), and `format:`'s
-# `{unit}` field prints the matching label. What this design exercises:
+# temperature and elevation setting (System.DeviceSettings), and `{unit}`
+# in the `text:` template prints the matching label. What this design exercises:
 #
 # * **Distance** (`distance`): centimetres to km or mi, one decimal.
 # * **Temperature** (`temperature`): °C or °F, whole degrees.
@@ -17,83 +17,74 @@
 #   read at all.
 #
 # The preview's sample data has no weather or altitude readings, so those
-# three rows draw their `--` placeholder; `wfb preview --units statute`
+# three rows draw their `--` (`absent:`); `wfb preview --units statute`
 # switches the distance row to miles.
 #
 # Build it with:     ./wfb.py build examples/features/units/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/units/face.yaml --units statute
 #
-# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 face:
   id: 39dada62-2ed9-43ae-aa29-4fb21510daef
   name: Feature units
   version: 1.0.0
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#AAAAAA"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
 
 static:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: FONT_NUMBER_MILD
     at: { anchor: center, dy: -45%r }
-    color: palette.fg
+    color: color.fg
 
-  - id: distance
+  distance:
     type: text
-    value: activity.distance
+    text: "{activity.distance:.1f} {unit}"
     units: auto
-    format: "{:.1f} {unit}"
     font: FONT_SMALL
     at: { anchor: center, dy: -12%r }
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 
-  - id: temperature
+  temperature:
     type: text
-    value: weather.temperature
+    text: "{weather.temperature:d}{unit}"
     units: auto
-    format: "{:d}{unit}"
     font: FONT_SMALL
     at: { anchor: center, dy: 12%r }
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 
-  - id: wind
+  wind:
     type: text
-    value: weather.wind_speed
+    text: "{weather.wind_speed:d} {unit}"
     units: auto
-    format: "{:d} {unit}"
     font: FONT_SMALL
     at: { anchor: center, dy: 36%r }
-    color: palette.dim
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.dim
+    absent: "--"
 
-  - id: altitude
+  altitude:
     type: text
-    value: ambient.altitude
+    text: "{ambient.altitude:d} {unit}"
     units: statute
-    format: "{:d} {unit}"
     font: FONT_XTINY
     at: { anchor: center, dy: 60%r }
-    color: palette.dim
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.dim
+    absent: "--"

@@ -24,56 +24,62 @@ from wfb.emit.resources import bake_fonts
 ROOT = Path(__file__).resolve().parent.parent
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix847mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: A mixed AMOLED + MIP build -- `fenix847mm` is where `_aod` (and so the
 #: mask call) can ever be true; `fenix8solar47mm` is the MIP witness that the
 #: shared-view byte-identity guarantee (constraint 5) still holds.
 MIXED_BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm, fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix847mm, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 MIP_BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 _ONE_SHOWN_CLOCK = """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
 
 _ONE_HIDDEN_CLOCK = """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -129,7 +135,13 @@ def test_mask_true_and_mask_absent_are_byte_identical(write_design, bag, db):
     D2 of plan 16 -- so their generated sources must match exactly."""
     bag_a, bag_b = Bag(), Bag()
     text_absent = BASE + _ONE_SHOWN_CLOCK
-    text_true = BASE.replace("palette:\n", "aod:\n  mask: true\npalette:\n") + _ONE_SHOWN_CLOCK
+    text_true = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: true
+resources:
+  palette:
+""") + _ONE_SHOWN_CLOCK
     view_absent = _view_text(text_absent, write_design, bag_a, db)
     view_true = _view_text(text_true, write_design, bag_b, db)
     assert view_absent == view_true
@@ -141,7 +153,13 @@ def test_mask_true_and_mask_absent_are_byte_identical(write_design, bag, db):
 
 
 def test_mask_false_emits_no_call_and_no_barrel_file(write_design, bag, db):
-    text = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + _ONE_SHOWN_CLOCK
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+""") + _ONE_SHOWN_CLOCK
     project = _project(text, write_design, bag, db, ["fenix847mm"])
     view = _view_text_from(project)
     assert "WfbAodMask" not in view
@@ -153,7 +171,13 @@ def test_mask_false_differs_from_mask_on_by_exactly_the_added_lines(write_design
     must be the comment + call this slice adds -- nothing about the rest of
     the element's own draw sequence may move or change."""
     bag_a, bag_b = Bag(), Bag()
-    text_off = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + _ONE_SHOWN_CLOCK
+    text_off = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+""") + _ONE_SHOWN_CLOCK
     text_on = BASE + _ONE_SHOWN_CLOCK
     view_off = _view_text(text_off, write_design, bag_a, db)
     view_on = _view_text(text_on, write_design, bag_b, db)
@@ -183,7 +207,13 @@ def test_mask_false_matches_the_ir_field_forced_off_directly(write_design, bag, 
     would then fail to suppress the call, and this would catch it."""
     bag_a, bag_b = Bag(), Bag()
     text_explicit_off = BASE.replace(
-        "palette:\n", "aod:\n  mask: false\npalette:\n"
+        """resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+"""
     ) + _ONE_SHOWN_CLOCK
     project_explicit = _project(
         text_explicit_off, write_design, bag_a, db, ["fenix847mm"]
@@ -218,7 +248,11 @@ def test_an_all_mip_build_is_byte_identical_whatever_mask_says(
         device_ids=["fenix8solar47mm"],
     )
     bag = Bag()
-    text = MIP_BASE.replace("palette:\n", aod_block + "palette:\n") + _ONE_HIDDEN_CLOCK
+    text = MIP_BASE.replace("""resources:
+  palette:
+""", aod_block + """resources:
+  palette:
+""") + _ONE_HIDDEN_CLOCK
     view = _view_text(text, write_design, bag, db, device_ids=["fenix8solar47mm"])
     assert view == baseline
     assert "_aod" not in view
@@ -246,7 +280,13 @@ def test_empty_aod_set_emits_no_mask_call(write_design, bag, db):
 
 def test_mask_non_boolean_is_a_schema_error(write_design, bag):
     text = BASE.replace(
-        "palette:\n", 'aod:\n  mask: "yes"\npalette:\n'
+        """resources:
+  palette:
+""", '''aod:
+  mask: "yes"
+resources:
+  palette:
+'''
     ) + _ONE_SHOWN_CLOCK
     face = load(write_design(text), bag)
     assert face is None

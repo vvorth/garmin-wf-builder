@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 
-from tests.helpers import errors, find
+from tests.helpers import with_resources, errors, find
 from wfb.build import load
 from wfb import lint
 from wfb.emit.resources import bake_fonts, glyph_set
@@ -22,14 +22,16 @@ from wfb.kinds.pattern import pattern_text_anchor
 from wfb.layout import ResolvedTextPart, resolve
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
@@ -43,12 +45,12 @@ def ring(part_yaml: str, count: int = 4, extra: str = "") -> str:
     `tests/test_patterns.py` uses, parameterised over the part so every
     diagnostic test below only has to write the one line that differs.
     """
-    return f"""  - id: ring
+    return f"""  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: {count}
-    color: palette.fg
+    color: color.fg
 {extra}    parts:
 {part_yaml}
 """
@@ -58,15 +60,15 @@ def ring(part_yaml: str, count: int = 4, extra: str = "") -> str:
 #: draws "12", copy 1 draws "1", ... copy 11 draws "11" -- the exact example
 #: `docs/plans/06-pattern-text-and-group-align.md` §3.1 gives for a clock
 #: face's hour numerals.
-HOURS = """  - id: hours
+HOURS = """  hours:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         at: {dy: -80%r}
 """
 
@@ -84,10 +86,10 @@ def test_value_expression_renders_every_copy(write_design, bag):
 
 
 def test_format_spec_applies_per_copy(write_design, bag):
-    part_yaml = ("      - shape: text\n"
-                 "        value: copy\n"
-                 '        format: "{:02d}"\n'
-                 "        at: {dy: -50px}\n")
+    part_yaml = ("""      - type: text
+        text: "{copy:02d}"
+        at: {dy: -50px}
+""")
     face = load(write_design(design(ring(part_yaml))), bag)
     assert face is not None, bag.render()
     part = face.elements[0].parts[0]
@@ -95,7 +97,10 @@ def test_format_spec_applies_per_copy(write_design, bag):
 
 
 def test_fixed_text_repeats_for_every_copy(write_design, bag):
-    part_yaml = '      - shape: text\n        text: "x"\n        at: {dy: -50px}\n'
+    part_yaml = '''      - type: text
+        text: "x"
+        at: {dy: -50px}
+'''
     face = load(write_design(design(ring(part_yaml, count=3))), bag)
     assert face is not None, bag.render()
     part = face.elements[0].parts[0]
@@ -105,19 +110,10 @@ def test_fixed_text_repeats_for_every_copy(write_design, bag):
 # -- IR: §3.3 build-time checks, each driven red -----------------------------
 
 
-def test_both_value_and_text_is_one_error(write_design, bag):
-    part_yaml = ('      - shape: text\n'
-                 '        value: copy\n'
-                 '        text: "x"\n'
-                 '        at: {dy: -50px}\n')
-    bad = errors(design(ring(part_yaml)), bag, write_design)
-    assert len(bad) == 1
-    assert bad[0].code == "pattern"
-    assert "a text part needs a 'text:'" in bad[0].message
-
-
 def test_neither_value_nor_text_is_one_error(write_design, bag):
-    part_yaml = "      - shape: text\n        at: {dy: -50px}\n"
+    part_yaml = """      - type: text
+        at: {dy: -50px}
+"""
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert bad[0].code == "pattern"
@@ -125,7 +121,10 @@ def test_neither_value_nor_text_is_one_error(write_design, bag):
 
 
 def test_value_reading_a_palette_reference_is_one_error(write_design, bag):
-    part_yaml = "      - shape: text\n        value: palette.fg\n        at: {dy: -50px}\n"
+    part_yaml = """      - type: text
+        text: "{color.fg}"
+        at: {dy: -50px}
+"""
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "may read only 'copy'" in bad[0].message
@@ -135,7 +134,10 @@ def test_value_reading_a_palette_reference_is_one_error(write_design, bag):
 def test_value_reading_a_data_source_is_one_error(write_design, bag):
     """A data source, not just palette: the same rule, a different kind of
     non-`copy` reference (§3.3 check 2)."""
-    part_yaml = "      - shape: text\n        value: activity.steps\n        at: {dy: -50px}\n"
+    part_yaml = """      - type: text
+        text: "{activity.steps}"
+        at: {dy: -50px}
+"""
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "may read only 'copy'" in bad[0].message
@@ -143,27 +145,21 @@ def test_value_reading_a_data_source_is_one_error(write_design, bag):
 
 
 def test_a_boolean_value_is_one_error(write_design, bag):
-    part_yaml = '      - shape: text\n        value: "copy > 3"\n        at: {dy: -50px}\n'
+    part_yaml = '''      - type: text
+        text: "{copy > 3}"
+        at: {dy: -50px}
+'''
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "must be a number or a string" in bad[0].message
 
 
-def test_format_with_a_fixed_text_is_one_error(write_design, bag):
-    part_yaml = ('      - shape: text\n'
-                 '        text: "x"\n'
-                 '        format: "{:02d}"\n'
-                 '        at: {dy: -50px}\n')
-    bad = errors(design(ring(part_yaml)), bag, write_design)
-    assert len(bad) == 1
-    assert "a format spec needs a placeholder" in bad[0].message
-
-
 def test_radius_on_a_text_part_is_one_error(write_design, bag):
-    part_yaml = ('      - shape: text\n'
-                 '        value: copy\n'
-                 '        radius: 5px\n'
-                 '        at: {dy: -50px}\n')
+    part_yaml = ('''      - type: text
+        text: "{copy}"
+        radius: 5px
+        at: {dy: -50px}
+''')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "'radius' is not used by a pattern 'type: text' part" in bad[0].message
@@ -173,20 +169,22 @@ def test_font_on_a_line_part_is_one_error(write_design, bag):
     """The reverse direction: a text-only key on a different shape is caught
     by the same "key not used by this shape" sweep (`_check_hand_part_keys`),
     with no special-casing for `font:` needed."""
-    part_yaml = ('      - shape: line\n'
-                 '        at: {dy: -40px}\n'
-                 '        to: {dy: -50px}\n'
-                 '        font: FONT_MEDIUM\n')
+    part_yaml = ('''      - type: line
+        at: {dy: -40px}
+        to: {dy: -50px}
+        font: FONT_MEDIUM
+''')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "'font' is not used by a pattern 'type: line' part" in bad[0].message
 
 
 def test_undeclared_font_is_one_error(write_design, bag):
-    part_yaml = ('      - shape: text\n'
-                 '        value: copy\n'
-                 '        font: font.nope\n'
-                 '        at: {dy: -50px}\n')
+    part_yaml = ('''      - type: text
+        text: "{copy}"
+        font: font.nope
+        at: {dy: -50px}
+''')
     bad = errors(design(ring(part_yaml)), bag, write_design)
     assert len(bad) == 1
     assert "unknown font 'font.nope'" in bad[0].message
@@ -197,19 +195,20 @@ def test_a_hand_still_rejects_shape_text(write_design, bag):
     only `PATTERN_PART_REJECTED_SHAPES` lost it. Same wording as before plan
     06 (`tests/test_patterns.py`'s own hand-vs-pattern regression test)."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: text, at: {dy: -30%r}}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: text, at: {dy: -30%r}}
 """
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
 """
-    bad = errors(BASE + hands + "\nelements:\n" + elements, bag, write_design)
+    bad = errors(with_resources(BASE, hands) + "\nelements:\n" + elements, bag, write_design)
     assert len(bad) == 1
     assert "'type: text' is not accepted on a hand part" in bad[0].message
     assert "a bitmap font cannot rotate" in bad[0].message
@@ -221,15 +220,15 @@ hands:
 #: Four copies, 90deg apart (the default step), one text part 50px above the
 #: pattern's own centre, system font (`FONT_MEDIUM`, the default) -- no
 #: `fonts:` block needed.
-LAYOUT_RING = """  - id: ring
+LAYOUT_RING = """  ring:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: copy
+      - type: text
+        text: "{copy}"
         at: {dy: -50px}
 """
 
@@ -291,16 +290,16 @@ def test_radial_reach_accounts_for_the_upright_text_box(resolved_for):
 # -- layout: linear -------------------------------------------------------
 
 
-LAYOUT_ROW = """  - id: row
+LAYOUT_ROW = """  row:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 3
     step: {dx: 30px}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: copy
+      - type: text
+        text: "{copy}"
 """
 
 
@@ -379,24 +378,27 @@ def test_wfb_geom_rotated_helpers_round_with_math_floor():
 
 def _custom_font_design(part_yaml: str, count: int, ttf, extra: str = "") -> str:
     return f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  small:
-    source: {ttf}
-    size: 20px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    small:
+      source: {ttf}
+      size: 20px
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
 {ring(part_yaml, count=count, extra=extra)}"""
 
 
 def test_glyph_set_is_exactly_the_drawn_copies_characters(write_design, bag, repo_root):
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
-    part_yaml = ("      - shape: text\n"
-                 "        value: copy + 1\n"
-                 "        font: font.small\n"
-                 "        at: {dy: -50px}\n")
+    part_yaml = ("""      - type: text
+        text: "{copy + 1}"
+        font: font.small
+        at: {dy: -50px}
+""")
     text = _custom_font_design(part_yaml, count=3, ttf=ttf)
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -406,10 +408,11 @@ def test_glyph_set_is_exactly_the_drawn_copies_characters(write_design, bag, rep
 
 def test_glyph_set_respects_skip(write_design, bag, repo_root):
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
-    part_yaml = ("      - shape: text\n"
-                 "        value: copy + 1\n"
-                 "        font: font.small\n"
-                 "        at: {dy: -50px}\n")
+    part_yaml = ("""      - type: text
+        text: "{copy + 1}"
+        font: font.small
+        at: {dy: -50px}
+""")
     text = _custom_font_design(part_yaml, count=3, ttf=ttf, extra="    skip: [1]\n")
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -423,25 +426,27 @@ def test_glyph_set_respects_skip(write_design, bag, repo_root):
 def test_check_glyphs_flags_a_pattern_text_part(write_design, bag, db, repo_root):
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     text = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  small:
-    source: {ttf}
-    size: 20px
-    glyphs: "12"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    small:
+      source: {ttf}
+      size: 20px
+      glyphs: "12"
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: ring
+  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "3"
+      - type: text
+        text: "{{3}}"
         font: font.small
         at: {{dy: -50px}}
 """

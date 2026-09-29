@@ -32,25 +32,29 @@ from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 AOD_BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix847mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
@@ -70,12 +74,11 @@ def _view_text(text, write_design, bag, db, device_id="fenix8solar47mm"):
 def test_numeric_month_reads_the_short_reader(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{:%Y-%m-%d}"
+    text: "{date.today:%Y-%m-%d}"
     font: FONT_TINY
-    color: palette.fg
+    color: color.fg
 """
     view = _view_text(text, write_design, bag, db)
     # the fix: %m reads off dateShort, cast as Number
@@ -96,12 +99,11 @@ def test_a_spec_without_percent_m_never_declares_the_short_reader(write_design, 
     grow a `dateShort`/FORMAT_SHORT reader it does not need."""
     text = BASE + """
 elements:
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{:%a %e %b}"
+    text: "{date.today:%a %e %b}"
     font: FONT_TINY
-    color: palette.fg
+    color: color.fg
 """
     view = _view_text(text, write_design, bag, db)
     assert "dateShort" not in view
@@ -115,13 +117,12 @@ def test_aod_format_override_can_need_the_short_reader_on_its_own(write_design, 
     AOD ternary reads an undeclared `dateShort` local."""
     text = AOD_BASE + """
 elements:
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{:%a}"
+    text: "{date.today:%a}"
     font: FONT_TINY
-    color: palette.fg
-    aod: {format: "{:%m}"}
+    color: color.fg
+    aod: {text: "{date.today:%m}"}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     assert "var dateShort = Gregorian.info(Time.now(), Time.FORMAT_SHORT);" in view
@@ -135,42 +136,42 @@ elements:
 # real monkeyc: every DATE_CODES / TIME_CODES entry, once
 
 
-_ALL_DATE_CODES = "{:%a %d %e %b %m %Y %y %%}"
-_ALL_TIME_CODES = "{:%H %I %l %h %M %S %p %%}"
+_ALL_DATE_CODES = "{date.today:%a %d %e %b %m %Y %y %%}"
+_ALL_TIME_CODES = "{time.clock:%H %I %l %h %M %S %p %%}"
 
 _SLOW_FACE = f"""
-format: 1
+format: 2
 face:
   id: db49d4b7-d510-49f2-90ed-8c2421ee4580
   name: AllDateCodes
-targets: [fenix8solar47mm]
+build:
+  targets: [fenix8solar47mm]
 
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
 
-fonts:
-  dial:
-    # device-resident, scalable -- fenix8solar47mm publishes BionicSemiBold
-    # (examples/features/vector-text/face.yaml).
-    face: [BionicSemiBold, RobotoCondensedBold]
-    size: 8%r
+  fonts:
+    dial:
+      # device-resident, scalable -- fenix8solar47mm publishes BionicSemiBold
+      # (examples/features/vector-text/face.yaml).
+      face: [BionicSemiBold, RobotoCondensedBold]
+      size: 8%r
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.black
+    color: color.black
 
   # Plain text, every DATE_CODES entry at once.
-  - id: all_date_codes
+  all_date_codes:
     type: text
-    value: date.today
-    format: "{_ALL_DATE_CODES}"
+    text: "{_ALL_DATE_CODES}"
     font: FONT_TINY
-    color: palette.white
+    color: color.white
     at: {{anchor: center, dy: -30%}}
     lint:
       allow: [text-overflow, off-screen, safe-area]
@@ -182,23 +183,21 @@ elements:
   # -- rotated.py's own formatting.emit call site plus shapes.py's vector
   # draw path, both at once. A curved element skips the text-overflow lint
   # entirely (wfb/lint.py check_text_fit), so no allow needed here.
-  - id: all_date_codes_curved
+  all_date_codes_curved:
     type: text
-    value: date.today
-    format: "{_ALL_DATE_CODES}"
+    text: "{_ALL_DATE_CODES}"
     font: font.dial
-    color: palette.white
+    color: color.white
     at: {{anchor: center}}
     curve: {{style: angled, angle: 0deg}}
 
   # Cheap to add: every TIME_CODES entry too, since nothing else exercises
   # %I/%l/%h/%p/%S all at once either.
-  - id: all_time_codes
+  all_time_codes:
     type: text
-    value: time.clock
-    format: "{_ALL_TIME_CODES}"
+    text: "{_ALL_TIME_CODES}"
     font: FONT_TINY
-    color: palette.white
+    color: color.white
     at: {{anchor: center, dy: 30%}}
     lint:
       allow: [text-overflow, off-screen, safe-area]

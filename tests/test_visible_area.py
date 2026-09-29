@@ -23,40 +23,37 @@ ROUND = "fenix8solar47mm"
 #: centre, (88, 88) the screen's. `under_ring` is well inside the visible
 #: disc on the 260x260 round device, so only the skin can flag it.
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [instinct2, fenix8solar47mm]
-palette:
-  fg: "#FFFFFF"
+build:
+  targets: [instinct2, fenix8solar47mm]
+resources:
+  palette:
+    fg: "#FFFFFF"
 elements:
-  - id: under_ring
-    type: shape
-    shape: circle
+  under_ring:
+    type: circle
     at: {anchor: top_left, dx: 117px, dy: 57px}
     radius: 2px
-    color: palette.fg
-  - id: in_window
-    type: shape
-    shape: circle
+    color: color.fg
+  in_window:
+    type: circle
     at: {anchor: top_left, dx: 144px, dy: 31px}
     radius: 4px
-    color: palette.fg
-  - id: middle
-    type: shape
-    shape: rectangle
+    color: color.fg
+  middle:
+    type: rectangle
     at: {anchor: top_left, dx: 88px, dy: 88px}
     size: {width: 20px, height: 10px}
-    color: palette.fg
-  - id: corner
-    type: shape
-    shape: rectangle
+    color: color.fg
+  corner:
+    type: rectangle
     at: {anchor: top_left}
     size: {width: 8px, height: 8px}
-    align: left
-    vertical_align: top
-    color: palette.fg
+    align: top_left
+    color: color.fg
 """
 
 

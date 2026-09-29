@@ -95,24 +95,31 @@ These cost real time to discover; do not rediscover them.
   schema-valid format 2 document in place into the internal shape the IR
   builder has always read -- `targets:`, `palette.x`, `when_absent:`,
   `type: shape` -- and `wfb.desugar` runs after it as before. The rewritten
-  text is exactly what `wfb migrate` would have read, which is why a format
-  1 face and its migrated twin generate byte-identical projects (the one
+  text is exactly the format 1 document `wfb migrate` started from, which is
+  why a face and its migrated twin generate byte-identical projects (the one
   exception: each generated file's header names the source file and its
-  format) -- the generated code's own comments quote expressions and slot
-  names in the internal spelling. Three things keep diagnostics in the
+  format) -- the generated code's own comments quote expressions, keys and
+  slot names in the internal spelling. Three things keep diagnostics in the
   author's terms: every moved key keeps its source position (`lc`), every
   renamed or rewritten key records a `yamlsrc.Origin` (the author's key,
   text, and an offset map so a caret lands inside a template), and every
   message that names a key, kind or colour goes through `wfb/vocab.py` or
-  quotes `Expression.shown`. `tests/test_format2.py` checks all three over
-  the corpus: the same diagnostics, the same internal document (the
-  round-trip property) and the same output for every twin, plus a message
-  scan with a case per moved key.
+  quotes `Expression.shown`. While both formats compiled (slice 2) the whole
+  corpus was checked twin by twin: the same diagnostics, the same internal
+  document and the same output. With format 1 gone, `tools/snapshot.py
+  compare` against the recorded baseline carries that proof, and
+  `tests/test_format2.py` keeps the message scan, a case per moved key. A
+  lowering pass that rewrites nodes in place must visit each node once: a
+  YAML alias shares one node between two keys, and lowering it twice reads
+  the pass's own output as format 1 (`_Lowering.lowered`).
 - **Rewriting YAML with ruamel and keeping the author's layout** (`wfb
   migrate`, plan 22). What the round-trip loader does *not* keep, and what
   `wfb/migrate.py` does about each, all found on the example corpus:
   a quoted scalar's line breaks (it re-emits a long `reason:` on one line:
-  swapped for a sentinel before dumping and its source text put back);
+  swapped for a sentinel before dumping and its source text put back), and
+  a double-quoted scalar's escapes (`"\uF09B"` comes back as the raw,
+  usually invisible, character: the same sentinel, keeping the author's gap
+  before a trailing comment);
   the spaces inside a flow mapping's braces (`{ a: 1 }`: a small emitter
   subclass, used when the file writes them); a comment's column (ruamel
   keeps its *absolute* column, and the lines of a multi-line comment carry

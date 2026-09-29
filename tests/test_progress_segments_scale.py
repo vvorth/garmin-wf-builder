@@ -24,23 +24,25 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  track: "#555555"
-  ok: "#00AA00"
-  bad: "#FF0000"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    track: "#555555"
+    ok: "#00AA00"
+    bad: "#FF0000"
 elements:
 """
 
 ARC_SEGMENTS = """
-  - id: gauge
-    type: progress
+  gauge:
+    type: gauge
     style: segments
     value: system.battery
     max: 100
@@ -51,13 +53,13 @@ ARC_SEGMENTS = """
     sweep: 360deg
     count: 10
     gap: 4px
-    color: palette.fg
-    track_color: palette.track
+    color: color.fg
+    track_color: color.track
 """
 
 BAR_SEGMENTS = """
-  - id: gauge
-    type: progress
+  gauge:
+    type: gauge
     style: segments
     value: system.battery
     max: 100
@@ -65,12 +67,12 @@ BAR_SEGMENTS = """
     size: {width: 60%, height: 10%}
     count: 5
     gap: 4px
-    color: palette.fg
+    color: color.fg
 """
 
 ARC_SCALE = """
-  - id: gauge
-    type: progress
+  gauge:
+    type: gauge
     style: scale
     value: system.battery
     max: 100
@@ -79,21 +81,21 @@ ARC_SCALE = """
     thickness: 3px
     start_angle: 240deg
     sweep: 240deg
-    color: palette.fg
-    track_color: palette.track
-    bands: [{to: 0.25, color: palette.bad}, {to: 0.5, color: palette.ok}]
+    color: color.fg
+    track_color: color.track
+    bands: [{to: 0.25, color: color.bad}, {to: 0.5, color: color.ok}]
 """
 
 BAR_SCALE = """
-  - id: gauge
-    type: progress
+  gauge:
+    type: gauge
     style: scale
     value: system.battery
     max: 100
     at: {anchor: center}
     size: {width: 60%, height: 4%}
-    color: palette.fg
-    track_color: palette.track
+    color: color.fg
+    track_color: color.track
 """
 
 
@@ -224,14 +226,14 @@ def _errors(text, write_design, bag):
 
 def test_count_on_an_arc_style_is_an_error(write_design, bag):
     text = BASE + ARC_SCALE.replace("style: scale", "style: arc").replace(
-        "    bands: [{to: 0.25, color: palette.bad}, {to: 0.5, color: palette.ok}]\n",
+        "    bands: [{to: 0.25, color: color.bad}, {to: 0.5, color: color.ok}]\n",
         "    count: 5\n")
     [error] = _errors(text, write_design, bag)
     assert "'count:' is read only by 'style: segments'" in error.message
 
 
 def test_bands_must_increase(write_design, bag):
-    text = BASE + ARC_SCALE.replace("{to: 0.5, color: palette.ok}", "{to: 0.2, color: palette.ok}")
+    text = BASE + ARC_SCALE.replace("{to: 0.5, color: color.ok}", "{to: 0.2, color: color.ok}")
     [error] = _errors(text, write_design, bag)
     assert "bands[1]" in error.message and "greater than" in error.message
 
@@ -253,11 +255,14 @@ def test_a_partial_arc_names_the_missing_keys(write_design, bag):
 
 @pytest.mark.slow
 def test_every_style_and_track_compiles_warning_free(write_design, db, tmp_path, toolchain):
-    text = BASE.replace("targets: [fenix8solar47mm]", "targets: [fenix8solar47mm, fr955]")
+    text = BASE.replace("""build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix8solar47mm, fr955]""")
     for index, design in enumerate((ARC_SEGMENTS, BAR_SEGMENTS, ARC_SCALE,
-                                    BAR_SCALE.replace("    track_color: palette.track\n",
-                                                      "    bands: [{to: 0.2, color: palette.bad}]\n"))):
-        text += design.replace("id: gauge", f"id: gauge{index}").replace(
+                                    BAR_SCALE.replace("""    track_color: color.track
+""",
+                                                      "    bands: [{to: 0.2, color: color.bad}]\n"))):
+        text += design.replace("  gauge:\n", f"  gauge{index}:\n", 1).replace(
             "at: {anchor: center}", f"at: {{anchor: center, dy: {index * 10 - 15}%r}}") \
             + "    lint: {allow: [contrast, static-overlap, safe-area, off-screen], reason: \"a test design\"}\n"
     bag = Bag()

@@ -120,23 +120,22 @@ The smallest complete face is a clock. Everything else on this page adds to
 this:
 
 ```yaml
-format: 1
+format: 2
 face: { id: 6f1c2b7e-3d4a-4e5f-9a1b-2c3d4e5f6a7b, name: Minimal Clock, version: 1.0.0 }
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-
-palette:
-  fg: "#FFFFFF"                      # MIP screens: each channel 00, 55, AA or FF
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    fg: "#FFFFFF"                      # MIP screens: each channel 00, 55, AA or FF
 
 elements:
   clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_HOT
     at: { anchor: center }
     align: center
-    vertical_align: center
-    color: palette.fg
+    color: color.fg
 ```
 
 `face.id` identifies the app to the watch: two faces with the same id replace
@@ -197,7 +196,7 @@ platform, not a list of supported devices:
   the simulator draws for each device. That area includes the Instinct's
   subscreen window and a rectangle's rounded corners.
 - **MIP and AMOLED screens both work**, but AMOLED watches can't use
-  `low_power` updates and need an `aod:` sleep frame instead
+  `sleep_update:` and need an `aod:` sleep frame instead
   ([always-on display](always-on-display.md)); the lints say so.
 - **Memory is the watch's own limit**, measured on every build: 128 KB on
   current models, as little as 96 KB on some older ones.
@@ -210,8 +209,8 @@ You need the device definitions for each watch you build for (step 1).
   anything missing.
 - **`Invalid device id specified`** from the compiler means the device
   definitions are missing (step 1).
-- **`unknown data source`** from `wfb validate` means a `value:` or `color:`
-  names something that doesn't exist. The error suggests close matches, and
+- **`unknown data source`** from `wfb validate` means a `text:` placeholder,
+  a `value:` or a `color:` names something that doesn't exist. The error suggests close matches, and
   `wfb sources` lists them all.
 - **Warnings** fail nothing, but each one explains itself and says how sure
   it is. [Lints and suppressions](lints.md) shows how to keep a design that a warning flags on purpose.
@@ -247,7 +246,7 @@ language server will complete keys, document them on hover, and flag mistakes as
 you type. Either add a modeline to the file:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
 ```
 
 …or map it once in your editor. VS Code, with the `redhat.vscode-yaml`
@@ -255,18 +254,15 @@ extension — this repository already ships [`.vscode/settings.json`](../../.vsc
 with it configured:
 
 ```json
-{ "yaml.schemas": { "./schema/wfb-face-1.schema.json": ["*.face.yaml"] } }
+{ "yaml.schemas": { "./schema/wfb-face-2.schema.json": ["*.face.yaml"] } }
 ```
 
 `wfb schema --path` prints the schema's location if you need to point something
 else at it.
 
-One caveat, because it will bite you the first time: the schema describes the
-**list form** of `elements:`. The equally-valid mapping form
-([Elements](elements.md#two-ways-to-write-a-list-of-elements)) is rewritten by the compiler
-before the schema ever sees it, so an editor validating against the schema
-alone will mark a mapping-form file invalid. `wfb validate` is the authority,
-not the editor.
+The editor checks the file against the schema alone; `wfb validate` also
+checks everything the schema cannot (data sources, colours, fonts, the
+device), so it is the authority.
 
 **Keep a preview open while you edit:**
 

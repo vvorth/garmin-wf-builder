@@ -1,16 +1,17 @@
-# Progress bars, arcs and graphs
+# Gauges and graphs
 
-`progress` draws a fill as a bar or an arc — a step ring, a battery level,
-anything bound to a value and a max. `graph` plots a time series as a line, a
+`gauge` draws a value against a max as a bar, an arc, lit segments, a
+pointer on a coloured scale, or a turning needle — a step ring, a battery
+level, anything bound to a value and a max. `graph` plots a time series as a line, a
 filled area or bars. Both take an expression for their data, and both follow
 the same placement rule as every other element with a box.
 
 ![battery arc progress](../screenshots/showcase-status.png)
-*Two `style: arc` progress elements drawing `system.battery`, from `examples/showcase`.*
+*Two `style: arc` gauges drawing `system.battery`, from `examples/showcase`.*
 
 ## At a glance
 
-### `progress`
+### `gauge`
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
@@ -29,9 +30,8 @@ the same placement rule as every other element with a box.
 | `pointer` | length | the track's thickness or height (`scale`) | radius of the dot at the value |
 | `color` | color expression | — | fill colour |
 | `track_color` | color expression | — | the unfilled track |
-| `align` / `vertical_align` | `left`\|`center`\|`right` / `top`\|`center`\|`bottom` | `center` | box edge at `at:`, both styles ([details](placement.md#placement-at-and-align)) |
-| `when_absent` | `hide`\|`fallback` | — | required once `value`/`max` can be absent |
-| `fallback` | expression | — | substitute with `when_absent: fallback` |
+| `align` | one of the nine anchor names, or a compass alias | `center` | box point at `at:`, not on a needle ([details](placement.md#placement-at-and-align)) |
+| `absent` | `hide` \| `{value: <fraction>}` | — | required once `value`/`max` can be absent |
 
 ### `graph`
 
@@ -46,7 +46,7 @@ the same placement rule as every other element with a box.
 | `min` / `max` | `auto`\|number\|expression | `auto` | plotted bounds |
 | `size` | size | required | the graph's own box |
 | `color` | color expression | — | line/area/bar colour |
-| `align` / `vertical_align` | `left`\|`center`\|`right` / `top`\|`center`\|`bottom` | `center` | box edge at `at:` ([details](placement.md#placement-at-and-align)) |
+| `align` | one of the nine anchor names, or a compass alias | `center` | box point at `at:` ([details](placement.md#placement-at-and-align)) |
 
 Run `wfb series` for the current catalogue of plottable series names.
 
@@ -72,15 +72,15 @@ Four families of series can be plotted:
 The platform keeps pressure, stress and Body Battery history away from watch
 faces. The preview draws a stand-in curve, not real data.
 
-### `progress`
+### `gauge`
 
 One element with a `style` discriminator, because the *binding* and *range*
 semantics are identical across styles and only the rendering differs.
 
 ```yaml
-- id: step_ring
-  type: progress
-  style: arc                # arc | bar
+step_ring:
+  type: gauge
+  style: arc                  # arc | bar | segments | scale | needle
   value: activity.steps
   max: activity.step_goal
   at: { anchor: center }
@@ -88,9 +88,9 @@ semantics are identical across styles and only the rendering differs.
   thickness: 10px
   start_angle: 180deg
   sweep: 340deg
-  color: palette.accent
-  track_color: palette.track
-  when_absent: hide
+  color: color.accent
+  track_color: color.track
+  absent: hide
 ```
 
 > **`style: arc` is a stroked ring, not a filled sector.** There is no `fillArc`,
@@ -99,10 +99,10 @@ semantics are identical across styles and only the rendering differs.
 > exist. The schema deliberately does not offer `inner_radius`/`outer_radius`,
 > because promising them would be a lie.
 
-`align:`/`vertical_align:` follow the one placement rule every accepting kind
+`align:` follows the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — accepted on
-`bar` and `arc`: `bar`'s box is `size:` and `arc`'s is the full `2·radius`
-circle, same as `shape: arc`. A needle refuses both (below).
+a bar and an arc track: a bar's box is `size:` and an arc's is the full
+`2·radius` circle, same as `type: arc`. A needle refuses it (below).
 
 #### Gauge needles
 
@@ -111,19 +111,19 @@ analog hands' rotation machinery, driven by a reading instead of the
 clock:
 
 ```yaml
-- id: battery_needle
-  type: progress
+battery_needle:
+  type: gauge
   style: needle
   value: system.battery
   max: 100
   at: { anchor: center }               # the axis
   start_angle: 240deg                  # where the needle points at 0%
   sweep: 240deg                        # how far it turns at 100%, clockwise
-  color: "system.battery < 20 ? palette.low : palette.accent"
+  color: "system.battery < 20 ? color.low : color.accent"
   needle:                              # authored like an analog hand's parts
-    - shape: polygon
+    - type: polygon
       points: [{ dx: -3%r, dy: 12%r }, { dy: -74%r }, { dx: 3%r, dy: 12%r }]
-    - { shape: circle, radius: 5%r, color: palette.fg }   # a hub that turns with it
+    - { type: circle, radius: 5%r, color: color.fg }      # a hub that turns with it
 ```
 
 The needle points at `start_angle + fraction × sweep`, clockwise from 12,
@@ -133,17 +133,17 @@ where the fraction is `value / max` clamped to 0–1 — the same mapping an
 `parts:`](analog-hands.md#analog-hands) takes: `polygon`, `rectangle`, `line`
 and `circle`, authored **as they look at 12 o'clock** with the axis at the
 origin, so the tip sits at a negative `dy`. A part with no `color:` takes
-the element's own, which may read data like any progress colour; a part's
+the element's own, which may read data like any gauge colour; a part's
 own colour may not, as on a hand.
 
 The needle's extent is the disc it sweeps (the axis plus its farthest
-part), which the visible-area checks read like a hand's. `when_absent:`
-works as on the other styles: `hide` draws nothing, `fallback:` supplies
+part), which the visible-area checks read like a hand's. `absent:`
+works as on the other styles: `hide` draws nothing, `{value:}` supplies
 the fraction to park at. `aod: {color, thickness}` restyles every part.
-`radius`, `thickness`, `size`, `track_color` and `align`/`vertical_align`
+`radius`, `thickness`, `size`, `track_color` and `align`
 are not read by a needle, and each is an error saying so: its length is
 its parts, and `at:` is the axis, not a box. Draw the dial itself with a
-separate `style: arc` progress or a radial `pattern` of ticks, sharing the
+separate `style: arc` gauge or a radial `pattern` of ticks, sharing the
 needle's `start_angle` and `sweep` (`examples/features/gauge/face.yaml`).
 
 #### Segments and scales
@@ -153,8 +153,8 @@ Both draw on a track: an **arc** (`radius`, `thickness`, `start_angle`,
 Give one or the other; both, neither, or half an arc is an error.
 
 ```yaml
-- id: battery_segments
-  type: progress
+battery_segments:
+  type: gauge
   style: segments
   value: system.battery
   max: 100
@@ -165,11 +165,11 @@ Give one or the other; both, neither, or half an arc is an error.
   sweep: 300deg
   count: 10                   # ten cells...
   gap: 3px                    # ...3 px apart, measured along the arc
-  color: palette.accent       # lit cells
-  track_color: palette.track  # the rest (omit to draw only the lit ones)
+  color: color.accent         # lit cells
+  track_color: color.track    # the rest (omit to draw only the lit ones)
 
-- id: hr_scale
-  type: progress
+hr_scale:
+  type: gauge
   style: scale
   value: heart_rate.current
   max: 200
@@ -178,12 +178,12 @@ Give one or the other; both, neither, or half an arc is an error.
   thickness: 3px
   start_angle: 240deg
   sweep: 240deg
-  color: palette.fg           # the pointer dot
+  color: color.fg             # the pointer dot
   bands:                      # zones, as fractions of the full scale
-    - { to: 0.6, color: palette.ok }
-    - { to: 0.8, color: palette.warn }
-    - { to: 1.0, color: palette.bad }
-  when_absent: hide
+    - { to: 0.6, color: color.ok }
+    - { to: 0.8, color: color.warn }
+    - { to: 1.0, color: color.bad }
+  absent: hide
 ```
 
 **`segments`** divides the track into `count:` equal cells with `gap:`
@@ -211,26 +211,26 @@ to hold it. A scale draws no ticks of its own: ticks are a radial
 A time series, drawn as a line, a filled area or bars:
 
 ```yaml
-- id: hr_graph
+hr_graph:
   type: graph
-  at: { x: 50%, y: 72% }
+  at: { anchor: center, dy: 22% }
   size: { width: 60%, height: 18% }
 
-  series: heart_rate          # run `wfb series` for the full catalogue
-  range: 4h                   # a duration (30m/4h/7d) or a bare sample count
-  buckets: 40                 # time-binned series only; default 40
+  series: heart_rate            # run `wfb series` for the full catalogue
+  range: 4h                     # a duration (30m/4h/7d) or a bare sample count
+  buckets: 40                   # time-binned series only; default 40
 
-  style: line                 # line | area | bars ; default line
-  thickness: 2px               # style: line only
-  bar_width: 3px               # style: bars only
+  style: line                   # line | area | bars ; default line
+  thickness: 2px                 # style: line only
+  bar_width: 3px                 # style: bars only
 
-  min: auto                   # auto (default) | a number | an expression
+  min: auto                     # auto (default) | a number | an expression
   max: auto
 
-  color: palette.accent
+  color: color.accent
 ```
 
-`align:`/`vertical_align:` follow the one placement rule every accepting kind
+`align:` follows the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — a graph's
 placement box is its own `size:`.
 
@@ -325,9 +325,9 @@ is unmeasured** — see `docs/limitations.md`.
 ## See also
 
 - [`examples/features/graph/face.yaml`](../../examples/features/graph/face.yaml) — every series family and all three graph styles.
-- [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — two `style: arc` battery progress rings.
+- [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — two `style: arc` battery gauges.
 - [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — the shared alignment rule.
-- [Elements](elements.md) — the common keys every element shares (`modes`, `visible`, `static`, `antialias`, `min_1px`, `lint`, `on_hold`).
+- [Elements](elements.md) — the common keys every element shares (`sleep_update`, `visible`, `antialias`, `min_1px`, `lint`, `on_hold`).
 - [`docs/limitations.md`](../limitations.md) — `SensorHistory`/solar series are not implemented.
 - [`examples/features/progress/face.yaml`](../../examples/features/progress/face.yaml) — `segments` and `scale` on an arc and on a bar.
 - [`examples/features/gauge/face.yaml`](../../examples/features/gauge/face.yaml) — gauge needles.

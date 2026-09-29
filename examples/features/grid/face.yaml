@@ -11,7 +11,7 @@
 #   copy's own index, as on every pattern) and the days already gone
 #   dimmed.
 # * **Text parts on a grid** (`weekdays`): the seven day initials as one
-#   `shape: text` part, a single row of seven, heading the dots.
+#   `type: text` part, a single row of seven, heading the dots.
 #
 # The month always has 31 dots; a shorter month's last days simply never
 # light. A per-copy `visible:` could hide them, at the cost of reading the
@@ -20,60 +20,59 @@
 # Build it with:     ./wfb.py build examples/features/grid/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/grid/face.yaml
 #
-# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 face:
   id: 90db990c-871b-4c5a-9e0c-fa351afc5032
   name: Feature grid
   version: 1.0.0
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  past: "#AAAAAA"
-  today: "#FFAA00"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    past: "#AAAAAA"
+    today: "#FFAA00"
 
 static:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
-  - id: weekdays
+  weekdays:
     type: pattern
     pattern: grid
     at: { anchor: center, dx: -42%r, dy: -30%r }
     count: 7
     columns: 7
     step: { dx: 14%r }
-    color: palette.past
+    color: color.past
     parts:
-      - shape: text
-        value: >-
-          copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" : copy == 3 ? "T" :
-          copy == 4 ? "F" : copy == 5 ? "S" : "S"
+      - type: text
+        text: >-
+          {(copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" : copy == 3 ? "T" :
+          copy == 4 ? "F" : copy == 5 ? "S" : "S")}
         font: FONT_XTINY
 
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: FONT_NUMBER_MILD
     at: { anchor: center, dy: -58%r }
-    color: palette.fg
+    color: color.fg
 
-  - id: month
+  month:
     type: pattern
     pattern: grid
     at: { anchor: center, dx: -42%r, dy: -12%r }
     count: 31
     columns: 7
     step: { dx: 14%r, dy: 14%r }
-    color: "copy == date.day - 1 ? palette.today : (copy < date.day - 1 ? palette.past : palette.fg)"
+    color: "copy == date.day - 1 ? color.today : (copy < date.day - 1 ? color.past : color.fg)"
     parts:
-      - { shape: circle, radius: 4%r }
+      - { type: circle, radius: 4%r }

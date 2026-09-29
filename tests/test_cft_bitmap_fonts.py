@@ -14,6 +14,8 @@ dependency (`tests/conftest.py`), not Garmin's proprietary font files.
 
 from __future__ import annotations
 
+from tests.helpers import align_value
+
 import pytest
 
 from tests.test_cft import write_cft
@@ -185,23 +187,24 @@ def test_device_system_fonts_carries_the_simulator_filename_for_a_bitmap_entry()
 
 
 _DESIGN_TEMPLATE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f59
   name: BitmapPreviewTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: line
+  line:
     type: text
     text: "A"
     font: FONT_MEDIUM
-    align: left
-    vertical_align: {valign}
+    align: {align}
     at: {{anchor: top_left, dx: 20px, dy: 100px}}
-    color: palette.fg
+    color: color.fg
 """
 
 _ANCHOR_X, _ANCHOR_Y = 20, 100
@@ -222,7 +225,7 @@ def test_bitmap_glyph_ink_lands_on_the_exact_pixels(
     `SystemFace` numbers `test_system_face_on_a_cft_only_metric_gives_a_
     bitmap_face` already checked."""
     monkeypatch.setattr(fetch_system, "garmin_font_root", lambda *a, **k: bitmap_root)
-    design = _DESIGN_TEMPLATE.format(valign=valign)
+    design = _DESIGN_TEMPLATE.format(align=align_value("left", valign))
     face_design = load(write_design(design), bag)
     assert face_design is not None, bag.render()
 

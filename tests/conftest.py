@@ -108,21 +108,22 @@ def resolved_for(write_design, bag, db):
 
 
 MINIMAL = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
 

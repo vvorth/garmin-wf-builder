@@ -70,7 +70,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   into, not `Float` values in general.
 - **A nullable local's early-return narrowing survives *inside* a `for`
   loop body**, not just a straight-line method tail. `wfb.emit.monkeyc`'s
-  pattern codegen (2026-09-15, `when_absent: hide` + per-copy part
+  pattern codegen (2026-09-15, `absent: hide` + per-copy part
   `visible:`) declares a nullable source's local once, guards it with
   `if (x == null) { return; }` **before** the copy loop, then reads that
   same local unguarded *inside* `for (var i = 0; ...) { ... }` — both in

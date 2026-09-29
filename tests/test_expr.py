@@ -15,8 +15,8 @@ def scope():
     s.define("activity.step_goal", Binding(Value(Type.NUMBER, True), "activityStepGoal"))
     s.define("system.battery", Binding(Value(Type.FLOAT), "systemBattery"))
     s.define("device.phone_connected", Binding(Value(Type.BOOLEAN), "devicePhoneConnected"))
-    s.define("palette.hot", Binding(Value(Type.COLOR), "Palette.HOT", constant=0xFF5500))
-    s.define("palette.text", Binding(Value(Type.COLOR), "Palette.TEXT", constant=0xFFFFFF))
+    s.define("color.hot", Binding(Value(Type.COLOR), "Palette.HOT", constant=0xFF5500))
+    s.define("color.text", Binding(Value(Type.COLOR), "Palette.TEXT", constant=0xFFFFFF))
     return s
 
 
@@ -44,7 +44,7 @@ def test_constants_fold_at_build_time(scope):
 def test_palette_references_stay_named(scope):
     """Inlining the hex would throw away the whole point of having a palette."""
     code, value, _ = compile_expression(
-        "activity.steps > activity.step_goal ? palette.hot : palette.text", scope
+        "activity.steps > activity.step_goal ? color.hot : color.text", scope
     )
     assert code == "((activitySteps > activityStepGoal) ? Palette.HOT : Palette.TEXT)"
     assert value.type is Type.COLOR
@@ -118,7 +118,7 @@ def test_unknown_source_suggests_the_nearest_catalogue_entry(scope):
 def test_colour_arithmetic_is_rejected(scope):
     """A colour is not a number; arithmetic on one is almost always a mistake."""
     with pytest.raises(ExprError) as excinfo:
-        compile_expression("palette.hot + 1", scope)
+        compile_expression("color.hot + 1", scope)
     assert "color" in excinfo.value.message
 
 
@@ -129,7 +129,7 @@ def test_ternary_condition_must_be_boolean(scope):
 
 def test_ternary_branches_must_agree(scope):
     with pytest.raises(ExprError):
-        compile_expression("device.phone_connected ? palette.hot : 5", scope)
+        compile_expression("device.phone_connected ? color.hot : 5", scope)
 
 
 def test_unknown_function_lists_the_whole_set(scope):
@@ -148,7 +148,7 @@ def test_wrong_arity_is_reported(scope):
 
 def test_error_offsets_point_into_the_expression(scope):
     with pytest.raises(ExprError) as excinfo:
-        compile_expression("1 + palette.hot", scope)
+        compile_expression("1 + color.hot", scope)
     assert excinfo.value.offset > 0
 
 

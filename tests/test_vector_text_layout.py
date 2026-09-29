@@ -61,7 +61,7 @@ _HIDE_FONT = """\
   bezel:
     face: RobotoCondensedBold
     size: 6%r
-    if_unavailable: hide
+    unsupported: hide
 """
 
 #: `line_height` 36px on `fenix8solar51mm` (minor radius 140) -- the exact
@@ -76,10 +76,10 @@ _TALL_FONT = """\
 
 def _text(element_id: str, extra: str = "", *, font: str = "font.bezel") -> str:
     return f"""\
-  - id: {element_id}
+  {element_id}:
     type: text
     text: "GARMIN"
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     font: {font}
 {extra}"""
@@ -292,7 +292,8 @@ def test_hide_warning_is_suppressible(write_design, bag, db, monkeypatch):
 def test_element_if_unavailable_error_overrides_the_fonts_own_hide(
     write_design, bag, db, monkeypatch,
 ):
-    element = _text("brand", "    if_unavailable: error\n")
+    element = _text("brand", """    unsupported: error
+""")
     face = _load(
         write_design, bag,
         _design(_HIDE_FONT, element, targets="[fenix8solar47mm, fenix6]"),
@@ -307,7 +308,8 @@ def test_element_if_unavailable_error_overrides_the_fonts_own_hide(
 def test_element_if_unavailable_hide_overrides_the_fonts_own_error(
     write_design, bag, db, monkeypatch,
 ):
-    element = _text("brand", "    if_unavailable: hide\n")
+    element = _text("brand", """    unsupported: hide
+""")
     face = _load(
         write_design, bag,
         _design(_SINGLE_FONT, element, targets="[fenix8solar47mm, fenix6]"),
@@ -481,7 +483,7 @@ def test_radial_band_flips_inward_outward_with_facing(write_design, bag, db):
     def _placed_for(direction: str):
         element = _text(
             "radial",
-            "    vertical_align: top\n"
+            "    align: top\n"
             f"    curve: {{style: radial, angle: 0deg, radius: 75%r, direction: {direction}}}\n",
         )
         face = _load(write_design, bag, _design(_TALL_FONT, element, targets="[fenix8solar51mm]"))
@@ -735,11 +737,10 @@ def test_angled_text_off_the_main_axes_passes_where_its_aabb_corner_would_fail(
     can have those phantom corners land outside the visible disc while
     every real corner of the (turned) text box stays inside it."""
     fonts = "  bezel:\n    face: RobotoCondensedBold\n    size: 10%r\n"
-    element = """\
-  - id: angled
+    element = """  angled:
     type: text
     text: "GARMIN"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center, dx: 56.57%r, dy: 56.57%r}
     font: font.bezel
     curve: {style: angled, angle: 40deg}"""

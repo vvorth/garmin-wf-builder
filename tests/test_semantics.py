@@ -1,18 +1,22 @@
 """Stage 2: data sources, null handling, refresh tiers, fonts and icons."""
 
+import textwrap
+
 import pytest
 
 from wfb.build import load
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 """
 
@@ -22,11 +26,10 @@ def design(*elements: str) -> str:
 
 
 STEPS_TEXT = """
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.steps:d}"
+    color: color.fg
     at: {anchor: center}
 """
 
@@ -40,22 +43,16 @@ def test_a_nullable_source_requires_when_absent(write_design, bag):
 
 
 def test_when_absent_hide_satisfies_it(write_design, bag):
-    face = load(write_design(design(STEPS_TEXT + "    when_absent: hide\n")), bag)
+    face = load(write_design(design(STEPS_TEXT + """    absent: hide
+""")), bag)
     assert bag.ok(), bag.render()
     assert face is not None
-
-
-def test_placeholder_policy_needs_a_placeholder(write_design, bag):
-    load(write_design(design(STEPS_TEXT + "    when_absent: placeholder\n")), bag)
-    assert not bag.ok()
-    assert "placeholder" in bag.errors[0].message
 
 
 def test_a_fallback_may_not_itself_be_absent(write_design, bag):
     load(write_design(design(
         STEPS_TEXT
-        + "    when_absent: fallback\n"
-        + "    fallback: activity.calories\n"
+        + "    absent: {value: activity.calories}\n"
     )), bag)
     assert any("'absent: {value:}' expression can itself be absent" in d.message
                for d in bag.errors)
@@ -63,13 +60,12 @@ def test_a_fallback_may_not_itself_be_absent(write_design, bag):
 
 def test_when_absent_on_a_non_null_source_is_a_note_not_an_error(write_design, bag):
     load(write_design(design("""
-  - id: battery
+  battery:
     type: text
-    value: system.battery
-    format: "{:.0f}"
-    color: palette.fg
+    text: "{system.battery:.0f}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     assert bag.ok(), bag.render()
     assert any(d.code == "when-absent" for d in bag.items)
@@ -89,14 +85,13 @@ def test_low_power_may_bind_a_slow_reader_source(write_design, bag, monkeypatch)
     )
     monkeypatch.setitem(catalog.CATALOG, "weather.temperature", fabricated)
     load(write_design(design("""
-  - id: temp
+  temp:
     type: text
-    value: weather.temperature
-    format: "{:d}"
-    color: palette.fg
+    text: "{weather.temperature:d}"
+    color: color.fg
     at: {anchor: center}
-    modes: [active, low_power]
-    when_absent: hide
+    sleep_update: true
+    absent: hide
 """)), bag)
     assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
     assert bag.ok(), bag.render()
@@ -106,14 +101,13 @@ def test_low_power_may_bind_the_real_weather_condition_source(write_design, bag)
     """Same check, against a real (formerly slow-tier) source rather than a
     fabricated one -- weather.* is the first real one this project has."""
     load(write_design(design("""
-  - id: temp
+  temp:
     type: text
-    value: weather.condition
-    format: "{:d}"
-    color: palette.fg
+    text: "{weather.condition:d}"
+    color: color.fg
     at: {anchor: center}
-    modes: [active, low_power]
-    when_absent: hide
+    sleep_update: true
+    absent: hide
 """)), bag)
     assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
     assert bag.ok(), bag.render()
@@ -123,14 +117,13 @@ def test_low_power_may_bind_a_real_complication_source(write_design, bag):
     """Same check again, against a `complication.*` source: a complication
     read is no more restricted in low_power than any other read."""
     load(write_design(design("""
-  - id: bb
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{}"
-    color: palette.fg
+    text: "{complication.body_battery}"
+    color: color.fg
     at: {anchor: center}
-    modes: [active, low_power]
-    when_absent: hide
+    sleep_update: true
+    absent: hide
 """)), bag)
     assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
     assert bag.ok(), bag.render()
@@ -138,13 +131,13 @@ def test_low_power_may_bind_a_real_complication_source(write_design, bag):
 
 def test_low_power_may_bind_a_dynamic_weather_icon(write_design, bag):
     load(write_design(design("""
-  - id: wicon
+  wicon:
     type: icon
-    icon_for: weather.condition
+    icon: {for: weather.condition}
     size: 20%r
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
-    modes: [active, low_power]
+    sleep_update: true
 """)), bag)
     assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
     assert bag.ok(), bag.render()
@@ -159,13 +152,12 @@ def test_body_battery_current_names_its_replacement(write_design, bag):
     now have their own namespace, always read through Toybox.Complications,
     rather than piggybacking on ActivityMonitor's tier."""
     load(write_design(design("""
-  - id: bb
+  bb:
     type: text
-    value: body_battery.current
-    format: "{}"
-    color: palette.fg
+    text: "{body_battery.current}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     hits = [d for d in bag.errors if d.code == "source-renamed"]
     assert hits, bag.render()
@@ -177,13 +169,12 @@ def test_device_next_calendar_event_names_its_replacement(write_design, bag):
     """A second renamed path, to confirm the diagnostic is not hard-coded to
     just the one -- it is driven by `catalog.RENAMED_SOURCES`."""
     load(write_design(design("""
-  - id: cal
+  cal:
     type: text
-    value: device.next_calendar_event
-    format: "{:%H:%M}"
-    color: palette.fg
+    text: "{device.next_calendar_event:%H:%M}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     hits = [d for d in bag.errors if d.code == "source-renamed"]
     assert hits, bag.render()
@@ -202,11 +193,10 @@ def test_a_source_renamed_error_is_a_registered_lint_code(write_design, bag):
 
 def test_a_time_value_needs_a_time_format(write_design, bag):
     load(write_design(design("""
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:d}"
-    color: palette.fg
+    text: "{time.clock:d}"
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert any(d.code == "format" for d in bag.errors)
@@ -214,11 +204,11 @@ def test_a_time_value_needs_a_time_format(write_design, bag):
 
 def test_unknown_icon_lists_the_catalogue(write_design, bag):
     load(write_design(design("""
-  - id: badge
+  badge:
     type: icon
     icon: rocket
     size: 20px
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert any(d.code == "icon" for d in bag.errors)
@@ -227,11 +217,11 @@ def test_unknown_icon_lists_the_catalogue(write_design, bag):
 
 def test_icon_for_resolves_a_dynamic_glyph(write_design, bag):
     face = load(write_design(design("""
-  - id: wicon
+  wicon:
     type: icon
-    icon_for: weather.condition
+    icon: {for: weather.condition}
     size: 20%r
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert face is not None, bag.render()
@@ -241,18 +231,13 @@ def test_icon_for_resolves_a_dynamic_glyph(write_design, bag):
     assert element.value_for.text == "weather.condition"
 
 
-@pytest.mark.parametrize("body", [
-    "icon: heart\n    icon_for: weather.condition",  # both
-    "",  # neither
-])
-def test_icon_needs_exactly_one_of_icon_or_icon_for(write_design, bag, body):
-    face = load(write_design(design(f"""
-  - id: wicon
+def test_an_icon_needs_its_icon(write_design, bag):
+    face = load(write_design(design("""
+  wicon:
     type: icon
-    {body}
     size: 20%r
-    color: palette.fg
-    at: {{anchor: center}}
+    color: color.fg
+    at: {anchor: center}
 """)), bag)
     assert face is None
     assert any(d.code in ("icon", "schema") for d in bag.errors), bag.render()
@@ -261,11 +246,11 @@ def test_icon_needs_exactly_one_of_icon_or_icon_for(write_design, bag, body):
 @pytest.mark.parametrize("source", ["weather.condition_today", "weather.condition_tomorrow"])
 def test_icon_for_accepts_every_weather_condition_source(write_design, bag, source):
     face = load(write_design(design(f"""
-  - id: wicon
+  wicon:
     type: icon
-    icon_for: {source}
+    icon: {{for: {source}}}
     size: 20%r
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
 """)), bag)
     assert face is not None, bag.render()
@@ -277,11 +262,11 @@ def test_icon_for_rejects_arithmetic_and_non_weather_sources(write_design, bag, 
     arithmetic on it, or a source that is not a condition at all, would break
     that lookup silently rather than draw the wrong thing loudly."""
     face = load(write_design(design(f"""
-  - id: wicon
+  wicon:
     type: icon
-    icon_for: "{source}"
+    icon: {{for: "{source}"}}
     size: 20%r
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
 """)), bag)
     assert face is None
@@ -290,11 +275,11 @@ def test_icon_for_rejects_arithmetic_and_non_weather_sources(write_design, bag, 
 
 def test_unknown_font_lists_the_declared_ones(write_design, bag):
     load(write_design(design("""
-  - id: label
+  label:
     type: text
     text: "hi"
     font: font.nope
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert any(d.code == "font" for d in bag.errors)
@@ -302,7 +287,7 @@ def test_unknown_font_lists_the_declared_ones(write_design, bag):
 
 def test_a_colour_property_must_be_a_colour(write_design, bag):
     load(write_design(design("""
-  - id: label
+  label:
     type: text
     text: "hi"
     color: activity.steps
@@ -313,7 +298,7 @@ def test_a_colour_property_must_be_a_colour(write_design, bag):
 
 def test_a_literal_colour_is_allowed_but_noted(write_design, bag):
     face = load(write_design(design("""
-  - id: label
+  label:
     type: text
     text: "hi"
     color: "#FF5500"
@@ -340,13 +325,12 @@ def test_permissions_are_derived_from_bindings(write_design, bag, monkeypatch):
         ),
     )
     face = load(write_design(design("""
-  - id: temp
+  temp:
     type: text
-    value: weather.temperature
-    format: "{:d}"
-    color: palette.fg
+    text: "{weather.temperature:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     assert bag.ok(), bag.render()
     assert face.requirements().permissions == {"Positioning"}
@@ -359,13 +343,12 @@ def test_reading_heart_rate_implies_no_permission(write_design, bag):
     watch face may not declare at all, so the manifest would be rejected.
     """
     face = load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: heart_rate.current
-    format: "{:d}"
-    color: palette.fg
+    text: "{heart_rate.current:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     assert bag.ok(), bag.render()
     assert face.requirements().permissions == set()
@@ -386,13 +369,12 @@ def test_a_nullable_reader_is_narrowed_before_its_field_is_read(write_design, ba
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: heart_rate.current
-    format: "{:d}"
-    color: palette.fg
+    text: "{heart_rate.current:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -405,13 +387,12 @@ def test_a_nullable_reader_is_narrowed_before_its_field_is_read(write_design, ba
 def test_a_constant_divisor_is_recovered_from_the_expression(write_design, bag):
     """The overflow lint sizes the rendered result, so it needs the scale."""
     face = load(write_design(design("""
-  - id: steps
+  steps:
     type: text
-    value: "activity.steps / 1000.0"
-    format: "{:.1f}k"
-    color: palette.fg
+    text: "{activity.steps / 1000.0:.1f}k"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     assert face is not None, bag.render()
     steps = next(e for e in face.walk() if e.id == "steps")
@@ -420,13 +401,12 @@ def test_a_constant_divisor_is_recovered_from_the_expression(write_design, bag):
 
 def test_an_unscaled_expression_reports_a_scale_of_one(write_design, bag):
     face = load(write_design(design("""
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.steps:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
 """)), bag)
     steps = next(e for e in face.walk() if e.id == "steps")
     assert steps.value.scale == 1.0
@@ -434,11 +414,10 @@ def test_an_unscaled_expression_reports_a_scale_of_one(write_design, bag):
 
 def test_a_date_value_rejects_a_time_format(write_design, bag):
     load(write_design(design("""
-  - id: date
+  date:
     type: text
-    value: date.today
-    format: "{:%H:%M}"
-    color: palette.fg
+    text: "{date.today:%H:%M}"
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert any(d.code == "format" for d in bag.errors)
@@ -447,10 +426,10 @@ def test_a_date_value_rejects_a_time_format(write_design, bag):
 
 def test_a_date_value_needs_a_format(write_design, bag):
     load(write_design(design("""
-  - id: date
+  date:
     type: text
-    value: date.today
-    color: palette.fg
+    text: "{date.today}"
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert any("%a %e %b" in d.message for d in bag.errors)
@@ -469,14 +448,12 @@ def test_text_fallback_is_emitted_not_dropped(write_design, bag, db):
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.steps:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: fallback
-    fallback: 0
+    absent: {value: 0}
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -488,7 +465,7 @@ def test_text_fallback_is_emitted_not_dropped(write_design, bag, db):
     assert "if (activitySteps != null) {\n            text = activitySteps.format(\"%d\");" in view
     # The old, wrong behaviour: an unconditional early return with no fallback
     # value ever computed.
-    assert "// when_absent: hide" not in view
+    assert "// absent: hide" not in view
 
 
 def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
@@ -499,8 +476,8 @@ def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -509,9 +486,8 @@ def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
     thickness: 10px
     start_angle: 180deg
     sweep: 340deg
-    color: palette.fg
-    when_absent: fallback
-    fallback: 0.0
+    color: color.fg
+    absent: {value: 0.0}
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -521,7 +497,7 @@ def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
     assert "when_absent: fallback" in view
     assert "var fraction = 0.0f;" in view
     assert "fraction = WfbMath.percent(activitySteps, activityStepGoal) / 100.0;" in view
-    assert "// when_absent: hide" not in view
+    assert "// absent: hide" not in view
 
 
 # --------------------------------------------------------------------------
@@ -537,17 +513,17 @@ def test_ids_differing_only_by_case_convention_are_rejected(write_design, bag):
     numbers rather than the author's YAML."""
     load(write_design(design(
         """
-  - id: temp_low
+  temp_low:
     type: text
     text: "A"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """,
         """
-  - id: tempLow
+  tempLow:
     type: text
     text: "B"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """,
     )), bag)
@@ -561,17 +537,17 @@ def test_distinct_ids_that_do_not_collide_are_unaffected(write_design, bag):
     ids -- only ones that actually fold to the same symbol."""
     face = load(write_design(design(
         """
-  - id: temp_low
+  temp_low:
     type: text
     text: "A"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """,
         """
-  - id: temp_high
+  temp_high:
     type: text
     text: "B"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """,
     )), bag)
@@ -594,14 +570,12 @@ def test_active_minutes_week_guards_its_nullable_intermediate(write_design, bag,
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: minutes
+  minutes:
     type: text
-    value: activity.active_minutes_week
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.active_minutes_week:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -627,14 +601,12 @@ def test_placeholder_does_not_leave_a_shared_nullable_colour_unguarded(write_des
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: heart_rate.current
-    format: "{:d}"
-    color: "heart_rate.current > 100 ? palette.fg : palette.fg"
+    text: "{heart_rate.current:d}"
+    color: "heart_rate.current > 100 ? color.fg : color.fg"
     at: {anchor: center}
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -654,11 +626,10 @@ def test_a_nullable_colour_alone_still_needs_when_absent(write_design, bag):
     silently vanishes whenever heart rate has no reading, with nothing in the
     design saying that was ever a possibility."""
     load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: time.hour
-    format: "{:d}"
-    color: "heart_rate.current > 100 ? palette.fg : palette.fg"
+    text: "{time.hour:d}"
+    color: "heart_rate.current > 100 ? color.fg : color.fg"
     at: {anchor: center}
 """)), bag)
     assert any(d.code == "when-absent" for d in bag.errors)
@@ -669,8 +640,8 @@ def test_a_nullable_colour_alone_still_needs_when_absent(write_design, bag):
 def test_a_nullable_track_color_alone_needs_when_absent_on_progress(write_design, bag):
     """Same gap as the colour case above, for `track_color` on `progress`."""
     load(write_design(design("""
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: 50
     max: 100
@@ -679,8 +650,8 @@ def test_a_nullable_track_color_alone_needs_when_absent_on_progress(write_design
     thickness: 10px
     start_angle: 180deg
     sweep: 340deg
-    color: palette.fg
-    track_color: "heart_rate.current > 100 ? palette.fg : palette.fg"
+    color: color.fg
+    track_color: "heart_rate.current > 100 ? color.fg : color.fg"
 """)), bag)
     assert any(d.code == "when-absent" for d in bag.errors)
     message = " ".join(d.message for d in bag.errors)
@@ -691,11 +662,10 @@ def test_a_non_nullable_colour_needs_no_when_absent(write_design, bag):
     """The new check must not make ordinary, always-safe designs fail --
     `time.hour` and a literal palette colour are never absent."""
     face = load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: time.hour
-    format: "{:d}"
-    color: palette.fg
+    text: "{time.hour:d}"
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     assert face is not None, bag.render()
@@ -715,10 +685,10 @@ def test_aod_elements_are_drawn_while_asleep(write_design, bag, db):
     from wfb.emit.resources import bake_fonts
 
     face = load(write_design(design("""
-  - id: clock_dim
+  clock_dim:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     aod: show
 """)), bag)
@@ -768,8 +738,8 @@ def _view(face, db, tmp, extra_device=None):
 
 
 RING = """
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -778,9 +748,8 @@ RING = """
     thickness: 10px
     start_angle: 180deg
     sweep: 340deg
-    color: palette.fg
-    when_absent: fallback
-    fallback: __FALLBACK__
+    color: color.fg
+    absent: {value: __FALLBACK__}
 """
 
 
@@ -817,13 +786,13 @@ def test_a_progress_with_the_other_styles_keys_gets_one_friendly_error(write_des
     is one error naming the stray keys and the fix, not the schema's own
     "missing required key 'size'" plus one per unexpected key."""
     load(write_design(design("""
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: bar
     value: activity.steps
     max: activity.stepGoal
-    when_absent: hide
-    color: palette.fg
+    absent: hide
+    color: color.fg
     radius: 40%r
     thickness: 6
     at: {anchor: center}
@@ -850,14 +819,12 @@ def test_a_substitute_that_can_never_be_drawn_is_reported(write_design, bag):
     is ever chosen, so a placeholder whose sources are all also read by the
     colour is dead text -- declared, accepted, and impossible to see."""
     load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: heart_rate.current
-    format: "{:d}"
+    text: "{heart_rate.current:d}"
     at: {anchor: center}
-    when_absent: placeholder
-    placeholder: "--"
-    color: "heart_rate.current > 100 ? palette.fg : palette.bg"
+    absent: "--"
+    color: "heart_rate.current > 100 ? color.fg : color.bg"
 """)), bag)
     hits = [d for d in bag.items
             if d.code == "when-absent" and "can never be drawn" in d.message]
@@ -871,14 +838,12 @@ def test_a_substitute_still_reachable_through_another_source_is_not_reported(
     not, the element survives the colour's guard and the placeholder really
     can render.  Reporting that would be a false positive."""
     load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: activity.steps
-    format: "{:d}"
+    text: "{activity.steps:d}"
     at: {anchor: center}
-    when_absent: placeholder
-    placeholder: "--"
-    color: "heart_rate.current > 100 ? palette.fg : palette.bg"
+    absent: "--"
+    color: "heart_rate.current > 100 ? color.fg : color.bg"
 """)), bag)
     assert not [d for d in bag.items if "can never be drawn" in d.message], bag.render()
 
@@ -889,13 +854,12 @@ def test_when_absent_is_not_called_pointless_when_a_colour_needs_it(write_design
     Telling the author it "has no effect" would contradict the error they
     just fixed."""
     load(write_design(design("""
-  - id: hr
+  hr:
     type: text
-    value: time.hour
-    format: "{:d}"
+    text: "{time.hour:d}"
     at: {anchor: center}
-    when_absent: hide
-    color: "heart_rate.current > 100 ? palette.fg : palette.bg"
+    absent: hide
+    color: "heart_rate.current > 100 ? color.fg : color.bg"
 """)), bag)
     assert not [d for d in bag.items if "has no effect" in d.message], bag.render()
 
@@ -910,12 +874,12 @@ def test_a_glyph_codepoint_resolves_to_the_character(write_design, bag):
     most editors -- the same hazard wfb/icon_catalog.py warns about for this
     project's own source."""
     face = load(write_design(design("""
-  - id: gh
+  gh:
     type: icon
-    glyph: "U+F09B"
+    icon: "U+F09B"
     size: 14%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """)), bag)
     assert face is not None, bag.render()
     icon = face.walk()[0]
@@ -927,12 +891,12 @@ def test_a_glyph_outside_the_font_is_rejected(write_design, bag):
     coverage is -- otherwise it bakes to a blank tile and only shows up on the
     wrist."""
     load(write_design(design("""
-  - id: gh
+  gh:
     type: icon
-    glyph: "U+FFFFF"
+    icon: "U+FFFFF"
     size: 14%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """)), bag)
     assert any(d.code == "icon" and "no glyph at" in d.message for d in bag.errors), bag.render()
 
@@ -945,25 +909,25 @@ def test_a_glyph_that_duplicates_a_catalogue_name_says_so(write_design, bag):
 
     codepoint = "U+%04X" % ord(icons.CATALOG["heart"].codepoint)
     load(write_design(design(f"""
-  - id: h
+  h:
     type: icon
-    glyph: "{codepoint}"
+    icon: "{codepoint}"
     size: 14%r
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """)), bag)
     assert any("in the catalogue as 'heart'" in d.message for d in bag.items), bag.render()
 
 
 def test_icon_and_glyph_are_mutually_exclusive(write_design, bag):
     load(write_design(design("""
-  - id: h
+  h:
     type: icon
     icon: heart
-    glyph: "U+F09B"
+    icon: "U+F09B"
     size: 14%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """)), bag)
     assert not bag.ok(), "expected exactly-one-of to be enforced"
 
@@ -973,12 +937,12 @@ def test_icon_and_glyph_are_mutually_exclusive(write_design, bag):
 
 
 HELD = """
-  - id: hr
+  hr:
     type: icon
     icon: heart
     size: 14%r
     at: {anchor: center, dy: -20%}
-    color: palette.fg
+    color: color.fg
     on_hold: heart_rate
 """
 
@@ -1075,22 +1039,21 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
     from wfb.emit.resources import bake_fonts
 
     path = write_design(design("""
-  - id: hr_group
+  hr_group:
     type: group
     size: {width: 60%, height: 20%}
     at: {anchor: center, dy: -20%}
     on_hold: heart_rate
     children:
-      - id: hr_icon
+      hr_icon:
         type: icon
         icon: heart
         size: 10%r
         at: {anchor: center, dx: -15%}
-      - id: hr_value
+      hr_value:
         type: text
-        value: heart_rate.current
-        format: "{:d}"
-        when_absent: hide
+        text: "{heart_rate.current:d}"
+        absent: hide
         at: {anchor: center, dx: 15%}
 """))
     face = load(path, bag)
@@ -1136,13 +1099,12 @@ def test_on_hold_auto_resolves_a_direct_read_source(write_design, bag, db):
     Activity.Info read -- but `Source.launch_complication` names the
     conventional counterpart (`steps`), so `auto` still resolves."""
     files = _generated(write_design, bag, db, """
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.steps:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
     on_hold: auto
 """)
     delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
@@ -1155,13 +1117,12 @@ def test_on_hold_auto_resolves_a_complication_source(write_design, bag, db):
     `launch_complication` -- `auto` on an element reading one is never
     ambiguous."""
     files = _generated(write_design, bag, db, """
-  - id: bb
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{}"
-    color: palette.fg
+    text: "{complication.body_battery}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
     on_hold: auto
 """)
     delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
@@ -1173,11 +1134,10 @@ def test_on_hold_auto_with_no_value_binding_is_unresolved(write_design, bag):
     """A shape has nothing to resolve `auto` from at all -- the zero case,
     same diagnostic as a value with no conventional target."""
     load(write_design(design("""
-  - id: box
-    type: shape
-    shape: rectangle
+  box:
+    type: rectangle
     size: {width: 20%, height: 20%}
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     on_hold: auto
 """)), bag)
@@ -1191,13 +1151,12 @@ def test_on_hold_auto_with_no_conventional_target_is_unresolved(write_design, ba
     `COMPLICATION_TYPE_FORECAST_WEATHER_1DAY` means tomorrow, not today, so
     mapping it would open the wrong glance."""
     load(write_design(design("""
-  - id: cond
+  cond:
     type: text
-    value: weather.condition_today
-    format: "{:d}"
-    color: palette.fg
+    text: "{weather.condition_today:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
     on_hold: auto
 """)), bag)
     hits = [d for d in bag.errors if d.code == "hold-auto-unresolved"]
@@ -1210,13 +1169,12 @@ def test_on_hold_auto_is_ambiguous_between_two_targets(write_design, bag):
     """Two direct-read sources with different conventional targets in one
     value expression -- `auto` must refuse to guess which glance to open."""
     load(write_design(design("""
-  - id: total
+  total:
     type: text
-    value: activity.steps + activity.calories
-    format: "{:d}"
-    color: palette.fg
+    text: "{activity.steps + activity.calories:d}"
+    color: color.fg
     at: {anchor: center}
-    when_absent: hide
+    absent: hide
     on_hold: auto
 """)), bag)
     hits = [d for d in bag.errors if d.code == "hold-auto-ambiguous"]
@@ -1229,15 +1187,15 @@ def test_on_hold_auto_ignores_color_and_max(write_design, bag):
     heart-rate reference is not what the element is *about*, so it must not
     make `auto` ambiguous or change what it resolves to."""
     load(write_design(design("""
-  - id: steps
-    type: progress
+  steps:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
     radius: 40%r
     thickness: 4%r
-    color: "heart_rate.current != null and heart_rate.current > 100 ? palette.fg : palette.fg"
-    when_absent: hide
+    color: "heart_rate.current != null and heart_rate.current > 100 ? color.fg : color.fg"
+    absent: hide
     at: {anchor: center}
     on_hold: auto
 """)), bag)
@@ -1251,21 +1209,23 @@ def test_on_hold_auto_ignores_color_and_max(write_design, bag):
 def _font_design(size: str, extra: str = "") -> str:
     """A design whose one custom font declares this `size:`."""
     return f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: tests/fixtures/slice/assets/OpenSans-Regular.ttf
-    size: {size}
-{extra}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: tests/fixtures/slice/assets/OpenSans-Regular.ttf
+      size: {size}
+{textwrap.indent(extra, "  ")}
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
     font: font.clock
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
 """
 
@@ -1378,13 +1338,13 @@ def test_a_font_is_proportional_unless_it_asks_not_to_be(write_design, bag, repo
 # -- graph --------------------------------------------------------------------
 
 HR_GRAPH = """
-  - id: hr_graph
+  hr_graph:
     type: graph
     series: heart_rate
     range: 4h
     style: line
     thickness: 2px
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     size: {width: 60%, height: 18%}
 """
@@ -1594,7 +1554,9 @@ def test_an_area_graph_at_exactly_the_cap_is_fine(write_design, bag):
 
 
 def test_a_graph_cannot_be_static(write_design, bag):
-    load(write_design(design(_graph(static="true"))), bag)
+    text = design(_graph()).replace("\nelements:\n", "\nstatic:\n")
+    assert "\nstatic:\n" in text
+    load(write_design(text), bag)
     errors = [d for d in bag.errors if d.code == "static"]
     assert errors, bag.render()
     assert "graph" in errors[0].message
@@ -1606,7 +1568,7 @@ def test_a_nullable_color_still_hides_the_element_with_no_when_absent_required(
     a nullable `color:` here needs no explicit policy, the same as `shape`
     and `icon` (`check_other_absence` is deliberately not called for it)."""
     face = load(write_design(design(_graph(
-        color='"activity.step_goal > 0 ? palette.fg : palette.fg"'))), bag)
+        color='"activity.step_goal > 0 ? color.fg : color.fg"'))), bag)
     assert bag.ok(), bag.render()
     assert face is not None
 
@@ -1647,39 +1609,13 @@ def test_a_graph_design_compiles_warning_free_on_every_target(
 # diagnostics below exist to say that out loud rather than leave it to be
 # puzzled out.
 
-_PROSE_VALUE = """
-  - id: unit
-    type: text
-    value: 'XX%'
-    color: palette.fg
-    at: {anchor: center}
-"""
-
-_BOTH_SPELLINGS = """
-  - id: unit
-    type: text
-    text: "XX%"
-    value: activity.steps
-    color: palette.fg
-    at: {anchor: center}
-"""
-
 _LITERAL = """
-  - id: unit
+  unit:
     type: text
     text: "XX%"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """
-
-
-def test_a_literal_string_in_value_points_at_text(write_design, bag):
-    load(write_design(design(_PROSE_VALUE)), bag)
-    errors = [d for d in bag.errors if d.code == "expression"]
-    assert errors, bag.render()
-    notes = " ".join(errors[0].notes)
-    assert "'text:' instead" in notes, notes
-    assert "YAML strips the quotes" in notes, notes
 
 
 def test_a_genuine_expression_typo_is_not_told_to_use_text(write_design, bag):
@@ -1688,11 +1624,11 @@ def test_a_genuine_expression_typo_is_not_told_to_use_text(write_design, bag):
     send them the wrong way entirely -- so it keys off a syntax failure, not
     any expression error."""
     load(write_design(design("""
-  - id: steps
+  steps:
     type: text
-    value: activity.stepss
-    when_absent: hide
-    color: palette.fg
+    text: "{activity.stepss}"
+    absent: hide
+    color: color.fg
     at: {anchor: center}
 """)), bag)
     errors = [d for d in bag.errors if d.code == "expression"]
@@ -1702,56 +1638,20 @@ def test_a_genuine_expression_typo_is_not_told_to_use_text(write_design, bag):
     assert "did you mean" in notes, notes
 
 
-def test_text_and_value_together_name_both_keys(write_design, bag):
-    """jsonschema calls this "is valid under each of {...}, {...}" and renders
-    the whole element dict, which tells an author nothing at all."""
-    load(write_design(design(_BOTH_SPELLINGS)), bag)
-    errors = [d for d in bag.errors if d.code == "schema"]
-    assert errors, bag.render()
-    assert "cannot both be set" in errors[0].message, errors[0].message
-    assert "'text'" in errors[0].message and "'value'" in errors[0].message
-    notes = " ".join(errors[0].notes)
-    assert "literal string" in notes, notes
-
-
 def test_a_literal_text_element_is_accepted(write_design, bag):
     face = load(write_design(design(_LITERAL)), bag)
     assert bag.ok(), bag.render()
     assert face is not None
 
 
-_LITERAL_WITH_FORMAT = """
-  - id: unit
-    type: text
-    text: "XX%"
-    format: "{:d}"
-    color: palette.fg
-    at: {anchor: center}
-"""
-
 _LITERAL_WITH_AOD_FORMAT = """
-  - id: unit
+  unit:
     type: text
     text: "XX%"
-    color: palette.fg
-    aod: {format: "{:d}"}
+    color: color.fg
+    aod: {text: "{:d}"}
     at: {anchor: center}
 """
-
-
-def test_format_on_a_literal_text_element_is_an_error(write_design, bag):
-    """`format:` formats a bound `value:`; a fixed `text:` has none to
-    format, so this must fail exactly the way a pattern's own `shape:
-    text` part already refuses the identical combination
-    (`test_pattern_text.py::test_format_with_a_fixed_text_is_one_error`)
-    -- must fail against an implementation that keeps `format:` unchecked
-    for a plain `text` element, silently ignoring it (it was, before this
-    was added: `element.format` was never even read when `element.literal`
-    is set)."""
-    load(write_design(design(_LITERAL_WITH_FORMAT)), bag)
-    errors = [d for d in bag.errors if d.code == "format"]
-    assert errors, bag.render()
-    assert "a format spec needs a placeholder" in errors[0].message
 
 
 def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
@@ -1777,11 +1677,10 @@ def test_overrides_is_rejected_rather_than_silently_ignored(write_design, bag):
     `Element.overrides`.
     """
     load(write_design(design("""
-  - id: ring
-    type: shape
-    shape: circle
+  ring:
+    type: circle
     radius: 40%r
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     overrides:
       notADeviceAtAll:
@@ -1796,11 +1695,10 @@ def test_overrides_is_rejected_rather_than_silently_ignored(write_design, bag):
 def test_an_empty_overrides_block_is_not_an_error(write_design, bag):
     """`overrides: {}` asks for nothing, so there is nothing to warn about."""
     face = load(write_design(design("""
-  - id: ring
-    type: shape
-    shape: circle
+  ring:
+    type: circle
     radius: 40%r
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     overrides: {}
 """)), bag)
@@ -1817,8 +1715,8 @@ def test_progress_cannot_ask_for_a_placeholder_it_has_no_key_for(write_design, b
     substitute *text* for a fill fraction; `fallback:` is the real answer.
     """
     load(write_design(design("""
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     radius: 40%r
     thickness: 4px
@@ -1826,7 +1724,7 @@ def test_progress_cannot_ask_for_a_placeholder_it_has_no_key_for(write_design, b
     sweep: 180
     value: activity.steps
     max: 10000
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     when_absent: placeholder
 """)), bag)

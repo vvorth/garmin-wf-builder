@@ -2,10 +2,11 @@
 
 A watch face reads live data — the time, the wearer's activity, the weather,
 a Garmin complication — through typed sources addressed by dotted path, such
-as `activity.steps` or `complication.body_battery`. `value:` binds a source
-or an [expression](#expressions) over sources to an element; `format:`
-controls how the pulled value renders, and `when_absent:`/`placeholder:` say
-what to do when a nullable source has nothing to report. `wfb sources` and
+as `activity.steps` or `complication.body_battery`. A `text:` template's
+placeholder (`"{activity.steps:d}"`) or a gauge's `value:` binds a source or
+an [expression](#expressions) over sources to an element; the placeholder's
+format spec controls how the pulled value renders, and `absent:` says what
+to do when a nullable source has nothing to report. `wfb sources` and
 `wfb complications` are the authoritative, always-current lists of what you
 can bind.
 
@@ -16,11 +17,11 @@ can bind.
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `value:` | any data-bearing element | a source path or [expression](#expressions) | — | what to pull or compute |
-| `format:` | `text` | Python-style spec or strftime codes | — | [Formats](#formats) |
+| `text:` | `text`, a pattern's text part | `"{expr}"` or `"{expr:spec}"`, with literal text around it | — | what to pull or compute, and how to render it: [The `text:` template](text.md#the-text-template) |
+| `value:` | `gauge` | a source path or [expression](#expressions) | — | what to pull or compute |
+| spec | inside a placeholder, after `:` | Python-style spec or strftime codes | — | [Formats](#formats) |
 | `units:` | `text` | `auto` \| `metric` \| `statute` | — (no conversion) | [Units](#units) |
-| `placeholder:` | element with `when_absent: placeholder` | any string | — | shown while the value is absent |
-| `when_absent:` | any nullable binding | `hide` \| `placeholder` \| `fallback` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
+| `absent:` | any nullable binding | `hide` \| a string \| `{value: <expr>}` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
 | `time.*` | source namespace | — | — | clock and time-of-day readings |
 | `date.*` | source namespace | — | — | calendar date, localised weekday/month |
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
@@ -33,19 +34,15 @@ can bind.
 
 ```yaml
 static:
-  left_card: { type: shape, shape: rounded_rectangle, corner_radius: 3%r,
-               at: { anchor: center, dx: -50%r, dy: -23%r },
-               size: { width: 42%r, height: 19%r }, color: config.colors.dark }
+  left_card: { type: rectangle, corner_radius: 3%r, at: { anchor: center, dx: -50%r, dy: -23%r }, size: { width: 42%r, height: 19%r }, color: color.dark }
 
 elements:
   left_register:
-    type: complication_slot          # the wearer picks what it shows
-    slot: config.data.left_register
+    type: data                       # the wearer picks what it shows
+    slot: left_register
     at: { anchor: center, dx: -50%r, dy: -30%r }
-    icon_position: top
-    icon_color: config.data_color
-    when_absent: placeholder
-    placeholder: "--"
+    icon: { size: 9%r, position: top, color: color.data }
+    absent: "--"
     on_hold: auto                    # touch and hold opens that complication
 
   hr_graph:
@@ -54,7 +51,7 @@ elements:
     range: 4h
     style: area                      # line | area | bars ([graph styles](progress-and-graphs.md))
     size: { width: 52%r, height: 17%r }
-    color: config.data_color
+    color: color.data
     on_hold: heart_rate
 ```
 
@@ -62,10 +59,9 @@ elements:
 
 - **`static:`** holds things that never change, like the dark cards behind
   each slot. The watch draws them once and copies the result on every update.
-- **A `complication_slot`** shows whichever complication the wearer picked for
-  it ([configuration](configuration.md)), with that complication's icon and reading. When the reading is
-  missing, `when_absent: placeholder` shows the `placeholder:` text instead of
-  leaving it blank.
+- **A `data` element** shows whichever complication the wearer picked for
+  its slot ([configuration](configuration.md)), with that complication's icon and reading. When the reading is
+  missing, `absent: "--"` shows that text instead of leaving it blank.
 - **`on_hold:`** makes the element a touch-and-hold target that opens a Garmin
   glance. On a slot, `auto` opens the glance for whatever the slot currently
   shows. Elsewhere, name one, such as `heart_rate`; `wfb complications` lists
@@ -79,11 +75,11 @@ Sources are addressed by dotted path and carry a type, a nullability, and any
 permission binding it implies.
 
 ```yaml
-value: activity.steps
-value: heart_rate.current
-value: system.battery
-value: time.clock
-value: complication.body_battery
+text: "{activity.steps}"
+text: "{heart_rate.current}"
+text: "{system.battery}%"
+text: "{time.clock:%H:%M}"
+value: complication.body_battery      # a gauge's reading
 ```
 
 **`wfb sources` is the authoritative, always-current list** -- run it rather
@@ -113,7 +109,7 @@ intensity minutes, stress score, respiration rate, time to recovery),
 `heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
 pressure), `weather.*` (current condition and temperature, feels-like,
 today's high/low and precipitation chance, humidity, wind speed,
-today's/tomorrow's forecast condition — see [`icon_for:`](icons.md#a-dynamic-icon-icon_for) for turning a
+today's/tomorrow's forecast condition — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
 condition into a drawn icon), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
 
@@ -129,22 +125,20 @@ silently drift from what the platform actually offers. `wfb complications`
 prints all 42, the Monkey C constant each compiles to, and the API level it
 was introduced at.
 
-**A `config: data:` slot is a third thing, distinct from both rules above --
+**A `config: slots:` slot is a third thing, distinct from both rules above --
 it is not a `catalog.CATALOG` path at all.** Which type it reads is not fixed
 at build time (the wearer picks it on-device), so there is no fixed source
-for the expression compiler to bind; `type: complication_slot` pulls through
+for the expression compiler to bind; `type: data` pulls through
 `WfbComplications.valueOf` directly instead, the same underlying mechanism a
 `complication.<type>` binding uses, reached a different way. See
 [Configuration → The Data axis](configuration.md#the-data-axis).
 
 ```yaml
-- id: body_battery_reading
+body_battery_reading:
   type: text
-  value: complication.body_battery
-  format: "{:d}"
+  text: "{complication.body_battery:d}"
   font: FONT_SMALL
-  when_absent: placeholder
-  placeholder: "--"
+  absent: "--"
 ```
 
 A `complication.*` binding compiles to a plain pull, exactly like any other
@@ -230,15 +224,15 @@ reader per element method (two elements sharing
 entire optimisation -- no staleness check, no field, no TTL.
 
 **Consequence: any source, including `weather.*` and `complication.*`, may
-be bound from a `low_power` element (or an AMOLED sleep frame's `aod:`
+be bound from a `sleep_update: true` element (or an AMOLED sleep frame's `aod:`
 `visible:`).** This does **not** make
 reading them free in `onPartialUpdate` -- exceeding that handler's power
 budget calls `onPowerBudgetExceeded` and disables partial updates
 **permanently, for the rest of the app's lifecycle**. The suppressible
 `partial-update-budget` lint is the only thing standing between an author and
-an expensive `low_power` read, and a `weather.*` or `complication.*` binding
+an expensive every-second read, and a `weather.*` or `complication.*` binding
 there is exactly the case its own warning names as the one to check first.
-If your design draws in `low_power`, read the [Modes](modes-and-interaction.md#modes) and treat
+If your design uses `sleep_update: true`, read [Power modes](modes-and-interaction.md#sleep-updates) and treat
 that warning as load-bearing, not optional.
 
 If a value you want is missing, check the underlying Garmin API page:
@@ -262,49 +256,50 @@ makes that failure structurally impossible.
 ### Absence is the normal case
 
 Every `ActivityMonitor.Info` field is typed `... or Null`, and sensors are
-missing entirely on some devices. So **`when_absent:` is required** for a
+missing entirely on some devices. So **`absent:` is required** for a
 nullable binding rather than defaulting silently:
 
-| Policy | Effect |
+| `absent:` | Effect |
 |---|---|
 | `hide` | the element is not drawn |
-| `placeholder` | fixed text is drawn instead (needs `placeholder:`) |
-| `fallback` | another expression supplies the value (needs `fallback:`, which must not itself be nullable) |
+| a string, `"--"` | that text is drawn instead |
+| `{value: <expr>}` | another expression supplies the value, rendered through the same spec; it must not itself be nullable |
 
-**`when_absent:` covers every nullable binding on the element, not just
-`value:`.** A nullable `color:`, `track_color:` or `max:` needs a policy too — a
+**`absent:` covers every nullable binding on the element, not just the
+reading.** A nullable `color:`, `track_color:` or `max:` needs it too — a
 conditional colour reading `heart_rate.current` makes the whole element depend on
 that sensor. A nullable non-value binding always *hides* the element when it is
-absent, whichever policy is named, because a colour has no placeholder. If that
-makes a declared `placeholder:`/`fallback:` impossible to reach — every nullable
-source behind the value is also read by the colour — the compiler says so rather
+absent, whatever `absent:` says, because a colour has no placeholder. If that
+makes a declared substitute text or value impossible to reach — every nullable
+source behind the reading is also read by the colour — the compiler says so rather
 than letting the substitute sit there as dead text.
 
-**`when_absent:` is about the value, `visible:` is about existence.** A nullable
+**`absent:` is about the value, `visible:` is about existence.** A nullable
 source read by `visible:` needs no policy and cannot take one: absence there
 means hidden, full stop. The two compose independently — an element can be
 visible while its value is absent. The one interaction is reported rather than
-merged: a `placeholder:` whose nullable sources are *all* also read by
+merged: a substitute text whose nullable sources are *all* also read by
 `visible:` can never be drawn, and the compiler says so, exactly as it does for
 a nullable `color:`. See [`visible:`](elements.md#visible--draw-this-only-sometimes).
 
-**On a `progress`, `fallback:` supplies the fill fraction (0.0–1.0), not the
-value.** This is the one place the policy means something different from `text`,
+**On a `gauge`, `absent: {value:}` supplies the fill fraction (0.0–1.0), not the
+reading.** This is the one place it means something different from `text`,
 and it is forced: either `value:` or `max:` can be the absent reading, so the
 resulting proportion is the only well-defined thing to substitute. A constant
 outside 0.0–1.0 is a build error; a computed one is clamped on device. For "half
-full" write `0.5`, not the reading you would have shown.
+full" write `0.5`, not the reading you would have shown. A gauge takes no
+substitute text.
 
 ### Expressions
 
 Compiled to Monkey C. Nothing interprets them on the watch.
 
 ```yaml
-color: "heart_rate.current > 150 ? palette.hot : palette.text"
-value: "percent(activity.steps, activity.step_goal)"
+color: "heart_rate.current > 150 ? color.hot : color.text"
+text: "{percent(activity.steps, activity.step_goal):d}%"
 ```
 
-Literals; references to sources and palette entries; `+ - * / %`; comparisons;
+Literals; references to sources and colours; `+ - * / %`; comparisons;
 `and` / `or` / `not`; `cond ? a : b`; and exactly seven functions — `min`, `max`,
 `clamp`, `round`, `floor`, `abs`, `percent`.
 
@@ -325,7 +320,7 @@ drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
 generated loop index, so it is one binding, not two. Anywhere else it is an
 error saying so, including the *element-level* `visible:` on a pattern
 itself: that gates the whole element, compiled before the pattern's `copy`
-binding even opens, so it sees no more `copy` than a `shape`'s `visible:`
+binding even opens, so it sees no more `copy` than a `rectangle`'s `visible:`
 does.
 
 No loops, no user-defined functions, no assignment, no state. Anything beyond
@@ -333,23 +328,23 @@ this is a signal to use the escape hatch (ADR 0007), not to grow the language �
 growing it is how these formats become unmaintainable.
 
 Constant subexpressions fold at build time; only genuinely dynamic terms survive
-into the generated code. Palette references stay *named* in the output, because
+into the generated code. Swatch references stay *named* in the output, because
 inlining the hex would throw away the point of having a palette.
 
 ## Formats
 
-Python-style specs, familiar and unambiguous.
+The spec after a placeholder's `:` follows Python's, familiar and unambiguous.
 
-| Spec | Renders |
+| `text:` | Renders |
 |---|---|
-| `{}` | the value's own `toString()` |
-| `{:d}`, `{:02d}` | an integer, optionally zero-padded |
-| `{:.1f}` | a float |
-| `{:d} steps` | literal text around the field |
+| `"{activity.steps}"` | the value's own `toString()` |
+| `"{activity.steps:d}"`, `"{time.hour:02d}"` | an integer, optionally zero-padded |
+| `"{weather.temperature:.1f}"` | a float |
+| `"{activity.steps:d} steps"` | literal text around the placeholder |
 
-Every spec needs at least one `{}` field: a bare `%02d` or `%H:%M` is an
-error, and so is a numeric spec outside the table (`{:zz}`). Strftime codes
-go inside a field, as in `{:%H:%M}`.
+Any other numeric spec (`"{activity.steps:zz}"`) is an error naming the ones
+that work. Strftime codes go after the `:` too, as in
+`"{time.clock:%H:%M}"`.
 
 Date values (`date.today`) use their own codes — separate from the time codes
 below, because `%M` means minute and `%m` means month, and silently rendering one
@@ -363,7 +358,7 @@ where the other belongs is exactly the confusion the split prevents:
 | `%m` | month number, zero-padded |
 | `%Y` / `%y` | four- / two-digit year |
 
-`format: "{:%a %e %b}"` renders `Thu 3 Sep`. The weekday and month come back from
+`text: "{date.today:%a %e %b}"` renders `Thu 3 Sep`. The weekday and month come back from
 the firmware already localised, so a custom font bound to a date is subsetted
 with the whole alphabet rather than with the glyphs of one particular day.
 
@@ -380,9 +375,9 @@ Time values use strftime codes, plus one addition:
 `%h` exists because hand-written faces get the 12/24-hour setting wrong
 constantly. A builder should get it right once.
 
-Text around the field is kept for a clock or date value too, and a spec may
-hold more than one field: `"at {:%H:%M} UTC"` renders `at 10:09 UTC`, and
-`"{:%a}, {:%e %b}"` renders `Wed, 3 Sep`.
+Text around the placeholder is kept for a clock or date value too, and a
+spec may hold literal text between its codes: `"at {time.clock:%H:%M} UTC"`
+renders `at 10:09 UTC`, and `"{date.today:%a, %e %b}"` renders `Wed, 3 Sep`.
 
 ### Durations and times of day
 
@@ -391,16 +386,14 @@ The same codes on a **Number or Float** read the value as a number of
 of day (`complication.sunrise`/`sunset`, seconds since local midnight).
 
 ```yaml
-- id: sunrise
+sunrise:
   type: text
-  value: complication.sunrise
-  format: "{:%h:%M}"           # "06:42", or "6:42" on a 12-hour watch
-  when_absent: hide
-- id: marathon
+  text: "{complication.sunrise:%h:%M}" # "06:42", or "6:42" on a 12-hour watch
+  absent: hide
+marathon:
   type: text
-  value: complication.race_predictor_marathon
-  format: "{:%-H:%M:%S}"       # "3:45:12"
-  when_absent: hide
+  text: "{complication.race_predictor_marathon:%-H:%M:%S}" # "3:45:12"
+  absent: hide
 ```
 
 | Code | Meaning |
@@ -411,13 +404,13 @@ of day (`complication.sunrise`/`sunset`, seconds since local midnight).
 | `%%` | a literal `%` |
 
 - **The largest unit in the spec carries the whole total**, and every
-  smaller one wraps at the next unit up. `{:%M:%S}` on 3900 s is `65:00`,
-  `{:%H:%M:%S}` on the same value is `01:05:00`, and `{:%-H:%M}` on a
+  smaller one wraps at the next unit up. `%M:%S` on 3900 s is `65:00`,
+  `%H:%M:%S` on the same value is `01:05:00`, and `%-H:%M` on a
   37-hour recovery is `37:15`.
 - **`%h`/`%I`/`%l`/`%p` wrap at 24 hours** and never carry a sign. A spec
   without them is a duration: a negative value shows its magnitude after a
   `-` (`-1:15`).
-- **A Float truncates toward zero** first, as `{:d}` does everywhere, so
+- **A Float truncates toward zero** first, as `d` does everywhere, so
   272.7 s is `4:32`.
 - **A bare source stated in minutes, hours or days is read as seconds for
   you.** `complication.recovery_time` (minutes), `activity.time_to_recovery`
@@ -425,14 +418,15 @@ of day (`complication.sunrise`/`sunset`, seconds since local midnight).
   expression is read as seconds as written, since it no longer states a
   unit: `complication.recovery_time * 60` is the same value as the bare
   source.
-- Text around the field and `{unit}` work as for a number:
-  `"{:%-M:%S}{unit}"` is `4:30/km` (a pace, [below](#units)).
-- A pattern's own `shape: text` part takes a duration spec, but not `%h`:
+- Text around the placeholder and `{unit}` work as for a number:
+  `"{complication.race_pace_predictor_5k:%-M:%S}{unit}"` is `4:30/km` (a
+  pace, [below](#units)).
+- A pattern's own `type: text` part takes a duration spec, but not `%h`:
   its strings are fixed at build time, so there is no 12/24-hour setting to
   follow. Use `%H`, or `%l %p`.
 
 The compiler also derives the **widest plausible rendering** of every binding
-from its format and the source's documented range — that is what makes "does this
+from its spec and the source's documented range — that is what makes "does this
 label overflow its slot?" a static check, and what decides a font's glyph set.
 
 ## Units
@@ -441,16 +435,14 @@ Every source arrives in one fixed unit, whatever the wearer set on the
 watch: `activity.distance` in centimetres, `weather.temperature` in °C,
 `weather.wind_speed` in m/s, `ambient.altitude` in metres. `units:` on a
 `text` element converts it to the wearer's own choice, and `{unit}` in
-`format:` prints the matching label:
+the `text:` template prints the matching label:
 
 ```yaml
-- id: distance
+distance:
   type: text
-  value: activity.distance
-  units: auto                  # the watch's own distance setting, read each frame
-  format: "{:.1f} {unit}"      # "6.3 km" or "3.9 mi"
-  when_absent: placeholder
-  placeholder: "--"
+  text: "{activity.distance:.1f} {unit}" # "6.3 km" or "3.9 mi"
+  units: auto                    # the watch's own distance setting, read each frame
+  absent: "--"
 ```
 
 | `units:` | Means |
@@ -467,11 +459,11 @@ watch: `activity.distance` in centimetres, `weather.temperature` in °C,
 | speed | `weather.wind_speed` | km/h | mph | `distanceUnits` |
 | pace | `complication.race_pace_predictor_5k`, `_10k`, `_half_marathon`, `_marathon` | s/km (`/km`) | s/mi (`/mi`) | `paceUnits` |
 
-The converted value is a Float, so `{:.1f}` or `{:d}` (which truncates,
+The converted value is a Float, so `.1f` or `d` (which truncates,
 as everywhere) chooses the precision. A pace is **seconds** per km or mile,
 for a [duration format](#durations-and-times-of-day):
-`format: "{:%-M:%S}{unit}"` shows `4:30/km`. A speed of 0 would divide by
-zero, so it reads as 0 seconds (`0:00/km`) instead. `value:` must be **exactly one** of
+`"{complication.race_pace_predictor_5k:%-M:%S}{unit}"` shows `4:30/km`. A speed of 0 would divide by
+zero, so it reads as 0 seconds (`0:00/km`) instead. The placeholder must be **exactly one** of
 the sources above: the conversion needs the unit the value is in, which an
 expression over it no longer states. Anything else is a build error naming
 the sources that convert, and so is `{unit}` on an element without
@@ -494,5 +486,5 @@ other.
 - [`examples/features/slots/face.yaml`](../../examples/features/slots/face.yaml) — two complication slots, per-choice icon overrides, `on_hold: auto`.
 - [`examples/features/graph/face.yaml`](../../examples/features/graph/face.yaml) — graph styles and series.
 - [`examples/features/units/face.yaml`](../../examples/features/units/face.yaml) — `units:` on distance, temperature, wind and altitude.
-- [Configuration → The Data axis](configuration.md#the-data-axis) — declaring the `config: data:` slots a `complication_slot` draws.
-- [Progress and graphs](progress-and-graphs.md) — the `graph`/`progress` element reference.
+- [Configuration → The Data axis](configuration.md#the-data-axis) — declaring the `config: slots:` a `data` element draws.
+- [Gauges and graphs](progress-and-graphs.md) — the `graph`/`gauge` element reference.

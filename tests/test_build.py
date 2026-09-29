@@ -89,28 +89,28 @@ def test_an_off_screen_low_power_element_builds_and_clamps_the_clip(
     (`wfb.emit.monkeyc.view._emit_on_partial_update`).
     """
     design = write_design("""
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: stray
-    type: shape
-    shape: circle
+    color: color.bg
+  stray:
+    type: circle
     at: {anchor: center, dx: 500%}
     radius: 10px
-    color: palette.fg
-    modes: [active, low_power]
+    color: color.fg
+    sleep_update: true
     lint:
       allow: [off-screen]
       reason: "probing"
@@ -307,43 +307,42 @@ _BUILD_PROOF_DEVICE_IDS = _build_proof_device_ids()
 #: `monkeyc` run for a design that actually uses these features, on every
 #: device the new floor makes buildable, not just a friendly-error stub.
 _BUILD_PROOF_FACE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f61
   name: BuildProof
-targets: [{device_id}]
+build:
+  targets: [{device_id}]
 aod:
   lint: {{allow: [aod-empty], reason: "build-proof fixture, not a real design -- irrelevant on a MIP target too"}}
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#00AAFF"
-  dim: "#555555"
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#00AAFF"
+    dim: "#555555"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
     antialias: true
     lint: {{allow: [antialias-dither], reason: "build-proof fixture, not a real design"}}
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: FONT_MEDIUM
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center, dy: -20%r}}
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{{:%Y-%m-%d}}"
+    text: "{{date.today:%Y-%m-%d}}"
     font: FONT_TINY
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center, dy: 20%r}}
-  - id: battery_arc
-    type: progress
+  battery_arc:
+    type: gauge
     style: arc
     at: {{anchor: center, angle: 187deg, radius: 46%r}}
     radius: 6%r
@@ -352,8 +351,8 @@ elements:
     sweep: 320deg
     value: system.battery
     max: 100
-    color: palette.accent
-    track_color: palette.dim
+    color: color.accent
+    track_color: color.dim
 """
 
 
@@ -431,28 +430,28 @@ def test_a_length_font_size_compiles_cleanly_for_every_target(
     """
     ttf = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     design = write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: FontLen}}
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: 18%r
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 18%r
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: clock
+    color: color.bg
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """)
     bag = Bag()
     result = build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
@@ -482,42 +481,41 @@ def test_a_monospaced_font_compiles_cleanly_for_every_target(
     """
     ttf = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     design = write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Mono}}
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: 22%r
-    monospace: true
-  label:
-    source: {ttf}
-    size: 8%r
-    monospace: true
-    align: right
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 22%r
+      monospace: true
+    label:
+      source: {ttf}
+      size: 8%r
+      monospace: true
+      align: right
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: clock
+    color: color.bg
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
-  - id: steps
+    color: color.fg
+  steps:
     type: text
-    value: activity.steps
+    text: "{{activity.steps}}"
     font: font.label
     at: {{anchor: center, dy: 20%r}}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 """)
     bag = Bag()
     result = build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
@@ -550,65 +548,63 @@ def test_conditional_visibility_compiles_cleanly_for_every_target(
     leaf's own.
     """
     design = write_design("""
-format: 1
+format: 2
 face: {id: 3b7d5c11-08a2-4f6e-9c33-5d1e77a04b28, name: Visible}
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette: {bg: "#000000", fg: "#FFFFFF", accent: "#FF5500"}
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF", accent: "#FF5500"}
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: seconds
+    color: color.bg
+  seconds:
     type: text
-    value: time.second
-    format: "{:d}"
+    text: "{time.second:d}"
     font: FONT_SMALL
     at: {anchor: center, dy: -30%r}
-    color: palette.fg
+    color: color.fg
     visible: "time.second < 30"
-  - id: step_note
+  step_note:
     type: text
     text: "GO"
     font: FONT_SMALL
     at: {anchor: center, dy: -15%r}
-    color: palette.accent
+    color: color.accent
     visible: "activity.steps > 500"
-  - id: night_panel
+  night_panel:
     type: group
     at: {anchor: center}
     size: {width: 70%, height: 40%}
     visible: "time.hour >= 18 or time.hour < 6"
     children:
-      - id: night_label
+      night_label:
         type: text
         text: "NIGHT"
         font: FONT_SMALL
         at: {anchor: top}
-        color: palette.fg
-      - id: night_inner
+        color: color.fg
+      night_inner:
         type: group
         at: {anchor: center}
         size: {width: 100%, height: 50%}
         visible: "not device.do_not_disturb"
         children:
-          - id: night_steps
+          night_steps:
             type: text
-            value: activity.steps
-            format: "{:d}"
+            text: "{activity.steps:d}"
             font: FONT_SMALL
             at: {anchor: center}
-            color: palette.accent
-            when_absent: placeholder
-            placeholder: "--"
-          - id: night_icon
+            color: color.accent
+            absent: "--"
+          night_icon:
             type: icon
             icon: heart
             at: {anchor: bottom}
             size: 8%r
-            color: palette.fg
+            color: color.fg
             visible: "system.battery > 20"
 """)
     bag = Bag()

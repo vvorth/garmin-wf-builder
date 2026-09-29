@@ -9,9 +9,9 @@
 #
 # * **Two layouts, each with its own static *and* dynamic content.** `big`
 #   is a plain, oversized digital clock inside a static decorative ring.
-#   `compact` is a small clock above a steps progress arc, whose *track*
+#   `compact` is a small clock above a steps gauge arc, whose *track*
 #   (the dim full ring underneath) is static -- drawn once -- while the
-#   *fill* (`steps_arc`, `type: progress`) is drawn fresh every frame on top
+#   *fill* (`steps_arc`, `type: gauge`) is drawn fresh every frame on top
 #   of it, the same "static furniture, dynamic reading" split
 #   `tests/fixtures/slice/face.yaml` uses for one ring, done here per layout.
 #   Both layouts' own content draws *above* the shared content, in its own
@@ -29,7 +29,7 @@
 #   `configLayout()` accessor.
 #
 # The shared content -- drawn in every layout, underneath both -- is a
-# background bound to `config.colors.bg`, a **`complication_slot`** (the
+# background bound to `color.bg`, a **`data` element** (the
 # positive case of the slot rule: a slot may only ever be shared, never
 # inside a `layouts:` body, on pain of a build error), and a small date.
 #
@@ -37,7 +37,7 @@
 # every entry, layouts and colours alike, from the generated settings menu,
 # opened from its Watch Face menu (docs/guide/configuration.md).
 #
-# `compact_clock` also carries `modes: [active, low_power]` -- small enough
+# `compact_clock` also carries `sleep_update: true` -- small enough
 # (measured: well under the 25% clip-area threshold) that it costs no
 # `partial-update-budget` finding on any target, which is what makes it safe
 # to include as the `onPartialUpdate` guard's only worked example so far.
@@ -58,69 +58,70 @@
 # Preview one style with:  ./wfb.py preview examples/features/styles/face.yaml --style compact_dark
 # Preview every style with:  ./wfb.py preview examples/features/styles/face.yaml --all-styles
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 565ddf22-b8b4-4182-b70d-813ddb91d268
   name: Feature Styles
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-# Every colour below -- palette, color_scheme and config alike -- is one the
+# Every colour below -- palette, scheme and config alike -- is one the
 # 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
 # 0xAA or 0xFF.
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  dark_gray: "#555555"
-  light_gray: "#AAAAAA"
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    dark_gray: "#555555"
+    light_gray: "#AAAAAA"
 
-color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: palette.black, fg: palette.white, track: palette.dark_gray }
-  light:
-    label: "Light"
-    colors: { bg: palette.white, fg: palette.black, track: palette.light_gray }
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, fg: color.white, track: color.dark_gray }
+    light:
+      label: "Light"
+      colors: { bg: color.white, fg: color.black, track: color.light_gray }
 
 config:
-  data:
+  slots:
     reading:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - complication.heart_rate
-        - complication.body_battery
+        - steps
+        - heart_rate
+        - body_battery
   style:
     default: big_dark
     choices:
-      big_dark: { label: "Big · Dark", layout: big, colors: dark }
-      big_light: { label: "Big · Light", layout: big, colors: light }
-      compact_dark: { label: "Compact · Dark", layout: compact, colors: dark }
+      big_dark: { label: "Big · Dark", layout: big, scheme: dark }
+      big_light: { label: "Big · Light", layout: big, scheme: light }
+      compact_dark: { label: "Compact · Dark", layout: compact, scheme: dark }
 
 # Shared: drawn underneath both layouts, in every one of them.
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: config.colors.bg
+    color: color.bg
 
 elements:
   date_text:
     type: text
-    value: date.today
-    format: "{:%a %d}"
+    text: "{date.today:%a %d}"
     font: FONT_XTINY
     at: { anchor: center, dy: -38% }
-    color: config.colors.fg
+    color: color.fg
     lint:
       allow: [static-overlap]
       reason: "A decorative ring's bounding box is its full circumscribed
@@ -128,13 +129,12 @@ elements:
         sits well clear of the drawn line on every target"
 
   reading_slot:
-    type: complication_slot
-    slot: config.data.reading
+    type: data
+    slot: reading
     at: { anchor: center, dy: 38% }
     font: FONT_XTINY
-    color: config.colors.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
     lint:
       allow: [static-overlap]
       reason: "The same decorative-ring bounding-box overstatement as
@@ -144,49 +144,45 @@ layouts:
   big:
     static:
       big_ring:
-        type: shape
-        shape: arc
+        type: arc
         at: { anchor: center }
         radius: 84%r
         thickness: 4px
         start_angle: 0deg
         sweep: 360deg
-        color: config.colors.track
+        color: color.track
 
     elements:
       big_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         font: FONT_NUMBER_HOT
         at: { anchor: center, dy: -4% }
-        color: config.colors.fg
+        color: color.fg
         on_hold: heart_rate
 
   compact:
     static:
       steps_track:
-        type: shape
-        shape: arc
+        type: arc
         at: { anchor: center }
         radius: 90%r
         thickness: 10px
         start_angle: 180deg
         sweep: 340deg
-        color: config.colors.track
+        color: color.track
 
     elements:
       compact_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         font: FONT_MEDIUM
         at: { anchor: center, dy: -20% }
-        color: config.colors.fg
-        modes: [active, low_power]
+        color: color.fg
+        sleep_update: true
 
       steps_arc:
-        type: progress
+        type: gauge
         style: arc
         value: activity.steps
         max: activity.step_goal
@@ -195,6 +191,6 @@ layouts:
         thickness: 10px
         start_angle: 180deg
         sweep: 340deg
-        color: config.colors.fg
-        when_absent: hide
+        color: color.fg
+        absent: hide
 

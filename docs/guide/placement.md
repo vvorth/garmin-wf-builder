@@ -1,8 +1,8 @@
 # Placement: coordinates, units and alignment
 
 Every element needs a position. `at:` computes exactly one point relative to
-an anchor on the parent box, and `align:`/`vertical_align:` say which edge of
-the element's own placement box sits on that point. Lengths are pixels, a
+an anchor on the parent box, and `align:` says which point of the element's
+own placement box sits there. Lengths are pixels, a
 fraction of the parent box, or a fraction of the screen's radius, so a design
 stays correct across every screen size and shape.
 
@@ -12,16 +12,15 @@ stays correct across every screen size and shape.
 
 | Field | Values | Default | Meaning |
 |---|---|---|---|
-| `anchor` | `top_left`/`top`/`top_right`/`left`/`center`/`right`/`bottom_left`/`bottom`/`bottom_right`, or `subscreen` | `center` | the point on the parent box the position is relative to; `subscreen` lays a top-level element out in the Instinct's [subscreen window](#the-subscreen-window) |
+| `anchor` | `top_left`/`top`/`top_right`/`left`/`center`/`right`/`bottom_left`/`bottom`/`bottom_right`, a [compass alias](#compass-aliases), or `subscreen` | `center` | the point on the parent box the position is relative to; `subscreen` lays a top-level element out in the Instinct's [subscreen window](#the-subscreen-window) |
 | `dx`, `dy` | a [length](#lengths) | — | cartesian offset from the anchor |
 | `angle`, `radius` | an [angle](#angles), a [length](#lengths) | — | polar offset from the anchor — required together |
 
-**`align:` / `vertical_align:`**
+**`align:`**
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `align` | `left`/`center`/`right` | `center` | which horizontal edge of the [placement box](#placement-at-and-align) sits on `at:` |
-| `vertical_align` | `top`/`center`/`bottom` | `center` | which vertical edge of the [placement box](#placement-at-and-align) sits on `at:` |
+| `align` | the same nine names as `anchor`, or a [compass alias](#compass-aliases) | `center` | which point of the [placement box](#placement-at-and-align) sits on `at:` |
 
 **Units**
 
@@ -38,15 +37,14 @@ stays correct across every screen size and shape.
 ```yaml
 date_line:
   type: text
-  value: date.today
-  format: "{:%a, %e %b}"
+  text: "{date.today:%a, %e %b}"
   font: FONT_XTINY
   at: { anchor: top, dy: 10% }     # 10 % of the screen height below the top edge
-  color: config.colors.dim
+  color: color.dim
 
 weather_icon:
   type: icon
-  icon_for: weather.condition_today   # the glyph follows the condition
+  icon: { for: weather.condition_today }   # the glyph follows the condition
   size: 16%r
   at: { anchor: top, dy: 20% }
 ```
@@ -60,10 +58,10 @@ weather_icon:
 - `%` is a fraction of the parent box: its width for `dx`, its height for `dy`.
   `%r` is a fraction of the screen's **radius**, so a round dial stays round on
   every watch. `px` also works.
-- `align:` / `vertical_align:` choose which way a box grows from its point
+- `align:` chooses which way a box grows from its point
   ([elements](elements.md), [below](#alignment-around-a-point)).
-- A value that is absent (no weather yet) shows `placeholder:`. Here that is
-  `--°`.
+- A value that is absent (no weather yet) shows its `absent:` text. Here that
+  is `--°`.
 
 ## Coordinates
 
@@ -76,6 +74,19 @@ at: { anchor: center, angle: 45deg, radius: 38%r }
 
 Anchors are the nine box positions: `top_left`, `top`, `top_right`, `left`,
 `center`, `right`, `bottom_left`, `bottom`, `bottom_right`.
+
+#### Compass aliases
+
+`anchor:` and `align:` also take the eight compass points, uppercase:
+
+| Alias | Means |
+|---|---|
+| `N`, `NE`, `E`, `SE` | `top`, `top_right`, `right`, `bottom_right` |
+| `S`, `SW`, `W`, `NW` | `bottom`, `bottom_left`, `left`, `top_left` |
+
+`center` has no alias. `wfb` reads a bare `N` as the string `N`; an editor
+or tool that speaks YAML 1.1 reads it as `false`, so quote it there
+(`anchor: "N"`).
 
 ### Lengths
 
@@ -110,7 +121,7 @@ another. The switch defaults to **off**: a face that never mentions
 `min_1px:` compiles exactly as it always has, rounding included. Switched
 on, any nonzero `%`/`%r` length used as a `size:`, `thickness:`,
 `bar_width:` or an element/part's own `radius:` (a shape's `radius:`, a
-progress arc's, a hand or pattern part's) is clamped up to 1 px, sign
+gauge arc's, a hand or pattern part's) is clamped up to 1 px, sign
 preserved, if it would otherwise resolve smaller. Writing `0%`/`0%r` still
 means exactly zero regardless of the switch — it only ever lifts a nonzero
 result. `px` and `pt` lengths are never touched: a `px` value is already
@@ -148,11 +159,11 @@ reaches the device: the watch performs no layout arithmetic.
 
 ### Placement: `at:` and `align:`
 
-`at:` computes exactly one point. `align:` (`left`/`center`/`right`) and
-`vertical_align:` (`top`/`center`/`bottom`) say which edge of the element's
-own **placement box** — or its centre — sits on that point, independently per
-axis. Both default to `center`, so an element with neither key is centred on
-`at:` exactly as every element always has been.
+`at:` computes exactly one point. `align:` says which point of the element's
+own **placement box** sits on it: one of the nine box positions, so a
+horizontal edge (`left`/`right`), a vertical one (`top`/`bottom`), a corner
+(`top_left` …), or the centre. It defaults to `center`, so an element
+without it is centred on `at:`.
 
 **The placement box is the element's declared geometry, never its ink.** An
 outlined shape's pen straddles its box the same whether the box is centred or
@@ -160,26 +171,26 @@ aligned; an arc's `start_angle:`/`sweep:` never move where it sits, because
 the box is the full circle, not the swept span. Changing `thickness:` or
 `sweep:` never moves an element.
 
-`align:`/`vertical_align:` are accepted on:
+`align:` is accepted on:
 
 | Kind | Placement box |
 |---|---|
 | `group` | `size:` |
 | `text` | the widest rendering × the line height (the same box the `off-screen`/`overlap` lints already check) |
-| a pattern's `shape: text` part | that copy's own string width × line height, in the pattern's frame |
-| `shape` rectangle, rounded_rectangle, ellipse | `size:` |
-| `shape` circle, arc | `2·radius` × `2·radius` — the full circle, whatever `start_angle:`/`sweep:` is |
-| `progress` bar | `size:` |
-| `progress` arc | `2·radius` × `2·radius`, same as `shape: arc` |
+| a pattern's `type: text` part | that copy's own string width × line height, in the pattern's frame |
+| `rectangle`, `ellipse` | `size:` |
+| `circle`, `arc` | `2·radius` × `2·radius` — the full circle, whatever `start_angle:`/`sweep:` is |
+| `gauge` bar | `size:` |
+| `gauge` arc | `2·radius` × `2·radius`, same as `type: arc` |
 | `graph` | `size:` |
 | `icon` | the measured glyph box (the font's own extent for the drawn codepoint) |
-| `complication_slot` | the icon+reading pair's box, from `wfb.layout.complication_slot_pair_geometry` — estimated at build time, measured on the device |
+| `data` | the icon+reading pair's box, from `wfb.layout.complication_slot_pair_geometry` — estimated at build time, measured on the device |
 | a hand or pattern `rectangle` part | `size:`, in the part's own frame |
 | a hand or pattern `circle` part | `2·radius` × `2·radius`, in the part's own frame |
 
 **Not accepted on:**
 
-- **`shape` polygon and line** — a polygon has no single `at:` of its own,
+- **`polygon` and `line`** — a polygon has no single `at:` of its own,
   and every vertex is already its own position, so there is no one point to
   align a box on; a line's `at:`/`to:` are already its two ends, so aligning
   would ask "align *what*" a second time.
@@ -188,59 +199,57 @@ the box is the full circle, not the swept span. Changing `thickness:` or
   position (and the part has no `at:` of its own either); a line part's
   `at:`/`to:` are already its two ends; an arc part is always centred on the
   copy's own origin (`docs/plans/05-patterns.md` D3), so there is no `at:`
-  to offset in the first place. A hand never produces `shape: arc` at all
+  to offset in the first place. A hand never has an `arc` part at all
   (see [Analog hands](analog-hands.md#analog-hands)), so this third case only ever arises
   on a pattern part.
 - **`type: hands` and `type: pattern`** — their `at:` is a pivot, not a box:
   a hands element's `at:` is the axis every part turns about, and a
   pattern's `at:` is the origin every copy turns about (radial) or steps
   from (linear). Moving a pivot to "align" it would break the very geometry
-  the element draws, so both refuse the keys outright — align a part
+  the element draws, so both refuse `align:` outright — align a part
   instead, or move `at:`.
 
 Each of these is a build error naming the reason: the shape and part
-rejections go through the same "key not used by this shape" check any other
-misplaced geometry key goes through (see [`shape`](shapes.md#shape) and
-[Analog hands](analog-hands.md#analog-hands)); `hands`/`pattern` refuse the keys with their
-own friendly pre-schema error, one per key, never swallowing an unrelated
-mistake on the same element.
+rejections go through the same "key not used by this type" check any other
+misplaced geometry key goes through (see [Shapes](shapes.md#the-six-types) and
+[Analog hands](analog-hands.md#analog-hands)); `hands`/`pattern` refuse it with their
+own friendly pre-schema error, never swallowing an unrelated mistake on the
+same element.
 
 **A hand or pattern `rectangle`/`circle` part aligns in its own frame, and
 the shift turns or steps with the part.** The frame's directions are as the
 part is drawn at 12 o'clock (a hand) or as copy 0 is drawn (a pattern):
 `left` is `-x`, `top` is `-y` (towards 12 o'clock). For example, a hand
-rectangle part with `at: {dy: 0}` and `vertical_align: bottom` has its
+rectangle part with `at: {dy: 0}` and `align: bottom` has its
 bottom edge on the axis — it extends from the axis towards the tip, saving
-`dy: -length/2`. This is a deliberate contrast with a pattern `shape: text`
+`dy: -length/2`. This is a deliberate contrast with a pattern `type: text`
 part (below): a rectangle/circle part's *box* moves in the frame and turns
 with the part, while a text part's glyphs stay upright and only its *anchor
 point* moves this way before turning or stepping.
 
-A `text` element, an `icon` (static or `icon_for:`) or a pattern `shape: text`
+A `text` element, an `icon` (fixed or `icon: {for:}`) or a pattern `type: text`
 part draws its glyphs through a runtime justify on the device rather than
 moving a build-time box (there is no bottom-justify flag on the platform, so
-`vertical_align: bottom` there subtracts the font's own on-device
+a `bottom` alignment there subtracts the font's own on-device
 `getFontHeight` instead) — see [`text`](text.md#text), [`icon`](icons.md#icon) and
 [Text parts](patterns.md#text-parts) for the mechanism; the *rule* above is the same
-regardless of which mechanism draws it. A `complication_slot` is different
+regardless of which mechanism draws it. A `data` element is different
 again: its pair is measured and placed on the **device**, at runtime, so its
 alignment arithmetic lives there too (ADR 0004's one deliberate exception) —
-see [`complication_slot`](configuration.md#complication_slot); the box in the table above is
+see [`data`](configuration.md#data); the box in the table above is
 still the same build-time *estimate* the geometry lints use.
 
 ## Alignment around a point
 
 ```yaml
 steps_slot:
-  type: complication_slot
+  type: data
   at: { anchor: center, angle: 45deg, radius: 27%r }   # polar placement
-  align: left              # grow rightwards from the point...
-  vertical_align: bottom   # ...and upwards
+  align: bottom_left       # grow rightwards and upwards from the point
 heart_group:
   type: group
   at: { anchor: center, angle: 135deg, radius: 27%r }
-  align: left
-  vertical_align: top      # the lower-right readout grows downwards
+  align: top_left          # the lower-right readout grows downwards
 ```
 
 <img src="../screenshots/align.png" width="260" alt="align example">
@@ -249,10 +258,9 @@ heart_group:
 
 Each diagonal readout sits on a point at the same distance from the centre and
 grows away from it, so the four corners stay symmetric whatever their content.
-`align:` is `left`/`center`/`right` and `vertical_align:` is
-`top`/`center`/`bottom`. Both work on:
-- groups, text, progress bars and arcs, graphs, icons and complication slots
-- shapes other than `polygon` and `line`
+`align:` works on:
+- groups, text, gauges, graphs, icons and `data` elements
+- the primitives other than `polygon` and `line`
 - rectangle, circle and text parts of hands and patterns
 
 ## The subscreen window
@@ -263,17 +271,17 @@ it like anywhere else, and stock faces put a gauge or a number there.
 `at: { anchor: subscreen }` places an element inside it:
 
 ```yaml
-- id: battery_ring
-  type: progress
+battery_ring:
+  type: gauge
   style: arc
-  at: { anchor: subscreen }     # the centre of the window
-  radius: 39%                   # 39 % of the window, not of the screen
+  at: { anchor: subscreen }       # the centre of the window
+  radius: 39%                     # 39 % of the window, not of the screen
   thickness: 3px
   start_angle: 0deg
   sweep: 360deg
   value: system.battery
   max: 100
-  color: palette.fg
+  color: color.fg
 ```
 
 - **The window's box becomes the element's parent box.** The anchor is its
@@ -286,7 +294,7 @@ it like anywhere else, and stock faces put a gauge or a number there.
 - **The window is round.** The box is square, and the lint checks the
   element's ink against the round opening (`safe-area`).
 - **A target without a subscreen is a build error** naming it, unless the
-  element sets `if_unavailable: hide`. It then does not draw there (nor do a
+  element sets `unsupported: hide`. It then does not draw there (nor do a
   group's children), and the build says so in a note. This is the same
   `error`/`hide` choice a [`face:` font](fonts.md) offers, and on a `text`
   element the one key covers both. A device has a subscreen when its

@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from tests.helpers import errors, find
+from tests.helpers import with_resources, errors, find
 from wfb.build import load
 from wfb import lint
 from wfb.emit.resources import bake_fonts
@@ -22,44 +22,50 @@ from wfb.ir import HandsElement, PatternElement
 from wfb.layout import PlacedPattern, circular_extent, is_antialiased_primitive, resolve
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FF5500"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FF5500"
 """
 
 
 def design(elements_block: str) -> str:
+    """``BASE`` plus ``elements_block`` as its ``elements:`` -- or, for a
+    block `_static` made, as its ``static:`` block."""
+    if elements_block.startswith("static:\n"):
+        return BASE + "\n" + elements_block
     return BASE + "\nelements:\n" + elements_block
 
 
 #: A four-copy radial ring -- 90deg apart, the default step -- used as the
 #: "everything builds" fixture and as the geometry fixture below (§4).
-RADIAL_RING = """  - id: ring
+RADIAL_RING = """  ring:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}
+      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}
 """
 
 #: A three-copy linear row, 20px apart.
-LINEAR_ROW = """  - id: row
+LINEAR_ROW = """  row:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 3
     step: {dx: 20px}
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: circle, radius: 5px}
+      - {type: circle, radius: 5px}
 """
 
 
@@ -89,31 +95,33 @@ def test_a_hand_still_builds_clean_after_the_part_builder_was_parameterised(writ
     `context` argument (hand vs pattern) -- every existing call from
     `_build_hand` must still take the hand path unchanged."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
+      minute:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
 """
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
 """
-    face = load(write_design(BASE + hands + "\nelements:\n" + elements), bag)
+    face = load(write_design(with_resources(BASE, hands) + "\nelements:\n" + elements), bag)
     assert face is not None, bag.render()
     assert isinstance(face.elements[0], HandsElement)
     # an arc part is still rejected on a hand, unchanged wording:
     bad_hands = hands.replace(
-        "        - {shape: polygon,",
-        "        - {shape: arc}\n        - {shape: polygon,",
+        "          - {type: polygon,",
+        "          - {type: arc}\n          - {type: polygon,",
     )
-    bad = errors(BASE + bad_hands + "\nelements:\n" + elements, bag, write_design)
+    assert bad_hands != hands
+    bad = errors(with_resources(BASE, bad_hands) + "\nelements:\n" + elements, bag, write_design)
     assert len(bad) == 1
     assert "not implemented yet" in bad[0].message
 
@@ -174,7 +182,7 @@ def test_a_skip_index_out_of_range_is_an_error(write_design, bag):
 def test_a_repeated_skip_index_is_an_error(write_design, bag):
     """§5.4 check 4's other half: a repeated index, not just one out of
     range.  Enforced by the schema's own `uniqueItems: true` on `skip:`
-    (`schema/wfb-face-1.schema.json`), one stage before the IR checks
+    (`schema/wfb-face-2.schema.json`), one stage before the IR checks
     above -- still one error, not a silent dedupe."""
     text = RADIAL_RING.replace("count: 4", "count: 4\n    skip: [1, 1]")
     bad = errors(design(text), bag, write_design)
@@ -197,7 +205,8 @@ def test_every_copy_skipped_is_an_error(write_design, bag):
 
 
 def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
-    text = RADIAL_RING.replace("    at: {anchor: center}", "    at: {anchor: center}\n    modes: [active, low_power]")
+    text = RADIAL_RING.replace("    at: {anchor: center}", """    at: {anchor: center}
+    sleep_update: true""")
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
     assert "sleep_update" in bad[0].message
@@ -207,7 +216,6 @@ def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
 
 
 @pytest.mark.parametrize("shape,reason", [
-    ("rounded_rectangle", "rotated or translated rounded rectangle"),
     ("ellipse", "rotated or translated ellipse"),
     # "text" left this table 2026-09-15 (plan 06 §3): a pattern text part's
     # glyphs are upright, only the anchor rotates/steps, so it is a real,
@@ -219,8 +227,8 @@ def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
 ])
 def test_bad_part_shapes_each_get_their_own_reason(write_design, bag, shape, reason):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        f"      - {{shape: {shape}}}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        f"      - {{type: {shape}}}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -230,8 +238,8 @@ def test_bad_part_shapes_each_get_their_own_reason(write_design, bag, shape, rea
 
 def test_arc_is_a_real_shape_on_a_pattern_unlike_a_hand(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}",
     )
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
@@ -239,8 +247,8 @@ def test_arc_is_a_real_shape_on_a_pattern_unlike_a_hand(write_design, bag):
 
 def test_at_on_an_arc_part_is_rejected_with_the_centring_reason(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, at: {dy: -10px}, radius: 40px, sweep: 24deg}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, at: {dy: -10px}, radius: 40px, sweep: 24deg}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -250,8 +258,8 @@ def test_at_on_an_arc_part_is_rejected_with_the_centring_reason(write_design, ba
 
 def test_a_key_not_used_by_this_part_shape_is_an_error(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: polygon, radius: 5, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: polygon, radius: 5, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -259,7 +267,8 @@ def test_a_key_not_used_by_this_part_shape_is_an_error(write_design, bag):
 
 
 def test_no_colour_is_an_error(write_design, bag):
-    text = RADIAL_RING.replace("    color: palette.fg\n", "")
+    text = RADIAL_RING.replace("""    color: color.fg
+""", "")
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
     assert "no colour" in bad[0].message
@@ -268,23 +277,24 @@ def test_no_colour_is_an_error(write_design, bag):
 
 def test_a_part_colour_overrides_the_pattern_default(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px, color: palette.accent}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px, color: color.accent}",
     )
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
     part = face.elements[0].parts[0]
-    assert part.color.text == "palette.accent"
+    assert part.color.shown == "color.accent"
 
 
 def _with_color(template: str, color: str, where: str) -> str:
     """RADIAL_RING with `color` on the element, or on its one part (and
     none on the element)."""
     if where == "element":
-        return template.replace("color: palette.fg", f'color: "{color}"')
+        return template.replace("color: color.fg", f'color: "{color}"')
     return template.replace(
         "thickness: 2px}", f'thickness: 2px, color: "{color}"}}').replace(
-        "    color: palette.fg\n", "")
+        """    color: color.fg
+""", "")
 
 
 def _with_when_absent(template: str, value: str = "hide") -> str:
@@ -292,16 +302,16 @@ def _with_when_absent(template: str, value: str = "hide") -> str:
     just above `parts:` -- every RADIAL_RING-derived fixture has exactly one
     `parts:` line."""
     assert template.count("    parts:\n") == 1
-    return template.replace("    parts:\n", f"    when_absent: {value}\n    parts:\n", 1)
+    return template.replace("    parts:\n", f"    absent: {value}\n    parts:\n", 1)
 
 
 @pytest.mark.parametrize("where", ["element", "part"])
 def test_a_colour_reading_an_absent_able_source_needs_when_absent(write_design, bag, where):
     """2026-09-15: a pattern colour may now read a source that can be
-    absent, but only with 'when_absent: hide' declared -- the old outright
+    absent, but only with 'absent: hide' declared -- the old outright
     refusal (`cannot read a source that may be absent`) is gone; this is
     the new one-error-not-N replacement, `_check_pattern_absence`."""
-    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    color = "activity.steps > 5000 ? color.accent : color.fg"
     bad = errors(design(_with_color(RADIAL_RING, color, where)), bag, write_design)
     assert len(bad) == 1, [d.message for d in bad]
     assert bad[0].code == "when-absent"
@@ -313,7 +323,7 @@ def test_two_nullable_bindings_on_one_pattern_still_get_one_error(write_design, 
     """The element colour *and* the one part's colour both read a nullable
     source: `_check_pattern_absence` reports once for the whole element, not
     once per expression."""
-    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    color = "activity.steps > 5000 ? color.accent : color.fg"
     text = _with_color(RADIAL_RING, color, "element").replace(
         "thickness: 2px}", f'thickness: 2px, color: "{color}"}}')
     bad = errors(design(text), bag, write_design)
@@ -323,7 +333,7 @@ def test_two_nullable_bindings_on_one_pattern_still_get_one_error(write_design, 
 
 @pytest.mark.parametrize("where", ["element", "part"])
 def test_a_colour_reading_an_absent_able_source_builds_with_when_absent_hide(write_design, bag, where):
-    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    color = "activity.steps > 5000 ? color.accent : color.fg"
     text = _with_when_absent(_with_color(RADIAL_RING, color, where))
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
@@ -334,13 +344,13 @@ def test_a_colour_reading_a_complication_builds_clean_with_the_subscription(
         write_design, bag, db, tmp_path):
     """`complication.battery` (every `complication.*` source is nullable, so
     it needed the same treatment as `activity.steps` above) -- builds with
-    `when_absent: hide`, and the generated project actually subscribes:
+    `absent: hide`, and the generated project actually subscribes:
     `ComplicationSubscriber` in the manifest, the right `minApiLevel`, and a
     `WfbComplications.subscribe` call in the view (1c in the brief -- costlier
     than a direct source, but it must still work end to end)."""
     from wfb.emit.project import generate
 
-    color = "complication.battery > 50 ? palette.accent : palette.fg"
+    color = "complication.battery > 50 ? color.accent : color.fg"
     text = _with_when_absent(_with_color(RADIAL_RING, color, "part"))
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
@@ -360,14 +370,14 @@ def test_a_colour_reading_a_never_absent_source_builds(write_design, bag, where)
     """The contrast: `date.weekday` is never absent, so a pattern may read it
     with no 'when_absent:' at all -- until 2026-09-15 this was the same
     "cannot read data" error as a hand's colour still gets."""
-    color = "date.weekday == 1 ? palette.accent : palette.fg"
+    color = "date.weekday == 1 ? color.accent : color.fg"
     face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
     assert face is not None, bag.render()
     assert face.elements[0].parts[0].color.sources == ("date.weekday",)
 
 
 def test_when_absent_hide_on_a_pattern_that_reads_nothing_nullable_is_a_note(write_design, bag):
-    """The mirror of the error above: `when_absent: hide` declared but
+    """The mirror of the error above: `absent: hide` declared but
     nothing on the pattern can ever be absent -- a note, not an error, the
     same "has no effect" wording `check_absence` gives every other element
     kind."""
@@ -393,23 +403,24 @@ def test_a_hand_colour_still_may_not_read_a_never_absent_source(write_design, ba
     """Relaxing the pattern rule must not relax the hand one: a hand's colour
     reads no data at all, absent-able or not."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: "date.weekday == 1 ? palette.accent : palette.fg"
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}}
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: "date.weekday == 1 ? color.accent : color.fg"
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}}
+      minute:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
 """
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
 """
-    bad = errors(BASE + hands + "\nelements:\n" + elements, bag, write_design)
+    bad = errors(with_resources(BASE, hands) + "\nelements:\n" + elements, bag, write_design)
     assert len(bad) == 1
     assert "a hand colour cannot read data ('date.weekday')" in bad[0].message
 
@@ -419,7 +430,7 @@ hands:
 
 @pytest.mark.parametrize("where", ["element", "part"])
 def test_copy_is_bound_in_a_pattern_colour(write_design, bag, where):
-    color = "copy % 2 == 0 ? palette.accent : palette.fg"
+    color = "copy % 2 == 0 ? color.accent : color.fg"
     face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
     assert face is not None, bag.render()
     part_color = face.elements[0].parts[0].color
@@ -429,12 +440,11 @@ def test_copy_is_bound_in_a_pattern_colour(write_design, bag, where):
 
 
 def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
-    shape = """  - id: dot
-    type: shape
-    shape: circle
+    shape = """  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: "copy == 0 ? palette.accent : palette.fg"
+    color: "copy == 0 ? color.accent : color.fg"
 """
     bad = errors(design(shape), bag, write_design)
     assert len(bad) == 1
@@ -445,12 +455,11 @@ def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
 def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
     """`copy` is bound while one pattern's colours compile and unbound
     straight after -- an element built next must not see it."""
-    shape = """  - id: dot
-    type: shape
-    shape: circle
+    shape = """  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: "copy == 0 ? palette.accent : palette.fg"
+    color: "copy == 0 ? color.accent : color.fg"
 """
     bad = errors(design(RADIAL_RING + shape), bag, write_design)
     assert len(bad) == 1
@@ -460,13 +469,12 @@ def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
 def test_copy_does_not_leak_past_a_rejected_pattern(write_design, bag):
     """The same, when the pattern itself fails part-way through its
     colours: the `finally` unbinding must still run."""
-    broken = _with_color(RADIAL_RING, "activity.steps > 1 ? palette.fg : palette.bg", "element")
-    shape = """  - id: dot
-    type: shape
-    shape: circle
+    broken = _with_color(RADIAL_RING, "activity.steps > 1 ? color.fg : color.bg", "element")
+    shape = """  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: "copy == 0 ? palette.accent : palette.fg"
+    color: "copy == 0 ? color.accent : color.fg"
 """
     bad = errors(design(broken + shape), bag, write_design)
     assert [d.message for d in bad if "'copy' is only defined" in d.message]
@@ -554,31 +562,31 @@ def test_visible_on_a_hand_part_is_rejected_by_the_schema(write_design, bag):
     """`handPart` never gained `visible:` -- schema keeps `additionalProperties:
     false`, unlike `patternPart` (B1)."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}, visible: "true"}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}, visible: "true"}
 """
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
 """
-    face = load(write_design(BASE + hands + "\nelements:\n" + elements), bag)
+    face = load(write_design(with_resources(BASE, hands) + "\nelements:\n" + elements), bag)
     assert face is None
     assert any(d.code == "schema" for d in bag.errors), bag.render()
 
 
 def test_copy_does_not_leak_past_a_pattern_whose_part_visible_bound_it(write_design, bag):
     text = _with_part_visible(RADIAL_RING, "copy < 2")
-    shape = """  - id: dot
-    type: shape
-    shape: circle
+    shape = """  dot:
+    type: circle
     at: {anchor: center}
     radius: 5px
-    color: "copy == 0 ? palette.accent : palette.fg"
+    color: "copy == 0 ? color.accent : color.fg"
 """
     bad = errors(design(text + shape), bag, write_design)
     assert len(bad) == 1
@@ -588,9 +596,8 @@ def test_copy_does_not_leak_past_a_pattern_whose_part_visible_bound_it(write_des
 
 def test_filled_false_is_rejected_on_polygon(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: polygon, filled: false, points: "
-        "[{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: polygon, filled: false, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -599,8 +606,8 @@ def test_filled_false_is_rejected_on_polygon(write_design, bag):
 
 def test_thickness_is_rejected_on_a_filled_circle_part(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: circle, radius: 10px, thickness: 2px}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: circle, radius: 10px, thickness: 2px}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -609,8 +616,8 @@ def test_thickness_is_rejected_on_a_filled_circle_part(write_design, bag):
 
 def test_thickness_is_accepted_on_an_arc_part(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, radius: 30px, thickness: 4px, sweep: 20deg}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, radius: 30px, thickness: 4px, sweep: 20deg}",
     )
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
@@ -618,8 +625,8 @@ def test_thickness_is_accepted_on_an_arc_part(write_design, bag):
 
 def test_filled_is_rejected_on_an_arc_part(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, radius: 30px, sweep: 20deg, filled: false}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, radius: 30px, sweep: 20deg, filled: false}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -628,8 +635,8 @@ def test_filled_is_rejected_on_an_arc_part(write_design, bag):
 
 def test_an_arc_part_needs_a_radius(write_design, bag):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, sweep: 20deg}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, sweep: 20deg}",
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -650,8 +657,8 @@ def test_anchor_in_a_part_position_is_rejected(write_design, bag):
 @pytest.mark.parametrize("length", ["10%", "2pt"])
 def test_percent_and_pt_are_rejected_in_a_part_length(write_design, bag, length):
     text = RADIAL_RING.replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        f"      - {{shape: circle, radius: {length!r}}}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        f"      - {{type: circle, radius: {length!r}}}",
     )
     face = load(write_design(design(text)), bag)
     assert face is None
@@ -728,8 +735,8 @@ def test_linear_transform_steps_by_dx_dy(resolved_for):
 
 def test_arc_part_resolves_centred_on_the_origin(resolved_for):
     text = RADIAL_RING.replace("count: 4", "count: 1").replace(
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-        "      - {shape: arc, radius: 30px, thickness: 4px, start_angle: 10deg, sweep: 50deg}",
+        "      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
+        "      - {type: arc, radius: 30px, thickness: 4px, start_angle: 10deg, sweep: 50deg}",
     )
     placed = find(resolved_for(design(text)), "ring")
     part = placed.parts[0]
@@ -790,7 +797,9 @@ def test_placed_pattern_is_in_antialiased_primitives(resolved_for):
 
 
 def test_a_pattern_inherits_the_face_antialias_default(write_design, bag):
-    text = "antialias: true\n" + design(RADIAL_RING)
+    text = """defaults:
+  antialias: true
+""" + design(RADIAL_RING)
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     assert face.elements[0].resolved_antialias is True
@@ -800,7 +809,7 @@ def test_a_pattern_inherits_its_groups_antialias(write_design, bag):
     indented_ring = "\n".join(
         "    " + line if line.strip() else line for line in RADIAL_RING.splitlines()
     )
-    grouped = f"""  - id: wrap
+    grouped = f"""  wrap:
     type: group
     antialias: true
     children:
@@ -815,23 +824,22 @@ def test_a_pattern_inherits_its_groups_antialias(write_design, bag):
 # -- static: -------------------------------------------------------------------
 
 
-def test_a_pattern_may_be_static(write_design, bag):
-    text = RADIAL_RING.replace("    at: {anchor: center}", "    at: {anchor: center}\n    static: true")
-    face = load(write_design(design(text)), bag)
-    assert face is not None, bag.render()
-    element = face.elements[0]
-    assert element.static is True
-    assert element.static_root == element.id
-
-
 def _static(text: str) -> str:
-    return text.replace("    at: {anchor: center}", "    at: {anchor: center}\n    static: true")
+    """``text``'s elements as the design's ``static:`` block."""
+    return "static:\n" + text
+
+
+def test_a_pattern_may_be_static(write_design, bag):
+    face = load(write_design(design(_static(RADIAL_RING))), bag)
+    assert face is not None, bag.render()
+    ring = next(e for e in face.walk() if e.id == "ring")
+    assert ring.static_root == "static"
 
 
 def test_a_static_pattern_may_colour_by_copy(write_design, bag):
     """`copy` is fixed per copy, not a reading: a static buffer filled once
     still shows it correctly."""
-    text = _static(_with_color(RADIAL_RING, "copy == 0 ? palette.accent : palette.fg", "part"))
+    text = _static(_with_color(RADIAL_RING, "copy == 0 ? color.accent : color.fg", "part"))
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
 
@@ -840,7 +848,7 @@ def test_a_static_pattern_may_not_read_the_date(write_design, bag):
     """The contrast: `date.weekday` changes, and a static buffer would freeze
     it -- the ordinary static-binding error, reached through the pattern's
     `colors`."""
-    text = _static(_with_color(RADIAL_RING, "date.weekday == 1 ? palette.accent : palette.fg",
+    text = _static(_with_color(RADIAL_RING, "date.weekday == 1 ? color.accent : color.fg",
                                "part"))
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
@@ -886,14 +894,14 @@ def test_pattern_step_does_not_fire_for_a_radial_pattern(lint_run):
 # -- barrel selection (§6.5 dispatch) -------------------------------------------
 
 
-ALL_ARC_RING = """  - id: segs
+ALL_ARC_RING = """  segs:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}
+      - {type: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}
 """
 
 
@@ -926,9 +934,11 @@ def test_a_mixed_pattern_pulls_in_both_barrels(write_design, bag, db, tmp_path):
     does call into `WfbGeom` (`WfbGeom.drawLineRotated`), so both barrels
     are needed together."""
     text = ALL_ARC_RING.replace(
-        "      - {shape: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}\n",
-        "      - {shape: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}\n"
-        "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}\n",
+        """      - {type: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}
+""",
+        """      - {type: arc, radius: 40px, thickness: 4px, start_angle: 3deg, sweep: 24deg}
+      - {type: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}
+""",
     )
     barrel = _barrel_for(design(text), write_design, bag, db, tmp_path)
     assert "WfbArc.mc" in barrel
@@ -964,8 +974,8 @@ def test_a_colour_reading_copy_is_set_inside_the_loop(write_design, bag, db, tmp
     """One distinct colour *text* is not one colour when it reads `copy`:
     hoisted above the loop it would reference `i` before it exists (a
     monkeyc error), so it is set per copy instead."""
-    text = LINEAR_ROW.replace("color: palette.fg",
-                              'color: "copy == 1 ? palette.accent : palette.fg"')
+    text = LINEAR_ROW.replace("color: color.fg",
+                              'color: "copy == 1 ? color.accent : color.fg"')
     view = _view_for(design(text), write_design, bag, db, tmp_path)
     assert "hoisted: one colour" not in view
     assert ("dc.setColor(((i == 1) ? Palette.ACCENT : Palette.FG), "
@@ -977,8 +987,8 @@ def test_a_date_reading_is_declared_once_before_the_loop(write_design, bag, db, 
     Number for -l 3, into a local declared at the top of the method -- not
     re-read per copy."""
     text = LINEAR_ROW.replace(
-        "color: palette.fg",
-        'color: "copy == (date.weekday + 5) % 7 ? palette.accent : palette.fg"')
+        "color: color.fg",
+        'color: "copy == (date.weekday + 5) % 7 ? color.accent : color.fg"')
     view = _view_for(design(text), write_design, bag, db, tmp_path)
     before_loop = view.split("for (var i = 0; i <", 1)[0]
     assert "var dateWeekday = dateShort.day_of_week as Number;" in before_loop
@@ -996,20 +1006,20 @@ def test_a_date_reading_is_declared_once_before_the_loop(write_design, bag, db, 
 #: (`palette.bg`) keeps colour hoisting off, so each part's `dc.setColor`
 #: call is emitted (or, for the third part, *not* re-emitted, because the
 #: colour did not change) exactly the way a real multi-colour pattern would.
-GATED_ORDER = """  - id: bars
+GATED_ORDER = """  bars:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 3
     step: {dx: 10px}
-    when_absent: hide
+    absent: hide
     parts:
-      - {shape: circle, radius: 6px, color: palette.bg}
-      - shape: rectangle
+      - {type: circle, radius: 6px, color: color.bg}
+      - type: rectangle
         size: {width: 4px, height: 4px}
-        color: palette.fg
+        color: color.fg
         visible: "copy <= activity.move_bar_level - 1"
-      - {shape: rectangle, size: {width: 2px, height: 2px}, color: palette.fg}
+      - {type: rectangle, size: {width: 2px, height: 2px}, color: color.fg}
 """
 
 
@@ -1053,15 +1063,15 @@ def test_a_nullable_source_read_by_part_visible_is_guarded_before_the_loop(
     assert "return;" in before_loop
 
 
-CONST_FALSE_PART = """  - id: bars2
+CONST_FALSE_PART = """  bars2:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 2
     step: {dx: 10px}
     parts:
-      - {shape: circle, radius: 4px, color: palette.fg, visible: "false"}
-      - {shape: circle, radius: 2px, color: palette.bg}
+      - {type: circle, radius: 4px, color: color.fg, visible: "false"}
+      - {type: circle, radius: 2px, color: color.bg}
 """
 
 
@@ -1080,14 +1090,14 @@ def test_a_constant_false_visible_part_warns_dead_element(lint_run):
     assert "never drawn" in findings[0].message
 
 
-CONST_TRUE_PART = """  - id: bars3
+CONST_TRUE_PART = """  bars3:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 2
     step: {dx: 10px}
     parts:
-      - {shape: circle, radius: 4px, color: palette.fg, visible: "true"}
+      - {type: circle, radius: 4px, color: color.fg, visible: "true"}
 """
 
 
@@ -1110,14 +1120,14 @@ def test_a_constant_true_visible_part_emits_no_gate(write_design, bag, db, tmp_p
 
 
 def _tick_ring(inner_px: int, outer_px: int, count: int = 12) -> str:
-    return f"""  - id: ticks
+    return f"""  ticks:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: {count}
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: line, at: {{dy: -{inner_px}px}}, to: {{dy: -{outer_px}px}}, thickness: 2px}}
+      - {{type: line, at: {{dy: -{inner_px}px}}, to: {{dy: -{outer_px}px}}, thickness: 2px}}
 """
 
 

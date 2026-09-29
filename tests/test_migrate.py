@@ -674,6 +674,24 @@ elements:
     assert _data(text)["elements"]["y"]["text"] == '{(copy == 0 ? "A" : "B")}'
 
 
+def test_a_one_key_mapping_in_a_flow_list_keeps_its_braces():
+    """ruamel writes `[{dy: 1}]` as `[dy: 1]` by default -- the same data,
+    but not what the author wrote."""
+    text = migrate(HEADER + "hands:\n  h:\n    hour:\n      parts:\n"
+                   "        - {shape: polygon, points: [{dx: 1}, {dy: -4}, {dx: 3}]}\n"
+                   "elements:\n  - {id: a, type: hands, hands: h}\n")
+    assert "points: [{dx: 1}, {dy: -4}, {dx: 3}]" in text
+
+
+def test_an_escape_in_a_double_quoted_scalar_survives():
+    """ruamel reads `"\\uF09B"` as the character and would write it back raw,
+    which most editors show as a blank box."""
+    text = migrate(HEADER + 'elements:\n  - id: a\n    type: text\n'
+                   '    text: "\\uF09B"   # a glyph\n')
+    assert 'text: "\\uF09B"   # a glyph' in text
+    assert _data(text)["elements"]["a"]["text"] == "\uf09b"
+
+
 def test_the_schema_modeline_is_updated():
     text = migrate("# yaml-language-server: $schema=../schema/wfb-face-1.schema.json\n"
                    + HEADER + "elements:\n  - {id: a, type: text, text: hi}\n")
@@ -728,31 +746,15 @@ def test_cli_prints_check_and_in_place(tmp_path):
     assert run_cli("migrate", "--check", str(design)).returncode == 0
 
 
-#: The corpus files the migrator refuses, and why (plan 22 §6 slice 1):
-#: each names a palette entry after a colour-scheme role, which format 2's
-#: one `color.` namespace cannot tell apart.  Renamed by hand in slice 3.
-EXPECTED_REFUSALS = {
-    "examples/enduro/face.yaml": 4,
-    "examples/features/config/face.yaml": 2,
-}
-
-
 def _corpus() -> list[Path]:
     return sorted([*ROOT.glob("examples/**/*.yaml"), *ROOT.glob("wfb/templates/*.yaml"),
                    *ROOT.glob("tests/fixtures/**/*.yaml")])
 
 
 @pytest.mark.parametrize("path", _corpus(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_every_example_template_and_fixture_migrates(path):
-    rel = str(path.relative_to(ROOT))
+def test_every_example_template_and_fixture_is_format_2_already(path):
+    """The corpus was migrated with this tool; running it again is a no-op."""
     bag = Bag()
     result = migrate_text(path.read_text(encoding="utf-8"), path, bag)
-    if rel in EXPECTED_REFUSALS:
-        assert result is None
-        assert len(bag.errors) == EXPECTED_REFUSALS[rel]
-        assert all("has the same name as a 'color_scheme:' role" in d.message
-                   for d in bag.errors)
-        return
     assert result is not None, bag.render()
-    again = migrate_text(result.text, path, Bag())
-    assert again is not None and not again.changed
+    assert not result.changed

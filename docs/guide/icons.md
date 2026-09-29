@@ -12,12 +12,12 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) — mutually exclusive with `glyph:`/`icon_for:` |
-| `glyph:` | a codepoint, `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon_for:` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon_for`](#a-dynamic-icon-icon_for) — chosen on-device |
+| `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
+| `icon:` | a codepoint, `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
+| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `color:` | colour expression | — | [Colours](colors.md) |
-| `align:` / `vertical_align:` | `left`/`center`/`right`, `top`/`center`/`bottom` | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |
+| `align:` | one of the nine anchor names, or a compass alias | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |
 
 ## Example
 
@@ -32,16 +32,16 @@ steps_icon:                          # a named icon: `wfb sources` lists the nam
   type: icon
   icon: steps
   size: 9%r                          # px or %r
-  color: config.colors.fg
+  color: color.fg
 
 hr_graph_icon:                       # any Nerd Fonts glyph, by codepoint
   type: icon
-  glyph: "U+F21E"                    # nf-fa-heartbeat
+  icon: "U+F21E"                     # nf-fa-heartbeat
   size: 9%r
 
 weather_icon:                        # chosen on the watch from live data
   type: icon
-  icon_for: weather.condition_today
+  icon: { for: weather.condition_today }
 ```
 
 The [data slots](data.md) screenshot shows the steps icon and the heartbeat glyph, and the [placement](placement.md)
@@ -51,21 +51,21 @@ screenshot shows the weather icon.
   battery, notification, alarm, and so on, plus a `weather_*` set.
 - **Any other glyph:** find it on the
   [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
-  its code as `glyph: "U+XXXX"`. The build checks that the font has it.
-- **`icon_for:`** picks the weather glyph on the watch at runtime.
+  its code as `icon: "U+XXXX"`. The build checks that the font has it.
+- **`icon: {for:}`** picks the weather glyph on the watch at runtime.
 
 ### `icon`
 
 ```yaml
-- id: steps_icon
+steps_icon:
   type: icon
-  icon: steps               # alarm | battery | distance | dnd | flame | floors | heart |
-                             # notification | phone | steps, plus one `weather_<condition>`
-                             # per Weather.CONDITION_* bucket and a `weather_<condition>_night`
-                             # variant for most of them -- run `wfb sources` for the full,
-                             # current list (53 names as of this writing)
-  size: 30px                # px or %r only -- see below
-  color: palette.accent
+  icon: steps                 # alarm | battery | distance | dnd | flame | floors | heart |
+                               # notification | phone | steps, plus one `weather_<condition>`
+                               # per Weather.CONDITION_* bucket and a `weather_<condition>_night`
+                               # variant for most of them -- run `wfb sources` for the full,
+                               # current list (53 names as of this writing)
+  size: 30px                  # px or %r only -- see below
+  color: color.accent
 ```
 
 An icon is a single glyph from an icon font
@@ -77,7 +77,7 @@ drawing text: one `drawText` call against that baked font. No image ships in
 the `.prg`; the resource cost is the same small per-glyph bitmap a custom text
 font pays.
 
-`align`/`vertical_align` follow the one placement rule every accepting kind
+`align:` follows the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — an icon is
 a glyph kind, so it places the same way `text` does, by a runtime justify on
 the device, not a moved build-time box.
@@ -101,18 +101,18 @@ codepoints fit in the Basic Multilingual Plane (see the comment above
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
 glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's
-own icons live there). Reach one with **`glyph:`**, which takes a codepoint in
+own icons live there). Reach one with **`icon: "U+XXXX"`**, a codepoint in
 Unicode's own notation:
 
 ```yaml
-- id: repo
+repo:
   type: icon
-  glyph: "U+F09B"     # nf-fa-github; find codepoints at nerdfonts.com/cheat-sheet
+  icon: "U+F09B"        # nf-fa-github; find codepoints at nerdfonts.com/cheat-sheet
   size: 12%r
-  color: palette.dim
+  color: color.dim
 ```
 
-`glyph:` is the **only** way to use an icon the catalogue does not name.
+A codepoint is the **only** way to use an icon the catalogue does not name.
 `icon:` once accepted a bare character pasted straight into the YAML; that was
 removed. `U+F09B` is greppable, reviewable in a diff and survives copy-paste,
 where the character itself renders as a blank box — or as nothing at all — in
@@ -120,9 +120,9 @@ most editors, and a paste that silently fails still parses as valid YAML. That
 is the same hazard `wfb/icon_catalog.py` warns about for this project's own
 source, and it applies just as much to a design file.
 
-`icon:`, `glyph:` and `icon_for:` are mutually exclusive — an icon element uses
-exactly one. Writing `glyph:` for a codepoint the catalogue *does* name is
-accepted with a note pointing at the name, which is the better spelling: a name
+`icon:` takes exactly one of a name, a codepoint or `{for:}`. Writing a
+codepoint the catalogue *does* name is accepted with a note pointing at the
+name, which is the better spelling: a name
 keeps meaning if the catalogue moves that icon to a different codepoint, which
 has already happened once (the Font Awesome → Material Design Icons switch).
 
@@ -138,18 +138,17 @@ how to find a codepoint, and its licensing (the font aggregates several
 separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
 catalogue draws from are attributed there).
 
-#### A dynamic icon: `icon_for`
+#### A dynamic icon: `icon: {for:}`
 
-`icon:` names a fixed glyph, chosen at build time. `icon_for:` instead chooses
-the glyph on-device, at runtime, from a bound value — mutually exclusive with
-`icon:`:
+A name or codepoint is a fixed glyph, chosen at build time. `icon: {for:}`
+instead chooses the glyph on-device, at runtime, from a bound value:
 
 ```yaml
-- id: weather_now
+weather_now:
   type: icon
-  icon_for: weather.condition   # or weather.condition_today / .condition_tomorrow
+  icon: {for: weather.condition}  # or weather.condition_today / .condition_tomorrow
   size: 20%r
-  color: palette.text
+  color: color.text
 ```
 
 This currently accepts only a bare `weather.condition*` source (see `wfb
@@ -170,23 +169,24 @@ own.
 
 When the bound value is absent (no cached weather data yet), the icon simply
 does not draw — the same `hide`-by-default behaviour any other nullable
-binding without an explicit `when_absent:` has, deliberately: a placeholder
+binding with `absent: hide` has, deliberately: a placeholder
 "unknown" glyph on first launch, before Weather has ever synced, would read
 as a real (if odd) forecast rather than as "not ready yet".
 
 ### Your own icon font
 
 **Your own icon font** also works, through a plain `text` element. Add any TTF,
-such as a full Nerd-patched font, to `fonts:`, and write the glyph as a YAML
-escape:
+such as a full Nerd-patched font, to `resources: fonts:`, and write the glyph
+as a YAML escape:
 
 ```yaml
-fonts:
-  myicons: { source: assets/MyIcons.ttf, size: 20%r }
+resources:
+  fonts:
+    myicons: { source: assets/MyIcons.ttf, size: 20%r }
 elements:
   github:
     type: text
-    text: "\uF09B"                   # use "\U000F140B" above U+FFFF
+    text: "\uF09B"                        # use "\U000F140B" above U+FFFF
     font: font.myicons
 ```
 

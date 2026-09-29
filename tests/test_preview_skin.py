@@ -23,20 +23,21 @@ DEVICE = "fenix8solar47mm"
 #: A white panel: any pixel the skin lets through is white, any bezel pixel
 #: is the skin's own colour.
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    fg: "#FFFFFF"
 elements:
-  - id: fill
-    type: shape
-    shape: rectangle
+  fill:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.fg
+    color: color.fg
 """
 
 PLAIN = dict(mask_shape=False, quantise=False)

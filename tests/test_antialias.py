@@ -28,26 +28,27 @@ from wfb.units import Length
 ROOT = Path(__file__).resolve().parent.parent
 FONT = ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
 
-HEAD = f"""format: 1
+HEAD = f"""format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-fonts:
-  clock:
-    source: {FONT}
-    size: 18%r
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: {FONT}
+      size: 18%r
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
-BACKGROUND = """  - id: background
-    type: shape
-    shape: rectangle
+BACKGROUND = """  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
 
@@ -65,26 +66,30 @@ def test_antialias_defaults_to_false(write_design, bag):
 
 
 def test_a_declared_face_default_is_recorded(write_design, bag):
-    face = load(write_design(design("antialias: true\n", "")), bag)
+    face = load(write_design(design("""defaults:
+  antialias: true
+""", "")), bag)
     assert face is not None, bag.render()
     assert face.antialias is True
 
 
 # -- R2: per-element resolution and inheritance ------------------------------
 
-ICON = """  - id: probe
+ICON = """  probe:
     type: icon
     icon: heart
     size: 20%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
 def test_an_icon_with_no_antialias_follows_the_face_default(write_design, bag):
     """Absence means inherit, all the way up to the face default -- not `False`
     outright, or a face-wide `antialias: true` would reach nothing."""
-    face = load(write_design(design("antialias: true\n", ICON)), bag)
+    face = load(write_design(design("""defaults:
+  antialias: true
+""", ICON)), bag)
     assert face is not None, bag.render()
     probe = next(e for e in face.walk() if e.id == "probe")
     assert probe.antialias is None  # the author wrote nothing
@@ -92,30 +97,33 @@ def test_an_icon_with_no_antialias_follows_the_face_default(write_design, bag):
 
 
 def test_an_elements_own_antialias_wins_over_the_face_default(write_design, bag):
-    on_icon = ICON.replace("color: palette.fg\n", "color: palette.fg\n    antialias: false\n")
-    face = load(write_design(design("antialias: true\n", on_icon)), bag)
+    on_icon = ICON.replace("""color: color.fg
+""", "color: color.fg\n    antialias: false\n")
+    face = load(write_design(design("""defaults:
+  antialias: true
+""", on_icon)), bag)
     assert face is not None, bag.render()
     probe = next(e for e in face.walk() if e.id == "probe")
     assert probe.antialias is False
     assert probe.resolved_antialias is False
 
 
-GROUP = """  - id: dial
+GROUP = """  dial:
     type: group
     antialias: true
     children:
-      - id: inner
+      inner:
         type: icon
         icon: heart
         size: 20%r
         at: {anchor: center}
-        color: palette.fg
-      - id: inner_override
+        color: color.fg
+      inner_override:
         type: icon
         icon: flame
         size: 20%r
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
         antialias: false
 """
 
@@ -138,19 +146,19 @@ def test_a_childs_own_antialias_wins_outright_over_its_group(write_design, bag):
     assert overridden.resolved_antialias is False
 
 
-NESTED_GROUP = """  - id: outer
+NESTED_GROUP = """  outer:
     type: group
     antialias: true
     children:
-      - id: inner_group
+      inner_group:
         type: group
         children:
-          - id: leaf
+          leaf:
             type: icon
             icon: heart
             size: 20%r
             at: {anchor: center}
-            color: palette.fg
+            color: color.fg
 """
 
 
@@ -164,24 +172,23 @@ def test_an_inner_group_with_no_antialias_passes_the_outer_default_through(write
     assert leaf.resolved_antialias is True
 
 
-SHAPE_AND_PROGRESS = """  - id: ring
-    type: progress
+SHAPE_AND_PROGRESS = """  ring:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
-    when_absent: hide
+    absent: hide
     radius: 40%r
     thickness: 6px
     start_angle: 0
     sweep: 300
-    color: palette.fg
+    color: color.fg
     antialias: true
-  - id: deco
-    type: shape
-    shape: circle
+  deco:
+    type: circle
     at: {anchor: center}
     radius: 10%r
-    color: palette.fg
+    color: color.fg
     antialias: true
 """
 
@@ -201,20 +208,19 @@ def test_shape_and_progress_accept_and_resolve_antialias(write_design, bag):
 
 # -- R3: `antialias:` on `text` is a build error -----------------------------
 
-TEXT_CUSTOM_FONT = """  - id: t
+TEXT_CUSTOM_FONT = """  t:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: font.clock
-    color: palette.fg
+    color: color.fg
     antialias: true
 """
 
-TEXT_SYSTEM_FONT = """  - id: t
+TEXT_SYSTEM_FONT = """  t:
     type: text
     text: "12:00"
     font: FONT_MEDIUM
-    color: palette.fg
+    color: color.fg
     antialias: true
 """
 
@@ -256,14 +262,16 @@ def test_without_the_guard_antialias_on_text_would_build_silently(write_design, 
 
 
 def test_a_font_with_no_antialias_follows_the_face_default(write_design, bag):
-    face = load(write_design(design("antialias: true\n", "")), bag)
+    face = load(write_design(design("""defaults:
+  antialias: true
+""", "")), bag)
     assert face is not None, bag.render()
     assert face.fonts["clock"].antialias is True
 
 
 def test_a_fonts_own_antialias_wins_over_the_face_default(write_design, bag):
-    head = HEAD.replace("size: 18%r\n", "size: 18%r\n    antialias: false\n")
-    text = f"{head}antialias: true\nelements:\n{BACKGROUND}"
+    head = HEAD.replace("size: 18%r\n", "size: 18%r\n      antialias: false\n")
+    text = f"{head}defaults: {{antialias: true}}\nelements:\n{BACKGROUND}"
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     assert face.fonts["clock"].antialias is False
@@ -300,14 +308,15 @@ def test_two_icons_same_size_and_glyph_collide_without_the_antialias_key(write_d
     from wfb.emit.resources import icon_font_specs
 
     both = ICON.replace(
-        "    color: palette.fg\n",
-        "    color: palette.fg\n    antialias: false\n",
+        "    color: color.fg\n",
+        "    color: color.fg\n    antialias: false\n",
     ) + ICON.replace(
-        "  - id: probe\n", "  - id: probe2\n"
+        "  probe:\n", "  probe2:\n"
     ).replace(
-        "    color: palette.fg\n",
-        "    color: palette.fg\n    antialias: true\n",
+        "    color: color.fg\n",
+        "    color: color.fg\n    antialias: true\n",
     )
+    assert both.count("antialias:") == 2 and "probe2:" in both
     face = load(write_design(design("", both)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")

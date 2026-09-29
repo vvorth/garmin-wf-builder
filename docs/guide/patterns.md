@@ -3,7 +3,7 @@
 A pattern draws **one template many times** — hour and minute ticks, a
 segmented ring, a row of week dots — as a single element instead of dozens.
 This chapter covers the `pattern` element: the `radial`/`linear`/`grid`
-placement rule, the six part shapes a template can use, and how colour, `visible:` and
+placement rule, the six part types a template can use, and how colour, `visible:` and
 text can vary per copy.
 
 ## At a glance
@@ -17,13 +17,15 @@ text can vary per copy.
 | `step` | radial: an angle; linear/grid: required `{dx, dy}` | radial: `360deg / count` | the gap between copies |
 | `start` | angle (radial only) | `0deg` | the angle of copy 0 |
 | `skip` / `skip_every` | copy indices / an integer | — | leave copies undrawn |
-| `parts` | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in list order — keys per shape below |
-| `color` | palette entry, literal, `config.*`, conditional, plus `copy` and any data source | — | the default for every part without its own |
-| `when_absent` | `hide` | — | required once a colour or part `visible:` can read absent data |
+| `parts` | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in list order — keys per type below |
+| `color` | `color.<name>`, a literal, a conditional, plus `copy` and any data source | — | the default for every part without its own |
+| `absent` | `hide` | — | required once a colour or part `visible:` can read absent data |
 | `visible` (on a part) | boolean expression, `copy` bound | — | per-copy — see [Per-copy part `visible:`](#per-copy-part-visible) |
-| `static` | `true`\|`false` | `false` | most patterns belong here — see [Elements](elements.md#static--draw-it-once-then-blit-it) |
-| `antialias` | `true`\|`false` | face default (`false`) | brackets the whole pattern's drawing |
-| `min_1px` | `true`\|`false` | face default (`false`) | inherited by every part; a part may override again |
+| `antialias` | `true`\|`false` | `defaults:` (`false`) | brackets the whole pattern's drawing |
+| `min_1px` | `true`\|`false` | `defaults:` (`false`) | inherited by every part; a part may override again |
+
+Most patterns belong in a `static:` block — see
+[Elements](elements.md#static--draw-it-once-then-blit-it).
 
 ## Example
 
@@ -44,16 +46,16 @@ week_dots:
   count: 7
   step: { dx: 10%r }
   parts:
-    - shape: circle
+    - type: circle
       radius: 2%r
-      color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"  # today lit
+      color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.black"  # today lit
 test_visibility:                     # a move-bar meter
   type: pattern
   pattern: linear
   count: 5
-  when_absent: hide                  # no move-bar reading: hide the whole row
+  absent: hide                       # no move-bar reading: hide the whole row
   parts:
-    - { shape: rectangle, size: { width: 4%r, height: 4%r },
+    - { type: rectangle, size: { width: 4%r, height: 4%r },
         visible: "copy <= activity.move_bar_level - 1" }   # per-copy visibility
 ```
 
@@ -61,7 +63,7 @@ test_visibility:                     # a move-bar meter
 
 A pattern draws one template many times: `radial` turns each copy about the
 centre, and `linear` steps it by whole pixels. `copy` is the copy's index. You
-can use it in a colour, a part's `visible:`, or a text part's `value:`. Parts
+can use it in a colour, a part's `visible:`, or a text part's `text:`. Parts
 may also be an `arc` centred on the pattern (the slate ring segments).
 `start:` rotates the first copy (the orange diagonal triangles).
 
@@ -77,10 +79,10 @@ static:
     # step: 6deg               # default: 360deg / count
     # start: 0deg              # where copy 0 points (default 12 o'clock)
     skip_every: 5              # leave copies 0, 5, 10, ... to the hour ticks
-    color: palette.gray        # the default for every part without its own
+    color: color.gray          # the default for every part without its own
     antialias: true
     parts:                     # copy 0, drawn at 12 o'clock; origin = at:
-      - {shape: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
+      - {type: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
 
 elements:
   week_dots:                                     # Monday to Sunday, today lit
@@ -89,9 +91,9 @@ elements:
     at: {anchor: center, dx: -30%r, dy: 36%r}   # copy 0's origin
     count: 7
     step: {dx: 10%r}                             # copy i sits at at + i * step
-    color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"
+    color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.black"
     parts:
-      - {shape: circle, radius: 2%r}
+      - {type: circle, radius: 2%r}
 ```
 
 A pattern is **one template drawn many times**: 1 to 16 primitives (its
@@ -134,9 +136,9 @@ month:
   count: 31
   columns: 7
   step: { dx: 14%r, dy: 14%r }                   # dx per column, dy per row
-  color: "copy == date.day - 1 ? palette.today : (copy < date.day - 1 ? palette.past : palette.fg)"
+  color: "copy == date.day - 1 ? color.today : (copy < date.day - 1 ? color.past : color.fg)"
   parts:
-    - { shape: circle, radius: 4%r }
+    - { type: circle, radius: 4%r }
 ```
 
 A grid is a linear pattern in two directions, and takes the same parts
@@ -153,22 +155,22 @@ second rule.
 
 **Parts** are the four hand primitives, plus `arc` and `text`:
 
-| `shape:` | keys | per copy |
+| `type:` | keys | per copy |
 |---|---|---|
 | `polygon` | `points` (3–64) | each vertex transformed, `fillPolygon` |
-| `rectangle` | `at` (its centre, default the origin), `size`, `align`, `vertical_align` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
+| `rectangle` | `at` (its centre, default the origin), `size`, `align` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
-| `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | the centre transformed, `fillCircle`/`drawCircle` |
-| `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`/`vertical_align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
-| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align`, `curve`, `if_unavailable`, `outline` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
+| `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | the centre transformed, `fillCircle`/`drawCircle` |
+| `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
+| `text` | `at` (the anchor, default the origin), `text`, `font`, `align`, `curve`, `unsupported`, `outline` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
 
-`rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
-either one turned. `icon` is rejected too (see [Not yet
+A rounded rectangle (`corner_radius:`) and `ellipse` are rejected, because
+no `Dc` call draws either one turned. `icon` is rejected too (see [Not yet
 implemented](../limitations.md#2-not-implemented-yet)). So is `filled: false` on
 `polygon`/`rectangle`, because there is no `drawPolygon`. `at:` on an `arc`
 part is rejected: an off-centre arc would have to move its centre as well
-as its angle, and nothing needed it yet. A key a part's shape does not read
-is an error, as everywhere else — including `align`/`vertical_align` on
+as its angle, and nothing needed it yet. A key a part's type does not read
+is an error, as everywhere else — including `align:` on
 `polygon`, `line` and `arc`, rejected for the reasons in
 [Placement: `at:` and `align:`](placement.md#placement-at-and-align), which also covers
 how `rectangle`/`circle` align in the template's own frame, turning or
@@ -181,21 +183,21 @@ would otherwise inherit from the pattern element. It governs the same
 `size:`, a `line`/`circle`/`arc` part's `thickness:`, a `circle`/`arc`
 part's `radius:`. See [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing).
 
-The element itself, `type: pattern`, refuses `align`/`vertical_align` too —
+The element itself, `type: pattern`, refuses `align:` too —
 its `at:` is the origin every copy turns about or steps from, not a box —
 see [Placement: `at:` and `align:`](placement.md#placement-at-and-align).
 
 **Colours** work as on a hand. The element's `color:` is the default, and a
 part's own `color:` overrides it. A part left with neither is an error. A
-colour may be a palette entry, a literal, `config.*`, or a conditional over
+colour may be a `color.<name>`, a literal, or a conditional over
 those, and, unlike a hand's, it may also read two more things:
 
 * **`copy`**, the index of the copy being drawn (0-based, in the same
   numbering `skip:` uses). It is bound in a pattern's colours, its parts'
-  `visible:` (below) and a text part's `value:`, and nowhere else. `copy % 2 == 0 ? palette.a :
-  palette.b` alternates two colours.
+  `visible:` (below) and a text part's `text:` placeholder, and nowhere
+  else. `copy % 2 == 0 ? color.a : color.b` alternates two colours.
 * **Any data source**, including one that can be absent (`activity.steps`,
-  `complication.*`), which needs the pattern's **`when_absent:`** (below).
+  `complication.*`), which needs the pattern's **`absent:`** (below).
   `wfb sources` shows which sources can be absent.
 
 Together `copy` and a data source let one copy stand out. `date.weekday` is
@@ -209,7 +211,7 @@ the loop.
 
 #### Text parts
 
-A `shape: text` part draws a string at a point that turns
+A `type: text` part draws a string at a point that turns
 (radial) or steps (linear) with the copy. Twelve hour numerals are one
 pattern instead of twelve polar `text` elements:
 
@@ -220,10 +222,10 @@ static:
     pattern: radial
     at: {anchor: center}
     count: 12                          # step defaults to 30deg
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"  # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}" # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11"
         font: font.hourfont
         at: {dy: -55%r}                # copy 0's anchor, above the centre: +dy is down
 ```
@@ -231,33 +233,34 @@ static:
 **The glyphs stay upright by default.** A bitmap font cannot turn, and a
 dial's numerals need not either. Only the anchor point goes through the
 copy's transform. It is then rounded half up to a whole pixel, on the watch
-and in the preview alike, and the text is placed on it with `align:`/
-`vertical_align:` following the one placement rule every accepting kind
+and in the preview alike, and the text is placed on it with `align:`
+following the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align). This
 part's placement box is that copy's own string width × line height, in the
 pattern's frame.
 
 **Unless `font:` names a `face:` (vector) font and the part carries its own
-`curve:`** (plan 11 slice 2) — then the glyphs turn too, tangent to (or
+`curve:`** — then the glyphs turn too, tangent to (or
 around) the copy's own position, not just the anchor. This is what finally
 answers "a bitmap font cannot turn": twelve hour numerals, each rotated to
 sit tangent to its own radius, as one pattern:
 
 ```yaml
-fonts:
-  bezel:
-    face: [RobotoCondensedBold, RobotoCondensedRegular]
-    size: 9%r
+resources:
+  fonts:
+    bezel:
+      face: [RobotoCondensedBold, RobotoCondensedRegular]
+      size: 9%r
 elements:
-  - id: hour_numerals
+  hour_numerals:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 12
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         font: font.bezel
         at: {dy: -74%r}
         curve:
@@ -269,11 +272,11 @@ elements:
 `direction:` a standalone `text` element's own `curve:` does (see
 ["`curve:` — rotated and radial text"](text.md#curve--rotated-and-radial-text)
 above for the full rules: a `face:` font is required, `radius:`/
-`direction:` are rejected on `angled`, `vertical_align: bottom` is a build
+`direction:` are rejected on `angled`, a `bottom` alignment is a build
 error under `style: angled` but accepted under `style: radial`).
 **The one real difference:** `angle:` is in the *template's
 own local frame*, for copy 0 alone — a radial pattern turns every later
-copy's angle right along with its anchor, the same way a pattern `shape:
+copy's angle right along with its anchor, the same way a pattern `type:
 arc` part's own `start_angle:` already turns with the copy (its own row
 above). So `angle: 0deg` above draws every numeral tangent to its own
 radius (pointing outward from the dial's centre), with one authored angle,
@@ -285,14 +288,14 @@ pattern part's frame has no parent box for `%` and no font in scope for
 carries), and its circle is centred on that copy's own anchor, not a fixed
 point.
 
-`if_unavailable:` (`error`/`hide`) works the same way here as on a
+`unsupported:` (`error`/`hide`) works the same way here as on a
 standalone `text` element, set on the part to override the font's own
 value outright — `error` fails the whole build naming the device and the
 missing face(s); `hide` makes just that one part not draw on a target that
 fails the font's availability gates, leaving every other part of the same
 pattern (and every other element sharing the font) unaffected.
 
-**`outline:`** (plan 15) works exactly as on a standalone [`text`
+**`outline:`** works exactly as on a standalone [`text`
 element](text.md#outline--the-stamped-ring) — see that section's own
 screenshot, which includes an outlined pattern text part both plain and
 curved (`examples/features/outline/face.yaml`) — one level down: the part's
@@ -318,16 +321,15 @@ per-operation figure exists on this platform to weigh it against). The
 (ring-grown) bounding box, the same granularity `off-screen`/`safe-area`
 already use for a pattern — not a separate check per copy.
 
-The keys are those of a `text` element. **`value:`** is an expression in
-which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
-Give exactly one of the two. `format:` (a numeric format, as on `text`)
-applies to `value:` only. `font:` names a `fonts:` entry or a system font,
-and defaults to `FONT_MEDIUM`. `align:` is `left`/`center`/`right` and
-`vertical_align:` is `top`/`center`/`bottom`, both defaulting to `center`
-(`bottom` as on [`text`](text.md#text)). `color:` and `visible:` work as on any part.
+The keys are those of a `text` element. **`text:`** is the same
+[template](text.md#the-text-template): a fixed string, the same on every
+copy, or one placeholder whose expression may read `copy`, with a numeric
+format spec. `font:` names a `fonts:` entry or a system font, and defaults
+to `FONT_MEDIUM`. `align:` defaults to `center` (`bottom` as on
+[`text`](text.md#text)). `color:` and `visible:` work as on any part.
 
-**`value:` may read only `copy`** and literals. A data source, a palette
-entry or `config.*` in it is a build error. The compiler renders every
+**The placeholder may read only `copy`** and literals. A data source or a
+colour in it is a build error. The compiler renders every
 copy's string at build time, because a custom font is subsetted to the
 glyphs the design can draw, and the pattern's extent is measured from the
 real strings. A reading taken on the watch would make both unknowable. Data
@@ -335,7 +337,7 @@ in a text part is not implemented yet (see [Not yet
 implemented](../limitations.md#2-not-implemented-yet)). A conditional over `copy` covers labels
 that are not numbers: `copy == 0 ? "M" : copy == 1 ? "T" : ...`.
 
-On the watch the compiled `value:` is evaluated once per copy, like a
+On the watch the compiled placeholder is evaluated once per copy, like a
 `copy` colour. The host evaluates the same expression only to measure,
 subset the font and draw the preview. **Write `%` with a non-negative left
 side**: `(copy + 11) % 12 + 1` rather than `(copy - 1) % 12`. Python and
@@ -346,12 +348,12 @@ A text part in a pattern costs little. The two text patterns in
 `examples/features/patterns/` (12 numerals and 7 weekday initials, in one custom
 font) add about 470 B together on `fenix8solar47mm`.
 
-#### `when_absent:` on a pattern
+#### `absent:` on a pattern
 
 A colour (the element's own, or any part's) or a part `visible:` (below) may
 read a source that can be absent, but only once the pattern declares
-`when_absent: hide`. There is no `placeholder:`/`fallback:` here -- unlike
-`text`/`progress`, a pattern has no single *value* to substitute one for.
+`absent: hide`. There is no substitute text or value here -- unlike
+`text`/`gauge`, a pattern has no single *value* to substitute one for.
 Absence hides the **whole pattern**: every copy, every part, not just the
 one binding that turned out missing. This is deliberately blunter than the
 per-element `visible:` rule ("absent means hidden," but only for *that*
@@ -359,10 +361,10 @@ element): the reading is taken once per frame, before the copy loop, so its
 absence is a fact about the frame, not about one copy -- there is no "copy 3
 specifically has no data" to react to.
 
-`when_absent: hide` is **required** as soon as any such reading exists, and
+`absent: hide` is **required** as soon as any such reading exists, and
 is a **note** ("has no effect") when declared but nothing on the pattern is
 ever absent -- the same wording the compiler gives every other element
-kind's unnecessary `when_absent:`.
+kind's unnecessary `absent:`.
 
 #### Per-copy part `visible:`
 
@@ -383,19 +385,19 @@ elements:
     at: {anchor: center, dx: -20%r, dy: 25%r}
     count: 5
     step: {dx: 10%r}
-    when_absent: hide                 # required: the lit part below reads
+    absent: hide                      # required: the lit part below reads
                                        # a source that can be absent
     parts:
-      - {shape: rectangle, size: {width: 8%r, height: 8%r}, color: palette.gray}
-      - {shape: rectangle, size: {width: 6%r, height: 6%r}, color: palette.black}
-      - shape: rectangle
+      - {type: rectangle, size: {width: 8%r, height: 8%r}, color: color.gray}
+      - {type: rectangle, size: {width: 6%r, height: 6%r}, color: color.black}
+      - type: rectangle
         size: {width: 4%r, height: 4%r}
         visible: "copy <= activity.move_bar_level - 1"
-        color: palette.orange
+        color: color.orange
 ```
 
 A source that can be absent, read inside a part `visible:`, is governed by
-the pattern's own `when_absent: hide` -- the whole pattern hides -- **not**
+the pattern's own `absent: hide` -- the whole pattern hides -- **not**
 by "absent means this part is hidden," which is what the same nullable
 reading would mean inside an ordinary element's `visible:`. This is a
 deliberate difference from element-level `visible:`, for the reason above:
@@ -407,22 +409,22 @@ error naming the key, not a silent no-op.
 **Draw order** is copy by copy, in ascending index, with a copy's parts in
 list order.
 
-**It takes the common keys** `id`, `type`, `at`, `modes`, `aod`, `z`,
-`visible`, `static`, `antialias`, `min_1px`, `lint` and `overrides`. `aod:`
+**It takes the common keys** `type`, `at`, `aod`, `z`,
+`visible`, `antialias`, `min_1px`, `lint` and `overrides`. `aod:`
 (`color`, `thickness`, `font`, `visible`) applies uniformly to every part —
 see [Always-on display](always-on-display.md). `size:` does not exist,
 because the extent comes from the ink. `on_hold:` is not accepted; hold a
-`group` around the pattern instead. `modes:` may not contain `low_power`.
-A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be
-its whole extent.
+`group` around the pattern instead. `sleep_update: true` is not accepted
+either: a fixed pattern gains nothing from `onPartialUpdate`, and its clip
+would be its whole extent.
 
-**`static:` is where most patterns belong.** The loop then runs once, when
+**A `static:` block is where most patterns belong.** The loop then runs once, when
 the buffer is filled, instead of once a second. A pattern whose colour or
 part `visible:` reads a data source cannot be static (the ordinary
 static-binding error: the buffer would freeze the reading). One that reads
 only `copy` can, because a copy's index never changes.
 
-**`antialias:` works exactly as on a `shape`.** The element's own value,
+**`antialias:` works exactly as on a primitive.** The element's own value,
 or the one it inherits from its group or the face, brackets the whole
 pattern. It counts toward `antialias-dither` like any other primitive. A
 turned tick is where anti-aliasing helps most: without it, a rotated edge
@@ -456,12 +458,11 @@ first.
 * radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
 * a `skip:` index that is out of range or repeated, a `skip_every:`
   larger than `count`, and skipping every copy;
-* on a `text` part: both `value:` and `text:`, or neither; a `value:` that
-  reads anything but `copy`, or is not a number or string; `format:` with
-  `text:`;
+* on a `text` part: no `text:`; a placeholder that reads anything but
+  `copy`, or is not a number or string;
 * a colour or part `visible:` reading a source that can be absent, with no
-  `when_absent: hide` (one error, naming every such source, not one per
-  expression) -- and, the mirror case, `when_absent: hide` declared when
+  `absent: hide` (one error, naming every such source, not one per
+  expression) -- and, the mirror case, `absent: hide` declared when
   nothing on the pattern is ever absent (a note).
 
 A part `visible:` that folds to a build-time constant `false` is the
@@ -478,17 +479,17 @@ The element's extent is the bounding box of every drawn copy's ink -- what
 screen, `safe-area` tests something tighter instead: for a radial pattern,
 the disc of its farthest ink from the centre, not that bounding box's own
 corners. `circular_extent()`/`visible_reach()` check a full-dial tick ring,
-or a full ring of `shape: text` numerals (`curve: {style: radial}` or
+or a full ring of `type: text` numerals (`curve: {style: radial}` or
 `angled`), as the disc or annulus sector it really is, the same way they
-already check hands and a bare `shape: arc`/`circle` -- a full ring's own
+already check hands and a bare `type: arc`/`circle` -- a full ring's own
 bounding box is a square whose corners sit well outside the ring, so
 checking *that* against the round panel would call every full-width ring
 cropped even when every glyph sits comfortably inside the bezel.
 
-See `examples/features/patterns/face.yaml` for every part shape, both kinds,
+See `examples/features/patterns/face.yaml` for every part type, both kinds,
 `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and
 out of `static:`, a per-copy colour (`week_dots`, today lit), and
-`when_absent: hide` with a per-copy part `visible:` (`test_visibility`, a
+`absent: hide` with a per-copy part `visible:` (`test_visibility`, a
 move-bar row).
 
 **What is verified, and what is not.** Verified: warning-free builds under
@@ -501,17 +502,18 @@ and the loop's CPU cost when a pattern is not in `static:`. See
 
 ## Not built yet
 
-Still open for [patterns](#pattern): a text part whose `value:` reads data,
-`on_hold:` and `low_power` on a pattern, per-copy variation
-other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
-parts in a linear or grid pattern, and an arc part off the pattern's centre.
+Still open for [patterns](#pattern): a text part whose placeholder reads data,
+`on_hold:` and `sleep_update:` on a pattern, per-copy variation
+other than skipping, colour and visibility, rounded-rectangle/`ellipse`
+parts in a linear or grid pattern, an arc part off the pattern's centre,
+and `outline:` on a shape part (reserved in format 2).
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 
 ## See also
 
-- [`examples/features/patterns/face.yaml`](../../examples/features/patterns/face.yaml) — every part shape, both kinds, `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and out of `static:`, a per-copy colour, and `when_absent: hide` with a per-copy part `visible:`.
+- [`examples/features/patterns/face.yaml`](../../examples/features/patterns/face.yaml) — every part type, both kinds, `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and out of `static:`, a per-copy colour, and `absent: hide` with a per-copy part `visible:`.
 - [Analog hands](analog-hands.md#analog-hands) — the template is authored the same way a hand is.
-- [Text](text.md#curve--rotated-and-radial-text) — `curve:` on a standalone `text` element, which a `shape: text` part shares.
-- [Elements](elements.md) — the common keys every element shares (`modes`, `z`, `lint`, `overrides`).
+- [Text](text.md#curve--rotated-and-radial-text) — `curve:` on a standalone `text` element, which a `type: text` part shares.
+- [Elements](elements.md) — the common keys every element shares (`z`, `lint`, `overrides`).
 - [`docs/limitations.md`](../limitations.md) — everything still open, in one list.

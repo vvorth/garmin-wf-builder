@@ -133,11 +133,11 @@ Glyphs and data are not:
   [the analog example](analog-hands.md)'s panels). The text-overflow lint uses the same estimate. Custom fonts from
   `fonts:` are baked from your TTF and do match the watch. To check
   system-font text exactly, use the simulator or the watch.
-- **`complication.*` read by a `text` or `progress` element has no sample
+- **`complication.*` read by a `text` or `gauge` element has no sample
   value.** It shows as absent. For example, the showcase's Body Battery
   readout shows `--` right next to a slot showing `62`, and
   [`examples/features/sun`](../../examples/features/sun/face.yaml) renders as a blank screen.
-- **An `icon_for:` weather icon always draws.** Weather has no sample value,
+- **An `icon: {for:}` weather icon always draws.** Weather has no sample value,
   so the readout beside it shows `--°`. On the watch, the icon is hidden when
   there is no weather data.
 - **Graphs always draw a synthetic curve**, even for a series whose other

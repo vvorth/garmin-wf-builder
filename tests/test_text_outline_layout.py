@@ -27,10 +27,10 @@ def _baked_font(repo_root) -> str:
 
 def _text(element_id: str, extra: str = "", *, font: str, at: str = "{anchor: center}") -> str:
     return f"""\
-  - id: {element_id}
+  {element_id}:
     type: text
     text: "GARMIN"
-    color: palette.fg
+    color: color.fg
     at: {at}
     font: {font}
 {extra}"""
@@ -74,7 +74,8 @@ def test_upright_box_grows_by_the_ring_on_every_side(write_design, bag, db, repo
     still pass a weaker check)."""
     elements = (
         _text("plain", font="font.clock") + "\n"
-        + _text("ringed", "    outline: {color: palette.bg, width: 3}\n", font="font.clock")
+        + _text("ringed", """    outline: {color: color.bg, width: 3}
+""", font="font.clock")
     )
     resolved = _resolve_baked(write_design, bag, db, _design(_baked_font(repo_root), elements))
     plain = _placed(resolved, "plain")
@@ -102,7 +103,9 @@ def test_upright_box_grows_past_the_align_edge_too(write_design, bag, db, repo_r
     elements = (
         _text("plain", "    align: left\n", font="font.clock") + "\n"
         + _text("ringed",
-               "    align: left\n    outline: {color: palette.bg, width: 3}\n",
+               """    align: left
+    outline: {color: color.bg, width: 3}
+""",
                font="font.clock")
     )
     resolved = _resolve_baked(write_design, bag, db, _design(_baked_font(repo_root), elements))
@@ -137,8 +140,9 @@ def test_angled_box_grows_by_the_ring(write_design, bag, db):
                           font="font.bezel")
     element_ringed = _text(
         "ringed",
-        "    curve: {style: angled, angle: 0deg}\n"
-        "    outline: {color: palette.bg, width: 2}\n",
+        """    curve: {style: angled, angle: 0deg}
+    outline: {color: color.bg, width: 2}
+""",
         font="font.bezel",
     )
     resolved = _resolve_vector(
@@ -158,8 +162,9 @@ def test_radial_box_grows_by_the_ring(write_design, bag, db):
         "plain", "    curve: {style: radial, angle: 0deg, radius: 40%r}\n", font="font.bezel")
     element_ringed = _text(
         "ringed",
-        "    curve: {style: radial, angle: 0deg, radius: 40%r}\n"
-        "    outline: {color: palette.bg, width: 2}\n",
+        """    curve: {style: radial, angle: 0deg, radius: 40%r}
+    outline: {color: color.bg, width: 2}
+""",
         font="font.bezel",
     )
     resolved = _resolve_vector(
@@ -189,10 +194,12 @@ def test_off_screen_catches_a_box_that_only_overflows_once_ringed(write_design, 
     box a new, `outline`-aware lint path had to be written for (there is
     none, D11)."""
     at = "{anchor: top_left, dx: 0px, dy: 0px}"
-    align = "    align: left\n    vertical_align: top\n"
+    align = """    align: top_left
+"""
     elements = (
         _text("plain", align, font="font.clock", at=at) + "\n"
-        + _text("ringed", align + "    outline: {color: palette.bg, width: 3}\n",
+        + _text("ringed", align + """    outline: {color: color.bg, width: 3}
+""",
                font="font.clock", at=at)
     )
     resolved = _resolve_baked(write_design, bag, db, _design(_baked_font(repo_root), elements))

@@ -16,46 +16,53 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import PlacedHands, circular_extent, resolve
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FF5500"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FF5500"
 """
 
 
 def design(hands_block: str, elements_block: str) -> str:
-    return BASE + hands_block + "\nelements:\n" + elements_block
+    """``BASE`` plus a ``resources: {hand_sets: ...}`` block, whose hand sets
+    join ``BASE``'s own ``resources:``."""
+    lines = hands_block.lstrip("\n").split("\n")
+    assert lines[0] == "resources:", hands_block
+    return BASE + "\n".join(lines[1:]) + "\nelements:\n" + elements_block
 
 
 #: A hand set with all four rotatable primitives, and every hand present --
 #: the "everything builds" fixture most tests start from.
 CLASSIC = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
-        - {shape: circle, radius: 4%r}
-    second:
-      color: palette.accent
-      parts:
-        - {shape: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
-        - {shape: circle, at: {dy: 15%r}, radius: 3%r, filled: false, thickness: 1px}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
+      minute:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+          - {type: circle, radius: 4%r}
+      second:
+        color: color.accent
+        parts:
+          - {type: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
+          - {type: circle, at: {dy: 15%r}, radius: 3%r, filled: false, thickness: 1px}
 """
 
-MAIN_HANDS = """  - id: main_hands
+MAIN_HANDS = """  main_hands:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
 """
 
@@ -76,9 +83,9 @@ def test_the_reference_design_builds_clean(write_design, bag):
 
 
 def test_unknown_hand_set_lists_the_declared_names(write_design, bag):
-    bad = errors(design(CLASSIC, """  - id: h
+    bad = errors(design(CLASSIC, """  h:
     type: hands
-    hands: nope
+    set: nope
     at: {anchor: center}
 """), bag, write_design)
     assert len(bad) == 1
@@ -91,15 +98,16 @@ def test_a_rejected_hand_set_stays_bound_so_only_one_error_is_reported(write_des
     rejected for its own fault must not also blame every element naming it.
     """
     broken = """
-hands:
-  broken:
-    hour:
-      parts:
-        - {shape: circle, radius: 10%r}
+resources:
+  hand_sets:
+    broken:
+      hour:
+        parts:
+          - {type: circle, radius: 10%r}
 """
-    two_users = MAIN_HANDS.replace("classic", "broken") + """  - id: second_user
+    two_users = MAIN_HANDS.replace("classic", "broken") + """  second_user:
     type: hands
-    hands: broken
+    set: broken
     at: {anchor: center, dy: 10%}
 """
     bad = errors(design(broken, two_users), bag, write_design)
@@ -109,15 +117,15 @@ hands:
 
 def test_an_empty_hand_set_is_an_error(write_design, bag):
     bad = errors(design("""
-hands:
-  empty: {}
+resources:
+  hand_sets:
+    empty: {}
 """, MAIN_HANDS.replace("classic", "empty")), bag, write_design)
     assert len(bad) == 1
     assert "declares none of hour, minute or second" in bad[0].message
 
 
 @pytest.mark.parametrize("shape,reason", [
-    ("rounded_rectangle", "rotated rounded rectangle"),
     ("ellipse", "rotated ellipse"),
     ("arc", "not implemented yet"),
     ("text", "cannot rotate"),
@@ -125,12 +133,13 @@ hands:
 ])
 def test_bad_part_shapes_each_get_their_own_reason(write_design, bag, shape, reason):
     hands = f"""
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: {shape}}}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: {shape}}}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -142,12 +151,13 @@ def test_a_key_not_used_by_this_part_shape_is_an_error(write_design, bag):
     """`radius:` typed on a polygon part, the same silent-key bug class
     `SHAPE_GEOMETRY_KEYS` exists to catch on the main `shape:` element."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: polygon, radius: 5, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: polygon, radius: 5, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -156,12 +166,13 @@ hands:
 
 def test_anchor_in_a_part_position_is_always_an_error(write_design, bag):
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: polygon, points: [{anchor: top, dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: polygon, points: [{anchor: top, dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}
 """
     face = load(write_design(design(hands, MAIN_HANDS)), bag)
     assert face is None
@@ -179,12 +190,13 @@ hands:
 @pytest.mark.parametrize("length", ["10%", "2pt"])
 def test_percent_and_pt_are_rejected_in_a_part_length(write_design, bag, length):
     hands = f"""
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: circle, radius: {length!r}}}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: circle, radius: {length!r}}}
 """
     face = load(write_design(design(hands, MAIN_HANDS)), bag)
     assert face is None
@@ -203,14 +215,15 @@ hands:
 def test_percent_r_px_and_bare_numbers_are_accepted_in_a_part_length(write_design, bag):
     """The contrast for the refusal above: the check must not also catch `%r`."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 3%r}
-        - {shape: circle, at: {dy: -10px}, radius: 2}
-        - {shape: line, to: {dy: "-40%r"}, thickness: 2px}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 3%r}
+          - {type: circle, at: {dy: -10px}, radius: 2}
+          - {type: line, to: {dy: "-40%r"}, thickness: 2px}
 """
     face = load(write_design(design(hands, MAIN_HANDS)), bag)
     assert face is not None, bag.render()
@@ -218,11 +231,12 @@ hands:
 
 def test_no_colour_is_an_error(write_design, bag):
     hands = """
-hands:
-  classic:
-    hour:
-      parts:
-        - {shape: circle, radius: 10%r}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        parts:
+          - {type: circle, radius: 10%r}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -235,24 +249,26 @@ def test_a_part_colour_overrides_the_hands_default(write_design, bag):
     face = load(write_design(design(CLASSIC, MAIN_HANDS)), bag)
     assert face is not None, bag.render()
     hand = face.hands["classic"].minute
-    assert hand.parts[0].color.text == "palette.fg"  # inherited
+    assert hand.parts[0].color.shown == "color.fg"  # inherited
     # the hub has no color: of its own either, in CLASSIC -- override case
     # is exercised by the second hand's centre-cap-less design here instead:
     second = face.hands["classic"].second
-    assert second.parts[0].color.text == "palette.accent"
+    assert second.parts[0].color.shown == "color.accent"
 
 
 @pytest.mark.parametrize("where", ["hand", "part"])
 def test_a_data_bound_colour_is_rejected(write_design, bag, where):
     color_line = ("      color: activity.steps\n" if where == "hand" else
-                  "      color: palette.fg\n")
+                  """      color: color.fg
+""")
     part_color = "\n          color: activity.steps" if where == "part" else ""
     hands = f"""
-hands:
-  classic:
-    hour:
+resources:
+  hand_sets:
+    classic:
+      hour:
 {color_line}      parts:
-        - shape: circle
+        - type: circle
           radius: 10%r{part_color}
 """
     face = load(write_design(design(hands, MAIN_HANDS)), bag)
@@ -266,16 +282,17 @@ hands:
 
 def test_seconds_awake_without_a_second_hand_is_an_error(write_design, bag):
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10%r}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10%r}
 """
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     seconds: awake
     at: {anchor: center}
 """
@@ -285,9 +302,9 @@ hands:
 
 
 def test_seconds_always_is_a_friendly_not_implemented_error(write_design, bag):
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
+    set: classic
     seconds: always
     at: {anchor: center}
 """
@@ -298,10 +315,10 @@ def test_seconds_always_is_a_friendly_not_implemented_error(write_design, bag):
 
 
 def test_low_power_mode_is_rejected_on_hands(write_design, bag):
-    elements = """  - id: h
+    elements = """  h:
     type: hands
-    hands: classic
-    modes: [active, low_power]
+    set: classic
+    sleep_update: true
     at: {anchor: center}
 """
     bad = errors(design(CLASSIC, elements), bag, write_design)
@@ -309,42 +326,43 @@ def test_low_power_mode_is_rejected_on_hands(write_design, bag):
     assert "sleep_update" in bad[0].message
 
 
-@pytest.mark.parametrize("elements", [
-    """  - id: h
+@pytest.mark.parametrize("static", [
+    """  h:
     type: hands
-    hands: classic
-    static: true
+    set: classic
     at: {anchor: center}
 """,
-    """  - id: wrap
+    """  wrap:
     type: group
-    static: true
     children:
-      - id: h
+      h:
         type: hands
-        hands: classic
+        set: classic
         at: {anchor: center}
 """,
 ])
-def test_static_hands_is_rejected_directly_and_nested(write_design, bag, elements):
-    bad = errors(design(CLASSIC, elements), bag, write_design)
+def test_static_hands_is_rejected_directly_and_nested(write_design, bag, static):
+    text = design(CLASSIC, "  dot: {type: circle, radius: 2px, color: color.fg}\n")
+    bad = errors(text.replace("\nelements:\n", "\nstatic:\n" + static + "elements:\n"),
+                 bag, write_design)
     assert any("cannot be static" in d.message for d in bad)
 
 
 @pytest.mark.parametrize("part,message", [
-    ("{shape: polygon, filled: false, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
+    ("{type: polygon, filled: false, points: [{dy: -10}, {dx: -5, dy: 5}, {dx: 5, dy: 5}]}",
      "not accepted on a hand 'type: polygon' part"),
-    ("{shape: rectangle, filled: false, at: {dy: 0}, size: {width: 4%r, height: 4%r}}",
+    ("{type: rectangle, filled: false, at: {dy: 0}, size: {width: 4%r, height: 4%r}}",
      "not accepted on a hand 'type: rectangle' part"),
 ])
 def test_filled_false_is_rejected_on_polygon_and_rectangle(write_design, bag, part, message):
     hands = f"""
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {part}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {part}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -353,12 +371,13 @@ hands:
 
 def test_thickness_is_rejected_on_a_filled_circle_part(write_design, bag):
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10%r, thickness: 2px}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10%r, thickness: 2px}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -367,12 +386,13 @@ hands:
 
 def test_filled_is_rejected_on_a_line_part(write_design, bag):
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 5%r}, to: {dy: -20%r}, filled: false}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 5%r}, to: {dy: -20%r}, filled: false}
 """
     bad = errors(design(hands, MAIN_HANDS), bag, write_design)
     assert len(bad) == 1
@@ -380,7 +400,11 @@ hands:
 
 
 def test_the_old_analog_clock_hint_now_points_at_type_hands(write_design, bag):
-    text = BASE + "\nelements:\n  - id: h\n    type: analog_clock\n"
+    text = BASE + """
+elements:
+  h:
+    type: analog_clock
+"""
     face = load(write_design(text), bag)
     assert face is None
     notes = " ".join(n for d in bag.errors for n in d.notes)
@@ -402,12 +426,13 @@ def test_a_mirrored_pair_resolves_to_mirrored_pixels(resolved_for):
     """Round half away from zero (§5.3): -1.5px/1.5px must resolve to -2/2,
     not 0/2 the way round-half-to-even would for a *different* value."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dx: -1.5px, dy: 0}, to: {dx: 1.5px, dy: 0}, thickness: 1px}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dx: -1.5px, dy: 0}, to: {dx: 1.5px, dy: 0}, thickness: 1px}
 """
     placed = find(resolved_for(design(hands, MAIN_HANDS)), "main_hands")
     part = placed.hour.parts[0]
@@ -418,12 +443,13 @@ def test_a_rectangle_part_becomes_a_polygon_in_corner_order(resolved_for):
     """top-left, top-right, bottom-right, bottom-left (§6) -- the order a
     rotated rectangle keeps no matter which corner ends up where."""
     hands = """
-hands:
-  classic:
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: rectangle, at: {dy: 0}, size: {width: 10px, height: 20px}}
+resources:
+  hand_sets:
+    classic:
+      minute:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: 0}, size: {width: 10px, height: 20px}}
 """
     placed = find(resolved_for(design(hands, MAIN_HANDS)), "main_hands")
     part = placed.minute.parts[0]
@@ -433,12 +459,13 @@ hands:
 
 def test_reach_is_the_farthest_ink_from_the_axis(resolved_for):
     hands = """
-hands:
-  classic:
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 15px}, to: {dy: -82px}, thickness: 2px}
+resources:
+  hand_sets:
+    classic:
+      second:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 15px}, to: {dy: -82px}, thickness: 2px}
 """
     placed = find(resolved_for(design(hands, MAIN_HANDS)), "main_hands")
     # the far end of the line, plus half the pen width
@@ -449,20 +476,21 @@ def test_a_seconds_never_hand_is_excluded_from_reach_and_from_drawing(resolved_f
     """'seconds: never' -- the set's second hand is not drawn at all (§5.6),
     so its geometry must not inflate the swept disc either."""
     hands = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10px}
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -100px}, thickness: 1px}
+resources:
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10px}
+      second:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -100px}, thickness: 1px}
 """
-    elements = """  - id: main_hands
+    elements = """  main_hands:
     type: hands
-    hands: classic
+    set: classic
     seconds: never
     at: {anchor: center}
 """
@@ -473,21 +501,22 @@ hands:
 
 def test_an_off_centre_axis_inside_a_group(resolved_for):
     hands = """
-hands:
-  small_seconds:
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 3%r}, to: {dy: -20%r}, thickness: 1px}
+resources:
+  hand_sets:
+    small_seconds:
+      second:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 3%r}, to: {dy: -20%r}, thickness: 1px}
 """
-    elements = """  - id: wrap
+    elements = """  wrap:
     type: group
     at: {anchor: center, dy: 20%}
     size: {width: 50%, height: 50%}
     children:
-      - id: sub
+      sub:
         type: hands
-        hands: small_seconds
+        set: small_seconds
         at: {anchor: center, dy: 30%}
 """
     resolved = resolved_for(design(hands, elements))
@@ -509,14 +538,15 @@ def test_seconds_never_on_a_second_only_set_is_an_error(write_design, bag):
     """The one combination that would draw nothing at all -- refused, not
     generated as an empty method (no silent no-ops)."""
     hands = """
-hands:
-  small:
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, to: {dy: -20%r}, thickness: 1px}
+resources:
+  hand_sets:
+    small:
+      second:
+        color: color.fg
+        parts:
+          - {type: line, to: {dy: -20%r}, thickness: 1px}
 """
-    element = """  - {id: sub, type: hands, hands: small, seconds: never}
+    element = """  sub: {type: hands, set: small, seconds: never}
 """
     face = load(write_design(design(hands, element)), bag)
     assert face is None
@@ -528,16 +558,17 @@ hands:
 
 
 DITHER_HANDS = """
-hands:
-  odd:
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 4%r}
-    second:
-      color: palette.odd
-      parts:
-        - {shape: line, to: {dy: -40%r}, thickness: 1px}
+resources:
+  hand_sets:
+    odd:
+      minute:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 4%r}
+      second:
+        color: color.odd
+        parts:
+          - {type: line, to: {dy: -40%r}, thickness: 1px}
 """
 
 
@@ -547,7 +578,7 @@ def lint_design(write_design, bag, db):
 
     def _lint(elements: str):
         text = design(DITHER_HANDS, elements).replace(
-            'accent: "#FF5500"', 'accent: "#FF5500"\n  odd: "#123456"')
+            'accent: "#FF5500"', 'accent: "#FF5500"\n    odd: "#123456"')
         face = load(write_design(text), bag)
         assert face is not None, bag.render()
         device = db.get("fenix8solar47mm")
@@ -558,34 +589,36 @@ def lint_design(write_design, bag, db):
 
 
 def test_a_dithered_hand_colour_warns_and_names_the_hands_element(lint_design):
-    """`palette.odd` is read only by a hand.  Before `lint._users_of` learnt
+    """`color.odd` is read only by a hand.  Before `lint._users_of` learnt
     hand colours, this warned with the "nowhere to put a suppression" note,
     and the suppression below silently did nothing."""
-    warnings = lint_design("  - {id: h, type: hands, hands: odd}\n")
+    warnings = lint_design("""  h: {type: hands, set: odd}
+""")
     assert len(warnings) == 1
     assert not any("nowhere to put" in note for note in warnings[0].notes)
 
 
 def test_a_dithered_hand_colour_is_suppressed_on_the_hands_element(lint_design):
     warnings = lint_design(
-        "  - {id: h, type: hands, hands: odd,\n"
+        "  h: {type: hands, set: odd,\n"
         "     lint: {allow: [palette-dither], reason: probing}}\n")
     assert warnings == []
 
 
 def test_a_suppression_on_some_other_element_does_not_reach_a_hand_colour(lint_design):
     warnings = lint_design(
-        "  - {id: h, type: hands, hands: odd}\n"
-        "  - {id: dot, type: shape, shape: circle, radius: 2px, color: palette.fg,\n"
+        "  h: {type: hands, set: odd}\n"
+        "  dot: {type: circle, radius: 2px, color: color.fg,\n"
         "     lint: {allow: [palette-dither], reason: probing}}\n")
     assert len(warnings) == 1
 
 
 def test_a_never_drawn_second_hand_colour_counts_as_unused(lint_design):
     """`seconds: never` draws no second hand, so its colour is not on screen:
-    `palette.odd` is then an unused entry, and warns the way any unused
+    `color.odd` is then an unused entry, and warns the way any unused
     dithered entry does -- saying there is no element to suppress it on,
     rather than naming a hands element that never draws it."""
-    warnings = lint_design("  - {id: h, type: hands, hands: odd, seconds: never}\n")
+    warnings = lint_design("""  h: {type: hands, set: odd, seconds: never}
+""")
     assert len(warnings) == 1
     assert any("nowhere to put" in note for note in warnings[0].notes)

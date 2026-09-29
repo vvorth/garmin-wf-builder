@@ -523,3 +523,25 @@ the one a `face:` font already offers: `if_unavailable: error` (the
 default, a build error naming the device) or `hide`. `hide` is realised as a
 per-device `Layout` constant that the element's draw method checks, so the
 shared view stays one file. Plan 20's D2, decided and built the same day.
+
+## Amendment (2026-09-29): format 2's element vocabulary
+
+Plan 22 renamed the element model's author-facing names without changing
+the model; the IR keeps its internal names (`wfb/lower.py`).
+
+- **Primitive types.** `type: shape` + `shape: X` became `type: X` for the
+  six primitives (`rectangle`, `circle`, `ellipse`, `arc`, `polygon`,
+  `line`); `rounded_rectangle` is a `rectangle` with `corner_radius:`.
+  `progress` became `gauge`, and `complication_slot` became `data`, with its
+  `icon_*` keys grouped as `icon: {size, position, gap, color}`.
+- **`align:`** takes the nine anchor names (`top_left` … `bottom_right`,
+  `center`), so one key sets both axes; `vertical_align:` is gone. `anchor:`
+  and `align:` also take uppercase compass aliases (`N`, `NE`, … `NW`).
+- **Parts** of hands, patterns and gauge needles say `type:`, like elements.
+  A hand set is declared under `resources: {hand_sets:}` and placed with
+  `type: hands` + `set:`.
+- **Elements are a mapping keyed by id**, in `elements:`, `static:` and a
+  group's `children:`; the list form is gone. `static:` is block-only: the
+  per-element `static: true` flag is removed.
+- `if_unavailable:` became `unsupported:`. §4's per-device `overrides:`
+  remains specified and unbuilt, now in format 2's key names.

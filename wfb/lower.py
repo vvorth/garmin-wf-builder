@@ -69,6 +69,9 @@ class _Lowering:
         self.bag = bag
         self.colors = _Colors()
         self.ok = True
+        # One YAML node aliased under two keys is lowered once; `wfb.desugar`
+        # reports the alias itself.
+        self.lowered: set[int] = set()
 
     # -- spans and origins -------------------------------------------------
 
@@ -389,6 +392,9 @@ class _Lowering:
     # -- elements ------------------------------------------------------------
 
     def element(self, node: CommentedMap) -> None:
+        if id(node) in self.lowered:
+            return
+        self.lowered.add(id(node))
         kind = node.get("type")
         self.common(node, kind)
         if kind in _PRIMITIVES:

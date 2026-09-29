@@ -68,23 +68,24 @@ def _require_override_face() -> None:
 
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 3a1c9e02-6b4d-4a1a-9f3e-0c7b5d2a6e11
   name: FontsRootTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     text: "8888"
     font: FONT_NUMBER_HOT
     align: center
-    vertical_align: center
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -180,23 +181,24 @@ def _run_preview(*args: str):
 #: drifts (a registry/stand-in change), the two `assert`s below would both
 #: see the same warning and fail loudly rather than silently passing.
 OVERFLOW_DESIGN = """
-format: 1
+format: 2
 face:
   id: 5c2e8a14-7d3b-4f9a-8e1c-2b6a4d9f0c33
   name: OverflowRootTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     text: "8888"
     font: FONT_NUMBER_MILD
     align: left
-    vertical_align: center
     at: {anchor: center, angle: 90deg, radius: 30px}
-    color: palette.fg
+    color: color.fg
 """
 
 

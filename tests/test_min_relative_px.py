@@ -32,21 +32,23 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import find
+from tests.helpers import with_resources, find
 from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import PlacedHands, PlacedPattern, resolve
 from wfb.units import Box
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: 0.3%r of this device's 130px minor radius is 0.39px -- bare `round()`
@@ -59,8 +61,12 @@ def design(elements_block: str, *, face_min_1px: bool | None = None,
            hands_block: str = "") -> str:
     head = BASE
     if face_min_1px is not None:
-        head += f"min_1px: {'true' if face_min_1px else 'false'}\n"
-    return head + hands_block + "\nelements:\n" + elements_block
+        head += f"""defaults:
+  min_1px: {'true' if face_min_1px else 'false'}
+"""
+    if hands_block.strip():
+        head = with_resources(head, hands_block)
+    return head + "\nelements:\n" + elements_block
 
 
 @pytest.fixture
@@ -92,18 +98,17 @@ def sub_pixel_keys(resolved, owner: str) -> set[str]:
 
 def circle(id_: str, indent: int = 2, *, min_1px: bool | None = None,
            radius: str = HAIRLINE) -> str:
-    """A minimal `shape: circle`, indented to sit at a list-item level
+    """A minimal circle, indented to sit at an element-entry level
     ``indent`` spaces deep (2 = top-level `elements:`, 6 = one `group`'s
     `children:` deep, 10 = two deep, ...) -- lets the same helper build both
     a flat design and one nested inside `group()` below."""
     pad = " " * indent
     lines = [
-        f"{pad}- id: {id_}",
-        f"{pad}  type: shape",
-        f"{pad}  shape: circle",
+        f"{pad}{id_}:",
+        f"{pad}  type: circle",
         f"{pad}  at: {{anchor: center}}",
         f"{pad}  radius: {radius}",
-        f"{pad}  color: palette.fg",
+        f"{pad}  color: color.fg",
     ]
     if min_1px is not None:
         lines.append(f"{pad}  min_1px: {'true' if min_1px else 'false'}")
@@ -117,7 +122,7 @@ def group(id_: str, children_block: str, indent: int = 2, *,
     `group(..., indent=indent + 4)`)."""
     pad = " " * indent
     lines = [
-        f"{pad}- id: {id_}",
+        f"{pad}{id_}:",
         f"{pad}  type: group",
         f"{pad}  at: {{anchor: center}}",
         f"{pad}  size: {{width: 200px, height: 200px}}",
@@ -169,14 +174,14 @@ def test_element_level_turns_it_on(resolved_for):
 def test_part_level_turns_it_on(resolved_for):
     """§5 test 2 (part): the pattern element itself declares nothing, only
     this one part does."""
-    resolved = resolved_for(f"""  - id: pat
+    resolved = resolved_for(f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: circle, radius: {HAIRLINE}, min_1px: true}}
+      - {{type: circle, radius: {HAIRLINE}, min_1px: true}}
 """)
     placed = find(resolved, "pat")
     assert isinstance(placed, PlacedPattern)
@@ -207,15 +212,15 @@ def test_element_level_turns_it_back_off_under_a_true_group(resolved_for):
 
 def test_part_level_turns_it_back_off_under_a_true_pattern(resolved_for):
     """§5 test 3 (part under a true element)."""
-    resolved = resolved_for(f"""  - id: pat
+    resolved = resolved_for(f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     min_1px: true
     parts:
-      - {{shape: circle, radius: {HAIRLINE}, min_1px: false}}
+      - {{type: circle, radius: {HAIRLINE}, min_1px: false}}
 """)
     placed = find(resolved, "pat")
     assert placed.parts[0].radius == 0
@@ -242,21 +247,22 @@ def test_two_hands_elements_sharing_one_set_resolve_min_1px_independently(resolv
     proving the effective value is computed per element instance at layout
     time, not stamped once onto the part in the IR."""
     hands_block = f"""
-hands:
-  shared:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: circle, radius: {HAIRLINE}}}
+resources:
+  hand_sets:
+    shared:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: circle, radius: {HAIRLINE}}}
 """
-    resolved = resolved_for(f"""  - id: h1
+    resolved = resolved_for(f"""  h1:
     type: hands
-    hands: shared
+    set: shared
     at: {{anchor: center}}
     min_1px: true
-  - id: h2
+  h2:
     type: hands
-    hands: shared
+    set: shared
     at: {{anchor: center}}
     min_1px: false
 """, hands_block=hands_block)
@@ -299,12 +305,11 @@ def test_group_size_is_covered(resolved_for):
 
 def test_shape_rectangle_size_is_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: r
-    type: shape
-    shape: rectangle
+        return f"""  r:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: {HAIRLINE}, height: 10px}}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -326,13 +331,12 @@ def test_shape_circle_radius_is_covered(resolved_for):
 
 def test_shape_arc_radius_and_thickness_are_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: ring
-    type: shape
-    shape: arc
+        return f"""  ring:
+    type: arc
     at: {{anchor: center}}
     radius: {HAIRLINE}
     thickness: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -347,13 +351,12 @@ def test_shape_arc_radius_and_thickness_are_covered(resolved_for):
 
 def test_shape_line_thickness_is_already_floored_by_a_separate_rule(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: hair
-    type: shape
-    shape: line
+        return f"""  hair:
+    type: line
     at: {{anchor: center}}
     to: {{anchor: center, dx: 50px}}
     thickness: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -366,8 +369,8 @@ def test_shape_line_thickness_is_already_floored_by_a_separate_rule(resolved_for
 
 def test_progress_arc_radius_and_thickness_are_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: ring
-    type: progress
+        return f"""  ring:
+    type: gauge
     style: arc
     value: 3
     max: 10
@@ -375,7 +378,7 @@ def test_progress_arc_radius_and_thickness_are_covered(resolved_for):
     thickness: {HAIRLINE}
     start_angle: 0
     sweep: 300
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -389,13 +392,13 @@ def test_progress_arc_radius_and_thickness_are_covered(resolved_for):
 
 def test_progress_bar_size_is_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: bar
-    type: progress
+        return f"""  bar:
+    type: gauge
     style: bar
     value: 3
     max: 10
     size: {{width: {HAIRLINE}, height: 10px}}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -409,14 +412,14 @@ def test_progress_bar_size_is_covered(resolved_for):
 def test_graph_size_and_thickness_are_covered(resolved_for):
     """`style: line` reads `thickness:`, not `bar_width:`."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: g
+        return f"""  g:
     type: graph
     series: heart_rate
     range: 30m
     style: line
     size: {{width: {HAIRLINE}, height: 40px}}
     thickness: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -431,14 +434,14 @@ def test_graph_size_and_thickness_are_covered(resolved_for):
 def test_graph_bar_width_is_covered(resolved_for):
     """`style: bars` reads `bar_width:`, not `thickness:`."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: g
+        return f"""  g:
     type: graph
     series: heart_rate
     range: 30m
     style: bars
     size: {{width: 100px, height: 40px}}
     bar_width: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = resolved_for(make(False))
@@ -454,14 +457,14 @@ def test_pattern_rectangle_part_size_is_covered(resolved_for):
     1 -- this only proves it is no longer 0, the same distinction the
     original (unconditional) version of this test made."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: rectangle, size: {{width: {HAIRLINE}, height: 4px}}, min_1px: {'true' if min_1px else 'false'}}}
+      - {{type: rectangle, size: {{width: {HAIRLINE}, height: 4px}}, min_1px: {'true' if min_1px else 'false'}}}
 """
     off_resolved = resolved_for(make(False))
     on_resolved = resolved_for(make(True))
@@ -475,14 +478,14 @@ def test_pattern_rectangle_part_size_is_covered(resolved_for):
 
 def test_pattern_line_part_thickness_is_already_floored(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: line, to: {{dx: 10px}}, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
+      - {{type: line, to: {{dx: 10px}}, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
 """
     off_resolved = resolved_for(make(False))
     on_resolved = resolved_for(make(True))
@@ -494,14 +497,14 @@ def test_pattern_line_part_thickness_is_already_floored(resolved_for):
 
 def test_pattern_circle_part_radius_and_thickness_are_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: circle, radius: {HAIRLINE}, filled: false, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
+      - {{type: circle, radius: {HAIRLINE}, filled: false, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
 """
     off_resolved = resolved_for(make(False))
     on_resolved = resolved_for(make(True))
@@ -514,14 +517,14 @@ def test_pattern_circle_part_radius_and_thickness_are_covered(resolved_for):
 
 def test_pattern_arc_part_radius_and_thickness_are_covered(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: arc, radius: {HAIRLINE}, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
+      - {{type: arc, radius: {HAIRLINE}, thickness: {HAIRLINE}, min_1px: {'true' if min_1px else 'false'}}}
 """
     off_resolved = resolved_for(make(False))
     on_resolved = resolved_for(make(True))
@@ -533,18 +536,19 @@ def test_pattern_arc_part_radius_and_thickness_are_covered(resolved_for):
 
 def test_hand_rectangle_part_size_is_covered(resolved_for):
     hands_block = f"""
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: rectangle, size: {{width: {HAIRLINE}, height: 4px}}}}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: rectangle, size: {{width: {HAIRLINE}, height: 4px}}}}
 """
 
     def elements(min_1px: bool) -> str:
-        return f"""  - id: hd
+        return f"""  hd:
     type: hands
-    hands: h
+    set: h
     at: {{anchor: center}}
     min_1px: {'true' if min_1px else 'false'}
 """
@@ -558,18 +562,19 @@ hands:
 
 def test_hand_circle_part_radius_is_covered(resolved_for):
     hands_block = f"""
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {{shape: circle, radius: {HAIRLINE}}}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {{type: circle, radius: {HAIRLINE}}}
 """
 
     def elements(min_1px: bool) -> str:
-        return f"""  - id: hd
+        return f"""  hd:
     type: hands
-    hands: h
+    set: h
     at: {{anchor: center}}
     min_1px: {'true' if min_1px else 'false'}
 """
@@ -590,12 +595,11 @@ hands:
 
 def test_at_offset_is_never_clamped(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: dot
-    type: shape
-    shape: circle
+        return f"""  dot:
+    type: circle
     at: {{anchor: center, dx: {HAIRLINE}}}
     radius: 5px
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off_resolved = resolved_for(make(False))
@@ -612,13 +616,12 @@ def test_at_offset_is_never_clamped(resolved_for):
 
 def test_to_offset_is_never_clamped(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: hair
-    type: shape
-    shape: line
+        return f"""  hair:
+    type: line
     at: {{anchor: center}}
     to: {{anchor: center, dx: {HAIRLINE}}}
     thickness: 2px
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = find(resolved_for(make(False)), "hair")
@@ -633,15 +636,14 @@ def test_polygon_points_are_never_clamped(resolved_for):
     `min_1px` is on or off -- unlike every in-scope shape's own `size:` or
     `radius:` above."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: poly
-    type: shape
-    shape: polygon
+        return f"""  poly:
+    type: polygon
     min_1px: {'true' if min_1px else 'false'}
     points:
       - {{anchor: center}}
       - {{anchor: center, dx: {HAIRLINE}}}
       - {{anchor: center, dy: 3%r}}
-    color: palette.fg
+    color: color.fg
 """
     off = find(resolved_for(make(False)), "poly")
     on = find(resolved_for(make(True)), "poly")
@@ -650,16 +652,16 @@ def test_polygon_points_are_never_clamped(resolved_for):
 
 def test_linear_pattern_step_is_never_clamped(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: linear
     at: {{anchor: center}}
     count: 2
     step: {{dx: {HAIRLINE}}}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
     parts:
-      - {{shape: circle, radius: 3px}}
+      - {{type: circle, radius: 3px}}
 """
     off = find(resolved_for(make(False)), "pat")
     on = find(resolved_for(make(True)), "pat")
@@ -671,13 +673,12 @@ def test_linear_pattern_step_is_never_clamped(resolved_for):
 
 def test_corner_radius_is_never_clamped(resolved_for):
     def make(min_1px: bool) -> str:
-        return f"""  - id: r
-    type: shape
-    shape: rounded_rectangle
+        return f"""  r:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 50px, height: 50px}}
     corner_radius: {HAIRLINE}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off = find(resolved_for(make(False)), "r")
@@ -689,12 +690,11 @@ def test_px_lengths_are_never_clamped(resolved_for):
     """Documents the scope: `radius: 0.3px` still resolves to 0 even with
     `min_1px: true` -- `px` is already exactly what the author wrote."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: dot
-    type: shape
-    shape: circle
+        return f"""  dot:
+    type: circle
     at: {{anchor: center}}
     radius: 0.3px
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off_resolved = resolved_for(make(False))
@@ -728,12 +728,11 @@ def test_exactly_zero_percent_stays_zero(resolved_for):
     """The author asked for nothing; `0%`/`0%r` is not "nonzero", so the
     clamp must not turn it into 1 even with `min_1px: true`."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: gone
-    type: shape
-    shape: rectangle
+        return f"""  gone:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 0%, height: 10px}}
-    color: palette.fg
+    color: color.fg
     min_1px: {'true' if min_1px else 'false'}
 """
     off_resolved = resolved_for(make(False))
@@ -757,14 +756,14 @@ def test_a_pattern_rectangle_part_at_or_above_1px_is_unchanged(resolved_for):
     `_round_away` math exactly, `min_1px` on or off: half-width 2.6 ->
     corners at -3 and 3."""
     def make(min_1px: bool) -> str:
-        return f"""  - id: pat
+        return f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: rectangle, size: {{width: 4%r, height: 4px}}, min_1px: {'true' if min_1px else 'false'}}}
+      - {{type: rectangle, size: {{width: 4%r, height: 4px}}, min_1px: {'true' if min_1px else 'false'}}}
 """
     for min_1px in (False, True):
         resolved = resolved_for(make(min_1px))
@@ -779,12 +778,12 @@ def test_icon_size_floors_on_its_own_path_with_no_switch_and_no_lint(resolved_fo
     see `test_min_1px_is_rejected_on_icon_as_an_unknown_key` below) because a
     font size already floors at 1px on `wfb.units.pixel_size`'s own path --
     checked here with a hairline `size:` and no `min_1px:` anywhere."""
-    resolved = resolved_for(f"""  - id: ic
+    resolved = resolved_for(f"""  ic:
     type: icon
     icon: heart
     size: {HAIRLINE}
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """)
     icon = find(resolved, "ic")
     assert icon.size == 1
@@ -792,12 +791,12 @@ def test_icon_size_floors_on_its_own_path_with_no_switch_and_no_lint(resolved_fo
 
 
 def test_min_1px_is_rejected_on_icon_as_an_unknown_key(write_design, bag):
-    text = design("""  - id: ic
+    text = design("""  ic:
     type: icon
     icon: heart
     size: 20%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     min_1px: true
 """)
     face = load(write_design(text), bag)
@@ -806,11 +805,11 @@ def test_min_1px_is_rejected_on_icon_as_an_unknown_key(write_design, bag):
 
 
 def test_min_1px_is_rejected_on_text_as_an_unknown_key(write_design, bag):
-    text = design("""  - id: t
+    text = design("""  t:
     type: text
     text: "12:00"
     font: FONT_MEDIUM
-    color: palette.fg
+    color: color.fg
     min_1px: true
 """)
     face = load(write_design(text), bag)
@@ -857,14 +856,14 @@ def test_the_element_owns_again_once_its_parts_are_resolved(write_design, bag, d
     whichever part came last."""
     from wfb.layout import Resolver, _Owner
 
-    face = load(write_design(design(f"""  - id: pat
+    face = load(write_design(design(f"""  pat:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {{shape: circle, radius: {HAIRLINE}}}
+      - {{type: circle, radius: {HAIRLINE}}}
 """)), bag)
     assert face is not None, bag.render()
     element = face.elements[0]

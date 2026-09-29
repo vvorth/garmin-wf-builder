@@ -1,4 +1,4 @@
-# Probe: how the native on-device editor draws a `complication_slot`.
+# Probe: how the native on-device editor draws a `data` element.
 #
 # A test face, not a demo or a wearable face: it exists to answer one open
 # question on a real fēnix 8, then be kept as the record of how it was
@@ -28,7 +28,7 @@
 # ## What is on this face
 #
 # * `card_slot` (upper left) reproduces the bug: the showcase register's
-#   exact geometry -- a `complication_slot` at `dx: -50%r, dy: -30%r` with
+#   exact geometry -- a `data` element at `dx: -50%r, dy: -30%r` with
 #   its icon on top, and a static card at `dy: -23%r` that is partly under
 #   the slot and reaches below the drawable's box.
 # * `ruler_slot` (upper right) measures the cleared region: the same slot
@@ -71,53 +71,52 @@
 # Build it with:    ./wfb.py build examples/probes/slot-editor/face.yaml
 # Preview it with:  ./wfb.py preview examples/probes/slot-editor/face.yaml
 #
-# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 7f3c1e58-2b9a-4d6e-8c05-1a9e4f7b2d63
   name: Probe Slot Editor
   version: 0.1.0
 
-targets: [fenix8solar47mm, fenix8solar51mm]
-
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  card: "#555555"
-  dots: "#AAAAAA"
-  accent: "#00AAFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    card: "#555555"
+    dots: "#AAAAAA"
+    accent: "#00AAFF"
 
 config:
-  data:
+  slots:
     card:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate, complication.date]
+      default: steps
+      choices: [steps, heart_rate, date]
     ruler:
-      default: complication.heart_rate
-      choices: [complication.steps, complication.heart_rate, complication.date]
+      default: heart_rate
+      choices: [steps, heart_rate, date]
     boxed:
-      default: complication.date
-      choices: [complication.steps, complication.heart_rate, complication.date]
+      default: date
+      choices: [steps, heart_rate, date]
 
 static:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
   # the showcase register's card, exactly: partly under the slot, reaching
   # below the drawable's box
-  - id: card
-    type: shape
-    shape: rounded_rectangle
+  card:
+    type: rectangle
     at: { anchor: center, dx: -50%r, dy: -23%r }
     size: { width: 42%r, height: 19%r }
     corner_radius: 3%r
-    color: palette.card
+    color: color.card
     lint:
       allow: [contrast]
       reason: "showcase's own dark-grey card on black, reproduced exactly; the
@@ -131,89 +130,77 @@ static:
   # reaches past the centre line and well above and below the slot;
   # whichever dots vanish in the option list trace the region the editor
   # clears.
-  - id: ruler_dots_upper
+  ruler_dots_upper:
     type: pattern
     pattern: grid
     at: { anchor: center, dx: -24px, dy: -84px }
     count: 360
     columns: 36
     step: { dx: 4px, dy: 4px }
-    color: palette.dots
+    color: color.dots
     parts:
-      - { shape: circle, radius: 1px }
+      - { type: circle, radius: 1px }
     lint:
       allow: [safe-area]
       reason: "a ruler: its top-right dots fall under the bezel and are simply
         not counted"
 
-  - id: ruler_dots_lower
+  ruler_dots_lower:
     type: pattern
     pattern: grid
     at: { anchor: center, dx: -24px, dy: -44px }
     count: 360
     columns: 36
     step: { dx: 4px, dy: 4px }
-    color: palette.dots
+    color: color.dots
     parts:
-      - { shape: circle, radius: 1px }
+      - { type: circle, radius: 1px }
 
   # a card that fully contains its slot
-  - id: box
-    type: shape
-    shape: rounded_rectangle
+  box:
+    type: rectangle
     at: { anchor: center, dy: 46%r }
     size: { width: 64%r, height: 20%r }
     corner_radius: 3%r
-    color: palette.card
+    color: color.card
     lint:
       allow: [contrast]
       reason: "the same dark-grey card as `card`, a backing, not something to read"
 
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MILD
     at: { anchor: center, dy: 20%r }
-    color: palette.fg
+    color: color.fg
 
-  - id: card_slot
-    type: complication_slot
-    slot: config.data.card
+  card_slot:
+    type: data
+    slot: card
     at: { anchor: center, dx: -50%r, dy: -30%r }
     font: FONT_XTINY
-    icon_size: 9%r
-    icon_position: top
-    icon_gap: 1%r
-    icon_color: palette.accent
-    color: palette.fg
+    icon: { size: 9%r, position: top, gap: 1%r, color: color.accent }
+    color: color.fg
     label: none
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 
-  - id: ruler_slot
-    type: complication_slot
-    slot: config.data.ruler
+  ruler_slot:
+    type: data
+    slot: ruler
     at: { anchor: center, dx: 50%r, dy: -30%r }
     font: FONT_XTINY
-    icon_size: 9%r
-    icon_position: top
-    icon_gap: 1%r
-    icon_color: palette.accent
-    color: palette.fg
+    icon: { size: 9%r, position: top, gap: 1%r, color: color.accent }
+    color: color.fg
     label: none
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 
-  - id: boxed_slot
-    type: complication_slot
-    slot: config.data.boxed
+  boxed_slot:
+    type: data
+    slot: boxed
     at: { anchor: center, dy: 46%r }
     font: FONT_XTINY
-    icon_size: 9%r
-    icon_color: palette.accent
-    color: palette.fg
+    icon: { size: 9%r, color: color.accent }
+    color: color.fg
     label: short
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"

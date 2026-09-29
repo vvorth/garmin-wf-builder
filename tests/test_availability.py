@@ -227,39 +227,38 @@ def test_fr245_gap_set_is_pinned(db):
 
 
 TEMPLATE = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f59, name: Test}}
-targets: [{targets}]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [{targets}]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: bb
+    color: color.bg
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{{}}"
-    when_absent: hide
+    text: "{{complication.body_battery}}"
+    absent: hide
     font: FONT_TINY
     at: {{anchor: center, dy: -30%}}
-    color: palette.fg
-  - id: stress
+    color: color.fg
+  stress:
     type: text
-    value: activity.stress_score
-    format: "{{:d}}"
-    when_absent: hide
+    text: "{{activity.stress_score:d}}"
+    absent: hide
     font: FONT_TINY
     at: {{anchor: center, dy: 0%}}
-    color: palette.fg
-  - id: hr
+    color: color.fg
+  hr:
     type: icon
     icon: heart
     size: 10%r
     at: {{anchor: center, dy: 30%}}
-    color: palette.fg
+    color: color.fg
     on_hold: heart_rate
 """
 
@@ -286,7 +285,9 @@ def test_uses_complications_true_for_on_hold_alone(write_design, bag):
     """Even a design that reads no `complication.*` value needs the module,
     purely because of `on_hold:` (`Complications.exitTo`)."""
     text = TEMPLATE.format(targets="fenix8solar47mm").replace(
-        "    value: complication.body_battery\n", "    value: activity.steps\n"
+        """    text: "{complication.body_battery}"
+""", """    text: "{activity.steps}"
+"""
     )
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -295,17 +296,18 @@ def test_uses_complications_true_for_on_hold_alone(write_design, bag):
 
 def test_uses_complications_false_for_a_plain_design(write_design, bag):
     text = """
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f5a, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: hide
-    color: palette.fg
+    text: "{activity.steps:d}"
+    absent: hide
+    color: color.fg
     at: {anchor: center}
 """
     face = load(write_design(text), bag)
@@ -350,25 +352,26 @@ def test_compute_guards_field_gap_is_independent_of_the_complications_gap(db, wr
 
 
 WEATHER_TEMPLATE = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f5b, name: Weather}}
-targets: [{targets}]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [{targets}]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: temp
+  temp:
     type: text
-    value: weather.temperature
-    format: "{{:.0f}}"
-    when_absent: hide
+    text: "{{weather.temperature:.0f}}"
+    absent: hide
     at: {{anchor: center, dy: -20%}}
-    color: palette.fg
-  - id: cond
+    color: color.fg
+  cond:
     type: icon
-    icon_for: weather.condition_today
+    icon: {{for: weather.condition_today}}
     size: 16%r
     at: {{anchor: center}}
-    color: palette.fg
-  - id: fc
+    color: color.fg
+  fc:
     type: graph
     at: {{anchor: center, dy: 25%}}
     size: {{width: 62%, height: 13%}}
@@ -376,7 +379,7 @@ elements:
     range: 24h
     style: line
     thickness: 2px
-    color: palette.fg
+    color: color.fg
     min: auto
     max: auto
 """
@@ -409,7 +412,7 @@ def test_compute_guards_guards_weather_for_a_forecast_graph_alone(db, write_desi
     acquisition, not a catalogue reader -- it needs the guard just the same."""
     _skip_unless_installed(db, "fenix5")
     text = WEATHER_TEMPLATE.format(targets="fenix5, fenix8solar47mm")
-    text = text.split("  - id: temp")[0] + "  - id: fc" + text.split("  - id: fc")[1]
+    text = text.split("  temp:\n")[0] + "  fc:\n" + text.split("  fc:\n")[1]
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     guards = compute_guards(face, [db.get("fenix5"), db.get("fenix8solar47mm")])

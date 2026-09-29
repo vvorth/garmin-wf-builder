@@ -20,42 +20,43 @@ from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts
 
 DESIGN = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {elements}
 """
 
 ONE_ICON = """
-  - id: wicon
+  wicon:
     type: icon
-    icon_for: weather.condition
+    icon: {for: weather.condition}
     size: 20%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 TWO_DAILY_ICONS = """
-  - id: today
+  today:
     type: icon
-    icon_for: weather.condition_today
+    icon: {for: weather.condition_today}
     size: 20%r
     at: {anchor: center, dx: -25%r}
-    color: palette.fg
-  - id: tomorrow
+    color: color.fg
+  tomorrow:
     type: icon
-    icon_for: weather.condition_tomorrow
+    icon: {for: weather.condition_tomorrow}
     size: 20%r
     at: {anchor: center, dx: 25%r}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -120,12 +121,12 @@ def test_icon_glyphs_module_is_generated_from_the_catalogue(write_design, bag, d
 
 def test_icon_glyphs_module_is_absent_without_a_dynamic_icon(write_design, bag, db, tmp_path):
     static_icon = """
-  - id: heart
+  heart:
     type: icon
     icon: heart
     size: 20%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     files = _project_files(write_design, bag, db, tmp_path, static_icon)
     assert "source/IconGlyphs.mc" not in files

@@ -149,23 +149,24 @@ def test_every_icon_bakes_resolves_and_renders(name, tmp_path, bag, db):
     from wfb.preview import PreviewOptions, render
 
     design = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: probe
+    color: color.bg
+  probe:
     type: icon
     icon: {name}
     size: 20%r
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """
     path = tmp_path / "face.yaml"
     path.write_text(design, encoding="utf-8")
@@ -253,23 +254,24 @@ def test_an_unknown_icon_name_is_a_build_error_not_a_silent_blank(write_design, 
     from wfb.build import load
 
     face = load(write_design("""
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: probe
+    color: color.bg
+  probe:
     type: icon
     icon: not-a-real-icon
     size: 20%r
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """), bag)
     assert face is None
     assert any(d.code == "icon" for d in bag.errors)
@@ -284,23 +286,24 @@ def test_percent_size_is_rejected_with_an_explanation(write_design, bag):
     from wfb.build import load
 
     face = load(write_design("""
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: probe
+    color: color.bg
+  probe:
     type: icon
     icon: heart
     size: 20%
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """), bag)
     assert face is None
     assert any(d.code == "icon" and "%r" in d.message for d in bag.errors)

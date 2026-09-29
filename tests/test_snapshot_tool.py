@@ -48,9 +48,9 @@ def test_out_dir_is_replaced():
 
 
 def test_repo_root_is_replaced():
-    text = snap.normalize_text(f"{snap.ROOT}/schema/wfb-face-1.schema.json", key="cli/schema",
+    text = snap.normalize_text(f"{snap.ROOT}/schema/wfb-face-2.schema.json", key="cli/schema",
                                out_dir=None)
-    assert text == "<ROOT>/schema/wfb-face-1.schema.json"
+    assert text == "<ROOT>/schema/wfb-face-2.schema.json"
 
 
 def test_home_dir_is_replaced():

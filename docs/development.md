@@ -141,7 +141,9 @@ Readable output is a requirement, not a nicety: it is what gets debugged when
 something misbehaves on the wrist, and it is the substrate the escape hatch will
 drop into. Symbol names derive from element ids, every block cites its YAML
 element, layout constants are named rather than inlined, and every nullable read
-is guarded with the `when_absent:` policy that produced the guard.
+is guarded with the `absent:` policy that produced the guard. (The generated
+comments name keys in the compiler's internal spelling, `when_absent:` here:
+format 2 is lowered into it, `wfb/lower.py`.)
 
 ## Layout
 
@@ -149,6 +151,11 @@ is guarded with the `when_absent:` policy that produced the guard.
 wfb/                  the compiler
   yamlsrc.py            YAML loading that keeps source spans
   validate.py           JSON Schema, reported against the author's lines
+  lower.py              format 2 -> the internal shape the IR builder reads
+  vocab.py              internal key/kind names -> the author's, for messages
+  template.py           the `text:` template: "{expr:spec}" parsing
+  desugar.py            the element mapping form and the `static:` blocks -> one form
+  migrate.py            `wfb migrate`: a format 1 file rewritten as format 2
   catalog.py            the typed data-source catalogue
   expr.py               the expression language -> Monkey C
   ir/                   the IR (model.py, naming.py) and the semantic pass (builder/,
@@ -185,8 +192,10 @@ docs/                 README.md (hub), guide/ (format reference), limitations, A
 ## Element kinds
 
 Each element kind (`group`, `shape`, `text`, `progress`, `icon`, `graph`,
-`complication_slot`, `hands`, `pattern`) is one module in `wfb/kinds/`,
-holding one subclass of `wfb.kinds.ElementKind` (`TextKind`, `PatternKind`,
+`complication_slot`, `hands`, `pattern`) is one module in `wfb/kinds/`. These
+are the internal names: format 2's six primitive types lower to `shape`,
+`gauge` to `progress` and `data` to `complication_slot` (`wfb/lower.py`,
+`wfb/vocab.py` for the way back in messages). Each module holds one subclass of `wfb.kinds.ElementKind` (`TextKind`, `PatternKind`,
 ...) and an instance of it as the module's `KIND`. A stage never switches on
 kind: it asks the registry (`kinds.for_element`, `kinds.for_placed`) and
 calls a method. The base class is the interface: every method's signature
@@ -205,7 +214,7 @@ checks, and, for an icon font, how to bake it. Glyph baking, icon-font
 baking, `onLayout`'s font loading, the vector-font guards and lint, the
 missing-glyph lint and `IconGlyphs.mc` are all derived from those runs in
 their own stage, so a new kind that draws text writes one method, not one
-per stage. A `pattern` returns one run per `shape: text` part; `part_index`
+per stage. A `pattern` returns one run per `type: text` part; `part_index`
 is how a stage finds the font layout resolved for that part
 (`kinds.placed_font`).
 
@@ -240,29 +249,30 @@ tree on 2026-09-25, and with it `wfb validate`, `wfb preview` (awake and
 `fr955` and `fenix847mm`, and the fast suite was unchanged. Nothing else in
 the compiler had to change: every stage reached it through the registry.
 
-**1. The schema** (`schema/wfb-face-1.schema.json`). Add a `$defs` entry and
+**1. The schema** (`schema/wfb-face-2.schema.json`). Add a `$defs` entry and
 reference it from `$defs.element.oneOf`. `additionalProperties` is `false`
 on every element, so an element restates the keys every kind accepts; copy
-them from `shapeElement`. `aod:` takes a per-kind `aod<Kind>` definition that
+them from `circleElement`. The id is the element's key, so it is not a
+property. A type whose author name is its internal kind name, as here,
+needs nothing in `wfb/lower.py`; one that is renamed (like `gauge`) is
+rewritten there, and named back in messages through `wfb/vocab.py`. `aod:` takes a per-kind `aod<Kind>` definition that
 lists which keys an override may restyle; `aodIcon` (colour and `visible:`)
 fits a one-colour kind.
 
 ```json
 "dotElement": {
   "type": "object",
-  "required": ["id", "type", "radius"],
+  "required": ["type", "radius"],
   "additionalProperties": false,
   "properties": {
-    "id": {"$ref": "#/$defs/identifier"},
     "type": {"const": "dot"},
     "radius": {"$ref": "#/$defs/length"},
     "color": {"$ref": "#/$defs/colorExpression"},
     "at": {"$ref": "#/$defs/position"},
-    "modes": {"$ref": "#/$defs/modes"},
+    "sleep_update": {"$ref": "#/$defs/sleepUpdate"},
     "z": {"$ref": "#/$defs/zOrder"},
     "on_hold": {"$ref": "#/$defs/onHold"},
     "visible": {"$ref": "#/$defs/visible"},
-    "static": {"$ref": "#/$defs/staticFlag"},
     "antialias": {"$ref": "#/$defs/antialias"},
     "min_1px": {"$ref": "#/$defs/min_1px"},
     "lint": {"$ref": "#/$defs/lint"},
@@ -407,7 +417,7 @@ default means "nothing to do here":
 | `antialiased` | draws primitives (`drawCircle`, `fillPolygon`, ...), so `antialias:` becomes `Dc.setAntiAlias`; a glyph kind anti-aliases in its font instead |
 | `circular_extent` | is round: the safe-area lint then checks the disc, not the box corners |
 | `text_runs` | draws text or an icon glyph in a font it names: see "Fonts are one question" above |
-| `static_forbidden` | can never be `static:` (its picture is a series, the clock or a wearer's pick) |
+| `static_forbidden` | can never be in a `static:` block (its picture is a series, the clock or a wearer's pick) |
 | `aod_refusal` | accepts an `aod:` key in the schema it cannot honour in some configuration |
 | `extra_symbols` | emits Monkey C symbols beyond its own `draw<Id>` |
 | `contrast_subjects` | draws more than one ink the contrast lint should judge separately (`hands`, `pattern`) |
@@ -439,13 +449,13 @@ that has everything it calls; the package docstring lists the order.
 |---|---|
 | `expression`, `color_expression`, `length`, `angle`, `position`, `size`, `alignment`, `baked_size_length` | reading one key of the node |
 | `require` | a key the schema cannot require by itself |
-| `check_absence`, `check_other_absence`, `check_reachable_substitute`, `nullable_sources` | `when_absent:` for the value and for every other nullable binding |
-| `check_format`, `check_format_spec`, `check_format_not_on_literal` | `format:` |
-| `resolve_font`, `is_vector_font`, `font_kind_note`, `check_if_unavailable`, `build_curve`, `build_outline` | `font:`, `if_unavailable:`, `curve:`, `outline:` |
+| `check_absence`, `check_other_absence`, `check_reachable_substitute`, `nullable_sources` | `absent:` for the value and for every other nullable binding |
+| `check_format`, `check_format_spec`, `check_format_not_on_literal` | a `text:` template's format spec |
+| `resolve_font`, `is_vector_font`, `font_kind_note`, `check_if_unavailable`, `build_curve`, `build_outline` | `font:`, `unsupported:`, `curve:`, `outline:` |
 | `resolve_icon_name`, `resolve_icon_glyph` | `icon:` |
 | `build_elements`, `push_visible` | a group's children |
 | `build_hand_part`, `owned_color` | a hand's or a pattern's `parts:` |
-| `check_foreign_keys` | a key that belongs to another `shape:` or `style:` |
+| `check_foreign_keys` | a key that belongs to another primitive type or `style:` |
 | `aod_refusal` | an `aod:` key the element cannot honour |
 | `dedup_append`, `and_paths`, `ABSENCE_IS_NORMAL`, `ICON_SIZE_NOTE` (module level) | collecting colours, and diagnostic wording |
 

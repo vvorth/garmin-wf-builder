@@ -11,115 +11,110 @@
 #
 # Preview a flattering time with:  wfb preview <file> --time 10:09:42
 #
-# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: __UUID__
   name: __NAME__
   version: 1.0.0
 
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
+    accent: "#FF5500"
 
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#AAAAAA"
-  accent: "#FF5500"
-
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: polygon
-          points:
-            - { dx: -3%r, dy: 8%r } # a short tail behind the axis
-            - { dx: -2%r, dy: -40%r }
-            - { dy: -46%r } # the tip
-            - { dx: 2%r, dy: -40%r }
-            - { dx: 3%r, dy: 8%r }
-    minute:
-      color: palette.fg
-      parts:
-        - { shape: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
-    second:
-      color: palette.accent
-      parts:
-        - { shape: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
-        - { shape: circle, at: { dy: 15%r }, radius: 3%r } # counterweight
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - type: polygon
+            points:
+              - { dx: -3%r, dy: 8%r } # a short tail behind the axis
+              - { dx: -2%r, dy: -40%r }
+              - { dy: -46%r } # the tip
+              - { dx: 2%r, dy: -40%r }
+              - { dx: 3%r, dy: 8%r }
+      minute:
+        color: color.fg
+        parts:
+          - { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
+      second:
+        color: color.accent
+        parts:
+          - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
+          - { type: circle, at: { dy: 15%r }, radius: 3%r }  # counterweight
 
 static:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
-  - id: minute_ticks
+  minute_ticks:
     type: pattern
     pattern: radial
     at: { anchor: center } # the point every copy turns about
     count: 60 # step defaults to 360deg / 60 = 6deg
     skip_every: 5 # leave the hour positions to hour_ticks
-    color: palette.dim
+    color: color.dim
     parts: # copy 0, as it looks at 12 o'clock
-      - { shape: line, at: { dy: -96%r }, to: { dy: -90%r }, thickness: 1px }
+      - { type: line, at: { dy: -96%r }, to: { dy: -90%r }, thickness: 1px }
 
-  - id: hour_ticks
+  hour_ticks:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - { shape: rectangle, at: { dy: -90%r }, size: { width: 3%r, height: 10%r } }
+      - { type: rectangle, at: { dy: -90%r }, size: { width: 3%r, height: 10%r } }
 
   # One radial pattern instead of twelve text elements. `copy` is the copy's
   # index, 0 at 12 o'clock, so this draws 12, 1, 2, ... 11. The 3 is skipped:
   # the date window sits there.
-  - id: numerals
+  numerals:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 12
     skip: [3]
-    color: palette.dim
+    color: color.dim
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         font: FONT_SMALL
         at: { dy: -70%r }
 
-  - id: date_frame
-    type: shape
-    shape: rectangle
+  date_frame:
+    type: rectangle
     filled: false
     thickness: 1px
     at: { anchor: center, dx: 62%r }
     size: { width: 26%r, height: 18%r }
-    color: palette.dim
+    color: color.dim
 
 elements:
-  - id: date
+  date:
     type: text
-    value: date.day
-    format: "{:d}"
+    text: "{date.day:d}"
     font: FONT_TINY
     at: { anchor: center, dx: 62%r }
-    color: palette.fg
+    color: color.fg
 
-  - id: hands
+  hands:
     type: hands
-    hands: classic
+    set: classic
     at: { anchor: center }
-
-  # Drawn after the hands, so it caps all three.
-  - id: pin
-    type: shape
-    shape: circle
+  pin:
+    type: circle
     at: { anchor: center }
     radius: 3%r
-    color: palette.accent
+    color: color.accent

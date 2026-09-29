@@ -2,7 +2,8 @@
 
 **Status: approved for implementation (decisions F1–F7 and Q1–Q5, and
 the names in §2, 2026-09-28). Being built on branch `format-2`, one commit
-per slice; progress is recorded under each slice in §6.** Delete this file once
+per slice; progress is recorded under each slice in §6. Slices 0–3 are
+done: format 2 is the only format the compiler reads.** Delete this file once
 slice 5 has shipped (`docs/CLAUDE.md`).
 
 **Goal.** Format 1 grew one feature at a time. Format 2 fixes its naming
@@ -439,6 +440,53 @@ three verification devices.
   and previews must be identical. Lint and CLI output may differ only in key
   names; review the diff and record it here. Run `tools/docs-shots.py`;
   the screenshots must be unchanged.
+
+- *Done 2026-09-29.* Every example (the dashboard playground included,
+  migrated and nothing else), template, fixture, `README.md` and guide
+  snippet is format 2; `format: 1` is an error naming `wfb migrate`;
+  `schema/wfb-face-1.schema.json` is deleted. The enduro and config faces'
+  colliding palette entries were renamed by hand first (enduro's to
+  `old_*`, config's `bg`/`text` to `black`/`white`).
+  - Tests: the inline faces went through the throwaway converter
+    (string constants by source span, fragments mode), then by hand where
+    it could not reach (f-strings, concatenations, `.replace()` targets);
+    a static check then found every `.replace()` whose target no longer
+    occurred in its string. Tests of format 1 concepts only (the list form,
+    the `static: true` flag, v1 twin comparisons) were deleted or rewritten
+    against the format 2 construct that replaced them; the slice 2 corpus
+    twin tests went with format 1, and this snapshot compare carries that
+    proof now. The message scan gained `scheme-role-dither` and
+    `config-unsupported` cases (with `fenix5`, which has neither editor
+    nor menu).
+  - Found and fixed while switching over: a YAML alias shared by two
+    elements was lowered twice (the second pass read its own output as a
+    format 1 colour); a non-identifier key said only "has the wrong shape";
+    the `graphics-pool` warning could no longer be suppressed at all (its
+    root is the block's synthetic group, so the allow is now honoured on
+    any element inside a `static:` block); the migrator wrote a
+    `"\uF09B"` escape back as the raw character; and several messages
+    still spoke format 1 (`{:zz}` format errors, `<id>.icon_color`,
+    `slot config.data.x`). Two pre-existing doc/example bugs went too: a
+    graph example with `at: {x:, y:}`, and schema modelines one directory
+    short under `examples/features/` and `examples/system-fonts/`.
+  - The slow suite: green apart from
+    `test_every_installed_device_at_the_floor_or_above_builds_warning_free`
+    on the four Instinct devices, which fails identically on `c97710d`
+    (its design is not black and white and does not fit a semi-octagon
+    screen) -- pre-existing, not caused by this slice, left for its own fix.
+  - `tools/snapshot.py compare` against slice 0: 149 cases unchanged, 292
+    changed, 2 added (`cli/help-migrate`). Generated projects: every file's
+    header says `(format 2)` (1,192 lines), and nothing else changed except
+    the two renamed palettes (`Palette.mc`, and the config face's view
+    naming `Palette.WHITE` and its menu labels). No preview image changed.
+    Diagnostics differ in key names (`absent:`, `unsupported:`,
+    `sleep_update: true`, `slot 'top'`) and source positions; the CLI in
+    `wfb help` listing `migrate`, `wfb doctor`'s schema path, `wfb schema`,
+    `wfb new`'s format 2 output and `wfb sources`' colour rows.
+    `tools/docs-shots.py` (its config variants now in format 2 terms)
+    regenerates every screenshot byte-identical.
+  - §7's root `CLAUDE.md` step keeps this plan's row, reworded, until
+    slice 5 deletes the plan.
 
 **Slice 4 — an absent gauge keeps its track (N7).**
 - `absent: hide` on a `gauge` draws the value-independent parts (§2 N7) in

@@ -16,13 +16,13 @@ def _design(minimal: str, extra: str) -> str:
     return minimal + extra
 
 
-def _outline_text(outline: str, *, when_absent: str = "") -> str:
-    absent = f"\n    when_absent: {when_absent}" if when_absent else ""
+def _outline_text(outline: str, *, absent: str = "") -> str:
+    absent = f"\n    absent: {absent}" if absent else ""
     return f"""
-  - id: clock
+  clock:
     type: text
     text: "12:34"
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     outline: {outline}{absent}
 """
@@ -45,10 +45,10 @@ def test_outline_none_is_the_default_shape(write_design, bag, minimal):
 
 def test_outline_omitted_key_is_also_none(write_design, bag, minimal):
     design = _design(minimal, """
-  - id: clock
+  clock:
     type: text
     text: "12:34"
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """)
     face = load(write_design(design), bag)
@@ -62,17 +62,17 @@ def test_outline_shorthand_colour_defaults_width_2(write_design, bag, minimal):
     checked against the actual resolved width, not just "it parsed", since
     an implementation that accepted the shorthand but defaulted to some
     other width would still pass a weaker "no error" test."""
-    face = load(write_design(_design(minimal, _outline_text("palette.fg"))), bag)
+    face = load(write_design(_design(minimal, _outline_text("color.fg"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
     assert clock.outline.width == 2
-    assert clock.outline.color.text == "palette.fg"
+    assert clock.outline.color.shown == "color.fg"
 
 
 def test_outline_object_form_with_explicit_width(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _outline_text("{color: palette.fg, width: 3}"))), bag)
+        minimal, _outline_text("{color: color.fg, width: 3}"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
@@ -81,7 +81,7 @@ def test_outline_object_form_with_explicit_width(write_design, bag, minimal):
 
 def test_outline_object_form_defaults_width_2(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _outline_text("{color: palette.fg}"))), bag)
+        minimal, _outline_text("{color: color.fg}"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
@@ -110,7 +110,7 @@ def test_outline_object_form_with_width_zero_is_a_schema_error(write_design, bag
     """`width:` has a schema `minimum: 1` -- 0 is rejected before the
     builder's own cap ever runs."""
     face = load(write_design(_design(
-        minimal, _outline_text("{color: palette.fg, width: 0}"))), bag)
+        minimal, _outline_text("{color: color.fg, width: 0}"))), bag)
     assert face is None
     assert not bag.ok()
 
@@ -123,7 +123,7 @@ def test_outline_width_over_cap_is_a_build_error(write_design, bag, minimal):
     build error, citing the measured evidence, not jsonschema's generic
     message -- the red half of red-then-green."""
     face = load(write_design(_design(
-        minimal, _outline_text("{color: palette.fg, width: 4}"))), bag)
+        minimal, _outline_text("{color: color.fg, width: 4}"))), bag)
     assert face is None
     assert not bag.ok()
     diag = next(d for d in bag.errors if d.code == "text-outline")
@@ -136,7 +136,7 @@ def test_outline_width_at_cap_builds_clean(write_design, bag, minimal):
     builder that rejected everything above `width: 1` would still pass the
     red half alone."""
     face = load(write_design(_design(
-        minimal, _outline_text("{color: palette.fg, width: 3}"))), bag)
+        minimal, _outline_text("{color: color.fg, width: 3}"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
@@ -149,20 +149,22 @@ def test_outline_width_at_cap_builds_clean(write_design, bag, minimal):
 def test_outline_color_reads_a_config_expression(write_design, bag, minimal):
     design = minimal.replace(
         "elements:",
-        "config:\n  accent_color: {default: palette.fg, choices: any}\nelements:",
+        """config:
+  accent_color: {default: color.fg, choices: any}
+elements:""",
     )
-    face = load(write_design(_design(design, _outline_text("config.accent_color"))), bag)
+    face = load(write_design(_design(design, _outline_text("color.accent"))), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")
     assert clock.outline is not None
-    assert clock.outline.color.text == "config.accent_color"
+    assert clock.outline.color.shown == "color.accent"
 
 
 def test_outline_color_reads_a_conditional_expression(write_design, bag, minimal):
     """`outline.color` accepts a full expression, not just a bare
     reference -- the same grammar `color:` itself has (D8)."""
     face = load(write_design(_design(
-        minimal, _outline_text('"copy == 0 ? palette.fg : palette.bg"'))), bag)
+        minimal, _outline_text('"copy == 0 ? color.fg : color.bg"'))), bag)
     # `copy` is only bound inside a pattern part -- this design is a
     # standalone `text` element, so the expression is rejected, but the
     # important thing this proves is that outline.color is compiled through
@@ -188,12 +190,14 @@ def test_outline_color_type_error_matches_color(write_design, bag, minimal):
 def test_outline_color_nullable_without_when_absent_is_an_error(write_design, bag, minimal):
     design = minimal.replace(
         "elements:",
-        "config:\n  data_color: {default: palette.fg, choices: any}\nelements:",
+        """config:
+  data_color: {default: color.fg, choices: any}
+elements:""",
     )
     # `complication.battery` is a real nullable catalogue source used
     # elsewhere in this project's own tests as the canonical nullable case.
     face = load(write_design(_design(
-        design, _outline_text('"complication.battery > 50 ? palette.fg : palette.bg"'))), bag)
+        design, _outline_text('"complication.battery > 50 ? color.fg : color.bg"'))), bag)
     assert face is None
     assert any(d.code == "when-absent" for d in bag.errors)
 
@@ -202,7 +206,7 @@ def test_outline_color_nullable_with_when_absent_hide_builds_clean(write_design,
     face = load(write_design(_design(
         minimal,
         _outline_text(
-            '"complication.battery > 50 ? palette.fg : palette.bg"', when_absent="hide"),
+            '"complication.battery > 50 ? color.fg : color.bg"', absent="hide"),
     )), bag)
     assert face is not None, bag.render()
     clock = next(e for e in face.elements if e.id == "clock")

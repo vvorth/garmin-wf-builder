@@ -21,8 +21,8 @@ messages; see `wfb/lint.py` if unsure.
 | `safe-area` | the element's ink falls outside the screen's visible area: the inscribed circle on a round screen, and the simulator skin's visible area on any other shape (one pixel of tolerance) |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
-| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour; a complication slot's `icon_color` is judged too, a progress `track_color` is not |
-| `partial-update-budget` | an element drawn in `low_power` mode risks overrunning the partial-update budget, whose overrun is permanent |
+| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour; a `data` element's icon colour is judged too, a gauge's `track_color` is not |
+| `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
 | `api-gated` | the element's binding names a source, symbol or complication type this device's API lacks; it reads as absent there |
@@ -34,7 +34,7 @@ messages; see `wfb/lint.py` if unsure.
 | `duplicate-style` | two `config: style:` entries resolve to the same layout/colours and are indistinguishable on the wrist |
 | `unreachable-layout` | a `layouts:` entry that no `config: style:` entry names as its `layout:`, so it can never be drawn |
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
-| `font-unavailable` | a `face:` font (or an element using one) with `if_unavailable: hide` fails to resolve a usable face on this device |
+| `font-unavailable` | a `face:` font (or an element using one) with `unsupported: hide` fails to resolve a usable face on this device |
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 | `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
@@ -76,7 +76,7 @@ Twenty-three codes are suppressible: `palette-dither`, `palette-mono`, `safe-are
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
 `text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in` and
 `font-unavailable` — a `face:` font, or an element using one, that has
-`if_unavailable: hide` and fails to resolve a usable face on some target
+`unsupported: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
 `error` instead, the same failure is a **hard build error and never
 suppressible**: an author who wants leniency switches to `hide` outright
@@ -94,19 +94,19 @@ for the same box — there is nothing further to acknowledge.
 
 Five of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element that draws
-exactly `palette.<name>` **or** `config.<name>` (as its `color:`,
-`track_color:`, `icon_color:`, a text's `outline: {color:}`, or an `aod:`
+exactly that `color.<name>` (as its `color:`,
+`track_color:`, `icon: {color:}`, a text's `outline: {color:}`, or an `aod:`
 override's colour),
-`partial-update-budget` on any element drawn in `low_power` mode,
-`graphics-pool` on the first element declaring `static: true`,
+`partial-update-budget` on any element with `sleep_update: true`,
+`graphics-pool` on any element inside a `static:` block,
 `antialias-dither` on the first element (in document order) whose
 `antialias:` resolves to `true` on a 64-colour device, and
 `config-unsupported` on an element whose `color:`/`track_color:` is exactly
-`config.accent_color`, `config.data_color` or one role of `config.colors.<role>`,
-or a `complication_slot` whose `slot:` is exactly `config.data.<name>`, and
+a role a `config:` axis or scheme binds (`color.accent`, `color.data`, a
+scheme role), or a `data` element whose `slot:` is affected, and
 `api-gated` on the element whose binding is actually gated -- the one whose
-`value:`/`color:`/etc. names the unavailable source path, whose `on_hold:`
-names the type, or the `complication_slot` whose `slot:`/`default:`/
+placeholder/`value:`/`color:`/etc. names the unavailable source path, whose
+`on_hold:` names the type, or the `data` element whose slot's `default:`/
 `choices:` is affected.
 `duplicate-style` and `unreachable-layout` are design-, not element-scoped
 either, but there is no element to hang either on at all: `duplicate-style`
@@ -115,15 +115,15 @@ the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
 own** `lint:` -- neither is an element. `aod-empty` is the same shape, one
 level up: it is about the whole face (nothing anywhere draws in AOD), so it
 goes on the **face's own `aod:` block's** `lint:` --
-`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `default:`/`dim:`.
+`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `dim:`/`mask:`.
 `aod-unreachable`, by contrast, is an ordinary element-scoped
 diagnostic: it goes on the element whose own now-dead `aod:` it names.
 `aod-burn-in` is element-scoped too, but not on a fixed element the way
 `aod-unreachable` is: it goes on whichever AOD-shown element the rendered
 worst-case frame actually lit the most pixels for (its own top-ranked
 contributor, named in the message) — suppressing it there acknowledges the
-element actually responsible, not an arbitrary stand-in the way
-`graphics-pool`'s "first static root" is.
+element actually responsible, not any one of many the way
+`graphics-pool`'s static content is.
 `sub-pixel-length` is an ordinary element-scoped diagnostic like the rest
 -- **except** that a finding about a hand or pattern **part** goes on the
 part's **owning element**, the same element `min_1px:` inherits through
@@ -135,25 +135,24 @@ the earlier-drawn element(s) it may overlap. It does not fire on every
 overlap: a specific earlier element is left out of the finding when it
 provably repaints in the exact colour that's already there — the interior
 colour and that element's own colour are the same build-time constant
-(the same palette entry, or otherwise equal after resolution; a
-`config.*` colour or anything that stayed data-conditional can never
-prove this), **and** that element is a filled `rectangle`/
-`rounded_rectangle`/`circle`/`ellipse` whose own box fully contains the
+(the same swatch, or otherwise equal after resolution; a role or anything
+that stayed data-conditional can never prove this), **and** that element is
+a filled `rectangle`/`circle`/`ellipse` whose own box fully contains the
 outlined element's (ring-grown) box — not merely intersects it, since a
 colour match with only a *partially* overlapping earlier element (a ring
 that crosses just part of the box, say) proves nothing about what the
 rest of the box sits on. The common case this quiets is the hollow-text
-idiom itself: `color:` repeating the same palette entry as the full-screen
+idiom itself: `color:` repeating the same swatch as the full-screen
 background underneath it (`docs/guide/text.md`'s "hollow text" section).
 `contrast` judges each element against what is actually behind it: the
 last full-screen solid shape drawn before it in the same mode and the same
-layout, or `palette.bg` when there is none. So a night layout's text is
+layout, or the palette swatch `bg` when there is none. So a night layout's text is
 judged against the night background, not the day one. Shared content (no
 layout) is on screen in every layout, so it is judged against each
 layout's background, and a full-screen background shape is never judged
-itself. A complication slot's `icon_color` is judged as well, named
-`<id>.icon_color`, and like a glyph's own colour it may not simply match
-the backdrop. A progress `track_color` is not judged: a track is meant to
+itself. A `data` element's icon colour is judged as well, and like a
+glyph's own colour it may not simply match the backdrop. A gauge's
+`track_color` is not judged: a track is meant to
 recede behind the fill, so a dim one (`#555555` on black is a 2.8 ratio)
 is the design, not a mistake. `contrast` also treats an `outline:`-bearing element differently: see
 `wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
@@ -166,8 +165,8 @@ the default a part without its own override inherits -- named
 `sub-pixel-length` already uses for a part-level finding, and suppressed
 the same way: on the owning element, since a part has no `lint:` of its
 own. A part whose colour exactly matches the backdrop is not warned about
-(the same "deliberately blends in" exemption a `shape` element gets),
-**except** a `shape: text` pattern part, where an exact match is ordinarily
+(the same "deliberately blends in" exemption a primitive element gets),
+**except** a `type: text` pattern part, where an exact match is ordinarily
 invisible content by mistake rather than by design.
 See `docs/limitations.md` 3.
 
@@ -178,7 +177,7 @@ See `docs/limitations.md` 3.
 - the round screen's safe area
 - contrast
 - palette and anti-aliasing dither
-- the power cost of low-power updates
+- the power cost of sleep updates
 
 Two checks look across every target in the build at once, not one device at
 a time: `font-unavailable` (above) and the `shared-view` note. One generated

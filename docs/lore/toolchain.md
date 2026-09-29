@@ -100,7 +100,7 @@ glitch.
   so it is driven red both ways (a real warning must still surface; the
   notice must not).
 - A Styles config entry costs about 9 B data, 28 B code, ~61 B of `.prg` —
-  so a Styles cross-product (several `color_scheme:`s, say) is a UX cost to
+  so a Styles cross-product (several schemes, say) is a UX cost to
   weigh, never a memory one.
 - **2026-09-13: `monkeyc` 9.2.0 labels each string constant by its Java
   `String.hashCode()`, and crashes when two *different* strings share one.**

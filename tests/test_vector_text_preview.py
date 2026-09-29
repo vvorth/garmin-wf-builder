@@ -19,6 +19,8 @@ its boundary) instead of an exact-colour match.
 
 from __future__ import annotations
 
+from tests.helpers import align_value
+
 import itertools
 import math
 
@@ -34,34 +36,34 @@ from wfb.preview import PreviewOptions, render
 CX, CY = 130, 130
 BACKGROUND = (0, 0, 0)
 
-_HEADER = """\
-format: 1
+_HEADER = """format: 2
 face:
   id: 8f14e45f-ceea-467e-9c0c-89f7c6a9309c
   name: VectorTextPreviewTest
-targets: [{target}]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-fonts:
-  bezel:
-    face: RobotoCondensedBold
-    size: {font_size}
-{if_unavailable}
+build:
+  targets: [{target}]
+resources:
+  fonts:
+    bezel:
+      face: RobotoCondensedBold
+      size: {font_size}
+{if_unavailable}  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {body}
 """
 
 
 def _render(write_design, db, bag, body: str, *, target: str = "fenix8solar47mm",
            hide: bool = False, font_size: str = "10%r", **options):
-    if_unavailable = "    if_unavailable: hide\n" if hide else ""
+    if_unavailable = """      unsupported: hide
+""" if hide else ""
     design = _HEADER.format(target=target, if_unavailable=if_unavailable, body=body,
                             font_size=font_size)
     path = write_design(design)
@@ -157,15 +159,13 @@ def _polar(cx: int, cy: int, r: float, garmin_degrees: float) -> tuple[int, int]
 
 
 def test_upright_vector_text_draws_at_the_anchor(write_design, db, bag):
-    body = """\
-  - id: brand
+    body = """  brand:
     type: text
     text: "AB"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
 """
     image = _render(write_design, db, bag, body)
     assert _has_ink(image, (CX, CY))
@@ -178,15 +178,13 @@ def test_upright_vector_text_is_wider_than_it_is_tall_for_a_multi_char_string(wr
     also relies on -- proven here against real drawn ink, not just the
     measured layout box, so a bug that measures one but draws the other
     would still be caught."""
-    body = """\
-  - id: brand
+    body = """  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
 """
     image = _render(write_design, db, bag, body)
     bbox = _ink_bbox(image, (0, 0, 260, 260))
@@ -209,15 +207,13 @@ def test_angled_quarter_turn_swaps_width_and_height(write_design, db, bag):
     above. A renderer that ignored `curve:` entirely, or rotated by the
     wrong (unconverted) angle, would still draw the wide/short shape and
     fail this."""
-    body = """\
-  - id: brand
+    body = """  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
     curve: {style: angled, angle: 90deg}
 """
     image = _render(write_design, db, bag, body)
@@ -240,15 +236,13 @@ def test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image(write_des
     tilt the string up-and-right instead (mirrored about the horizontal),
     and an unrotated string would sit flat to the right with no vertical
     spread at all."""
-    body = """\
-  - id: brand
+    body = """  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: left
-    vertical_align: center
     curve: {style: angled, angle: 45deg}
 """
     image = _render(write_design, db, bag, body)
@@ -289,25 +283,21 @@ def test_angled_180deg_is_a_true_rotation_not_a_mirror(write_design, db, bag):
     paste-offset math that places it, produces exactly this -- same
     bounding box, backwards letterforms) fails this while still passing
     every bounding-box-direction test above."""
-    upright_body = """\
-  - id: glyph
+    upright_body = """  glyph:
     type: text
     text: "F4"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
-    align: left
-    vertical_align: top
+    align: top_left
 """
-    angled_body = """\
-  - id: glyph
+    angled_body = """  glyph:
     type: text
     text: "F4"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
-    align: left
-    vertical_align: top
+    align: top_left
     curve: {style: angled, angle: 180deg}
 """
     upright = _render(write_design, db, bag, upright_body, font_size="30%r")
@@ -350,15 +340,13 @@ def test_angled_180deg_is_a_true_rotation_not_a_mirror(write_design, db, bag):
 def test_radial_text_follows_the_circle_near_the_start_angle(write_design, db, bag):
     """`angle: 90deg` (design) is Garmin `0deg` -- the 3 o'clock point --
     and `align: left` starts the string exactly there."""
-    body = """\
-  - id: dial
+    body = """  dial:
     type: text
     text: "W"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: left
-    vertical_align: center
     curve: {style: radial, angle: 90deg, radius: 40%r, direction: clockwise}
 """
     image = _render(write_design, db, bag, body)
@@ -377,15 +365,13 @@ def test_radial_clockwise_and_counter_clockwise_sweep_opposite_ways(write_design
     justification=LEFT` reads from 3 o'clock toward 6 o'clock). A reversed
     `direction_sign` would swap these two images, or a mirrored one would
     put ink in neither expected spot."""
-    cw_body = """\
-  - id: dial
+    cw_body = """  dial:
     type: text
     text: "WWWWW"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: left
-    vertical_align: center
     curve: {style: radial, angle: 90deg, radius: 35%r, direction: clockwise}
 """
     ccw_body = cw_body.replace("direction: clockwise", "direction: counter_clockwise")
@@ -424,25 +410,21 @@ def test_radial_counter_clockwise_at_six_oclock_faces_inward_not_outward(write_d
     2` for a one-character string, for *any* advance), so the exact-180
     comparison below is checking facing alone, with no residual position
     offset of its own to confound it."""
-    upright_body = """\
-  - id: glyph
+    upright_body = """  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
 """
-    radial_ccw_body = """\
-  - id: glyph
+    radial_ccw_body = """  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
     curve: {style: radial, angle: 180deg, radius: 40%r, direction: counter_clockwise}
 """
     upright = _render(write_design, db, bag, upright_body, font_size="30%r")
@@ -485,25 +467,21 @@ def test_radial_clockwise_at_six_oclock_faces_outward_upside_down(write_design, 
     offset of its own (`test_radial_counter_clockwise_at_six_oclock_faces_
     inward_not_outward`'s own docstring has the exact-cancellation
     reasoning)."""
-    upright_body = """\
-  - id: glyph
+    upright_body = """  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
 """
-    radial_cw_body = """\
-  - id: glyph
+    radial_cw_body = """  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
     curve: {style: radial, angle: 180deg, radius: 40%r, direction: clockwise}
 """
     upright = _render(write_design, db, bag, upright_body, font_size="30%r")
@@ -565,15 +543,13 @@ _NOMINAL_RADIUS = 0.40 * 130
 
 
 def _radial_mean_radius(write_design, db, bag, *, direction: str, vertical_align: str) -> float:
-    body = f"""\
-  - id: glyph
+    body = f"""  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
-    align: left
-    vertical_align: {vertical_align}
+    align: {align_value("left", vertical_align)}
     curve: {{style: radial, angle: 90deg, radius: 40%r, direction: {direction}}}
 """
     # A large-ish glyph (`font_size` well above the other radial tests'
@@ -806,15 +782,13 @@ def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, d
     mandatory red run) before this fix landed: centre of mass ~12-18px off
     this same ray, an order of magnitude past the tolerance below, never a
     coin-flip near it."""
-    body = f"""\
-  - id: glyph
+    body = f"""  glyph:
     type: text
     text: "H"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     align: center
-    vertical_align: center
     curve: {{style: radial, angle: 50deg, radius: 20%r, direction: clockwise}}
 """
     image, resolved = _render_with_resolved(write_design, db, bag, body, font_size="80%r")
@@ -865,15 +839,13 @@ def test_radial_same_width_glyphs_each_sit_on_their_own_radius(write_design, db,
     what proves each glyph independently sits on its own radius rather
     than merely holding together as a group."""
     text = "H  H  H"
-    body = f"""\
-  - id: glyphs
+    body = f"""  glyphs:
     type: text
     text: "{text}"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     align: center
-    vertical_align: center
     curve: {{style: radial, angle: 50deg, radius: 28%r, direction: clockwise}}
 """
     image, resolved = _render_with_resolved(write_design, db, bag, body, font_size="65%r")
@@ -982,15 +954,13 @@ def test_radial_glyph_stroke_points_at_the_circles_centre(write_design, db, bag)
     ~2.0-2.4deg off its own radius; the fixed code holds every "I" under
     0.6deg -- both measured by hand while writing this test, see the
     tolerance below."""
-    body = """\
-  - id: glyphs
+    body = """  glyphs:
     type: text
     text: "III"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
     align: center
-    vertical_align: center
     curve: {style: radial, angle: 50deg, radius: 80%r, direction: clockwise}
 """
     image = _render(write_design, db, bag, body, font_size="35%r")
@@ -1021,23 +991,20 @@ def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, d
     curved, the same as the real watch (plan 11 §2.4): the honest preview
     of "this element does not exist on this device" is a blank image, not
     a fallback face drawn at the wrong place."""
-    body = """\
-  - id: upright
+    body = """  upright:
     type: text
     text: "HIDDEN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center, dy: -30%r}
     align: center
-    vertical_align: center
-  - id: angled
+  angled:
     type: text
     text: "HIDDEN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center, dy: 30%r}
     align: center
-    vertical_align: center
     curve: {style: angled, angle: 20deg}
 """
     image = _render(write_design, db, bag, body, target="fenix6", hide=True)
@@ -1119,15 +1086,13 @@ def test_angled_supersampling_does_not_move_the_centre_of_mass(write_design, db,
     *total* width can differ from the ordinary-scale run's by a fraction
     of a pixel purely from independent rounding at each scale -- real,
     harmless, and not what this test is checking."""
-    body = f"""\
-  - id: glyph
+    body = f"""  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     align: center
-    vertical_align: center
     curve: {{style: angled, angle: {angle}deg}}
 """
     _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body)
@@ -1143,15 +1108,13 @@ def test_radial_supersampling_does_not_move_the_centre_of_mass(write_design, db,
     while `test_angled_supersampling_does_not_move_the_centre_of_mass`
     passed, so the two tests together are what actually confirm "both call
     sites... consistent." """
-    body = f"""\
-  - id: glyph
+    body = f"""  glyph:
     type: text
     text: "R"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     align: center
-    vertical_align: center
     curve: {{style: radial, angle: {angle}deg, radius: 30%r, direction: clockwise}}
 """
     _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body)

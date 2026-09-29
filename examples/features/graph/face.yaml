@@ -16,44 +16,44 @@
 # available to a watch face at all; see docs/limitations.md and
 # docs/research/08-graphs-and-configuration.md §1.
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 22222222-3333-4444-5555-666666666666
   name: Feature Graph
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#AAAAAA"
-  accent: "#00AAFF"
-  hot: "#FF5500"
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
+    accent: "#00AAFF"
+    hot: "#FF5500"
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MILD
     at: { anchor: center, dy: -26% }
-    color: palette.fg
+    color: color.fg
 
-  - id: hr_graph               # heart_rate: time-binned, iterator's own auto min/max
+  hr_graph:                    # heart_rate: time-binned, iterator's own auto min/max
     type: graph
     at: { anchor: center, dy: -12% }
     size: { width: 62%, height: 13% }
@@ -62,11 +62,11 @@ elements:
     buckets: 32                # time-binned only -- default would be 40
     style: line
     thickness: 2px
-    color: palette.hot
+    color: color.hot
     min: auto                  # the iterator's own getMin()/getMax()
     max: auto
 
-  - id: steps_graph            # steps: an array, duration converted to a count at build time
+  steps_graph:                 # steps: an array, duration converted to a count at build time
     type: graph
     at: { anchor: center, dy: 4% }
     size: { width: 62%, height: 13% }
@@ -74,17 +74,17 @@ elements:
     range: 7d                   # a bare count works just as well: range: 7
     style: bars
     bar_width: 6px
-    color: palette.accent
+    color: color.accent
     min: 0                      # a fixed floor: a bar chart of steps starts at 0
     max: auto
 
-  - id: temp_graph              # forecast_temperature: the array itself is nullable
+  temp_graph:                   # forecast_temperature: the array itself is nullable
     type: graph
     at: { anchor: center, dy: 20% }
     size: { width: 62%, height: 13% }
     series: forecast_temperature
     range: 24h                  # converted to a 24-entry count at build time
     style: area                 # one fillPolygon; capped at 62 samples
-    color: palette.fg
+    color: color.fg
     min: auto
     max: auto

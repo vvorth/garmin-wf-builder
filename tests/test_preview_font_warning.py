@@ -49,23 +49,24 @@ _REAL_FONT_STAND_IN = (
 #: family entirely, not a free release of Bionic itself
 #: (`tests/test_font_registry.py`).
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     text: "88"
     font: FONT_NUMBER_HOT
     align: center
-    vertical_align: center
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 

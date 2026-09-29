@@ -53,27 +53,27 @@ def test_preview_renders_an_off_screen_element_cropped_without_crashing(
     documented behaviour in isolation.
     """
     design = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: stray
-    type: shape
-    shape: circle
+    color: color.bg
+  stray:
+    type: circle
     at: {anchor: center, dx: -500%}
     radius: 30px
-    color: palette.fg
+    color: color.fg
     lint:
       allow: [off-screen]
       reason: "probing"
@@ -160,30 +160,31 @@ def test_an_antialiased_icon_previews_with_intermediate_grey(write_design, bag, 
     than asserting it against the baked sheet alone.
     """
     design = """
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: crisp
+    color: color.bg
+  crisp:
     type: icon
     icon: heart
     size: 30%r
     at: {anchor: center, dx: -25%}
-    color: palette.fg
+    color: color.fg
     antialias: false
-  - id: smooth
+  smooth:
     type: icon
     icon: heart
     size: 30%r
     at: {anchor: center, dx: 25%}
-    color: palette.fg
+    color: color.fg
     antialias: true
 """
     face = load(write_design(design), bag)
@@ -206,28 +207,29 @@ elements:
 
 
 GRAPH_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: hr_graph
+    color: color.bg
+  hr_graph:
     type: graph
     series: heart_rate
     range: 4h
     style: {style}
     {style_key}
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     size: {{width: 60%, height: 20%}}
 """
@@ -374,21 +376,23 @@ def test_an_unparseable_numeric_spec_raises_rather_than_guessing():
 # -- end to end: a Float formatted `{:d}` must preview as the device would --
 
 _FLOAT_TEXT_DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     {content}
     font: FONT_TINY
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -402,7 +406,7 @@ def _render_label(write_design, bag, db, content: str, sample: dict | None = Non
 
 
 def test_preview_renders_8_not_8_5_for_a_float_formatted_d(write_design, bag, db):
-    """End to end: `system.battery` (Type.FLOAT) at 8.5, formatted `{:d}`,
+    """End to end: `system.battery` (Type.FLOAT) at 8.5, formatted `{system.battery:d}`,
     must preview identically to the literal text "8" -- not "8.5" -- because
     that is what `.toNumber().format("%d")` draws on the wrist. Comparing
     whole images (rather than guessing at a bounding box) is exact: the same
@@ -411,7 +415,7 @@ def test_preview_renders_8_not_8_5_for_a_float_formatted_d(write_design, bag, db
     """
     formatted = _render_label(
         write_design, bag, db,
-        content='value: system.battery\n    format: "{:d}"',
+        content='text: "{system.battery:d}"',
         sample={"system.battery": 8.5},
     )
     literal_8 = _render_label(write_design, bag, db, content='text: "8"')
@@ -429,50 +433,50 @@ def test_preview_renders_8_not_8_5_for_a_float_formatted_d(write_design, bag, db
 #: colour alone -- and two `color_scheme:` entries (`dark`/`light`) bound only
 #: to the shared background, so "did the colours switch" is a *second*,
 #: independent question from "did the drawn set switch".
-LAYOUT_STYLE_DESIGN = """format: 1
+LAYOUT_STYLE_DESIGN = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: LayoutPreview
-targets: [fenix8solar47mm]
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  red: "#FF0000"
-color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    red: "#FF0000"
+theme:
+  schemes:
+    dark:
+      colors: {bg: color.black}
+    light:
+      colors: {bg: color.white}
 layouts:
   a:
     elements:
       marker_a:
-        type: shape
-        shape: circle
+        type: circle
         at: {anchor: center, dx: -30%}
         radius: 8%
-        color: palette.red
+        color: color.red
   b:
     elements:
       marker_b:
-        type: shape
-        shape: circle
+        type: circle
         at: {anchor: center, dx: 30%}
         radius: 8%
-        color: palette.red
+        color: color.red
 config:
   style:
     default: style_a
     choices:
-      style_a: { label: "A", layout: a, colors: dark }
-      style_b: { label: "B", layout: b, colors: light }
+      style_a: {label: "A", layout: a, scheme: dark}
+      style_b: {label: "B", layout: b, scheme: light}
 elements:
   shared:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: config.colors.bg
+    color: color.bg
 """
 
 
@@ -530,19 +534,21 @@ def test_an_unknown_style_name_is_a_clean_error(layout_style_resolved):
 
 
 def test_style_on_a_design_with_no_config_style_is_a_clean_error(write_design, db, bag):
-    text = """format: 1
+    text = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: NoStyle
-targets: [fenix8solar47mm]
-palette:
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    fg: "#FFFFFF"
 elements:
-  - id: label
+  label:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -578,29 +584,29 @@ def test_text_with_no_font_metrics_renders_without_crashing(write_design, db, ba
 
     monkeypatch.setattr(Device, "system_fonts", property(lambda self: {}))
     design = write_design("""
-format: 1
+format: 2
 face:
   id: 0b7f3c1e-2a4d-4e8f-9c6b-5d1a7e3f9b20
   name: Unmeasured
   version: 1.0.0
-targets: [fenix8solar47mm]
-palette:
-  white: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    white: "#FFFFFF"
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: { anchor: center }
-    color: palette.white
-  - id: dot
-    type: shape
-    shape: circle
+    color: color.white
+  dot:
+    type: circle
     at: { anchor: center, dy: 30% }
     radius: 5%r
     filled: true
-    color: palette.white
+    color: color.white
 """)
     face = load(design, bag)
     assert face is not None, bag.render()

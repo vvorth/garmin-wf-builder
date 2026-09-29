@@ -16,69 +16,68 @@ from wfb.emit.resources import bake_fonts
 from tests.helpers import load_errors, load_face
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Menu
-targets: [fenix8solar47mm, fr955]
-palette:
-  black: { value: "#000000", label: "Black" }
-  white: { value: "#FFFFFF", label: "White" }
-  red: "#FF0000"
-  orange: "#FF5500"
-color_scheme:
-  dark: { label: "Dark", colors: { fg: palette.white } }
-  warm: { colors: { fg: palette.orange } }
+build:
+  targets: [fenix8solar47mm, fr955]
+resources:
+  palette:
+    black: { value: "#000000", label: "Black" }
+    white: { value: "#FFFFFF", label: "White" }
+    red: "#FF0000"
+    orange: "#FF5500"
+theme:
+  schemes:
+    dark: { label: "Dark", colors: { fg: color.white } }
+    warm: { colors: { fg: color.orange } }
 config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
-      warm: { label: "Warm", colors: warm }
+      dark: { scheme: dark }
+      warm: { label: "Warm", scheme: warm }
   accent_color:
-    default: palette.red
-    choices: [palette.red, palette.white]
+    default: color.red
+    choices: [color.red, color.white]
   data_color:
     default: "#00AA00"
     choices: any
-  data:
+  slots:
     top:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate]
+      default: steps
+      choices: [steps, heart_rate]
     bottom:
       label: "Lower dial"
-      default: complication.battery
+      default: battery
       choices: any
-elements:
-  - id: disc
-    type: shape
-    shape: circle
-    at: {anchor: center}
+static:
+  disc:
+    type: circle
+    at: { anchor: center }
     radius: 20%r
     filled: true
-    color: config.colors.fg
-    static: true
-  - id: accent
-    type: shape
-    shape: circle
-    at: {anchor: center, dy: 50%r}
+    color: color.fg
+elements:
+  accent:
+    type: circle
+    at: { anchor: center, dy: 50%r }
     radius: 5%r
     filled: true
-    color: config.accent_color
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
-    at: {anchor: center, dy: -50%r}
-    color: config.data_color
-    when_absent: placeholder
-    placeholder: "--"
-  - id: bottom_reading
-    type: complication_slot
-    slot: config.data.bottom
-    at: {anchor: center, dy: 70%r}
-    color: config.data_color
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.accent
+  top_reading:
+    type: data
+    slot: top
+    at: { anchor: center, dy: -50%r }
+    color: color.data
+    absent: "--"
+  bottom_reading:
+    type: data
+    slot: bottom
+    at: { anchor: center, dy: 70%r }
+    color: color.data
+    absent: "--"
 """
 
 
@@ -239,7 +238,7 @@ def test_a_data_slot_label_never_reaches_the_native_editor(write_design, db):
 
 def test_an_empty_data_slot_label_is_a_schema_error(write_design):
     errors = load_errors(DESIGN.replace('label: "Lower dial"', 'label: ""'), write_design)
-    assert [e.message for e in errors] == ["config.data.bottom.label: '' should be non-empty"]
+    assert [e.message for e in errors] == ["config.slots.bottom.label: '' should be non-empty"]
 
 
 def test_the_app_offers_the_menu_only_without_the_native_editor(write_design, db):
@@ -279,7 +278,9 @@ def test_the_config_menu_compiles_warning_free(write_design, db, tmp_path, toolc
     `monkeyc`'s own diagnostics count here: the non-verification devices
     draw ordinary lint warnings (api-gated slots, config-unsupported)."""
     _require(db, "fenix6", "fenix5")
-    text = DESIGN.replace("targets: [fenix8solar47mm, fr955]", f"targets: {targets}")
+    text = DESIGN.replace("""build:
+  targets: [fenix8solar47mm, fr955]""", f"""build:
+  targets: {targets}""")
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
     compiler = [d for d in bag.items if d.code == "monkeyc"]

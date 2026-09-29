@@ -21,30 +21,30 @@ from wfb.preview import PreviewOptions, render
 FG = (255, 255, 255)
 RING = (255, 0, 0)
 
-_HEADER = """\
-format: 1
+_HEADER = """format: 2
 face:
   id: 8f14e45f-ceea-467e-9c0c-89f7c6a9309d
   name: PatternOutlinePreviewTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  ring: "#FF0000"
-fonts:
-  clock:
-    source: {source}
-    size: 80px
-  bezel:
-    face: RobotoCondensedBold
-    size: 80px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: {source}
+      size: 80px
+    bezel:
+      face: RobotoCondensedBold
+      size: 80px
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    ring: "#FF0000"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {body}
 """
 
@@ -77,14 +77,13 @@ def _count_color(image, color: tuple[int, int, int],
     return count
 
 
-_RING_ELEMENT = """\
-  - id: ring
+_RING_ELEMENT = """  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.clock
         at: {{dy: -60px}}
@@ -94,7 +93,7 @@ _RING_ELEMENT = """\
 def test_pattern_ring_alone_is_visible_when_interior_matches_background(
     write_design, db, bag, repo_root,
 ):
-    """The canonical hollow idiom, one level down: `color: palette.bg` (the
+    """The canonical hollow idiom, one level down: `color: color.bg` (the
     interior is invisible against the background) plus `outline:` -- the
     ring must still be visible, not gated on the interior colour. A baked
     (1-bit, non-anti-aliased) font, the same reason `tests/test_text_
@@ -103,7 +102,9 @@ def test_pattern_ring_alone_is_visible_when_interior_matches_background(
     anti-aliased vector glyph's own soft edges would blend `RING`/`FG`
     towards the background instead of hitting either exactly."""
     resolved = _resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: {color: palette.ring, width: 2}\n"))
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 2}
+"""))
     image = _render(resolved)
     ring = _count_color(image, RING)
     fg = _count_color(image, FG)
@@ -116,9 +117,12 @@ def test_pattern_ring_lights_fewer_pixels_than_a_solid_fill(write_design, db, ba
     stamped ring lights strictly fewer pixels than the same glyph drawn
     solid."""
     solid = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.fg\n")))
+        extra="""        color: color.fg
+""")))
     ringed = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: {color: palette.ring, width: 2}\n")))
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 2}
+""")))
     solid_count = _count_color(solid, FG)
     ring_count = _count_color(ringed, RING)
     assert 0 < ring_count < solid_count
@@ -126,9 +130,13 @@ def test_pattern_ring_lights_fewer_pixels_than_a_solid_fill(write_design, db, ba
 
 def test_pattern_ring_width_scales_the_lit_ring_pixel_count(write_design, db, bag, repo_root):
     narrow = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: {color: palette.ring, width: 1}\n")))
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 1}
+""")))
     wide = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: {color: palette.ring, width: 3}\n")))
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 3}
+""")))
     narrow_ring = _count_color(narrow, RING)
     wide_ring = _count_color(wide, RING)
     assert narrow_ring > 0
@@ -137,28 +145,31 @@ def test_pattern_ring_width_scales_the_lit_ring_pixel_count(write_design, db, ba
 
 def test_pattern_outline_shorthand_matches_object_form_in_preview(write_design, db, bag, repo_root):
     shorthand = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: palette.ring\n")))
+        extra="""        color: color.bg
+        outline: color.ring
+""")))
     explicit = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
-        extra="        color: palette.bg\n        outline: {color: palette.ring, width: 2}\n")))
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 2}
+""")))
     assert shorthand.tobytes() == explicit.tobytes()
 
 
 # -- the property genuinely new at this level: rotation does not smear -----
 
 
-_ROTATING_RING = """\
-  - id: ring
+_ROTATING_RING = """  ring:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.bg
+    color: color.bg
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.bezel
         at: {dy: -70px}
-        outline: {color: palette.ring, width: 2}
+        outline: {color: color.ring, width: 2}
         curve: {style: angled, angle: 0deg}
 """
 

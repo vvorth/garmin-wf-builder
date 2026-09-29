@@ -169,9 +169,9 @@ CATALOG: dict[str, Icon] = {
         Icon("golf", "\U000f0823",
              "a golf flag, for the last golf round score (Material Design md-golf)"),  # preview: 󰠣
         Icon("weather", "\U000f0595",
-             "a generic partly-cloudy glyph, for a complication_slot's fixed, "
+             "a generic partly-cloudy glyph, for a data element's fixed, "
              "type-keyed weather icon -- deliberately not the value-keyed "
-             "condition icon 'icon_for: weather.condition' resolves on-device "
+             "condition icon 'icon: {for: weather.condition}' resolves on-device "
              "(Material Design md-weather_partly_cloudy)"),  # preview: 󰖕
 
         # -- weather, day glyphs -----------------------------------------------

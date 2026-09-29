@@ -53,51 +53,52 @@ def _placed_pattern(resolved, element_id: str) -> PlacedPattern:
 
 def _upright_ring(element_id: str, outline: str = "") -> str:
     return f"""\
-  - id: {element_id}
+  {element_id}:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: font.bezel
-        color: palette.fg
+        color: color.fg
         at: {{dy: -40%r}}{outline}"""
 
 
 def _angled_ring(element_id: str, outline: str = "") -> str:
     return f"""\
-  - id: {element_id}
+  {element_id}:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: font.bezel
-        color: palette.fg
+        color: color.fg
         at: {{dy: -40%r}}
         curve: {{style: angled, angle: 0deg}}{outline}"""
 
 
 def _radial_ring(element_id: str, outline: str = "") -> str:
     return f"""\
-  - id: {element_id}
+  {element_id}:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: font.bezel
-        color: palette.fg
+        color: color.fg
         curve: {{style: radial, angle: 0deg, radius: 40%r}}{outline}"""
 
 
-_OUTLINE = "\n        outline: {color: palette.fg, width: 3}"
+_OUTLINE = """
+        outline: {color: color.fg, width: 3}"""
 
 
 # -- layout: box growth -------------------------------------------------------
@@ -166,34 +167,30 @@ def test_off_screen_catches_a_pattern_box_that_only_overflows_once_ringed(write_
     ring pushes it over the edge -- `off-screen` fires only once
     `outline:` is added, with no new lint code (D11)."""
     elements = (
-        """\
-  - id: plain
+        """  plain:
     type: pattern
     pattern: radial
     at: {anchor: top_left, dx: 0px, dy: 0px}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: font.bezel
-        color: palette.fg
-        align: left
-        vertical_align: top
+        color: color.fg
+        align: top_left
 """
-        + """\
-  - id: ringed
+        + """  ringed:
     type: pattern
     pattern: radial
     at: {anchor: top_left, dx: 0px, dy: 0px}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: font.bezel
-        color: palette.fg
-        align: left
-        vertical_align: top
-        outline: {color: palette.fg, width: 3}
+        color: color.fg
+        align: top_left
+        outline: {color: color.fg, width: 3}
 """
     )
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
@@ -251,25 +248,24 @@ def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, 
     across separate straight-line statements in the same method. Each
     part's own stamp loop must use a name derived from its own
     `part_prefix` instead."""
-    elements = f"""\
-  - id: ring
+    elements = f"""  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "A"
         font: font.bezel
-        color: palette.fg
+        color: color.fg
         at: {{dy: -30%r}}
-        outline: {{color: palette.fg, width: 1}}
-      - shape: text
+        outline: {{color: color.fg, width: 1}}
+      - type: text
         text: "B"
         font: font.bezel
-        color: palette.fg
+        color: color.fg
         at: {{dy: 30%r}}
-        outline: {{color: palette.fg, width: 2}}
+        outline: {{color: color.fg, width: 2}}
 """
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     device = db.get("fenix8solar47mm")
@@ -320,14 +316,13 @@ def test_pattern_outline_offset_width_dedups_with_a_standalone_elements_own(writ
     `text` element already uses must not emit a second, duplicate
     constant (plan 15 §8/§14 slice 2: "dedup already covers it")."""
     elements = (
-        """\
-  - id: clock
+        """  clock:
     type: text
     text: "12:34"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center, dy: -60%r}
-    outline: {color: palette.fg, width: 3}
+    outline: {color: color.fg, width: 3}
 """
         + _upright_ring("ring", _OUTLINE)
     )

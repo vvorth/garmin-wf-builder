@@ -286,10 +286,10 @@ class ElementKind(Generic[E, P]):
         """Every `(label, colour, ring, allow_backdrop_match)` this element
         draws, for `lint.check_contrast`.
 
-        By default the element's own ink (or ring), then a complication
-        slot's `icon_color`, labelled by its key, which may not match the
+        By default the element's own ink (or ring), then a `data` element's
+        icon colour, labelled `<id>.icon.color`, which may not match the
         backdrop exactly -- the same rule a glyph's own ink follows.  A
-        progress `track_color` is not judged: a track is decoration meant to
+        gauge's `track_color` is not judged: a track is decoration meant to
         recede behind the fill (every track in the examples is `#555555` on
         black, a 2.8 ratio, by design)."""
         element = placed.element
@@ -301,7 +301,7 @@ class ElementKind(Generic[E, P]):
                ring.expression if ring is not None else None, allow_backdrop_match)
         for role in non_aod:
             if role.role == "icon":
-                yield (f"{placed.id}.icon_color", role.expression, None, False)
+                yield (f"{placed.id}.icon.color", role.expression, None, False)
 
 
 # -- the registry -------------------------------------------------------------

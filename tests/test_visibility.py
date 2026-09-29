@@ -31,63 +31,64 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 DESIGN = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {elements}
 """
 
 #: A condition over a source that is never null (`System.ClockTime.sec`).
 NON_NULLABLE = """
-  - id: label
+  label:
     type: text
     text: "X"
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     visible: "time.second < 30"
 """
 
 #: A condition over a nullable source -- absence must hide the element.
 NULLABLE = """
-  - id: label
+  label:
     type: text
     text: "X"
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     visible: "activity.steps > 500"
 """
 
 #: A group condition, a nested group condition, and a leaf condition, so the
 #: three-way conjunction is visible in one generated method.
 NESTED = """
-  - id: outer
+  outer:
     type: group
     at: {anchor: center}
     size: {width: 80%, height: 40%}
     visible: "time.hour >= 18"
     children:
-      - id: mid
+      mid:
         type: group
         at: {anchor: center}
         size: {width: 100%, height: 50%}
         visible: "not device.do_not_disturb"
         children:
-          - id: leaf
+          leaf:
             type: text
             text: "X"
             font: FONT_TINY
             at: {anchor: center}
-            color: palette.fg
+            color: color.fg
             visible: "activity.steps > 500"
 """
 
@@ -178,13 +179,13 @@ def test_a_visible_source_is_not_null_checked_twice(write_design, bag, db, tmp_p
     already returned on null, so a second `== null` on that local would be dead
     code a reviewer would (rightly) ask about."""
     view = _view(write_design, bag, db, tmp_path, """
-  - id: label
+  label:
     type: text
     text: "X"
     font: FONT_TINY
     at: {anchor: center}
-    color: "activity.steps > 9000 ? palette.fg : palette.bg"
-    when_absent: hide
+    color: "activity.steps > 9000 ? color.fg : color.bg"
+    absent: hide
     visible: "activity.steps > 500"
 """)
     assert view.count("activitySteps == null") == 1
@@ -197,15 +198,13 @@ def test_a_placeholder_policy_does_not_re_guard_a_visible_source(
     `visible:` must not pick up a guard there either: the visibility guard has
     already returned on null."""
     view = _view(write_design, bag, db, tmp_path, """
-  - id: label
+  label:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: placeholder
-    placeholder: "--"
+    text: "{activity.steps:d}"
+    absent: "--"
     font: FONT_TINY
     at: {anchor: center}
-    color: "activity.calories > 100 ? palette.fg : palette.bg"
+    color: "activity.calories > 100 ? color.fg : color.bg"
     visible: "activity.calories > 50"
 """)
     assert bag.ok(), bag.render()
@@ -220,15 +219,13 @@ def test_a_placeholder_behind_its_own_visible_condition_is_reported(write_design
     placeholder unreachable -- the element is already gone.  Same reasoning
     (and same check) as a nullable colour reading it."""
     _face(write_design, bag, """
-  - id: label
+  label:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: placeholder
-    placeholder: "--"
+    text: "{activity.steps:d}"
+    absent: "--"
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     visible: "activity.steps > 500"
 """)
     diag = next(d for d in bag.items if d.code == "when-absent")
@@ -241,12 +238,12 @@ def test_a_visible_binding_still_derives_its_permission(write_design, bag):
     so permission derivation, barrel collection and reader hoisting all see
     it."""
     face = _face(write_design, bag, """
-  - id: label
+  label:
     type: text
     text: "X"
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     visible: "user.vo2max_running > 40"
 """)
     assert face is not None, bag.render()
@@ -325,29 +322,29 @@ def test_dead_element_is_not_reported_for_a_constant_true(write_design, bag, db)
 
 
 DEAD_SUBTREE = """
-  - id: outer
+  outer:
     type: group
     at: {anchor: center}
     size: {width: 80%, height: 40%}
     visible: "false"
     children:
-      - id: kid_a
+      kid_a:
         type: text
         text: "A"
         font: FONT_TINY
         at: {anchor: left}
-        color: palette.fg
-      - id: kid_group
+        color: color.fg
+      kid_group:
         type: group
         at: {anchor: right}
         size: {width: 20%, height: 100%}
         children:
-          - id: kid_b
+          kid_b:
             type: text
             text: "B"
             font: FONT_TINY
             at: {anchor: center}
-            color: palette.fg
+            color: color.fg
 """
 
 
@@ -420,19 +417,18 @@ def test_preview_applies_a_group_condition_to_the_subtree(write_design, bag, db)
 
 def test_visible_works_on_a_shape_and_an_icon(write_design, bag, db, tmp_path):
     view = _view(write_design, bag, db, tmp_path, """
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 10px
-    color: palette.fg
+    color: color.fg
     visible: "system.charging"
-  - id: bolt
+  bolt:
     type: icon
     icon: battery
     at: {anchor: center, dy: 20%}
     size: 8%r
-    color: palette.fg
+    color: color.fg
     visible: "not system.charging"
 """)
     # `_negatable` adds brackets only where `expr.emit` did not, and a `not`
@@ -448,10 +444,12 @@ def test_the_generated_doc_comment_says_when_the_element_draws(
             "(absent readings count as hidden).") in view
 
 
-@pytest.mark.parametrize("kind", ["group", "shape", "text", "progress", "icon", "graph"])
+@pytest.mark.parametrize("kind", [
+    "group", "rectangle", "circle", "ellipse", "polygon", "line", "arc", "text", "data",
+    "gauge", "icon", "graph", "hands", "pattern"])
 def test_the_schema_offers_visible_on_every_element_type(repo_root, kind):
     import json
 
-    schema = json.loads((repo_root / "schema" / "wfb-face-1.schema.json").read_text())
+    schema = json.loads((repo_root / "schema" / "wfb-face-2.schema.json").read_text())
     branch = schema["$defs"][f"{kind}Element"]
     assert branch["properties"]["visible"] == {"$ref": "#/$defs/visible"}

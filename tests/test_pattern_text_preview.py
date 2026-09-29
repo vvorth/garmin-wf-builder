@@ -41,27 +41,27 @@ from wfb.preview import PreviewOptions, render
 #: a neighbouring copy's ink.
 TOLERANCE = 14
 
-_HEADER = """\
-format: 1
+_HEADER = """format: 2
 face:
   id: 6a9c0e2b-2222-4abc-9def-0123456789ab
   name: PatternTextPreviewTest
-targets: [fenix8solar47mm]
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  red: "#FF0000"
-fonts:
-  numfont:
-    source: {ttf}
-    size: 20px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    numfont:
+      source: {ttf}
+      size: 20px
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    red: "#FF0000"
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.black
+    color: color.black
 {body}
 """
 
@@ -121,10 +121,10 @@ def test_four_copies_draw_upright_glyphs_at_the_four_cardinal_anchors(write_desi
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
-        value: copy
+      - type: text
+        text: "{copy}"
         font: font.numfont
         at: {dy: -60px}
 """
@@ -162,9 +162,9 @@ def test_glyphs_stay_upright_when_the_copy_turns_90_degrees(write_design, db, ba
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
+      - type: text
         text: "1"
         font: font.numfont
         at: {dy: -60px}
@@ -199,10 +199,10 @@ def test_per_copy_value_draws_a_different_width_string_per_copy(write_design, db
     pattern: radial
     at: {anchor: center}
     count: 2
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
-        value: "copy == 0 ? '8888' : '1'"
+      - type: text
+        text: "{(copy == 0 ? '8888' : '1')}"
         font: font.numfont
         at: {dy: -60px}
 """
@@ -229,9 +229,9 @@ def test_skip_removes_the_skipped_copys_ink(write_design, db, bag, ttf):
     at: {anchor: center}
     count: 4
     skip: [1]
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.numfont
         at: {dy: -60px}
@@ -254,9 +254,9 @@ def test_part_visible_hides_exactly_that_copy(write_design, db, bag, ttf):
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.numfont
         at: {dy: -60px}
@@ -286,9 +286,9 @@ def test_linear_pattern_draws_ink_at_each_stepped_anchor(write_design, db, bag, 
     at: {anchor: center, dx: -40px}
     count: 3
     step: {dx: 40px}
-    color: palette.white
+    color: color.white
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.numfont
 """
@@ -314,11 +314,11 @@ def test_per_copy_colour_paints_only_that_copys_glyph_red(write_design, db, bag,
     at: {anchor: center}
     count: 3
     parts:
-      - shape: text
+      - type: text
         text: "8"
         font: font.numfont
         at: {dy: -60px}
-        color: "copy == 1 ? palette.red : palette.white"
+        color: "copy == 1 ? color.red : color.white"
 """
     resolved = _build(write_design, db, bag, body, ttf)
     image = _draw(resolved)

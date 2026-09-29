@@ -511,3 +511,25 @@ states a unit. Pace, which the `units:` amendment above left out, is now
 built: the race pace predictors are tagged `quantity: pace`, and `units:`
 converts m/s to seconds per km or mile following `paceUnits`, with a speed
 of 0 reading as 0 rather than dividing by it.
+
+## Amendment (2026-09-29): `text:` templates and `absent:`
+
+Plan 22 (format 2) changed how a binding is written, not how it compiles.
+
+- **One `text:` template.** A text element's `value:` + `format:` (or its
+  literal `text:`) became one `text:` string with at most one placeholder,
+  `"{expr:spec}"`: the expression, then the same format spec `format:`
+  took. `{{`/`}}` are literal braces; the expression ends at the first `:`
+  outside parentheses, brackets and quotes, so a top-level ternary is
+  parenthesised. A pattern's text part is written the same way, and an
+  `aod:` override's `text:` may change the literal text and spec but must
+  read the element's own expression. Two or more placeholders are reserved
+  (a friendly "not implemented" error): any absent reading would make the
+  element absent (Q3). A gauge keeps `value:`.
+- **`absent:`** replaced `when_absent:` + `placeholder:`/`fallback:`:
+  `hide`, a string drawn instead, or `{value: <expr>}` substituted. It is
+  still required on a nullable binding. On a gauge, `absent: hide` is
+  planned to keep the value-independent track (plan 22 slice 4).
+- **References.** A colour is `color.<name>` inside an expression too
+  (ADR 0006's amendment of the same date); source paths, the expression
+  language and the catalogue are unchanged.

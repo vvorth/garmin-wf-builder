@@ -25,27 +25,28 @@ from wfb.preview import PreviewOptions, render, render_aod_heatmap
 ROOT = Path(__file__).resolve().parent.parent
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix847mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: One AOD-shown disc, big enough to leave plenty of non-black pixels to
 #: check the phase rule against.
 _DISC = """
 elements:
-  - id: disc
-    type: shape
-    shape: circle
+  disc:
+    type: circle
     at: {anchor: center}
     radius: 80%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: show
 """
 
@@ -181,7 +182,13 @@ def test_mask_false_matches_unmasked_render_and_differs_from_masked(write_design
     an implementation that ignores `Face.aod_mask` in `render`, or one that
     masks regardless of it."""
     text_on = BASE + _DISC
-    text_off = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + _DISC
+    text_off = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+""") + _DISC
 
     bag_on, bag_off = Bag(), Bag()
     resolved_on = _resolved(text_on, write_design, bag_on, db)
@@ -239,7 +246,7 @@ def _example_with_mask_false(write_design, bag, db, device_id="fenix847mm"):
     (a tmp path), never back into the repo tree."""
     text = (ROOT / "examples" / "features" / "aod" / "face.yaml").read_text()
     assert "mask: false" not in text
-    marker = "aod:\n  default: hide\n  dim: 0.6\n"
+    marker = "aod:\n  dim: 0.6\n"
     assert marker in text, "fixture assumption about the example's own aod: block broke"
     text = text.replace(marker, marker.rstrip("\n") + "\n  mask: false\n")
     face = load(write_design(text), bag)

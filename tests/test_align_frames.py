@@ -30,22 +30,27 @@ import math
 
 import pytest
 
-from tests.helpers import errors, find
+from tests.helpers import errors, find, with_resources
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
 def design(elements_block: str, extra: str = "") -> str:
-    return BASE + extra + "\nelements:\n" + elements_block
+    """``BASE`` with ``extra`` -- a ``resources:`` fragment (hand sets) --
+    merged in, then ``elements_block``."""
+    base = with_resources(BASE, extra) if extra.strip() else BASE
+    return base + "\nelements:\n" + elements_block
 
 
 # -- hand rectangle part: aligned in the hand's own frame ---------------------
@@ -58,21 +63,22 @@ def test_hand_rectangle_bottom_aligned_bottom_edge_on_the_axis(resolved_for):
     `dy: -length/2`.
     """
     resolved = resolved_for(design(
-        """  - id: e
+        """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """,
         """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: rectangle
-          at: {dy: 0px}
-          size: {width: 4px, height: 40px}
-          vertical_align: bottom
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: rectangle
+            at: {dy: 0px}
+            size: {width: 4px, height: 40px}
+            align: bottom
 """,
     ))
     part = find(resolved, "e").hour.parts[0]
@@ -85,22 +91,22 @@ hands:
 
 def test_hand_rectangle_left_top_top_left_corner_on_the_axis(resolved_for):
     resolved = resolved_for(design(
-        """  - id: e
+        """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """,
         """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: rectangle
-          at: {dx: 0px, dy: 0px}
-          size: {width: 10px, height: 6px}
-          align: left
-          vertical_align: top
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: rectangle
+            at: {dx: 0px, dy: 0px}
+            size: {width: 10px, height: 6px}
+            align: top_left
 """,
     ))
     part = find(resolved, "e").hour.parts[0]
@@ -112,22 +118,22 @@ hands:
 
 def test_hand_circle_aligned_centre_and_reach(resolved_for):
     resolved = resolved_for(design(
-        """  - id: e
+        """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """,
         """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: circle
-          at: {dy: 0px}
-          radius: 5px
-          align: right
-          vertical_align: bottom
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: circle
+            at: {dy: 0px}
+            radius: 5px
+            align: bottom_right
 """,
     ))
     placed = find(resolved, "e")
@@ -139,39 +145,40 @@ hands:
 
 def test_hand_part_default_is_byte_identical_to_no_keys_at_all(resolved_for):
     with_keys = resolved_for(design(
-        """  - id: e
+        """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """,
         """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: rectangle
-          at: {dy: -10px}
-          size: {width: 4px, height: 40px}
-          align: center
-          vertical_align: center
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: rectangle
+            at: {dy: -10px}
+            size: {width: 4px, height: 40px}
+            align: center
 """,
     ))
     without_keys = resolved_for(design(
-        """  - id: e
+        """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """,
         """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: rectangle
-          at: {dy: -10px}
-          size: {width: 4px, height: 40px}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: rectangle
+            at: {dy: -10px}
+            size: {width: 4px, height: 40px}
 """,
     ))
     a = find(with_keys, "e").hour.parts[0]
@@ -184,17 +191,17 @@ hands:
 
 def test_pattern_rectangle_radial_template_frame_and_box_follow(resolved_for):
     resolved = resolved_for(design(
-        """  - id: p
+        """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: rectangle
+      - type: rectangle
         at: {dy: 0px}
         size: {width: 10px, height: 6px}
-        vertical_align: bottom
+        align: bottom
 """
     ))
     placed = find(resolved, "p")
@@ -212,18 +219,17 @@ def test_pattern_rectangle_radial_template_frame_and_box_follow(resolved_for):
 
 def test_pattern_circle_radial_template_frame_and_reach_follow(resolved_for):
     resolved = resolved_for(design(
-        """  - id: p
+        """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: circle
+      - type: circle
         at: {dy: 0px}
         radius: 5px
-        align: right
-        vertical_align: bottom
+        align: bottom_right
 """
     ))
     placed = find(resolved, "p")
@@ -234,18 +240,17 @@ def test_pattern_circle_radial_template_frame_and_reach_follow(resolved_for):
 
 def test_pattern_rectangle_linear_template_frame_and_box_follow(resolved_for):
     resolved = resolved_for(design(
-        """  - id: p
+        """  p:
     type: pattern
     pattern: linear
     at: {anchor: center}
     count: 2
     step: {dx: 20px}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: rectangle
+      - type: rectangle
         size: {width: 10px, height: 6px}
-        align: left
-        vertical_align: top
+        align: top_left
 """
     ))
     placed = find(resolved, "p")
@@ -263,29 +268,28 @@ def test_pattern_rectangle_linear_template_frame_and_box_follow(resolved_for):
 
 def test_pattern_part_default_is_byte_identical_to_no_keys_at_all(resolved_for):
     with_keys = resolved_for(design(
-        """  - id: p
+        """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: rectangle
+      - type: rectangle
         at: {dy: -10px}
         size: {width: 4px, height: 40px}
         align: center
-        vertical_align: center
 """
     ))
     without_keys = resolved_for(design(
-        """  - id: p
+        """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: rectangle
+      - type: rectangle
         at: {dy: -10px}
         size: {width: 4px, height: 40px}
 """
@@ -298,23 +302,24 @@ def test_pattern_part_default_is_byte_identical_to_no_keys_at_all(resolved_for):
 # -- rejection: hand/pattern parts polygon, line, (pattern) arc -------------
 
 
-HAND_POLYGON = """  - id: e
+HAND_POLYGON = """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
 """
 HAND_POLYGON_SET = """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: polygon
-          {extra}
-          points:
-            - {{dy: 6px}}
-            - {{dx: -3px, dy: -10px}}
-            - {{dx: 3px, dy: -10px}}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: polygon
+            {extra}
+            points:
+              - {{dy: 6px}}
+              - {{dx: -3px, dy: -10px}}
+              - {{dx: 3px, dy: -10px}}
 """
 
 
@@ -330,7 +335,7 @@ def test_hand_polygon_rejects_align_with_the_no_single_at_reason(bag, write_desi
 def test_hand_polygon_rejects_both_keys_as_one_error(bag, write_design):
     bad = errors(
         design(HAND_POLYGON,
-               HAND_POLYGON_SET.format(extra="align: left\n          vertical_align: top")),
+               HAND_POLYGON_SET.format(extra="align: top_left")),
         bag, write_design,
     )
     assert len(bad) == 1
@@ -338,15 +343,16 @@ def test_hand_polygon_rejects_both_keys_as_one_error(bag, write_design):
 
 
 HAND_LINE_SET = """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - shape: line
-          at: {{dy: 0px}}
-          to: {{dy: -20px}}
-          {extra}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - type: line
+            at: {{dy: 0px}}
+            to: {{dy: -20px}}
+            {extra}
 """
 
 
@@ -359,25 +365,25 @@ def test_hand_line_rejects_align_with_the_two_ends_reason(bag, write_design):
 
 
 def test_hand_line_rejects_vertical_align_too(bag, write_design):
-    bad = errors(design(HAND_POLYGON, HAND_LINE_SET.format(extra="vertical_align: bottom")),
+    bad = errors(design(HAND_POLYGON, HAND_LINE_SET.format(extra="align: bottom")),
                  bag, write_design)
     assert len(bad) == 1
     assert "'align' is not used by a hand 'type: line' part" in bad[0].message
 
 
-PATTERN_ELEMENT = """  - id: p
+PATTERN_ELEMENT = """  p:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 2
-    color: palette.fg
+    color: color.fg
     parts:
 {parts}
 """
 
 
 def test_pattern_polygon_rejects_align(bag, write_design):
-    parts = """      - shape: polygon
+    parts = """      - type: polygon
         align: left
         points:
           - {dy: 6px}
@@ -391,10 +397,10 @@ def test_pattern_polygon_rejects_align(bag, write_design):
 
 
 def test_pattern_line_rejects_vertical_align(bag, write_design):
-    parts = """      - shape: line
+    parts = """      - type: line
         at: {dy: 0px}
         to: {dy: -20px}
-        vertical_align: bottom
+        align: bottom
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
     assert len(bad) == 1
@@ -403,7 +409,7 @@ def test_pattern_line_rejects_vertical_align(bag, write_design):
 
 
 def test_pattern_arc_rejects_align_with_the_own_origin_reason(bag, write_design):
-    parts = """      - shape: arc
+    parts = """      - type: arc
         radius: 10px
         align: left
 """
@@ -414,10 +420,9 @@ def test_pattern_arc_rejects_align_with_the_own_origin_reason(bag, write_design)
 
 
 def test_pattern_arc_rejects_both_keys_as_one_error(bag, write_design):
-    parts = """      - shape: arc
+    parts = """      - type: arc
         radius: 10px
-        align: left
-        vertical_align: top
+        align: top_left
 """
     bad = errors(design(PATTERN_ELEMENT.format(parts=parts)), bag, write_design)
     assert len(bad) == 1
@@ -427,19 +432,20 @@ def test_pattern_arc_rejects_both_keys_as_one_error(bag, write_design):
 
 
 def test_hands_element_rejects_align_with_the_pivot_reason(bag, write_design):
-    elements = """  - id: e
+    elements = """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
     align: left
 """
     hands = """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10px}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10px}
 """
     bad = errors(design(elements, hands), bag, write_design)
     assert len(bad) == 1
@@ -447,47 +453,46 @@ hands:
     assert "axis" in bad[0].message
 
 
-def test_hands_element_rejects_both_keys_as_two_separate_errors(bag, write_design):
-    elements = """  - id: e
+def test_hands_element_rejects_a_two_axis_align_as_one_error(bag, write_design):
+    elements = """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
-    align: left
-    vertical_align: top
+    align: top_left
 """
     hands = """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10px}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10px}
 """
     bad = errors(design(elements, hands), bag, write_design)
-    assert len(bad) == 2
-    messages = [d.message for d in bad]
-    assert any("'align' is not accepted on 'type: hands'" in m for m in messages)
-    assert any("'vertical_align' is not accepted on 'type: hands'" in m for m in messages)
+    assert len(bad) == 1
+    assert "'align' is not accepted on 'type: hands'" in bad[0].message
 
 
 def test_hands_element_still_reports_an_unrelated_bad_key(bag, write_design):
     """R3: an unrelated mistake on the same element is still reported --
     the alignment refusal must not swallow the whole element's other errors.
     """
-    elements = """  - id: e
+    elements = """  e:
     type: hands
-    hands: h
+    set: h
     at: {anchor: center}
     align: left
     this_key_does_not_exist: true
 """
     hands = """
-hands:
-  h:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10px}
+resources:
+  hand_sets:
+    h:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10px}
 """
     bad = errors(design(elements, hands), bag, write_design)
     assert len(bad) == 2
@@ -501,36 +506,36 @@ hands:
 
 
 def test_pattern_element_rejects_vertical_align_with_the_pivot_reason(bag, write_design):
-    elements = """  - id: p
+    elements = """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 2
-    vertical_align: top
-    color: palette.fg
+    align: top
+    color: color.fg
     parts:
-      - {shape: circle, radius: 10px}
+      - {type: circle, radius: 10px}
 """
     bad = errors(design(elements), bag, write_design)
     assert len(bad) == 1
-    assert "'vertical_align' is not accepted on 'type: pattern'" in bad[0].message
+    assert "'align' is not accepted on 'type: pattern'" in bad[0].message
     assert "origin" in bad[0].message
 
 
 def test_pattern_element_still_reports_an_unrelated_bad_key(bag, write_design):
-    elements = """  - id: p
+    elements = """  p:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 2
-    vertical_align: top
+    align: top
     another_bad_key: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - {shape: circle, radius: 10px}
+      - {type: circle, radius: 10px}
 """
     bad = errors(design(elements), bag, write_design)
     assert len(bad) == 2
     messages = [d.message for d in bad]
-    assert any("'vertical_align' is not accepted on 'type: pattern'" in m for m in messages)
+    assert any("'align' is not accepted on 'type: pattern'" in m for m in messages)
     assert any("another_bad_key" in m for m in messages)

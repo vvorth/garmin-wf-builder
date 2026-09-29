@@ -139,21 +139,22 @@ def test_barrel_includes_wfbhands(resolved, tmp_path, db):
 
 
 NO_HANDS = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
 
@@ -169,20 +170,20 @@ def test_a_design_with_no_hands_imports_no_math_and_declares_no_sleeping_field(
 
 
 SECONDS_NEVER = NO_HANDS.replace(
-    'elements:\n', '''hands:
-  set:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: circle, radius: 10%r}
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -20%r}, thickness: 1px}
+    'elements:\n', '''  hand_sets:
+    set:
+      hour:
+        color: color.fg
+        parts:
+          - {type: circle, radius: 10%r}
+      second:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -20%r}, thickness: 1px}
 elements:
-''') + """  - id: h
+''') + """  h:
     type: hands
-    hands: set
+    set: set
     seconds: never
     at: {anchor: center}
 """

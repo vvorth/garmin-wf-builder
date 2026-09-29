@@ -9,6 +9,8 @@ units wrap, and a time-of-day code wraps at 24 hours and carries no sign.
 
 from __future__ import annotations
 
+from tests.helpers import template
+
 import pytest
 
 from wfb import formatting
@@ -22,28 +24,29 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 """
 
 
 def _text(value: str, fmt: str, extra: str = "") -> str:
     return BASE + f"""
-  - id: reading
+  reading:
     type: text
-    value: {value}
-    format: "{fmt}"
+    text: "{template(value, fmt)}"
     font: FONT_SMALL
     at: {{anchor: center}}
-    color: palette.fg
-    when_absent: hide{extra}
+    color: color.fg
+    absent: hide{extra}
 """
 
 
@@ -223,16 +226,15 @@ def test_a_strftime_spec_on_a_string_is_still_an_error(write_design, bag):
 
 def test_a_pattern_text_part_cannot_follow_the_12_24_hour_setting(write_design, bag):
     text = BASE + """
-  - id: dial
+  dial:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: copy * 21600
-        format: "{:%h}"
+      - type: text
+        text: "{copy * 21600:%h}"
         at: {dy: -80%r}
 """
     assert load(write_design(text), bag) is None
@@ -242,16 +244,15 @@ def test_a_pattern_text_part_cannot_follow_the_12_24_hour_setting(write_design, 
 
 def test_a_pattern_text_part_takes_a_fixed_duration(write_design, bag):
     text = BASE + """
-  - id: dial
+  dial:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: copy * 21600
-        format: "{:%H}"
+      - type: text
+        text: "{copy * 21600:%H}"
         at: {dy: -80%r}
 """
     face = _face(text, write_design, bag)
@@ -266,7 +267,9 @@ def test_every_duration_code_compiles_warning_free(write_design, db, tmp_path, t
     """Every `DURATION_CODES` row through the real `monkeyc`, on a Number
     and a Float, a time of day, a scaled source and a pace -- the
     `WfbTime.durationPart` `Numeric` parameter included."""
-    text = BASE.replace("targets: [fenix8solar47mm]", "targets: [fenix8solar47mm, fr955]")
+    text = BASE.replace("""build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix8solar47mm, fr955]""")
     rows = [
         ("complication.sunrise", "{:%h:%M %p}", ""),
         ("complication.sunset", "{:%I:%M %l}", ""),
@@ -277,14 +280,13 @@ def test_every_duration_code_compiles_warning_free(write_design, db, tmp_path, t
     ]
     for index, (value, fmt, extra) in enumerate(rows):
         text += f"""
-  - id: reading{index}
+  reading{index}:
     type: text
-    value: {value}
-    format: "{fmt}"
+    text: "{template(value, fmt)}"
     font: FONT_XTINY
     at: {{anchor: center, dy: {index * 10 - 25}%r}}
-    color: palette.fg
-    when_absent: hide{extra}
+    color: color.fg
+    absent: hide{extra}
 """
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)

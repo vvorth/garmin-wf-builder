@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import find
+from tests.helpers import with_resources, align_value, find
 from wfb.build import load
 from wfb.emit.monkeyc import emit_view
 from wfb.emit.resources import bake_fonts
@@ -27,14 +27,16 @@ ROOT = Path(__file__).resolve().parent.parent
 OPEN_SANS = ROOT / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
@@ -78,18 +80,16 @@ def test_alignment_shift_center_is_exactly_zero_not_merely_close():
 
 def _text_design(align: str = "", vertical_align: str = "") -> str:
     extra = ""
-    if align:
-        extra += f"    align: {align}\n"
-    if vertical_align:
-        extra += f"    vertical_align: {vertical_align}\n"
+    if align or vertical_align:
+        extra = f"    align: {align_value(align or 'center', vertical_align or 'center')}\n"
     return BASE + f"""
 elements:
-  - id: label
+  label:
     type: text
     text: "hello"
     font: FONT_MEDIUM
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 {extra}"""
 
 
@@ -151,62 +151,6 @@ def test_text_box_bottom_matches_the_pre_rename_baseline_box():
     assert dy == -line_height / 2
 
 
-# -- baseline -> bottom: one friendly error, not N ---------------------------
-
-
-def test_baseline_on_a_text_element_is_one_friendly_error(write_design, bag):
-    load(write_design(_text_design(vertical_align="baseline")), bag)
-    assert not bag.ok()
-    assert len(bag.errors) == 1
-    assert "renamed" in bag.errors[0].message
-    assert "'bottom'" in bag.errors[0].message
-
-
-def test_baseline_on_a_pattern_text_part_is_one_friendly_error(write_design, bag):
-    design = BASE + """
-elements:
-  - id: ring
-    type: pattern
-    pattern: radial
-    at: {anchor: center}
-    count: 4
-    color: palette.fg
-    parts:
-      - shape: text
-        text: "8"
-        at: {dy: -50px}
-        vertical_align: baseline
-"""
-    load(write_design(design), bag)
-    assert not bag.ok()
-    assert len(bag.errors) == 1
-    assert "renamed" in bag.errors[0].message
-    assert "'bottom'" in bag.errors[0].message
-
-
-def test_baseline_does_not_also_trip_the_schema_enum_error(write_design, bag):
-    """The friendly rename error replaces the schema's own enum complaint
-    for this exact key -- not just adds to it -- so an author sees one
-    diagnostic, not two saying almost the same thing."""
-    load(write_design(_text_design(vertical_align="baseline")), bag)
-    messages = [d.message for d in bag.errors]
-    assert not any("not valid here" in m for m in messages)
-
-
-def test_a_second_real_mistake_on_the_same_element_still_gets_its_own_error(write_design, bag):
-    """The rename check drops only the one `vertical_align` enum error, not
-    every schema error on the element it sits on (`_check_baseline_renamed`
-    returns the leaf path, not the whole element's)."""
-    design = _text_design(vertical_align="baseline").replace(
-        'text: "hello"', 'text: "hello"\n    nonsense_key: 1')
-    load(write_design(design), bag)
-    assert not bag.ok()
-    assert len(bag.errors) == 2
-    joined = " ".join(d.message for d in bag.errors)
-    assert "renamed" in joined
-    assert "unknown key" in joined.lower()
-
-
 def test_bottom_is_accepted_where_baseline_used_to_be(write_design, bag, db):
     face = load(write_design(_text_design(vertical_align="bottom")), bag)
     assert face is not None, bag.render()
@@ -216,15 +160,15 @@ def test_bottom_is_accepted_where_baseline_used_to_be(write_design, bag, db):
 
 
 def _codegen_text_design(vertical_align: str) -> str:
-    extra = f"    vertical_align: {vertical_align}\n" if vertical_align else ""
+    extra = f"    align: {vertical_align}\n" if vertical_align else ""
     return BASE + f"""
 elements:
-  - id: clock
+  clock:
     type: text
     text: "hi"
     font: FONT_MEDIUM
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 {extra}"""
 
 
@@ -256,36 +200,37 @@ def test_bottom_text_subtracts_the_devices_own_font_height(view_text_for):
 
 # -- codegen: pattern text parts, radial and linear --------------------------
 
-HOURS_BOTTOM = """  - id: hours
+HOURS_BOTTOM = """  hours:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         at: {dy: -80%r}
-        vertical_align: bottom
+        align: bottom
 """
 
-ROW_BOTTOM = f"""fonts:
-  small:
-    source: {OPEN_SANS}
-    size: 20px
+ROW_BOTTOM = f"""resources:
+  fonts:
+    small:
+      source: {OPEN_SANS}
+      size: 20px
 elements:
-  - id: row
+  row:
     type: pattern
     pattern: linear
     at: {{anchor: center}}
     count: 3
     step: {{dx: 20px}}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
+      - type: text
         text: "x"
         font: font.small
-        vertical_align: bottom
+        align: bottom
 """
 
 
@@ -307,7 +252,7 @@ def test_radial_pattern_text_bottom_shifts_cy_not_cx(write_design, bag, db):
 
 
 def test_linear_pattern_text_bottom_subtracts_after_oy(write_design, bag, db):
-    face = load(write_design(BASE + "\n" + ROW_BOTTOM), bag)
+    face = load(write_design(with_resources(BASE, ROW_BOTTOM)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
@@ -330,22 +275,22 @@ WHITE = (255, 255, 255)
 
 
 def _preview_text_design(vertical_align: str, font_block: str = "", font_key: str = "FONT_MEDIUM") -> str:
-    return BASE + f"""{font_block}
+    base = with_resources(BASE, font_block) if font_block else BASE
+    return base + f"""
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 elements:
-  - id: label
+  label:
     type: text
     text: "Hg"
     font: {font_key}
     at: {{anchor: center}}
-    color: palette.fg
-    vertical_align: {vertical_align}
+    color: color.fg
+    align: {vertical_align}
 """
 
 
@@ -393,10 +338,11 @@ def test_system_font_top_ink_lies_below_the_anchor_row(write_design, bag, db):
 
 def test_custom_font_bottom_ink_lies_above_the_anchor_row(write_design, bag, db):
     font_block = f"""
-fonts:
-  clock:
-    source: {OPEN_SANS}
-    size: 24px"""
+resources:
+  fonts:
+    clock:
+      source: {OPEN_SANS}
+      size: 24px"""
     image, placed = _render_text(
         write_design, bag, db, "bottom", font_block=font_block, font_key="font.clock")
     ax, ay = placed.anchor_point
@@ -407,10 +353,11 @@ fonts:
 
 def test_custom_font_top_ink_lies_below_the_anchor_row(write_design, bag, db):
     font_block = f"""
-fonts:
-  clock:
-    source: {OPEN_SANS}
-    size: 24px"""
+resources:
+  fonts:
+    clock:
+      source: {OPEN_SANS}
+      size: 24px"""
     image, placed = _render_text(
         write_design, bag, db, "top", font_block=font_block, font_key="font.clock")
     ax, ay = placed.anchor_point

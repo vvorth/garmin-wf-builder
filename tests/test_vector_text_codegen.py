@@ -39,54 +39,50 @@ _HIDE_FONT = """\
   bezel:
     face: RobotoCondensedBold
     size: 6%r
-    if_unavailable: hide
+    unsupported: hide
 """
 
 
 def _background() -> str:
-    return """\
-  - id: background
-    type: shape
-    shape: rectangle
+    return """  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
 
 def _upright() -> str:
-    return """\
-  - id: brand
+    return """  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """
 
 
 def _angled(vertical_align: str | None = None) -> str:
-    extra = f"    vertical_align: {vertical_align}\n" if vertical_align else ""
+    extra = f"    align: {vertical_align}\n" if vertical_align else ""
     return f"""\
-  - id: brand
+  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
     curve: {{style: angled, angle: 45deg}}
 {extra}"""
 
 
 def _radial(direction: str = "clockwise", vertical_align: str = "center") -> str:
-    return f"""\
-  - id: brand
+    return f"""  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
-    vertical_align: {vertical_align}
+    align: {vertical_align}
     curve: {{style: radial, angle: 90deg, radius: 40%r, direction: {direction}}}
 """
 

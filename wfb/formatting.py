@@ -292,7 +292,7 @@ def parse(spec: str) -> list[Literal | Field | UnitField]:
     if pos < len(spec):
         parts.append(Literal(spec[pos:]))
     if not any(isinstance(p, Field) for p in parts):
-        raise FormatError(f"{spec!r} has no {{}} field -- use 'text:' for a fixed string")
+        raise FormatError(f"{spec!r} has no placeholder -- a fixed string needs no format")
     return parts
 
 
@@ -390,7 +390,8 @@ def _numeric_spec(spec: str) -> tuple[str, str, str | None]:
     m = _NUMERIC_SPEC_RE.match(spec)
     if not m:
         raise FormatError(
-            f"{'{'}:{spec}{'}'} is not a supported format -- use {{:d}}, {{:02d}}, {{:.1f}} or {{}}"
+            f"{spec!r} is not a supported format spec -- after the ':' use d, 02d or "
+            f".1f, or no spec at all"
         )
     flags = f"{'0' if m.group('zero') else ''}{m.group('width') or ''}"
     return m.group("kind"), flags, m.group("precision")

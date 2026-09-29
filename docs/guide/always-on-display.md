@@ -8,16 +8,16 @@ optional extra (`docs/research/11-always-on-display.md` §1.3). `aod:` is
 how a design says what that frame looks like: overrides on the *one*
 design, not a second layout to maintain.
 
-`aod:` replaces the earlier `modes: [always_on]` outright (no shim):
-`modes:` now means only the two MIP partial-update modes,
-`active`/`low_power` (see [Power modes and touch-and-hold](modes-and-interaction.md)).
+`aod:` is independent of `sleep_update:`, which is about MIP partial
+updates only (see [Power modes and touch-and-hold](modes-and-interaction.md)).
 
 ## At a glance
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
 | `aod:` | any element, `group` | `hide` \| `show` \| an override block | inherited (see [Resolution](#resolution)) | this element's AOD behaviour |
-| `aod:` | top level, beside `elements:` | `{default, dim, mask, lint}` | — | face-wide AOD defaults |
+| `aod:` | `defaults:` | `hide` \| `show` | `hide` | the AOD visibility of an element whose ancestry says nothing |
+| `aod:` | top level, beside `elements:` | `{dim, mask, lint}` | — | face-wide AOD frame settings |
 
 ## Per element or group
 
@@ -35,12 +35,12 @@ no second vocabulary — restricted to a per-kind allowlist:
 | Kind | Overridable |
 |---|---|
 | every kind | `visible` (conjoined with the element's own `visible:`, not replacing it) |
-| `text` | `color`, `font`, `format`, `outline` |
-| `shape` | `color`, `thickness`, `filled` |
-| `progress` | `color`, `track_color`, `thickness` |
+| `text` | `color`, `font`, `text`, `outline` |
+| the primitives | `color`, `thickness`, `filled` |
+| `gauge` | `color`, `track_color`, `thickness` |
 | `icon` | `color` |
 | `graph` | `color`, `thickness`, `bar_width` |
-| `complication_slot` | `color`, `icon_color`, `font` |
+| `data` | `color`, `icon: {color}`, `font` |
 | `hands` | `color`, `thickness` — applied to **every part of every hand** in the set |
 | `pattern` | `color`, `thickness`, `font` — applied to **every part** |
 | `group` | the union of whatever its descendants allow, pushed down |
@@ -60,23 +60,31 @@ underneath (black, in the AOD frame), it gives hollow digits — the ring is
 the only ink, a fraction of the lit pixels solid digits take:
 
 ```yaml
-- id: clock
+clock:
   type: text
-  value: time.clock
-  color: palette.white
+  text: "{time.clock}"
+  color: color.white
   aod:
-    color: palette.black          # the interior -- invisible on the black AOD frame
-    outline: {color: palette.dim, width: 2}
+    color: color.black              # the interior -- invisible on the black AOD frame
+    outline: {color: color.dim, width: 2}
 ```
 
-Only `text` elements take it. A pattern's own `shape: text` parts keep
+Only `text` elements take it. A pattern's own `type: text` parts keep
 their rings as written (dimmed, like every AOD colour), and a group's
 `outline:` reaches only the `text` elements below it.
 
+**`text:` restyles the reading, never replaces it.** An override's `text:`
+is a [template](text.md#the-text-template) that must read the element's own
+expression: it may change the literal text around the placeholder and its
+format spec (`"{time.clock:%H}"` for an hours-only sleep clock), not what is
+read. Its placeholder may also be left empty, `"{:%H}"`, which stands for
+the element's own expression; on a `group` that is the only way to write it,
+since each text below brings its own.
+
 **Out of scope on purpose:** geometry (`at:`, `size:`, `radius:` — an
-override block restyles an element, it does not move it) and data bindings (`value:`,
-`series:`, `text:` — they would change what the sleep frame reads, and so
-its cost).
+override block restyles an element, it does not move it) and data bindings
+(a gauge's `value:`, `series:` — they would change what the sleep frame
+reads, and so its cost).
 
 **Hands and patterns restyle uniformly, not per part.** `hands.hour.parts[…]`
 and `pattern.parts[…]` are lists, and merging an override into a list by
@@ -90,16 +98,17 @@ other `awake`-only frame.
 ## Face level
 
 ```yaml
-aod:                  # top-level, beside elements:
-  default: hide        # hide (default) | show — for elements whose ancestry says nothing
+defaults:
+  aod: hide             # hide (default) | show — for elements whose ancestry says nothing
+aod:                    # top-level, beside elements:
   dim: 0.4              # scale every drawn colour's luminance, 0-1 (exclusive of 0) — see "Dimming" below
-  mask: true             # moving 2x2 pixel mask, on by default — see "Pixel mask" below
-  lint:                   # suppress a face-level AOD lint (aod-empty)
+  mask: true            # moving 2x2 pixel mask, on by default — see "Pixel mask" below
+  lint:                 # suppress a face-level AOD lint (aod-empty)
     allow: [aod-empty]
     reason: "prototype face, AOD comes later"
 ```
 
-`default: hide` is the safe choice: an unconverted design lights nothing
+`defaults: {aod: hide}` is the safe choice: an unconverted design lights nothing
 extra in AOD. It fills an element's AOD visibility **only where nothing in
 that element's own ancestry — itself, every ancestor group — ever mentions
 `aod:` at all.**
@@ -112,18 +121,18 @@ Three rules, checked in order, for **each key independently** (`color`,
 1. **The element's own `aod:` wins**, key by key, over its ancestors'.
 2. **Otherwise the nearest ancestor group's `aod:` applies** — the nearest
    one that actually wrote something, walking up past a silent group.
-3. **Otherwise the face's `aod: default:`** fills in — `hide` unless the
+3. **Otherwise `defaults: {aod:}`** fills in — `hide` unless the
    face says `show`.
 
 ```yaml
-aod: {default: hide}      # face-wide: hidden by default
+defaults:
+  aod: hide               # face-wide: hidden by default
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.white
-    aod: {color: palette.dim}   # the one element turned back on
+    text: "{time.clock:%H:%M}"
+    color: color.white
+    aod: {color: color.dim}     # the one element turned back on
 ```
 
 That's the whole shape of "everything off but the time" — one line.
@@ -131,20 +140,20 @@ That's the whole shape of "everything off but the time" — one line.
 **One deliberate asymmetry.** An explicit `aod: hide` on a `group` hides
 its **whole subtree unconditionally**, and no descendant can undo it — the
 same way a group's `visible:` conjoins into everything beneath it, one
-step stricter (nothing below can turn it back on). The face `default:` is
+step stricter (nothing below can turn it back on). `defaults: {aod:}` is
 different: it is not explicit, so it only ever fills silence. This is what
-lets a `default: hide` design still show a stray element with its own
+lets a `defaults: {aod: hide}` design still show a stray element with its own
 `aod: show`, while a group's explicit `hide` really means it.
 
 ```yaml
 elements:
-  - id: complications
+  complications:
     type: group
     aod: hide              # sticky: nothing inside can override this
     children:
-      - id: hr
-        type: complication_slot
-        slot: config.data.top
+      hr:
+        type: data
+        slot: top
         aod: show            # has no effect -- warns: aod-unreachable
 ```
 
@@ -152,17 +161,17 @@ elements:
 ...}` is **ANDed with the element's own `visible:`**, not a replacement for
 it — an element hidden while awake stays hidden in AOD too.
 
-## Restyling (slice 2)
+## Restyling
 
 Every override key actually restyles the generated AOD frame, as an inline
 `_aod ? <aod value> : <awake value>` ternary in the element's existing draw
 method — measured against a second, per-element AOD method and kept for
 being smaller (`docs/lore/codegen.md`) — or, for `filled:`, an
 `if (_aod) { ... } else { ... }` around the two different draw calls a
-filled/outlined shape takes. `color:`/`track_color:`/`icon_color:` follow
-`color_scheme:`/`config.colors` at runtime exactly as the element's own
+filled/outlined shape takes. `color:`/`track_color:`/`icon: {color:}` follow
+a scheme or a colour axis at runtime exactly as the element's own
 `color:` does — an override colour is resolved through the same machinery,
-not a second, narrower one. A `static:` element with an AOD override skips
+not a second, narrower one. An element in a `static:` block with an AOD override skips
 its buffer while `_aod` and draws directly, through the very same
 per-element method the buffer itself calls to fill in.
 
@@ -173,49 +182,49 @@ awake (measured cheap, `docs/lore/codegen.md`). A font used both awake and
 in an override is loaded once, not twice.
 
 **Not implemented yet** (`docs/limitations.md` §2): a `pattern`'s own
-`font:` override, a `complication_slot`'s `font:` override, and any `font:`
+`font:` override, a `data` element's `font:` override, and any `font:`
 override naming a `face:` (vector) font rather than a baked one — each is
 rejected outright by the builder with a friendly "not implemented yet"
 error, the same house style per-device `overrides:` already
-follow: never a silent no-op. `aod: {filled: ...}` on `shape: polygon` gets
+follow: never a silent no-op. `aod: {filled: ...}` on a `polygon` gets
 the same treatment, for the same reason the awake element's own `filled:
 false` already does — there is no outline primitive (Dc has fillPolygon,
 not drawPolygon) for either one to switch to. The same holds when the key
 comes from a group: a group's `aod: {font: ...}`, `{filled: ...}` or
-`{format: ...}` reaches every element below it, and each element that cannot
-take the key (a `pattern` or `complication_slot` for `font:`, a polygon for
-`filled:`, a fixed-`text:` text for `format:`) is an error on that element,
+`{text: ...}` reaches every element below it, and each element that cannot
+take the key (a `pattern` or `data` element for `font:`, a polygon for
+`filled:`, a text with no placeholder for `text:`) is an error on that element,
 naming the group. Elements that can take the key get it as usual. `wfb
 preview --aod` matches this exact scope, element for element — none of
 these cases can ever reach it, since the build fails first.
 
-## Dimming (`aod: {dim: ...}`, slice 3)
+## Dimming (`aod: {dim: ...}`)
 
 ```yaml
 aod:
   dim: 0.6              # scale every AOD colour's luminance to 60%
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    color: palette.white
-    aod: {color: palette.white}   # explicit -- never dimmed
-  - id: date
+    text: "{time.clock}"
+    color: color.white
+    aod: {color: color.white}     # explicit -- never dimmed
+  date:
     type: text
-    value: time.date
-    color: palette.white
+    text: "{time.date}"
+    color: color.white
     aod: show                      # dimmed to 60% -- no override of its own
 ```
 
 `dim` reaches **every** colour the AOD frame draws — `color:`, `track_color:`,
-`icon_color:`, a hand or pattern part's own colour, an icon's glyph colour,
+`icon: {color:}`, a hand or pattern part's own colour, an icon's glyph colour,
 an `outline:` ring (a text element's or a pattern text part's) —
 whether or not that element has an `aod:` override of its own. A `show`-only
 element, or one that inherits its AOD set purely from a face default or an
 ancestor group, is dimmed exactly like an overridden one.
 
 **The one exception is an explicit override colour.** `color:`/
-`track_color:`/`icon_color:`, or an `outline:` ring's colour, written inside
+`track_color:`/`icon: {color:}`, or an `outline:` ring's colour, written inside
 an element's own (or an inherited group's) `aod:` block is the author's
 final word and is never dimmed — the `clock` example above stays full white in AOD; `date`, which
 opts in with a bare `aod: show`, dims to 60%.
@@ -230,9 +239,9 @@ it would turn every undimmed colour black, which is indistinguishable from
 `aod: hide` and almost certainly not what was meant.
 
 **Where the arithmetic runs.** A colour fixed at build time — a bare hex
-literal, or a `palette.<name>` reference — is pre-dimmed into a second
+literal, or a swatch — is pre-dimmed into a second
 literal in Python, once, at compile time: no runtime cost at all. A colour
-that follows `color_scheme:`/`config.colors` at runtime (the wearer's own
+that follows a role at runtime (the wearer's own
 on-device pick) cannot be precomputed the same way, since its value is not
 known until the device resolves it; that case is dimmed on-device instead,
 by a small generated helper (`WfbColor.dim`, `runtime-lib/WfbColor.mc`) doing
@@ -251,8 +260,8 @@ what ships, and works on every device regardless of alpha support.
 
 **Palette lint.** The 64-colour MIP palette rule (`docs/limitations.md` §2,
 constraint 13) never fires on a dimmed colour: a dimmed value is a new,
-synthetic literal that is never entered into `palette:`/`config:`/
-`color_scheme:`, so it is invisible to that check by construction — and
+synthetic literal that is never entered into `palette:`, `config:` or
+`theme:`, so it is invisible to that check by construction — and
 since `dim` only ever reaches the `_aod` branch, which only ever runs on an
 AMOLED device (constraint 13's rule is MIP-only to begin with), there is
 nothing there to warn about anyway.
@@ -528,7 +537,7 @@ See [Lints and suppression](lints.md) for the general mechanism.
 ![the aod example's restyled sleep frame](../screenshots/aod.png)
 
 - [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, restyled, on `fenix847mm` (`wfb preview --aod`, above).
-- [Power modes and touch-and-hold](modes-and-interaction.md) — `modes:`, the orthogonal MIP partial-update axis.
+- [Power modes and touch-and-hold](modes-and-interaction.md) — `sleep_update:`, the orthogonal MIP partial-update axis.
 - `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options this plan chose between.
 - Plan 14 is what built this chapter, slice by slice; it is deleted now that
   every slice has shipped — `docs/CLAUDE.md`'s "Built plans are deleted"

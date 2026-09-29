@@ -21,20 +21,22 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
-from tests.helpers import load_face as _face
+from tests.helpers import with_resources, load_face as _face
 
 ROOT = Path(__file__).resolve().parent.parent
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#555555"
+build:
+  targets: [fenix847mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#555555"
 """
 
 
@@ -46,39 +48,23 @@ def _by_id(face, element_id):
 # `always_on` removed (D3)
 
 
-def test_always_on_in_modes_is_a_schema_error_pointing_at_aod(write_design, bag):
-    text = BASE + """
-elements:
-  - id: clock
-    type: text
-    text: "12:00"
-    color: palette.fg
-    modes: [active, always_on]
-"""
-    face = load(write_design(text), bag)
-    assert face is None
-    errors = [d for d in bag.errors if d.code == "schema"]
-    assert errors, bag.render()
-    assert "always_on" in errors[0].message
-    assert "aod:" in " ".join(errors[0].notes)
-
-
 def test_hands_modes_accepts_only_active(write_design, bag):
     """`always_on` is gone and `low_power` was already forbidden on hands --
     `active` is the only value left standing."""
-    text = BASE + """
-hands:
-  set:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+    text = with_resources(BASE, """
+resources:
+  hand_sets:
+    set:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
 elements:
-  - id: h
+  h:
     type: hands
-    hands: set
-    modes: [active, low_power]
-"""
+    set: set
+    sleep_update: true
+""")
     face = load(write_design(text), bag)
     assert face is None
     assert any(d.code == "hands" and "sleep_update" in d.message for d in bag.errors), bag.render()
@@ -90,10 +76,16 @@ elements:
 
 
 def test_jitter_is_rejected_by_the_schema(write_design, bag):
-    text = BASE.replace("palette:\n", "aod:\n  jitter: 4\npalette:\n") + "elements:\n" + """  - id: clock
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  jitter: 4
+resources:
+  palette:
+""") + "elements:\n" + """  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -108,15 +100,15 @@ def test_jitter_is_rejected_by_the_schema(write_design, bag):
 def test_pattern_font_override_is_a_friendly_error(write_design, bag):
     text = BASE + """
 elements:
-  - id: p
+  p:
     type: pattern
     pattern: linear
     count: 2
     step: {dx: 20px, dy: 0}
-    color: palette.fg
+    color: color.fg
     aod: {font: FONT_SMALL}
     parts:
-      - {shape: text, text: "x", font: FONT_MEDIUM}
+      - {type: text, text: "x", font: FONT_MEDIUM}
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -128,15 +120,15 @@ elements:
 def test_complication_slot_font_override_is_a_friendly_error(write_design, bag):
     text = BASE + """
 config:
-  data:
+  slots:
     top:
-      default: complication.heart_rate
-      choices: [complication.heart_rate]
+      default: heart_rate
+      choices: [heart_rate]
 elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
-    color: palette.fg
+  slot:
+    type: data
+    slot: top
+    color: color.fg
     aod: {font: FONT_SMALL}
 """
     face = load(write_design(text), bag)
@@ -150,19 +142,20 @@ def test_vector_face_font_override_is_a_friendly_error(write_design, bag):
     """An `aod: {font: ...}` naming a `face:` (vector) font -- rejected
     regardless of which kind of font the element itself draws with while
     awake."""
-    text = BASE + """
-fonts:
-  night_face:
-    face: [RobotoCondensedRegular]
-    size: 20%r
+    text = with_resources(BASE, """
+resources:
+  fonts:
+    night_face:
+      face: [RobotoCondensedRegular]
+      size: 20%r
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
     font: FONT_MEDIUM
-    color: palette.fg
+    color: color.fg
     aod: {font: font.night_face}
-"""
+""")
     face = load(write_design(text), bag)
     assert face is None
     hits = [d for d in bag.errors if d.code == "aod"]
@@ -176,14 +169,13 @@ def test_polygon_filled_override_is_a_friendly_error(write_design, bag):
     same way the awake `filled: false` already is, not silently ignored."""
     text = BASE + """
 elements:
-  - id: tri
-    type: shape
-    shape: polygon
+  tri:
+    type: polygon
     points:
       - {dx: 0px, dy: -10px}
       - {dx: 10px, dy: 10px}
       - {dx: -10px, dy: 10px}
-    color: palette.fg
+    color: color.fg
     aod: {filled: false}
 """
     face = load(write_design(text), bag)
@@ -197,52 +189,51 @@ elements:
 
 _GROUP_AOD_CHILDREN = {
     "slot": """
-      - id: slot
-        type: complication_slot
-        slot: config.data.top
-        color: palette.fg
+      slot:
+        type: data
+        slot: top
+        color: color.fg
 """,
     "tri": """
-      - id: tri
-        type: shape
-        shape: polygon
+      tri:
+        type: polygon
         points:
           - {dx: 0px, dy: -10px}
           - {dx: 10px, dy: 10px}
           - {dx: -10px, dy: 10px}
-        color: palette.fg
+        color: color.fg
 """,
     "label": """
-      - id: label
+      label:
         type: text
         text: "12:00"
-        color: palette.fg
+        color: color.fg
 """,
     "p": """
-      - id: p
+      p:
         type: pattern
         pattern: linear
         count: 2
         step: {dx: 20px, dy: 0}
-        color: palette.fg
+        color: color.fg
         parts:
-          - {shape: text, text: "x", font: FONT_MEDIUM}
+          - {type: text, text: "x", font: FONT_MEDIUM}
 """,
 }
 
 _GROUP_AOD_CONFIG = """
 config:
-  data:
+  slots:
     top:
-      default: complication.heart_rate
-      choices: [complication.heart_rate]
+      default: heart_rate
+      choices: [heart_rate]
 """
 
 
 def _group_aod_design(aod: str, children: list[str]) -> str:
     return BASE + _GROUP_AOD_CONFIG + f"""
 elements:
-  - id: g
+  g:
     type: group
     aod: {aod}
     children:""" + "".join(_GROUP_AOD_CHILDREN[c] for c in children)
@@ -251,7 +242,7 @@ elements:
 def test_group_inherited_unsupported_aod_keys_are_errors_on_each_element(write_design, bag):
     """The plan's scratch design: before plan 18 item 5 this validated "ok",
     every key silently dropped by codegen."""
-    text = _group_aod_design('{font: FONT_TINY, filled: false, format: "{:%H}"}',
+    text = _group_aod_design('{font: FONT_TINY, filled: false, text: "{:%H}"}',
                              ["slot", "tri", "label", "p"])
     assert load(write_design(text), bag) is None
     hits = [d for d in bag.errors if d.code in ("aod", "format")]
@@ -266,7 +257,7 @@ def test_group_inherited_unsupported_aod_keys_are_errors_on_each_element(write_d
     ("{font: FONT_TINY}", "slot", "data element"),
     ("{font: FONT_TINY}", "p", "pattern"),
     ("{filled: false}", "tri", "drawPolygon"),
-    ('{format: "{:%H}"}', "label", "this text is fixed"),
+    ('{text: "{:%H}"}', "label", "this text is fixed"),
 ])
 def test_each_group_inherited_refusal_on_its_own(write_design, bag, aod, child, needle):
     text = _group_aod_design(aod, [child])
@@ -282,20 +273,19 @@ def test_a_group_key_that_a_kind_supports_is_not_an_error(write_design, bag):
     element, and `filled:` over a circle, are real overrides."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
     aod: {font: FONT_TINY, filled: false}
     children:
-      - id: label
+      label:
         type: text
         text: "12:00"
-        color: palette.fg
-      - id: dot
-        type: shape
-        shape: circle
+        color: color.fg
+      dot:
+        type: circle
         radius: 10%r
         filled: true
-        color: palette.fg
+        color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -308,16 +298,15 @@ def test_an_elements_own_key_shadows_the_groups_unsupported_one(write_design, ba
     sets the key has already been judged on its own line, once."""
     text = BASE + _GROUP_AOD_CONFIG + """
 elements:
-  - id: g
+  g:
     type: group
-    aod: {format: "{:%H}"}
+    aod: {text: "{:%H}"}
     children:
-      - id: clock
+      clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
-        color: palette.fg
-        aod: {format: "{:%H.%M}"}
+        text: "{time.clock:%H:%M}"
+        color: color.fg
+        aod: {text: "{time.clock:%H.%M}"}
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -333,15 +322,15 @@ def test_element_own_aod_wins_key_by_key_over_its_ancestor(write_design, bag):
     ancestor group's."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
-    aod: {color: palette.dim}
+    aod: {color: color.dim}
     children:
-      - id: clock
+      clock:
         type: text
         text: "12:00"
-        color: palette.fg
-        aod: {color: palette.fg}
+        color: color.fg
+        aod: {color: color.fg}
 """
     face = _face(text, write_design, bag)
     clock = _by_id(face, "clock")
@@ -354,18 +343,18 @@ def test_key_by_key_merge_fills_missing_keys_from_the_ancestor(write_design, bag
     unset still falls back to its ancestor's own value for that key."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
-    aod: {color: palette.dim}
+    aod: {color: color.dim}
     children:
-      - id: bar
-        type: progress
+      bar:
+        type: gauge
         style: bar
         value: system.battery
         max: 100
-        when_absent: hide
+        absent: hide
         size: {width: 50%, height: 10%}
-        color: palette.fg
+        color: color.fg
         aod: {thickness: 2px}
 """
     face = _face(text, write_design, bag)
@@ -380,14 +369,14 @@ def test_nearest_ancestor_group_applies_when_the_element_says_nothing(write_desi
     ancestor group's `aod:` wholesale."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
     aod: show
     children:
-      - id: clock
+      clock:
         type: text
         text: "12:00"
-        color: palette.fg
+        color: color.fg
 """
     face = _face(text, write_design, bag)
     clock = _by_id(face, "clock")
@@ -397,20 +386,26 @@ elements:
 def test_face_default_fills_only_where_nothing_in_the_ancestry_spoke(write_design, bag):
     """Rule 3: the face default only ever fills silence -- an element or any
     ancestor speaking at all pre-empts it, in either direction."""
-    text = BASE.replace("palette:\n", "aod:\n  default: show\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """defaults:
+  aod: show
+resources:
+  palette:
+""") + """
 elements:
-  - id: quiet
+  quiet:
     type: text
     text: "quiet"
-    color: palette.fg
-  - id: g
+    color: color.fg
+  g:
     type: group
     aod: hide
     children:
-      - id: loud
+      loud:
         type: text
         text: "loud"
-        color: palette.fg
+        color: color.fg
 """
     face = _face(text, write_design, bag)
     # nothing in `quiet`'s ancestry (itself included) ever mentions `aod:` --
@@ -426,14 +421,14 @@ def test_group_hide_is_unconditional_and_cannot_be_undone_below(write_design, ba
     whole subtree even against a descendant's own explicit `aod: show`."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
     aod: hide
     children:
-      - id: clock
+      clock:
         type: text
         text: "12:00"
-        color: palette.fg
+        color: color.fg
         aod: show
 """
     face = _face(text, write_design, bag)
@@ -445,10 +440,10 @@ def test_visible_conjoins_with_the_elements_own_visible(write_design, bag):
     rather than replacing it."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     visible: "system.battery > 0"
     aod: {visible: "system.battery < 20"}
 """
@@ -465,10 +460,10 @@ elements:
 def test_visible_with_no_own_visible_is_just_the_aod_clause(write_design, bag):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: {visible: "system.battery < 20"}
 """
     face = _face(text, write_design, bag)
@@ -480,10 +475,10 @@ elements:
 def test_empty_override_block_means_show(write_design, bag):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: {}
 """
     face = _face(text, write_design, bag)
@@ -499,14 +494,14 @@ elements:
 def test_aod_unreachable_fires_when_an_ancestor_hides_explicitly(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
     aod: hide
     children:
-      - id: clock
+      clock:
         type: text
         text: "12:00"
-        color: palette.fg
+        color: color.fg
         aod: show
 """
     face = load(write_design(text), bag)
@@ -524,13 +519,13 @@ def test_aod_unreachable_is_silent_when_nothing_is_unreachable(write_design, bag
     ancestor's hide, must not warn."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
     children:
-      - id: clock
+      clock:
         type: text
         text: "12:00"
-        color: palette.fg
+        color: color.fg
         aod: show
 """
     face = load(write_design(text), bag)
@@ -544,10 +539,10 @@ elements:
 def test_aod_empty_fires_on_an_amoled_target_with_nothing_shown(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -562,10 +557,10 @@ elements:
 def test_aod_empty_is_silent_once_something_is_shown(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     face = load(write_design(text), bag)
@@ -578,12 +573,14 @@ elements:
 
 def test_aod_empty_is_silent_on_a_mip_target(write_design, bag, db):
     """D5/D1: nothing about `aod:` applies to a MIP device at all."""
-    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix8solar47mm]") + """
+    text = BASE.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix8solar47mm]""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -595,14 +592,20 @@ elements:
 
 def test_aod_empty_is_suppressible_on_the_face(write_design, bag, db):
     text = BASE.replace(
-        "palette:\n",
-        'aod:\n  lint: {allow: [aod-empty], reason: "deliberately no AOD yet"}\npalette:\n',
+        """resources:
+  palette:
+""",
+        '''aod:
+  lint: {allow: [aod-empty], reason: "deliberately no AOD yet"}
+resources:
+  palette:
+''',
     ) + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -617,14 +620,16 @@ elements:
 
 
 MIP_BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 
@@ -640,20 +645,26 @@ def _view_text(text, write_design, bag, db, device_id="fenix8solar47mm"):
 def test_an_all_mip_build_is_byte_identical_with_and_without_aod_keys(write_design, bag, db):
     without = MIP_BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     with_aod = MIP_BASE.replace(
-        "palette:\n", "aod:\n  default: hide\npalette:\n"
+        """resources:
+  palette:
+""", """defaults:
+  aod: hide
+resources:
+  palette:
+"""
     ) + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
-    aod: {color: palette.fg, visible: "system.battery < 20"}
+    color: color.fg
+    aod: {color: color.fg, visible: "system.battery < 20"}
 """
     bag_a, bag_b = Bag(), Bag()
     text_a = _view_text(without, write_design, bag_a, db)
@@ -667,13 +678,21 @@ def test_an_amoled_target_does_add_aod_plumbing(write_design, bag, db):
     """The other half of the same contrast: swap in an AMOLED device and the
     plumbing must actually appear, or the test above would be vacuous."""
     text = MIP_BASE.replace(
-        "targets: [fenix8solar47mm]", "targets: [fenix847mm]"
-    ).replace("palette:\n", "aod:\n  default: hide\npalette:\n") + """
+        """build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix847mm]"""
+    ).replace("""resources:
+  palette:
+""", """defaults:
+  aod: hide
+resources:
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -689,10 +708,10 @@ def test_an_all_mip_build_has_no_display_mode_code_either(write_design, bag, db)
     other `_aod_*` helper already is."""
     without = MIP_BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     view = _view_text(without, write_design, bag, db)
     assert "DISPLAY_MODE_OFF" not in view
@@ -715,10 +734,10 @@ def _view_text_multi(text, write_design, bag, db, device_ids):
 
 _ONE_CLOCK = """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
 
@@ -750,7 +769,9 @@ def test_display_mode_check_is_has_guarded_when_a_target_lacks_the_symbol(write_
     wrapped in `System has :getDisplayMode`, mirroring
     `Guards.burn_in_field_guarded`'s own shape. Would fail against an
     implementation that always emits the bare call."""
-    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix847mm, fenix8solar47mm]")
+    text = BASE.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix847mm, fenix8solar47mm]""")
     view = _view_text_multi(
         text + _ONE_CLOCK, write_design, bag, db, ["fenix847mm", "fenix8solar47mm"]
     )
@@ -766,7 +787,9 @@ def test_display_mode_check_is_unguarded_when_every_target_has_the_symbol(write_
     guard for a thing every target has" rule `fields`/`vector_fonts`/
     `burn_in_field_guarded` already follow. Would fail against an
     implementation that always wraps the call in a has-check."""
-    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix847mm, fenix947mm]")
+    text = BASE.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix847mm, fenix947mm]""")
     view = _view_text_multi(
         text + _ONE_CLOCK, write_design, bag, db, ["fenix847mm", "fenix947mm"]
     )
@@ -783,7 +806,9 @@ def test_display_mode_ladder_compiles_warning_free_on_a_mixed_build(
     devices, the plain form is never reached on them since `_aod` stays
     false there (D5)."""
     text = BASE.replace(
-        "targets: [fenix847mm]", "targets: [fenix847mm, fenix8solar47mm, fr955]"
+        """build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix847mm, fenix8solar47mm, fr955]"""
     ) + _ONE_CLOCK
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
@@ -811,15 +836,15 @@ def test_color_ternary_emitted_only_for_the_overridden_element(write_design, bag
     `aod:` at all must keep its plain, unrestyled `dc.setColor` line."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
-    aod: {color: palette.dim}
-  - id: plain
+    color: color.fg
+    aod: {color: color.dim}
+  plain:
     type: text
     text: "plain"
-    color: palette.fg
+    color: color.fg
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     assert "dc.setColor((_aod ? Palette.DIM : Palette.FG), Graphics.COLOR_TRANSPARENT);" in view
@@ -831,8 +856,8 @@ elements:
 def test_track_color_ternary_on_progress(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: bar
-    type: progress
+  bar:
+    type: gauge
     style: arc
     value: system.battery
     max: 100
@@ -840,9 +865,9 @@ elements:
     thickness: 4px
     start_angle: 0deg
     sweep: 300deg
-    color: palette.fg
-    track_color: palette.dim
-    aod: {track_color: palette.bg}
+    color: color.fg
+    track_color: color.dim
+    aod: {track_color: color.bg}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     assert "dc.setColor((_aod ? Palette.BG : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in view
@@ -851,18 +876,17 @@ elements:
 def test_icon_color_ternary_on_complication_slot(write_design, bag, db):
     text = BASE + """
 config:
-  data:
+  slots:
     top:
-      default: complication.heart_rate
-      choices: [complication.heart_rate]
+      default: heart_rate
+      choices: [heart_rate]
 elements:
-  - id: slot
-    type: complication_slot
-    slot: config.data.top
-    color: palette.fg
-    icon_size: 20px
-    icon_color: palette.dim
-    aod: {icon_color: palette.bg}
+  slot:
+    type: data
+    slot: top
+    color: color.fg
+    icon: {size: 20px, color: color.dim}
+    aod: {icon: {color: color.bg}}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     assert "_aod ? Palette.BG : Palette.DIM" in view
@@ -874,13 +898,12 @@ def test_thickness_ternary_on_shape_and_layout_constant(write_design, bag, db):
     that call site."""
     text = BASE + """
 elements:
-  - id: ring
-    type: shape
-    shape: line
+  ring:
+    type: line
     at: {dx: -20%, dy: 0}
     to: {dx: 20%, dy: 0}
     thickness: 4px
-    color: palette.fg
+    color: color.fg
     aod: {thickness: 1px}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -892,13 +915,13 @@ elements:
 def test_bar_width_ternary_on_graph(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: graph
     style: bars
     series: steps
     range: 7d
     size: {width: 50%, height: 10%}
-    color: palette.fg
+    color: color.fg
     bar_width: 6px
     min: 0
     max: auto
@@ -914,12 +937,11 @@ def test_filled_override_wraps_both_draw_calls(write_design, bag, db):
     `color`/`thickness` and ignores `filled`."""
     text = BASE + """
 elements:
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     radius: 10%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: {filled: false, thickness: 1px}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -932,12 +954,11 @@ elements:
 def test_format_ternary_on_text(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.fg
-    aod: {format: "{:%H.%M}"}
+    text: "{time.clock:%H:%M}"
+    color: color.fg
+    aod: {text: "{time.clock:%H.%M}"}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     body = view.split("function drawClock")[1].split("\n    }")[0]
@@ -953,12 +974,11 @@ def test_aod_format_with_its_own_extra_reader_declares_it(write_design, bag, db)
     `Undefined symbol ':settings'`."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.fg
-    aod: {format: "{:%h:%M}"}
+    text: "{time.clock:%H:%M}"
+    color: color.fg
+    aod: {text: "{time.clock:%h:%M}"}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     signature = view.split("function drawClock(")[1].split(")")[0]
@@ -978,19 +998,19 @@ def _barrel(text, write_design, bag, db, device_id="fenix847mm"):
 
 _CLOCK_WITH_AOD = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.fg
-    aod: {format: "{:%I:%M}"}
+    text: "{time.clock:%H:%M}"
+    color: color.fg
+    aod: {text: "{time.clock:%I:%M}"}
 """
 
 
 def test_wftime_is_copied_only_for_a_code_that_calls_it(write_design, bag, db):
     """Plan 18 item 9: `%H:%M` never calls `WfbTime`, so the barrel file is
     not copied for it (before, any time format pulled it in)."""
-    text = _CLOCK_WITH_AOD.replace('    aod: {format: "{:%I:%M}"}\n', "")
+    text = _CLOCK_WITH_AOD.replace('    aod: {text: "{time.clock:%I:%M}"}\n', "")
+    assert text != _CLOCK_WITH_AOD
     assert "WfbTime.mc" not in _barrel(text, write_design, bag, db)
 
 
@@ -1009,13 +1029,13 @@ def test_wfbarc_is_copied_only_for_an_arc_progress(write_design, bag, db, style,
                      "    start_angle: 0deg\n    sweep: 360deg")
     text = BASE + f"""
 elements:
-  - id: bar
-    type: progress
+  bar:
+    type: gauge
     style: {style}
     value: 5
     max: 10
     {geometry}
-    color: palette.fg
+    color: color.fg
 """
     assert ("WfbArc.mc" in _barrel(text, write_design, bag, db)) is wants_arc
 
@@ -1035,12 +1055,11 @@ def test_aod_format_with_its_own_extra_reader_compiles(write_design, db, tmp_pat
     exact design failed with `Undefined symbol ':settings'`."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.fg
-    aod: {format: "{:%h:%M}"}
+    text: "{time.clock:%H:%M}"
+    color: color.fg
+    aod: {text: "{time.clock:%h:%M}"}
 """
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
@@ -1059,12 +1078,11 @@ def test_own_aod_format_with_an_unknown_strftime_code_is_a_friendly_error(write_
     all)."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    color: palette.fg
-    aod: {format: "{:%Q}"}
+    text: "{time.clock:%H:%M}"
+    color: color.fg
+    aod: {text: "{time.clock:%Q}"}
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -1080,12 +1098,11 @@ def test_own_aod_format_with_the_wrong_code_table_is_a_friendly_error(write_desi
     override must be checked against `DATE_CODES`, not silently accepted."""
     text = BASE + """
 elements:
-  - id: today
+  today:
     type: text
-    value: date.today
-    format: "{:%a %e %b}"
-    color: palette.fg
-    aod: {format: "{:%M}"}
+    text: "{date.today:%a %e %b}"
+    color: color.fg
+    aod: {text: "{date.today:%M}"}
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -1101,15 +1118,14 @@ def test_ancestor_group_aod_format_is_checked_against_the_descendant_value(write
     value type too, not just an element's own override (`_resolve_aod`)."""
     text = BASE + """
 elements:
-  - id: g
+  g:
     type: group
-    aod: {format: "{:%Q}"}
+    aod: {text: "{:%Q}"}
     children:
-      - id: clock
+      clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
-        color: palette.fg
+        text: "{time.clock:%H:%M}"
+        color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -1121,12 +1137,11 @@ elements:
 def test_system_font_override_on_text(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
-    color: palette.fg
+    color: color.fg
     aod: {font: FONT_NUMBER_MILD}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -1138,11 +1153,10 @@ def test_elements_without_overrides_are_untouched(write_design, bag, db):
     did -- no `_aod` anywhere in its own method."""
     text = BASE + """
 elements:
-  - id: plain_shape
-    type: shape
-    shape: rectangle
+  plain_shape:
+    type: rectangle
     size: {width: 10%, height: 10%}
-    color: palette.fg
+    color: color.fg
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     body = view.split("function drawPlainShape")[1].split("\n    }")[0]
@@ -1154,13 +1168,12 @@ def test_static_element_bypasses_its_buffer_in_aod(write_design, bag, db):
     directly in the AOD branch -- must fail against an implementation that
     still excludes every static id from the AOD call list."""
     text = BASE + """
-elements:
-  - id: label
+static:
+  label:
     type: text
     text: "hi"
-    static: true
-    color: palette.fg
-    aod: {color: palette.dim}
+    color: color.fg
+    aod: {color: color.dim}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     on_update = view.split("function onUpdate")[1].split("\n    function ")[0]
@@ -1172,23 +1185,23 @@ def test_aod_only_baked_font_is_loaded_only_in_on_enter_sleep(write_design, bag,
     """plan 14 §4.3: a baked font named only by an `aod: {font: ...}`
     override is a second resource -- never loaded in onLayout, only inside
     onEnterSleep's own `if (_aod)`, and released again in onExitSleep."""
-    text = BASE + f"""
-fonts:
-  clock_font:
-    source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
-    size: 30%r
-  night_font:
-    source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
-    size: 24%r
+    text = with_resources(BASE, f"""
+resources:
+  fonts:
+    clock_font:
+      source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
+      size: 30%r
+    night_font:
+      source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
+      size: 24%r
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock_font
-    color: palette.fg
-    aod: {{color: palette.dim, font: font.night_font}}
-"""
+    color: color.fg
+    aod: {{color: color.dim, font: font.night_font}}
+""")
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     assert "_fontNightFont" in view
     on_layout = view.split("function onLayout")[1].split("\n    function ")[0]
@@ -1201,23 +1214,24 @@ elements:
 
 
 def test_hands_color_and_thickness_apply_uniformly_to_every_part(write_design, bag, db):
-    text = BASE + """
-hands:
-  set:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
-    minute:
-      color: palette.dim
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
+    text = with_resources(BASE, """
+resources:
+  hand_sets:
+    set:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+      minute:
+        color: color.dim
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
 elements:
-  - id: h
+  h:
     type: hands
-    hands: set
-    aod: {color: palette.bg, thickness: 1px}
-"""
+    set: set
+    aod: {color: color.bg, thickness: 1px}
+""")
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     body = view.split("function drawH(")[1].split("\n    }")[0]
     # every dc.setColor line in this method must be the same uniform ternary
@@ -1230,14 +1244,14 @@ elements:
 def test_pattern_color_and_thickness_apply_uniformly_to_every_part(write_design, bag, db):
     text = BASE + """
 elements:
-  - id: p
+  p:
     type: pattern
     pattern: radial
     count: 4
-    color: palette.fg
-    aod: {color: palette.dim, thickness: 1px}
+    color: color.fg
+    aod: {color: color.dim, thickness: 1px}
     parts:
-      - {shape: line, at: {dy: 0}, to: {dy: -20px}, thickness: 3px}
+      - {type: line, at: {dy: 0}, to: {dy: -20px}, thickness: 3px}
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     body = view.split("function drawP(")[1].split("\n    }")[0]
@@ -1254,19 +1268,26 @@ def test_aod_branch_clears_to_black_before_any_draw_call(write_design, bag, db):
     the *last awake frame* left lit -- every pixel that frame lit stays
     lit, exactly the burn-in AOD exists to prevent."""
     text = MIP_BASE.replace(
-        "targets: [fenix8solar47mm]", "targets: [fenix847mm]"
-    ).replace("palette:\n", "aod:\n  default: hide\npalette:\n") + """
+        """build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix847mm]"""
+    ).replace("""resources:
+  palette:
+""", """defaults:
+  aod: hide
+resources:
+  palette:
+""") + """
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.fg
-  - id: clock
+    color: color.fg
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -1305,13 +1326,12 @@ def test_preview_aod_renders_the_overridden_colour(write_design, bag, db):
 
     text = BASE + """
 elements:
-  - id: block
-    type: shape
-    shape: rectangle
+  block:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 40%}
-    color: palette.fg
-    aod: {color: palette.dim}
+    color: color.fg
+    aod: {color: color.dim}
 """
     resolved = _resolved(text, write_design, bag, db)
     cx, cy = resolved.device.width // 2, resolved.device.height // 2
@@ -1334,13 +1354,12 @@ def test_preview_aod_renders_the_overridden_thickness(write_design, bag, db):
 
     text = BASE + """
 elements:
-  - id: ring
-    type: shape
-    shape: line
+  ring:
+    type: line
     at: {dx: -40%, dy: 0}
     to: {dx: 40%, dy: 0}
     thickness: 10px
-    color: palette.fg
+    color: color.fg
     aod: {thickness: 2px}
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1367,13 +1386,12 @@ def test_preview_aod_renders_the_filled_override(write_design, bag, db):
 
     text = BASE + """
 elements:
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 30%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: {filled: false, thickness: 2px}
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1398,12 +1416,11 @@ def test_preview_aod_renders_the_overridden_system_font(write_design, bag, db):
 
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
-    color: palette.fg
+    color: color.fg
     aod: {font: FONT_NUMBER_MILD}
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1430,10 +1447,16 @@ def test_dim_0_is_a_schema_error(write_design, bag):
     """0 would dim every undimmed colour to black -- indistinguishable from
     `aod: hide` -- so the schema refuses it outright (`exclusiveMinimum: 0`),
     the same house style a bad `modes: [always_on]` already gets (D3)."""
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0\npalette:\n") + "elements:\n" + """  - id: clock
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0
+resources:
+  palette:
+""") + "elements:\n" + """  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(text), bag)
     assert face is None
@@ -1446,12 +1469,18 @@ def test_a_show_only_element_is_dimmed_to_its_exact_value(write_design, bag, db)
     ones -- a plain `aod: show`, with no override block at all, still gets a
     dimming ternary, against the exact per-channel value `wfb.palette.
     dim_channel` computes: 0x55 * 0.4, rounded, is 0x22 on every channel."""
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.4
+resources:
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.dim
+    color: color.dim
     aod: show
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -1463,17 +1492,23 @@ def test_an_explicit_override_colour_is_never_dimmed(write_design, bag, db):
     against an implementation that dims an override the same as anything
     else. A sibling with no override of its own is dimmed in the same
     build, so this cannot pass by `dim` silently doing nothing at all."""
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.4
+resources:
+  palette:
+""") + """
 elements:
-  - id: overridden
+  overridden:
     type: text
     text: "12:00"
-    color: palette.dim
-    aod: {color: palette.bg}
-  - id: plain
+    color: color.dim
+    aod: {color: color.bg}
+  plain:
     type: text
     text: "plain"
-    color: palette.dim
+    color: color.dim
     aod: show
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -1490,29 +1525,32 @@ def test_a_runtime_role_colour_is_dimmed_with_the_generated_helper(write_design,
     `WfbColor.dim` at runtime instead. Must fail against an implementation
     that only handles the compile-time-constant case."""
     text = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix847mm]
+build:
+  targets: [fenix847mm]
 aod:
   dim: 0.4
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-color_scheme:
-  dark:
-    colors: {fg: palette.white}
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+theme:
+  schemes:
+    dark:
+      colors: {fg: color.white}
 config:
   style:
     default: dark
     choices:
-      dark: {colors: dark}
+      dark: {scheme: dark}
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: config.colors.fg
+    color: color.fg
     aod: show
 """
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
@@ -1525,18 +1563,24 @@ def test_dim_absent_or_dim_1_is_byte_identical(write_design, bag, db):
     identity -- and neither may emit a single dimming ternary."""
     without = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
-    dim_one = BASE.replace("palette:\n", "aod:\n  dim: 1\npalette:\n") + """
+    dim_one = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 1
+resources:
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     bag_a, bag_b = Bag(), Bag()
@@ -1553,20 +1597,28 @@ def test_an_all_mip_build_stays_byte_identical_with_dim_set(write_design, bag, d
     established for `aod:` itself, now re-checked with `dim:` in the mix."""
     without = MIP_BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     with_dim = MIP_BASE.replace(
-        "palette:\n", "aod:\n  default: hide\n  dim: 0.4\npalette:\n"
+        """resources:
+  palette:
+""", """defaults:
+  aod: hide
+aod:
+  dim: 0.4
+resources:
+  palette:
+"""
     ) + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
-    aod: {color: palette.fg}
+    color: color.fg
+    aod: {color: color.fg}
 """
     bag_a, bag_b = Bag(), Bag()
     text_a = _view_text(without, write_design, bag_a, db)
@@ -1584,14 +1636,19 @@ def test_preview_and_codegen_dim_the_same_colour_identically(write_design, bag, 
     fails against that mismatch specifically."""
     from wfb.preview import PreviewOptions, render
 
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.5\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.5
+resources:
+  palette:
+""") + """
 elements:
-  - id: block
-    type: shape
-    shape: rectangle
+  block:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 40%}
-    color: palette.dim
+    color: color.dim
     aod: show
 """
     view = _view_text(text, write_design, Bag(), db, device_id="fenix847mm")
@@ -1614,12 +1671,18 @@ def test_no_palette_lint_fires_on_a_dimmed_constant(write_design, bag, db):
     would fail `Color.is_palette_legal` outright if this check ever looked
     at it -- must fail against an implementation that registers the dimmed
     constant as a new palette entry (or otherwise feeds it to the check)."""
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.4
+resources:
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1633,23 +1696,31 @@ def test_hands_colour_is_dimmed_per_part_with_no_override(write_design, bag, db)
     hand set has no `aod: {color: ...}` override to apply uniformly
     instead. Must fail against an implementation that only wires `dim`
     through the plain shape/text/progress/icon/graph call sites."""
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
-hands:
-  set:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
-    minute:
-      color: palette.dim
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  dim: 0.4
+resources:
+  palette:
+""")
+    text = with_resources(text, """
+resources:
+  hand_sets:
+    set:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+      minute:
+        color: color.dim
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
 elements:
-  - id: h
+  h:
     type: hands
-    hands: set
+    set: set
     aod: show
-"""
+""")
     view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
     body = view.split("function drawH(")[1].split("\n    }")[0]
     assert "(_aod ? 0x666666 : Palette.FG)" in body  # hour: palette.fg dimmed
@@ -1672,29 +1743,32 @@ def test_a_runtime_dimmed_colour_compiles_warning_free(write_design, db, tmp_pat
     stays as the check that a future gap of the same *shape* -- Python
     codegen green, `monkeyc` red -- gets caught)."""
     text = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: RuntimeDim
-targets: [fenix847mm]
+build:
+  targets: [fenix847mm]
 aod:
   dim: 0.5
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-color_scheme:
-  dark:
-    colors: {fg: palette.white}
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+theme:
+  schemes:
+    dark:
+      colors: {fg: color.white}
 config:
   style:
     default: dark
     choices:
-      dark: {colors: dark}
+      dark: {scheme: dark}
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: config.colors.fg
+    color: color.fg
     aod: show
 """
     bag = Bag()
@@ -1716,13 +1790,12 @@ elements:
 #: wires up one of the two bases.
 _BIG_DISC = BASE + """
 elements:
-  - id: disc
-    type: shape
-    shape: circle
+  disc:
+    type: circle
     at: {anchor: center}
     radius: 90%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: show
 """
 
@@ -1744,14 +1817,13 @@ def test_aod_burn_in_passes_under_the_threshold(write_design, bag, db):
     same way `graphics-pool`'s own note-on-every-build guard would."""
     text = BASE + """
 elements:
-  - id: ring
-    type: shape
-    shape: circle
+  ring:
+    type: circle
     at: {anchor: center}
     radius: 90%r
     filled: false
     thickness: 1px
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1775,23 +1847,27 @@ def test_aod_burn_in_names_the_right_top_contributor(write_design, bag, db):
     `error` this test checks for into a `note` (masking's own severity
     interaction has its own coverage in `tests/test_aod_mask_preview.py`).
     """
-    text = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+""") + """
 elements:
-  - id: tiny
-    type: shape
-    shape: circle
+  tiny:
+    type: circle
     at: {anchor: center, dy: -40%}
     radius: 5%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: show
-  - id: huge
-    type: shape
-    shape: circle
+  huge:
+    type: circle
     at: {anchor: center}
     radius: 60%r
     filled: true
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     resolved = _resolved(text, write_design, bag, db)
@@ -1820,7 +1896,9 @@ def test_aod_burn_in_is_silent_on_a_mip_target(write_design, bag, db):
     render -- checked with a design that would fail outright on an AMOLED
     target, so a check that forgot the device guard cannot pass by
     accident."""
-    text = _BIG_DISC.replace("targets: [fenix847mm]", "targets: [fenix8solar47mm]")
+    text = _BIG_DISC.replace("""build:
+  targets: [fenix847mm]""", """build:
+  targets: [fenix8solar47mm]""")
     resolved = _resolved(text, write_design, bag, db, device_id="fenix8solar47mm")
     lint.check_aod_burn_in(resolved, bag)
     assert "aod-burn-in" not in {d.code for d in bag.items}
@@ -1832,10 +1910,10 @@ def test_aod_burn_in_is_silent_when_nothing_draws_in_aod(write_design, bag, db):
     double up."""
     text = BASE + """
 elements:
-  - id: clock
+  clock:
     type: text
     text: "12:00"
-    color: palette.fg
+    color: color.fg
 """
     resolved = _resolved(text, write_design, bag, db)
     lint.check_aod_burn_in(resolved, bag)
@@ -1872,21 +1950,25 @@ def test_heatmap_counts_each_minute_separately(write_design, bag, db):
     `tests/test_aod_mask_preview.py`."""
     from wfb.preview import PreviewOptions, render_aod_heatmap
 
-    text = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + """
+    text = BASE.replace("""resources:
+  palette:
+""", """aod:
+  mask: false
+resources:
+  palette:
+""") + """
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     aod: show
-  - id: block
-    type: shape
-    shape: rectangle
+  block:
+    type: rectangle
     at: {anchor: center, dy: 30%}
     size: {width: 20, height: 20}
-    color: palette.fg
+    color: color.fg
     aod: show
 """
     resolved = _resolved(text, write_design, bag, db)

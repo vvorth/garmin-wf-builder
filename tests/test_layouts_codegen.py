@@ -10,7 +10,7 @@ guarded `onUpdate`/`onPartialUpdate`/`renderStatic` call sequences, and the
 delegate's guarded hold hit test through the view's `configLayout()`
 accessor.  Each assertion is driven from the design's own known shape
 (three entries over two layouts, `big_clock`'s `on_hold:`, `compact_clock`'s
-`modes: [active, low_power]`), not a guess at what the emitter *should* do.
+`sleep_update: true`), not a guess at what the emitter *should* do.
 """
 
 from __future__ import annotations

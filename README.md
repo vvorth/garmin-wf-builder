@@ -19,8 +19,8 @@ styles the wearer switches between on the watch.*
   Garmin's own device files, not hardcoded. The examples are tested on the
   fēnix 8 Solar and the Forerunner 955.
 - **Distribution:** personal sideloading over USB, not the Connect IQ Store.
-- **Status:** early (`wfb` 0.1.0, `format: 1`). It works end to end and is
-  still changing. See [what isn't built yet](docs/limitations.md#2-not-implemented-yet).
+- **Status:** early (`wfb` 0.1.0, `format: 2`; a format 1 face moves over
+  with `wfb migrate`). It works end to end and is still changing. See [what isn't built yet](docs/limitations.md#2-not-implemented-yet).
 
 ## Quick start
 
@@ -35,21 +35,21 @@ wfb build my-face.yaml            # one signed .prg per watch
 A complete face (a clock) is under 20 lines:
 
 ```yaml
-format: 1
+format: 2
 face: { id: 6f1c2b7e-3d4a-4e5f-9a1b-2c3d4e5f6a7b, name: Minimal Clock, version: 1.0.0 }
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  fg: "#FFFFFF"                    # MIP screens: each channel 00, 55, AA or FF
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    fg: "#FFFFFF"                    # MIP screens: each channel 00, 55, AA or FF
 elements:
   clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_HOT
     at: { anchor: center }
     align: center
-    vertical_align: center
-    color: palette.fg
+    color: color.fg
 ```
 
 [**Getting started**](docs/guide/getting-started.md) covers setup, the
@@ -62,7 +62,7 @@ device files you need, and how to copy the face onto your watch.
 | <img src="docs/screenshots/analog-custom.png" width="340" alt="custom analog dial"><br>**Analog dials.** Hands built from polygons, lines and circles, plus a second hand that hides while the watch sleeps. → [Analog hands](docs/guide/analog-hands.md) | <img src="docs/screenshots/patterns.png" width="340" alt="pattern repeats"><br>**Ticks, numerals and repeats.** One template repeated around a dial or along a line: 60 ticks or 12 numerals as a single element. → [Patterns](docs/guide/patterns.md) |
 | <img src="docs/screenshots/styles.png" width="340" alt="three styles"><br>**Styles the wearer picks.** Layouts and colour schemes combined into named styles, chosen in the watch's own face editor. → [Styles and layouts](docs/guide/styles-and-layouts.md) | <img src="docs/screenshots/showcase-config.png" width="340" alt="config variants"><br>**On-device settings.** Accent and data colours, and data slots the wearer points at any Garmin metric. → [Configuration](docs/guide/configuration.md) |
 | <img src="docs/screenshots/showcase-clock.png" width="340" alt="two-tone clock"><br>**Your own fonts.** A TTF is converted to a bitmap font at build time, sized relative to each screen, with an option to make digits monospaced so the clock doesn't jitter. → [Fonts](docs/guide/fonts.md) | <img src="docs/screenshots/vector-text.png" width="340" alt="rotated and radial text"><br>**Rotated and curved text.** Text that follows the bezel, using the fonts built into newer watches. → [Text](docs/guide/text.md) |
-| <img src="docs/screenshots/showcase-registers.png" width="340" alt="complication slots and graph"><br>**Live data and history graphs.** Steps, heart rate, weather, battery, Garmin complications, and line, area or bar graphs. → [Data](docs/guide/data.md), [Graphs](docs/guide/progress-and-graphs.md) | <img src="docs/screenshots/showcase-clusters.png" width="340" alt="icon clusters and progress bar"><br>**Icons, groups and progress.** About 10,000 Nerd Fonts glyphs, groups that move together, and progress bars and arcs. → [Icons](docs/guide/icons.md), [Elements](docs/guide/elements.md) |
+| <img src="docs/screenshots/showcase-registers.png" width="340" alt="complication slots and graph"><br>**Live data and history graphs.** Steps, heart rate, weather, battery, Garmin complications, and line, area or bar graphs. → [Data](docs/guide/data.md), [Graphs](docs/guide/progress-and-graphs.md) | <img src="docs/screenshots/showcase-clusters.png" width="340" alt="icon clusters and progress bar"><br>**Icons, groups and gauges.** About 10,000 Nerd Fonts glyphs, groups that move together, and gauge bars and arcs. → [Icons](docs/guide/icons.md), [Elements](docs/guide/elements.md) |
 | <img src="docs/screenshots/align.png" width="340" alt="alignment"><br>**Placement that scales.** Anchors, polar coordinates and screen-relative units, so one design fits every screen size. → [Placement](docs/guide/placement.md) | <img src="docs/screenshots/showcase-asleep.png" width="340" alt="asleep mode"><br>**Sleep mode and touch and hold.** Choose what redraws while the watch sleeps, and what a touch and hold opens. → [Modes and interaction](docs/guide/modes-and-interaction.md) |
 
 Every build is also **checked against each watch**: text that won't fit,

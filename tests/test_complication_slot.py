@@ -1,4 +1,4 @@
-"""`config: data:` and `type: complication_slot` -- the native editor's Data
+"""`config: data:` and `type: data` -- the native editor's Data
 axis (docs/research/09-data-library-and-config-axes.md §4).
 
 Every check below is driven red against the exact violating input before it
@@ -17,50 +17,50 @@ from tests.helpers import (
     lint_text as _lint, load_errors as _errors, load_face as _face, resolve_text as _resolved,
 )
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 6b2f9a3e-5c1d-4e8a-9f7b-3a1d6c8e2f40
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: Two slots -- one an explicit list with an icon, one `any` with none --
 #: exercising both shapes the feature has.
 DATA_BLOCK = """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - complication.heart_rate
-        - complication.calories
+        - steps
+        - heart_rate
+        - calories
     bottom:
-      default: complication.body_battery
+      default: body_battery
       choices: any
 """
 
 BODY = """elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: {anchor: center, dy: -20%}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {size: 8%r}
+    color: color.fg
     label: short
     unit: true
-    when_absent: placeholder
-    placeholder: "--"
-  - id: bottom_reading
-    type: complication_slot
-    slot: config.data.bottom
+    absent: "--"
+  bottom_reading:
+    type: data
+    slot: bottom
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
     short: true
-    when_absent: placeholder
-    placeholder: "--"
+    absent: "--"
 """
 
 DESIGN = HEAD + DATA_BLOCK + BODY
@@ -113,10 +113,10 @@ def test_element_slot_resolves_to_the_bare_name(write_design, bag):
 
 def test_unknown_complication_type_in_default_is_an_error(write_design):
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.step
-      choices: [complication.step]
+      default: step
+      choices: [step]
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
@@ -127,10 +127,10 @@ def test_unknown_complication_type_in_default_is_an_error(write_design):
 
 def test_unknown_complication_type_in_choices_is_an_error(write_design):
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.steps
-      choices: [complication.steps, complication.bogus]
+      default: steps
+      choices: [steps, bogus]
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
@@ -139,10 +139,10 @@ def test_unknown_complication_type_in_choices_is_an_error(write_design):
 
 def test_default_not_among_explicit_choices_is_an_error(write_design):
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.heart_rate
-      choices: [complication.steps, complication.calories]
+      default: heart_rate
+      choices: [steps, calories]
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
@@ -157,25 +157,23 @@ def test_a_rejected_slot_does_not_cascade(write_design):
     error rather than one more per referencing element (the same cascade fix
     `fonts:`/`config:`/`palette:`/`color_scheme:` all needed)."""
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.bogus_type
-      choices: [complication.bogus_type]
+      default: bogus_type
+      choices: [bogus_type]
 elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center, dy: -20%}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
-  - id: b
-    type: complication_slot
-    slot: config.data.top
+    color: color.fg
+    absent: "--"
+  b:
+    type: data
+    slot: top
     at: {anchor: center, dy: 20%}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 """
     errors = _errors(text, write_design)
     assert len(errors) == 1, errors
@@ -187,16 +185,16 @@ elements:
 
 
 PER_CHOICE_DATA_BLOCK = """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - {type: complication.heart_rate, icon: flame}
-        - {type: complication.calories, icon: none}
-        - {type: complication.body_battery, glyph: "U+F0004"}
+        - steps
+        - {type: heart_rate, icon: flame}
+        - {type: calories, icon: none}
+        - {type: body_battery, icon: "U+F0004"}
     bottom:
-      default: complication.body_battery
+      default: body_battery
       choices: any
 """
 
@@ -228,29 +226,14 @@ def test_per_choice_glyph_override_uses_the_canonical_codepoint_spelling(write_d
     assert resolved.codepoint == "\U000f0004"
 
 
-def test_per_choice_icon_and_glyph_together_is_an_error(write_design):
-    text = HEAD + """config:
-  data:
-    top:
-      default: complication.steps
-      choices:
-        - complication.steps
-        - {type: complication.heart_rate, icon: flame, glyph: "U+F1340"}
-""" + BODY
-    errors = _errors(text, write_design)
-    hits = [d for d in errors if d.code == "config"]
-    assert hits, errors
-    assert "mutually exclusive" in hits[0].message
-
-
 def test_per_choice_unknown_icon_name_is_an_error_with_suggestions(write_design):
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - {type: complication.heart_rate, icon: hart}
+        - steps
+        - {type: heart_rate, icon: hart}
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "icon"]
@@ -261,12 +244,12 @@ def test_per_choice_unknown_icon_name_is_an_error_with_suggestions(write_design)
 
 def test_per_choice_glyph_not_in_the_font_is_an_error(write_design):
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - {type: complication.heart_rate, glyph: "U+FFFF"}
+        - steps
+        - {type: heart_rate, icon: "U+FFFF"}
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "icon"]
@@ -278,12 +261,12 @@ def test_a_type_listed_twice_across_shapes_is_an_error(write_design):
     """The schema's own 'uniqueItems' cannot see through a bare reference and
     a mapping-form entry naming the same type -- this is an IR check."""
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - {type: complication.steps, icon: flame}
+        - steps
+        - {type: steps, icon: flame}
 """ + BODY
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "config"]
@@ -296,23 +279,23 @@ def test_a_rejected_choice_icon_does_not_cascade(write_design):
     """The same 'one error, not N' discipline as
     `test_a_rejected_slot_does_not_cascade`, for a bad per-choice icon."""
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.steps
+      default: steps
       choices:
-        - complication.steps
-        - {type: complication.heart_rate, icon: not-a-real-icon}
+        - steps
+        - {type: heart_rate, icon: not-a-real-icon}
 elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center, dy: -20%}
-    color: palette.fg
-  - id: b
-    type: complication_slot
-    slot: config.data.top
+    color: color.fg
+  b:
+    type: data
+    slot: top
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert len(errors) == 1, errors
@@ -324,11 +307,11 @@ elements:
 
 def test_unknown_slot_reference_is_an_error(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.bogus
+  a:
+    type: data
+    slot: bogus
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
@@ -345,12 +328,12 @@ def test_icon_size_is_now_allowed_with_choices_any(write_design, bag):
     unbounded. Lifted once every native type had a catalogue icon -- 'any'
     now resolves against the whole of 'wfb.icons.COMPLICATION_ICON'."""
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.bottom
+  a:
+    type: data
+    slot: bottom
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {size: 8%r}
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     element = next(e for e in face.walk() if e.id == "a")
@@ -362,11 +345,11 @@ def test_icon_size_is_now_allowed_with_choices_any(write_design, bag):
 
 def test_format_is_rejected_with_a_reason(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     format: "{:d}"
 """
     errors = _errors(text, write_design)
@@ -380,11 +363,11 @@ def test_on_hold_explicit_target_is_rejected(write_design):
     """A fixed hold target on a slot would silently disagree with whatever
     the wearer actually has it pointed at -- only 'auto' is accepted."""
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: steps
 """
     errors = _errors(text, write_design)
@@ -403,11 +386,11 @@ def test_on_hold_auto_is_accepted(write_design, bag):
     from wfb.ir import HOLD_AUTO
 
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: auto
 """
     face = _face(text, write_design, bag)
@@ -425,11 +408,11 @@ def test_on_hold_absent_is_fine(write_design, bag):
 
 def test_static_is_rejected(write_design):
     text = HEAD + DATA_BLOCK + """static:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "static"]
@@ -439,9 +422,9 @@ def test_static_is_rejected(write_design):
 
 def test_missing_color_is_an_error(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
 """
     errors = _errors(text, write_design)
@@ -452,11 +435,11 @@ def test_nullable_color_is_an_error(write_design):
     """There is no `when_absent:` for the element's own appearance -- only
     for the pulled reading."""
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: "heart_rate.current > 100 ? palette.fg : palette.fg"
+    color: "heart_rate.current > 100 ? color.fg : color.fg"
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
@@ -464,70 +447,51 @@ def test_nullable_color_is_an_error(write_design):
     assert any("guard it in the expression" in n for n in hits[0].notes), hits[0].notes
 
 
-def test_when_absent_placeholder_needs_a_placeholder(write_design):
-    text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
-    at: {anchor: center}
-    color: palette.fg
-    when_absent: placeholder
-"""
-    errors = _errors(text, write_design)
-    assert any("needs a 'placeholder:'" in d.message for d in errors), errors
-
-
 # -- icon_position:/icon_gap:/icon_color: (plan 03 §6.1/§6.3) -----------------
 
 
 def test_icon_position_and_gap_and_color_resolve(write_design, bag):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_position: right
-    icon_gap: 2px
-    icon_color: palette.bg
-    color: palette.fg
+    icon: {size: 8%r, position: right, gap: 2px, color: color.bg}
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     element = next(e for e in face.walk() if e.id == "a")
     assert element.icon_position == "right"
     assert element.icon_gap is not None and element.icon_gap.value == 2
-    assert element.icon_color is not None and element.icon_color.text == "palette.bg"
+    assert element.icon_color is not None and element.icon_color.shown == "color.bg"
 
 
 @pytest.mark.parametrize("key,value", [
-    ("icon_position", "top"),
-    ("icon_gap", "2px"),
-    ("icon_color", "palette.bg"),
+    ("position", "top"),
+    ("gap", "2px"),
+    ("color", "color.bg"),
 ])
 def test_icon_position_gap_color_need_icon_size(write_design, key, value):
     text = HEAD + DATA_BLOCK + f"""elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {{anchor: center}}
-    color: palette.fg
-    {key}: {value}
+    color: color.fg
+    icon: {{{key}: {value}}}
 """
     errors = _errors(text, write_design)
-    hits = [d for d in errors if d.code == "complication-slot"]
-    assert hits, errors
-    assert f"'icon: {{{key[len('icon_'):]}:}}' needs 'icon: {{size:}}'" in hits[0].message
+    assert [d.message for d in errors] == ["elements.a.icon: missing required key 'size'"]
 
 
 def test_icon_gap_percent_unit_is_rejected(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_gap: 5%
-    color: palette.fg
+    icon: {size: 8%r, gap: 5%}
+    color: color.fg
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
@@ -537,13 +501,12 @@ def test_icon_gap_percent_unit_is_rejected(write_design):
 
 def test_icon_gap_negative_is_rejected(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_gap: -2px
-    color: palette.fg
+    icon: {size: 8%r, gap: -2px}
+    color: color.fg
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
@@ -553,13 +516,12 @@ def test_icon_gap_negative_is_rejected(write_design):
 
 def test_icon_color_nullable_is_an_error(write_design):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_color: "heart_rate.current > 100 ? palette.fg : palette.fg"
-    color: palette.fg
+    icon: {size: 8%r, color: "heart_rate.current > 100 ? color.fg : color.fg"}
+    color: color.fg
 """
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
@@ -569,12 +531,12 @@ def test_icon_color_nullable_is_an_error(write_design):
 
 def test_icon_color_defaults_to_color_when_unauthored(write_design, bag):
     text = HEAD + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {size: 8%r}
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     element = next(e for e in face.walk() if e.id == "a")
@@ -585,13 +547,12 @@ def test_a_dithered_icon_color_is_caught_by_the_palette_lint(write_design, db):
     """`icon_color:` must be one of the fields `check_palette`'s `_users_of`
     walks -- proven by actually dithering it, not just reading the code."""
     text = HEAD.replace('fg: "#FFFFFF"', 'fg: "#123456"') + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_color: palette.fg
-    color: palette.bg
+    icon: {size: 8%r, color: color.fg}
+    color: color.bg
 """
     bag = _lint(text, write_design, db)
     hits = [d for d in bag.items if d.code == "palette-dither"]
@@ -600,13 +561,12 @@ def test_a_dithered_icon_color_is_caught_by_the_palette_lint(write_design, db):
 
 def test_a_dithered_icon_color_can_be_suppressed_on_its_own_element(write_design, db):
     text = HEAD.replace('fg: "#FFFFFF"', 'fg: "#123456"') + DATA_BLOCK + """elements:
-  - id: a
-    type: complication_slot
-    slot: config.data.top
+  a:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    icon_color: palette.fg
-    color: palette.bg
+    icon: {size: 8%r, color: color.fg}
+    color: color.bg
     lint:
       allow: [palette-dither]
       reason: "probing"
@@ -627,7 +587,7 @@ def test_config_unsupported_names_the_data_axis_on_fenix5(write_design, db):
     bag = _lint(DESIGN, write_design, db, device_id="fenix5")
     hits = [d for d in bag.items if d.code == "config-unsupported"]
     assert hits, bag.render()
-    assert "config.data.top" in hits[0].message and "config.data.bottom" in hits[0].message
+    assert "slot 'top'" in hits[0].message and "slot 'bottom'" in hits[0].message
 
 
 def test_config_unsupported_is_silenced_by_lint_allow_on_any_relevant_element(write_design, db):
@@ -637,9 +597,13 @@ def test_config_unsupported_is_silenced_by_lint_allow_on_any_relevant_element(wr
     device, the same pre-existing shape `test_config.py`'s own colour-axis
     version of this check already has. Not a per-slot suppression."""
     text = DESIGN.replace(
-        "    color: palette.fg\n    label: short",
-        "    color: palette.fg\n    lint:\n      allow: [config-unsupported]\n"
-        "      reason: test\n    label: short",
+        """    color: color.fg
+    label: short""",
+        """    color: color.fg
+    lint:
+      allow: [config-unsupported]
+      reason: test
+    label: short""",
     )
     bag = _lint(text, write_design, db, device_id="fr955")
     hits = [d for d in bag.items if d.code == "config-unsupported"]
@@ -655,18 +619,17 @@ def test_complication_gated_fires_for_a_slots_default_on_fr955(write_design, db)
     already rely on, reused here for a slot's own `default:`."""
     assert complications.TYPES["sleep_score"].since == "6.0.2"
     text = HEAD + """config:
-  data:
+  slots:
     top:
-      default: complication.sleep_score
-      choices: [complication.sleep_score, complication.steps]
+      default: sleep_score
+      choices: [sleep_score, steps]
 elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: {anchor: center}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 """
     bag = _lint(text, write_design, db, device_id="fr955")
     hits = [d for d in bag.items if d.code == "api-gated"]
@@ -679,18 +642,17 @@ def test_complication_gated_does_not_check_choices_any(write_design, db):
     """`choices: any` has no list to check -- only `default:` is (the same
     `choices: any` carve-out `check_config_palette` already makes)."""
     text = HEAD + """config:
-  data:
+  slots:
     bottom:
-      default: complication.body_battery
+      default: body_battery
       choices: any
 """ + """elements:
-  - id: bottom_reading
-    type: complication_slot
-    slot: config.data.bottom
+  bottom_reading:
+    type: data
+    slot: bottom
     at: {anchor: center}
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    color: color.fg
+    absent: "--"
 """
     bag = _lint(text, write_design, db, device_id="fr955")
     hits = [d for d in bag.items if d.code == "api-gated"]
@@ -934,17 +896,17 @@ def test_complication_slot_hold_method_symbol_is_reserved_against_collision(writ
     # method if the two id spellings ever stopped folding together first.
     assert complication_slot_hold_method("top_reading") == complication_slot_hold_method("topReading")
     text = HEAD + DATA_BLOCK + """elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: {anchor: center, dy: -20%}
-    color: palette.fg
+    color: color.fg
     on_hold: auto
-  - id: topReading
-    type: complication_slot
-    slot: config.data.bottom
+  topReading:
+    type: data
+    slot: bottom
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
     on_hold: auto
 """
     errors = _errors(text, write_design)
@@ -979,12 +941,12 @@ def test_choices_any_icon_switch_covers_every_native_type(write_design, bag, db)
     from wfb.layout import resolve
 
     text = HEAD + DATA_BLOCK + """elements:
-  - id: bottom_reading
-    type: complication_slot
-    slot: config.data.bottom
+  bottom_reading:
+    type: data
+    slot: bottom
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {size: 8%r}
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
@@ -1038,7 +1000,9 @@ def test_each_new_icon_position_gets_its_own_generated_branch(
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    text = DESIGN.replace("    icon_size: 8%r\n", f"    icon_size: 8%r\n    icon_position: {position}\n")
+    text = DESIGN.replace("    icon: {size: 8%r}\n",
+                          f"    icon: {{size: 8%r, position: {position}}}\n")
+    assert text != DESIGN
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
@@ -1051,7 +1015,8 @@ def test_authored_gap_becomes_a_per_device_layout_constant(write_design, bag, db
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    text = DESIGN.replace("    icon_size: 8%r\n", "    icon_size: 8%r\n    icon_gap: 2%r\n")
+    text = DESIGN.replace("    icon: {size: 8%r}\n", "    icon: {size: 8%r, gap: 2%r}\n")
+    assert text != DESIGN
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
@@ -1066,10 +1031,8 @@ def test_icon_color_draws_the_icon_in_its_own_colour(write_design, bag, db):
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    text = DESIGN.replace(
-        "    icon_size: 8%r\n",
-        "    icon_size: 8%r\n    icon_color: palette.bg\n",
-    )
+    text = DESIGN.replace("    icon: {size: 8%r}\n", "    icon: {size: 8%r, color: color.bg}\n")
+    assert text != DESIGN
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
@@ -1123,11 +1086,11 @@ def test_no_config_data_means_no_complications_permission(write_design, bag, db)
     from wfb.emit import manifest
 
     text = HEAD + """elements:
-  - id: a
+  a:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     devices = [db.get(d) for d in face.targets]
@@ -1237,11 +1200,11 @@ def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, 
     from wfb.layout import resolve
 
     text = HEAD + """elements:
-  - id: a
+  a:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: steps
 """
     face = _face(text, write_design, bag)
@@ -1286,13 +1249,21 @@ def test_a_data_axis_design_compiles_warning_free_on_every_target(
         "    lint:\n      allow: [config-unsupported]\n      reason: test\n"
         "    label: short",
     ).replace(
-        "  - id: bottom_reading\n    type: complication_slot\n"
-        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
-        "    color: palette.fg\n",
-        "  - id: bottom_reading\n    type: complication_slot\n"
-        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
-        "    color: palette.fg\n"
-        "    lint:\n      allow: [config-unsupported]\n      reason: test\n",
+        """  bottom_reading:
+    type: data
+    slot: bottom
+    at: {anchor: center, dy: 20%}
+    color: color.fg
+""",
+        """  bottom_reading:
+    type: data
+    slot: bottom
+    at: {anchor: center, dy: 20%}
+    color: color.fg
+    lint:
+      allow: [config-unsupported]
+      reason: test
+""",
     )
     design = write_design(text)
     bag = Bag()
@@ -1327,19 +1298,18 @@ def test_only_config_data_no_colour_axes_compiles_warning_free_with_manifest(
     from wfb.build import build as run_build
 
     text = HEAD + """config:
-  data:
+  slots:
     reading:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate]
+      default: steps
+      choices: [steps, heart_rate]
 elements:
-  - id: reading
-    type: complication_slot
-    slot: config.data.reading
+  reading:
+    type: data
+    slot: reading
     at: {anchor: center}
-    icon_size: 10%r
-    color: palette.fg
-    when_absent: placeholder
-    placeholder: "--"
+    icon: {size: 10%r}
+    color: color.fg
+    absent: "--"
     lint:
       allow: [config-unsupported]
       reason: test
@@ -1380,13 +1350,21 @@ def test_slot_with_on_hold_auto_compiles_warning_free_on_every_target(
         "    on_hold: auto\n"
         "    label: short",
     ).replace(
-        "  - id: bottom_reading\n    type: complication_slot\n"
-        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
-        "    color: palette.fg\n",
-        "  - id: bottom_reading\n    type: complication_slot\n"
-        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
-        "    color: palette.fg\n"
-        "    lint:\n      allow: [config-unsupported]\n      reason: test\n",
+        """  bottom_reading:
+    type: data
+    slot: bottom
+    at: {anchor: center, dy: 20%}
+    color: color.fg
+""",
+        """  bottom_reading:
+    type: data
+    slot: bottom
+    at: {anchor: center, dy: 20%}
+    color: color.fg
+    lint:
+      allow: [config-unsupported]
+      reason: test
+""",
     )
     design = write_design(text)
     bag = Bag()
@@ -1452,12 +1430,11 @@ def test_a_design_with_no_slots_at_all_still_builds_warning_free(
     from wfb.build import build as run_build
 
     text = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: current_weather
 """
     design = write_design(text)

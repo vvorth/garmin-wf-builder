@@ -20,27 +20,27 @@ from wfb.preview import PreviewOptions, render
 FG = (255, 255, 255)
 RING = (255, 0, 0)
 
-_HEADER = """\
-format: 1
+_HEADER = """format: 2
 face:
   id: 8f14e45f-ceea-467e-9c0c-89f7c6a9309c
   name: OutlinePreviewTest
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  ring: "#FF0000"
-fonts:
-  clock:
-    source: {source}
-    size: 80px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    clock:
+      source: {source}
+      size: 80px
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    ring: "#FF0000"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {body}
 """
 
@@ -68,13 +68,12 @@ def _count_color(image, color: tuple[int, int, int], region: tuple[int, int, int
 
 
 _ELEMENT = """\
-  - id: clock
+  clock:
     type: text
     text: "12:34"
     font: font.clock
     at: {{anchor: center}}
     align: center
-    vertical_align: center
 {extra}"""
 
 # `None` -- the whole rendered frame -- rather than a fixed box: "12:34" at
@@ -93,7 +92,8 @@ def test_solid_fill_alone_lights_the_glyph(write_design, db, bag, repo_root):
     """Baseline: plain `color:`, no `outline:` -- some white pixels, no red
     ones (there is no ring colour anywhere in this render)."""
     image = _render(write_design, db, bag, repo_root,
-                    _ELEMENT.format(extra="    color: palette.fg\n"))
+                    _ELEMENT.format(extra="""    color: color.fg
+"""))
     solid = _count_color(image, FG, _REGION)
     ring = _count_color(image, RING, _REGION)
     assert solid > 0
@@ -102,12 +102,14 @@ def test_solid_fill_alone_lights_the_glyph(write_design, db, bag, repo_root):
 
 def test_ring_alone_is_visible_when_interior_matches_background(write_design, db, bag,
                                                                  repo_root):
-    """`color: palette.bg` (interior invisible against the background) plus
+    """`color: color.bg` (interior invisible against the background) plus
     `outline:` -- the ring must still be visible: this is the canonical
     "hollow" case plan 15 §3 documents, and it fails outright if the
     stamped ring were somehow gated on the interior colour."""
     image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: {color: palette.ring, width: 2}\n"))
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 2}
+"""))
     ring = _count_color(image, RING, _REGION)
     fg = _count_color(image, FG, _REGION)
     assert ring > 0
@@ -121,9 +123,12 @@ def test_ring_lights_fewer_pixels_than_a_solid_fill_of_the_same_glyph(write_desi
     (ring/solid ratio 0.2-0.6 for r=1-3) -- checked here against this
     project's own renderer, not just asserted from the research document."""
     solid_image = _render(write_design, db, bag, repo_root,
-                          _ELEMENT.format(extra="    color: palette.fg\n"))
+                          _ELEMENT.format(extra="""    color: color.fg
+"""))
     ring_image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: {color: palette.ring, width: 2}\n"))
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 2}
+"""))
     solid = _count_color(solid_image, FG, _REGION)
     ring = _count_color(ring_image, RING, _REGION)
     assert 0 < ring < solid
@@ -137,9 +142,12 @@ def test_solid_plus_ring_lights_more_pixels_than_solid_alone(write_design, db, b
     glyph's edge" contrast plan 15 §14 slice 1 asks the preview test to
     exercise."""
     solid_image = _render(write_design, db, bag, repo_root,
-                          _ELEMENT.format(extra="    color: palette.fg\n"))
+                          _ELEMENT.format(extra="""    color: color.fg
+"""))
     both_image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.fg\n    outline: {color: palette.ring, width: 2}\n"))
+        extra="""    color: color.fg
+    outline: {color: color.ring, width: 2}
+"""))
     solid_total = _count_color(solid_image, FG, _REGION)
     both_fg = _count_color(both_image, FG, _REGION)
     both_ring = _count_color(both_image, RING, _REGION)
@@ -154,9 +162,13 @@ def test_ring_width_scales_the_lit_ring_pixel_count(write_design, db, bag, repo_
     resolved offset table (16 disc-perimeter points at r=3 vs. 4 at r=1,
     research 14 §1's own measured counts)."""
     narrow = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: {color: palette.ring, width: 1}\n"))
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 1}
+"""))
     wide = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: {color: palette.ring, width: 3}\n"))
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 3}
+"""))
     narrow_ring = _count_color(narrow, RING, _REGION)
     wide_ring = _count_color(wide, RING, _REGION)
     assert narrow_ring > 0
@@ -164,13 +176,17 @@ def test_ring_width_scales_the_lit_ring_pixel_count(write_design, db, bag, repo_
 
 
 def test_outline_shorthand_matches_object_form_in_preview(write_design, db, bag, repo_root):
-    """The shorthand (`outline: palette.ring`) and the equivalent explicit
-    object form (`{color: palette.ring, width: 2}`) must render
+    """The shorthand (`outline: color.ring`) and the equivalent explicit
+    object form (`{color: color.ring, width: 2}`) must render
     pixel-identical -- D7's own claim that the two spellings resolve to the
     same `Outline` node, verified end to end through the renderer, not just
     at the IR."""
     shorthand = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: palette.ring\n"))
+        extra="""    color: color.bg
+    outline: color.ring
+"""))
     explicit = _render(write_design, db, bag, repo_root, _ELEMENT.format(
-        extra="    color: palette.bg\n    outline: {color: palette.ring, width: 2}\n"))
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 2}
+"""))
     assert shorthand.tobytes() == explicit.tobytes()

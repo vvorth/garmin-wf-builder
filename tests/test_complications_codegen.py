@@ -23,59 +23,56 @@ from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts
 
 DESIGN = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f58, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
+    color: color.bg
 {elements}
 """
 
 BODY_BATTERY = """
-  - id: bb
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{}"
-    when_absent: hide
+    text: "{complication.body_battery}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 TWO_COMPLICATIONS = """
-  - id: bb
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{}"
-    when_absent: hide
+    text: "{complication.body_battery}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center, dy: -20%}
-    color: palette.fg
-  - id: training
+    color: color.fg
+  training:
     type: text
-    value: complication.training_status
-    format: "{}"
-    when_absent: hide
+    text: "{complication.training_status}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center, dy: 20%}
-    color: palette.fg
+    color: color.fg
 """
 
 NO_COMPLICATION = """
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: hide
+    text: "{activity.steps:d}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -130,14 +127,13 @@ def test_weekly_run_distance_is_converted_to_float(write_design, bag, db, tmp_pa
     `.toFloat()` through its own local -- a cast alone would only assert
     the type."""
     design = """
-  - id: run
+  run:
     type: text
-    value: complication.weekly_run_distance
-    format: "{:.1f}"
-    when_absent: hide
+    text: "{complication.weekly_run_distance:.1f}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     view = _view(write_design, bag, db, tmp_path, design)
     assert ("var complicationWeeklyRunDistanceRaw = "
@@ -149,14 +145,13 @@ def test_weekly_run_distance_is_converted_to_float(write_design, bag, db, tmp_pa
 
 
 ALTITUDE_KM = """
-  - id: alt
+  alt:
     type: text
-    value: complication.altitude / 1000
-    format: "{:.1f}"
-    when_absent: hide
+    text: "{complication.altitude / 1000:.1f}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -256,15 +251,14 @@ def test_low_power_element_may_bind_a_complication(write_design, bag, db, tmp_pa
     source on a low_power element is gone (D2): a complication is an
     ordinary per-frame read now, so it is fine anywhere a plain value is."""
     design = """
-  - id: bb
+  bb:
     type: text
-    value: complication.body_battery
-    format: "{}"
-    when_absent: hide
+    text: "{complication.body_battery}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
-    modes: [active, low_power]
+    color: color.fg
+    sleep_update: true
 """
     face, project = _build(write_design, bag, db, tmp_path, design)
     assert face is not None
@@ -273,14 +267,13 @@ def test_low_power_element_may_bind_a_complication(write_design, bag, db, tmp_pa
 # -- the delegate's view field (review finding F1) --------------------------
 
 HOLD_DESIGN = """
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: hide
+    text: "{activity.steps:d}"
+    absent: hide
     font: FONT_TINY
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     on_hold: auto
 """
 

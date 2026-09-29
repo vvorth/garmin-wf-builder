@@ -19,14 +19,16 @@ from wfb.ir import CONFIG_SYMBOL
 from wfb.palette import Color
 from tests.helpers import lint_text as _lint, load_errors as _errors, load_face as _face
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: `accent_color` deliberately takes an off-grid default -- #FF8000 dithers
@@ -45,18 +47,16 @@ CONFIG_BLOCK = """config:
 """
 
 BODY = """elements:
-  - id: accent_dot
-    type: shape
-    shape: circle
+  accent_dot:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: config.accent_color
-  - id: clock
+    color: color.accent
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center, dy: 30%}
-    color: config.data_color
+    color: color.data
 """
 
 DESIGN = HEAD + CONFIG_BLOCK + BODY
@@ -109,9 +109,9 @@ def test_default_outside_an_explicit_choices_list_is_an_error(write_design):
 def test_a_rejected_config_axis_does_not_cascade(write_design):
     """One error, at the real mistake -- not one more per element using it.
 
-    `BODY` binds `config.data_color` on an element, so throwing the rejected
+    `BODY` binds `color.data` on an element, so throwing the rejected
     axis out of the expression scope would add an "unknown data source
-    'config.data_color'" error that is true only because the compiler
+    'color.data'" error that is true only because the compiler
     discarded it.  That error points at a correct line and blames the wrong
     thing; the same cascade `rejected_fonts` was added to prevent for a
     rejected `fonts:` entry (CLAUDE.md, "A rejected `fonts:` entry no longer
@@ -143,15 +143,19 @@ def test_choices_any_needs_no_list(write_design, bag):
     assert face.config["accent_color"].allow_any
 
 
-def test_a_palette_entry_may_not_reference_config(write_design):
+def test_a_palette_entry_may_not_reference_a_colour(write_design):
+    """A palette swatch is a literal: the schema says so, on the author's line."""
     text = HEAD.replace(
-        'palette:\n  bg: "#000000"',
-        'palette:\n  bg: config.accent_color',
+        '''resources:
+  palette:
+    bg: "#000000"''',
+        '''resources:
+  palette:
+    bg: color.accent''',
     ) + CONFIG_BLOCK + BODY
     errors = _errors(text, write_design)
-    assert any(d.code == "palette" for d in errors)
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "color: color.accent" in note
+    assert [d.code for d in errors] == ["schema"]
+    assert "resources.palette.bg" in errors[0].message
 
 
 def test_config_colour_is_an_ordinary_unfoldable_colour_binding(write_design, bag):
@@ -166,19 +170,17 @@ def test_config_colour_is_an_ordinary_unfoldable_colour_binding(write_design, ba
     assert dot.color.constant is None
 
 
-def test_an_unknown_config_reference_suggests_the_declared_ones(write_design):
+def test_an_unknown_colour_suggests_the_declared_ones(write_design):
     text = HEAD + CONFIG_BLOCK + """elements:
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: config.acent_color
+    color: color.acent
 """
     errors = _errors(text, write_design)
-    assert any(d.code == "expression" for d in errors)
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "config.accent_color" in note and "config.data_color" in note
+    assert [d.message for d in errors] == ["unknown colour 'color.acent'"]
+    assert "color.accent" in errors[0].notes[0]
 
 
 # -- `default:`/`choices:` as `palette.<name>` references ---------------------
@@ -189,21 +191,27 @@ def test_an_unknown_config_reference_suggests_the_declared_ones(write_design):
 # block itself.
 
 PALETTE_REF_HEAD = HEAD.replace(
-    'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n',
-    'palette:\n'
-    '  bg: "#000000"\n'
-    '  fg: "#FFFFFF"\n'
-    '  aqua: { value: "#00FFFF", label: "Aqua" }\n'
-    '  amber: { value: "#FFAA00" }\n',  # deliberately unlabelled
+    '''resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+''',
+    '''resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    aqua: { value: "#00FFFF", label: "Aqua" }
+    amber: { value: "#FFAA00" }
+''',  # deliberately unlabelled
 )
 
 
 def test_default_as_a_palette_reference_resolves_to_that_colour(write_design, bag):
     text = PALETTE_REF_HEAD + """config:
   accent_color:
-    default: palette.aqua
+    default: color.aqua
     choices: any
-""" + BODY.replace("config.data_color", "palette.fg")
+""" + BODY.replace("color.data", "color.fg")
     face = _face(text, write_design, bag)
     assert face.config["accent_color"].default == Color.parse("#00FFFF")
 
@@ -211,12 +219,12 @@ def test_default_as_a_palette_reference_resolves_to_that_colour(write_design, ba
 def test_choices_accept_bare_palette_references(write_design, bag):
     text = PALETTE_REF_HEAD + """config:
   data_color:
-    default: palette.aqua
+    default: color.aqua
     choices:
-      - palette.aqua
-      - palette.amber
+      - color.aqua
+      - color.amber
       - { color: "#FFFFFF", label: "White" }
-""" + BODY.replace("config.accent_color", "palette.fg")
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     entry = face.config["data_color"]
     assert [c.color for c in entry.choices] == [
@@ -228,11 +236,11 @@ def test_choices_accept_bare_palette_references(write_design, bag):
 def test_a_palette_choice_contributes_its_own_label(write_design, bag):
     text = PALETTE_REF_HEAD + """config:
   data_color:
-    default: palette.aqua
+    default: color.aqua
     choices:
-      - palette.aqua
+      - color.aqua
       - { color: "#FFFFFF", label: "White" }
-""" + BODY.replace("config.accent_color", "palette.fg")
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     aqua_choice = face.config["data_color"].choices[0]
     assert aqua_choice.label == "Aqua"
@@ -241,11 +249,11 @@ def test_a_palette_choice_contributes_its_own_label(write_design, bag):
 def test_a_palette_choice_with_no_label_is_unlabelled(write_design, bag):
     text = PALETTE_REF_HEAD + """config:
   data_color:
-    default: palette.amber
+    default: color.amber
     choices:
-      - palette.amber
+      - color.amber
       - { color: "#FFFFFF", label: "White" }
-""" + BODY.replace("config.accent_color", "palette.fg")
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     amber_choice = face.config["data_color"].choices[0]
     assert amber_choice.label is None
@@ -259,8 +267,8 @@ def test_default_and_a_palette_choice_are_compared_by_colour_value(write_design,
   data_color:
     default: "#00FFFF"
     choices:
-      - palette.aqua
-""" + BODY.replace("config.accent_color", "palette.fg")
+      - color.aqua
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     assert face.config["data_color"].default == Color.parse("#00FFFF")
 
@@ -268,42 +276,48 @@ def test_default_and_a_palette_choice_are_compared_by_colour_value(write_design,
 def test_choices_naming_an_unknown_palette_entry_names_the_declared_ones(write_design):
     text = PALETTE_REF_HEAD + """config:
   data_color:
-    default: palette.aqua
+    default: color.aqua
     choices:
-      - palette.aqua
-      - palette.nope
-""" + BODY.replace("config.accent_color", "palette.fg")
+      - color.aqua
+      - color.nope
+""" + BODY.replace("color.accent", "color.fg")
     errors = _errors(text, write_design)
-    assert any(d.code == "config" and "unknown palette entry" in d.message for d in errors)
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "palette.bg" in note and "palette.aqua" in note and "palette.amber" in note
+    assert [d.message for d in errors] == ["unknown colour 'color.nope'"]
 
 
 def test_default_naming_an_unknown_palette_entry_is_an_error(write_design):
     text = PALETTE_REF_HEAD + """config:
   accent_color:
-    default: palette.nope
+    default: color.nope
     choices: any
-""" + BODY.replace("config.data_color", "palette.fg")
+""" + BODY.replace("color.data", "color.fg")
     errors = _errors(text, write_design)
-    assert any(d.code == "config" and "unknown palette entry 'palette.nope'" in d.message
-               for d in errors)
+    assert [d.message for d in errors] == ["unknown colour 'color.nope'"]
 
 
 def test_default_naming_a_rejected_palette_entry_does_not_cascade(write_design):
-    """`palette.bad` fails its own check (references `config.*`); naming it
+    """`color.bad` fails its own check (references `config.*`); naming it
     from `config:` should not add a second, derived error -- the same
     cascade fix `rejected_fonts`/`rejected_config` exist for."""
     text = HEAD.replace(
-        'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n',
-        'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n  bad: config.accent_color\n',
+        '''resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+''',
+        '''resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    bad: config.accent_color
+''',
     ) + """config:
   accent_color:
-    default: palette.bad
+    default: color.bad
     choices: any
-""" + BODY.replace("config.data_color", "palette.fg")
+""" + BODY.replace("color.data", "color.fg")
     errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["palette"], (
+    assert [d.code for d in errors] == ["schema"], (
         "expected exactly the one real error, got: "
         + "; ".join(f"{d.code}: {d.message}" for d in errors))
 
@@ -313,11 +327,11 @@ def test_a_palette_ref_config_resource_carries_the_labels_through(write_design, 
 
     text = PALETTE_REF_HEAD + """config:
   data_color:
-    default: palette.aqua
+    default: color.aqua
     choices:
-      - palette.aqua
-      - palette.amber
-""" + BODY.replace("config.accent_color", "palette.fg")
+      - color.aqua
+      - color.amber
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     xml = config_resource(face)
     assert '<color default="true" label="@Strings.ConfigDataColor0">0x00FFFF</color>' in xml
@@ -341,13 +355,13 @@ def test_config_unsupported_fires_only_with_neither_editor_nor_menu(write_design
     assert len(warnings) == 1, fr955.render()
     assert "no on-device watch face editor and no settings menu" in warnings[0].message
     assert warnings[0].severity.value == "warning"
-    assert "config.accent_color" in warnings[0].message
-    assert "config.data_color" in warnings[0].message
+    assert "color.accent" in warnings[0].message
+    assert "color.data" in warnings[0].message
 
 
 def test_config_unsupported_is_silent_with_no_config_block(write_design, db):
-    text = HEAD + BODY.replace("config.accent_color", "palette.fg").replace(
-        "config.data_color", "palette.fg"
+    text = HEAD + BODY.replace("color.accent", "color.fg").replace(
+        "color.data", "color.fg"
     )
     fr955 = _lint(text, write_design, db, "fr955")
     assert not any(d.code == "config-unsupported" for d in fr955.items)
@@ -358,11 +372,13 @@ def test_config_unsupported_is_suppressible(write_design, db):
     warning fires without this -- so `lint_allow` is what is on trial here,
     not the check's existence."""
     text = DESIGN.replace(
-        "    color: config.accent_color\n",
-        "    color: config.accent_color\n"
-        "    lint:\n"
-        "      allow: [config-unsupported]\n"
-        "      reason: \"test\"\n",
+        """    color: color.accent
+""",
+        """    color: color.accent
+    lint:
+      allow: [config-unsupported]
+      reason: "test"
+""",
     )
     fr955 = _lint(text, write_design, db, "fr955")
     assert not any(d.code == "config-unsupported" for d in fr955.items), fr955.render()
@@ -374,12 +390,11 @@ def test_config_unsupported_with_no_referencing_element_still_warns_unsuppressib
     declared but unused config entry still warns, and the note says why it
     cannot be silenced with `lint:` at all."""
     text = HEAD + CONFIG_BLOCK + """elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
     if "fenix5" not in db.ids():
         pytest.skip("fenix5 is not installed")
@@ -399,11 +414,13 @@ def test_config_is_not_suppressible(write_design, db):
     error, not a lint warning -- `lint: {allow: [config]}` must be rejected
     the way any other real-but-unsuppressible code is."""
     text = DESIGN.replace(
-        "    color: config.data_color\n",
-        "    color: config.data_color\n"
-        "    lint:\n"
-        "      allow: [config]\n"
-        "      reason: \"nonsense\"\n",
+        """    color: color.data
+""",
+        """    color: color.data
+    lint:
+      allow: [config]
+      reason: "nonsense"
+""",
     )
     face = load(write_design(text), Bag())
     assert face is not None
@@ -428,11 +445,13 @@ def test_an_off_grid_config_default_dithers(write_design, db):
 def test_config_palette_dither_is_suppressible_on_the_referencing_element(
         write_design, db):
     text = DESIGN.replace(
-        "    color: config.accent_color\n",
-        "    color: config.accent_color\n"
-        "    lint:\n"
-        "      allow: [palette-dither]\n"
-        "      reason: \"test\"\n",
+        """    color: color.accent
+""",
+        """    color: color.accent
+    lint:
+      allow: [palette-dither]
+      reason: "test"
+""",
     )
     bag = _lint(text, write_design, db, "fenix8solar47mm")
     warnings = [d for d in bag.items
@@ -450,7 +469,7 @@ def test_choices_any_skips_the_list_but_not_the_default(write_design, bag, db):
   accent_color:
     default: "#FFAA00"
     choices: any
-""" + BODY.replace("config.data_color", "palette.fg")
+""" + BODY.replace("color.data", "color.fg")
     face = _face(text, write_design, bag)
     assert face.config["accent_color"].allow_any
     fenix = _lint(text, write_design, db, "fenix8solar47mm")
@@ -464,7 +483,7 @@ def test_an_explicit_choice_off_the_grid_also_dithers(write_design, db):
     choices:
       - { color: "#FFFFFF", label: "White" }
       - { color: "#FF8000", label: "Bad" }
-""" + BODY.replace("config.accent_color", "palette.fg")
+""" + BODY.replace("color.accent", "color.fg")
     bag = _lint(text, write_design, db, "fenix8solar47mm")
     warnings = [d for d in bag.items
                 if d.code == "palette-dither" and "config.data_color" in d.message]
@@ -511,12 +530,11 @@ def test_a_face_with_no_config_generates_exactly_what_it_did_before(write_design
     """The feature must cost nothing to a design that does not use it -- the
     same guarantee `test_static.py` makes for `static:`."""
     plain = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     view = _view(plain, write_design, db, tmp_path)
     assert "_configAccentColor" not in view
@@ -559,12 +577,12 @@ def test_a_design_with_no_config_gets_no_onwatchfaceconfigedited(write_design, d
     from wfb.layout import resolve
 
     text = HEAD + """elements:
-  - id: hr
+  hr:
     type: icon
     icon: heart
     at: {anchor: center}
     size: 20%r
-    color: palette.fg
+    color: color.fg
     on_hold: heart_rate
 """
     bag = Bag()
@@ -620,7 +638,7 @@ def test_an_unlabelled_choice_needs_no_string(write_design, bag):
     default: "#FFFFFF"
     choices:
       - { color: "#FFFFFF" }
-""" + BODY.replace("config.accent_color", "palette.fg")
+""" + BODY.replace("color.accent", "color.fg")
     face = _face(text, write_design, bag)
     from wfb.emit.resources import config_resource
 
@@ -682,11 +700,13 @@ def test_a_config_design_compiles_warning_free_on_every_target(
     from wfb.build import build as run_build
 
     text = DESIGN.replace(
-        "    color: config.accent_color\n",
-        "    color: config.accent_color\n"
-        "    lint:\n"
-        "      allow: [config-unsupported, palette-dither]\n"
-        "      reason: \"test fixture\"\n",
+        """    color: color.accent
+""",
+        """    color: color.accent
+    lint:
+      allow: [config-unsupported, palette-dither]
+      reason: "test fixture"
+""",
     )
     design = write_design(text)
     bag = Bag()

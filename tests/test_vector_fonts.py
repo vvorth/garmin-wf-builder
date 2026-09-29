@@ -6,6 +6,8 @@ preview are later slices (plan 11 §5; deleted once built, `docs/CLAUDE.md` --
 `git show e744913:docs/plans/11-vector-text.md`) and are not exercised here.
 """
 
+import textwrap
+
 import pytest
 
 from wfb.build import load
@@ -80,12 +82,16 @@ def _design(fonts: str | None, elements: str, *, repo_root) -> str:
     `repo_root`, since `Builder._build_baked_font` resolves it against the
     design file's own directory (a tmp dir here), not the repo.
     """
-    fonts_block = f"fonts:\n{fonts}\n" if fonts else ""
+    fonts_block = f"""  fonts:
+{textwrap.indent(fonts, "  ")}
+""" if fonts else ""
     text = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 {fonts_block}elements:
 {elements}
 """
@@ -108,10 +114,10 @@ _BAKED_FONT = f"""\
 def _text_element(extra: str = "", *, font: str | None = "font.bezel") -> str:
     font_line = f"    font: {font}\n" if font else ""
     return f"""\
-  - id: brand
+  brand:
     type: text
     text: "GARMIN"
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
 {font_line}{extra}"""
 
@@ -136,7 +142,7 @@ def test_vector_font_face_list_and_if_unavailable(write_design, bag, repo_root):
   bezel:
     face: [RobotoCondensedBold, RobotoCondensedRegular]
     size: 6%r
-    if_unavailable: hide
+    unsupported: hide
 """
     design = _design(fonts, _text_element(font=None), repo_root=repo_root)
     face = load(write_design(design), bag)
@@ -208,7 +214,7 @@ def test_if_unavailable_is_rejected_on_a_baked_font_entry(write_design, bag, rep
   clock:
     source: {_BAKED_SOURCE}
     size: 18%r
-    if_unavailable: hide
+    unsupported: hide
 """
     design = _design(fonts, _text_element(font="font.clock"), repo_root=repo_root)
     face = load(write_design(design), bag)
@@ -311,7 +317,9 @@ def test_radial_requires_a_radius(write_design, bag, repo_root):
 
 def test_vertical_align_bottom_is_rejected_under_curve(write_design, bag, repo_root):
     element = _text_element(
-        "    curve: {style: angled, angle: 45deg}\n    vertical_align: bottom\n",
+        """    curve: {style: angled, angle: 45deg}
+    align: bottom
+""",
     )
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
@@ -331,7 +339,7 @@ def test_vertical_align_top_and_center_are_accepted_under_curve(
     only `bottom` (a screen-space subtraction that cannot follow a rotated
     baseline) is rejected there."""
     element = _text_element(
-        f"    curve: {{style: angled, angle: 45deg}}\n    vertical_align: {vertical_align}\n",
+        f"    curve: {{style: angled, angle: 45deg}}\n    align: {vertical_align}\n",
     )
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
@@ -348,7 +356,7 @@ def test_every_vertical_align_is_accepted_under_radial_curve(
     at a radius moved by the font's ascent, `center` is `VCENTER`."""
     element = _text_element(
         "    curve: {style: radial, angle: 45deg, radius: 50%r}\n"
-        f"    vertical_align: {vertical_align}\n",
+        f"    align: {vertical_align}\n",
     )
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
@@ -360,7 +368,8 @@ def test_every_vertical_align_is_accepted_under_radial_curve(
 
 
 def test_if_unavailable_on_a_vector_font_element_reaches_the_ir(write_design, bag, repo_root):
-    element = _text_element("    if_unavailable: hide\n")
+    element = _text_element("""    unsupported: hide
+""")
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -368,7 +377,8 @@ def test_if_unavailable_on_a_vector_font_element_reaches_the_ir(write_design, ba
 
 
 def test_if_unavailable_is_rejected_on_an_element_with_a_baked_font(write_design, bag, repo_root):
-    element = _text_element("    if_unavailable: hide\n", font="font.clock")
+    element = _text_element("""    unsupported: hide
+""", font="font.clock")
     design = _design(_BAKED_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
     assert face is None
@@ -379,7 +389,8 @@ def test_if_unavailable_is_rejected_on_an_element_with_a_baked_font(write_design
 
 
 def test_if_unavailable_is_rejected_on_an_element_with_a_system_font(write_design, bag, repo_root):
-    element = _text_element("    if_unavailable: hide\n", font=None)
+    element = _text_element("""    unsupported: hide
+""", font=None)
     design = _design(None, element, repo_root=repo_root)
     face = load(write_design(design), bag)
     assert face is None
@@ -403,22 +414,24 @@ def test_if_unavailable_is_rejected_on_an_element_with_a_system_font(write_desig
 
 def test_vector_font_is_rejected_on_a_complication_slot(write_design, bag, repo_root):
     design = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f58, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-{_VECTOR_FONT}config:
-  data:
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
+  fonts:
+{textwrap.indent(_VECTOR_FONT, "  ")}config:
+  slots:
     slot1:
-      default: complication.steps
-      choices: [complication.steps]
+      default: steps
+      choices: [steps]
 elements:
-  - id: slot0
-    type: complication_slot
-    slot: config.data.slot1
+  slot0:
+    type: data
+    slot: slot1
     font: font.bezel
-    color: palette.fg
+    color: color.fg
     at: {{anchor: center}}
 """
     face = load(write_design(design), bag)
@@ -439,21 +452,23 @@ def test_vector_font_is_accepted_on_a_pattern_text_part(write_design, bag, repo_
     the curve-specific behaviour (angle composition, if_unavailable, lint,
     codegen, preview)."""
     design = f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f59, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-{_VECTOR_FONT}elements:
-  - id: hour_numerals
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
+  fonts:
+{textwrap.indent(_VECTOR_FONT, "  ")}elements:
+  hour_numerals:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{{(copy + 11) % 12 + 1}}"
         font: font.bezel
         at: {{dy: -64%r}}
 """

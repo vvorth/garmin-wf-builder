@@ -2,15 +2,13 @@
 
 **A live watch face gets exactly one gesture: touch and hold.** There is no
 tap, no swipe, and the physical keys belong to the system, so `on_hold:` is
-the only way any element responds to the wearer. Separately, `modes:` says
-in which power states an element draws at all — `active` while the watch is
-awake, `low_power` once a second while a MIP screen sleeps — because mode is
-a structural choice, not a styling one. An AMOLED target's own
-burn-in-constrained sleep frame is a **different, independent axis**,
-`aod:`, covered in [Always-on display](always-on-display.md) rather than
-here: `modes:` used to carry it too (`always_on`), but that was removed
-outright (plan 14 D3) once `aod:` could express the same idea as overrides
-on the one design, not a second element set to opt into.
+the only way any element responds to the wearer. Separately,
+`sleep_update: true` says an element is also redrawn every second while a
+MIP screen sleeps, because that is a structural choice, not a styling one.
+An AMOLED target's own burn-in-constrained sleep frame is a **different,
+independent axis**, `aod:`, covered in [Always-on
+display](always-on-display.md): overrides on the one design, not a second
+element set to opt into.
 
 ![the showcase asleep: the second hand stops drawing](../screenshots/showcase-asleep.png)
 *From the showcase face — `wfb preview --asleep`, see [Analog hands](analog-hands.md) for `seconds:`.*
@@ -19,29 +17,28 @@ on the one design, not a second element set to opt into.
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `modes:` | any element | `active`, `low_power` (unique) | `[active]` | [which power modes draw this element](#modes) |
+| `sleep_update:` | any element | `true` \| `false` | `false` | [also redraw every second while a MIP screen sleeps](#sleep-updates) |
 | `on_hold:` | any element | a complication name (`wfb complications`) or `auto` | — | [touch-and-hold target](#interactivity-on_hold) |
 
-## Modes
+## Sleep updates
 
 ```yaml
-modes: [active, low_power]     # default: [active]
+sleep_update: true     # default: false
 ```
 
-Mode is structural, not styling, because AMOLED forbids `onPartialUpdate`
-entirely while MIP depends on it — which is also why `low_power` is a hard
-build error on an AMOLED target, pointing at `aod:` instead.
+**Every element is drawn in `onUpdate`**: once a second while the watch is
+awake, and once a minute while it sleeps. `sleep_update: true` **also** draws
+it in `onPartialUpdate`, once a second while a MIP screen sleeps — a seconds
+readout, say. It is structural, not styling, because AMOLED forbids
+`onPartialUpdate` entirely while MIP depends on it — which is also why
+`sleep_update: true` is a hard build error on an AMOLED target, pointing at
+`aod:` instead.
 
-| Mode | Meaning |
-|---|---|
-| `active` | drawn in `onUpdate`, once a second while awake |
-| `low_power` | also drawn in `onPartialUpdate`, once a second while asleep (MIP only) |
+The compiler computes the **tightest `setClip` rectangle** around all
+`sleep_update: true` elements, because clip cost is charged by region *area*
+— every pixel inside the clip counts as modified whenever any does.
 
-The compiler computes the **tightest `setClip` rectangle** around all `low_power`
-elements, because clip cost is charged by region *area* — every pixel inside the
-clip counts as modified whenever any does.
-
-**Any source may be read from a `low_power` element — there is no
+**Any source may be read from a `sleep_update: true` element — there is no
 compile-time restriction on which** ([How data is read](data.md#how-data-is-read)). That does
 **not** mean every source is equally safe to read there. Exceeding the
 `onPartialUpdate` power budget calls `onPowerBudgetExceeded` and disables
@@ -49,19 +46,19 @@ partial updates **permanently, for the rest of the app's lifecycle**. The
 guard is the suppressible `partial-update-budget` warning, not a build error,
 so read it and act on it rather than assuming a green build means a safe
 one. A `weather.*` or
-`complication.*` read in `low_power` is the case its own message names as the
-one to look at first.
+`complication.*` read every second while asleep is the case its own message
+names as the one to look at first.
 
 ## Interactivity: `on_hold:`
 
 Any element can open a glance when it is **touched and held**:
 
 ```yaml
-- id: hr_icon
+hr_icon:
   type: icon
   icon: heart
   at: {anchor: center, dy: -20%}
-  on_hold: heart_rate       # run `wfb complications` for the 42 names
+  on_hold: heart_rate         # run `wfb complications` for the 42 names
 ```
 
 **A watch face cannot launch an arbitrary app.** The platform offers exactly
@@ -72,7 +69,7 @@ heart_rate` opens the heart-rate glance whether or not the design displays a
 heart rate.
 
 `wfb complications` lists every name, the Monkey C constant it compiles to,
-the API level that type was introduced at, and the catalogue icon a `complication_slot`'s `icon_size:` draws for it by default.
+the API level that type was introduced at, and the catalogue icon a `data` element's `icon:` draws for it by default.
 The list is generated from the SDK's own `COMPLICATION_TYPE_*` table, so it
 cannot drift from what the platform actually offers.
 
@@ -98,7 +95,7 @@ a minimum touch size: Garmin publishes no such number, and inventing one would
 silently overlap neighbours on a dense face. For a bigger target, or to make
 several elements act as one, put them in a [`group`](elements.md#group) and put `on_hold:`
 on the group instead of each child. On a device where the element does not
-draw at all -- `if_unavailable: hide` on a missing `face:` font or subscreen
+draw at all -- `unsupported: hide` on a missing `face:` font or subscreen
 -- its region is empty there, so a hold never fires on blank screen.
 
 Regions are tested in draw order and the first match wins, so two overlapping
@@ -125,17 +122,16 @@ already displays. `on_hold: auto` resolves the target for you, from the
 element's own **value** binding:
 
 ```yaml
-- id: hr_value
+hr_value:
   type: text
-  value: heart_rate.current
-  format: "{:d}"
+  text: "{heart_rate.current:d}"
   font: FONT_SMALL
   at: {anchor: center, dy: -20%}
-  on_hold: auto              # resolves to 'heart_rate' -- same as writing it
+  on_hold: auto                # resolves to 'heart_rate' -- same as writing it
 ```
 
 The compiler looks at the element's value expression(s) only — a `text`'s
-`value:`, an `icon`'s `icon_for:`, a `progress`'s `value:` — deliberately
+placeholder, an `icon`'s `icon: {for:}`, a `gauge`'s `value:` — deliberately
 never `color:`, `track_color:` or `max:`, because a conditional colour's own
 source reference is not what the element is *about*. It resolves through
 `Source.launch_complication`, the same field `wfb sources`' `on_hold: auto ->
@@ -155,7 +151,7 @@ Both are errors rather than warnings: guessing here would silently open the
 wrong glance, which is exactly the class of failure this compiler exists to
 prevent.
 
-**A `complication_slot`'s `on_hold: auto` does not go through any of this.**
+**A `data` element's `on_hold: auto` does not go through any of this.**
 It is the *only* value that element's `on_hold:` accepts (a fixed name is a
 build error — see "The Data axis"), and it is never resolved to a fixed
 `wfb.complications.TYPES` name at build time at all: the wearer can repoint
@@ -167,6 +163,6 @@ apply to it.
 ## See also
 
 - [`examples/features/complications/face.yaml`](../../examples/features/complications/face.yaml) — `on_hold:` naming a complication type directly, and `on_hold: auto`.
-- [Configuration → The Data axis](configuration.md#the-data-axis) — a `complication_slot`'s own `on_hold: auto`, resolved on-device rather than at build time.
+- [Configuration → The Data axis](configuration.md#the-data-axis) — a `data` element's own `on_hold: auto`, resolved on-device rather than at build time.
 - [Analog hands](analog-hands.md) — `seconds:`, the other mode-dependent choice on the analog dial.
-- [Always-on display](always-on-display.md) — `aod:`, the AMOLED sleep frame `modes:` no longer carries.
+- [Always-on display](always-on-display.md) — `aod:`, the AMOLED sleep frame.

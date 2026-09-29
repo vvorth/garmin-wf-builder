@@ -3,21 +3,21 @@
 # FONT_NUMBER_MEDIUM. FONT_NUMBER_HOT and FONT_NUMBER_THAI_HOT are in the
 # sibling face `examples/system-fonts/numbers-large/face.yaml` instead --
 # see that face's header for why all four don't fit one screen. Every
-# string here is a literal (`text:`, no `value:`): no data bindings, no
+# string here is a literal `text:` (no placeholder): no data bindings, no
 # clock.
 #
 # Number fonts carry a limited glyph set on-device, so every sample is
 # digits only. Same mechanic as `examples/system-fonts/text/`: a 1px grey
-# `shape: line` guide at each row's anchor y, the sample sitting on it with
-# `align: left` at a common x (70px) so left edges line up, and one extra
-# row repeating FONT_NUMBER_MILD with `vertical_align: center` to show that
+# `type: line` guide at each row's anchor y, the sample sitting on it with
+# `align: top_left` at a common x (70px) so left edges line up, and one extra
+# row repeating FONT_NUMBER_MILD with `align: left` (vertically centred) to show that
 # anchor too (labelled with a `1058` sample rather than a "c" suffix --
 # number fonts have no lower-case glyphs to spell one with).
 #
 # **Only one extra alignment demo, not two.** These are the SDK's widest
 # system fonts by far -- even FONT_NUMBER_MILD's line height (58/62/47px on
 # fenix8solar47mm/51mm/fr955) dwarfs FONT_LARGE's (40/42/40px) -- so a
-# fourth row (a `vertical_align: bottom` repeat, the way
+# fourth row (an `align: bottom_left` repeat, the way
 # `examples/system-fonts/text/` has both) does not fit inside the round bezel
 # alongside the required FONT_NUMBER_MILD and FONT_NUMBER_MEDIUM rows on
 # any of the three targets: the three rows already used up to date use most
@@ -46,97 +46,91 @@
 # Build it with:     ./wfb.py build examples/system-fonts/numbers/face.yaml
 # Preview it with:   ./wfb.py preview examples/system-fonts/numbers/face.yaml
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 1b98c71d-29c8-4868-a74f-18437e217d2b
   name: System Fonts Numbers
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
-  - fr245
-  - fenix6
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+    - fr245
+    - fenix6
 
 # Every colour is one the 64-colour MIP panel shows without dithering: each
 # channel is 0x00, 0x55, 0xAA or 0xFF.
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#AAAAAA"
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
   # The common-x spine: ties every row's left edge together at a glance.
-  - id: spine
-    type: shape
-    shape: line
+  spine:
+    type: line
     at: { anchor: top_left, dx: 70, dy: 38 }
     to: { anchor: top_left, dx: 70, dy: 231 }
     thickness: 1px
-    color: palette.dim
+    color: color.dim
     lint:
       allow: [safe-area]
       reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
         here only to measure its .cft fonts, and crops this row"
 
   # -- FONT_NUMBER_MILD -------------------------------------------------
-  - id: mild_guide
-    type: shape
-    shape: line
+  mild_guide:
+    type: line
     at: { anchor: top_left, dx: 70, dy: 38 }
     to: { anchor: top_left, dx: 165, dy: 38 }
     thickness: 1px
-    color: palette.dim
-  - id: mild_text
+    color: color.dim
+  mild_text:
     type: text
     text: "01589"
     font: FONT_NUMBER_MILD
     at: { anchor: top_left, dx: 70, dy: 38 }
-    align: left
-    vertical_align: top
-    color: palette.fg
+    align: top_left
+    color: color.fg
 
   # -- FONT_NUMBER_MEDIUM -------------------------------------------------
-  - id: medium_guide
-    type: shape
-    shape: line
+  medium_guide:
+    type: line
     at: { anchor: top_left, dx: 70, dy: 100 }
     to: { anchor: top_left, dx: 155, dy: 100 }
     thickness: 1px
-    color: palette.dim
-  - id: medium_text
+    color: color.dim
+  medium_text:
     type: text
     text: "0158"
     font: FONT_NUMBER_MEDIUM
     at: { anchor: top_left, dx: 70, dy: 100 }
-    align: left
-    vertical_align: top
-    color: palette.fg
+    align: top_left
+    color: color.fg
 
-  # -- vertical_align: center demo (repeats FONT_NUMBER_MILD) -----------
-  - id: center_guide
-    type: shape
-    shape: line
+  # -- align: center demo (repeats FONT_NUMBER_MILD) -----------
+  center_guide:
+    type: line
     at: { anchor: top_left, dx: 70, dy: 200 }
     to: { anchor: top_left, dx: 140, dy: 200 }
     thickness: 1px
-    color: palette.dim
-  - id: center_text
+    color: color.dim
+  center_text:
     type: text
     text: "1058"
     font: FONT_NUMBER_MILD
     at: { anchor: top_left, dx: 70, dy: 200 }
     align: left
-    vertical_align: center
-    color: palette.fg
+    color: color.fg

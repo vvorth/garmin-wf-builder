@@ -1,7 +1,7 @@
 # Analog hands
 
 An analog dial places a set of rotating hands on screen. This chapter covers
-the `hands:` block that declares a set's shapes, the `type: hands` element
+the `resources: hand_sets:` block that declares a set's shapes, the `type: hands` element
 that places one, and how a hand's parts are authored and rotated live on the
 watch. Ticks and numerals around the dial are `pattern` elements, covered in
 [Patterns](patterns.md).
@@ -13,31 +13,30 @@ watch. Ticks and numerals around the dial are `pattern` elements, covered in
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `hands:` | top-level, beside `fonts:`/`palette:` | named hand sets | — | declares hand shapes; a `type: hands` element places one on screen |
+| `hand_sets:` | `resources:`, beside `fonts:`/`palette:` | named hand sets | — | declares hand shapes; a `type: hands` element places one on screen |
 | `hour:` / `minute:` / `second:` | inside a hand set | `{color?, parts}` | — | at least one required; always drawn hour, then minute, then second |
-| `parts` | a hand | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in list order — keys per shape below |
-| `color` | a hand, or a part | palette entry, literal, `config.*`, conditional (no data) | — | a part with neither its own nor its hand's colour is an error |
-| `hands` | `type: hands` element | a `hands:` entry's name | required | which set this element places |
+| `parts` | a hand | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in list order — keys per type below |
+| `color` | a hand, or a part | `color.<name>`, a literal, a conditional (no data) | — | a part with neither its own nor its hand's colour is an error |
+| `set` | `type: hands` element | a `hand_sets:` entry's name | required | which set this element places |
 | `at` | `type: hands` element | anchor / `dx`,`dy` / `angle`,`radius` | — | the axis every hand in the set turns about |
 | `seconds` | `type: hands` element | `awake`\|`never` | `awake` | whether the second hand draws — see below |
-| `antialias` | `type: hands` element | `true`\|`false` | face default (`false`) | brackets the whole set's drawing |
-| `min_1px` | `type: hands` element, or a part | `true`\|`false` | face default (`false`) | clamps a part's own length — see [Elements](elements.md#min_1px--never-let-a-relative-length-round-to-nothing) |
-| `modes` | `type: hands` element | `active` only (not `low_power`) | `[active]` | — |
+| `antialias` | `type: hands` element | `true`\|`false` | `defaults:` (`false`) | brackets the whole set's drawing |
+| `min_1px` | `type: hands` element, or a part | `true`\|`false` | `defaults:` (`false`) | clamps a part's own length — see [Elements](elements.md#min_1px--never-let-a-relative-length-round-to-nothing) |
 | `aod` | `type: hands` element | `hide`\|`show`\|`{color, thickness, visible}` | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
 
 ## Example
 
 ```yaml
-hands:
-  classic:
-    hour:                            # drawn pointing at 12, axis at (0, 0)
-      color: config.colors.fg
-      parts:
-        - shape: polygon
-          points: [{dx: -3%r, dy: 8%r}, {dx: -2%r, dy: -38%r}, {dy: -46%r},
-                   {dx: 2%r, dy: -38%r}, {dx: 3%r, dy: 8%r}]
-    minute: { ... }                  # rectangle + circle
-    second: { ... }                  # line + circles, accent-coloured tip
+resources:
+  hand_sets:
+    classic:
+      hour:                            # drawn pointing at 12, axis at (0, 0)
+        color: color.fg
+        parts:
+          - type: polygon
+            points: [{ dx: -3%r, dy: 8%r }, { dx: -2%r, dy: -38%r }, { dy: -46%r }, { dx: 2%r, dy: -38%r }, { dx: 3%r, dy: 8%r }]
+      minute: { ... }          # rectangle + circle
+      second: { ... }          # line + circles, accent-coloured tip
 
 layouts:
   analog:
@@ -47,16 +46,15 @@ layouts:
         pattern: radial
         count: 60
         skip_every: 5                # leave room for the hour ticks
-        parts: [{ shape: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }]
+        parts: [{ type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }]
       hour_numerals:
         type: pattern                # 12 numerals, one element
         pattern: radial
         count: 12
         parts:
-          - { shape: text, value: "(copy + 11) % 12 + 1", font: font.dialfont, at: { dy: -78%r } }
+          - { type: text, text: "{(copy + 11) % 12 + 1}", font: font.dialfont, at: { dy: -78%r } }
     elements:
-      analog_hands: { type: hands, hands: classic, at: { anchor: center },
-                      seconds: awake, antialias: true }
+      analog_hands: { type: hands, set: classic, at: { anchor: center }, seconds: awake, antialias: true }
 ```
 
 | Awake (`--time 03:41:17`, light style) | Asleep (`--asleep`): no second hand |
@@ -64,47 +62,48 @@ layouts:
 | ![analog dial](../screenshots/showcase-dial.png) | ![analog asleep](../screenshots/showcase-asleep.png) |
 
 The numerals stay upright as they go around the dial. Hands take four part
-shapes: `polygon`, `rectangle`, `line` and `circle`. The ticks and numerals
-are in `static:`, so the watch draws them once and then copies them.
+types: `polygon`, `rectangle`, `line` and `circle`. The ticks and numerals
+are in a `static:` block, so the watch draws them once and then copies them.
 
 ### Analog hands
 
 ```yaml
-hands:                                   # top-level, beside fonts:/palette:
-  classic:                               # a named hand set
-    hour:
-      color: config.colors.fg            # default for this hand's parts
-      parts:                             # drawn in this order
-        - shape: polygon                 # pointing at 12; origin = the axis
-          points:
-            - {dx: -3%r, dy: 6%r}        # 6%r *behind* the axis: a tail
-            - {dx: -2%r, dy: -38%r}
-            - {dy: -44%r}                # the tip, straight up
-            - {dx: 2%r, dy: -38%r}
-            - {dx: 3%r, dy: 6%r}
-    minute:
-      color: config.colors.fg
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
-        - {shape: circle, radius: 4%r}   # a hub; `at:` defaults to the axis
-    second:
-      color: config.accent_color
-      parts:
-        - {shape: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
-        - {shape: circle, at: {dy: 15%r}, radius: 3%r}    # counterweight
-        - {shape: circle, radius: 2%r, color: palette.black}
+resources:
+  hand_sets:                               # beside fonts:/palette:
+    classic:                               # a named hand set
+      hour:
+        color: color.fg                    # default for this hand's parts
+        parts:                             # drawn in this order
+          - type: polygon                  # pointing at 12; origin = the axis
+            points:
+              - {dx: -3%r, dy: 6%r}        # 6%r *behind* the axis: a tail
+              - {dx: -2%r, dy: -38%r}
+              - {dy: -44%r}                # the tip, straight up
+              - {dx: 2%r, dy: -38%r}
+              - {dx: 3%r, dy: 6%r}
+      minute:
+        color: color.fg
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+          - {type: circle, radius: 4%r}    # a hub; `at:` defaults to the axis
+      second:
+        color: color.accent
+        parts:
+          - {type: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
+          - {type: circle, at: {dy: 15%r}, radius: 3%r}     # counterweight
+          - {type: circle, radius: 2%r, color: color.black}
 
 elements:
-  - id: main_hands
+  main_hands:
     type: hands
-    hands: classic                       # names a `hands:` entry
+    set: classic                         # names a `hand_sets:` entry
     at: {anchor: center}                 # THE AXIS, on the screen
     seconds: awake                       # the default: hidden while asleep
 ```
 
-`hands:` is a top-level block of named **hand sets**, exactly like `fonts:`
+`hand_sets:` is a block of named **hand sets**, exactly like `fonts:`
 is a block of named fonts — a set declares no position, it is a shape,
-placed on screen by a `type: hands` element naming it (`hands: classic`
+placed on screen by a `type: hands` element naming it (`set: classic`
 above). Several sets may exist and switch with Styles the same way
 [`layouts:`](styles-and-layouts.md#styles-and-layouts) already switches widget content — see
 below.
@@ -130,7 +129,7 @@ tip.
 Draw order is fixed within a hand set: **hour, then minute, then second**,
 regardless of how you order the keys — never author order, because the
 platform has no notion of drawing a minute hand under an hour hand on
-purpose. A pin that sits *above* every hand is an ordinary `shape: circle`
+purpose. A pin that sits *above* every hand is an ordinary `type: circle`
 element placed after the `type: hands` element that draws them; a hub
 *between* hands is a circle part at the origin of the hand below it.
 
@@ -145,22 +144,22 @@ the resolved geometry by the time every frame — the one piece of layout
 arithmetic this compiler lets the device do (ADR 0004) — through
 one `sin`/`cos` pair per hand and the `runtime-lib/WfbHands.mc` barrel.
 
-| `shape:` | keys | on the watch | why it is allowed |
+| `type:` | keys | on the watch | why it is allowed |
 |---|---|---|---|
 | `polygon` | `points` (3–64) | rotate each vertex, `fillPolygon` | vertices rotate exactly |
-| `rectangle` | `at` (its centre, default the axis), `size`, `align`, `vertical_align` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
+| `rectangle` | `at` (its centre, default the axis), `size`, `align` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
 | `line` | `at` (start, default the axis), `to`, `thickness` (default 1px) | rotate both ends, `setPenWidth`, `drawLine` | end points rotate exactly |
-| `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
+| `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
 
-`rounded_rectangle` and `ellipse` are rejected (no `Dc` call draws either
+A rounded rectangle (`corner_radius:`) and `ellipse` are rejected (no `Dc` call draws either
 rotated — approximate with a `polygon`), as is `arc` (its start angle would
 need to rotate with the hand too, which is not implemented yet — see
 [Not yet implemented](../limitations.md#2-not-implemented-yet)) and `text`/`icon` (a bitmap font
 cannot rotate). `filled: false` is rejected on `polygon`/`rectangle` — there
-is no `drawPolygon`. A key a part's shape does not read is an error, the
-same `SHAPE_GEOMETRY_KEYS` precedent the main `shape:` element uses —
-including `align`/`vertical_align` on `polygon`/`line`, rejected for the same
-reasons as the main `shape:` element's (see
+is no `drawPolygon`. A key a part's type does not read is an error, the
+same `SHAPE_GEOMETRY_KEYS` precedent the primitive elements use —
+including `align:` on `polygon`/`line`, rejected for the same
+reasons as on those elements (see
 [Placement: `at:` and `align:`](placement.md#placement-at-and-align), which also covers
 `rectangle`/`circle`'s own alignment, resolved in the part's own frame
 before it turns with the hand).
@@ -172,10 +171,10 @@ deeper than `antialias:` that this key alone reaches (a part has no
 table above: a `rectangle` part's `size:`, a `line`/`circle`'s
 `thickness:`, a `circle`'s `radius:`. See [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing).
 
-**Colours** take what a `shape`'s `color:` does — palette entries, literal
-colours, `config.*` (`accent_color`, `data_color`, `colors.<role>`), and
+**Colours** take what a primitive's `color:` does — swatches, roles
+(`color.accent`, `color.data`, a scheme's roles), literal colours, and
 conditionals over those — **except that a hand colour may not read data**: a
-hand has no `when_absent:`, and a hand is about the time, not a reading.
+hand has no `absent:`, and a hand is about the time, not a reading.
 
 **Motion is automatic — there is no author angle expression.** Hands
 read the clock themselves:
@@ -205,25 +204,21 @@ sweep: the face redraws at most once a second.
 would do nothing — and so is `seconds: never` on a set that has *only* a
 second hand, which would draw nothing at all.
 
-Why `awake` needs its own switch rather than `modes:`: `onUpdate` draws the
-same `active` element set both awake (once a second) and asleep (once a
-minute) on a MIP device, so a second hand drawn in `modes: [active]` would
-sit frozen asleep on whatever second that update landed on. An `awake`
+Why `awake` needs its own switch: `onUpdate` draws every element both awake
+(once a second) and asleep (once a minute) on a MIP device, so a second hand
+would sit frozen asleep on whatever second that update landed on. An `awake`
 second hand therefore gets its own `_sleeping` field, set by
 `onEnterSleep`/`onExitSleep`, and only its parts are wrapped in `if
 (!_sleeping)` inside the element's draw method — the hour and minute hands
 are unaffected, and a design with no `awake` second hand generates no
-`_sleeping` field at all. (Before plan 14, `modes: [always_on]` shared this
-same field for an unrelated reason — which AMOLED element set to draw. That
-mode is gone; `_sleeping` is `_sleeping`'s own concern alone now, and an
-AMOLED sleep frame is `aod:`'s own `_aod` field instead — see
-[Always-on display](always-on-display.md).)
+`_sleeping` field at all. An AMOLED sleep frame is `aod:`'s own `_aod`
+field instead — see [Always-on display](always-on-display.md).
 
-`modes:` on a `type: hands` element accepts only `active` —
-**`low_power` is an error.** The hour and minute hands never need it (they
-change once a minute, and the sleeping `onUpdate` already redraws them), a
-second hand while asleep is `seconds: always`, not implemented yet, and the
-AMOLED sleep frame is `aod:`'s own concern, independent of `modes:`.
+**`sleep_update: true` on a `type: hands` element is an error.** The hour
+and minute hands never need it (they change once a minute, and the sleeping
+`onUpdate` already redraws them), a second hand while asleep is `seconds:
+always`, not implemented yet, and the AMOLED sleep frame is `aod:`'s own
+concern, independent of `sleep_update:`.
 
 **The axis can be anywhere, including off centre.** `at:` on the
 element *is* the axis, resolved exactly like any element's `at:` — an
@@ -242,32 +237,32 @@ entry, the same way any other widget switches (see
 
 ```yaml
 layouts:
-  classic: {elements: {hands: {type: hands, hands: classic}}}
+  classic: {elements: {hands: {type: hands, set: classic}}}
   sport:
     elements:
-      hands: {type: hands, hands: sport}
+      hands: {type: hands, set: sport}
 config:
   style:
     default: classic_dark
     choices:
-      classic_dark:  {label: "Classic · Dark",  layout: classic, colors: dark}
-      sport:         {label: "Sport",            layout: sport,   colors: dark}
+      classic_dark: {label: "Classic · Dark", layout: classic, scheme: dark}
+      sport: {label: "Sport", layout: sport, scheme: dark}
 ```
 
 ```yaml
-hands:
-  sport:                   # no `second:` at all: this set never shows seconds
-    hour:   { parts: [...] }
-    minute: { parts: [...] }
-  small_seconds:
-    second: { parts: [{ shape: line, at: { dy: 3%r }, to: { dy: -20%r } }] }
+resources:
+  hand_sets:
+    sport:                   # no `second:` at all: this set never shows seconds
+      hour: { parts: [...] }
+      minute: { parts: [...] }
+    small_seconds:
+      second: { parts: [{ type: line, at: { dy: 3%r }, to: { dy: -20%r } }] }
 
 layouts:
   classic:
     elements:
-      main_hands: { type: hands, hands: classic, at: { anchor: center } }
-      small_secs: { type: hands, hands: small_seconds,
-                    at: { anchor: center, dy: 45%r } }   # an off-centre axis
+      main_hands: { type: hands, set: classic, at: { anchor: center } }
+      small_secs: { type: hands, set: small_seconds, at: { anchor: center, dy: 45%r } } # an off-centre axis
 ```
 
 ![analog example styles](../screenshots/analog-styles.png)
@@ -281,16 +276,16 @@ third panel never shows seconds.
 pieces further into a face you would wear: a custom numeral font, hour
 numerals and date windows.
 
-A `type: hands` element takes `id`, `type`, `hands`, `at`, `seconds`,
-`modes`, `z`, `visible`, `antialias`, `min_1px`, `lint` and `overrides` —
-every common key **except** `on_hold:` (a moving hand has no fixed box to
-hold — hold a `group` around it instead), `static:` (rejected: a hand's
+A `type: hands` element takes `type`, `set`, `at`, `seconds`, `z`,
+`visible`, `antialias`, `min_1px`, `lint` and `overrides` — every common key
+**except** `on_hold:` (a moving hand has no fixed box to hold — hold a
+`group` around it instead), a place in a `static:` block (rejected: a hand's
 angle is the time, and a static buffer is painted once and never
-refilled), and `align`/`vertical_align` (rejected with a friendly reason:
+refilled), and `align:` (rejected with a friendly reason:
 `at:` is the axis every hand turns about, not a box — see
 [Placement: `at:` and `align:`](placement.md#placement-at-and-align); align a part
 instead, or move `at:`). `antialias:`
-is accepted and inherited exactly like a shape's own, and counts toward the
+is accepted and inherited exactly like a primitive's own, and counts toward the
 `antialias-dither` check the same way: the whole hand set draws soft, since
 the toggle brackets the element's one draw method. `min_1px:` is accepted the same
 way, inherited from the element's group or the face — but, unlike
@@ -300,8 +295,8 @@ way, inherited from the element's group or the face — but, unlike
 See [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing).
 
 See `examples/features/analog/face.yaml` for a design exercising two hand sets, an
-off-centre small-seconds subdial, all four part shapes, a `config.*` hand
-colour, a pin above the hands, and anti-aliased hands in one layout only
+off-centre small-seconds subdial, all four part types, a `config:` colour
+role on a hand, a pin above the hands, and anti-aliased hands in one layout only
 (`classic`), together. It builds warning-free on all
 three targets at 4,669–4,670 B on `--build-stats` (3.6% of 131,072 B; it was
 4,561–4,562 B before `classic`'s hands turned `antialias:` on), most
@@ -326,16 +321,17 @@ Still open for [analog hands](#analog-hands): `seconds: always` (a second
 hand while asleep), `arc` hand parts, data-driven hand colours and 24-hour
 hands. `wfb new -t analog` starts a three-hand dial. A needle driven by a
 reading rather than the clock is a [gauge
-needle](progress-and-graphs.md#gauge-needles), `progress` with `style:
-needle`, which authors its parts the same way.
+needle](progress-and-graphs.md#gauge-needles), a `gauge` with `style:
+needle`, which authors its parts the same way. `outline:` on a hand part is
+reserved in format 2.
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 
 ## See also
 
-- [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, all four part shapes and a `config.*` hand colour.
+- [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, all four part types and a `config:` colour role on a hand.
 - [`examples/analog-custom/face.yaml`](../../examples/analog-custom/face.yaml) — a hand-tuned dial with a custom numeral font, hour numerals and date windows.
 - [Always-on display](always-on-display.md) — `aod:` on a `type: hands` element, applied uniformly to every part of every hand in the set.
 - [Patterns](patterns.md) — the ticks and numerals around a dial.
 - [Styles and layouts](styles-and-layouts.md#styles-and-layouts) — switching hand sets per style.
-- [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — why a hand element refuses `align`/`vertical_align`.
+- [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — why a hand element refuses `align:`.

@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import subprocess
+import textwrap
 import sys
 from pathlib import Path
 
@@ -62,16 +64,54 @@ def lint_text(text: str, write_design, db, device_id: str = "fenix8solar47mm"):
 
 def fonts_design(fonts: str, elements: str, *, targets: str = "[fenix8solar47mm]") -> str:
     """A minimal design with a `fonts:` block -- the header the vector-text,
-    outline and pattern-text test families share."""
+    outline and pattern-text test families share.  ``fonts`` is the block's
+    entries indented two spaces, ``elements`` the elements' mapping entries."""
     return f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: {targets}
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-{fonts}
+build: {{targets: {targets}}}
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
+  fonts:
+{textwrap.indent(fonts, "  ")}
 elements:
 {elements}"""
+
+
+def with_resources(design: str, block: str) -> str:
+    """``design`` with a ``resources:`` fragment's entries (``fonts:``,
+    ``hand_sets:``, ...) merged into its own top-level ``resources:``; the
+    fragment may begin with blank lines.  Text after the fragment's own
+    entries (a following top-level key) is appended after them."""
+    lines = block.strip("\n").split("\n")
+    assert lines[0] == "resources:", block
+    inner, rest = [], []
+    for line in lines[1:]:
+        (inner if not rest and (line.startswith(" ") or not line) else rest).append(line)
+    head, sep, tail = design.partition("\nresources:\n")
+    assert sep, "the design has no top-level resources:"
+    merged = head + sep + "\n".join(inner) + "\n" + tail
+    return merged + ("\n".join(rest) + "\n" if rest else "")
+
+
+def template(value: str, fmt: str | None = None) -> str:
+    """A `text:` template reading ``value`` through a format spec written
+    the old way, ``fmt`` ("{:.1f} {unit}" -> "{activity.distance:.1f}
+    {unit}"; none -> "{value}") -- for tests that sweep both."""
+    if fmt is None:
+        return "{" + value + "}"
+    return re.sub(r"\{(:[^}]*)?\}", lambda m: "{" + value + (m.group(1) or "") + "}", fmt)
+
+
+def align_value(horizontal: str = "center", vertical: str = "center") -> str:
+    """Format 2's one `align:` value for a horizontal and a vertical edge
+    (`left`/`center`/`right`, `top`/`center`/`bottom`): `top_left`, `top`,
+    `left`, `center`, ... -- for tests that sweep both axes."""
+    if vertical == "center":
+        return horizontal
+    if horizontal == "center":
+        return vertical
+    return f"{vertical}_{horizontal}"
 
 
 def errors(text: str, bag, write_design) -> list:

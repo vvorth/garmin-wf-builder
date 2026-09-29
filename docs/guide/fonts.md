@@ -1,6 +1,6 @@
 # Fonts
 
-A watch face cannot ship its own TTF/OTF, so `fonts:` is how an author's own
+A watch face cannot ship its own TTF/OTF, so `resources: fonts:` is how an author's own
 typeface reaches the wrist anyway: name a `.ttf`/`.otf` and a size, and the
 compiler bakes it into a bitmap sheet, per device, at build time. An element
 then names it with `font.<name>`, or names one of the device's own built-in
@@ -15,43 +15,40 @@ device-resident scalable faces reachable with `face:` (below).
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `fonts.<name>.source:` | top level | path to a `.ttf`/`.otf` | — | [Fonts](#fonts) (baked font, relative to the design file) |
-| `fonts.<name>.size:` | top level | `Length` (`px`/`%r`) | — | [`size:` is a `Length`](#size-is-a-length) |
-| `fonts.<name>.glyphs:` | top level | a string of characters | derived from the design | [Everything else](#everything-else) |
-| `fonts.<name>.antialias:` | top level | `true`/`false` | `false`, or the face-wide `antialias:` default | [Everything else](#everything-else) |
-| `fonts.<name>.monospace:` | top level | `true`/`false` | `false` | [`monospace:`](#monospace-stops-a-clock-from-jittering) |
-| `fonts.<name>.align:` | top level | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
-| `fonts.<name>.face:` | top level | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
-| `fonts.<name>.if_unavailable:` | top level, or a `text` element | `error`/`hide` | `error` | [`if_unavailable:`](#if_unavailable--and-what-error-actually-promises) |
+| `fonts.<name>.source:` | `resources:` | path to a `.ttf`/`.otf` | — | [Fonts](#fonts) (baked font, relative to the design file) |
+| `fonts.<name>.size:` | `resources:` | `Length` (`px`/`%r`) | — | [`size:` is a `Length`](#size-is-a-length) |
+| `fonts.<name>.glyphs:` | `resources:` | a string of characters | derived from the design | [Everything else](#everything-else) |
+| `fonts.<name>.antialias:` | `resources:` | `true`/`false` | `false`, or `defaults: {antialias:}` | [Everything else](#everything-else) |
+| `fonts.<name>.monospace:` | `resources:` | `true`/`false` | `false` | [`monospace:`](#monospace-stops-a-clock-from-jittering) |
+| `fonts.<name>.align:` | `resources:` | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
+| `fonts.<name>.face:` | `resources:` | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
+| `fonts.<name>.unsupported:` | `resources:`, or a `text` element | `error`/`hide` | `error` | [`unsupported:`](#unsupported--and-what-error-actually-promises) |
 | `font:` | element | `font.<name>` or a system name (`FONT_MEDIUM`, …) | — | [Fonts](#fonts) |
 
 ## Example
 
 ```yaml
-fonts:
-  digitalclock:
-    source: assets/ChivoMono-Bold.ttf
-    size: 60%r            # scales with each watch's screen
-    monospace: true       # "11" and "00" take the same width: no jitter
-    antialias: true
+resources:
+  fonts:
+    digitalclock:
+      source: assets/ChivoMono-Bold.ttf
+      size: 60%r            # scales with each watch's screen
+      monospace: true       # "11" and "00" take the same width: no jitter
+      antialias: true
 
 elements:
-  hours:   { type: text, value: time.hour,   format: "{:02d}", font: font.digitalclock,
-             at: { anchor: center, dx: -1%, dy: 7% }, align: right, color: config.colors.fg,
-             modes: [active, low_power] }        # also redrawn every second while asleep
-  minutes: { type: text, value: time.minute, format: "{:02d}", font: font.digitalclock,
-             at: { anchor: center, dx: 1%,  dy: 7% }, align: left,  color: config.accent_color,
-             modes: [active, low_power] }
+  hours: { type: text, text: "{time.hour:02d}", font: font.digitalclock, at: { anchor: center, dx: -1%, dy: 7% }, align: right, color: color.fg, sleep_update: true } # also redrawn every second while asleep
+  minutes: { type: text, text: "{time.minute:02d}", font: font.digitalclock, at: { anchor: center, dx: 1%, dy: 7% }, align: left, color: color.accent, sleep_update: true }
 ```
 
 `FONT_XTINY` … `FONT_NUMBER_THAI_HOT` name the watch's built-in fonts. A
 `font.<name>` reference uses one of your own from `fonts:`.
 
-`modes:` says when an element is redrawn. The default, `[active]`, redraws it
-every second while the watch is awake and once a minute while it is asleep.
-Adding `low_power` also redraws it every second while asleep. That works on
-MIP screens only, and it costs battery, so `wfb` warns when the redrawn area
-gets large. See [Power modes and touch and hold](modes-and-interaction.md) for `modes:`.
+Every element is redrawn every second while the watch is awake and once a
+minute while it is asleep. `sleep_update: true` also redraws it every second
+while asleep. That works on MIP screens only, and it costs battery, so `wfb`
+warns when the redrawn area gets large. See [Power modes and touch and
+hold](modes-and-interaction.md) for `sleep_update:`.
 
 ![built-in system fonts](../screenshots/system-fonts.png)
 *`FONT_XTINY` through `FONT_LARGE`, from `examples/system-fonts/text/face.yaml` — a
@@ -61,14 +58,15 @@ real device.*
 ## Fonts
 
 ```yaml
-fonts:
-  clock:
-    source: assets/OpenSans-Regular.ttf   # relative to the design file
-    size: 18%r                            # or 12px -- see below
-    glyphs: "0123456789:"                 # optional -- see below
-    antialias: false
-    monospace: false                      # one cell width for every glyph
-    align: center                         # where the ink sits in that cell
+resources:
+  fonts:
+    clock:
+      source: assets/OpenSans-Regular.ttf   # relative to the design file
+      size: 18%r                            # or 12px -- see below
+      glyphs: "0123456789:"                 # optional -- see below
+      antialias: false
+      monospace: false                      # one cell width for every glyph
+      align: center                         # where the ink sits in that cell
 ```
 
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
@@ -110,12 +108,13 @@ There is no `scale:` key.
 ### `monospace:` stops a clock from jittering
 
 ```yaml
-fonts:
-  clock:
-    source: assets/OpenSans-Regular.ttf
-    size: 22%r
-    monospace: true
-    align: center      # or left, or right
+resources:
+  fonts:
+    clock:
+      source: assets/OpenSans-Regular.ttf
+      size: 22%r
+      monospace: true
+      align: center      # or left, or right
 ```
 
 `monospace: true` bakes **every glyph at the same advance** -- the widest the
@@ -148,7 +147,7 @@ column it sat in a second ago.
   `docs/limitations.md`.
 
 Vertical placement is deliberately not part of this: baseline and line height
-are the font's own metrics, and a `text` element already has `vertical_align:`.
+are the font's own metrics, and a `text` element already has `align:`.
 
 ### Everything else
 
@@ -165,7 +164,7 @@ are the font's own metrics, and a `text` element already has `vertical_align:`.
   recovers real per-pixel coverage before the 1-bit threshold sees it, which
   brings that to **1.1%**. Advances and line metrics are untouched, so this
   changes how a glyph looks, never where it sits.
-* **`antialias` defaults to false**, or to the top-level `antialias:` default
+* **`antialias` defaults to false**, or to `defaults: {antialias:}`
   when there is one -- Bitmap fonts are 1-bit by default because anti-aliasing
   costs runtime RAM. See [`antialias:` — soften an edge](elements.md#antialias--soften-an-edge) for the full
   picture, including the icon and primitive-drawing elements that share this
@@ -183,14 +182,15 @@ A `fonts:` entry can name a **device-resident scalable face** instead of
 baking one from your own file — `face:` instead of `source:`:
 
 ```yaml
-fonts:
-  clock:
-    source: assets/ChivoMono-Bold.ttf     # unchanged: baked from your own file
-    size: 30%r
-  bezel:
-    face: [RobotoCondensedBold, RobotoCondensedRegular]   # device-resident
-    size: 6%r
-    if_unavailable: hide                  # default: error -- see below
+resources:
+  fonts:
+    clock:
+      source: assets/ChivoMono-Bold.ttf     # unchanged: baked from your own file
+      size: 30%r
+    bezel:
+      face: [RobotoCondensedBold, RobotoCondensedRegular]   # device-resident
+      size: 6%r
+      unsupported: hide                     # default: error -- see below
 ```
 
 `source:` and `face:` are **mutually exclusive and jointly required** — an
@@ -224,7 +224,7 @@ than reading as an unknown key.
   whether it can pair `Graphics.getVectorFont` with `curve: {style: radial}`
   or `curve: {style: angled}`.
 
-#### `if_unavailable:` — and what `error` actually promises
+#### `unsupported:` — and what `error` actually promises
 
 `error` (the default) or `hide`, set on a `face:` font entry and,
 independently, on any `text` element that uses one — **the element's own
@@ -240,7 +240,7 @@ wins over its group's" rule `antialias:` already follows.
   `on_hold:` region either, and the placement lints (`off-screen`,
   `safe-area`, `text-overflow`, ...) say nothing about it: the one
   `font-unavailable` warning names those devices.
-* `if_unavailable:` on a **baked** font entry, or on an element whose font is
+* `unsupported:` on a **baked** font entry, or on an element whose font is
   baked or a system font, is a build error: there is nothing that can be
   unavailable, so accepting it would promise a check that never runs. The
   one exception is an element anchored to the

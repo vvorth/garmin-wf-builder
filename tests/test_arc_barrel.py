@@ -181,16 +181,18 @@ def test_the_preview_draws_what_the_device_draws(author_start, sweep):
 
 
 STEPS_ARC = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  fill: "#00FF00"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    fill: "#00FF00"
 elements:
-  - id: arc_steps
-    type: progress
+  arc_steps:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -199,8 +201,8 @@ elements:
     thickness: 4%r
     start_angle: 148deg
     sweep: -32deg
-    color: palette.fill
-    when_absent: hide
+    color: color.fill
+    absent: hide
 """
 
 

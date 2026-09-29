@@ -25,33 +25,35 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FFAA00"
-  red: "#FF0000"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FFAA00"
+    red: "#FF0000"
 elements:
 """
 
 NEEDLE = """
-  - id: gauge
-    type: progress
+  gauge:
+    type: gauge
     style: needle
     value: system.battery
     max: 100
     at: {anchor: center}
     start_angle: 240deg
     sweep: 240deg
-    color: palette.accent
+    color: color.accent
     needle:
-      - shape: polygon
+      - type: polygon
         points: [{dx: -2%r, dy: 8%r}, {dy: -80%r}, {dx: 2%r, dy: 8%r}]
-      - {shape: circle, radius: 4%r, color: palette.fg}
+      - {type: circle, radius: 4%r, color: color.fg}
 """
 
 
@@ -92,7 +94,9 @@ def test_the_angle_is_start_plus_fraction_times_sweep(write_design, bag, db):
 
 def test_a_fallback_substitutes_the_fraction(write_design, bag, db):
     text = BASE + NEEDLE.replace("value: system.battery", "value: heart_rate.current") \
-        .replace("    max: 100\n", "    max: 200\n    when_absent: fallback\n    fallback: 0.5\n")
+        .replace("    max: 100\n", """    max: 200
+    absent: {value: 0.5}
+""")
     method = _view(text, write_design, bag, db).split("function drawGauge")[1]
     assert "var fraction = 0.5f;" in method
     assert "+ (fraction) *" in method
@@ -136,8 +140,8 @@ def test_the_extent_is_the_disc_the_needle_sweeps(write_design, bag, db):
 
 def test_a_needle_parts_own_colour_reaches_the_palette_lint(write_design, bag):
     face = _face(BASE + NEEDLE, write_design, bag)
-    labels = {role.label: role.expression.text for role in face.elements[0].color_roles()}
-    assert labels["gauge.needle[1]"] == "palette.fg"
+    labels = {role.label: role.expression.shown for role in face.elements[0].color_roles()}
+    assert labels["gauge.needle[1]"] == "color.fg"
 
 
 def test_off_screen_sees_a_needle_that_reaches_past_the_edge(write_design, bag, db):
@@ -157,11 +161,13 @@ def _errors(text, write_design, bag):
 
 @pytest.mark.parametrize("key, line", [
     ("radius", "    radius: 40%r\n"),
-    ("track_color", "    track_color: palette.fg\n"),
+    ("track_color", """    track_color: color.fg
+"""),
     ("align", "    align: left\n"),
 ])
 def test_a_key_the_needle_does_not_read_is_an_error(write_design, bag, key, line):
-    text = BASE + NEEDLE.replace("    color: palette.accent\n", f"    color: palette.accent\n{line}")
+    text = BASE + NEEDLE.replace("""    color: color.accent
+""", f"    color: color.accent\n{line}")
     errors = _errors(text, write_design, bag)
     assert any(f"'{key}:' is not read by 'style: needle'" in e.message for e in errors), \
         [e.message for e in errors]
@@ -169,8 +175,8 @@ def test_a_key_the_needle_does_not_read_is_an_error(write_design, bag, key, line
 
 def test_needle_on_an_arc_is_an_error(write_design, bag):
     text = BASE + """
-  - id: ring
-    type: progress
+  ring:
+    type: gauge
     style: arc
     value: system.battery
     max: 100
@@ -178,8 +184,8 @@ def test_needle_on_an_arc_is_an_error(write_design, bag):
     thickness: 3px
     start_angle: 0deg
     sweep: 360deg
-    color: palette.fg
-    needle: [{shape: circle, radius: 2%r}]
+    color: color.fg
+    needle: [{type: circle, radius: 2%r}]
 """
     [error] = _errors(text, write_design, bag)
     assert "'needle:' is read only by 'style: needle'" in error.message
@@ -192,7 +198,8 @@ def test_a_needle_without_its_parts_is_a_schema_error(write_design, bag):
 
 
 def test_a_part_with_no_colour_anywhere_is_an_error(write_design, bag):
-    text = BASE + NEEDLE.replace("    color: palette.accent\n", "")
+    text = BASE + NEEDLE.replace("""    color: color.accent
+""", "")
     errors = _errors(text, write_design, bag)
     assert any("no colour" in e.message for e in errors), [e.message for e in errors]
 
@@ -204,23 +211,24 @@ def test_a_part_with_no_colour_anywhere_is_an_error(write_design, bag):
 def test_a_needle_compiles_warning_free(write_design, db, tmp_path, toolchain):
     """All four part shapes, a data-driven element colour and a fallback
     fraction, through the real `monkeyc`, on a MIP and an older target."""
-    text = BASE.replace("targets: [fenix8solar47mm]", "targets: [fenix8solar47mm, fr955]") + \
+    text = BASE.replace("""build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix8solar47mm, fr955]""") + \
         NEEDLE + """
-  - id: hr
-    type: progress
+  hr:
+    type: gauge
     style: needle
     value: heart_rate.current
     max: 200
     at: {anchor: center, dy: 40%r}
     start_angle: 270deg
     sweep: 180deg
-    color: "system.battery < 20 ? palette.red : palette.fg"
-    when_absent: fallback
-    fallback: 0.0
+    color: "system.battery < 20 ? color.red : color.fg"
+    absent: {value: 0.0}
     needle:
-      - {shape: line, to: {dy: -15%r}, thickness: 2px}
-      - {shape: rectangle, at: {dy: 2%r}, size: {width: 2%r, height: 4%r}}
-      - {shape: circle, radius: 2%r, filled: false, thickness: 1px}
+      - {type: line, to: {dy: -15%r}, thickness: 2px}
+      - {type: rectangle, at: {dy: 2%r}, size: {width: 2%r, height: 4%r}}
+      - {type: circle, radius: 2%r, filled: false, thickness: 1px}
 """
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)

@@ -26,88 +26,54 @@ from tests.helpers import (
 
 ROOT = Path(__file__).resolve().parent.parent
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
-#: One static group (written as the top-level block) and one dynamic element.
+#: One `static:` block and one dynamic element.
 BLOCK_FORM = HEAD + """static:
   backdrop:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
   caption:
     type: text
     text: "STEPS"
     font: FONT_XTINY
     at: {anchor: center, dy: 30%}
-    color: palette.fg
+    color: color.fg
 elements:
   clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
-#: The same design written with `static: true` on an explicit group, which is
-#: what the block above is rewritten into.
-GROUP_FORM = HEAD + """elements:
-  - id: static
-    type: group
-    static: true
-    children:
-      - id: backdrop
-        type: shape
-        shape: rectangle
-        at: {anchor: center}
-        size: {width: 100%, height: 100%}
-        color: palette.bg
-      - id: caption
-        type: text
-        text: "STEPS"
-        font: FONT_XTINY
-        at: {anchor: center, dy: 30%}
-        color: palette.fg
-  - id: clock
-    type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
-    at: {anchor: center}
-    color: palette.fg
-"""
 
 
 # -- the two spellings ------------------------------------------------------
 
 
-def test_the_block_and_the_group_are_the_same_design(write_design, bag):
-    """The top-level `static:` block is sugar, and this is what "sugar" means.
+def test_the_block_is_one_static_group_at_the_front(write_design, bag):
+    """The top-level `static:` block is rewritten into one synthetic group.
 
-    Not merely "both build": the *same* elements, in the same order, with the
-    same static roots.  If the desugar ever produced a subtly different tree,
-    every downstream check would be reasoning about a design the author did not
-    write.
+    The *same* elements, in the authored order, under one static root: if the
+    desugar ever produced a subtly different tree, every downstream check
+    would be reasoning about a design the author did not write.
     """
-    block = _face(BLOCK_FORM, write_design, bag)
-    group = _face(GROUP_FORM, write_design, Bag())
-
-    def shape(face):
-        return [(e.id, e.kind, e.static, e.static_root) for e in face.walk()]
-
-    assert shape(block) == shape(group)
-    assert shape(block) == [
+    face = _face(BLOCK_FORM, write_design, bag)
+    assert [(e.id, e.kind, e.static, e.static_root) for e in face.walk()] == [
         ("static", "group", True, "static"),
         ("backdrop", "shape", False, "static"),
         ("caption", "text", False, "static"),
@@ -115,48 +81,19 @@ def test_the_block_and_the_group_are_the_same_design(write_design, bag):
     ]
 
 
-def _generate(text, write_design, db, root):
-    """Every generated file for every installed target, as path -> text."""
-    from wfb.emit import generate
-    from wfb.emit.resources import bake_fonts
-
-    face = _face(text, write_design, Bag())
-    devices = [db.get(d) for d in face.targets if d in db.ids()]
-    assert len(devices) == 3, "this gate is about all three targets"
-    baked = {d.id: bake_fonts(face, d) for d in devices}
-    return generate(face, devices, root, baked).files()
-
-
-def test_the_two_spellings_generate_byte_identical_monkey_c(write_design, db, tmp_path):
-    """The strongest gate available: identical generated output, per target.
-
-    Not just the view -- every file, Monkey C, per-device Layout, resource XML,
-    manifest and jungle alike, byte for byte, the same gate the mapping form of
-    `elements:` is held to in `tests/test_desugar.py`.
-    """
-    from_block = _generate(BLOCK_FORM, write_design, db, tmp_path / "block")
-    from_group = _generate(GROUP_FORM, write_design, db, tmp_path / "group")
-    assert sorted(from_block) == sorted(from_group)
-    for name, text in from_block.items():
-        assert from_group[name] == text, name
-
-
-def test_the_block_takes_both_spellings_and_composes_with_them(write_design, bag):
-    """`static:` accepts a list or a mapping, and so does a group inside it.
-
-    The block is rewritten *before* the element-list rewrite recurses into it,
-    so the two conveniences compose rather than one shadowing the other.  Worth
-    pinning: they are separate rewrites in the same pass, and nothing else would
-    notice if the recursion stopped at the block's own boundary.
+def test_a_group_inside_the_block_is_part_of_the_same_subtree(write_design, bag):
+    """The block is rewritten *before* the element rewrite recurses into it, so
+    a group's children inside it are static too.  Worth pinning: they are
+    separate rewrites in the same pass, and nothing else would notice if the
+    recursion stopped at the block's own boundary.
     """
     text = HEAD + """static:
-  - id: backdrop
-    type: shape
-    shape: rectangle
+  backdrop:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: ticks
+    color: color.bg
+  ticks:
     type: group
     children:
       caption:
@@ -164,15 +101,14 @@ def test_the_block_takes_both_spellings_and_composes_with_them(write_design, bag
         text: "STEPS"
         font: FONT_XTINY
         at: {anchor: center, dy: 30%}
-        color: palette.fg
+        color: color.fg
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     assert [(e.id, e.static_root) for e in face.walk()] == [
@@ -184,29 +120,6 @@ elements:
     ]
 
 
-def test_static_true_on_a_leaf_is_a_subtree_of_one(write_design, bag):
-    text = HEAD + """elements:
-  - id: backdrop
-    type: shape
-    shape: rectangle
-    static: true
-    at: {anchor: center}
-    size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: clock
-    type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
-    at: {anchor: center}
-    color: palette.fg
-"""
-    face = _face(text, write_design, bag)
-    roots = face.static_roots()
-    assert [e.id for e in roots] == ["backdrop"]
-    assert roots[0].static_root == "backdrop"
-
-
 def test_the_reserved_id_is_reported_against_the_authors_own_element(write_design):
     """Red against a design that names an element `static` beside the block.
 
@@ -216,20 +129,25 @@ def test_the_reserved_id_is_reported_against_the_authors_own_element(write_desig
     text = BLOCK_FORM.replace("  clock:", "  static:\n    type: text\n"
                               "    text: \"x\"\n    font: FONT_XTINY\n"
                               "    at: {anchor: center, dy: 40%}\n"
-                              "    color: palette.fg\n  clock:")
+                              "    color: color.fg\n  clock:")
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
     assert "reserved" in errors[0].message
 
 
 def test_a_static_block_that_is_not_a_list_or_mapping_is_rejected(write_design):
-    text = HEAD + "static: true\nelements:\n  clock:\n    type: text\n" \
-        "    value: time.clock\n    format: \"{:%H:%M}\"\n" \
-        "    font: FONT_NUMBER_MEDIUM\n    at: {anchor: center}\n" \
-        "    color: palette.fg\n"
+    text = HEAD + """static: true
+elements:
+  clock:
+    type: text
+    text: "{{time.clock:%H:%M}}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center}
+    color: color.fg
+"""
     errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "`static: true` on a single element" in " ".join(errors[0].notes)
+    assert [d.code for d in errors] == ["schema"]
+    assert "static: expected object, got boolean" in errors[0].message
 
 
 # -- the gates --------------------------------------------------------------
@@ -241,7 +159,7 @@ def test_a_data_binding_inside_a_static_subtree_is_an_error(write_design):
     which validates cleanly."""
     text = BLOCK_FORM.replace(
         '    text: "STEPS"',
-        "    value: activity.steps\n    format: \"{:d}\"\n    when_absent: hide")
+        '    text: "{activity.steps:d}"\n    absent: hide')
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
     assert "'caption' binds a value to 'activity.steps'" in errors[0].message
@@ -255,8 +173,8 @@ def test_a_bound_visible_inside_a_static_subtree_is_an_error(write_design):
     """`visible:` is a binding too -- it was the one easiest to forget, because
     it is not the element's *value*."""
     text = BLOCK_FORM.replace(
-        "    color: palette.fg\nelements:",
-        '    color: palette.fg\n    visible: "activity.steps > 100"\nelements:')
+        "    color: color.fg\nelements:",
+        '    color: color.fg\n    visible: "activity.steps > 100"\nelements:')
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
     assert "binds visible to 'activity.steps'" in errors[0].message
@@ -265,14 +183,14 @@ def test_a_bound_visible_inside_a_static_subtree_is_an_error(write_design):
 def test_a_constant_expression_inside_a_static_subtree_is_fine(write_design, bag):
     """It is the *binding* that is rejected, not the syntax."""
     text = BLOCK_FORM.replace(
-        "    color: palette.fg\nelements:",
-        '    color: palette.fg\n    visible: "true"\nelements:')
+        "    color: color.fg\nelements:",
+        '    color: color.fg\n    visible: "true"\nelements:')
     assert load(write_design(text), bag) is not None, bag.render()
 
 
 def test_low_power_inside_a_static_subtree_is_an_error(write_design):
-    text = BLOCK_FORM.replace("    color: palette.fg\nelements:",
-                              "    color: palette.fg\n    modes: [active, low_power]\nelements:")
+    text = BLOCK_FORM.replace("    color: color.fg\nelements:",
+                              "    color: color.fg\n    sleep_update: true\nelements:")
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["static"]
     assert "sleep_update" in errors[0].message
@@ -288,12 +206,15 @@ def test_low_power_inside_a_static_subtree_is_an_error(write_design):
 #: that drove it (`test_mixed_modes_inside_one_buffer_are_an_error`).
 
 
-def test_a_nested_static_names_the_outer_one(write_design):
-    text = BLOCK_FORM.replace("    color: palette.fg\nelements:",
-                              "    color: palette.fg\n    static: true\nelements:")
+def test_the_format_1_flag_inside_the_block_is_named(write_design):
+    """Format 2 has no `static: true`: the block is the only spelling, so the
+    flag is an unknown key whose note names the block."""
+    text = BLOCK_FORM.replace("    color: color.fg\nelements:",
+                              "    color: color.fg\n    static: true\nelements:")
     errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "inside the static subtree of the 'static:' block" in errors[0].message
+    assert [d.code for d in errors] == ["schema"]
+    assert "'static' was unexpected" in errors[0].message
+    assert "format 2 writes a 'static:' block" in " ".join(errors[0].notes)
 
 
 def test_static_content_is_hoisted_rather_than_rejected(write_design, bag, db):
@@ -307,8 +228,13 @@ def test_static_content_is_hoisted_rather_than_rejected(write_design, bag, db):
     preview and the device agree about it the same way they agree about
     everything else.
     """
-    text = BLOCK_FORM.replace("    at: {anchor: center}\n    color: palette.fg\n",
-                              "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n")
+    text = BLOCK_FORM.replace("""    at: {anchor: center}
+    color: color.fg
+""",
+                              """    at: {anchor: center}
+    color: color.fg
+    z: -1
+""")
     assert not _errors(text, write_design)
     face, resolved = _resolved(text, write_design, bag, db)
     assert [e.id for e in face.draw_order()] == ["backdrop", "caption", "clock"]
@@ -324,8 +250,13 @@ def test_the_hoist_warns_where_it_changed_which_element_is_on_top(write_design, 
     A warning rather than an error, and suppressible, because drawing on top is
     usually what they meant.
     """
-    text = BLOCK_FORM.replace("    at: {anchor: center}\n    color: palette.fg\n",
-                              "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n")
+    text = BLOCK_FORM.replace("""    at: {anchor: center}
+    color: color.fg
+""",
+                              """    at: {anchor: center}
+    color: color.fg
+    z: -1
+""")
     warnings = [d for d in _lint(text, write_design, db).items
                 if d.code == "static-overlap"]
     assert len(warnings) == 1
@@ -343,21 +274,19 @@ def test_the_hoist_is_silent_when_the_swapped_elements_do_not_overlap(write_desi
     clock is dynamic and drawn first -- but the two are in different corners,
     so which one is on top makes no difference to the picture.
     """
-    text = HEAD + """elements:
-  clock:
-    type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
-    at: {anchor: center, dy: -20%}
-    color: palette.fg
+    text = HEAD + """static:
   marker:
-    type: shape
-    shape: circle
-    static: true
+    type: circle
     at: {anchor: center, dy: 30%}
     radius: 6px
-    color: palette.fg
+    color: color.fg
+elements:
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dy: -20%}
+    color: color.fg
 """
     bag = _lint(text, write_design, db)
     assert not [d for d in bag.items if d.code == "static-overlap"]
@@ -366,106 +295,81 @@ def test_the_hoist_is_silent_when_the_swapped_elements_do_not_overlap(write_desi
 def test_the_overlap_warning_can_be_suppressed(write_design, db):
     """Watched red against the same design without the `lint:` block."""
     text = BLOCK_FORM.replace(
-        "    at: {anchor: center}\n    color: palette.fg\n",
-        "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n"
-        '    lint: {allow: [static-overlap], reason: "the clock belongs on top"}\n')
+        """    at: {anchor: center}
+    color: color.fg
+""",
+        """    at: {anchor: center}
+    color: color.fg
+    z: -1
+    lint: {allow: [static-overlap], reason: "the clock belongs on top"}
+""")
     assert not [d for d in _lint(text, write_design, db).items
                 if d.code == "static-overlap"]
 
 
-def test_two_static_groups_are_pulled_back_together(write_design, bag, db):
-    """A `z:` that shuffles one static group into the middle of another's run.
-
-    Each root is emitted as one `drawStatic<Id>` called once, so two roots
-    interleaving would have to emit one method twice -- which is why this was
-    an error.  Hoisting keeps each root's members one unbroken run instead, and
-    orders the roots by where the author's own `z:` put the first of each.
-    """
-    text = HEAD + """elements:
-  - id: first
-    type: group
-    static: true
-    children:
-      - id: a1
-        type: shape
-        shape: circle
-        at: {anchor: center, dx: -20%}
+#: Two static roots: the face's own `static:` block and one layout's.
+TWO_ROOTS = HEAD + """static:
+  a1:
+    type: circle
+    at: {anchor: center, dx: -20%}
+    radius: 5px
+    color: color.fg
+  a2:
+    type: circle
+    at: {anchor: center, dx: -10%}
+    radius: 5px
+    color: color.fg
+    z: 2
+layouts:
+  only:
+    static:
+      b1:
+        type: circle
+        at: {anchor: center, dy: 40%}
         radius: 5px
-        color: palette.fg
-      - id: a2
-        type: shape
-        shape: circle
-        at: {anchor: center, dx: -10%}
-        radius: 5px
-        color: palette.fg
-        z: 2
-  - id: second
-    type: group
-    static: true
-    children:
-      - id: b1
-        type: shape
-        shape: circle
-        at: {anchor: center, dx: 10%}
-        radius: 5px
-        color: palette.fg
-        z: 1
-  - id: clock
+        color: color.fg
+config:
+  style:
+    default: only
+    choices:
+      only: {layout: only}
+elements:
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     z: 3
 """
-    assert not _errors(text, write_design)
-    face = _face(text, write_design, bag)
-    # `first` is ranked ahead of `second` because a1 (z: 0) is drawn before
-    # b1 (z: 1) in the authored order -- not because it comes first in the
-    # document, which a `z:` on either root would have overruled.
+
+
+def test_a_layouts_static_root_is_hoisted_too(write_design, bag, db):
+    """Two roots: each is one unbroken run at the front, the face's first.
+
+    Each root is emitted as one `drawStatic<Id>` called once, so two roots
+    must never interleave.  A layout's content draws after the face's shared
+    content, so as written the layout's `b1` is above the shared `clock`; the
+    hoist puts it under, which is a visible change only where they overlap.
+    """
+    assert not _errors(TWO_ROOTS, write_design)
+    face = _face(TWO_ROOTS, write_design, bag)
     assert [e.id for e in face.draw_order()] == ["a1", "a2", "b1", "clock"]
-    # b1 and a2 swapped, but they are in different places, so nothing is said.
-    assert not [d for d in _lint(text, write_design, db).items
+    # b1 and clock swapped, but they are in different places: nothing is said.
+    assert not [d for d in _lint(TWO_ROOTS, write_design, db).items
                 if d.code == "static-overlap"]
     # Red when they do overlap: the swap is then visible.
-    overlapping = text.replace("        at: {anchor: center, dx: 10%}",
-                               "        at: {anchor: center, dx: -10%}")
+    overlapping = TWO_ROOTS.replace("        at: {anchor: center, dy: 40%}",
+                                    "        at: {anchor: center, dx: 10%}")
     warnings = [d for d in _lint(overlapping, write_design, db).items
                 if d.code == "static-overlap"]
-    assert [d.message.split(" may draw over ")[0] for d in warnings] == ["'b1'"]
+    assert [d.message.split(" may draw over ")[0] for d in warnings] == ["'clock'"]
 
 
 def test_two_contiguous_static_groups_are_allowed(write_design, bag):
     """Several roots, one buffer, one `drawStatic<Id>` each."""
-    text = HEAD + """elements:
-  - id: first
-    type: group
-    static: true
-    children:
-      - id: a1
-        type: shape
-        shape: circle
-        at: {anchor: center, dx: -20%}
-        radius: 5px
-        color: palette.fg
-  - id: second
-    type: shape
-    shape: circle
-    static: true
-    at: {anchor: center, dx: 10%}
-    radius: 5px
-    color: palette.fg
-  - id: clock
-    type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
-    at: {anchor: center}
-    color: palette.fg
-"""
-    face = _face(text, write_design, bag)
-    assert [e.id for e in face.static_roots()] == ["first", "second"]
+    face = _face(TWO_ROOTS, write_design, bag)
+    assert [e.id for e in face.static_roots()] == ["static", "layout_only_static"]
 
 
 # -- draw order, and the claim it rests on ----------------------------------
@@ -555,13 +459,12 @@ def test_a_face_with_nothing_static_generates_exactly_what_it_did_before(write_d
     catch only after someone noticed the diff.
     """
     plain = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     font: FONT_NUMBER_MEDIUM
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     view = _view(plain, write_design, db, tmp_path)
     assert "_staticBuffer" not in view
@@ -584,22 +487,20 @@ def test_a_static_group_reserves_its_third_symbol(write_design):
     and let `monkeyc` discover the redefinition in generated code.
     """
     text = HEAD + """elements:
-  - id: foo
+  foo:
     type: group
     at: {anchor: center}
     children:
-      - id: dot
-        type: shape
-        shape: circle
+      dot:
+        type: circle
         at: {anchor: center}
         radius: 5px
-        color: palette.fg
-  - id: static_foo
-    type: shape
-    shape: circle
+        color: color.fg
+  static_foo:
+    type: circle
     at: {anchor: center, dx: 20%}
     radius: 5px
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["duplicate-id"]
@@ -660,9 +561,9 @@ def test_the_graphics_pool_warning_is_suppressible(write_design, db, monkeypatch
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    text = GROUP_FORM.replace(
-        "    static: true\n",
-        "    static: true\n    lint: {allow: [graphics-pool], reason: \"deliberate\"}\n")
+    text = BLOCK_FORM.replace(
+        '    text: "STEPS"\n',
+        '    text: "STEPS"\n    lint: {allow: [graphics-pool], reason: "deliberate"}\n')
     bag = Bag()
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
@@ -715,21 +616,19 @@ def test_a_hoisted_design_compiles_cleanly_for_every_target(
     """
     from wfb.build import build as run_build
 
-    design = write_design(HEAD + """elements:
-  clock:
-    type: text
-    value: time.clock
-    format: "{:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
-    at: {anchor: center, dy: -20%}
-    color: palette.fg
+    design = write_design(HEAD + """static:
   marker:
-    type: shape
-    shape: circle
-    static: true
+    type: circle
     at: {anchor: center, dy: 30%}
     radius: 6px
-    color: palette.fg
+    color: color.fg
+elements:
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dy: -20%}
+    color: color.fg
 """)
     bag = Bag()
     result = run_build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)

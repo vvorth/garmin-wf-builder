@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1; 22 (format 2: a designed revision of the YAML format, approved, slices 0–5, to be built before D1). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1; 22 (format 2: a designed revision of the YAML format; slices 0–3 built, format 2 is the only format read; slices 4–5 remain, before D1). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -49,7 +49,7 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`12`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:`/`vertical_align:` everywhere (plan 07) shipped — see §6 |
+| 3 breadth | in progress: every element type (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere (plan 07), format 2 (plan 22) shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -223,6 +223,11 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
   palette or every supported complication type). No separate wearer
   settings language: the short-lived `settings:` block was removed. Phone
   settings never reach a sideload; no `.SET` writer.
+- **Format 2 (2026-09-28, plan 22):** one designed revision of the YAML
+  format (one `color.` namespace, author-shaped names, one spelling per
+  idea, a grouped top level). `wfb migrate` rewrites a format 1 file once;
+  the compiler reads format 2 only (ADR 0009 amendment). New features are
+  written in format 2 vocabulary.
 - **Repo:** a sibling directory; the Dashboard face repo is left untouched.
   `forums.garmin.com` and `developer.android.com` are allowlisted.
 
@@ -261,13 +266,22 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - refresh tiers (`WfbCache.mc`, `catalog.Tier`);
   - `vertical_align: baseline` (renamed `bottom`);
   - `modes: [always_on]` (replaced by `aod:`, plan 14 D3 — a schema error
-    names the replacement).
+    names the replacement);
+  - **format 1**, migrated by `wfb migrate`: `format: 1` is an error naming
+    it, and a format 1 key in a format 2 file is a schema error naming the
+    replacement. Gone with it: the list form (`- id:`), top-level
+    `targets:`/`fonts:`/`palette:`/`hands:`, `color_scheme:`,
+    `palette.x`/`config.colors.x`, `type: shape`/`progress`/
+    `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
+    `when_absent:`, `vertical_align:`, `if_unavailable:`, `modes:`,
+    `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
+    `docs/guide/format-2-migration.md`.
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
-  - a `pattern`'s/`complication_slot`'s own `aod: {font: ...}` override;
+  - a `pattern`'s/`data` element's own `aod: {font: ...}` override;
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
-    `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
+    `aod: {filled: ...}` on `type: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
   - wearer settings beyond `config:` (booleans, choices) -- decided
     against, 2026-09-27. The old WIP on `wip/phone-settings` is design
@@ -282,9 +296,11 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
-  - `wfb install`/`package`. (`wfb migrate` rewrites a format 1 file as
-    format 2, plan 22; the compiler reads format 2 from plan 22 slice 2.)
-- **Shipped:** all nine element types; `align:` everywhere, `static:`,
+  - `wfb install`/`package`;
+  - format 2's reserved vocabulary (several placeholders in one `text:`,
+    components, `effects:`, `outline:` on parts, the data widget, `when:`
+    rules): friendly "not implemented" errors, `docs/limitations.md` §2.
+- **Shipped:** format 2 and `wfb migrate`; every element type; `align:` everywhere, `static:`,
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:`; progress `needle`/`segments`/`scale`; `pattern:

@@ -188,12 +188,12 @@ def test_note_without_width_is_not_wrapped():
 
 
 def test_note_explicit_newlines_are_preserved_and_never_rewrapped():
-    snippet = "suggested fix:\n    color: palette.fg\n    size: 10px"
+    snippet = "suggested fix:\n    color: color.fg\n    size: 10px"
     diag = Diagnostic(Severity.WARNING, "w", "msg", notes=[snippet])
     text = diag.render(width=10)  # deliberately narrow: would force-wrap prose
     lines = text.splitlines()
     assert lines[1] == "      note: suggested fix:"
-    assert lines[2] == " " * 12 + "    color: palette.fg"
+    assert lines[2] == " " * 12 + "    color: color.fg"
     assert lines[3] == " " * 12 + "    size: 10px"
 
 

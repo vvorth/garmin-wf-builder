@@ -5,7 +5,7 @@ chapter covers one feature: what it's for, an example with a screenshot, a
 table of its YAML keys, then the complete rules. Read the first three
 chapters in order; after that, use the rest as a reference.
 
-The JSON Schema, [`schema/wfb-face-1.schema.json`](../schema/wfb-face-1.schema.json),
+The JSON Schema, [`schema/wfb-face-2.schema.json`](../schema/wfb-face-2.schema.json),
 is the normative definition of the format. The guide explains what the schema
 can't: why each key exists, and what the watch does with it.
 
@@ -16,27 +16,28 @@ can't: why each key exists, and what the watch does with it.
 | Chapter | Covers |
 |---|---|
 | [Getting started](guide/getting-started.md) | Installing, device files, `wfb new`, building, sideloading, supported watches, troubleshooting, a glossary |
-| [The design file](guide/design-file.md) | The top-level keys of a face, the two ways to write element lists, versioning |
+| [The design file](guide/design-file.md) | The top-level keys of a face, element mappings, versioning |
+| [Moving a face to format 2](guide/format-2-migration.md) | `wfb migrate`, every format 1 → format 2 rename, and the vocabulary reserved for later |
 | [Preview and the command line](guide/preview-and-cli.md) | `wfb preview` and what it can't show, and every `wfb` command in one table |
 
 ### Layout and look
 
 | Chapter | Covers |
 |---|---|
-| [Placement](guide/placement.md) | `at:`, anchors, polar positions, units (`px`, `%`, `%r`), angles, `align:` / `vertical_align:` |
-| [Colours](guide/colors.md) | `palette:`, the 64-colour MIP rule, `color_scheme:`, conditional colours |
-| [Fonts](guide/fonts.md) | System fonts, your own TTFs converted to bitmap fonts, `monospace:`, vector (`face:`) fonts, `if_unavailable:` |
+| [Placement](guide/placement.md) | `at:`, anchors, polar positions, units (`px`, `%`, `%r`), angles, `align:` and its compass aliases |
+| [Colours](guide/colors.md) | `color.<name>`, `palette:`, the 64-colour MIP rule, `theme: schemes:`, conditional colours |
+| [Fonts](guide/fonts.md) | System fonts, your own TTFs converted to bitmap fonts, `monospace:`, vector (`face:`) fonts, `unsupported:` |
 
 ### Elements
 
 | Chapter | Covers |
 |---|---|
-| [Elements: common keys and groups](guide/elements.md) | The nine element types, and the keys they share: `visible:`, `static:`, `antialias:`, `min_1px:`, plus `group` |
-| [Text](guide/text.md) | `text`: values, formats, placeholders, and rotated or radial text with `curve:` |
+| [Elements: common keys and groups](guide/elements.md) | The element types, and the keys they share: `visible:`, `static:`, `antialias:`, `min_1px:`, plus `group` |
+| [Text](guide/text.md) | `text`: the `text:` template, formats, absent readings, and rotated or radial text with `curve:` |
 | [Shapes](guide/shapes.md) | Rectangles, circles, ellipses, arcs, polygons, lines |
-| [Icons](guide/icons.md) | Named icons, any Nerd Fonts glyph, weather icons chosen at runtime (`icon_for:`) |
-| [Progress bars, arcs and graphs](guide/progress-and-graphs.md) | `progress` (bar and arc) and `graph` (history series: line, area, bars) |
-| [Analog hands](guide/analog-hands.md) | `hands:` sets, part shapes, the `hands` element, second-hand behaviour |
+| [Icons](guide/icons.md) | Named icons, any Nerd Fonts glyph, weather icons chosen at runtime (`icon: {for:}`) |
+| [Gauges and graphs](guide/progress-and-graphs.md) | `gauge` (bar, arc, segments, scale, needle) and `graph` (history series: line, area, bars) |
+| [Analog hands](guide/analog-hands.md) | `hand_sets:`, part types, the `hands` element, second-hand behaviour |
 | [Patterns](guide/patterns.md) | Radial and linear repeats: ticks, numerals, skipping, text parts |
 
 ### Data and behaviour
@@ -44,9 +45,9 @@ can't: why each key exists, and what the watch does with it.
 | Chapter | Covers |
 |---|---|
 | [Data, expressions and formats](guide/data.md) | Sources (`time.*`, `activity.*`, `weather.*`, `complication.*`, …), expressions, missing values, format strings |
-| [On-device configuration](guide/configuration.md) | The four `config:` settings the wearer edits (style, accent colour, data colour, data slots) in the native editor or, without one, the generated settings menu; `complication_slot`; what each watch supports |
+| [On-device configuration](guide/configuration.md) | The four `config:` settings the wearer edits (style, accent colour, data colour, data slots) in the native editor or, without one, the generated settings menu; the `data` element; what each watch supports |
 | [Styles and layouts](guide/styles-and-layouts.md) | `layouts:` and named styles that combine a layout with a colour scheme |
-| [Power modes and touch and hold](guide/modes-and-interaction.md) | `modes:` (`active`/`low_power`, MIP partial updates) and `on_hold:` |
+| [Power modes and touch and hold](guide/modes-and-interaction.md) | `sleep_update:` (MIP partial updates) and `on_hold:` |
 | [Always-on display](guide/always-on-display.md) | `aod:` overrides for an AMOLED target's sleep frame: per-element/group `hide`/`show`/restyle, a face-wide default, resolution order |
 
 ### Checking your design

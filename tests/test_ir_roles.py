@@ -20,15 +20,17 @@ from wfb.ir import (
     ROLE_PART_TEXT, ROLE_PART_VISIBLE, ROLE_TRACK_COLOR, ROLE_VALUE, ROLE_VISIBLE,
 )
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  accent: "#FF5500"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#FF5500"
 """
 
 
@@ -48,18 +50,16 @@ def _by_id(face, element_id: str):
 
 TEXT_DESIGN = """
 elements:
-  - id: label
+  label:
     type: text
-    value: system.battery
-    format: "{:.0f}"
-    when_absent: fallback
-    fallback: 0
-    color: palette.fg
-    outline: {color: palette.bg, width: 2}
+    text: "{system.battery:.0f}"
+    absent: {value: 0}
+    color: color.fg
+    outline: {color: color.bg, width: 2}
     visible: "system.battery > 50"
     at: {anchor: center}
     aod:
-      color: palette.bg
+      color: color.bg
 """
 
 
@@ -84,15 +84,14 @@ def test_text_bound_expressions_order(write_design, bag):
 
 PROGRESS_DESIGN = """
 elements:
-  - id: bar
-    type: progress
+  bar:
+    type: gauge
     style: bar
     value: system.battery
     max: 100
-    when_absent: fallback
-    fallback: 0.5
-    color: palette.fg
-    track_color: palette.bg
+    absent: {value: 0.5}
+    color: color.fg
+    track_color: color.bg
     size: {width: 40px, height: 10px}
     at: {anchor: center}
 """
@@ -116,10 +115,10 @@ def test_progress_bound_expressions_order(write_design, bag):
 
 ICON_DESIGN = """
 elements:
-  - id: gauge
+  gauge:
     type: icon
-    icon_for: weather.condition
-    color: palette.fg
+    icon: {for: weather.condition}
+    color: color.fg
     size: 20px
     at: {anchor: center}
 """
@@ -142,13 +141,13 @@ def test_icon_bound_expressions_order(write_design, bag):
 
 GRAPH_DESIGN = """
 elements:
-  - id: hr
+  hr:
     type: graph
     series: heart_rate
     range: 4h
     min: 40
     max: 180
-    color: palette.fg
+    color: color.fg
     size: {width: 40px, height: 30px}
     at: {anchor: center}
 """
@@ -170,18 +169,17 @@ def test_graph_bound_expressions_order(write_design, bag):
 
 COMPLICATION_SLOT_DESIGN = """
 config:
-  data:
+  slots:
     top:
-      default: complication.steps
-      choices: [complication.steps, complication.heart_rate]
+      default: steps
+      choices: [steps, heart_rate]
 elements:
-  - id: reading
-    type: complication_slot
-    slot: config.data.top
+  reading:
+    type: data
+    slot: top
     at: {anchor: center}
-    icon_size: 8%r
-    color: palette.fg
-    icon_color: palette.bg
+    icon: {size: 8%r, color: color.bg}
+    color: color.fg
     label: short
 """
 
@@ -199,25 +197,24 @@ def test_complication_slot_bound_expressions_order(write_design, bag):
 
 PATTERN_DESIGN = """
 elements:
-  - id: dial
+  dial:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 2
-    color: palette.fg
+    color: color.fg
     aod:
-      color: palette.bg
+      color: color.bg
     parts:
-      - shape: text
-        value: copy
-        format: "{:.0f}"
+      - type: text
+        text: "{copy:.0f}"
         font: FONT_MEDIUM
-        color: palette.bg
-        outline: {color: palette.fg, width: 2}
+        color: color.bg
+        outline: {color: color.fg, width: 2}
         visible: "copy == 0"
-      - shape: circle
+      - type: circle
         radius: 5px
-        color: palette.fg
+        color: color.fg
 """
 
 
@@ -251,11 +248,10 @@ def test_pattern_bound_expressions_order(write_design, bag):
 def test_shape_color_roles(write_design, bag):
     design = """
 elements:
-  - id: box
-    type: shape
-    shape: rectangle
+  box:
+    type: rectangle
     size: {width: 10px, height: 10px}
-    color: palette.fg
+    color: color.fg
     at: {anchor: center}
 """
     face = _face(design, write_design, bag)
@@ -320,23 +316,23 @@ def test_pattern_color_roles_parts_and_aod(write_design, bag):
 
 
 HANDS_DESIGN = """
-hands:
-  classic:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
-    minute:
-      color: palette.accent
-      parts:
-        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+          - {type: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
+      minute:
+        color: color.accent
+        parts:
+          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
 elements:
-  - id: main_hands
+  main_hands:
     type: hands
-    hands: classic
+    set: classic
     at: {anchor: center}
     aod:
-      color: palette.bg
+      color: color.bg
 """
 
 

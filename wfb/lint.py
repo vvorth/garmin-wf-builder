@@ -640,9 +640,12 @@ def _check_declared_colors(
     if not bad:
         return
     nearest = ", ".join(f"{label}{c} -> {c.nearest_legal(colors)}" for label, c in bad)
+    # A scheme role is named the way the author reads it (`color.bg`); a
+    # colour axis by its own `config:` path.
+    shown = vocab.refs(token) if token.startswith("config.colors.") else token
     _emit_dither(
         bag, _users_of(resolved.face, token), resolved.device,
-        f"{token}: {len(bad)} declared colour(s) are",
+        f"{shown}: {len(bad)} declared colour(s) are",
         f"off-palette -> nearest legal: {nearest}",
         token,
     )
@@ -706,6 +709,14 @@ def _probe_symbols(bag: Bag, device: Device, code: str, what: str,
         return None
 
 
+def _axis_name(token: str) -> str:
+    """A `config:` token as the author reads it: a slot by name, a colour
+    by its `color.` reference."""
+    if token.startswith("config.data."):
+        return f"slot {token[len('config.data.'):]!r}"
+    return vocab.refs(token)
+
+
 def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     """Can the wearer edit `config:` on this device at all -- in the native
     editor, or failing that in the generated settings menu?
@@ -754,7 +765,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     if not names_list and not non_default_entries:
         # Nothing the wearer could ever observe differently.
         return
-    names = ", ".join(vocab.refs(name) for name in names_list)
+    names = ", ".join(_axis_name(name) for name in names_list)
 
     # A slot's default is read through Toybox.Complications, so on a device
     # that lacks the module too it shows as absent rather than "kept".
@@ -817,7 +828,8 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             "this is purely about the unreachable style entries named above"
         )
     editor = f"{device.id}: has no on-device watch face editor and no settings menu"
-    kept, absent = ", ".join(kept_names_list), ", ".join(absent_slot_tokens)
+    kept = ", ".join(_axis_name(name) for name in kept_names_list)
+    absent = ", ".join(_axis_name(name) for name in absent_slot_tokens)
     if kept_names_list and absent_slot_tokens:
         message = (f"{editor}, so {kept} keep their declared defaults here; it also "
                    f"lacks Toybox.Complications, so {absent} show as absent here instead")
@@ -2299,8 +2311,10 @@ def check_graphics_pool(resolved: ResolvedFace, bag: Bag) -> None:
     (ADR 0004).  So the size is not something the author can tune -- which is
     exactly why they should be told what it is.
 
-    Reported against the first static root, so ``lint: {allow: [graphics-pool]}``
-    on that element acknowledges the whole face's pool cost.
+    Reported against the first static root. That root is a synthetic group
+    with no ``lint:`` of its own, so ``lint: {allow: [graphics-pool]}`` on any
+    element inside a ``static:`` block acknowledges the whole face's pool cost:
+    there is one buffer, and no per-element figure to acknowledge separately.
     """
     roots = [p for p in resolved.items if p.element.static]
     if not roots:
@@ -2330,9 +2344,11 @@ def check_graphics_pool(resolved: ResolvedFace, bag: Bag) -> None:
              "room for them"]
     over = share > GRAPHICS_POOL_BUDGET
     if over:
-        notes.append("drop `static:` from the largest group, or accept it "
-                     "with lint: {allow: [graphics-pool], reason: \"...\"}")
-    _emit(bag, roots[0], Diagnostic(
+        notes.append("move content out of `static:`, or accept it with "
+                     "lint: {allow: [graphics-pool], reason: \"...\"} on any "
+                     "element inside the block")
+    members = [p.element for p in resolved.items if p.element.static_root is not None]
+    _emit_for_users(bag, members, Diagnostic(
         Severity.WARNING if over else Severity.NOTE, "graphics-pool", detail,
         roots[0].element.span, notes=notes,
         confidence=("estimate -- bytes per pixel for a BufferedBitmap is not published; "

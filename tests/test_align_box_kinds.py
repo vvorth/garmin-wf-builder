@@ -23,21 +23,23 @@ messages (R3), one error per key, not per element.
 
 from __future__ import annotations
 
-from tests.helpers import find
+from tests.helpers import align_value, find
 from wfb.build import load
 from wfb.emit.monkeyc import emit_layout
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 AT_CENTER = 130, 130  # fenix8solar47mm's screen centre
@@ -56,14 +58,12 @@ def _resolve(write_design, bag, db, elements_yaml: str):
 
 def _rect_yaml(shape: str, element_id: str, align: str, vertical_align: str,
                 extra: str = "") -> str:
-    return f"""  - id: {element_id}
-    type: shape
-    shape: {shape}
+    return f"""  {element_id}:
+    type: {shape}
     at: {{anchor: center}}
     size: {{width: 40px, height: 30px}}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 {extra}"""
 
 
@@ -83,7 +83,7 @@ def test_rectangle_right_bottom_declared_rect_bottom_right_corner_on_at(write_de
 def test_rounded_rectangle_left_top(write_design, bag, db):
     resolved = _resolve(
         write_design, bag, db,
-        _rect_yaml("rounded_rectangle", "rr", "left", "top", "    corner_radius: 5px\n"))
+        _rect_yaml("rectangle", "rr", "left", "top", "    corner_radius: 5px\n"))
     box = find(resolved, "rr").box
     assert (box.x, box.y, box.width, box.height) == (130, 130, 40, 30)
 
@@ -91,7 +91,7 @@ def test_rounded_rectangle_left_top(write_design, bag, db):
 def test_rounded_rectangle_right_bottom(write_design, bag, db):
     resolved = _resolve(
         write_design, bag, db,
-        _rect_yaml("rounded_rectangle", "rr", "right", "bottom", "    corner_radius: 5px\n"))
+        _rect_yaml("rectangle", "rr", "right", "bottom", "    corner_radius: 5px\n"))
     box = find(resolved, "rr").box
     assert (box.x + box.width, box.y + box.height) == AT_CENTER
 
@@ -100,14 +100,12 @@ def test_rounded_rectangle_right_bottom(write_design, bag, db):
 
 
 def _ellipse_yaml(align: str, vertical_align: str) -> str:
-    return f"""  - id: e
-    type: shape
-    shape: ellipse
+    return f"""  e:
+    type: ellipse
     at: {{anchor: center}}
     size: {{width: 50px, height: 20px}}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 """
 
 
@@ -128,14 +126,12 @@ def test_ellipse_right_bottom_declared_box_bottom_right_corner_on_at(write_desig
 
 def _circle_yaml(align: str, vertical_align: str, element_id: str = "c",
                   extra: str = "") -> str:
-    return f"""  - id: {element_id}
-    type: shape
-    shape: circle
+    return f"""  {element_id}:
+    type: circle
     at: {{anchor: center}}
     radius: 20px
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 {extra}"""
 
 
@@ -171,16 +167,14 @@ def test_outlined_circle_aligns_by_the_declared_radius_not_the_padded_box(write_
 
 
 def _arc_yaml(align: str, vertical_align: str, element_id: str, sweep: str) -> str:
-    return f"""  - id: {element_id}
-    type: shape
-    shape: arc
+    return f"""  {element_id}:
+    type: arc
     at: {{anchor: center}}
     radius: 20px
     start_angle: 0deg
     sweep: {sweep}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 """
 
 
@@ -232,17 +226,16 @@ def test_outlined_rectangle_right_bottom_uses_the_declared_rect(write_design, ba
 
 
 def _progress_bar_yaml(align: str, vertical_align: str) -> str:
-    return f"""  - id: p
-    type: progress
+    return f"""  p:
+    type: gauge
     style: bar
     value: activity.steps
     max: activity.step_goal
     at: {{anchor: center}}
     size: {{width: 40px, height: 30px}}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
-    when_absent: hide
+    align: {align_value(align, vertical_align)}
+    color: color.fg
+    absent: hide
 """
 
 
@@ -259,8 +252,8 @@ def test_progress_bar_right_bottom(write_design, bag, db):
 
 
 def _progress_arc_yaml(align: str, vertical_align: str) -> str:
-    return f"""  - id: p
-    type: progress
+    return f"""  p:
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
@@ -269,10 +262,9 @@ def _progress_arc_yaml(align: str, vertical_align: str) -> str:
     thickness: 10px
     start_angle: 0deg
     sweep: 340deg
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
-    when_absent: hide
+    align: {align_value(align, vertical_align)}
+    color: color.fg
+    absent: hide
 """
 
 
@@ -294,15 +286,14 @@ def test_progress_arc_right_bottom(write_design, bag, db):
 
 
 def _graph_yaml(align: str, vertical_align: str) -> str:
-    return f"""  - id: g
+    return f"""  g:
     type: graph
     series: heart_rate
     range: 4h
     at: {{anchor: center}}
     size: {{width: 40px, height: 30px}}
-    align: {align}
-    vertical_align: {vertical_align}
-    color: palette.fg
+    align: {align_value(align, vertical_align)}
+    color: color.fg
 """
 
 
@@ -323,12 +314,11 @@ def test_graph_right_bottom(write_design, bag, db):
 
 def test_default_center_center_is_byte_identical_to_no_keys_at_all(write_design, bag, db):
     with_keys = _resolve(write_design, bag, db, _rect_yaml("rectangle", "r", "center", "center"))
-    without_keys = _resolve(write_design, bag, db, """  - id: r
-    type: shape
-    shape: rectangle
+    without_keys = _resolve(write_design, bag, db, """  r:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40px, height: 30px}
-    color: palette.fg
+    color: color.fg
 """)
     a, b = find(with_keys, "r").box, find(without_keys, "r").box
     assert (a.x, a.y, a.width, a.height) == (b.x, b.y, b.width, b.height)
@@ -360,10 +350,9 @@ def test_layout_constants_use_the_moved_circle(write_design, bag, db):
 
 
 def _polygon_yaml(extra: str) -> str:
-    return f"""  - id: poly
-    type: shape
-    shape: polygon
-    color: palette.fg
+    return f"""  poly:
+    type: polygon
+    color: color.fg
 {extra}    points:
       - {{anchor: center, dy: 10px}}
       - {{anchor: center, dx: -10px, dy: 20px}}
@@ -386,7 +375,8 @@ def test_polygon_rejects_both_keys_as_one_error(write_design, bag):
     """`align:` and `vertical_align:` are format 2's one `align:`: one error."""
     load(
         write_design(BASE + "elements:\n" +
-                     _polygon_yaml("    align: left\n    vertical_align: top\n")),
+                     _polygon_yaml("""    align: top_left
+""")),
         bag,
     )
     assert not bag.ok()
@@ -394,12 +384,11 @@ def test_polygon_rejects_both_keys_as_one_error(write_design, bag):
 
 
 def _line_yaml(extra: str) -> str:
-    return f"""  - id: ln
-    type: shape
-    shape: line
+    return f"""  ln:
+    type: line
     at: {{anchor: center}}
     to: {{anchor: center, dx: 20px}}
-    color: palette.fg
+    color: color.fg
 {extra}"""
 
 
@@ -413,7 +402,8 @@ def test_line_rejects_align_with_the_two_ends_reason(write_design, bag):
 
 
 def test_line_rejects_vertical_align_too(write_design, bag):
-    load(write_design(BASE + "elements:\n" + _line_yaml("    vertical_align: bottom\n")), bag)
+    load(write_design(BASE + "elements:\n" + _line_yaml("""    align: bottom
+""")), bag)
     assert not bag.ok()
     assert len(bag.errors) == 1
     assert "'align' is not used by 'type: line'" in bag.errors[0].message

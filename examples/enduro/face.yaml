@@ -4,60 +4,62 @@
 # keeps its proportions on both the 260x260 and 280x280 families rather than
 # drifting. Use %r for anything you think of as "this far out from the middle".
 #
-# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 8189c72a-8219-4aad-abad-ff01932f291d
   name: Enduro 3
   version: 1.0.0
 
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 
 # antialias: true
 
-palette:
-  # old directly used
-  bg: { value: "#000000", label: "none" }
-  fg: { value: "#FFFFFF", label: "none" }
-  dim: { value: "#AAAAAA", label: "none" }
-  dark: { value: "#555555", label: "none" }
+resources:
+  palette:
+    # old directly used
+    old_bg: { value: "#000000", label: "none" }
+    old_fg: { value: "#FFFFFF", label: "none" }
+    old_dim: { value: "#AAAAAA", label: "none" }
+    old_dark: { value: "#555555", label: "none" }
 
-  # date: { value: "#00FF00", label: "none" }
-  # separator: { value: "#555555", label: "none" }
-  dnd_on: { value: "#FF0000", label: "none" }
-  # alarm_on: { value: "#FFFF00", label: "none" }
-  notify_on: { value: "#FFAA00", label: "none" }
-  notify_text: { value: "#000000", label: "none" }
-  # arc_steps: { value: "#00FF00", label: "none" }
-  # arc_battery: { value: "#00FFFF", label: "none" }
-  # arc_move: { value: "#FFFF00", label: "none" }
-  # track: { value: "#555555", label: "none" }
+    # date: { value: "#00FF00", label: "none" }
+    # separator: { value: "#555555", label: "none" }
+    dnd_on: { value: "#FF0000", label: "none" }
+    # alarm_on: { value: "#FFFF00", label: "none" }
+    notify_on: { value: "#FFAA00", label: "none" }
+    notify_text: { value: "#000000", label: "none" }
+    # arc_steps: { value: "#00FF00", label: "none" }
+    # arc_battery: { value: "#00FFFF", label: "none" }
+    # arc_move: { value: "#FFFF00", label: "none" }
+    # track: { value: "#555555", label: "none" }
 
-  # Primary Neutrals:
-  white: { value: "#FFFFFF", label: "White" }
-  black: { value: "#000000", label: "Black" }
-  light_gray: { value: "#AAAAAA", label: "Light Gray" }
-  dark_gray: { value: "#555555", label: "Dark Gray" }
-  # High-Visibility Accents (100% Saturation):
-  yellow: { value: "#FFFF00", label: "Yellow" }
-  cyan: { value: "#00FFFF", label: "Cyan" }
-  green: { value: "#00FF00", label: "Green" }
-  red: { value: "#FF0000", label: "Red" }
-  orange: { value: "#FF5500", label: "Orange" }
-  # 
-  amber: { value: "#FFAA00", label: "Amber" }
-  magenta: { value: "#FF00FF", label: "Magenta" }
-  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
-  lime_green: { value: "#AAFF00", label: "Lime Green" }
-  light_blue: { value: "#55FFFF", label: "Light Blue" }
-  #avoid
-  dark_blue: { value: "#0000FF", label: "Dark Blue" }
-  # have poor reflectivity. They turn into brownish-gray smudges on MIP.
-  dark_olive: { value: "#555500", label: "Dark Olive" }
-  maroon: { value: "#550000", label: "Maroon" }
-  dark_green: { value: "#005500", label: "Dark Green" }
+    # Primary Neutrals:
+    white: { value: "#FFFFFF", label: "White" }
+    black: { value: "#000000", label: "Black" }
+    light_gray: { value: "#AAAAAA", label: "Light Gray" }
+    dark_gray: { value: "#555555", label: "Dark Gray" }
+    # High-Visibility Accents (100% Saturation):
+    yellow: { value: "#FFFF00", label: "Yellow" }
+    cyan: { value: "#00FFFF", label: "Cyan" }
+    green: { value: "#00FF00", label: "Green" }
+    red: { value: "#FF0000", label: "Red" }
+    orange: { value: "#FF5500", label: "Orange" }
+    # 
+    amber: { value: "#FFAA00", label: "Amber" }
+    magenta: { value: "#FF00FF", label: "Magenta" }
+    sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+    lime_green: { value: "#AAFF00", label: "Lime Green" }
+    light_blue: { value: "#55FFFF", label: "Light Blue" }
+    #avoid
+    dark_blue: { value: "#0000FF", label: "Dark Blue" }
+    # have poor reflectivity. They turn into brownish-gray smudges on MIP.
+    dark_olive: { value: "#555500", label: "Dark Olive" }
+    maroon: { value: "#550000", label: "Maroon" }
+    dark_green: { value: "#005500", label: "Dark Green" }
 # palette:
 #   bg: "#000000"
 #   text: "#FFFFFF"
@@ -66,79 +68,77 @@ palette:
 #   hot: "#FF5500"
 #   track: "#555555"
 
-color_scheme:
-  dark:
-    label: "Dark"
-    colors:
-      bg: palette.black
-      fg: palette.white
-      dim: palette.light_gray
-      dark: palette.dark_gray
-      alarm: palette.yellow
-  light:
-    label: "Light"
-    colors:
-      bg: palette.white
-      fg: palette.black
-      dim: palette.dark_gray
-      dark: palette.light_gray
-      alarm: palette.amber
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors:
+        bg: color.black
+        fg: color.white
+        dim: color.light_gray
+        dark: color.dark_gray
+        alarm: color.yellow
+    light:
+      label: "Light"
+      colors:
+        bg: color.white
+        fg: color.black
+        dim: color.dark_gray
+        dark: color.light_gray
+        alarm: color.amber
 
 
 config:
   accent_color:
-    default: palette.red
+    default: color.red
     choices: # the editor's own full colour picker
-      - palette.red
-      - palette.cyan
-      - palette.lime_green
-      - palette.orange
-      - palette.magenta
-      - palette.amber
+      - color.red
+      - color.cyan
+      - color.lime_green
+      - color.orange
+      - color.magenta
+      - color.amber
   data_color:
-    default: palette.lime_green              # a palette reference, or a literal hex
+    default: color.lime_green                # a palette reference, or a literal hex
     choices:                           # or an explicit list
-      - palette.sky_blue                   # a bare palette reference ...
-      - palette.amber
-      - palette.light_blue
-      - palette.orange
-      - palette.lime_green
+      - color.sky_blue                     # a bare palette reference ...
+      - color.amber
+      - color.light_blue
+      - color.orange
+      - color.lime_green
   style:
     default: dark                       # must be one of choices:
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
-      # random: { colors: random }
+      dark: { scheme: dark }
+      light: { scheme: light }
+# random: { colors: random }
 
 static:
   background:
-    type: shape
-    shape: rectangle
-    at: {anchor: center}
-    size: {width: 100%, height: 100%}
-    color: config.colors.bg
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
 
   top_line:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 23%, dx: 30% }
-    to: {anchor: top, dy: 23%, dx: -30% }
+    type: line
+    at: { anchor: top, dy: 23%, dx: 30% }
+    to: { anchor: top, dy: 23%, dx: -30% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast, antialias-dither]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data. Soft edges are a
         deliberate choice; they dither on MIP"
     antialias: true
-    
+
   top_line_l:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 23%, dx: -30% }
-    to: {anchor: top, dy: 12%, dx: -40% }
+    type: line
+    at: { anchor: top, dy: 23%, dx: -30% }
+    to: { anchor: top, dy: 12%, dx: -40% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast, safe-area]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -147,12 +147,11 @@ static:
     antialias: true
 
   top_line_r:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 23%, dx: 30% }
-    to: {anchor: top, dy: 12%, dx: 40% }
+    type: line
+    at: { anchor: top, dy: 23%, dx: 30% }
+    to: { anchor: top, dy: 12%, dx: 40% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast, safe-area]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -161,12 +160,11 @@ static:
     antialias: true
 
   top_sep:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 18% }
-    to: {anchor: top, dy: 9% }
+    type: line
+    at: { anchor: top, dy: 18% }
+    to: { anchor: top, dy: 9% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -174,12 +172,11 @@ static:
     antialias: true
 
   top_mid_l:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 26%, dx: -42% }
-    to: {anchor: top, dy: 26%, dx: 5% }
+    type: line
+    at: { anchor: top, dy: 26%, dx: -42% }
+    to: { anchor: top, dy: 26%, dx: 5% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -187,12 +184,11 @@ static:
     antialias: true
 
   top_mid_c:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 26%, dx: 5% }
-    to: {anchor: top, dy: 38%, dx: 14% }
+    type: line
+    at: { anchor: top, dy: 26%, dx: 5% }
+    to: { anchor: top, dy: 38%, dx: 14% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -200,12 +196,11 @@ static:
     antialias: true
 
   top_mid_r:
-    type: shape
-    shape: line
-    at: {anchor: top, dy: 38%, dx: 42% }
-    to: {anchor: top, dy: 38%, dx: 14% }
+    type: line
+    at: { anchor: top, dy: 38%, dx: 42% }
+    to: { anchor: top, dy: 38%, dx: 14% }
     thickness: 1px
-    color: config.colors.dark
+    color: color.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -213,29 +208,28 @@ static:
     antialias: true
 
   circle_r:
-    type: shape
-    shape: circle    # rectangle | rounded_rectangle | circle | ellipse
-    at: { anchor: center, dx: 34%, dy: 2%}    #  | arc | polygon | line
+    type: circle
+    at: { anchor: center, dx: 34%, dy: 2% }   #  | arc | polygon | line
     thickness: 2px
     filled: false
     radius: 12%
-    color: config.colors.dark
+    color: color.dark
     antialias: true
 
 elements:
   arc_l:
-    type: progress
+    type: gauge
     style: arc
     value: activity.steps
     max: activity.step_goal
-    at: {anchor: center}
+    at: { anchor: center }
     radius: 97%r
     thickness: 4%r
     start_angle: 317deg         # lower left, growing anticlockwise towards 9 o'clock
     sweep: 41deg
-    color: config.data_color
-    track_color: config.colors.dark
-    when_absent: hide
+    color: color.data
+    track_color: color.dark
+    absent: hide
     antialias: true
     lint:
       allow: [safe-area]
@@ -243,18 +237,18 @@ elements:
         past the 2% margin"
 
   arc_r:
-    type: progress
+    type: gauge
     style: arc
     value: activity.move_bar_level
     max: 5
-    at: {anchor: center}
+    at: { anchor: center }
     radius: 97%r
     thickness: 4%r
     start_angle: 43deg         # lower left, growing anticlockwise towards 9 o'clock
     sweep: -41deg
-    color: config.data_color
-    track_color: config.colors.dark
-    when_absent: hide
+    color: color.data
+    track_color: color.dark
+    absent: hide
     antialias: true
     lint:
       allow: [safe-area]
@@ -264,12 +258,11 @@ elements:
 
   hours:
     type: text
-    value: time.hour
-    format: "{:02d}"
+    text: "{time.hour:02d}"
     font: FONT_NUMBER_HOT
-    at: {anchor: left, dx: 0%, dy: 0.8%}
+    at: { anchor: left, dx: 0%, dy: 0.8% }
     align: left
-    color: config.colors.fg
+    color: color.fg
     lint:
       allow: [safe-area, text-overflow]
       reason: "the digits start ~8px in from the left rim; only the text box's
@@ -277,45 +270,44 @@ elements:
 
   minutes:
     type: text
-    value: time.minute
-    format: "{:02d}"
+    text: "{time.minute:02d}"
     font: FONT_NUMBER_HOT
-    at: {anchor: left, dx: 35%, dy: 0.8%}
+    at: { anchor: left, dx: 35%, dy: 0.8% }
     align: left
-    color: config.accent_color
+    color: color.accent
 
   circle_data:
-    type: progress
+    type: gauge
     style: arc
     value: system.battery
     max: 100
-    at: { anchor: center, dx: 34%, dy: 2%}    #  | arc | polygon | line
+    at: { anchor: center, dx: 34%, dy: 2% }   #  | arc | polygon | line
     radius: 10%
     thickness: 1%
     start_angle: 0deg
     sweep: 360deg
-    color: config.data_color
-    track_color: config.colors.dark
-    when_absent: hide
+    color: color.data
+    track_color: color.dark
+    absent: hide
     antialias: true
 
   circle_icon:
     type: icon
     icon: battery
     size: 12%r
-    at: { anchor: center, dx: 34%, dy: -2%}    #  | arc | polygon | line
-    color: config.colors.dim
+    at: { anchor: center, dx: 34%, dy: -2% }   #  | arc | polygon | line
+    color: color.dim
 
   circle_text:
     type: text
     text: 'XX%'
     font: FONT_XTINY
-    at: { anchor: center, dx: 34%, dy: 5%}    #  | arc | polygon | line
-    color: config.colors.dim
+    at: { anchor: center, dx: 34%, dy: 5% }   #  | arc | polygon | line
+    color: color.dim
   # A stroked ring, open at the bottom. There is no filled-sector primitive in
   # Connect IQ, so `thickness` is a pen width and there is no inner radius.
   # step_ring:
-  #   type: progress
+  #   type: gauge
   #   style: arc
   #   value: activity.steps
   #   max: activity.step_goal
@@ -324,59 +316,54 @@ elements:
   #   thickness: 9px
   #   start_angle: 215deg      # measured clockwise from 12 o'clock
   #   sweep: 290deg
-  #   color: palette.accent
-  #   track_color: palette.track
-  #   when_absent: hide        # required: both bindings can be absent
+  #   color: color.accent
+  #   track_color: color.track
+  #   absent: hide             # required: both bindings can be absent
   #
   # clock:
   #   type: text
-  #   value: time.clock
-  #   format: "{:%h:%M}"
+  #   text: "{time.clock:%h:%M}"
   #   font: FONT_NUMBER_HOT
   #   at: {anchor: center, dy: -12%r}
-  #   color: palette.text
+  #   color: color.text
   #
   # hr_icon:
   #   type: icon
   #   icon: heart
   #   size: 11%r
   #   at: {anchor: center, dx: -40%r, dy: 30%r}
-  #   color: palette.hot
+  #   color: color.hot
   #
   # hr_value:
   #   type: text
-  #   value: heart_rate.current
-  #   format: "{:d}"
+  #   text: "{heart_rate.current:d}"
   #   font: FONT_TINY
   #   at: {anchor: center, dx: -17%r, dy: 30%r}
-  #   color: palette.text
-  #   when_absent: placeholder
-  #   placeholder: "--"
+  #   color: color.text
+  #   absent: "--"
   #
   # steps_icon:
   #   type: icon
   #   icon: steps
   #   size: 11%r
   #   at: {anchor: center, dx: 13%r, dy: 30%r}
-  #   color: palette.accent
+  #   color: color.accent
   #
   # steps_value:
   #   type: text
-  #   value: activity.steps / 1000
-  #   format: "{:.01f}"
+  #   text: "{activity.steps / 1000:.01f}"
   #   font: FONT_TINY
   #   at: {anchor: center, dx: 38%r, dy: 30%r}
-  #   color: palette.text
-  #   when_absent: placeholder
-  #   placeholder: "--"
+  #   color: color.text
+  #   absent: "--"
   #
   # battery:
-  #   type: progress
+  #   type: gauge
   #   style: bar
   #   value: system.battery
   #   max: 100
   #   at: {anchor: center, dy: 62%r}
   #   size: {width: 40%r, height: 5%r}
-  #   color: palette.text
-  #   track_color: palette.track
+  #   color: color.text
+  #   track_color: color.track
   #

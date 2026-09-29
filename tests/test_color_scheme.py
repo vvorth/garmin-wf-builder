@@ -21,16 +21,18 @@ from wfb.diagnostics import Bag
 from wfb.palette import Color
 from tests.helpers import lint_text as _lint, load_errors as _errors, load_face as _face
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  dark_gray: "#555555"
-  light_gray: "#AAAAAA"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    dark_gray: "#555555"
+    light_gray: "#AAAAAA"
 """
 
 #: Two schemes, three roles each, all four colours legal on a 64-colour panel
@@ -38,44 +40,43 @@ palette:
 #: entries, neither with its own `label:`, so both exercise the label
 #: fallback (§12.4) at the same time -- the generated `<style label=...>`
 #: text comes from `color_scheme.dark`/`color_scheme.light`'s own `label:`.
-SCHEME_BLOCK = """color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
-  light:
-    label: "Light"
-    colors: { bg: palette.white, fg: palette.black, dim: palette.light_gray }
+SCHEME_BLOCK = """theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, fg: color.white, dim: color.dark_gray }
+    light:
+      label: "Light"
+      colors: { bg: color.white, fg: color.black, dim: color.light_gray }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """
 
 #: Every declared role is bound somewhere, so a real `monkeyc` build never
 #: warns about an unused view field -- the same reason `test_config.py`'s own
 #: `CONFIG_BLOCK`/`BODY` pair binds both axes.
 BODY = """elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: config.colors.bg
-  - id: clock
+    color: color.bg
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center, dy: -20%}
-    color: config.colors.fg
-  - id: caption
+    color: color.fg
+  caption:
     type: text
     text: "STEPS"
     font: FONT_XTINY
     at: {anchor: center, dy: 20%}
-    color: config.colors.dim
+    color: color.dim
 """
 
 DESIGN = HEAD + SCHEME_BLOCK + BODY
@@ -83,12 +84,11 @@ DESIGN = HEAD + SCHEME_BLOCK + BODY
 #: A minimal `elements:` block for tests that only care about the `config:`
 #: block itself, binding `config.colors.bg` once so the axis is exercised.
 ELEMENT = """elements:
-  - id: c
-    type: shape
-    shape: circle
+  c:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: config.colors.bg
+    color: color.bg
 """
 
 
@@ -119,24 +119,25 @@ def test_a_role_reference_is_an_unfoldable_colour_binding(write_design, bag):
     runtime, so `fold` must never inline it."""
     face = _face(DESIGN, write_design, bag)
     bg = next(e for e in face.walk() if e.id == "bg")
-    assert bg.color.text == "config.colors.bg"
+    assert bg.color.shown == "color.bg"
     assert bg.color.code == "_configColorsBg"
     assert bg.color.constant is None
 
 
 def test_schemes_disagreeing_on_role_set_is_an_error(write_design):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
-  light:
-    colors: { bg: palette.white, fg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black, fg: color.white, dim: color.dark_gray }
+    light:
+      colors: { bg: color.white, fg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """ + BODY
     errors = _errors(text, write_design)
     assert any(d.code == "color-scheme" for d in errors), errors
@@ -147,18 +148,19 @@ config:
 def test_the_scheme_with_every_role_is_not_blamed(write_design):
     """Only `light` (missing `dim`) is named -- `dark`, which has every role
     the union declares, gets no error of its own."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
-  light:
-    colors: { bg: palette.white, fg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black, fg: color.white, dim: color.dark_gray }
+    light:
+      colors: { bg: color.white, fg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """ + BODY
     errors = _errors(text, write_design)
     messages = [d.message for d in errors if d.code == "color-scheme"]
@@ -167,25 +169,26 @@ config:
 
 
 def test_role_mismatch_does_not_cascade(write_design):
-    """One error, at the real mistake -- `BODY` binds `config.colors.bg` on
+    """One error, at the real mistake -- `BODY` binds `color.bg` on
     three elements, so throwing the whole axis out of scope would add an
     "unknown data source" per element, the same cascade
     `test_config.py::test_a_rejected_config_axis_does_not_cascade` exists to
     prevent.  This is also the "a rejected `config: style:` plus a
-    `config.colors.bg` reader gives one error, not two" case the task brief
+    `color.bg` reader gives one error, not two" case the task brief
     calls out by name."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
-  light:
-    colors: { bg: palette.white, fg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black, fg: color.white, dim: color.dark_gray }
+    light:
+      colors: { bg: color.white, fg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """ + BODY
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["color-scheme"], (
@@ -195,49 +198,31 @@ config:
 
 def test_config_colors_naming_an_undeclared_role_is_an_error(write_design):
     text = HEAD + SCHEME_BLOCK + """elements:
-  - id: c
-    type: shape
-    shape: circle
+  c:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: config.colors.nope
+    color: color.nope
 """
     errors = _errors(text, write_design)
-    assert any(d.code == "config" and "no role 'nope'" in d.message for d in errors), errors
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "config.colors.bg" in note and "config.colors.fg" in note and "config.colors.dim" in note
-
-
-def test_a_bare_config_colors_used_as_a_color_is_an_error(write_design):
-    text = HEAD + SCHEME_BLOCK + """elements:
-  - id: c
-    type: shape
-    shape: circle
-    at: {anchor: center}
-    radius: 20%
-    color: config.colors
-"""
-    errors = _errors(text, write_design)
-    assert any(
-        d.code == "config" and "is a colour scheme, not a colour" in d.message
-        for d in errors
-    ), errors
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "config.colors.bg" in note
+    assert [d.message for d in errors] == ["unknown colour 'color.nope'"]
+    note = " ".join(errors[0].notes)
+    assert "color.bg" in note and "color.fg" in note and "color.dim" in note
 
 
 def test_default_not_among_choices_is_an_error(write_design):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: light
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
     errors = _errors(text, write_design)
     assert any(d.code == "config" and "not one of 'choices:'" in d.message for d in errors), errors
@@ -247,15 +232,16 @@ def test_default_naming_an_undeclared_entry_is_an_error(write_design):
     """`default:` names a `choices:` *entry*, not a scheme -- naming
     something that is not a declared entry at all is the same "not one of
     choices:" error, listing the entries that are declared."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
 
 config:
   style:
     default: nope
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
     errors = _errors(text, write_design)
     error = next(d for d in errors if d.code == "config" and "not one of 'choices:'" in d.message)
@@ -270,17 +256,18 @@ def test_default_check_is_by_entry_name_not_scheme_reference(write_design, bag):
     matches by `choices:` entry *name*, not by which scheme (or, transitively,
     colour) the entry resolves to, unlike the accent/data axes' colour-value
     comparison."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
 
 config:
   style:
     default: also_dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
       also_dark:
-        colors: dark
+        scheme: dark
         lint: { allow: [duplicate-style], reason: "test fixture" }
 """ + ELEMENT
     face = _face(text, write_design, bag)
@@ -288,17 +275,18 @@ config:
 
 
 def test_a_rejected_axis_default_does_not_cascade(write_design):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: nope
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -307,16 +295,17 @@ config:
 
 
 def test_choices_naming_an_undeclared_scheme_is_an_error(write_design):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      bogus: { colors: nope }
+      dark: { scheme: dark }
+      bogus: { scheme: nope }
 """ + ELEMENT
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -332,18 +321,19 @@ def test_a_declared_but_rejected_scheme_in_colors_does_not_cascade(write_design)
     has its own error pointing at `color_scheme:` (CLAUDE.md, "one error, not
     N").  Same scenario `test_role_mismatch_does_not_cascade` covers via
     `BODY`'s three readers; this one uses a single reader for contrast."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black, fg: palette.white }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black, fg: color.white }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """ + ELEMENT
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["color-scheme"], (
@@ -356,17 +346,18 @@ def test_an_entry_with_no_colors_is_an_error(write_design):
     `colors:` to mean anything at all -- `light: {}` has neither `layout:`
     nor `colors:`, which is a build error regardless of `layouts:`
     (`tests/test_layouts.py` covers the `layouts:`-declared case)."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
       light: {}
 """ + ELEMENT
     errors = _errors(text, write_design)
@@ -380,17 +371,18 @@ config:
 def test_colors_all_or_none_reports_the_first_entry_that_lacks_it(write_design):
     """Three entries, only the second missing `colors:` -- exactly one
     error, at `middle`, not at `last` (which does have `colors:`)."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:   { colors: dark }
+      dark: { scheme: dark }
       middle: {}
-      last:   { colors: dark }
+      last: { scheme: dark }
 """ + ELEMENT
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -400,22 +392,22 @@ config:
 
 
 def test_a_role_colour_may_be_a_palette_reference_or_a_literal(write_design, bag):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black, accent: "#FFAA00" }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black, accent: "#FFAA00" }
 
 config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + """elements:
-  - id: c
-    type: shape
-    shape: circle
+  c:
+    type: circle
     at: {anchor: center}
     radius: 20%
-    color: config.colors.accent
+    color: color.accent
 """
     face = _face(text, write_design, bag)
     assert face.color_scheme["dark"].colors["accent"] == Color.parse("#FFAA00")
@@ -428,9 +420,10 @@ def test_a_scheme_role_may_not_reference_config(write_design):
     `configColor.default` already has, so this is rejected at the schema
     itself (there is no build-time value for a runtime-editable field for
     either one)."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: config.accent_color }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.accent }
 
 config:
   accent_color:
@@ -439,29 +432,11 @@ config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
     errors = _errors(text, write_design)
-    assert any(d.code == "schema" for d in errors), errors
-
-
-def test_schema_widened_for_config_colors_lets_the_ir_give_the_friendly_error(write_design):
-    """The schema's own `$defs/color` pattern is widened to accept
-    `config.colors.<role>` (three segments), so a palette entry that
-    mistakenly names one reaches `Builder._build_palette`'s domain-specific
-    error rather than failing raw schema validation with no context -- the
-    same treatment a two-segment `config.<axis>` reference already got.
-    """
-    text = HEAD.replace(
-        'palette:\n  black: "#000000"',
-        'palette:\n  black: config.colors.bg',
-    ) + SCHEME_BLOCK + BODY
-    errors = _errors(text, write_design)
-    assert not any(d.code == "schema" for d in errors), errors
-    assert any(d.code == "palette" for d in errors), errors
-    note = " ".join(n for d in errors for n in d.notes)
-    assert "color: color.accent" in note or "must be literal colours" in " ".join(
-        d.message for d in errors if d.code == "palette")
+    assert [d.code for d in errors] == ["color"], errors
+    assert "'color.accent' is a colour role" in errors[0].message
 
 
 def test_the_old_config_colors_spelling_is_now_a_schema_error(write_design):
@@ -469,11 +444,12 @@ def test_the_old_config_colors_spelling_is_now_a_schema_error(write_design):
     3) -- the old spelling is now an unknown-key schema error, reported on
     the author's own `config:` line, the same as `on_tap:`/`carousel`/bare
     font `scale:` (CLAUDE.md §6)."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   colors:
@@ -505,9 +481,9 @@ def test_config_unsupported_names_every_role_on_fenix5(write_design, db):
     fr955 = _lint(DESIGN, write_design, db, "fenix5")
     warnings = [d for d in fr955.items if d.code == "config-unsupported"]
     assert len(warnings) == 1, fr955.render()
-    assert "config.colors.bg" in warnings[0].message
-    assert "config.colors.fg" in warnings[0].message
-    assert "config.colors.dim" in warnings[0].message
+    assert "color.bg" in warnings[0].message
+    assert "color.fg" in warnings[0].message
+    assert "color.dim" in warnings[0].message
     # DESIGN has two entries (dark, light) -- the non-default one is named as
     # unreachable on a device with no editor to switch away from the default.
     note = " ".join(warnings[0].notes)
@@ -516,27 +492,31 @@ def test_config_unsupported_names_every_role_on_fenix5(write_design, db):
 
 def test_config_unsupported_is_suppressible_from_any_one_referencing_element(write_design, db):
     text = DESIGN.replace(
-        "    color: config.colors.dim\n",
-        "    color: config.colors.dim\n"
-        "    lint:\n"
-        "      allow: [config-unsupported]\n"
-        "      reason: \"test\"\n",
+        """    color: color.dim
+""",
+        """    color: color.dim
+    lint:
+      allow: [config-unsupported]
+      reason: "test"
+""",
     )
     fr955 = _lint(text, write_design, db, "fr955")
     assert not any(d.code == "config-unsupported" for d in fr955.items), fr955.render()
 
 
 def test_config_unsupported_is_suppressible_from_an_outline_only_user(write_design, db):
-    """Plan 18 item 6: an element that reaches `config.colors.dim` only
+    """Plan 18 item 6: an element that reaches `color.dim` only
     through `outline: {color: ...}` is a user of it, so its `lint: allow`
     counts -- before, `_users_of` never looked at an outline."""
     text = DESIGN.replace(
-        "    color: config.colors.dim\n",
-        "    color: \"#FFFFFF\"\n"
-        "    outline: {color: config.colors.dim}\n"
-        "    lint:\n"
-        "      allow: [config-unsupported]\n"
-        "      reason: \"test\"\n",
+        """    color: color.dim
+""",
+        """    color: "#FFFFFF"
+    outline: {color: color.dim}
+    lint:
+      allow: [config-unsupported]
+      reason: "test"
+""",
     )
     fr955 = _lint(text, write_design, db, "fr955")
     assert not any(d.code == "config-unsupported" for d in fr955.items), fr955.render()
@@ -545,35 +525,38 @@ def test_config_unsupported_is_suppressible_from_an_outline_only_user(write_desi
 # -- lint: palette-dither, reached through config.colors -----------------------
 
 
-OFF_GRID_SCHEME = HEAD + """color_scheme:
-  dark:
-    colors: { bg: "#FF8000" }
+OFF_GRID_SCHEME = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: "#FF8000" }
 
 config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
 
 
 def test_an_off_grid_role_colour_dithers(write_design, db):
     bag = _lint(OFF_GRID_SCHEME, write_design, db, "fenix8solar47mm")
     warnings = [d for d in bag.items if d.code == "palette-dither"]
-    assert any("config.colors.bg" in d.message for d in warnings), bag.render()
+    assert any("color.bg" in d.message for d in warnings), bag.render()
 
 
 def test_role_palette_dither_is_suppressible_on_the_referencing_element(write_design, db):
     text = OFF_GRID_SCHEME.replace(
-        "    color: config.colors.bg\n",
-        "    color: config.colors.bg\n"
-        "    lint:\n"
-        "      allow: [palette-dither]\n"
-        "      reason: \"test\"\n",
+        """    color: color.bg
+""",
+        """    color: color.bg
+    lint:
+      allow: [palette-dither]
+      reason: "test"
+""",
     )
     bag = _lint(text, write_design, db, "fenix8solar47mm")
     warnings = [d for d in bag.items
-                if d.code == "palette-dither" and "config.colors.bg" in d.message]
+                if d.code == "palette-dither" and "color.bg" in d.message]
     assert not warnings, bag.render()
 
 
@@ -581,17 +564,18 @@ def test_a_scheme_no_entry_references_is_not_checked(write_design, db, bag):
     """`unused` is a real color_scheme entry with an off-grid colour, but no
     `config: style:` entry references it, so `resolveStyle` never assigns it
     and there is nothing on the wrist to warn about."""
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  unused:
-    colors: { bg: "#FF8000" }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    unused:
+      colors: { bg: "#FF8000" }
 
 config:
   style:
     default: dark
     choices:
-      dark: { colors: dark }
+      dark: { scheme: dark }
 """ + ELEMENT
     face = _face(text, write_design, bag)
     assert "unused" in face.color_scheme
@@ -602,16 +586,17 @@ config:
 # -- lint: duplicate-style ------------------------------------------------------
 
 
-DUPLICATE_STYLE = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
+DUPLICATE_STYLE = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      dark2: { colors: dark }
+      dark: { scheme: dark }
+      dark2: { scheme: dark }
 """ + ELEMENT
 
 
@@ -629,9 +614,9 @@ def test_duplicate_style_fires_for_two_entries_resolving_the_same_way(write_desi
 
 def test_duplicate_style_is_suppressible_on_the_second_entry(write_design, bag):
     text = DUPLICATE_STYLE.replace(
-        "      dark2: { colors: dark }\n",
+        "      dark2: { scheme: dark }\n",
         "      dark2:\n"
-        "        colors: dark\n"
+        "        scheme: dark\n"
         "        lint: { allow: [duplicate-style], reason: \"test fixture\" }\n",
     )
     face = _face(text, write_design, bag)
@@ -644,9 +629,9 @@ def test_duplicate_style_is_suppressible_only_on_the_second_entry(write_design, 
     (§12.6) -- putting it on the first entry instead leaves the warning
     live."""
     text = DUPLICATE_STYLE.replace(
-        "      dark:  { colors: dark }\n",
+        "      dark: { scheme: dark }\n",
         "      dark:\n"
-        "        colors: dark\n"
+        "        scheme: dark\n"
         "        lint: { allow: [duplicate-style], reason: \"test fixture\" }\n",
     )
     face = _face(text, write_design, bag)
@@ -682,9 +667,9 @@ def test_an_unknown_style_entry_lint_code_is_a_lint_allow_error(write_design, ba
     fail silently either.  Called directly, the same way `resolve_all` does
     -- `check_lint_allow` is device-independent, not part of `lint.run`."""
     text = DUPLICATE_STYLE.replace(
-        "      dark2: { colors: dark }\n",
+        "      dark2: { scheme: dark }\n",
         "      dark2:\n"
-        "        colors: dark\n"
+        "        scheme: dark\n"
         "        lint: { allow: [duplicat-style], reason: \"typo\" }\n",
     )
     face = _face(text, write_design, bag)
@@ -764,12 +749,11 @@ def test_only_color_scheme_no_colour_axes_still_gets_the_full_feature(write_desi
 
 def test_a_face_with_no_config_at_all_generates_no_style_code(write_design, db):
     plain = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.black
+    color: color.black
 """
     view = _view(plain, write_design, db)
     assert "_configColors" not in view
@@ -793,18 +777,19 @@ def test_the_config_resource_has_a_styles_block(write_design, bag):
 def test_an_unlabelled_scheme_gets_no_label_attribute(write_design, bag):
     from wfb.emit.resources import config_resource
 
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 """ + ELEMENT
     face = _face(text, write_design, bag)
     xml = config_resource(face)
@@ -829,19 +814,20 @@ def test_an_entrys_own_label_overrides_the_schemes(write_design, bag):
     applies when the entry has none of its own (§12.4)."""
     from wfb.emit.resources import config_resource, shared_strings
 
-    text = HEAD + """color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: palette.black }
-  light:
-    colors: { bg: palette.white }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black }
+    light:
+      colors: { bg: color.white }
 
 config:
   style:
     default: dark
     choices:
-      dark:  { label: "Midnight", colors: dark }
-      light: { colors: light }
+      dark: { label: "Midnight", scheme: dark }
+      light: { scheme: light }
 """ + ELEMENT
     face = _face(text, write_design, bag)
     xml = config_resource(face)
@@ -891,11 +877,13 @@ def test_a_color_scheme_design_compiles_warning_free_on_every_target(
     from wfb.build import build as run_build
 
     text = DESIGN.replace(
-        "    color: config.colors.dim\n",
-        "    color: config.colors.dim\n"
-        "    lint:\n"
-        "      allow: [config-unsupported]\n"
-        "      reason: \"test fixture\"\n",
+        """    color: color.dim
+""",
+        """    color: color.dim
+    lint:
+      allow: [config-unsupported]
+      reason: "test fixture"
+""",
     )
     design = write_design(text)
     bag = Bag()
@@ -930,11 +918,13 @@ def test_only_color_scheme_no_colour_axes_compiles_warning_free(
     from wfb.build import build as run_build
 
     text = DESIGN.replace(
-        "    color: config.colors.dim\n",
-        "    color: config.colors.dim\n"
-        "    lint:\n"
-        "      allow: [config-unsupported]\n"
-        "      reason: \"test fixture\"\n",
+        """    color: color.dim
+""",
+        """    color: color.dim
+    lint:
+      allow: [config-unsupported]
+      reason: "test fixture"
+""",
     )
     assert "config:\n  accent_color" not in text
     design = write_design(text)

@@ -28,7 +28,8 @@ invalid v1 file gives a v2 file that the compiler rejects.
 A *fragment* -- a YAML document with no ``format:`` key, which is how most
 test inputs are written -- is migrated as format 1. It may be a whole design
 without its header, a list or mapping of elements (``fragment="elements"``),
-or one element (``fragment="element"``).
+one element (``fragment="element"``), or a list of hand, needle or pattern
+parts (``fragment="parts"``).
 """
 
 from __future__ import annotations
@@ -95,9 +96,9 @@ class Refused(Exception):
 class _Context:
     path: Path
     refusals: list[Refused] = field(default_factory=list)
-    #: Multi-line quoted scalars' source text, by ``id()`` of the scalar
+    #: Multi-line and escaped quoted scalars' source text, by ``id()`` of the scalar
     #: (:func:`_capture_multiline`).
-    captured: dict[int, tuple[Any, str, int]] = field(default_factory=dict)
+    captured: dict[int, tuple[Any, str, int, int | None]] = field(default_factory=dict)
     #: The comment lines above each top-level key, by the key's current name:
     #: ``(blank lines above them, lines)`` (:func:`_take_leading`).
     leading: dict[str, tuple[int, list[str]]] = field(default_factory=dict)
@@ -158,6 +159,8 @@ def migrate_text(text: str, path: Path, bag: Bag, *, fragment: str | None = None
     if fragment == "element":
         if isinstance(data, CommentedMap):
             _element(ctx, data)
+    elif fragment == "parts":
+        _parts(ctx, data)
     elif fragment == "elements":
         data = _elements_fragment(ctx, data)
     else:
@@ -202,9 +205,12 @@ def _children(node: Any) -> Iterator[tuple[Any, Any, Any]]:
             yield node, index, value
 
 
-def _capture_multiline(data: Any, text: str) -> dict[int, tuple[Any, str, int]]:
+def _capture_multiline(data: Any, text: str) -> dict[int, tuple[Any, str, int, int | None]]:
+    """Each such scalar's source text, the indent of the line it opens on,
+    and the spaces between its end and a trailing comment (``None`` if it
+    has none)."""
     lines = text.split("\n")
-    found: dict[int, tuple[Any, str, int]] = {}
+    found: dict[int, tuple[Any, str, int, int | None]] = {}
 
     def walk(node: Any) -> None:
         for parent, key, value in _children(node):
@@ -215,9 +221,17 @@ def _capture_multiline(data: Any, text: str) -> dict[int, tuple[Any, str, int]]:
                 except (KeyError, IndexError, AttributeError, TypeError):
                     continue
                 raw = _quoted_source(lines, pos[0], pos[1])
-                if raw is not None and "\n" in raw:
+                # A multi-line scalar keeps its line breaks, and an escaped one
+                # its escapes: ruamel would write "\uF09B" back as the raw,
+                # often invisible, character.
+                if raw is not None and ("\n" in raw or (raw[0] == '"' and "\\" in raw)):
                     source = lines[pos[0]]
-                    found[id(value)] = (value, raw, len(source) - len(source.lstrip(" ")))
+                    last = raw.split("\n")[-1]
+                    end_line = lines[pos[0] + raw.count("\n")]
+                    start = (pos[1] if "\n" not in raw else 0) + len(last)
+                    after = re.match(r"( +)#", end_line[start:])
+                    found[id(value)] = (value, raw, len(source) - len(source.lstrip(" ")),
+                                        len(after.group(1)) if after else None)
             else:
                 walk(value)
 
@@ -253,16 +267,16 @@ def _quoted_source(lines: list[str], line: int, col: int) -> str | None:
     return None
 
 
-def _swap_multiline(data: Any, captured: dict[int, tuple[Any, str, int]],
-                    ) -> dict[str, tuple[str, int]]:
-    sentinels: dict[str, tuple[str, int]] = {}
+def _swap_multiline(data: Any, captured: dict[int, tuple[Any, str, int, int | None]],
+                    ) -> dict[str, tuple[str, int, int | None]]:
+    sentinels: dict[str, tuple[str, int, int | None]] = {}
 
     def walk(node: Any) -> None:
         for parent, key, value in list(_children(node)):
             entry = captured.get(id(value))
             if entry is not None and entry[0] is value:
                 sentinel = _SENTINEL.format(len(sentinels))
-                sentinels[sentinel] = (entry[1], entry[2])
+                sentinels[sentinel] = (entry[1], entry[2], entry[3])
                 parent[key] = sentinel
             elif isinstance(value, (CommentedMap, CommentedSeq)):
                 walk(value)
@@ -271,16 +285,17 @@ def _swap_multiline(data: Any, captured: dict[int, tuple[Any, str, int]],
     return sentinels
 
 
-def _restore_multiline(dumped: str, sentinels: dict[str, tuple[str, int]]) -> str:
+def _restore_multiline(dumped: str, sentinels: dict[str, tuple[str, int, int | None]]) -> str:
     """Put each sentinel's source text back, its continuation lines moved
-    by as much as the line holding it moved."""
+    by as much as the line holding it moved, and a trailing comment as far
+    after it as the author had it."""
     if not sentinels:
         return dumped
     lines = dumped.split("\n")
     for index, line in enumerate(lines):
         if "__wfb_migrate_scalar_" not in line:
             continue
-        for sentinel, (raw, old_col) in sentinels.items():
+        for sentinel, (raw, old_col, gap) in sentinels.items():
             col = line.find(sentinel)
             if col < 0:
                 continue
@@ -290,7 +305,10 @@ def _restore_multiline(dumped: str, sentinels: dict[str, tuple[str, int]]) -> st
             delta = (len(line) - len(line.lstrip(" "))) - old_col
             first, *rest = raw.split("\n")
             moved = [_shift(r, delta) for r in rest]
-            line = line[:col] + "\n".join([first] + moved) + line[end:]
+            tail = line[end:]
+            if gap is not None and re.match(r" +#", tail):
+                tail = " " * gap + tail.lstrip(" ")
+            line = line[:col] + "\n".join([first] + moved) + tail
         lines[index] = line
     return "\n".join(lines)
 
@@ -396,6 +414,8 @@ def _yaml(indent: int | None, offset: int | None, *, spaced_braces: bool = False
     if spaced_braces:
         yaml.Emitter = _SpacedBraceEmitter
     yaml.preserve_quotes = True
+    # `[{dy: 1}]`, not ruamel's default `[dy: 1]` (the same data).
+    yaml.brace_single_entry_mapping_in_flow_sequence = True
     yaml.width = 4096
     if indent is not None:
         yaml.indent(mapping=2, sequence=indent, offset=offset or 0)
@@ -1151,7 +1171,8 @@ def _modes(ctx: _Context, body: CommentedMap) -> None:
     if "modes" not in body:
         return
     modes = body["modes"]
-    values = set(modes) if isinstance(modes, list) else None
+    values = ({m for m in modes if isinstance(m, str)}
+              if isinstance(modes, list) and all(isinstance(m, str) for m in modes) else None)
     if values == {"active"} and len(modes) == 1:
         _pop(body, "modes")
     elif values == {"active", "low_power"} and len(modes) == 2:
@@ -1266,7 +1287,7 @@ def _template_scalar(ctx: _Context, original: Any, expr: str, template: str) -> 
                    + _escape(suffix, quote) + " " * trail + quote)
         scalar = (SingleQuotedScalarString(template) if quote == "'"
                   else DoubleQuotedScalarString(template))
-        ctx.captured[id(scalar)] = (scalar, new_raw, col)
+        ctx.captured[id(scalar)] = (scalar, new_raw, col, entry[3])
         return scalar
     return DoubleQuotedScalarString(template)
 

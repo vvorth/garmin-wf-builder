@@ -18,27 +18,29 @@ from wfb.emit.resources import bake_fonts
 ROOT = Path(__file__).resolve().parent.parent
 
 SLOT_DESIGN = """
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 config:
-  data:
+  slots:
     top:
-      default: complication.weekly_run_distance
+      default: weekly_run_distance
       choices: {choices}
 elements:
-  - id: top_reading
-    type: complication_slot
-    slot: config.data.top
+  top_reading:
+    type: data
+    slot: top
     at: {{anchor: center}}
-    icon_size: 8%r
-    color: palette.fg
+    icon: {{size: 8%r}}
+    color: color.fg
     lint: {{allow: [config-unsupported], reason: test}}
 """
 
-COLLIDING = "[complication.weekly_run_distance, complication.current_temperature]"
-CLEAN = "[complication.weekly_run_distance, complication.steps]"
+COLLIDING = "[weekly_run_distance, current_temperature]"
+CLEAN = "[weekly_run_distance, steps]"
 
 
 def _project(write_design, bag, db, tmp_path, choices: str):
@@ -103,13 +105,15 @@ def test_an_unfixable_collision_is_a_build_error(write_design, bag, db, tmp_path
     """Two static icons put both colliding glyphs in the view as literals,
     where nothing rewrites them: report it instead of letting monkeyc crash."""
     design = write_design("""
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 elements:
-  - {id: a, type: icon, icon: distance, size: 10%r, at: {anchor: center, dx: -20%}, color: palette.fg}
-  - {id: b, type: icon, icon: temperature, size: 10%r, at: {anchor: center, dx: 20%}, color: palette.fg}
+  a: {type: icon, icon: distance, size: 10%r, at: {anchor: center, dx: -20%}, color: color.fg}
+  b: {type: icon, icon: temperature, size: 10%r, at: {anchor: center, dx: 20%}, color: color.fg}
 """)
     result = build(design, output=tmp_path / "out", bag=bag, db=db, compile_prg=False)
     assert result is None

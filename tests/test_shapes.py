@@ -19,21 +19,22 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import garmin_arc
 
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
 """
 
 
@@ -42,31 +43,28 @@ def design(*elements: str) -> str:
 
 
 ARC = """
-  - id: ring
-    type: shape
-    shape: arc
+  ring:
+    type: arc
     at: {anchor: center}
     radius: 50%r
     thickness: 6px
     start_angle: 180deg
     sweep: 340deg
-    color: palette.fg
+    color: color.fg
 """
 
 ELLIPSE = """
-  - id: pill
-    type: shape
-    shape: ellipse
+  pill:
+    type: ellipse
     at: {anchor: center}
     size: {width: 40%, height: 20%}
-    color: palette.fg
+    color: color.fg
 """
 
 POLYGON = """
-  - id: chevron
-    type: shape
-    shape: polygon
-    color: palette.fg
+  chevron:
+    type: polygon
+    color: color.fg
     points:
       - {anchor: center, dy: -10%}
       - {anchor: center, dx: -10%, dy: 10%}
@@ -139,8 +137,8 @@ def test_an_ellipse_resolves_semi_axes_not_a_box(resolved_for):
 
 
 def test_an_outlined_ellipse_reaches_half_a_pen_width_further(resolved_for):
-    outlined = ELLIPSE.replace("color: palette.fg",
-                               "thickness: 6px\n    filled: false\n    color: palette.fg")
+    outlined = ELLIPSE.replace("color: color.fg",
+                               "thickness: 6px\n    filled: false\n    color: color.fg")
     pill = find(resolved_for(design(outlined)), "pill")
     # The semi-axes handed to drawEllipse are unchanged; only the reach grows.
     assert (pill.rx, pill.ry) == (52, 26)
@@ -170,14 +168,13 @@ def test_filled_false_on_a_rectangle_draws_an_outline(generated_for, tmp_path):
     """Regression: `filled:` was parsed, validated, and then ignored outright --
     `wfb.kinds.shape.ShapeKind.emit_draw` always called fillRectangle and only `circle` branched."""
     outlined = """
-  - id: card
-    type: shape
-    shape: rectangle
+  card:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 20%}
     thickness: 3px
     filled: false
-    color: palette.fg
+    color: color.fg
 """
     project = generated_for(design(outlined), tmp_path)
     view = next(s.text for s in project.sources if s.path.endswith("View.mc"))
@@ -188,14 +185,13 @@ def test_filled_false_on_a_rectangle_draws_an_outline(generated_for, tmp_path):
 
 def test_filled_false_on_a_rounded_rectangle_draws_an_outline(generated_for, tmp_path):
     outlined = """
-  - id: card
-    type: shape
-    shape: rounded_rectangle
+  card:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 20%}
     corner_radius: 6px
     filled: false
-    color: palette.fg
+    color: color.fg
 """
     project = generated_for(design(outlined), tmp_path)
     view = next(s.text for s in project.sources if s.path.endswith("View.mc"))
@@ -206,14 +202,13 @@ def test_filled_false_on_a_rounded_rectangle_draws_an_outline(generated_for, tmp
 def test_an_outlined_rectangle_keeps_its_declared_geometry(resolved_for):
     """`box` grows by the pen; the constants handed to drawRectangle do not."""
     outlined = """
-  - id: card
-    type: shape
-    shape: rectangle
+  card:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 20%}
     thickness: 5px
     filled: false
-    color: palette.fg
+    color: color.fg
 """
     card = find(resolved_for(design(outlined)), "card")
     assert card.rect is not None
@@ -230,8 +225,8 @@ def test_a_filled_rectangle_has_no_separate_rect(resolved_for):
 
 def test_filled_is_refused_on_an_arc(write_design, bag):
     """CLAUDE.md constraint 3: there is no fillArc/fillSector/drawSector."""
-    load(write_design(design(ARC.replace("color: palette.fg",
-                                         "filled: true\n    color: palette.fg"))), bag)
+    load(write_design(design(ARC.replace("color: color.fg",
+                                         "filled: true\n    color: color.fg"))), bag)
     errors = [d for d in bag.errors if d.code == "element"]
     assert errors, bag.render()
     assert "no filled-arc primitive" in errors[0].message
@@ -240,8 +235,8 @@ def test_filled_is_refused_on_an_arc(write_design, bag):
 
 def test_filled_false_is_refused_on_a_polygon(write_design, bag):
     """Dc has fillPolygon and no drawPolygon."""
-    load(write_design(design(POLYGON.replace("color: palette.fg",
-                                             "filled: false\n    color: palette.fg"))), bag)
+    load(write_design(design(POLYGON.replace("color: color.fg",
+                                             "filled: false\n    color: color.fg"))), bag)
     errors = [d for d in bag.errors if d.code == "element"]
     assert errors, bag.render()
     assert "no drawPolygon" in errors[0].message
@@ -249,8 +244,8 @@ def test_filled_false_is_refused_on_a_polygon(write_design, bag):
 
 def test_filled_true_is_accepted_on_a_polygon(write_design, bag):
     """Redundant, but not wrong -- only `false` names something impossible."""
-    face = load(write_design(design(POLYGON.replace("color: palette.fg",
-                                                    "filled: true\n    color: palette.fg"))), bag)
+    face = load(write_design(design(POLYGON.replace("color: color.fg",
+                                                    "filled: true\n    color: color.fg"))), bag)
     assert face is not None and bag.ok(), bag.render()
 
 
@@ -274,10 +269,9 @@ def test_a_polygon_needs_three_points(write_design, bag):
 def test_a_polygon_is_capped_at_fillpolygons_own_limit(write_design, bag):
     points = "\n".join(f"      - {{dx: {i % 40}px, dy: {i}px}}" for i in range(65))
     over = f"""
-  - id: blob
-    type: shape
-    shape: polygon
-    color: palette.fg
+  blob:
+    type: polygon
+    color: color.fg
     points:
 {points}
 """
@@ -292,7 +286,7 @@ def test_a_polygon_is_capped_at_fillpolygons_own_limit(write_design, bag):
     ("sweep", "circle", "    radius: 6px\n    sweep: 90deg"),
     # and the ones that predate them, silently dropped until now
     ("radius", "rectangle", "    size: {width: 10%, height: 10%}\n    radius: 6px"),
-    ("radius", "rounded_rectangle",
+    ("radius", "rectangle",
      "    size: {width: 10%, height: 10%}\n    corner_radius: 4px\n    radius: 6px"),
     ("corner_radius", "line", "    to: {dx: 10%}\n    corner_radius: 4px"),
     ("to", "circle", "    radius: 6px\n    to: {dx: 10%}"),
@@ -308,12 +302,11 @@ def test_a_key_the_shape_does_not_read_is_an_error(write_design, bag, key, shape
     what turned a three-key special case into the whole class.
     """
     wrong = f"""
-  - id: dot
-    type: shape
-    shape: {shape}
+  dot:
+    type: {shape}
     at: {{anchor: center}}
 {body}
-    color: palette.fg
+    color: color.fg
 """
     load(write_design(design(wrong)), bag)
     assert any(key in d.message and "is not used by" in d.message
@@ -327,13 +320,12 @@ def test_thickness_on_a_filled_shape_is_an_error(write_design, bag):
     on `filled:` rather than on the shape -- a line and an arc always use it.
     """
     wrong = """
-  - id: dot
-    type: shape
-    shape: circle
+  dot:
+    type: circle
     at: {anchor: center}
     radius: 6px
     thickness: 3px
-    color: palette.fg
+    color: color.fg
 """
     load(write_design(design(wrong)), bag)
     assert any("thickness" in d.message and "is not used by" in d.message
@@ -348,12 +340,11 @@ def test_thickness_on_a_filled_shape_is_an_error(write_design, bag):
 def test_thickness_is_accepted_where_it_is_actually_drawn(write_design, bag, shape, body):
     """The other half of the check above: it must not reject a real outline."""
     ok = f"""
-  - id: dot
-    type: shape
-    shape: {shape}
+  dot:
+    type: {shape}
 {body}
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """
     face = load(write_design(design(ok)), bag)
     assert face is not None, bag.render()
@@ -399,8 +390,8 @@ def test_an_ellipse_picks_fill_or_draw_from_filled(generated_for, tmp_path):
     assert "dc.fillEllipse(Layout.PILL_CX" in view
 
     outlined = generated_for(
-        design(ELLIPSE.replace("color: palette.fg",
-                               "thickness: 3px\n    filled: false\n    color: palette.fg")),
+        design(ELLIPSE.replace("color: color.fg",
+                               "thickness: 3px\n    filled: false\n    color: color.fg")),
         tmp_path / "b",
     )
     view = next(s.text for s in outlined.sources if s.path.endswith("View.mc"))
@@ -428,14 +419,13 @@ def test_the_preview_honours_filled_false(resolved_for):
     from wfb.preview import PreviewOptions, render
 
     solid = """
-  - id: card
-    type: shape
-    shape: rectangle
+  card:
+    type: rectangle
     at: {anchor: center}
     size: {width: 40%, height: 20%}
-    color: palette.fg
+    color: color.fg
 """
-    outlined = solid.replace("color: palette.fg", "filled: false\n    color: palette.fg")
+    outlined = solid.replace("color: color.fg", "filled: false\n    color: color.fg")
 
     def lit(text: str) -> int:
         image = render(resolved_for(design(text)), PreviewOptions(scale=1, mask_shape=False))
@@ -450,14 +440,16 @@ def test_the_preview_honours_filled_false(resolved_for):
 #: A design with no filled full-screen rectangle in it, so `_backdrop` has to
 #: decide for itself what is behind everything.
 NO_BACKGROUND = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 """
 
@@ -466,10 +458,9 @@ elements:
     # A triangle across three corners: its bounding *box* is the whole screen,
     # its ink is half of it.
     """
-  - id: wedge
-    type: shape
-    shape: polygon
-    color: palette.fg
+  wedge:
+    type: polygon
+    color: color.fg
     points:
       - {anchor: top_left}
       - {anchor: top_right}
@@ -477,14 +468,13 @@ elements:
 """,
     # An outlined full-screen rectangle paints only its own edge.
     """
-  - id: frame
-    type: shape
-    shape: rectangle
+  frame:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
     thickness: 2px
     filled: false
-    color: palette.fg
+    color: color.fg
 """,
 ], ids=["polygon", "outlined-rectangle"])
 def test_a_screen_sized_shape_that_paints_a_sliver_is_not_the_backdrop(

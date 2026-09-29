@@ -48,7 +48,7 @@ _HIDE_FONT = """\
   bezel:
     face: RobotoCondensedBold
     size: 8%r
-    if_unavailable: hide
+    unsupported: hide
 """
 
 #: `line_height` 36px on `fenix8solar51mm` (minor radius 140) -- the same
@@ -70,33 +70,32 @@ def _radial_badge(vertical_align: str = "center", direction: str = "clockwise") 
     -- so the two files' worth of tests below can reuse the same
     reasoning and expected numbers.
     """
-    return f"""\
-  - id: badge
+    return f"""  badge:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
+      - type: text
         text: "GARMIN"
         font: font.bezel
-        vertical_align: {vertical_align}
+        align: {vertical_align}
         curve: {{style: radial, angle: 0deg, radius: 75%r, direction: {direction}}}"""
 
 
 def _radial_hours(curve: str = "curve: {style: angled, angle: 0deg}\n        ",
                   font: str = "font.bezel", count: int = 12) -> str:
     return f"""\
-  - id: hours
+  hours:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: {count}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{{(copy + 11) % 12 + 1}}"
         font: {font}
         at: {{dy: -74%r}}
         {curve}"""
@@ -104,15 +103,15 @@ def _radial_hours(curve: str = "curve: {style: angled, angle: 0deg}\n        ",
 
 def _linear_row(curve: str = "curve: {style: angled, angle: 20deg}\n        ") -> str:
     return f"""\
-  - id: row
+  row:
     type: pattern
     pattern: linear
     at: {{anchor: center}}
     count: 3
     step: {{dx: 14%r}}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
+      - type: text
         text: "V"
         font: font.bezel
         {curve}"""
@@ -160,7 +159,9 @@ def test_curve_is_rejected_without_a_face_font(write_design, bag, repo_root):
 
 
 def test_vertical_align_bottom_rejected_under_curve(write_design, bag):
-    elements = _radial_hours().rstrip("\n") + "\n        vertical_align: bottom\n"
+    elements = _radial_hours().rstrip("\n") + """
+        align: bottom
+"""
     face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
@@ -172,7 +173,9 @@ def test_vertical_align_bottom_accepted_under_radial_curve(write_design, bag):
     `bottom` is legal there; only `angled` still rejects it."""
     elements = _radial_hours(
         curve="curve: {style: radial, angle: 0deg, radius: 10%r}\n        ",
-    ).rstrip("\n") + "\n        vertical_align: bottom\n"
+    ).rstrip("\n") + """
+        align: bottom
+"""
     face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
     assert face is not None, bag.render()
 
@@ -189,7 +192,9 @@ def test_radius_and_direction_rejected_under_angled(write_design, bag):
 def test_if_unavailable_requires_a_face_font_on_a_pattern_part(write_design, bag, repo_root):
     source = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     baked = f"  bezel:\n    source: {source}\n    size: 20px\n"
-    elements = _radial_hours(curve="").rstrip("\n") + "\n        if_unavailable: hide\n"
+    elements = _radial_hours(curve="").rstrip("\n") + """
+        unsupported: hide
+"""
     face = load(write_design(_design(baked, elements)), bag)
     assert face is None
     errors = [d for d in bag.errors if d.code == "text-curve"]
@@ -197,7 +202,9 @@ def test_if_unavailable_requires_a_face_font_on_a_pattern_part(write_design, bag
 
 
 def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_design, bag):
-    elements = _radial_hours(curve="").rstrip("\n") + "\n        if_unavailable: hide\n"
+    elements = _radial_hours(curve="").rstrip("\n") + """
+        unsupported: hide
+"""
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     part = face.elements[0].parts[0]
     assert part.if_unavailable == "hide"
@@ -484,7 +491,9 @@ def test_font_unavailable_error_on_a_pattern_part(write_design, bag, db, monkeyp
 def test_font_unavailable_hide_on_a_pattern_part_does_not_fail_the_build(
     write_design, bag, db, monkeypatch,
 ):
-    elements = _radial_hours(curve="").rstrip("\n") + "\n        if_unavailable: hide\n"
+    elements = _radial_hours(curve="").rstrip("\n") + """
+        unsupported: hide
+"""
     face = _load(
         write_design, bag,
         _design(_VECTOR_FONT, elements, targets="[fenix8solar47mm, fenix6]"),
@@ -514,9 +523,12 @@ def _render(write_design, db, bag, elements: str, *, target: str = "fenix8solar4
 
 def test_preview_renders_a_curved_pattern_without_crashing(write_design, db, bag):
     background = (
-        "  - id: background\n    type: shape\n    shape: rectangle\n"
-        "    at: {anchor: center}\n    size: {width: 100%, height: 100%}\n"
-        "    color: palette.bg\n"
+        """  background:
+    type: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: color.bg
+"""
     )
     image = _render(write_design, db, bag, background + _radial_hours(count=4))
     assert image.size[0] > 0 and image.size[1] > 0
@@ -527,11 +539,16 @@ def test_preview_draws_nothing_for_a_hidden_unavailable_pattern_part(write_desig
     honest preview is nothing drawn for that part, not a crash and not a
     fallback glyph."""
     background = (
-        "  - id: background\n    type: shape\n    shape: rectangle\n"
-        "    at: {anchor: center}\n    size: {width: 100%, height: 100%}\n"
-        "    color: palette.bg\n"
+        """  background:
+    type: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: color.bg
+"""
     )
-    elements = _radial_hours(curve="").rstrip("\n") + "\n        if_unavailable: hide\n"
+    elements = _radial_hours(curve="").rstrip("\n") + """
+        unsupported: hide
+"""
     image = _render(write_design, db, bag, background + elements, target="fenix6")
     # Solid background everywhere -- nothing else this design draws.
     w, h = image.size
@@ -556,15 +573,15 @@ def _radial_ring_text(curve: str, count: int = 12, font: str = "font.bezel") -> 
     centred exactly on the reference point, an annulus sector's AABB
     corners sit past `r_outer`)."""
     return f"""\
-  - id: hours
+  hours:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: {count}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{{(copy + 11) % 12 + 1}}"
         font: {font}
         {curve}"""
 

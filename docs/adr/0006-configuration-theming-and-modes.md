@@ -1033,3 +1033,29 @@ both map to `onPress`, rather than silently preferring one.
 
   > **Closed (2026-09-27):** the user chose the on-watch menu, with
   > `settings.xml` emitted but no Store packaging. See the tenth amendment.
+
+## Amendment (2026-09-29): format 2's colour namespace, theme and slots
+
+Plan 22 (format 2) renamed this ADR's author-facing surface; what each
+axis does, and the generated code, are unchanged.
+
+- **One colour namespace.** `color.<name>` names a role first (a key of
+  every scheme's `colors:`, or the role a colour axis binds: `accent` for
+  `accent_color`, `data` for `data_color`, unless the axis's `role:` says
+  otherwise), otherwise a palette swatch. A name that is both is an error at
+  both declarations, never shadowing. Where a build-time colour is needed
+  (scheme values, an axis's `default:`/`choices:`, a palette entry) the
+  reference must be a swatch or a literal. This replaces `palette.x`,
+  `config.colors.x`, `config.accent_color` and `config.data_color`.
+- **Grouping.** `palette:` and `fonts:` sit under `resources:`,
+  `color_scheme:` became `theme: {schemes:}`, a style entry names its scheme
+  with `scheme:`, and `config: data:` became `config: slots:`, whose
+  `default:`/`choices:` take bare complication names (`steps`).
+- **Power modes.** `modes: [active, low_power]` became `sleep_update: true`
+  (default `false`): every element is already redrawn once a minute while
+  asleep, so the one real choice is "also every second while a MIP screen
+  sleeps". It stays a build error on AMOLED, where `aod:` is the sleep
+  frame; the face-wide `aod: {default:}` moved to `defaults: {aod:}`.
+- **Static.** Only the `static:` block remains; the per-element flag is
+  removed, and the `graphics-pool` lint is acknowledged on any element
+  inside the block.

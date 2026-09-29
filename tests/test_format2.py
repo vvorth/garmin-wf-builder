@@ -1,7 +1,6 @@
-"""Format 2 (plan 22): its schema, `wfb/lower.py`, the reserved vocabulary,
-and the promise that a format 1 face and its migrated twin are the same
-face -- the same diagnostics, the same internal document, byte-identical
-projects and pixel-identical previews.
+"""Format 2: its schema, `wfb/lower.py`, colour resolution, `text:`
+templates, the reserved vocabulary, and diagnostics named in format 2's own
+terms.
 """
 
 from __future__ import annotations
@@ -9,17 +8,15 @@ from __future__ import annotations
 import json
 import re
 import textwrap
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from wfb import desugar, lower, validate, yamlsrc
+from wfb import validate, yamlsrc
 from wfb.build import load
 from wfb.diagnostics import Bag
-from wfb.migrate import migrate_text
 
-from helpers import ROOT, run_cli
+from helpers import ROOT
 
 HEADER = """\
 format: 2
@@ -46,167 +43,24 @@ def accepted(text: str, write_design):
 
 
 # --------------------------------------------------------------------------
-# the corpus: every example, template and fixture, and its migrated twin
-
-#: Refused by the migrator until slice 3 renames their palette entries.
-REFUSED = {"examples/enduro/face.yaml", "examples/features/config/face.yaml"}
-
-
-def _corpus() -> list[Path]:
-    paths = sorted([*ROOT.glob("examples/**/*.yaml"), *ROOT.glob("wfb/templates/*.yaml"),
-                    *ROOT.glob("tests/fixtures/**/*.yaml")])
-    return [p for p in paths if str(p.relative_to(ROOT)) not in REFUSED]
-
-
-CORPUS = pytest.mark.parametrize("path", _corpus(), ids=lambda p: str(p.relative_to(ROOT)))
-
-
-#: What `wfb new` fills a template's placeholders with, fixed here.
-TEMPLATE_FILL = {"__UUID__": "7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57", "__NAME__": "Test Face"}
-
-
-def _source(path: Path) -> str:
-    text = path.read_text(encoding="utf-8")
-    for placeholder, value in TEMPLATE_FILL.items():
-        text = text.replace(placeholder, value)
-    return text
-
-
-def _place(path: Path, text: str, root: Path) -> Path:
-    """``text`` written at ``path``'s relative place under ``root``, with
-    every sibling at every level symlinked, so the relative paths a design
-    names (`assets/...`, `../slice/...`) resolve."""
-    rel = path.relative_to(ROOT)
-    src, dst = ROOT, root
-    for part in rel.parts:
-        dst.mkdir(parents=True, exist_ok=True)
-        for sibling in src.iterdir():
-            if sibling.name != part and not (dst / sibling.name).exists():
-                (dst / sibling.name).symlink_to(sibling)
-        src, dst = src / part, dst / part
-    dst.write_text(text, encoding="utf-8")
-    return dst
-
-
-def pair(path: Path, tmp_path: Path) -> tuple[Path, Path]:
-    """``path`` (a template with its placeholders filled) and its twin,
-    migrated to format 2."""
-    text = _source(path)
-    original = path if text == path.read_text(encoding="utf-8") \
-        else _place(path, text, tmp_path / "original")
-    bag = Bag()
-    migrated = migrate_text(text, path, bag)
-    assert migrated is not None, bag.render()
-    return original, _place(path, migrated.text, tmp_path / "twin")
-
-
-def _codes(bag: Bag) -> list[tuple[str, str, int | None]]:
-    return sorted((d.severity.value, d.code, None) for d in bag.items)
-
-
-@CORPUS
-def test_a_twin_reports_what_its_original_reports(path, tmp_path):
-    first, second = pair(path, tmp_path)
-    original, migrated = Bag(), Bag()
-    face1 = load(first, original)
-    face2 = load(second, migrated)
-    assert (face1 is None) == (face2 is None), migrated.render()
-    assert _codes(original) == _codes(migrated), migrated.render()
-
-
-def _internal(path: Path) -> Any:
-    """The document the IR builder reads, as plain data."""
-    bag = Bag()
-    doc = yamlsrc.load(path, bag)
-    assert doc is not None
-    if doc.data.get("format") == 2:
-        assert validate.validate(doc, bag), bag.render()
-        assert lower.lower(doc, bag), bag.render()
-    assert desugar.desugar(doc, bag), bag.render()
-    return _plain(doc.data)
-
-
-def _plain(node: Any) -> Any:
-    if isinstance(node, dict):
-        out = {str(k): _plain(v) for k, v in node.items()}
-        # Spellings format 2 cannot tell apart, which mean the same thing:
-        # a key at its default, and `modes:` in either order.
-        for key, default in (("align", "center"), ("vertical_align", "center"),
-                             ("modes", ["active"]), ("static", False)):
-            if out.get(key) == default:
-                del out[key]
-        if isinstance(out.get("modes"), list):
-            out["modes"] = sorted(out["modes"])
-        out.pop("format", None)
-        return out
-    if isinstance(node, list):
-        return [_plain(v) for v in node]
-    return node
-
-
-@CORPUS
-def test_lowering_a_twin_gives_back_its_originals_internal_document(path, tmp_path):
-    """The round-trip property: `lower(migrate(v1))` is the v1 document's
-    own desugared form."""
-    first, second = pair(path, tmp_path)
-    assert _internal(second) == _internal(first)
-
-
-_GENERATED_HEADER = re.compile(r"(Source:\s+\S+|from \S+\.yaml|\(format \d\))")
-
-
-def _files(root: Path) -> dict[str, Path]:
-    return {str(f.relative_to(root)): f for f in sorted(root.rglob("*")) if f.is_file()}
-
-
-def _same(a: Path, b: Path) -> bool:
-    if a.suffix == ".png":
-        from PIL import Image
-
-        with Image.open(a) as ia, Image.open(b) as ib:
-            return ia.mode == ib.mode and ia.size == ib.size and ia.tobytes() == ib.tobytes()
-    try:
-        ta, tb = a.read_text(encoding="utf-8"), b.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        return a.read_bytes() == b.read_bytes()
-    return _GENERATED_HEADER.sub("", ta) == _GENERATED_HEADER.sub("", tb)
-
-
-@CORPUS
-def test_a_twin_generates_the_same_project_and_preview(path, tmp_path):
-    """Byte-identical projects and pixel-identical previews.  The one line a
-    generated file may differ in is its header naming the source file and
-    its format."""
-    first, second = pair(path, tmp_path)
-    for tag, design_path in (("v1", first), ("v2", second)):
-        out = tmp_path / tag
-        run_cli("build", "--no-compile", "-o", str(out / "build"), str(design_path))
-        run_cli("preview", "-q", "-o", str(out / "preview"), str(design_path))
-    v1, v2 = _files(tmp_path / "v1"), _files(tmp_path / "v2")
-    assert v1, "nothing was generated"
-    assert set(v1) == set(v2)
-    assert [name for name in v1 if not _same(v1[name], v2[name])] == []
-
-
-# --------------------------------------------------------------------------
 # the schema
 
 
 def test_the_v2_schema_is_a_valid_draft_2020_12_schema():
     from jsonschema import Draft202012Validator
 
-    Draft202012Validator.check_schema(validate.load_schema(validate.SCHEMA_V2_PATH))
+    Draft202012Validator.check_schema(validate.load_schema(validate.SCHEMA_PATH))
 
 
 def test_every_v2_def_is_referenced():
-    text = validate.SCHEMA_V2_PATH.read_text(encoding="utf-8")
+    text = validate.SCHEMA_PATH.read_text(encoding="utf-8")
     schema = json.loads(text)
     unreferenced = [name for name in schema["$defs"] if f'#/$defs/{name}"' not in text]
     assert unreferenced == []
 
 
 def test_v2_element_types():
-    assert validate.ELEMENT_TYPES_BY_FORMAT[2] == (
+    assert validate.ELEMENT_TYPES == (
         "group", "rectangle", "circle", "line", "arc", "ellipse", "polygon", "text",
         "gauge", "icon", "graph", "data", "hands", "pattern")
 
@@ -231,7 +85,7 @@ def test_the_v2_schema_describes_nothing_in_format_1_terms():
                 found += walk(value, f"{path}/{index}")
         return found
 
-    assert walk(validate.load_schema(validate.SCHEMA_V2_PATH), "") == []
+    assert walk(validate.load_schema(validate.SCHEMA_PATH), "") == []
 
 
 # --------------------------------------------------------------------------
@@ -555,6 +409,16 @@ MESSAGE_CASES = {
     "palette-dither":
         "resources: {palette: {odd: '#123456'}}\n"
         "elements:\n  c: {type: circle, radius: 3, color: color.odd}\n",
+    "scheme-role-dither":
+        "theme:\n  schemes:\n    a: {colors: {ink: '#123456'}}\n"
+        "config: {style: {default: x, choices: {x: {scheme: a}}}}\n"
+        "elements:\n  c: {type: circle, radius: 3, color: color.ink}\n",
+    "config-unsupported":
+        "resources: {palette: {red: '#FF0000'}}\n"
+        "config:\n  accent_color: {default: color.red, choices: any}\n"
+        "  slots: {s: {default: steps, choices: any}}\n"
+        "elements:\n  c: {type: circle, radius: 3, color: color.accent}\n"
+        "  d: {type: data, slot: s, color: color.red}\n",
 }
 
 
@@ -564,7 +428,9 @@ def _messages(text: str, write_design, db) -> list:
     bag = Bag()
     face = load(write_design(text), bag)
     if face is not None:
-        devices = select_devices(face, db, bag, ["fenix8solar47mm", "fenix847mm"])
+        # fenix5 has neither the native config editor nor the settings menu.
+        wanted = [d for d in ("fenix8solar47mm", "fenix847mm", "fenix5") if d in db.ids()]
+        devices = select_devices(face, db, bag, wanted)
         resolve_all(face, devices, bag)
     return bag.items
 

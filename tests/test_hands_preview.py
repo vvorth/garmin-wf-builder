@@ -105,34 +105,36 @@ def test_the_default_sample_time_still_renders(resolved):
 #: `tests/test_aod_mask_preview.py`, not something this file's hand-geometry
 #: tests should have to account for.
 HANDS_AOD = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+  hand_sets:
+    clock:
+      hour:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+      minute:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -70px}, thickness: 2px}
+      second:
+        color: color.fg
+        parts:
+          - {type: line, at: {dy: 0}, to: {dy: -110px}, thickness: 1px}
 aod:
   mask: false
-hands:
-  clock:
-    hour:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
-    minute:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -70px}, thickness: 2px}
-    second:
-      color: palette.fg
-      parts:
-        - {shape: line, at: {dy: 0}, to: {dy: -110px}, thickness: 1px}
 elements:
-  - id: main_hands
+  main_hands:
     type: hands
-    hands: clock
+    set: clock
     at: {anchor: center}
     aod: show
 """

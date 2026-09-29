@@ -11,6 +11,8 @@ is one error on the author's line.
 
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 
 import pytest
@@ -25,15 +27,23 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
+
+def _template(value: str, fmt: str) -> str:
+    """A `text:` template reading ``value`` through the format spec(s) in
+    ``fmt`` ("{:.1f} {unit}" -> "{activity.distance:.1f} {unit}")."""
+    return re.sub(r"\{(:[^}]*)?\}", lambda m: "{" + value + (m.group(1) or "") + "}", fmt)
+
 BASE = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 elements:
 """
 
@@ -42,14 +52,13 @@ def _text(value: str, units: str | None = "auto", fmt: str = "{:.1f} {unit}",
            extra: str = "") -> str:
     units_line = f"\n    units: {units}" if units else ""
     return BASE + f"""
-  - id: reading
+  reading:
     type: text
-    value: {value}{units_line}
-    format: "{fmt}"
+    text: "{_template(value, fmt)}"{units_line}
     font: FONT_SMALL
     at: {{anchor: center}}
-    color: palette.fg
-    when_absent: hide{extra}
+    color: color.fg
+    absent: hide{extra}
 """
 
 
@@ -195,7 +204,7 @@ def test_units_on_a_source_with_no_quantity_says_its_unit(write_design, bag):
 
 def test_units_on_fixed_text_is_an_error(write_design, bag):
     text = BASE + """
-  - id: reading
+  reading:
     type: text
     text: "5 km"
     units: auto
@@ -223,7 +232,9 @@ def test_unit_field_only_parses_as_a_label():
 def test_every_quantity_compiles_warning_free(write_design, db, tmp_path, toolchain):
     """The generated `settings.<x>Units` read (an enum compared with 1) and the Float
     arithmetic, through the real `monkeyc`, on a MIP and an older target."""
-    text = BASE.replace("targets: [fenix8solar47mm]", "targets: [fenix8solar47mm, fr955]")
+    text = BASE.replace("""build:
+  targets: [fenix8solar47mm]""", """build:
+  targets: [fenix8solar47mm, fr955]""")
     for index, (value, units, fmt) in enumerate([
         ("activity.distance", "auto", "{:.1f} {unit}"),
         ("weather.temperature", "auto", "{:d}{unit}"),
@@ -232,15 +243,14 @@ def test_every_quantity_compiles_warning_free(write_design, db, tmp_path, toolch
         ("complication.weekly_run_distance", "auto", "{:.0f} {unit}"),
     ]):
         text += f"""
-  - id: reading{index}
+  reading{index}:
     type: text
-    value: {value}
+    text: "{_template(value, fmt)}"
     units: {units}
-    format: "{fmt}"
     font: FONT_XTINY
     at: {{anchor: center, dy: {index * 10 - 20}%r}}
-    color: palette.fg
-    when_absent: hide
+    color: color.fg
+    absent: hide
 """
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)

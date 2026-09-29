@@ -1,5 +1,5 @@
 # Golden coverage for plan 15 slices 1 and 2 (`outline:` on a standalone
-# `text` element, and on a pattern's own `shape: text` part) -- a
+# `text` element, and on a pattern's own `type: text` part) -- a
 # background, a baked-font clock with a plain (upright) outline, an
 # upright vector-font text with an outline (shorthand spelling), one of
 # each `curve:` style with an outline (every draw shape a standalone
@@ -10,7 +10,7 @@
 # outline (`curve: {style: radial}`, the other pattern-part curve style).
 #
 # Every text element below demonstrates the canonical hollow idiom (plan
-# 15 §3/§12): `color:` repeats `palette.bg` verbatim, so the interior reads
+# 15 §3/§12): `color:` repeats `color.bg` verbatim, so the interior reads
 # as empty against the full-screen `background` element and `outline.color`
 # carries the only visible ink. This is deliberate, not incidental: it is
 # what makes the design warning-free under `text-outline-interior` (the
@@ -26,83 +26,82 @@
 #
 # Build it with:  ./wfb.py build tests/fixtures/outline_text/face.yaml
 #
-# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 5d8e2a4f-6c1b-4a9d-8e3f-1b6c4a9d8e3f
   name: OutlineText
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-palette:
-  bg: "#000000"
-  ring: "#FF5500"
+resources:
+  fonts:
+    clock:
+      source: ../slice/assets/OpenSans-Regular.ttf
+      size: 22%r
 
-fonts:
-  clock:
-    source: ../slice/assets/OpenSans-Regular.ttf
-    size: 22%r
+    bezel:
+      face: [RobotoCondensedBold, RobotoCondensedRegular]
+      size: 6%r
 
-  bezel:
-    face: [RobotoCondensedBold, RobotoCondensedRegular]
-    size: 6%r
+  palette:
+    bg: "#000000"
+    ring: "#FF5500"
 
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: color.bg
 
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: font.clock
     at: { anchor: center, dy: -10% }
-    color: palette.bg
-    outline: { color: palette.ring, width: 2 }
-
-  - id: upright_vector
+    color: color.bg
+    outline: { color: color.ring, width: 2 }
+  upright_vector:
     type: text
     text: "UPRIGHT"
     font: font.bezel
     at: { anchor: center, dy: 30%r }
-    color: palette.bg
-    outline: palette.ring
+    color: color.bg
+    outline: color.ring
 
-  - id: brand
+  brand:
     type: text
     text: "GARMIN"
     font: font.bezel
-    color: palette.bg
+    color: color.bg
     at: { anchor: center, dy: -55%r }
-    outline: { color: palette.ring, width: 1 }
+    outline: { color: color.ring, width: 1 }
     curve:
       style: angled
       angle: 45deg
 
-  - id: bezel_text
+  bezel_text:
     type: text
     text: "BEZEL"
     font: font.bezel
-    color: palette.bg
+    color: color.bg
     at: { anchor: center }
-    outline: { color: palette.ring, width: 3 }
+    outline: { color: color.ring, width: 3 }
     curve:
       style: radial
       angle: 90deg
       radius: 44%r
       direction: clockwise
 
-  - id: dial_numbers
+  dial_numbers:
     type: pattern
     pattern: radial
     at: { anchor: center }
@@ -110,17 +109,17 @@ elements:
     start: 225deg
     step: 12deg
     parts:
-      - shape: text
-        value: "copy + 1"
+      - type: text
+        text: "{copy + 1}"
         font: font.bezel
-        color: palette.bg
+        color: color.bg
         at: { dy: -80%r }
-        outline: { color: palette.ring, width: 2 }
+        outline: { color: color.ring, width: 2 }
         curve:
           style: angled
           angle: 0deg
 
-  - id: dial_ring
+  dial_ring:
     type: pattern
     pattern: radial
     at: { anchor: center }
@@ -128,11 +127,11 @@ elements:
     start: 255deg
     step: 12deg
     parts:
-      - shape: text
+      - type: text
         text: "I"
         font: font.bezel
-        color: palette.bg
-        outline: { color: palette.ring, width: 1 }
+        color: color.bg
+        outline: { color: color.ring, width: 1 }
         curve:
           style: radial
           angle: 0deg

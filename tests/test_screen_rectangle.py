@@ -20,77 +20,72 @@ RECT = "venusq2"
 ROUND = "fenix8solar47mm"
 
 DESIGN = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [venusq2, fenix8solar47mm]
-palette:
-  bg: "#FFFFFF"
-  fg: "#000000"
+build:
+  targets: [venusq2, fenix8solar47mm]
+resources:
+  palette:
+    bg: "#FFFFFF"
+    fg: "#000000"
 elements:
-  - id: background
-    type: shape
-    shape: rectangle
+  background:
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: right_mark
-    type: shape
-    shape: rectangle
+    color: color.bg
+  right_mark:
+    type: rectangle
     at: {anchor: right}
     size: {width: 10px, height: 10px}
     align: right
-    color: palette.fg
-  - id: bottom_mark
-    type: shape
-    shape: rectangle
+    color: color.fg
+  bottom_mark:
+    type: rectangle
     at: {anchor: bottom}
     size: {width: 10px, height: 10px}
-    vertical_align: bottom
-    color: palette.fg
-  - id: offset_mark
-    type: shape
-    shape: circle
+    align: bottom
+    color: color.fg
+  offset_mark:
+    type: circle
     at: {anchor: center, dx: 25%, dy: 25%}
     radius: 2px
-    color: palette.fg
-  - id: polar_mark
-    type: shape
-    shape: circle
+    color: color.fg
+  polar_mark:
+    type: circle
     at: {anchor: center, angle: 180deg, radius: 50%r}
     radius: 2px
-    color: palette.fg
+    color: color.fg
 """
 
 #: Two marks either side of the screen's aspect ratio: `tall_mark` sits in
 #: rows 340-350, inside 360 but outside 320; `wide_mark` in columns 315-325,
 #: past 320 but inside 360. A width/height swap flips both verdicts.
 EDGES = """
-format: 1
+format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [venusq2]
-palette:
-  fg: "#FFFFFF"
+build:
+  targets: [venusq2]
+resources:
+  palette:
+    fg: "#FFFFFF"
 elements:
-  - id: tall_mark
-    type: shape
-    shape: rectangle
+  tall_mark:
+    type: rectangle
     at: {anchor: top_left, dx: 150px, dy: 340px}
     size: {width: 10px, height: 10px}
-    align: left
-    vertical_align: top
-    color: palette.fg
-  - id: wide_mark
-    type: shape
-    shape: rectangle
+    align: top_left
+    color: color.fg
+  wide_mark:
+    type: rectangle
     at: {anchor: top_left, dx: 315px, dy: 150px}
     size: {width: 10px, height: 10px}
-    align: left
-    vertical_align: top
-    color: palette.fg
+    align: top_left
+    color: color.fg
 """
 
 

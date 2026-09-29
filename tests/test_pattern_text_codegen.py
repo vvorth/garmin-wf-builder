@@ -19,28 +19,31 @@ from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
+from tests.helpers import with_resources
 
 ROOT = Path(__file__).resolve().parent.parent
 OPEN_SANS = ROOT / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
 
 BASE = """
-format: 1
+format: 2
 face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
-targets: [fenix8solar47mm]
-palette: {bg: "#000000", fg: "#FFFFFF"}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {bg: "#000000", fg: "#FFFFFF"}
 """
 
 #: Radial: twelve hour numerals, the exact plan §3.1 example, in the system
 #: default font (FONT_MEDIUM) -- no `fonts:` block needed.
-HOURS = """  - id: hours
+HOURS = """  hours:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 12
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
-        value: "(copy + 11) % 12 + 1"
+      - type: text
+        text: "{(copy + 11) % 12 + 1}"
         at: {dy: -80%r}
 """
 
@@ -48,20 +51,21 @@ HOURS = """  - id: hours
 #: (`font.small`), and a non-constant per-part `visible:` that reads only
 #: `copy` -- exercises the font-loading, literal-value and visible-gate
 #: paths a HOURS-only fixture would not.
-ROW = f"""fonts:
-  small:
-    source: {OPEN_SANS}
-    size: 20px
+ROW = f"""resources:
+  fonts:
+    small:
+      source: {OPEN_SANS}
+      size: 20px
 elements:
-  - id: row
+  row:
     type: pattern
     pattern: linear
     at: {{anchor: center}}
     count: 3
     step: {{dx: 20px}}
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: text
+      - type: text
         text: "x"
         font: font.small
         visible: "copy < 2"
@@ -69,6 +73,8 @@ elements:
 
 
 def _design(text: str) -> str:
+    if text.startswith("resources:"):
+        return with_resources(BASE, text)
     return BASE + "\n" + text
 
 

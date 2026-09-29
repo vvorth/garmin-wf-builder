@@ -4,10 +4,11 @@
 # Garmin's editor has exactly one accent-colour axis, one data-colour axis,
 # and one Styles axis -- which carries no colour of its own, but is the only
 # axis Garmin gives no meaning to at all, so this compiler gives each listed
-# `style:` entry a meaning: a declared `color_scheme:`, named as `colors:`.
+# `style:` entry a meaning: a declared scheme (`theme: schemes:`), named as
+# `scheme:`.
 # `config:` accepts exactly those three keys -- `accent_color`, `data_color`
-# and `style` -- and nothing else (docs/guide/configuration.md "Configuration" and docs/guide/colors.md "Color
-# scheme", docs/adr/0006-configuration-theming-and-modes.md 1, twice amended;
+# and `style` -- and nothing else (docs/guide/configuration.md "Configuration" and docs/guide/colors.md "Colour
+# schemes", docs/adr/0006-configuration-theming-and-modes.md 1, twice amended;
 # "Styles and layouts" for `style:` itself).
 #
 # `accent_ring` and `background`/`steps_caption` below are deliberately
@@ -15,7 +16,7 @@
 # wrong: a static element is painted once into an offscreen buffer, so a
 # config colour drawn there has to be re-painted on a settings edit or the
 # change would never show -- `background`/`steps_caption` exercise this for a
-# `color_scheme:` role specifically, moving *two* colours together on one
+# scheme role specifically, moving *two* colours together on one
 # settings edit, not just one.  `clock` below is an ordinary, non-static
 # binding to the data-colour axis, for contrast.
 #
@@ -30,37 +31,40 @@
 #
 # Build it with:  ./wfb.py build examples/features/config/face.yaml
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
-format: 1
+format: 2
 
 face:
   id: 8f3c6e2a-1d4b-4a7e-9c5f-2b6a7d4e9f10
   name: Feature Config
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-# Every colour below -- palette, color_scheme and config alike -- is one the
+# Every colour below -- palette, scheme and config alike -- is one the
 # 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
 # 0xAA or 0xFF.  The linter checks all three the same way (`palette-dither`).
-palette:
-  bg: "#000000"
-  text: "#FFFFFF"
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
 
 # Two roles, moving together on one Styles pick -- `background` and
 # `steps_caption` below are both bound to a role, so switching schemes swaps
 # both colours from a single settings edit.
-color_scheme:
-  dark:
-    label: "Dark"
-    colors: { bg: palette.bg, text: palette.text }
-  light:
-    label: "Light"
-    colors: { bg: palette.text, text: palette.bg }
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, text: color.white }
+    light:
+      label: "Light"
+      colors: { bg: color.white, text: color.black }
 
 config:
   accent_color:
@@ -75,16 +79,15 @@ config:
   style:
     default: dark                       # must be one of choices:
     choices:
-      dark:  { colors: dark }
-      light: { colors: light }
+      dark: { scheme: dark }
+      light: { scheme: light }
 
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: config.colors.bg
+    color: color.bg
 
   # The static half of the demonstration: painted once into the offscreen
   # buffer in onLayout, and re-painted by `applyConfig` whenever the wearer
@@ -92,39 +95,35 @@ static:
   # `background`/`steps_caption` above/below, both roles of the same
   # scheme), so the buffer never shows a stale value.
   accent_ring:
-    type: shape
-    shape: arc
+    type: arc
     at: { anchor: center }
     radius: 90%r
     thickness: 10px
     start_angle: 0deg
     sweep: 360deg
-    color: config.accent_color
+    color: color.accent
 
   steps_caption:
     type: text
     text: "STEPS"
     font: FONT_XTINY
     at: { anchor: center, dy: 24% }
-    color: config.colors.text
+    color: color.text
 
 # The dynamic half: an ordinary binding to the other axis, drawn fresh every
 # frame like any other element -- no static buffer involved.
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%h:%M}"
+    text: "{time.clock:%h:%M}"
     font: FONT_NUMBER_HOT
     at: { anchor: center, dy: -4% }
-    color: config.data_color
+    color: color.data
 
-  - id: steps
+  steps:
     type: text
-    value: activity.steps
-    format: "{:d}"
+    text: "{activity.steps:d}"
     font: FONT_SMALL
     at: { anchor: center, dy: 31% }
-    color: palette.text
-    when_absent: placeholder
-    placeholder: "0"
+    color: color.white
+    absent: "0"

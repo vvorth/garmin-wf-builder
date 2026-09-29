@@ -451,20 +451,17 @@ def test_pulse_ox_is_a_direct_source_not_a_complication():
 def _text_element_for(path: str, source) -> str:
     """One `text` element YAML block binding `path`, valid for its type."""
     element_id = path.replace(".", "_")
+    spec = {Type.TIME: ":%H:%M", Type.DATE: ":%a %e %b"}.get(source.type, "")
     lines = [
-        f"  - id: {element_id}",
+        f"  {element_id}:",
         "    type: text",
-        f"    value: {path}",
+        f'    text: "{{{path}{spec}}}"',
     ]
-    if source.type is Type.TIME:
-        lines.append('    format: "{:%H:%M}"')
-    elif source.type is Type.DATE:
-        lines.append('    format: "{:%a %e %b}"')
     if source.guard_needed:
-        lines.append("    when_absent: hide")
+        lines.append("    absent: hide")
     lines += [
         "    at: { anchor: center }",
-        "    color: palette.text",
+        "    color: color.text",
         "    lint:",
         "      allow: [text-overflow, safe-area]",
         "      reason: \"one text element per catalogue source, stacked on top of",
@@ -476,29 +473,30 @@ def _text_element_for(path: str, source) -> str:
 def _full_catalog_design(tmp_path) -> "pathlib.Path":
     import pathlib
 
-    elements = ["""  - id: background
-    type: shape
-    shape: rectangle
+    elements = ["""  background:
+    type: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg"""]
+    color: color.bg"""]
     elements += [_text_element_for(path, source) for path, source in sorted(CATALOG.items())]
 
-    text = f"""format: 1
+    text = f"""format: 2
 
 face:
   id: {uuid.uuid4()}
   name: FullCatalog
   version: 1.0.0
 
-targets:
-  - fenix8solar47mm
-  - fenix8solar51mm
-  - fr955
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
 
-palette:
-  bg: "#000000"
-  text: "#FFFFFF"
+resources:
+  palette:
+    bg: "#000000"
+    text: "#FFFFFF"
 
 elements:
 {chr(10).join(elements)}

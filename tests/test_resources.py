@@ -20,23 +20,24 @@ from wfb.emit.resources import bake_fonts, build_bundle, glyph_set
 
 def _fonts_xml(write_design, bag, db, icon_name: str) -> str:
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: probe
+    color: color.bg
+  probe:
     type: icon
     icon: {icon_name}
     size: 20%r
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
@@ -76,29 +77,29 @@ def test_a_literal_string_fallback_extends_the_glyph_set(write_design, bag, db, 
     """
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  small:
-    source: {ttf}
-    size: 20px
+build:
+  targets: [fenix8solar47mm]
+resources:
+  fonts:
+    small:
+      source: {ttf}
+      size: 20px
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: bg
-    type: shape
-    shape: rectangle
+  bg:
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.bg
-  - id: status
+    color: color.bg
+  status:
     type: text
-    value: complication.training_status
+    text: "{{complication.training_status}}"
     font: font.small
     at: {{anchor: center}}
-    color: palette.fg
-    when_absent: fallback
-    fallback: "'Not Available'"
+    color: color.fg
+    absent: {{value: "'Not Available'"}}
 """), bag)
     assert face is not None, bag.render()
     chars = glyph_set(face)["small"]
@@ -109,27 +110,28 @@ elements:
 
 def _aod_font_design(write_design, bag, repo_root, awake_font: str, aod_format: str = ""):
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
-    aod_extra = f", format: \"{aod_format}\"" if aod_format else ""
+    aod_extra = f", text: \"{aod_format}\"" if aod_format else ""
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix847mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  day:
-    source: {ttf}
-    size: 20px
-  night:
-    source: {ttf}
-    size: 16px
+build:
+  targets: [fenix847mm]
+resources:
+  fonts:
+    day:
+      source: {ttf}
+      size: 20px
+    night:
+      source: {ttf}
+      size: 16px
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: {awake_font}
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
     aod: {{font: font.night{aod_extra}}}
 """), bag)
     assert face is not None, bag.render()
@@ -138,9 +140,10 @@ elements:
 
 def test_an_aod_font_override_gets_the_glyphs_its_own_format_draws(write_design, bag, repo_root):
     """A baked `aod: {font: ...}` draws the same value through its own
-    `format:` override, so its sheet holds that rendering's glyphs -- the
-    '{:%H}' override needs no ':', the awake '{:%H:%M}' does."""
-    sets = _aod_font_design(write_design, bag, repo_root, "font.day", aod_format="{:%H}")
+    `text:` override, so its sheet holds that rendering's glyphs -- the
+    '%H' override needs no ':', the awake '%H:%M' does."""
+    sets = _aod_font_design(write_design, bag, repo_root, "font.day",
+                            aod_format="{time.clock:%H}")
     assert ":" in sets["day"]
     assert ":" not in sets["night"]
     assert set("0123456789") <= set(sets["night"])
@@ -168,23 +171,24 @@ def _baked_size(write_design, bag, db, repo_root, size: str, device_id: str,
     """The nominal pixel size `clock` is rasterised at on one device."""
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: {size}
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: {size}
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 {extra}
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """, name=f"{device_id}-{size}.yaml".replace("%", "pct")), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
@@ -221,23 +225,24 @@ def _baked_clock(write_design, bag, db, repo_root, device_id: str, extra: str = 
     """The whole `BakedFont` for `clock`, not just its nominal size."""
     ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-  clock:
-    source: {ttf}
-    size: 30%r
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  fonts:
+    clock:
+      source: {ttf}
+      size: 30%r
 {extra}
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{{:%H:%M}}"
+    text: "{{time.clock:%H:%M}}"
     font: font.clock
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """, name=f"mono-{device_id}-{abs(hash(extra))}.yaml"), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
@@ -248,7 +253,7 @@ def test_monospace_reaches_the_bake(write_design, bag, db, repo_root):
     """The declaration has to survive the whole way to the rasteriser -- this
     is the seam a `FontSpec` field is easiest to add and forget to pass on."""
     font = _baked_clock(write_design, bag, db, repo_root, "fenix8solar47mm",
-                        extra="    monospace: true\n    align: right")
+                        extra="      monospace: true\n      align: right")
     assert font.monospace and font.cell_width > 0
     assert {g.xadvance for g in font.glyphs.values()} == {font.cell_width}
     for glyph in font.glyphs.values():
@@ -269,17 +274,19 @@ def test_icon_fonts_are_never_monospaced(write_design, bag, db, repo_root):
     from wfb.emit.resources import icon_font_specs
 
     face = load(write_design(f"""
-format: 1
+format: 2
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: [fenix8solar47mm]
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: {{bg: "#000000", fg: "#FFFFFF"}}
 elements:
-  - id: hr
+  hr:
     type: icon
     icon: heart
     size: 9%r
     at: {{anchor: center}}
-    color: palette.fg
+    color: color.fg
 """), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")

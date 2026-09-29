@@ -34,26 +34,26 @@ BLUE = (0, 0, 255)
 ORANGE = (255, 85, 0)
 CYAN = (0, 255, 255)
 
-_HEADER = """\
-format: 1
+_HEADER = """format: 2
 face:
   id: 8f14e45f-ceea-467e-9c0c-89f7c6a9309b
   name: PatternsPreviewTest
-targets: [fenix8solar47mm]
-palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  red: "#FF0000"
-  blue: "#0000FF"
-  orange: "#FF5500"
-  cyan: "#00FFFF"
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    red: "#FF0000"
+    blue: "#0000FF"
+    orange: "#FF5500"
+    cyan: "#00FFFF"
 static:
   background:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {{anchor: center}}
     size: {{width: 100%, height: 100%}}
-    color: palette.black
+    color: color.black
 {body}
 """
 
@@ -103,7 +103,7 @@ def _near(image, point: tuple[int, int], color, tolerance: int = 2) -> bool:
 # origin -- far enough from the centre pixel that a bug rotating the wrong
 # way, or not rotating at all, lands on background instead.
 _CROSS_PARTS = """    parts:
-      - {shape: line, at: {dy: -40px}, to: {dy: -20px}, thickness: 3px}
+      - {type: line, at: {dy: -40px}, to: {dy: -20px}, thickness: 3px}
 """
 
 
@@ -116,7 +116,7 @@ def test_radial_line_pattern_count_4_draws_at_12_3_6_9_not_the_diagonals(write_d
     pattern: radial
     at: {{anchor: center}}
     count: 4
-    color: palette.white
+    color: color.white
 {_CROSS_PARTS}"""
     image = _render(write_design, db, bag, body)
     assert image.getpixel((CX, CY - 30)) != BACKGROUND  # 12 o'clock
@@ -137,7 +137,7 @@ def test_skip_removes_exactly_that_copys_ink(write_design, db, bag):
     at: {{anchor: center}}
     count: 4
     skip: [1]
-    color: palette.white
+    color: color.white
 {_CROSS_PARTS}"""
     image = _render(write_design, db, bag, body)
     assert image.getpixel((CX, CY - 30)) != BACKGROUND  # 12 -- still drawn
@@ -155,7 +155,7 @@ def test_skip_every_removes_exactly_those_copies_ink(write_design, db, bag):
     at: {{anchor: center}}
     count: 4
     skip_every: 2
-    color: palette.white
+    color: color.white
 {_CROSS_PARTS}"""
     image = _render(write_design, db, bag, body)
     assert image.getpixel((CX, CY - 30)) == BACKGROUND  # 12 -- skipped (i=0)
@@ -171,7 +171,7 @@ def test_start_45deg_moves_the_ink_to_the_diagonals(write_design, db, bag):
     at: {{anchor: center}}
     count: 4
     start: 45deg
-    color: palette.white
+    color: color.white
 {_CROSS_PARTS}"""
     image = _render(write_design, db, bag, body)
     assert image.getpixel(_polar(CX, CY, 30, 45)) != BACKGROUND  # copy 0
@@ -189,9 +189,9 @@ def test_linear_patterns_copies_land_at_origin_plus_i_times_step(write_design, d
     at: {anchor: center, dx: -30px, dy: 0px}
     count: 4
     step: {dx: 20px}
-    color: palette.orange
+    color: color.orange
     parts:
-      - {shape: circle, radius: 4px}
+      - {type: circle, radius: 4px}
 """
     image = _render(write_design, db, bag, body)
     for i in range(4):
@@ -207,9 +207,9 @@ def test_a_skipped_linear_index_leaves_a_gap(write_design, db, bag):
     count: 4
     step: {dx: 20px}
     skip: [2]
-    color: palette.orange
+    color: color.orange
     parts:
-      - {shape: circle, radius: 4px}
+      - {type: circle, radius: 4px}
 """
     image = _render(write_design, db, bag, body)
     for i in (0, 1, 3):
@@ -232,9 +232,9 @@ def test_a_radial_arc_patterns_segments_turn_with_the_copy(write_design, db, bag
     pattern: radial
     at: {anchor: center}
     count: 4
-    color: palette.cyan
+    color: color.cyan
     parts:
-      - {shape: arc, radius: 40px, thickness: 6px, start_angle: 10deg, sweep: 20deg}
+      - {type: arc, radius: 40px, thickness: 6px, start_angle: 10deg, sweep: 20deg}
 """
     image = _render(write_design, db, bag, body)
     assert _near(image, _polar(CX, CY, 40, 20), CYAN)  # copy 0 midpoint (10+30)/2
@@ -255,8 +255,8 @@ def test_a_two_part_templates_second_part_draws_over_the_first(write_design, db,
     count: 1
     step: {dx: 0px}
     parts:
-      - {shape: circle, radius: 10px, color: palette.red}
-      - {shape: circle, radius: 10px, color: palette.blue}
+      - {type: circle, radius: 10px, color: color.red}
+      - {type: circle, radius: 10px, color: color.blue}
 """
     image = _render(write_design, db, bag, body)
     assert image.getpixel((CX - 80, CY - 80)) == BLUE
@@ -277,8 +277,8 @@ def test_copy_i_plus_1_draws_over_copy_i(write_design, db, bag):
     count: 2
     step: {dx: 5px}
     parts:
-      - {shape: circle, radius: 6px, color: palette.red}
-      - {shape: circle, radius: 3px, color: palette.blue}
+      - {type: circle, radius: 6px, color: color.red}
+      - {type: circle, radius: 3px, color: color.blue}
 """
     image = _render(write_design, db, bag, body)
     origin0 = (CX + 40, CY - 80)
@@ -300,9 +300,9 @@ def test_a_rectangle_part_turned_90deg_becomes_horizontal(write_design, db, bag)
     pattern: radial
     at: {anchor: center, dx: -80px, dy: 80px}
     count: 4
-    color: palette.white
+    color: color.white
     parts:
-      - {shape: rectangle, at: {dy: -20px}, size: {width: 4px, height: 20px}}
+      - {type: rectangle, at: {dy: -20px}, size: {width: 4px, height: 20px}}
 """
     image = _render(write_design, db, bag, body)
     ox, oy = CX - 80, CY + 80
@@ -345,8 +345,7 @@ def test_examples_patterns_face_renders_without_crashing(db, bag):
 # -- per-copy colour: `copy` and `date.weekday` ---------------------------------
 
 
-_WEEK = """\
-elements:
+_WEEK = """elements:
   week:
     type: pattern
     pattern: linear
@@ -354,9 +353,9 @@ elements:
     count: 7
     step: {{dx: 20px}}
     parts:
-      - shape: circle
+      - type: circle
         radius: 4px
-        color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.red"
+        color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.red"
 """
 
 
@@ -383,20 +382,19 @@ def test_the_week_row_lights_todays_copy(write_design, db, bag, weekday, lit):
 #: ignored `visible:` (always drawing orange) or that hid only the gated
 #: part instead of the whole pattern would both fail at least one pixel
 #: below.
-_BARS = """\
-elements:
+_BARS = """elements:
   bars:
     type: pattern
     pattern: linear
     at: {anchor: center, dx: -30px, dy: 0px}
     count: 5
     step: {dx: 15px}
-    when_absent: hide
+    absent: hide
     parts:
-      - {shape: circle, radius: 6px, color: palette.blue}
-      - shape: circle
+      - {type: circle, radius: 6px, color: color.blue}
+      - type: circle
         radius: 3px
-        color: palette.orange
+        color: color.orange
         visible: "copy < activity.move_bar_level"
 """
 
@@ -410,7 +408,7 @@ def test_move_bar_level_2_lights_exactly_copies_0_and_1(write_design, db, bag):
 
 
 def test_move_bar_absent_hides_the_whole_pattern_track_included(write_design, db, bag):
-    """`when_absent: hide` on the pattern: with the source missing, nothing
+    """`absent: hide` on the pattern: with the source missing, nothing
     draws at all -- not even the always-on blue track part, which has no
     `visible:` of its own and would otherwise still be there."""
     image = _render(write_design, db, bag, _BARS, sample={"activity.move_bar_level": None})

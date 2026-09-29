@@ -6,7 +6,7 @@ structure one level down: both spellings (D7), the width cap (D6),
 standalone element's cannot), and the absence rule -- deferred here to
 `wfb.kinds.pattern._check_pattern_absence` rather than an immediate per-key check,
 since a pattern polices absence once for the whole element (`tests/
-test_pattern_text.py`'s own `when_absent` tests are the precedent).
+test_pattern_text.py`'s own `absent:` tests are the precedent).
 
 Layout box growth, codegen and the golden fixture are covered separately
 (`tests/test_pattern_text_outline_codegen.py`); preview in
@@ -23,19 +23,19 @@ def _design(minimal: str, extra: str) -> str:
     return minimal + extra
 
 
-def _pattern_outline(outline: str, *, when_absent: str = "", second_part: str = "") -> str:
-    absent = f"\n    when_absent: {when_absent}" if when_absent else ""
+def _pattern_outline(outline: str, *, absent: str = "", second_part: str = "") -> str:
+    absent = f"\n    absent: {absent}" if absent else ""
     return f"""
-  - id: ring
+  ring:
     type: pattern
     pattern: radial
     at: {{anchor: center}}
     count: 1{absent}
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: FONT_MEDIUM
-        color: palette.fg
+        color: color.fg
         outline: {outline}{second_part}
 """
 
@@ -52,16 +52,16 @@ def test_pattern_outline_none_is_the_default_shape(write_design, bag, minimal):
 
 def test_pattern_outline_omitted_key_is_also_none(write_design, bag, minimal):
     design = _design(minimal, """
-  - id: ring
+  ring:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
     parts:
-      - shape: text
+      - type: text
         text: "12"
         font: FONT_MEDIUM
-        color: palette.fg
+        color: color.fg
 """)
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -70,18 +70,18 @@ def test_pattern_outline_omitted_key_is_also_none(write_design, bag, minimal):
 
 
 def test_pattern_outline_shorthand_colour_defaults_width_2(write_design, bag, minimal):
-    face = load(write_design(_design(minimal, _pattern_outline("palette.fg"))), bag)
+    face = load(write_design(_design(minimal, _pattern_outline("color.fg"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     outline = ring.parts[0].outline
     assert outline is not None
     assert outline.width == 2
-    assert outline.color.text == "palette.fg"
+    assert outline.color.shown == "color.fg"
 
 
 def test_pattern_outline_object_form_with_explicit_width(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _pattern_outline("{color: palette.fg, width: 1}"))), bag)
+        minimal, _pattern_outline("{color: color.fg, width: 1}"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     assert ring.parts[0].outline.width == 1
@@ -89,7 +89,7 @@ def test_pattern_outline_object_form_with_explicit_width(write_design, bag, mini
 
 def test_pattern_outline_object_form_defaults_width_2(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _pattern_outline("{color: palette.fg}"))), bag)
+        minimal, _pattern_outline("{color: color.fg}"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     assert ring.parts[0].outline.width == 2
@@ -116,7 +116,7 @@ def test_pattern_outline_object_form_without_color_is_a_schema_error(write_desig
 
 def test_pattern_outline_width_over_cap_is_a_build_error(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _pattern_outline("{color: palette.fg, width: 4}"))), bag)
+        minimal, _pattern_outline("{color: color.fg, width: 4}"))), bag)
     assert face is None
     assert not bag.ok()
     diag = next(d for d in bag.errors if d.code == "text-outline")
@@ -126,7 +126,7 @@ def test_pattern_outline_width_over_cap_is_a_build_error(write_design, bag, mini
 
 def test_pattern_outline_width_at_cap_builds_clean(write_design, bag, minimal):
     face = load(write_design(_design(
-        minimal, _pattern_outline("{color: palette.fg, width: 3}"))), bag)
+        minimal, _pattern_outline("{color: color.fg, width: 3}"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     assert ring.parts[0].outline.width == 3
@@ -141,7 +141,7 @@ def test_pattern_outline_color_reads_copy(write_design, bag, minimal):
     pattern's own scope, so the ring can alternate by copy exactly the way
     the interior fill already can."""
     face = load(write_design(_design(
-        minimal, _pattern_outline('"copy == 0 ? palette.fg : palette.bg"'))), bag)
+        minimal, _pattern_outline('"copy == 0 ? color.fg : color.bg"'))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     outline = ring.parts[0].outline
@@ -152,12 +152,14 @@ def test_pattern_outline_color_reads_copy(write_design, bag, minimal):
 def test_pattern_outline_color_reads_a_config_expression(write_design, bag, minimal):
     design = minimal.replace(
         "elements:",
-        "config:\n  accent_color: {default: palette.fg, choices: any}\nelements:",
+        """config:
+  accent_color: {default: color.fg, choices: any}
+elements:""",
     )
-    face = load(write_design(_design(design, _pattern_outline("config.accent_color"))), bag)
+    face = load(write_design(_design(design, _pattern_outline("color.accent"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
-    assert ring.parts[0].outline.color.text == "config.accent_color"
+    assert ring.parts[0].outline.color.shown == "color.accent"
 
 
 def test_pattern_outline_color_type_error_matches_color(write_design, bag, minimal):
@@ -174,7 +176,7 @@ def test_pattern_outline_color_type_error_matches_color(write_design, bag, minim
 def test_pattern_outline_color_nullable_without_when_absent_is_an_error(write_design, bag, minimal):
     face = load(write_design(_design(
         minimal,
-        _pattern_outline('"complication.battery > 50 ? palette.fg : palette.bg"'))), bag)
+        _pattern_outline('"complication.battery > 50 ? color.fg : color.bg"'))), bag)
     assert face is None
     errors = [d for d in bag.errors if d.code == "when-absent"]
     assert errors, bag.render()
@@ -187,7 +189,7 @@ def test_pattern_outline_color_nullable_with_when_absent_hide_builds_clean(write
     face = load(write_design(_design(
         minimal,
         _pattern_outline(
-            '"complication.battery > 50 ? palette.fg : palette.bg"', when_absent="hide"))), bag)
+            '"complication.battery > 50 ? color.fg : color.bg"', absent="hide"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     assert ring.parts[0].outline.color.nullable is True
@@ -200,7 +202,7 @@ def test_pattern_outline_color_folds_into_element_colors(write_design, bag, mini
     than only indirectly through the absence tests above, since a bug that
     ran the absence check some other way could still pass those."""
     face = load(write_design(_design(
-        minimal, _pattern_outline("palette.fg"))), bag)
+        minimal, _pattern_outline("color.fg"))), bag)
     assert face is not None, bag.render()
     ring = next(e for e in face.elements if e.id == "ring")
     outline_color = ring.parts[0].outline.color
@@ -213,16 +215,16 @@ def test_pattern_outline_color_folds_into_element_colors(write_design, bag, mini
 
 def test_pattern_outline_rejected_on_a_non_text_shape(write_design, bag, minimal):
     design = _design(minimal, """
-  - id: dot
+  dot:
     type: pattern
     pattern: radial
     at: {anchor: center}
     count: 1
-    color: palette.fg
+    color: color.fg
     parts:
-      - shape: circle
+      - type: circle
         radius: 10px
-        outline: {color: palette.fg, width: 2}
+        outline: {color: color.fg, width: 2}
 """)
     face = load(write_design(design), bag)
     assert face is None

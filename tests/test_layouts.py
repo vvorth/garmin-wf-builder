@@ -20,14 +20,16 @@ from tests.helpers import (
     lint_text as _lint, load_errors as _errors, load_face as _face, resolve_text as _resolved,
 )
 
-HEAD = """format: 1
+HEAD = """format: 2
 face:
   id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
   name: Test
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
 """
 
 #: Two layouts, one shared element.  `digital` has both static and dynamic
@@ -37,39 +39,37 @@ TWO_LAYOUTS = HEAD + """layouts:
   digital:
     static:
       digital_bg:
-        type: shape
-        shape: rectangle
+        type: rectangle
         at: {anchor: center}
         size: {width: 40%, height: 40%}
-        color: palette.bg
+        color: color.bg
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
       analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
-      analog: { layout: analog }
+      digital: {layout: digital}
+      analog: {layout: analog}
 
 elements:
   shared_caption:
     type: text
     text: "STEPS"
     at: {anchor: center, dy: 40%}
-    color: palette.fg
+    color: color.fg
 """
 
 #: The same design, with each layout's `static:`/`elements:` written as a
@@ -77,40 +77,38 @@ elements:
 TWO_LAYOUTS_LIST_FORM = HEAD + """layouts:
   digital:
     static:
-      - id: digital_bg
-        type: shape
-        shape: rectangle
+      digital_bg:
+        type: rectangle
         at: {anchor: center}
         size: {width: 40%, height: 40%}
-        color: palette.bg
+        color: color.bg
     elements:
-      - id: digital_clock
+      digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
-      - id: analog_label
+      analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
-      analog: { layout: analog }
+      digital: {layout: digital}
+      analog: {layout: analog}
 
 elements:
-  - id: shared_caption
+  shared_caption:
     type: text
     text: "STEPS"
     at: {anchor: center, dy: 40%}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -138,12 +136,12 @@ def test_layout_content_spans_point_at_the_authors_line(write_design, bag):
     """An error inside `layouts.digital.elements.digital_clock` reports that
     element's own line -- the fold must not cost the author the span the
     top-level `static:` rewrite already keeps."""
-    text = TWO_LAYOUTS.replace("color: palette.fg\n  analog:",
-                               "color: palette.missing\n  analog:")
+    text = TWO_LAYOUTS.replace("color: color.fg\n  analog:",
+                               "color: color.missing\n  analog:")
     errors = _errors(text, write_design)
-    diag = next(d for d in errors if d.code == "expression")
+    diag = next(d for d in errors if d.code == "color")
     assert diag.span is not None
-    assert "palette.missing" in text.splitlines()[diag.span.line - 1]
+    assert "color.missing" in text.splitlines()[diag.span.line - 1]
 
 
 def test_an_empty_layout_is_legal(write_design, bag):
@@ -152,25 +150,24 @@ def test_an_empty_layout_is_legal(write_design, bag):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog: {}
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
-      analog: { layout: analog }
+      digital: {layout: digital}
+      analog: {layout: analog}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     assert face.layouts == ("digital", "analog")
@@ -185,27 +182,26 @@ def test_an_empty_static_or_elements_list_is_popped_not_left_behind(write_design
     the key was skipped but never popped)."""
     text = HEAD + """layouts:
   digital:
-    static: []
+    static: {}
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     assert face.layouts == ("digital",)
@@ -223,21 +219,19 @@ def test_a_nested_author_id_colliding_with_a_generated_one_is_an_error(write_des
     elements:
       clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 elements:
-  - id: wrapper
+  wrapper:
     type: group
     children:
-      - id: layout_digital
-        type: shape
-        shape: circle
+      layout_digital:
+        type: circle
         at: {anchor: center}
         radius: 10%
-        color: palette.fg
+        color: color.fg
 """
     bag = Bag()
     doc, ok = _document(write_design, text, bag)
@@ -255,10 +249,9 @@ def test_a_layouts_lint_key_survives_desugar(write_design, bag):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
     lint:
       allow: [unreachable-layout]
       reason: "test fixture"
@@ -267,14 +260,14 @@ config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     decl = face.layout_decls["digital"]
@@ -288,24 +281,23 @@ def test_an_unknown_key_in_a_layout_body_is_a_schema_error(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
     bogus: 1
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     diag = next(d for d in errors if d.code == "schema" and "unknown key" in d.message)
@@ -329,18 +321,16 @@ def test_an_author_element_id_colliding_with_a_generated_one_is_an_error(write_d
     elements:
       clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 elements:
-  - id: layout_digital
-    type: shape
-    shape: circle
+  layout_digital:
+    type: circle
     at: {anchor: center}
     radius: 10%
-    color: palette.fg
+    color: color.fg
 """
     bag = Bag()
     doc, ok = _document(write_design, text, bag)
@@ -359,18 +349,17 @@ def test_two_layouts_generating_the_same_id_is_an_error(write_design):
   digital:
     static:
       digital_bg:
-        type: shape
-        shape: circle
+        type: circle
         at: {anchor: center}
         radius: 10%
-        color: palette.bg
+        color: color.bg
   digital_static:
     elements:
       whatever:
         type: text
         text: "x"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 """
     bag = Bag()
     doc, ok = _document(write_design, text, bag)
@@ -400,12 +389,11 @@ def test_membership_is_assigned_to_synthetic_groups_and_descendants(write_design
 def test_an_author_written_layouts_key_on_an_element_is_rejected(write_design):
     """Form A only -- there is no element-level membership key."""
     text = HEAD + """elements:
-  - id: clock
+  clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     layouts: [digital]
 """
     errors = _errors(text, write_design)
@@ -416,21 +404,21 @@ def test_an_author_written_layouts_key_on_an_element_is_rejected(write_design):
 
 
 SLOT_CONFIG = """config:
-  data:
+  slots:
     reading:
-      default: complication.steps
+      default: steps
       choices: any
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
@@ -439,11 +427,11 @@ def test_slot_directly_in_layout_elements_is_an_error(write_design):
   digital:
     elements:
       digital_slot:
-        type: complication_slot
-        slot: config.data.reading
+        type: data
+        slot: reading
         at: {anchor: center}
-        icon_size: 10%r
-        color: palette.fg
+        icon: {size: 10%r}
+        color: color.fg
 """ + SLOT_CONFIG
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["layouts"], (
@@ -459,12 +447,12 @@ def test_slot_nested_in_a_group_inside_a_layout_is_an_error(write_design):
       wrapper:
         type: group
         children:
-          - id: digital_slot
-            type: complication_slot
-            slot: config.data.reading
+          digital_slot:
+            type: data
+            slot: reading
             at: {anchor: center}
-            icon_size: 10%r
-            color: palette.fg
+            icon: {size: 10%r}
+            color: color.fg
 """ + SLOT_CONFIG
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["layouts"], (
@@ -482,11 +470,11 @@ def test_slot_in_layout_static_gives_exactly_one_error(write_design):
   digital:
     static:
       digital_slot:
-        type: complication_slot
-        slot: config.data.reading
+        type: data
+        slot: reading
         at: {anchor: center}
-        icon_size: 10%r
-        color: palette.fg
+        icon: {size: 10%r}
+        color: color.fg
 """ + SLOT_CONFIG
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["layouts"], (
@@ -504,23 +492,22 @@ def test_an_undeclared_layout_is_an_error(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: nope }
+      digital: {layout: nope}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert any(d.code == "config" and "unknown layout 'nope'" in d.message
@@ -535,28 +522,28 @@ def test_layout_is_required_on_every_entry_once_layouts_is_declared(write_design
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
-        at: {anchor: center}
-        color: palette.fg
+        text: "{time.clock:%H:%M}"
+        at: { anchor: center }
+        color: color.fg
 
-color_scheme:
-  dark:
-    colors: { fg: palette.fg }
+theme:
+  schemes:
+    dark:
+      colors: { ink: color.fg }
 
 config:
   style:
     default: digital
     choices:
       digital: { layout: digital }
-      dark_only: { colors: dark }
+      dark_only: { scheme: dark }
 
 elements:
   shared:
     type: text
     text: "hi"
-    at: {anchor: center}
-    color: palette.fg
+    at: { anchor: center }
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert any(
@@ -567,22 +554,23 @@ elements:
 
 
 def test_layout_is_rejected_when_no_layouts_are_declared(write_design):
-    text = HEAD + """color_scheme:
-  dark:
-    colors: { fg: palette.fg }
+    text = HEAD + """theme:
+  schemes:
+    dark:
+      colors: { ink: color.fg }
 
 config:
   style:
     default: dark
     choices:
-      dark: { layout: digital, colors: dark }
+      dark: { layout: digital, scheme: dark }
 
 elements:
   shared:
     type: text
     text: "hi"
-    at: {anchor: center}
-    color: palette.fg
+    at: { anchor: center }
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert any(
@@ -598,23 +586,22 @@ def test_an_entry_with_neither_layout_nor_colors_is_an_error(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
       analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
       bare: {}
 
 elements:
@@ -622,7 +609,7 @@ elements:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -641,35 +628,35 @@ def test_colors_all_or_none_still_holds_with_layouts(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
       analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
-color_scheme:
-  dark:
-    colors: { fg: palette.fg }
+theme:
+  schemes:
+    dark:
+      colors: {ink: color.fg}
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital, colors: dark }
-      analog: { layout: analog }
+      digital: {layout: digital, scheme: dark}
+      analog: {layout: analog}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -685,17 +672,16 @@ def test_layouts_with_no_config_style_is_an_error(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["layouts"], (
@@ -713,23 +699,22 @@ def test_a_rejected_config_style_plus_layouts_gives_one_error(write_design):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: nope
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     errors = _errors(text, write_design)
     assert [d.code for d in errors] == ["config"], (
@@ -748,31 +733,30 @@ def test_a_layout_only_design_passes_check_and_has_config(write_design, bag):
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
       analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
-      analog: { layout: analog }
+      digital: {layout: digital}
+      analog: {layout: analog}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     assert face.has_config
@@ -791,23 +775,22 @@ def test_a_high_z_shared_element_still_draws_before_a_layout_element(write_desig
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
     z: 50
 """
     face = _face(text, write_design, bag)
@@ -821,34 +804,31 @@ def test_a_high_z_shared_static_element_still_draws_before_a_layout_static_eleme
   digital:
     static:
       digital_bg:
-        type: shape
-        shape: circle
+        type: circle
         at: {anchor: center}
         radius: 10%
-        color: palette.bg
+        color: color.bg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 static:
   shared_bg:
-    type: shape
-    shape: rectangle
+    type: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: color.bg
     z: 50
 
 elements:
   clock:
     type: text
-    value: time.clock
-    format: "{:%H:%M}"
+    text: "{time.clock:%H:%M}"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     order = [e.id for e in face.draw_order()]
@@ -863,27 +843,27 @@ def test_z_still_orders_within_one_layout(write_design, bag):
         type: text
         text: "1"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
         z: 5
       second:
         type: text
         text: "2"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
         z: 1
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
+      digital: {layout: digital}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
     face = _face(text, write_design, bag)
     order = [e.id for e in face.draw_order()]
@@ -898,31 +878,30 @@ LAYOUT_ONLY = HEAD + """layouts:
     elements:
       digital_clock:
         type: text
-        value: time.clock
-        format: "{:%H:%M}"
+        text: "{time.clock:%H:%M}"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
   analog:
     elements:
       analog_label:
         type: text
         text: "A"
         at: {anchor: center}
-        color: palette.fg
+        color: color.fg
 
 config:
   style:
     default: digital
     choices:
-      digital: { layout: digital }
-      analog: { layout: analog }
+      digital: {layout: digital}
+      analog: {layout: analog}
 
 elements:
   shared:
     type: text
     text: "hi"
     at: {anchor: center}
-    color: palette.fg
+    color: color.fg
 """
 
 
