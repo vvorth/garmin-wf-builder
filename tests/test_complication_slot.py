@@ -883,8 +883,7 @@ def test_leaving_a_slot_in_the_editor_stops_skipping_it(write_design, bag, db):
 
 def test_the_slot_skip_covers_one_redraw(write_design, bag, db):
     """Moving past the last slot to "Done" fires no editor callback, only
-    one more onUpdate (traced on a fenix8solar47mm,
-    `examples/probes/slot-editor/`), so onUpdate itself must end by clearing
+    one more onUpdate (traced on a fenix8solar47mm), so onUpdate itself must end by clearing
     `_pulsing`, after every slot has been drawn -- or the last slot stays
     blank at "Done"."""
     from wfb.emit import monkeyc

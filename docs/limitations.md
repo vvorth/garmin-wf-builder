@@ -528,11 +528,10 @@ still true of the shipped feature:
   delegate clears `_pulsing` once an edit's `:type` is not a complication
   (null is the end of editing) — the SDK sample's `setVisible` dance and
   `_editingComplication` reset. `onUpdate` also clears it after every frame,
-  so the skip covers one redraw: traced on a fenix8solar47mm
-  (`examples/probes/slot-editor/`), each move in the Data step asks for the
-  drawable, draws it once and redraws the face once, but the move past the
-  last slot to "Done" fires no callback, only a redraw, and the last slot
-  stayed blank there. Without these, the selected slot was drawn
+  so the skip covers one redraw: traced on a fenix8solar47mm, each move in
+  the Data step asks for the drawable twice, draws it once and redraws the
+  face once (the face is not redrawn while a step is held), and the move
+  past the last slot to "Done" fires no callback, only a redraw. Without these, the selected slot was drawn
   by nobody: seen on a fenix8solar47mm, it vanished while selected, showed
   no preview while scrolling its choices, and stayed hidden until another
   slot was selected. Measured on `examples/features/slots/face.yaml` at a fixed path,
@@ -550,13 +549,12 @@ still true of the shipped feature:
   first config read `onLayout` also calls -- when it has not run yet.
   **Seen on a fenix8solar47mm:** the
   highlight animates over the selected slot and previews each choice as the
-  wearer scrolls, and with the wider box the reading shows in full. **Open:**
-  in the option list the editor clears a region around the slot, wider
-  than the drawable's box, and draws only the drawable there, so a static
-  shape behind the slot (showcase's register cards) vanishes until the
-  wearer cancels or chooses. Repainting the static buffer inside the
-  drawable fixed that but made the static content pulse with the slot, and
-  was reverted; `examples/probes/slot-editor/` is the probe face for it.
+  wearer scrolls, and with the wider box the reading shows in full. **While
+  a slot is selected the editor dims the whole screen**, static and
+  per-frame content alike: on MIP, `#555555` goes black, so a dark-grey
+  card behind a slot (showcase's registers) disappears until editing ends,
+  and 1px detail thins out. Platform behaviour; nothing is cleared. A
+  static shape that must stay visible while editing needs a brighter colour.
   Not yet seen: whether `onTap`'s hit regions read correctly on the
   touchscreen. It
   compiles warning-free on every target, including `fr955`, which has no

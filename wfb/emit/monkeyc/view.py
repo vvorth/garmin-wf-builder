@@ -906,11 +906,11 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
 
     With ``editor_slots`` (a `complication_slot` the native editor can
     animate), the frame ends by clearing `_pulsing`: the skip covers one
-    redraw only.  Seen on a fenix8solar47mm with the slot-editor trace
-    probe: each move in the editor's Data step asks for the slot's drawable,
-    draws it once and redraws the face once, but moving past the last slot to
-    "Done" fires no callback at all -- only one more redraw -- so a skip that
-    waited for a callback to clear it left the last slot blank there.
+    redraw only.  Traced on a fenix8solar47mm: each move in the editor's
+    Data step asks for the slot's drawable, draws it once and redraws the
+    face once, but moving past the last slot to "Done" fires no callback at
+    all -- only one more redraw -- so a skip that waited for a callback to
+    clear it left the last slot blank there.
     """
     w.doc(
         "Draw the full face.\n"

@@ -635,14 +635,11 @@ from the anchor to one edge for `left`/`right`. `onTap` still hit-tests the
 estimate, so two slots side by side stay separate tap targets. Seen on a
 fenix8solar47mm: the reading now shows in full.
 
-**Open: a static shape behind a slot vanishes while that slot's options are
-listed.** In the option list the editor clears a region around the slot,
-wider than the drawable's box, and draws only the drawable there, so a
-static card the slot sits on disappears until the wearer cancels or
-chooses (seen on the showcase face). Repainting the static content inside
-the drawable brought the card back but made it pulse with the slot, so it
-was withdrawn. `examples/probes/slot-editor/` is the test face for finding
-a fix.
+**The editor dims the whole screen while a slot is selected.** On a MIP
+watch `#555555` dims to black, so a dark-grey card behind a slot seems to
+vanish until editing ends (seen on the showcase face, fenix8solar47mm). Give
+a card that must stay visible while editing a brighter colour, such as
+`#AAAAAA`.
 
 **`on_hold: auto` on a `data` element is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`
