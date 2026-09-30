@@ -7,9 +7,9 @@ draw text set in a device's `FONT_*` faces on previews (`wfb/fonts/fallback.py`)
 name this project knows about to a pinned, hash-checked, freely-licensed TTF
 (`exact`/`family`/`substitute`, or deliberately unmapped -- see
 `docs/lore/toolchain.md`). `tools/fetch-system-fonts.py` (loaded by
-`wfb/fonts/fetch_system.py`, stdlib-only) downloads the ones the project's
-three build targets need into this directory; `tools/setup-env.sh` and the
-Dockerfile both run it. Re-running it is cheap: a font already here is left
+`wfb/fonts/fetch_system.py`, stdlib-only) downloads the ones every installed
+device needs into this directory (`--all`: every device in the SDK device
+reference); `tools/setup-env.sh` and the Dockerfile (with `--all`) both run it. Re-running it is cheap: a font already here is left
 alone and nothing is downloaded for it.
 
 Each file is named `<font-key>.ttf` after its `registry.json` key, not its

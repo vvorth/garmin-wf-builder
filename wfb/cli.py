@@ -25,6 +25,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from collections import Counter
 from pathlib import Path
 from typing import Callable, TextIO
 
@@ -905,6 +906,47 @@ def _new(args: argparse.Namespace) -> int:
 _DOCTOR_INDENT = " " * 19
 
 
+def _doctor_system_fonts(device_ids: list[str], devices_root: Path, fonts_root: Path | None,
+                         *, ok: str, absent: str, hint: Callable[..., None]) -> None:
+    """Print `wfb doctor`'s one-line system-font summary over every installed
+    device: where each distinct font name a device needs would come from,
+    and which devices still lack a stand-in. Never downloads, never blocks --
+    a missing name falls back to a substitute face."""
+    fetch_system = fonts.fetch_system
+    # "unmapped" is a deliberate registry decision (a CJK/RTL-only face),
+    # not something an install could fix, so it never counts as missing.
+    tier_of: dict[str, str] = {}
+    lacking: list[str] = []
+    for device_id in device_ids:
+        device_missing = False
+        for name, face in fetch_system.device_needed_names(device_id, devices_root=devices_root):
+            if name not in tier_of:
+                # `garmin_any_file` counts a `.cft` bitmap hit as usable too --
+                # the same lookup `fetch_system.locate` uses, so this summary
+                # and the measure/preview path agree on what counts as "found".
+                if fonts_root is not None and fetch_system.garmin_any_file(name, fonts_root):
+                    tier_of[name] = "garmin"
+                else:
+                    key = fetch_system.resolve(name, face)
+                    tier_of[name] = ("unmapped" if key is None
+                                     else fetch_system.tier_for(key) or "missing")
+            device_missing |= tier_of[name] == "missing"
+        if device_missing:
+            lacking.append(device_id)
+    counts = Counter(tier_of.values())
+    summary = ", ".join(f"{counts[label]} {label}"
+                        for label in ("garmin", "installed", "cached", "missing", "unmapped")
+                        if counts[label])
+    if not lacking:
+        print(f"{ok} system fonts     all {len(device_ids)} devices covered ({summary} font names)")
+        return
+    shown = ", ".join(lacking[:4]) + (" ..." if len(lacking) > 4 else "")
+    print(f"{absent} system fonts     {len(lacking)} of {len(device_ids)} devices lack a "
+          f"stand-in: {shown}")
+    hint(f"({summary} font names) -- run python3 tools/fetch-system-fonts.py;",
+         "not blocking, falls back to a substitute face at build time")
+
+
 def _doctor(args: argparse.Namespace) -> int:
     """check the environment and say what is missing
 
@@ -988,33 +1030,6 @@ def _doctor(args: argparse.Namespace) -> int:
             hint("copy the SDK Manager's Fonts directory into vendor/fonts/,",
                  "or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
 
-    # -- the system fonts each target device needs (registry stand-ins) ---
-    for device_id in fetch_system.DEFAULT_TARGET_DEVICES:
-        needed = fetch_system.device_needed_names(device_id)
-        if not needed:
-            continue
-        # "unmapped" is a deliberate registry decision (a CJK/RTL-only face),
-        # not something an install could fix, so it never flips the marker.
-        tiers = {"garmin": 0, "installed": 0, "cached": 0, "missing": 0, "unmapped": 0}
-        for name, face in needed:
-            # `garmin_any_file` counts a `.cft` bitmap hit as usable too --
-            # the same lookup `fetch_system.locate` uses, so this summary and
-            # the measure/preview path agree on what counts as "found".
-            if fonts_root is not None and fetch_system.garmin_any_file(name, fonts_root) is not None:
-                tiers["garmin"] += 1
-                continue
-            key = fetch_system.resolve(name, face)
-            if key is None:
-                tiers["unmapped"] += 1
-                continue
-            tiers[fetch_system.tier_for(key) or "missing"] += 1
-        summary = ", ".join(f"{count} {label}" for label, count in tiers.items() if count)
-        marker = ok if tiers["missing"] == 0 else absent
-        print(f"{marker} fonts: {device_id:<16} {summary}")
-    hint("never downloads -- run tools/setup-env.sh, or "
-         "python3 tools/fetch-system-fonts.py; not blocking, falls back to a "
-         "substitute face at build time")
-
     # -- device definitions -----------------------------------------------
     try:
         db = DeviceDatabase.discover(args.devices_dir)
@@ -1022,6 +1037,7 @@ def _doctor(args: argparse.Namespace) -> int:
         print(f"{ok} devices          {len(ids)} installed: {', '.join(ids[:4])}"
               f"{' ...' if len(ids) > 4 else ''}")
         hint(str(db.root))
+        _doctor_system_fonts(ids, db.root, fonts_root, ok=ok, absent=absent, hint=hint)
     except DeviceReferenceMissing:
         print(f"{absent} devices          not checked: the device reference above is missing")
     except DeviceError:

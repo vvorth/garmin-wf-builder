@@ -667,3 +667,34 @@ def test_preview_fonts_flag_silences_the_warning(db, tmp_path):
                         "--fonts", str(font_root))
     assert result.returncode == 0, result.stderr.decode()
     assert "warning:" not in result.stderr.decode()
+
+
+def test_doctor_system_fonts_summarises_every_installed_device(tmp_path, monkeypatch, capsys):
+    """One line over the whole installed set, naming only the devices that
+    lack a stand-in -- not a fixed list of devices."""
+    import json
+
+    from wfb import cli
+    from wfb.fonts import fetch_system
+
+    devices_root = tmp_path / "Devices"
+    for device_id, names in (("covered", ["Have"]), ("lacking", ["Have", "Lack"]),
+                             ("cjkonly", ["Unmapped"])):
+        (devices_root / device_id).mkdir(parents=True)
+        (devices_root / device_id / "simulator.json").write_text(json.dumps({
+            "fonts": [{"fontSet": "ww", "fonts": [{"filename": n} for n in names]}],
+        }), encoding="utf-8")
+    monkeypatch.setattr(fetch_system, "resolve",
+                        lambda name, face: None if name == "Unmapped" else name.lower())
+    monkeypatch.setattr(fetch_system, "tier_for",
+                        lambda key: "installed" if key == "have" else None)
+    ids = ["cjkonly", "covered", "lacking"]
+
+    cli._doctor_system_fonts(ids, devices_root, None, ok="OK", absent="NONE", hint=print)
+    out = capsys.readouterr().out
+    assert "NONE system fonts     1 of 3 devices lack a stand-in: lacking\n" in out
+    assert "1 installed, 1 missing, 1 unmapped font names" in out
+
+    cli._doctor_system_fonts(ids[:2], devices_root, None, ok="OK", absent="NONE", hint=print)
+    out = capsys.readouterr().out
+    assert out == "OK system fonts     all 2 devices covered (1 installed, 1 unmapped font names)\n"

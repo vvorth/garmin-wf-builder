@@ -92,7 +92,7 @@ stand-ins — Roboto, DejaVu, Bebas Neue, Rajdhani, and others, each an
 [`wfb/fonts/registry.json`](wfb/fonts/registry.json) with its own pinned
 source, licence (mostly Apache-2.0 or OFL-1.1) and rationale.
 None of them is in the repository either; setup (or
-`tools/fetch-system-fonts.py`) downloads whichever ones your build targets
+`tools/fetch-system-fonts.py`) downloads whichever ones your installed devices
 need, each with a licence file alongside it. If you have Garmin's own font
 files — from the SDK Manager's `Fonts` directory — they take priority over
 these stand-ins; put them at `vendor/fonts/` (gitignored, like

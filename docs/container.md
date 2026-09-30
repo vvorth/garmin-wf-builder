@@ -230,7 +230,8 @@ reachable.
 compiler. It also downloads the Nerd Fonts icon font with
 `tools/fetch-icon-font.py` and the registry's system-font stand-ins (free
 substitutes previews and width estimates use for Garmin's own system fonts)
-with `tools/fetch-system-fonts.py` for the three build targets,
+with `tools/fetch-system-fonts.py --all` for every device in the SDK
+device reference (no device definitions exist at image build time),
 each checked against pinned SHA-256 hashes;
 stage 2 copies both into `wfb/assets/icons/` and `wfb/assets/system-fonts/`.
 Neither is in the repository, and `.dockerignore` keeps a host copy out of

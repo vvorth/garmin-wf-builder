@@ -91,7 +91,7 @@ RUN set -eux; \
     test -n "$(ls -A /tmp/.cache/device-reference/devices)"; \
     cp -R /tmp/.cache/device-reference /opt/device-reference; \
     WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \
-        python /tmp/tools/fetch-system-fonts.py /opt/system-fonts; \
+        python /tmp/tools/fetch-system-fonts.py --all /opt/system-fonts; \
     test -n "$(ls -A /opt/system-fonts)"; \
     rm -rf /tmp/tools /tmp/wfb /tmp/.cache
 

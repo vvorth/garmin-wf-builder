@@ -19,10 +19,11 @@ any other dependency installed. `tools/fetch-icon-font.py` is the same shape.
 
     python3 tools/fetch-system-fonts.py [--device ID ...] [--all] [DEST]
 
-With no `--device`, prefetches for this project's three build targets
-(`fetch_system.DEFAULT_TARGET_DEVICES`). `--all` prefetches for every device
-the SDK device reference has a file for, not just the three
-targets. `WFB_FONTS_MIRROR` overrides every source URL's host, for a mirror
+With no `--device`, prefetches for every installed device
+(`fetch_system.installed_device_ids`: `WFB_DEVICES`, else the Connect IQ
+Devices directory). `--all` prefetches for every device the SDK device
+reference has a file for, installed or not -- what the Docker build uses,
+since no device definitions exist at image build time. `WFB_FONTS_MIRROR` overrides every source URL's host, for a mirror
 (`wfb/fonts/fetch_system.py`'s `_mirrored`).
 
 This tool never installs Garmin's own font files -- those are the user's
@@ -50,15 +51,23 @@ def _load_fetch_system():
     return module
 
 
+def _describe(device_ids: list[str]) -> str:
+    """Name a handful of devices outright; count a fleet."""
+    if len(device_ids) <= 4:
+        return ", ".join(device_ids)
+    return f"{len(device_ids)} devices"
+
+
 def main(argv: list[str] | None = None) -> int:
     fetch_system = _load_fetch_system()
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--device", action="append", dest="devices", metavar="ID",
                          help="prefetch only this device's fonts (repeatable); "
-                              f"default: {', '.join(fetch_system.DEFAULT_TARGET_DEVICES)}")
+                              "default: every installed device")
     parser.add_argument("--all", action="store_true",
-                         help="prefetch fonts for every scraped device, not just the targets")
+                         help="prefetch fonts for every device in the SDK device reference, "
+                              "installed or not")
     parser.add_argument("dest", nargs="?", type=Path, default=None,
                          help="install directory (default: wfb/assets/system-fonts)")
     args = parser.parse_args(argv)
@@ -68,7 +77,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.all:
         device_ids = fetch_system.all_scraped_device_ids()
     else:
-        device_ids = args.devices or list(fetch_system.DEFAULT_TARGET_DEVICES)
+        device_ids = args.devices or fetch_system.installed_device_ids()
+        if not device_ids:
+            print("no device definitions installed: nothing to prefetch for "
+                  "(pass --device ID, or --all for every device in the SDK device reference)")
+            return 0
 
     fonts_root = fetch_system.garmin_font_root()
     if fonts_root is not None:
@@ -91,10 +104,10 @@ def main(argv: list[str] | None = None) -> int:
                 needed[key] = (name, face)
 
     if not needed:
-        print(f"nothing to prefetch for {', '.join(device_ids)}")
+        print(f"nothing to prefetch for {_describe(device_ids)}")
         return 0
 
-    print(f"prefetching {len(needed)} font(s) for {', '.join(device_ids)} into {dest}")
+    print(f"prefetching {len(needed)} font(s) for {_describe(device_ids)} into {dest}")
     if garmin_covered:
         print(f"  ({garmin_covered} needed name(s) are also covered by the Garmin font root, "
               "which wins at build time)")

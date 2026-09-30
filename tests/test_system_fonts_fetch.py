@@ -656,3 +656,59 @@ def test_device_needed_names_unknown_device_is_empty(_isolated, tmp_path, monkey
     assert fetch_system.device_needed_names(
         "nope", devices_root=tmp_path / "also-no-such-dir"
     ) == []
+
+
+def _fake_device(devices_root: Path, device_id: str, *font_names: str) -> None:
+    device_dir = devices_root / device_id
+    device_dir.mkdir(parents=True)
+    (device_dir / "compiler.json").write_text("{}", encoding="utf-8")
+    (device_dir / "simulator.json").write_text(json.dumps({
+        "fonts": [{"fontSet": "ww", "fonts": [{"filename": n} for n in font_names]}],
+    }), encoding="utf-8")
+
+
+def test_installed_device_ids_counts_only_directories_with_a_compiler_json(_isolated, tmp_path):
+    devices_root = tmp_path / "Devices"
+    _fake_device(devices_root, "watchb")
+    _fake_device(devices_root, "watcha")
+    (devices_root / "half-copied").mkdir()
+    (devices_root / "stray.txt").write_text("", encoding="utf-8")
+
+    assert fetch_system.installed_device_ids(devices_root) == ["watcha", "watchb"]
+
+
+def _run_fetch_tool(tmp_path: Path, **env_extra: str):
+    import os
+    import subprocess
+    import sys
+
+    env = dict(os.environ, HOME=str(tmp_path / "home"), WFB_OFFLINE="1")
+    env.pop("WFB_DEVICES", None)
+    env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent.parent / "tools" / "fetch-system-fonts.py"),
+         str(tmp_path / "dest")],
+        capture_output=True, text=True, env=env, check=False,
+    )
+
+
+def test_fetch_tool_defaults_to_every_installed_device(_isolated, tmp_path):
+    """No `--device`: the installed devices, whichever they are -- here two
+    that need only a name no registry key maps, so nothing is downloaded and
+    the tool names exactly the set it considered."""
+    devices_root = tmp_path / "Devices"
+    _fake_device(devices_root, "watcha", "NoSuchGarminFontAnywhere")
+    _fake_device(devices_root, "watchb", "NoSuchGarminFontAnywhere")
+
+    result = _run_fetch_tool(tmp_path, WFB_DEVICES=str(devices_root))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "nothing to prefetch for watcha, watchb" in result.stdout
+
+
+def test_fetch_tool_with_no_installed_devices_says_how_to_choose(_isolated, tmp_path):
+    result = _run_fetch_tool(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "no device definitions installed" in result.stdout
+    assert "--all" in result.stdout
