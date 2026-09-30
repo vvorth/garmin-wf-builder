@@ -106,14 +106,18 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS;
-            var i = 0;
-            while (i < offsets.size()) {
-                dc.drawText(Layout.UPRIGHT_VECTOR_X + offsets[i], Layout.UPRIGHT_VECTOR_Y + offsets[i + 1], font,
-                            "UPRIGHT",
-                            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-                i += 2;
-            }
+            dc.drawText(Layout.UPRIGHT_VECTOR_X - 1, Layout.UPRIGHT_VECTOR_Y, font,
+                        "UPRIGHT",
+                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(Layout.UPRIGHT_VECTOR_X, Layout.UPRIGHT_VECTOR_Y - 1, font,
+                        "UPRIGHT",
+                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(Layout.UPRIGHT_VECTOR_X, Layout.UPRIGHT_VECTOR_Y + 1, font,
+                        "UPRIGHT",
+                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(Layout.UPRIGHT_VECTOR_X + 1, Layout.UPRIGHT_VECTOR_Y, font,
+                        "UPRIGHT",
+                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
             dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
             dc.drawText(Layout.UPRIGHT_VECTOR_X, Layout.UPRIGHT_VECTOR_Y, font,
@@ -128,13 +132,14 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS;
-            var i = 0;
-            while (i < offsets.size()) {
-                dc.drawAngledText(Layout.BRAND_X + offsets[i], Layout.BRAND_Y + offsets[i + 1], font, "GARMIN",
-                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
-                i += 2;
-            }
+            dc.drawAngledText(Layout.BRAND_X - 1, Layout.BRAND_Y, font, "GARMIN",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
+            dc.drawAngledText(Layout.BRAND_X, Layout.BRAND_Y - 1, font, "GARMIN",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
+            dc.drawAngledText(Layout.BRAND_X, Layout.BRAND_Y + 1, font, "GARMIN",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
+            dc.drawAngledText(Layout.BRAND_X + 1, Layout.BRAND_Y, font, "GARMIN",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
 
             dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
             dc.drawAngledText(Layout.BRAND_X, Layout.BRAND_Y, font, "GARMIN",
@@ -148,14 +153,18 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            var offsets = Layout.OUTLINE_OFFSETS;
-            var i = 0;
-            while (i < offsets.size()) {
-                dc.drawRadialText(Layout.BEZEL_TEXT_X + offsets[i], Layout.BEZEL_TEXT_Y + offsets[i + 1], font, "BEZEL",
-                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
-                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
-                i += 2;
-            }
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 1, Layout.BEZEL_TEXT_Y, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y - 1, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y + 1, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 1, Layout.BEZEL_TEXT_Y, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
 
             dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
             dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y, font, "BEZEL",
@@ -178,14 +187,18 @@ class OutlineTextView extends WatchUi.WatchFace {
             var cos = Math.cos(angle);
             if (font0 != null) {
                 dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-                var outlineOffsetsDIAL_NUMBERS_0 = Layout.OUTLINE_OFFSETS;
-                var outlineIDIAL_NUMBERS_0 = 0;
-                while (outlineIDIAL_NUMBERS_0 < outlineOffsetsDIAL_NUMBERS_0.size()) {
-                    dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + outlineOffsetsDIAL_NUMBERS_0[outlineIDIAL_NUMBERS_0],
-                                      WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + outlineOffsetsDIAL_NUMBERS_0[outlineIDIAL_NUMBERS_0 + 1], font0, (i + 1).toString(),
-                                      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
-                    outlineIDIAL_NUMBERS_0 += 2;
-                }
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) - 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos), font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) - 1, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + 1, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos), font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
 
                 dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
                 dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
@@ -209,15 +222,22 @@ class OutlineTextView extends WatchUi.WatchFace {
             var cos = Math.cos(angle);
             if (font0 != null) {
                 dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-                var outlineOffsetsDIAL_RING_0 = Layout.OUTLINE_OFFSETS;
-                var outlineIDIAL_RING_0 = 0;
-                while (outlineIDIAL_RING_0 < outlineOffsetsDIAL_RING_0.size()) {
-                    dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos) + outlineOffsetsDIAL_RING_0[outlineIDIAL_RING_0],
-                                      WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos) + outlineOffsetsDIAL_RING_0[outlineIDIAL_RING_0 + 1], font0, "I",
-                                      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
-                                      Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
-                    outlineIDIAL_RING_0 += 2;
-                }
+                dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos) - 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos), font0, "I",
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+                dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos) - 1, font0, "I",
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+                dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos) + 1, font0, "I",
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+                dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos) + 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos), font0, "I",
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
 
                 dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
                 dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos),

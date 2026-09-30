@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from ... import kinds
 from ...availability import Guards, vector_font_face
-from ...ir import RING_OFFSETS
-from ...ir.rings import ring_groups
 from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
     PlacedShape, ResolvedFace, ResolvedHandPart,
@@ -76,40 +74,6 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     return out
 
 
-def _draws_rings(resolved: ResolvedFace, aod_on: bool = False) -> bool:
-    """Does anything in this design draw an `outline:` ring -- an element's,
-    a pattern text part's, an outlined group's, or (with ``aod_on``, this
-    build emitting AOD code) a `text` element's `aod: {outline: ...}` --
-    so the view may read `OUTLINE_OFFSETS`?  Only what is used generates
-    code, the same rule `_vector_fonts_used`/`_loaded_fonts` follow."""
-    if ring_groups(resolved.face.elements):
-        return True
-    for placed in resolved.items:
-        if placed.element.outline is not None:
-            return True
-        aod = placed.element.aod
-        if aod_on and aod is not None and aod.outline is not None:
-            return True
-        if any(getattr(part, "outline", None) is not None
-               for part in getattr(placed.element, "parts", None) or ()):
-            return True
-    return False
-
-
-def _outline_offsets_constants() -> Constants:
-    """`OUTLINE_OFFSETS` -- the flat `Array<Number>` (`[dx0, dy0, dx1, dy1,
-    ...]`) the stamp loop iterates over: `wfb.ir.RING_OFFSETS`, the four
-    points one pixel away.  Flat rather than `Array<Graphics.Point2D>`
-    because `Dc.drawText`'s own `(x, y)` are two separate `Number`
-    arguments."""
-    flat = ", ".join(str(v) for pair in RING_OFFSETS for v in pair)
-    return [(
-        "OUTLINE_OFFSETS",
-        McLiteral("Array<Number>", f"[{flat}]"),
-        "the 1px ring's stamp offsets (research 19)",
-    )]
-
-
 def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 profile: int | None = None) -> SourceFile:
     """One device's `Layout` module.  ``profile`` (the repetition count of
@@ -173,14 +137,6 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 w.blank()
                 w.doc(f"`font.{name}`")
                 _emit_constants(w, _vector_font_constants(resolved, name, guards))
-        if _draws_rings(resolved, guards.amoled_target):
-            w.blank()
-            w.doc(
-                "'outline:' stamp offsets: the four points 1px away, shared by every\n"
-                "element that stamps its ring -- the array the generated stamp loop\n"
-                "iterates over, index i/i+1 per (dx, dy) pair."
-            )
-            _emit_constants(w, _outline_offsets_constants())
         for placed, constants in per_item:
             if not constants:
                 continue

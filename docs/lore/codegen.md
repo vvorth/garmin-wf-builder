@@ -432,95 +432,66 @@ These cost real time to discover; do not rediscover them.
   shared view instead of a per-device `Layout` constant nothing would
   differ across devices for anyway.
 
-- **`outline:`'s stamp offsets (plan 15 slice 1): a build-time-computed,
-  loop-not-unroll array, the same "a runtime loop's cost is in the array,
-  not the loop body" finding `docs/research/probes/pattern-cost/README.md`
-  already established for `drawLine`/`fillPolygon`, now confirmed for
-  `drawText` too (`docs/research/14-stamped-ring-text.md` §4.3, a real
-  `monkeyc --build-stats` run, warning-free on `fenix8solar47mm`).** The
-  offsets themselves (`wfb.ir.disc_perimeter_offsets`) are pure Python,
-  never authored: `disc-perimeter` at radius `r` is every integer `(dx,
-  dy)` with `(r-1)² < dx²+dy² <= r²`, exactly 4/8/16 points at r=1/2/3 --
-  the *only* offset set this format ever emits (no `offsets:` escape
-  hatch, D3 of plan 15 §13: `square8` overshoots, `cross4` undershoots
-  with a gap that widens as the ring grows and is rotation-variant around
-  a radial run). Emitted once per **distinct width actually used
-  anywhere in the design** (`OUTLINE_OFFSETS_<W>`, an `Array<Number>`
-  flattened `[dx0, dy0, dx1, dy1, ...]`, not `Array<Graphics.Point2D>` --
-  `Dc.drawText`'s own `(x, y)` are two separate `Number` arguments, not a
-  tuple), the same "keyed by what's declared, deduplicated across
-  elements" shape a `face:` font's `_FACE`/`_SIZE` constants and a
-  polygon's own `_POINTS` constant already use. Research 14 §4.3 measured
-  the loop form as flat in code size at both N=8 and N=16 (only the data
-  growing, ~5 B/`Number`) and close to a wash against unrolling at N=8,
-  pulling ahead at N=16 -- the loop is the unconditional default, both
-  because it is never worse at the sizes this format actually needs and
-  because it is the one shape that lets `width:` be a data value rather
-  than a rewrite of call sites. The stamp loop (`wfb.emit.monkeyc.shapes.
-  emit_outline_loop`) wraps a caller-supplied per-anchor draw callback,
-  shared verbatim between the interior pass and every stamp -- so a
-  screen-space anchor shift is the *only* thing that differs between a
-  stamp and the interior draw, for every draw-call shape a standalone
-  `text` element can take (plain `drawText`, `drawAngledText`,
-  `drawRadialText`), exactly research 14 §3.2's "commutes with rotation"
-  derivation.
+- **`outline:` (plan 15, plan 23, research 14 and 19): every ring is
+  1px, drawn one of three ways, each measured on a watch (research 19
+  §4.5-4.6).**  `wfb.emit.monkeyc.common.RingPass` is the ring's colour as
+  Monkey C -- an element's own (`own_ring`, dimmed in AOD) or a `ring<Id>`
+  method's `ringColor`; every `ringed` kind's `emit_draw(..., ring=)`
+  draws only its silhouette's ring when given one.
 
-- **`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice
-  2): the same stamp loop, one level down, plus a real `monkeyc` finding
-  slice 1 never hit.** `TextPart.outline` and `Builder.build_outline`
-  are shared verbatim with a standalone `Text.outline` -- the only new
-  builder work is threading a pattern's own absence policy through
-  (`build_outline(..., element=None)` for a part: no immediate
-  `check_other_absence`, because a pattern polices absence once for the
-  whole element over `PatternElement.colors`, which a part's own
-  `outline.color` now feeds into alongside `part.color`). `ResolvedTextPart`
-  carries two exploded fields, `outline_width`/`outline_color`, carried
-  through from `TextPart.outline` unchanged -- `wfb.kinds.pattern._pattern_text_ink` reads
-  `outline_width` as the same `pad` a standalone element's own
-  `outline:` passes to `wfb.layout.text_ink` (D9), and
-  `wfb.kinds.pattern._emit_pattern_text_draw` reads both fields
-  directly, the same way it already reads `part.color`.
+  - **Grown**: a filled circle, rectangle or rounded rectangle, a gauge bar
+    and a filled circle part draw one copy 1px larger (`plus()` folds the
+    literal into the constant term).
+  - **Baked ring font** (below): an icon, or text in a baked font.
+  - **Stamp**: everything else draws at the four `RING_OFFSETS`, unrolled
+    -- `shapes.emit_stamp`/`emit_outline`, four calls with literal `- 1`/
+    `+ 1` (`shapes.shifted`) and the pen set once around them.  A loop over
+    an offsets array cost more than its draws on a watch; unrolled, there
+    is no table in `Layout`, no index and no local to name.  A standalone
+    polygon's four shifted copies are `Layout` constants
+    (`<P>_RING_0`..`_3`): four native fills.  A part of a hand, needle or
+    pattern is transformed at runtime, so it goes through `WfbRing`
+    (`rotated.emit_part_ring`): the points rotated or translated **once**
+    into a fresh array that `shift` moves in place between the four fills
+    (a `Point2D` element assignment typechecks under `-l 3`, by a real
+    build); `lineRotated`/`circleRotated` rotate once and draw four.  That
+    halved the allocation, not the time -- the per-vertex work is
+    interpreted either way (§4.6).  `WfbRing` is its own barrel module so a
+    face without a ring compiles none of it.
 
-  **Screen-space offsets survive both transforms a pattern text part can
-  have, because neither is touched by the stamp.** A radial pattern's own
-  per-copy rotation is already baked into the anchor by the time
-  `_emit_pattern_text_draw` builds `x_expr`/`y_expr` (`WfbGeom.rotatedX`/
-  `rotatedY(...)`, or `ox + Layout..._X` for a linear pattern); a part's
-  own `curve:` angle is a *separate* argument (`_emit_pattern_text_angle_
-  expr`), never folded into `x_expr`/`y_expr` either. So appending
-  `+ offsets[i]` to the already-fully-transformed anchor string -- exactly
-  what `_emit_pattern_text_call` (split out of the old `_emit_pattern_
-  text_draw` so the interior pass and every stamp share one "anchor in,
-  draw lines out" callback, the pattern-level twin of `wfb.emit.monkeyc.
-  shapes.emit_plain_text_call`/`wfb.kinds.text._emit_vector_draw_call`)
-  does -- lands
-  the ring in screen space at every copy, at whatever angle that copy's
-  own rotation and curve already put it at, with no correction needed.
-  Confirmed both by codegen tests reading the actual generated expression
-  and by a preview test that samples pixels near each of four rotated
-  copies' own independently-computed anchors (`tests/test_pattern_text_
-  outline_preview.py::test_every_copy_gets_its_own_ring_not_just_copy_0`).
+  A screen-space shift commutes with everything else a draw call does,
+  rotation and `curve:` included (research 14 §3.2): a pattern text part's
+  stamp shifts its already-rotated anchor (`WfbGeom.rotatedX(...) - 1`).
 
-  **Real `monkeyc` finding: a pattern's own copy loop already owns the
-  name `i`, and Monkey C rejects redefining a variable even across
-  separate straight-line statements in the same method.** Slice 1's
-  `emit_outline_loop` hardcoded `var i = 0;`/`var offsets = ...;` --
-  fine for a standalone element (one generated method per element), but
-  every part of one pattern shares a *single* generated method, whose own
-  `for (var i = 0; i < element.count; i++)` already claims `i`. Nesting an
-  outlined text part's stamp loop inside that failed to compile
-  (`Redefinition of variable 'i'`) the moment `tests/fixtures/outline_
-  text/face.yaml` gained its first pattern-with-outline element -- caught
-  by a real build, not by any Python-level test, since nothing before
-  `monkeyc` itself understands Monkey C scoping rules. Fixed by giving
-  `emit_outline_loop` `index_var`/`offsets_var` parameters (default
-  `"i"`/`"offsets"`, so every slice-1 caller is byte-for-byte unaffected),
-  with the pattern caller deriving unique names from the part's own
-  `part_prefix` (`f"outlineI{part_prefix}"`/`f"outlineOffsets{part_
-  prefix}"`) -- the same per-part uniqueness `Layout.{part_prefix}_X`
-  already relies on, which is also what keeps two outlined text parts in
-  the *same* pattern from colliding with each other, not just with the
-  copy loop's own `i`.
+  **A `monkeyc` finding caught only by a real build: locals are
+  block-scoped, and a second `var` of one name in a scope is
+  `Redefinition of variable`.**  The AOD frame's `aod: {visible: ...}`
+  guard locals were redeclared per element, which failed as soon as two
+  guards read one source (a bug on main before plan 23, and every outlined
+  group member in AOD hits it via its ring call); reusing one declared
+  inside another `_configLayout` block is `Undefined symbol`.
+  `view._GuardScopes` declares once per scope, afresh in each layout block
+  (`tests/test_outline_build.py`, `slow`).
+
+  **A group's ring is `ring<Id>` calls, not a group method.**  A group
+  emits no code; its ring pass calls every member's `ring<Id>` (the same
+  reads, guards and parameters as `draw<Id>`, plus `ringColor`) just before
+  the group's first member in each frame sequence -- active, AOD (each
+  under its own `aod: visible` guard), low-power and the static buffer's
+  `drawStatic<Id>` (`view.Rings`, `wfb.ir.rings`).  No member rings itself
+  and outlined groups do not nest, so every ring stays 1px.  The group's
+  colour may not read data: the frame methods read only what members
+  bind.
+
+  **The preview rings a silhouette, not a geometry.**  `Renderer.
+  silhouette` paints once onto each of two scratch canvases of different
+  solid colours and keeps every pixel either changed -- so a black element
+  has a silhouette -- and `stamp_ring` pastes the ring colour through that
+  mask shifted by each offset (times the preview scale): the same pixels a
+  grown copy, a baked ring font or a stamp paints.  Kinds whose ring is per
+  hand or per copy draw it themselves (`ElementKind.rings_itself`).
+  `Placed.ring_grow` records how far `box` grew for rings; a kind that
+  draws from its own box reads `inner_box`.
 
 - **Baked ring fonts (research 19): a ringed icon, or ringed text in a
   baked font, rings in one `drawText`.** `wfb.kinds.ring_fonts(face)` is
@@ -551,72 +522,14 @@ These cost real time to discover; do not rediscover them.
   draw order), so the shared view and each device's `PROF_X`/`PROF_Y`
   anchors in `Layout` agree.
 
-- **`outline:` on every kind (plan 23, research 19): one `RingPass`, two
-  ways to draw it.** `wfb.emit.monkeyc.common.RingPass` is `(offsets,
-  width, color)` as Monkey C: literals and `Layout.OUTLINE_OFFSETS_<W>`
-  for an element's own ring (`own_ring`, dimmed in AOD), a `ring<Id>`
-  method's parameters for a group's pass.  Every `ringed` kind's
-  `emit_draw(..., ring=)` draws only its silhouette dilated by it when
-  given one.  A filled circle, rectangle or rounded rectangle, and a gauge
-  bar, draw one grown copy (`plus()` folds a literal width into one
-  constant term); everything else stamps through
-  `shapes.emit_stamp_loop`, shifting its draw anchor (`Layout.<P>_CX +
-  offsets[i]`).  A polygon, and every part of a `hands`/needle/pattern,
-  goes through one ring op per part instead (`rotated.emit_part_ring`):
-  `WfbRing.rotated`/`translated` transform the points **once** into
-  a fresh array and `shift` it in place between the four fills (a
-  `Point2D` element assignment typechecks under `-l 3`, confirmed by a
-  real build); `WfbRing.lineRotated`/`circleRotated` rotate once and draw
-  four; a filled circle part grows by 1.  Measured on a fenix 8, a stamp
-  that re-rotated and re-allocated per offset cost about twice its own
-  fills (research 19 §4.5).
-
-  **Two real `monkeyc` findings, both caught only by a real build.**
-  (1) A method may declare `var offsets`/`var i` once: a pattern text
-  part's stamp names its locals after the part (`ringI<P>`) because the
-  copy loop owns `i`.  (2) Locals are block-scoped:
-  the AOD frame's `aod: {visible: ...}` guard locals were redeclared per
-  element, a `Redefinition of variable` as soon as two guards read one
-  source (a bug on main before this, and every outlined group member in
-  AOD hits it via its ring call), but reusing one declared inside another
-  `_configLayout` block is `Undefined symbol`.  `view._GuardScopes`
-  declares once per scope, afresh in each layout block
-  (`tests/test_outline_build.py`, `slow`).
-
-  **A group's ring is `ring<Id>` calls, not a group method.**  A group
-  emits no code; its ring pass calls every member's `ring<Id>` (the same
-  reads, guards and parameters as `draw<Id>`, plus `ringOffsets`/
-  `ringWidth`/`ringColor`) just before the group's first member in each
-  frame sequence -- active, AOD (each under its own `aod: visible` guard),
-  low-power and the static buffer's `drawStatic<Id>` (`view.Rings`).  The
-  widths come from `wfb.ir.rings`: a member's dilation is the group's
-  width plus its own ring plus every outlined group in between.  The
-  group's colour may not read data: the frame methods read only what
-  members bind.
-
-  **The preview rings a silhouette, not a geometry.**  `Renderer.
-  silhouette` paints once onto each of two scratch canvases of different
-  solid colours and keeps every pixel either changed -- so a black element
-  has a silhouette -- and `stamp_ring` pastes the ring colour through that
-  mask shifted by each disc-perimeter offset (times the preview scale).
-  Kinds whose ring is per hand or per copy draw it themselves
-  (`ElementKind.rings_itself`).  `Placed.ring_grow` records how far `box`
-  grew for rings; a kind that draws from its own box reads `inner_box`.
-
 - **`aod: {outline: ...}` on a `text` element: the ring is one more AOD
   override, but not a ternary alone, because a ring can exist in one frame
   and not the other.** `wfb.kinds.text._emit_ring` reads one decision,
   `wfb.ir.aod_outline_choice` (which `wfb preview --aod` reads too), and
-  emits one of three shapes: both frames ringed -- one stamp loop, with
-  `var offsets = (_aod ? Layout.OUTLINE_OFFSETS_<a> : ..._<w>)` only when
-  the widths differ and a colour ternary; a ring only in AOD -- the loop
-  under `if (_aod) { ... }`; a ring only while awake (`outline: none`) --
-  under `if (!_aod) { ... }`. Only one loop is ever emitted per element, so
-  the `var i`/`var offsets` names stay unique within the method (the
-  `Redefinition of variable` finding above). An AOD-only width's
-  `OUTLINE_OFFSETS_<W>` table is emitted only when the build emits AOD code
-  at all (`Guards.amoled_target`), so an all-MIP build stays byte-identical.
-  A ring carried over from the awake design is dimmed like every AOD colour
+  draws the ring once in one of three shapes: both frames ringed -- a
+  colour ternary; a ring only in AOD -- under `if (_aod) { ... }`; a ring
+  only while awake (`outline: none`) -- under `if (!_aod) { ... }`.  A ring
+  carried over from the awake design is dimmed like every AOD colour
   (`AodStyle.dimmed`, also a pattern text part's ring); the override's own
   colour never is. Confirmed by a real build of all three shapes, on a
   system and a vector font, warning-free on `fenix847mm` and `fr955`

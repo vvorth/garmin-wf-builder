@@ -171,8 +171,7 @@ def test_a_ring_only_in_aod_is_guarded_by_aod(write_design, bag, db):
     method = _method(_view(BASE + _clock(), write_design, bag, db), "drawClock")
     ring = method.split("if (_aod) {")[1].split("\n        }")[0]
     assert "dc.setColor(Palette.DIM, Graphics.COLOR_TRANSPARENT);" in ring
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in ring
-    assert "while (i < offsets.size())" in ring
+    assert ring.count("Layout.CLOCK_X - 1") + ring.count("Layout.CLOCK_X + 1") == 2
     # the interior pass still follows, outside the guard
     assert method.index("if (_aod) {") < method.rindex("dc.setColor(Palette.FG")
 
@@ -181,17 +180,16 @@ def test_outline_none_keeps_the_awake_ring_out_of_aod(write_design, bag, db):
     method = _method(_view(BASE + _clock("color.dim", aod="{outline: none}"),
                            write_design, bag, db), "drawClock")
     ring = method.split("if (!_aod) {")[1].split("\n        }")[0]
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in ring
-    assert method.count("while (") == 1
+    assert "Layout.CLOCK_X - 1" in ring
+    assert method.count("Layout.CLOCK_X - 1") == 1  # one ring, not two
 
 
-def test_a_ring_in_both_frames_is_one_loop_with_ternaries(write_design, bag, db):
+def test_a_ring_in_both_frames_is_one_ring_with_ternaries(write_design, bag, db):
     method = _method(_view(
         BASE + _clock("color.dim", aod="{outline: color.red}"),
         write_design, bag, db), "drawClock")
-    assert method.count("while (") == 1 and "if (_aod) {" not in method
+    assert method.count("Layout.CLOCK_X - 1") == 1 and "if (_aod) {" not in method
     assert "dc.setColor((_aod ? Palette.RED : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in method
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in method
 
 
 def test_an_all_mip_build_ignores_the_override(write_design, bag, db):
@@ -226,7 +224,7 @@ elements:
 """
     method = _method(_view(text, write_design, bag, db), "drawClock")
     guarded = method.split("if (font != null) {")[1]
-    assert "if (_aod) {" in guarded and "Layout.OUTLINE_OFFSETS" in guarded
+    assert "if (_aod) {" in guarded and "Layout.CLOCK_X - 1" in guarded
 
 
 # -- dim: reaches an `outline:` ring like every other AOD colour ---------------
@@ -269,7 +267,8 @@ def test_a_pattern_parts_ring_is_dimmed_and_its_interior_keeps_the_aod_colour(
     loop set -- must fail against restoring the plain awake `Palette.FG`."""
     method = _method(_view(DIM + _PATTERN, write_design, bag, db), "drawRing")
     assert "dc.setColor((_aod ? 0x222222 : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in method
-    after_ring = method.split("outlineIRING_0 += 2;")[1]
+    ring_colour = method.index("Palette.DIM), Graphics.COLOR_TRANSPARENT);")
+    after_ring = "dc.setColor(" + method[ring_colour:].split("dc.setColor(", 1)[1]
     assert "dc.setColor((_aod ? Palette.RED : Palette.FG), Graphics.COLOR_TRANSPARENT);" in after_ring
     assert "dc.setColor(Palette.FG, Graphics.COLOR_TRANSPARENT);" not in after_ring
 

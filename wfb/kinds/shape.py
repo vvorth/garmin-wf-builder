@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 from .. import vocab
+from ..ir import RING_OFFSETS
 from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
 from ..preview import arc_span
@@ -14,7 +15,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import (
-    McLiteral, NO_AOD, RING_OFFSETS_CODE, RING_WIDTH_CODE, AodStyle, RingPass, article,
+    McLiteral, NO_AOD, RING_WIDTH_CODE, AodStyle, RingPass, article,
     const_prefix, own_ring, plus,
 )
 from ..emit.writer import Writer
@@ -177,19 +178,37 @@ def _emit_grown(w: Writer, prefix: str, shape: str, width: str) -> None:
     ])
 
 
+def _stroke_pen(placed: PlacedShape, aod: AodStyle, prefix: str) -> str | None:
+    """The pen width a stroked line or outlined shape draws with, when it is
+    the same in every frame -- so a ring's four stamps can set it once
+    around all of them (`set_pen=False`).  `None` for a filled shape, an
+    arc (its barrel call sets its own) or an `aod: {filled: ...}` flip."""
+    element = placed.element
+    if element.shape == "line":
+        return shapes.thickness_expr(prefix, placed, aod)
+    if (element.shape in _FILLABLE_SHAPES and not element.filled
+            and not _shape_filled_override(element, aod)):
+        if element.shape == "circle":
+            override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
+            return aod.value(override, str(placed.thickness))
+        return shapes.thickness_expr(prefix, placed, aod)
+    return None
+
+
 def _emit_primitive(w: Writer, placed: PlacedShape, aod: AodStyle, prefix: str,
-                    dx: str | None = None, dy: str | None = None) -> None:
+                    dx: int = 0, dy: int = 0, set_pen: bool = True) -> None:
     """The shape's own `Dc` call(s) in whatever colour is set, shifted by
-    ``dx``/``dy`` for one `outline:` stamp."""
+    ``dx``/``dy`` for one `outline:` stamp.  ``set_pen=False``: the caller
+    has set the pen (`_stroke_pen`) around several of these."""
     element = placed.element
 
-    def at(suffix: str, offset: str | None) -> str:
-        return f"Layout.{prefix}_{suffix}" + (f" + {offset}" if offset else "")
+    def at(suffix: str, offset: int) -> str:
+        return shapes.shifted(f"Layout.{prefix}_{suffix}", offset)
 
     if element.shape in _FILLABLE_SHAPES:
         name, groups = _FILLABLE_SHAPES[element.shape]
         first = groups[0]
-        shifted = [at(first[0], dx), at(first[1], dy)] + [at(s, None) for s in first[2:]]
+        shifted = [at(first[0], dx), at(first[1], dy)] + [at(s, 0) for s in first[2:]]
         args = [", ".join(shifted)] + [
             ", ".join(f"Layout.{prefix}_{suffix}" for suffix in group) for group in groups[1:]]
         if element.shape == "circle":
@@ -205,9 +224,11 @@ def _emit_primitive(w: Writer, placed: PlacedShape, aod: AodStyle, prefix: str,
             w.call(f"dc.fill{name}", args)
 
         def draw_outline() -> None:
-            w.line(f"dc.setPenWidth({thickness_expr});")
+            if set_pen:
+                w.line(f"dc.setPenWidth({thickness_expr});")
             w.call(f"dc.draw{name}", args)
-            w.line("dc.setPenWidth(1);")
+            if set_pen:
+                w.line("dc.setPenWidth(1);")
 
         _emit_filled_toggle(w, element.filled, _shape_filled_override(element, aod),
                             draw_filled, draw_outline)
@@ -223,12 +244,14 @@ def _emit_primitive(w: Writer, placed: PlacedShape, aod: AodStyle, prefix: str,
         # never an outline form to switch to here.
         w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
     elif element.shape == "line":
-        w.line(f"dc.setPenWidth({shapes.thickness_expr(prefix, placed, aod)});")
+        if set_pen:
+            w.line(f"dc.setPenWidth({shapes.thickness_expr(prefix, placed, aod)});")
         w.line(
             f"dc.drawLine({at('CX', dx)}, {at('CY', dy)}, "
             f"{at('END_X', dx)}, {at('END_Y', dy)});"
         )
-        w.line("dc.setPenWidth(1);")
+        if set_pen:
+            w.line("dc.setPenWidth(1);")
 
 
 class ShapeKind(ElementKind[Shape, PlacedShape]):
@@ -485,17 +508,26 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 if ring is None:
                     w.blank()
             elif element.shape == "polygon":
-                # One translated copy shifted in place between the four
-                # fills, not a fresh array per stamp (research 19 §4.5).
+                # Four fills of the shifted copies `layout_constants` baked:
+                # no per-vertex work on the watch (research 19 §4.6).
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                w.line(f"WfbRing.translated(dc, Layout.{prefix}_POINTS, 0, 0);")
+                for index in range(len(RING_OFFSETS)):
+                    w.line(f"dc.fillPolygon(Layout.{prefix}_RING_{index});")
                 if ring is None:
                     w.blank()
             else:
-                shapes.emit_stamp_loop(
-                    w, RING_OFFSETS_CODE, stamp.color,
-                    lambda dx, dy: _emit_primitive(w, placed, aod, prefix, dx, dy),
-                    blank_after=ring is None)
+                pen = _stroke_pen(placed, aod, prefix)
+                if pen:
+                    w.line(f"dc.setPenWidth({pen});")
+                shapes.emit_stamp(
+                    w, stamp.color,
+                    lambda dx, dy: _emit_primitive(w, placed, aod, prefix, dx, dy,
+                                                   set_pen=pen is None),
+                    blank_after=False)
+                if pen:
+                    w.line("dc.setPenWidth(1);")
+                if ring is None:
+                    w.blank()
         if ring is not None:
             return
         w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
@@ -545,6 +577,17 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
                 f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
             ))
+            if placed.ring_grow:
+                # Its 1px ring (research 19): the polygon shifted to each of
+                # the four points 1px away, at build time -- four native
+                # fills and no loop on the watch (§4.6).
+                for index, (dx, dy) in enumerate(RING_OFFSETS):
+                    shifted = ", ".join(f"[{x + dx}, {y + dy}]" for x, y in placed.points)
+                    out.append((
+                        f"{prefix}_RING_{index}",
+                        McLiteral("Array<Graphics.Point2D>", f"[{shifted}]"),
+                        f"the ring's stamp at ({dx}, {dy})",
+                    ))
         else:
             rect = placed.rect or placed.inner_box
             out.extend(layout_constants_mod.box_constants(prefix, rect))

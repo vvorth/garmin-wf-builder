@@ -341,14 +341,11 @@ class RingPass:
     interior (research 19): the element's own silhouette dilated by
     `wfb.ir.OUTLINE_WIDTH` px, in ``color`` -- Monkey C: an element's own
     ring colour, or a `ring<Id>` method's `ringColor` for a group's pass.
-    A stamping kind loops over `Layout.OUTLINE_OFFSETS`
-    (:data:`RING_OFFSETS_CODE`)."""
+    A stamping kind draws at the four offsets
+    (`wfb.emit.monkeyc.shapes.emit_stamp`)."""
 
     color: str
 
-
-#: The stamp's offsets table (`wfb.emit.monkeyc.layout_constants`).
-RING_OFFSETS_CODE = "Layout.OUTLINE_OFFSETS"
 
 #: `wfb.ir.OUTLINE_WIDTH` as a Monkey C literal, for a grown copy.
 RING_WIDTH_CODE = str(OUTLINE_WIDTH)

@@ -27,10 +27,10 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
-    NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr,
+    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr,
     mc_float, own_ring,
 )
-from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
+from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline, radial_radius_expr
 from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
@@ -585,26 +585,19 @@ def _emit_pattern_text_draw(
 
     with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
         if ring is not None:
-            emit_outline_loop(
-                w, RING_OFFSETS_CODE, ring, x_expr, y_expr,
+            emit_outline(
+                w, ring, x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
-                index_var=f"ringI{part_prefix}", offsets_var=f"ringOffsets{part_prefix}",
                 blank_after=False)
             return
         if part.outline_color is not None:
-            # `index_var`/`offsets_var` are unique per part (`part_prefix`
-            # already is): the copy loop wrapping this whole method already
-            # declares its own `var i`, and several outlined text parts can
-            # share this one generated method (`emit_outline_loop`).
-            emit_outline_loop(
-                w, RING_OFFSETS_CODE,
-                aod.dimmed(element, part.outline_color), x_expr, y_expr,
+            emit_outline(
+                w, aod.dimmed(element, part.outline_color), x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
-                index_var=f"outlineI{part_prefix}", offsets_var=f"outlineOffsets{part_prefix}",
             )
             w.line(f"dc.setColor({aod.part_color(element, part.color)}, "
                    "Graphics.COLOR_TRANSPARENT);")

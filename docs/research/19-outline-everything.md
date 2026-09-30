@@ -275,6 +275,48 @@ What this settles:
 - **Text and icons are stamped at 4-5× their own cost.** A baked font can
   carry a dilated copy of each glyph instead, one extra `drawText`.
 
+### 4.6 On a watch again: baked ring fonts, and what allocation was not
+
+**VERIFIED on a watch, 2026-09-30** (a Forerunner 955 by its bezel, not
+§4.5's fēnix 8, so only ratios compare across the two), `--profile`,
+1 px ring against none, after the baked ring fonts and the no-allocation
+`WfbRing` parts landed.  µs per call; the smallest readings are one or two
+samples of a millisecond timer, so their ratios are rough.
+
+| element | how | none | 1 px | × |
+|---|---|---|---|---|
+| filled circle | grown | 100 | 400 | ~4 |
+| rectangle / rounded | grown | 100 | 300 | ~3 |
+| ellipse | stamp loop | 100 | 850 | ~8 |
+| stroked circle | stamp loop | 200 | 1,200 | 6 |
+| text, system font | stamp loop | 800 | 3,700 | 4.6 |
+| arc | stamp loop | 400 | 2,400 | 6 |
+| triangle | `WfbRing` | 200 | 3,150 | ~16 |
+| line | stamp loop | 100 | 1,300 | ~13 |
+| text, baked font | baked ring font | 1,100 | 2,800 | 2.5 |
+| alarm icon | baked ring font | 900 | 2,000 | 2.2 |
+| tick pattern | `WfbRing` per part | 1,900 | 6,800 | 3.6 |
+| arc gauge | stamp loop | 1,100 | 3,400 | 3.1 |
+| bar gauge | grown | 300 | 900 | 3 |
+| hands | `WfbRing` per part | 1,700 | 8,000 | 4.7 |
+
+- **The baked ring font halves a text or icon ring** (2.2-2.5× against the
+  stamp's 4.6×): one extra draw, as §3.4 predicted.
+- **Allocation was not the cost.** Hands (4.7×) and a triangle (16×) stayed
+  expensive without it: the watch interprets the per-vertex arithmetic,
+  rotating or shifting alike.  The tick pattern improved (3.6×, from 5.6×).
+- **A stamp's loop cost more than its draws** (a line 13×, an ellipse 8×):
+  reading an offsets array, counting and re-setting the pen each pass.
+  Decided the same day: every stamp is unrolled into four calls with
+  literal offsets and the pen set once, and a standalone polygon's four
+  shifted copies are baked into `Layout`.  Neither changes a pixel.
+- **For a hand, an offset polygon rotated once would be one fill, but not
+  the dilation.**  `probes/outline-everything/offset-hands.png` shows the
+  hour hand of `examples/features/rings` at six angles in the Pillow model:
+  a 1 px offset loses the ring along a whole side at 0° and 11° (38-39
+  missing pixels) while doubling it on the other; 1.5 px closes the gaps
+  but leaves the ring 1-2 px uneven.  Left for the user to weigh.
+
 ## 5. Per kind
 
 | kind | ring op | openings | notes |

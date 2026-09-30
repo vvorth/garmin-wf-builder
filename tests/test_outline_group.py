@@ -78,10 +78,10 @@ def test_a_low_power_member_is_ringed_in_the_partial_update(view):
     assert _calls(_function(view, "onPartialUpdate")) == ["ringSecs", "drawSecs"]
 
 
-def test_the_one_offsets_table_is_emitted(tmp_path_factory):
+def test_no_offsets_table_is_emitted(tmp_path_factory):
+    """Every stamp is unrolled with literal offsets: nothing to read."""
     files = generate_for_targets(FIXTURE, tmp_path_factory.mktemp("build")).files()
-    layout = files["source-fenix8solar47mm/Layout.mc"]
-    assert layout.count("OUTLINE_OFFSETS as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0]") == 1
+    assert "OUTLINE_OFFSETS" not in files["source-fenix8solar47mm/Layout.mc"]
 
 
 def test_the_aod_frame_rings_under_each_members_own_guard_and_dimmed(write_design, tmp_path):

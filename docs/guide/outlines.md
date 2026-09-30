@@ -67,8 +67,9 @@ whatever the shape:
 - an ellipse, whose grown outline is not an ellipse;
 - a stroked shape (`filled: false`), which is ringed on its inner edge too;
 - an arc or a line, whose ends are undocumented;
-- a polygon with sharp corners: transformed once, then shifted between the
-  four fills, with nothing allocated per stamp;
+- a polygon with sharp corners: its four shifted copies are baked at
+  build time; a hand's or pattern's part is rotated once, then shifted
+  between the four fills;
 - text in a system or vector font, and a pattern's text parts.
 
 **Openings are outlined** either way. The hole in a stroked circle, the face

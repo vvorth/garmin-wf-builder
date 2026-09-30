@@ -18,6 +18,8 @@ outline_text/face.yaml` is the regression fixture for the second one).
 
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 
 import pytest
@@ -214,11 +216,12 @@ def test_pattern_outline_stamp_loop_appears_and_precedes_interior_draw(write_des
     device = db.get("fenix8solar47mm")
     view = emit_view(resolve(face, device, {})).text
     method = view.split("private function drawRing")[1]
-    assert "while (" in method and ".size())" in method
-    stamp_index = method.index("while (")
+    # four stamps, unrolled, then the interior pass's own colour
+    stamps = [m.start() for m in re.finditer(r"cx, sin, cos\) [+-] 1", method)]
+    assert len(stamps) == 2, method  # the x-shifted two; y-shifts ride rotatedY
     last_setcolor = method.rindex("dc.setColor(")
-    assert stamp_index < last_setcolor, (
-        "the interior pass's own dc.setColor must come after the stamp loop"
+    assert max(stamps) < last_setcolor, (
+        "the interior pass's own dc.setColor must come after the stamps"
     )
 
 
@@ -233,12 +236,8 @@ def test_pattern_outline_offsets_added_after_the_rotation_not_inside_it(write_de
     device = db.get("fenix8solar47mm")
     view = emit_view(resolve(face, device, {})).text
     method = view.split("private function drawRing")[1]
-    assert "WfbGeom.rotatedX(Layout.RING_0_X, Layout.RING_0_Y, cx, sin, cos) + outlineOffsets" \
-        in method.replace("\n", " ").replace("  ", " ") or (
-        # tolerate wrapped whitespace across lines
-        "WfbGeom.rotatedX(Layout.RING_0_X, Layout.RING_0_Y, cx, sin, cos) +" in method
-        and "outlineOffsetsRING_0" in method
-    )
+    assert "WfbGeom.rotatedX(Layout.RING_0_X, Layout.RING_0_Y, cx, sin, cos) - 1" in method
+    assert "WfbGeom.rotatedX(Layout.RING_0_X, Layout.RING_0_Y, cx, sin, cos) + 1" in method
 
 
 def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, db):
@@ -270,17 +269,11 @@ def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, 
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     device = db.get("fenix8solar47mm")
     view = emit_view(resolve(face, device, {})).text
-    method = view.split("private function drawRing")[1]
-    assert "outlineOffsetsRING_0" in method
-    assert "outlineOffsetsRING_1" in method
-    assert "outlineIRING_0" in method
-    assert "outlineIRING_1" in method
-    # Never the plain, standalone-element-style bare names -- those would
-    # collide with each other AND with the copy loop's own `for (var i ...)`.
-    # (`"var i = 0;"` alone is not a safe substring to check: the copy loop's
-    # own `for (var i = 0; i < 1; i++)` header legitimately contains it.)
-    assert "while (i <" not in method
-    assert "var offsets = Layout" not in method
+    method = view.split("private function drawRing")[1].split("\n    }")[0]
+    # The stamps are unrolled, so a ring declares no locals at all: nothing
+    # to collide with another part's, or with the copy loop's own `i`.
+    assert "while (" not in method
+    assert "var offsets" not in method and "outlineI" not in method
 
 
 def test_pattern_outline_angle_is_identical_for_stamp_and_interior(write_design, bag, db):
@@ -349,6 +342,5 @@ def test_golden_fixture_pattern_methods_have_no_redefinition_regressions(
     for method_name in ("drawDialNumbers", "drawDialRing"):
         method = view.split(f"private function {method_name}")[1]
         method = method.split("\n\n    //!")[0]
-        assert "while (i <" not in method
-        assert "var offsets = Layout" not in method
-        assert "while (" in method
+        assert "while (" not in method
+        assert "var offsets" not in method

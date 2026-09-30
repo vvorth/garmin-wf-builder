@@ -45,11 +45,12 @@ def test_a_radial_copy_rings_each_part_once(view):
     assert "while" not in body
 
 
-def test_only_a_text_parts_ring_needs_a_stamp_loop_and_its_names_are_its_own(view):
-    """The copy loop owns `i`; Monkey C rejects a second `var i` -- a text
-    part's stamp loop names its locals after the part."""
+def test_a_text_parts_ring_declares_no_locals(view):
+    """The copy loop owns `i`, and Monkey C rejects a second `var i`: the
+    text part's stamps are unrolled, so its ring declares nothing."""
     body = _method(view, "drawNumerals")
-    assert body.count("var i ") == 1 and "var ringINUMERALS_0 = 0;" in body
+    assert body.count("var i ") == 1 and "while" not in body
+    assert "WfbGeom.rotatedX(Layout.NUMERALS_0_X, Layout.NUMERALS_0_Y, cx, sin, cos) - 1" in body
 
 
 def test_a_ringed_pattern_sets_its_colour_every_copy(view):
@@ -94,7 +95,8 @@ def test_a_ringed_text_part_inside_a_ringed_pattern_is_refused(write_design, min
 def test_an_arc_gauge_is_stamped_round_its_track(view):
     body = _method(view, "drawBatteryArc")
     ring = body[:body.index("// the unfilled track")]
-    assert "WfbArc.drawSpan(dc, Layout.BATTERY_ARC_CX + offsets[i]," in ring
+    assert "WfbArc.drawSpan(dc, Layout.BATTERY_ARC_CX - 1, Layout.BATTERY_ARC_CY," in ring
+    assert ring.count("WfbArc.drawSpan(") == 4
     assert "drawProgress" not in ring  # the lit arc lies inside the track
 
 
@@ -102,7 +104,7 @@ def test_a_trackless_arc_gauge_is_stamped_round_its_lit_arc_only_while_present(v
     body = _method(view, "drawHrArc")
     ring = body[:body.index("// the filled portion")]
     assert "if (heartRateCurrent != null) {" in ring
-    assert "WfbArc.drawProgress(dc, Layout.HR_ARC_CX + offsets[i]," in ring
+    assert "WfbArc.drawProgress(dc, Layout.HR_ARC_CX - 1, Layout.HR_ARC_CY," in ring
 
 
 def test_a_trackless_bar_is_grown_round_its_lit_length(view):

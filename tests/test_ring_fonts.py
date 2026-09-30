@@ -102,7 +102,7 @@ def test_system_font_text_still_stamps(write_design, tmp_path):
     outline: color.ring
 """, write_design, tmp_path)
     method = view.split("private function drawTime")[1].split("\n    }")[0]
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in method and "ringFont" not in method
+    assert "Layout.TIME_X - 1" in method and "ringFont" not in method
 
 
 def test_unringed_text_bakes_no_ring_font(write_design, tmp_path):

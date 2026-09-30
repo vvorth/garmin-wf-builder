@@ -15,7 +15,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import (
-    NO_AOD, RING_OFFSETS_CODE, RING_WIDTH_CODE, AodStyle, RingPass, article, const_prefix,
+    NO_AOD, RING_WIDTH_CODE, AodStyle, RingPass, article, const_prefix,
     mc_float, own_ring, plus,
 )
 from ..emit.writer import Writer
@@ -293,20 +293,21 @@ def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: st
     has no one-draw dilation): the whole track when there is one -- the lit
     arc lies inside it -- else the lit arc alone, only while it draws."""
     if element.track_color is not None:
-        shapes.emit_stamp_loop(
-            w, RING_OFFSETS_CODE, stamp.color,
+        shapes.emit_stamp(
+            w, stamp.color,
             lambda dx, dy: shapes.emit_arc_span(w, prefix, thickness_expr, dx, dy),
             blank_after=False)
         return
-    def lit(dx: str, dy: str) -> None:
+    def lit(dx: int, dy: int) -> None:
         w.call("WfbArc.drawProgress", [
-            f"dc, Layout.{prefix}_CX + {dx}, Layout.{prefix}_CY + {dy}, Layout.{prefix}_RADIUS",
+            f"dc, {shapes.shifted(f'Layout.{prefix}_CX', dx)}, "
+            f"{shapes.shifted(f'Layout.{prefix}_CY', dy)}, Layout.{prefix}_RADIUS",
             f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
             fraction_expr,
         ])
 
     with w.block_if(present):
-        shapes.emit_stamp_loop(w, RING_OFFSETS_CODE, stamp.color, lit, blank_after=False)
+        shapes.emit_stamp(w, stamp.color, lit, blank_after=False)
 
 
 def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,

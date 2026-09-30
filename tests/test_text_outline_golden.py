@@ -55,12 +55,9 @@ def test_generated_file_matches_golden(pytestconfig, generated, name):
 # -- properties the golden files should never silently lose ------------------
 
 
-def test_one_offsets_table_serves_every_ring(generated):
-    """Every ring is 1px, so `Layout.mc` carries one `OUTLINE_OFFSETS`
-    array -- the four points 1px away -- however many elements stamp."""
-    layout = generated.files()["source-fenix8solar47mm/Layout.mc"]
-    assert layout.count("OUTLINE_OFFSETS as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0];") == 1
-    assert "OUTLINE_OFFSETS_" not in layout
+def test_no_offsets_table_is_emitted(generated):
+    """Every stamp is unrolled with literal offsets (research 19 §4.6)."""
+    assert "OUTLINE_OFFSETS" not in generated.files()["source-fenix8solar47mm/Layout.mc"]
 
 
 def test_the_baked_font_ring_is_one_draw_in_its_ring_font(generated):
@@ -72,21 +69,18 @@ def test_the_baked_font_ring_is_one_draw_in_its_ring_font(generated):
     assert method.index("ringFont") < method.rindex("dc.setColor(")
 
 
-def test_stamp_loop_appears_ahead_of_every_interior_draw(generated):
-    """Every vector-font element carrying `outline:` gets a `while (i <
-    offsets.size())` loop -- no sheet to dilate -- and the loop's own
-    `dc.setColor`/draw call precedes the interior (unshifted) one in the
-    generated method: the ring first, the fill last, on top (plan 15 §8)."""
+def test_stamps_appear_ahead_of_every_interior_draw(generated):
+    """Every vector-font element carrying `outline:` is stamped -- no sheet
+    to dilate -- as four draws with literal offsets, and the ring's own
+    `dc.setColor` precedes the interior's: the ring first, the fill last, on
+    top (plan 15 §8)."""
     view = generated.files()["source/OutlineTextView.mc"]
-    for method_name in ("drawUprightVector", "drawBrand", "drawBezelText"):
+    for method_name, x in (("drawUprightVector", "UPRIGHT_VECTOR_X"), ("drawBrand", "BRAND_X"),
+                           ("drawBezelText", "BEZEL_TEXT_X")):
         method = view.split(f"private function {method_name}")[1]
         method = method.split("\n\n    //!")[0]
-        assert "while (i < offsets.size())" in method
-        loop_index = method.index("while (i < offsets.size())")
-        # the interior pass's own setColor/draw call is textually after the
-        # loop's closing brace, i.e. there are exactly two dc.setColor calls
-        # and the second (outside the loop body) is the interior one.
-        assert method.count("dc.setColor(") >= 2
+        assert f"Layout.{x} - 1," in method and f"Layout.{x} + 1," in method
+        assert method.index(f"Layout.{x} + 1,") < method.rindex("dc.setColor(")
 
 
 def test_vector_gate_4_wraps_loop_and_interior_in_one_guard(generated):

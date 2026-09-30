@@ -102,18 +102,17 @@ def test_a_rounded_rectangle_grows_its_corner_radius_too(write_design, tmp_path)
 
 @pytest.mark.parametrize("shape, call", [
     ("type: ellipse\n    at: {anchor: center}\n    size: {width: 40px, height: 20px}",
-     "dc.fillEllipse(Layout.EL_CX + offsets[i], Layout.EL_CY + offsets[i + 1],"),
+     "dc.fillEllipse(Layout.EL_CX - 1, Layout.EL_CY,"),
     ("type: circle\n    at: {anchor: center}\n    radius: 20px\n    thickness: 3px\n    filled: false",
-     "dc.drawCircle(Layout.EL_CX + offsets[i], Layout.EL_CY + offsets[i + 1],"),
+     "dc.drawCircle(Layout.EL_CX - 1, Layout.EL_CY,"),
     ("type: rectangle\n    at: {anchor: center}\n    size: {width: 40px, height: 20px}\n"
      "    thickness: 2px\n    filled: false",
-     "dc.drawRectangle(Layout.EL_X + offsets[i], Layout.EL_Y + offsets[i + 1],"),
+     "dc.drawRectangle(Layout.EL_X - 1, Layout.EL_Y,"),
     ("type: line\n    at: {anchor: center}\n    to: {anchor: center, dx: 30px}\n    thickness: 2px",
-     "dc.drawLine(Layout.EL_CX + offsets[i], Layout.EL_CY + offsets[i + 1], "
-     "Layout.EL_END_X + offsets[i], Layout.EL_END_Y + offsets[i + 1]);"),
+     "dc.drawLine(Layout.EL_CX - 1, Layout.EL_CY, Layout.EL_END_X - 1, Layout.EL_END_Y);"),
     ("type: arc\n    at: {anchor: center}\n    radius: 40px\n    thickness: 3px\n"
      "    start_angle: 0deg\n    sweep: 90deg",
-     "WfbArc.drawSpan(dc, Layout.EL_CX + offsets[i], Layout.EL_CY + offsets[i + 1],"),
+     "WfbArc.drawSpan(dc, Layout.EL_CX - 1, Layout.EL_CY,"),
 ])
 def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
     """No one-draw dilation for these: each is stamped at the ring's
@@ -124,14 +123,14 @@ def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
     color: color.fg
     outline: color.ring
 """, write_design, tmp_path), "drawEl")
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
     assert call in body, body
-    assert "+ 1" not in body.split("while")[0]
+    assert "offsets" not in body and "while" not in body  # unrolled
+    assert "RADIUS + 1" not in body and "_X + 2" not in body  # never grown
 
 
-def test_a_polygon_translates_once_and_shifts_in_place(write_design, tmp_path):
-    """No per-stamp array: `WfbRing.translated` builds one copy and
-    shifts it between the four fills (research 19 §4.5)."""
+def test_a_polygon_fills_its_four_shifted_copies_baked_at_build_time(write_design, tmp_path):
+    """No per-vertex work on the watch: the four shifted copies are
+    `Layout` constants (research 19 §4.6)."""
     body = _method(_view("""
   tri:
     type: polygon
@@ -139,8 +138,8 @@ def test_a_polygon_translates_once_and_shifts_in_place(write_design, tmp_path):
     color: color.fg
     outline: color.ring
 """, write_design, tmp_path), "drawTri")
-    assert "WfbRing.translated(dc, Layout.TRI_POINTS, 0, 0);" in body
-    assert "offsets" not in body
+    assert [f"dc.fillPolygon(Layout.TRI_RING_{i});" in body for i in range(4)] == [True] * 4
+    assert "WfbRing" not in body
 
 
 def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):
@@ -160,7 +159,7 @@ def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):
     files = generate_for_targets(path, tmp_path / "out").files()
     view = next(body for name, body in files.items() if name.endswith("View.mc"))
     body = _method(view, "drawDisc")
-    assert "var offsets = Layout.OUTLINE_OFFSETS;" in body
+    assert "dc.fillCircle(Layout.DISC_CX - 1, Layout.DISC_CY," in body
     assert "RADIUS + 1" not in body
 
 

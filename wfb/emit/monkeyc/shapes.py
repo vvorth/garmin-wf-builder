@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from .common import AodStyle, glyph_y_expr
+from ...ir import RING_OFFSETS
 from ..writer import Writer
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
-                  dx: str | None = None, dy: str | None = None) -> None:
+                  dx: int = 0, dy: int = 0) -> None:
     """The two-line `WfbArc.drawSpan(...)` call against one arc's own
     `_CX/_CY/_RADIUS/_THICKNESS/_START/_SWEEP` constants -- identical whether
     it is a plain `shape: arc` or a `progress` arc's unfilled track, which is
@@ -27,8 +28,8 @@ def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
     """
     if thickness_expr is None:
         thickness_expr = f"Layout.{prefix}_THICKNESS"
-    cx = f"Layout.{prefix}_CX" + (f" + {dx}" if dx else "")
-    cy = f"Layout.{prefix}_CY" + (f" + {dy}" if dy else "")
+    cx = shifted(f"Layout.{prefix}_CX", dx)
+    cy = shifted(f"Layout.{prefix}_CY", dy)
     w.call("WfbArc.drawSpan", [
         f"dc, {cx}, {cy}, Layout.{prefix}_RADIUS",
         f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
@@ -69,53 +70,43 @@ def radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | N
     return f"{radius_expr} {sign} Graphics.getFontAscent({font_expr})"
 
 
-def emit_outline_loop(
-    w: Writer, offsets_code: str, color_code: str, x_expr: str, y_expr: str,
-    draw: Callable[[str, str], None], *, index_var: str = "i", offsets_var: str = "offsets",
-    blank_after: bool = True,
+def shifted(expr: str, d: int) -> str:
+    """``expr`` moved ``d`` pixels, as Monkey C: `Layout.P_CX - 1`."""
+    if d == 0:
+        return expr
+    return f"{expr} {'+' if d > 0 else '-'} {abs(d)}"
+
+
+def emit_outline(
+    w: Writer, color_code: str, x_expr: str, y_expr: str,
+    draw: Callable[[str, str], None], *, blank_after: bool = True,
 ) -> None:
-    """The stamp loop `outline:` runs ahead of a text draw call's own
-    (unshifted) interior pass (plan 15 §5, §8): loops over
-    ``offsets_code`` -- `Layout.OUTLINE_OFFSETS`, the four points 1px away
-    -- calling ``draw(x, y)`` at each shifted screen-space anchor in the
-    ring colour.
+    """The stamped ring ahead of a draw call's own (unshifted) interior pass:
+    ``draw(x, y)`` at the anchor moved to each of the four points 1px away,
+    in the ring colour (`emit_stamp`).
 
     ``draw`` emits exactly the call the interior pass makes at the given
     anchor: a screen-space anchor shift commutes with everything else the
-    call does (research 14 §3.2), so one callback serves every stamp.  The
-    ring colour is set once before the loop -- every stamp shares it, and
-    ``draw`` never touches `dc`'s colour.
-
-    ``index_var``/``offsets_var`` let a pattern's `shape: text` part pick
-    names that cannot collide with its copy loop's own `i`, or with another
-    outlined part in the same method: Monkey C rejects redefining a
-    variable anywhere in one method (`Redefinition of variable 'i'`, from a
-    real `monkeyc` run).  ``blank_after=False`` leaves out the trailing
-    blank line, for a loop that is the whole body of an enclosing block.
+    call does (research 14 §3.2), so one callback serves every stamp.
+    ``draw`` never touches `dc`'s colour.  ``blank_after=False`` leaves out
+    the trailing blank line, for a ring that is the whole body of an
+    enclosing block.
     """
-    emit_stamp_loop(w, offsets_code, color_code,
-                    lambda dx, dy: draw(f"{x_expr} + {dx}", f"{y_expr} + {dy}"),
-                    index_var=index_var, offsets_var=offsets_var, blank_after=blank_after)
+    emit_stamp(w, color_code, lambda dx, dy: draw(shifted(x_expr, dx), shifted(y_expr, dy)),
+               blank_after=blank_after)
 
 
-def emit_stamp_loop(
-    w: Writer, offsets_code: str, color_code: str, draw: Callable[[str, str], None], *,
-    index_var: str = "i", offsets_var: str = "offsets", blank_after: bool = True,
-    declare: bool = True,
-) -> None:
+def emit_stamp(w: Writer, color_code: str, draw: Callable[[int, int], None], *,
+               blank_after: bool = True) -> None:
     """The stamp itself (research 14, 19): set the ring colour once, then
-    call ``draw(dx, dy)`` once per `(dx, dy)` pair in ``offsets_code``, with
-    the two offsets as Monkey C expressions for the caller to add to every
-    coordinate it draws at.  ``draw`` never sets a colour: every stamp
-    shares the ring's.  ``declare=False`` reuses the two locals an earlier
-    loop in the same method declared (Monkey C rejects a second `var`)."""
-    keyword = "var " if declare else ""
+    ``draw(dx, dy)`` for each of `wfb.ir.RING_OFFSETS`, unrolled.  Measured
+    on a watch, a loop over an offsets array cost more than the draws it
+    made (research 19 §4.6): four calls with literal offsets do the same
+    work with nothing to read or count.  ``draw`` never sets a colour:
+    every stamp shares the ring's."""
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"{keyword}{offsets_var} = {offsets_code};")
-    w.line(f"{keyword}{index_var} = 0;")
-    with w.block(f"while ({index_var} < {offsets_var}.size())"):
-        draw(f"{offsets_var}[{index_var}]", f"{offsets_var}[{index_var} + 1]")
-        w.line(f"{index_var} += 2;")
+    for dx, dy in RING_OFFSETS:
+        draw(dx, dy)
     if blank_after:
         w.blank()
 

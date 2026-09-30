@@ -31,11 +31,6 @@ module Layout {
     const FONT_BEZEL_FACE as String = "RobotoCondensedBold";  // requested, in author order: RobotoCondensedBold, RobotoCondensedRegular
     const FONT_BEZEL_SIZE as Number = 8;
 
-    //! 'outline:' stamp offsets: the four points 1px away, shared by every
-    //! element that stamps its ring -- the array the generated stamp loop
-    //! iterates over, index i/i+1 per (dx, dy) pair.
-    const OUTLINE_OFFSETS as Array<Number> = [-1, 0, 0, -1, 0, 1, 1, 0];  // the 1px ring's stamp offsets (research 19)
-
     //! `background` -- a rectangle
     const BACKGROUND_X as Number = 0;
     const BACKGROUND_Y as Number = 0;

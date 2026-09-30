@@ -14,9 +14,9 @@ from ..preview import baked_glyph
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc.common import (
-    NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, const_prefix, font_field, own_ring,
+    NO_AOD, AodStyle, RingPass, const_prefix, font_field, own_ring,
 )
-from ..emit.monkeyc.shapes import emit_outline_loop, emit_plain_text_call
+from ..emit.monkeyc.shapes import emit_outline, emit_plain_text_call
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
 from .text import baked_ring
@@ -251,8 +251,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
             if ring is None:
                 w.blank()
         elif stamp is not None:
-            emit_outline_loop(w, RING_OFFSETS_CODE, stamp.color, x, y, glyph,
-                              blank_after=ring is None)
+            emit_outline(w, stamp.color, x, y, glyph, blank_after=ring is None)
         if ring is not None:
             return
         w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")

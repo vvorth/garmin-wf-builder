@@ -19,7 +19,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import (
-    NO_AOD, RING_OFFSETS_CODE, AodStyle, RingPass, aod_font_field, const_prefix, font_field,
+    NO_AOD, AodStyle, RingPass, aod_font_field, const_prefix, font_field,
     mc_color,
 )
 from ..emit.writer import Writer
@@ -267,8 +267,7 @@ def _stamp(w: Writer, x_expr: str, y_expr: str,
            draw: Callable[[str, str], None]) -> Callable[[str], None]:
     """A text ring by stamping: ``draw`` at the four offsets."""
     def ring(color: str) -> None:
-        shapes.emit_outline_loop(w, RING_OFFSETS_CODE, color, x_expr, y_expr, draw,
-                                 blank_after=False)
+        shapes.emit_outline(w, color, x_expr, y_expr, draw, blank_after=False)
     return ring
 
 
@@ -394,8 +393,8 @@ def _emit_vector_text_draw(
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
         if ring is not None:
-            shapes.emit_outline_loop(
-                w, RING_OFFSETS_CODE, ring.color, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+            shapes.emit_outline(
+                w, ring.color, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
                 lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
                 blank_after=False)
             return
