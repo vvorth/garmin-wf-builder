@@ -12,7 +12,7 @@
 #   types since 2026-09-13), and `IconGlyphs.glyph()` turns that name into the
 #   drawn character, the same "which name, then which glyph" split a dynamic
 #   weather icon already uses.
-#   - Per-choice icon overrides (plan 03 §6.1/§6.2): `steps` keeps its
+#   - Per-choice icon overrides: `steps` keeps its
 #     catalogue default (`steps`); `heart_rate` swaps its default (`heart`)
 #     for a custom glyph from the vendored font, `icon: "U+F05F6"` (Material
 #     Design `md-heart_pulse`, which the catalogue does not name); `calories`
@@ -35,11 +35,8 @@
 #   wearer repoints the slot -- see `wfb/kinds/complication_slot.py`'s
 #   `build` for the error this produces if you try.
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
-#   complication picker -- and still declares `icon: {size:}`. **Superseded
-#   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon: {size:}` outright,
-#   since the set of icons an unbounded picker could need was unbounded and
-#   nothing could be baked ahead of time. Now that every native complication
-#   type has a catalogue icon, `any` resolves against the whole of
+#   complication picker -- and still declares `icon: {size:}`. Every native
+#   complication type has a catalogue icon, so `any` resolves against the whole of
 #   `wfb.icons.COMPLICATION_ICON`: all 42 icons are baked, and a Connect IQ
 #   app's own complication, which the compiler cannot know, draws its reading
 #   with no icon. (Building this exposed a monkeyc crash on two string

@@ -1,8 +1,7 @@
-"""`outline:` on a pattern's own `shape: text` part (plan 15 slice 2) --
+"""`outline:` on a pattern's own `shape: text` part --
 the schema/IR/builder layer, mirroring `tests/test_text_outline.py`'s own
-structure one level down: both spellings (D7), the width cap (D6),
-`outline.color`'s full parity with `color:` including `copy` (D8, plan 15
-§3 -- the one thing a pattern part's `outline.color` can do that a
+structure one level down: both spellings, the width cap,
+`outline.color`'s full parity with `color:` including `copy` (the one thing a pattern part's `outline.color` can do that a
 standalone element's cannot), and the absence rule -- deferred here to
 `wfb.kinds.pattern._check_pattern_absence` rather than an immediate per-key check,
 since a pattern polices absence once for the whole element (`tests/
@@ -40,7 +39,7 @@ def _pattern_outline(outline: str, *, absent: str = "", second_part: str = "") -
 """
 
 
-# -- both spellings accepted (D7), same as a standalone element -------------
+# -- both spellings accepted, same as a standalone element ------------------
 
 
 def test_pattern_outline_none_is_the_default_shape(write_design, bag, minimal):
@@ -93,12 +92,12 @@ def test_pattern_outline_removed_object_form_names_the_part(write_design, bag, m
     assert "ring.parts[0].outline" in bag.errors[0].message
 
 
-# -- outline.color has full parity with color:, INCLUDING 'copy' (D8) -------
+# -- outline.color has full parity with color:, INCLUDING 'copy' ------------
 
 
 def test_pattern_outline_color_reads_copy(write_design, bag, minimal):
     """The one thing a pattern part's `outline.color` can do that a
-    standalone `text` element's cannot (plan 15 §3): `copy` is bound in a
+    standalone `text` element's cannot: `copy` is bound in a
     pattern's own scope, so the ring can alternate by copy exactly the way
     the interior fill already can."""
     face = load(write_design(_design(

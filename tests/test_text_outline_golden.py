@@ -1,5 +1,5 @@
-"""Golden-file coverage for `outline:` on a standalone `text` element (plan
-15 slice 1). `tests/test_golden.py` pins `tests/fixtures/slice/`, which has
+"""Golden-file coverage for `outline:` on a standalone `text` element.
+`tests/test_golden.py` pins `tests/fixtures/slice/`, which has
 no `outline:` in it; this is the same discipline (`tests/CLAUDE.md`: "a
 golden diff is a real output change: explain it, do not just regenerate")
 applied to `tests/fixtures/outline_text/face.yaml`, which exercises a baked
@@ -73,7 +73,7 @@ def test_stamps_appear_ahead_of_every_interior_draw(generated):
     """Every vector-font element carrying `outline:` is stamped -- no sheet
     to dilate -- as four draws with literal offsets, and the ring's own
     `dc.setColor` precedes the interior's: the ring first, the fill last, on
-    top (plan 15 §8)."""
+    top."""
     view = generated.files()["source/OutlineTextView.mc"]
     for method_name, x in (("drawUprightVector", "UPRIGHT_VECTOR_X"), ("drawBrand", "BRAND_X"),
                            ("drawBezelText", "BEZEL_TEXT_X")):
@@ -85,7 +85,7 @@ def test_stamps_appear_ahead_of_every_interior_draw(generated):
 
 def test_vector_gate_4_wraps_loop_and_interior_in_one_guard(generated):
     """Gate 4 (`if (font != null)`) wraps the stamp loop AND the interior
-    draw together, never two separate guards (plan 15 §5)."""
+    draw together, never two separate guards."""
     view = generated.files()["source/OutlineTextView.mc"]
     for method_name in ("drawUprightVector", "drawBrand", "drawBezelText"):
         method = view.split(f"private function {method_name}")[1]

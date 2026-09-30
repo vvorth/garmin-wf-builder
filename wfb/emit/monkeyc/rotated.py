@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 def aod_thickness_override(placed: PlacedHands | PlacedPattern | PlacedProgress,
                            prefix: str) -> str | None:
     """The element-level `aod: {thickness: ...}` constant a hands/pattern
-    element applies uniformly to every part's pen width (plan 14 §5.1), or
+    element applies uniformly to every part's pen width, or
     `None` when it has none."""
     return f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
 

@@ -198,7 +198,7 @@ the box is the full circle, not the swept span. Changing `thickness:` or
   the same three reasons: a polygon part's vertices are each their own
   position (and the part has no `at:` of its own either); a line part's
   `at:`/`to:` are already its two ends; an arc part is always centred on the
-  copy's own origin (`docs/plans/05-patterns.md` D3), so there is no `at:`
+  copy's own origin, so there is no `at:`
   to offset in the first place. A hand never has an `arc` part at all
   (see [Analog hands](analog-hands.md#analog-hands)), so this third case only ever arises
   on a pattern part.

@@ -181,7 +181,7 @@ elements:
     assert "unknown complication type" in errors[0].message
 
 
-# -- per-choice icon overrides (plan 03 §6.1/§6.2) ----------------------------
+# -- per-choice icon overrides ------------------------------------------------
 
 
 PER_CHOICE_DATA_BLOCK = """config:
@@ -322,7 +322,7 @@ def test_unknown_slot_reference_is_an_error(write_design):
 
 
 def test_icon_size_is_now_allowed_with_choices_any(write_design, bag):
-    """Superseded 2026-09-13 (plan 03 §6.6): 'icon_size:' + 'choices: any'
+    """Superseded 2026-09-13: 'icon_size:' + 'choices: any'
     used to be an error (see the account this test replaced, in git
     history) because the set of icons an unbounded picker could need was
     unbounded. Lifted once every native type had a catalogue icon -- 'any'
@@ -447,7 +447,7 @@ def test_nullable_color_is_an_error(write_design):
     assert any("guard it in the expression" in n for n in hits[0].notes), hits[0].notes
 
 
-# -- icon_position:/icon_gap:/icon_color: (plan 03 §6.1/§6.3) -----------------
+# -- icon_position:/icon_gap:/icon_color: -------------------------------------
 
 
 def test_icon_position_and_gap_and_color_resolve(write_design, bag):
@@ -954,7 +954,7 @@ def test_only_a_mapped_choice_appears_in_the_icon_switch(write_design, bag, db):
 
 def test_choices_any_icon_switch_covers_every_native_type(write_design, bag, db):
     """Since 2026-09-13, 'icon_size:' + 'choices: any' resolves against the
-    whole of `wfb.icons.COMPLICATION_ICON` (plan 03 §6.6) -- the generated
+    whole of `wfb.icons.COMPLICATION_ICON` -- the generated
     switch gets one case per native type this compiler knows an icon for."""
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
@@ -987,7 +987,7 @@ def test_choices_any_icon_switch_covers_every_native_type(write_design, bag, db)
 
 
 def test_unauthored_left_position_generates_byte_identical_code(write_design, bag, db):
-    """The bar plan 03 §6.3/§6.7 sets: a design that authors none of
+    """A design that authors none of
     'icon_position:'/'icon_gap:'/'icon_color:' must keep generating today's
     exact code -- the literal fixed gap, the combined 'iconWidth' variable,
     one 'dc.setColor' call shared by icon and text."""
@@ -1015,7 +1015,7 @@ def test_unauthored_left_position_generates_byte_identical_code(write_design, ba
 ])
 def test_each_new_icon_position_gets_its_own_generated_branch(
         write_design, bag, db, position, marker):
-    """A test pinning each position's generated branch (plan 03 §6.3)."""
+    """A test pinning each position's generated branch."""
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
@@ -1046,7 +1046,7 @@ def test_authored_gap_becomes_a_per_device_layout_constant(write_design, bag, db
 
 def test_icon_color_draws_the_icon_in_its_own_colour(write_design, bag, db):
     """A test that fails if the icon is drawn in the text colour when
-    `icon_color:` differs (plan 03's added scope)."""
+    `icon_color:` differs."""
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve

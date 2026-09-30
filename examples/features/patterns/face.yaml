@@ -30,14 +30,14 @@
 #   build.
 # * **Anti-aliasing** on the three radial rings (soft rotated edges), and
 #   the face default (crisp) on everything else.
-# * **A radial `type: text` pattern part, custom font** (`hour_numerals`,
-#   plan 06 §3, 2026-09-15): twelve hour numerals as one pattern instead of
+# * **A radial `type: text` pattern part, custom font** (`hour_numerals`):
+#   twelve hour numerals as one pattern instead of
 #   twelve polar `text` elements. `text: "{(copy + 11) % 12 + 1}"` makes
 #   copy 0 draw "12", copy 1 draw "1", and so on, in `font.hourfont`
 #   (`assets/Questrial-Regular.ttf`), placed between the clock and
 #   `segments`. It reads only `copy`, so it is in `static:` too.
-# * **A linear `type: text` pattern part** (`weekday_labels`, plan 06 §3,
-#   2026-09-15): one-letter weekday initials under `week_dots`, with the
+# * **A linear `type: text` pattern part** (`weekday_labels`):
+#   one-letter weekday initials under `week_dots`, with the
 #   same `dx`/`step`, and a `copy`-only ternary chain in its `text:`. It is
 #   in `static:` for the same reason, even though `week_dots` is not. It uses
 #   `font.hourfont` rather than a system font: `FONT_XTINY` is 22 px tall
@@ -159,7 +159,7 @@ static:
           - { dy: -64%r }
           - { dx: 3%r, dy: -56%r }
 
-  # A `type: text` pattern part (plan 06 §3): twelve hour numerals as one
+  # A `type: text` pattern part: twelve hour numerals as one
   # radial pattern instead of twelve polar `text` elements.  Its `text:`
   # reads only `copy` (0-11), so the ring is in `static:` like the rest -- its loop
   # runs once, when the buffer is filled.  64%r puts the 14 px glyphs

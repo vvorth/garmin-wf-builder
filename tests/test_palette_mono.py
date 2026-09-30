@@ -1,5 +1,5 @@
 """2-colour panels (the Instinct family): the `palette-mono` lint and the
-preview's black-and-white snap (plan 20 slice 3, research 16 §5)."""
+preview's black-and-white snap (research 16 §5)."""
 
 import copy
 

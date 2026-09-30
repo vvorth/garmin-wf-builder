@@ -1,4 +1,4 @@
-"""Coloured CLI output (R2): `--color`, the shared `--color` plumbing, and
+"""Coloured CLI output: `--color`, the shared `--color` plumbing, and
 the styling rules in `wfb/cli.py`.
 
 The tests run `wfb` in-process (`tests.helpers.run_cli`) with captured,

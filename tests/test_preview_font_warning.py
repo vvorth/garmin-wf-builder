@@ -1,5 +1,4 @@
-"""Plan 12 (`docs/plans/12-preview-font-fidelity.md`) slice 1, R1: `wfb
-preview` reports the faces it actually drew with.
+"""`wfb preview` reports the faces it actually drew with.
 
 `wfb.fonts.fallback.system_face` already carries a `.match` level
 (`"garmin"`/`"exact"`/`"family"`/`"substitute"`/`"none"`) and a `.path`; the
@@ -42,8 +41,7 @@ _REAL_FONT_STAND_IN = (
     Path(__file__).resolve().parent / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
 )
 
-#: `FONT_NUMBER_HOT` on `fenix8solar47mm` resolves to `Bionic_semibold`
-#: (`docs/plans/12-preview-font-fidelity.md` §1.1's own worked example),
+#: `FONT_NUMBER_HOT` on `fenix8solar47mm` resolves to `Bionic_semibold`,
 #: which `wfb/fonts/registry.json`'s `names` table maps to the
 #: `bionic-substitute` free stand-in, match `"substitute"` -- a different
 #: family entirely, not a free release of Bionic itself
@@ -115,7 +113,7 @@ def test_a_garmin_root_face_draws_silently(write_design, bag, db, tmp_path):
     `fetch_system.locate` report match `"garmin"` -- outranking the
     registry stand-in even though the *bytes* are not Garmin's own
     (`_REAL_FONT_STAND_IN`'s own docstring) -- and a `"garmin"` match is
-    never warned about (R1.3): the whole run is silent."""
+    never warned about: the whole run is silent."""
     _require_bionic_substitute()
     resolved = _resolved(write_design, bag, db)
 

@@ -1,7 +1,7 @@
 """Generated Monkey C for `weather.*` sources and `icon_for:` -- the dynamic
 icon draw call.
 
-`weather.*` is an ordinary per-frame read now (D2): `Weather.getCurrentConditions()`
+`weather.*` is an ordinary per-frame read now: `Weather.getCurrentConditions()`
 and `Weather.getDailyForecast()` are documented as already returning the
 platform's own cached value (Toybox/Weather.html: "get the most recently
 cached weather conditions"), so there is no TTL cache or staleness check left

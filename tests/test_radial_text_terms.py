@@ -1,4 +1,4 @@
-"""`wfb.layout.radial_direction_sign`/`radial_align_offset` (plan 19 A1):
+"""`wfb.layout.radial_direction_sign`/`radial_align_offset`:
 the two pieces `radial_text_angle_span` (the lint band) and
 `wfb.preview._draw_radial_vector_text` (the pixels) both derive from
 `curve.direction`/`align`, factored into one place so they cannot disagree

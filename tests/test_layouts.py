@@ -1,5 +1,4 @@
-"""`layouts:` -- named widget sets, form A only (plan 02
-§12.1, §12.2). An author never writes membership on an element; a
+"""`layouts:` -- named widget sets, form A only. An author never writes membership on an element; a
 `layouts: <name>:` body's `static:`/`elements:` are folded by
 `wfb/desugar.py`'s `_layouts_block` into two synthetic groups appended to the
 top-level `elements:`, and `wfb/ir/builder/blocks.py`'s `Builder._assign_layouts` stamps
@@ -343,8 +342,8 @@ elements:
 
 def test_two_layouts_generating_the_same_id_is_an_error(write_design):
     """`digital`'s static half and `digital_static`'s elements half both
-    generate the id `layout_digital_static` -- the exact collision plan 02
-    §12.2 names by example."""
+    generate the id `layout_digital_static` -- the exact collision the
+    format has to reject."""
     text = HEAD + """layouts:
   digital:
     static:
@@ -400,7 +399,7 @@ def test_an_author_written_layouts_key_on_an_element_is_rejected(write_design):
     assert any(d.code == "schema" and "unknown key" in d.message for d in errors), errors
 
 
-# -- IR: the slot rule (§12.5), over all three paths -----------------------------
+# -- IR: the slot rule, over all three paths -------------------------------------
 
 
 SLOT_CONFIG = """config:
@@ -621,7 +620,7 @@ elements:
 
 def test_colors_all_or_none_still_holds_with_layouts(write_design):
     """`colors:` is all-or-none across entries, independent of `layout:`
-    (plan 02 §12.4) -- one entry naming both, another naming only `layout:`,
+    -- one entry naming both, another naming only `layout:`,
     disagree on `colors:`."""
     text = HEAD + """layouts:
   digital:
@@ -764,7 +763,7 @@ elements:
     assert face.config_style.default_entry.colors is None
 
 
-# -- draw order (§12.3) -----------------------------------------------------------
+# -- draw order -------------------------------------------------------------------
 
 
 def test_a_high_z_shared_element_still_draws_before_a_layout_element(write_design, bag):

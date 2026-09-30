@@ -200,7 +200,7 @@ def design_fields(face: Face) -> frozenset[str]:
 
 
 def vector_font_face(spec: FontSpec, device: Device) -> str:
-    """The `:face` string `spec` (a `face:` font, plan 11) resolves to on
+    """The `:face` string `spec` (a `face:` font) resolves to on
     `device`, or `""` when it does not.
 
     This is the font's own **construction** viability -- gate 1
@@ -217,7 +217,7 @@ def vector_font_face(spec: FontSpec, device: Device) -> str:
     the lint pass (`wfb.lint.check_vector_font_availability`); this
     function deliberately answers the narrower "can the font object itself
     be built" question codegen needs, which is why a curve-only symbol
-    gap (unobserved on any installed device -- plan 11 §1) is not checked
+    gap (unobserved on any installed device) is not checked
     here.
     """
     if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
@@ -230,7 +230,7 @@ def vector_font_face(spec: FontSpec, device: Device) -> str:
 
 def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
     """Every declared `face:` (vector) `FontSpec` a `text` element, or a
-    pattern's own `shape: text` part (plan 11 slice 2), actually uses --
+    pattern's own `shape: text` part, actually uses --
     i.e. some `Text.font`/`TextPart.font` names it -- keyed by name, in
     `face.fonts`' own declaration order.
 
@@ -323,7 +323,7 @@ class Guards:
     fields: frozenset[str]
     #: Names of every used `face:` (vector) font (`vector_fonts_used`) for
     #: which at least one target device fails to resolve it
-    #: (`vector_font_face` returns `""`) -- plan 11 §3's "some target
+    #: (`vector_font_face` returns `""`): the "some target
     #: fails" case. `wfb.emit.monkeyc.view._emit_on_layout` wraps that
     #: font's `Graphics.getVectorFont(...)` construction in `if
     #: (Layout.FONT_<NAME>_AVAILABLE && (Graphics has :getVectorFont))`
@@ -333,12 +333,12 @@ class Guards:
     #: target (including "this design uses no vector font at all").
     vector_fonts: frozenset[str] = frozenset()
     #: True iff at least one target device is AMOLED (`Device.is_amoled`) --
-    #: plan 14 D1's *build-time* half of "burn-in device". `_aod` (the field,
+    #: the *build-time* half of "burn-in device". `_aod` (the field,
     #: the `onUpdate` branch, the sleep hooks' burn-in check) is emitted only
     #: when this is true, so an all-MIP build emits none of it.
     amoled_target: bool = False
     #: True iff `amoled_target` and at least one target device's own symbol
-    #: table lacks `Device.BURN_IN_FIELD` -- plan 14 D1's *runtime* half:
+    #: table lacks `Device.BURN_IN_FIELD` -- the *runtime* half:
     #: `System.getDeviceSettings() has :requiresBurnInProtection` is emitted
     #: only then. Every target having the field (true for every device
     #: research 11 §2 checked) emits the plain, unguarded read instead --
@@ -347,7 +347,7 @@ class Guards:
     burn_in_field_guarded: bool = False
     #: True iff `amoled_target` and at least one target device's own symbol
     #: table lacks `Device.DISPLAY_MODE_SYMBOL` (`System.getDisplayMode`) --
-    #: plan 14 slice 6, research 11 §6 F. Gates the `System has
+    #: research 11 §6 F. Gates the `System has
     #: :getDisplayMode` wrapper around the `DISPLAY_MODE_OFF` early-return
     #: at the top of the AOD frame (`wfb.emit.monkeyc.view._emit_aod_body`):
     #: every target having the symbol (true only for an AMOLED-only build
@@ -375,8 +375,8 @@ class Guards:
     #: (`Device.supports_partial_update`: every target is AMOLED). With a
     #: `low_power` mode, the shared view carries `onPartialUpdate` and
     #: `onPowerBudgetExceeded` unless this is true -- decided over the whole
-    #: build, not by whichever device the view happens to be emitted from
-    #: (plan 19 A5). An AMOLED target with low-power elements is a
+    #: build, not by whichever device the view happens to be emitted from.
+    #: An AMOLED target with low-power elements is a
     #: `partial-update` error anyway, so no build that compiles carries the
     #: method on a device that cannot run it.
     partial_update_unsupported: bool = False

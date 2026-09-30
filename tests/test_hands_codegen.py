@@ -1,12 +1,12 @@
-"""Codegen for analog hands (plan 04), mostly through `examples/features/analog/
+"""Codegen for analog hands, mostly through `examples/features/analog/
 face.yaml` -- the one example that ships two hand sets in two layouts, an
 off-centre subdial, a `config.*` hand colour, `seconds: awake` and a set with
 no second hand at all.
 
 A full golden file is not pinned here (the byte-identity gate is
 `tests/fixtures/slice/` and the other `layouts:`/no-hands examples staying
-untouched, checked separately); this asserts on the specific shapes plan 04
-promises instead.
+untouched, checked separately); this asserts on the specific shapes analog
+hands promise instead.
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def test_toybox_math_is_imported(view_text):
 
 def test_onupdate_reads_the_clock_once_for_every_hands_element(view_text):
     """One `System.getClockTime()` covers every hands element in the mode,
-    however many layouts they belong to -- plan 02 §6.4's "reads happen
+    however many layouts they belong to -- "reads happen
     unconditionally, only the calls are layout-guarded" applies to `clock`
     exactly like any other reader."""
     on_update = view_text.split("function onUpdate(dc as Dc) as Void {")[1]
@@ -127,8 +127,7 @@ def test_onupdate_reads_the_clock_once_for_every_hands_element(view_text):
 
 def test_barrel_includes_wfbhands(resolved, tmp_path, db):
     """Hands pulls both `WfbHands.mc` (the three angle functions) and
-    `WfbGeom.mc` (the rotate-and-draw helpers, moved there in plan 05 §6.3
-    so patterns can share them) -- never one without the other."""
+    `WfbGeom.mc` (the rotate-and-draw helpers, shared with patterns) -- never one without the other."""
     baked = {resolved.device.id: resolved.fonts}
     project = generate(resolved.face, [resolved.device], tmp_path, baked)
     assert "WfbHands.mc" in project.barrel

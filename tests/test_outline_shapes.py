@@ -1,4 +1,4 @@
-"""`outline:` on shapes and icons (research 19, plan 23): which shapes grow one
+"""`outline:` on shapes and icons (research 19): which shapes grow one
 copy of themselves and which are stamped, the ring growing the element's
 box, the width cap, and the preview ringing what it draws, openings
 included.  The fixture `tests/fixtures/outline_shapes/face.yaml` is also
@@ -53,7 +53,7 @@ def _method(view: str, name: str) -> str:
     return match.group(0)
 
 
-# -- which shapes grow, which are stamped (plan 23 D2) -------------------------
+# -- which shapes grow, which are stamped --------------------------------------
 
 
 def test_a_filled_circle_grows_one_copy(write_design, tmp_path):

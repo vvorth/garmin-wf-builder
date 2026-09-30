@@ -1,4 +1,4 @@
-"""`wfb.kinds.hands.HAND_ANGLES` (plan 19 A1): one table holding both halves
+"""`wfb.kinds.hands.HAND_ANGLES`: one table holding both halves
 of each analog hand's angle rule -- the Monkey C `runtime-lib/WfbHands.mc`
 already ships, and the host radians computation `wfb.kinds.hands` now reads
 instead of keeping its own copy.

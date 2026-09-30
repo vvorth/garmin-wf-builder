@@ -887,7 +887,7 @@ nothing. See research 07 §2.
 > decision (plan 21 D1–D3).** That decision rested on phone-side settings
 > reaching `fr955`. They do not reach any sideloaded app: Garmin Connect
 > edits settings only for Store apps, private beta included
-> (`docs/research/17-phone-settings.md` §2). With the premise gone, the user
+> (research 17 §2). With the premise gone, the user
 > decided:
 >
 > - **D1:** a planned `settings:` block generates an

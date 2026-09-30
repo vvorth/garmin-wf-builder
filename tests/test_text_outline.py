@@ -1,6 +1,6 @@
-"""`outline:` on a standalone `text` element (plan 15 slice 1) -- the schema/
-IR/builder layer: both spellings (D7), the width cap (D6), `outline.color`'s
-full parity with `color:` (D8), and the absence rule `check_other_absence`
+"""`outline:` on a standalone `text` element -- the schema/
+IR/builder layer: both spellings, the width cap, `outline.color`'s
+full parity with `color:`, and the absence rule `check_other_absence`
 already gives every other non-value binding.  Layout, codegen, lint and
 preview are covered separately (`tests/test_text_outline_layout.py`,
 `tests/test_text_outline_golden.py`, `tests/test_lint.py`,
@@ -30,7 +30,7 @@ def _outline_text(outline: str, *, absent: str = "") -> str:
 """
 
 
-# -- both spellings accepted (D7) --------------------------------------------
+# -- both spellings accepted -------------------------------------------------
 
 
 def test_outline_none_is_the_default_shape(write_design, bag, minimal):
@@ -94,7 +94,7 @@ def test_the_removed_object_form_names_its_replacement(write_design, bag, minima
     assert "outline: color.fg" in " ".join(bag.errors[0].notes)
 
 
-# -- outline.color has full parity with color: (D8) --------------------------
+# -- outline.color has full parity with color: -------------------------------
 
 
 def test_outline_color_reads_a_config_expression(write_design, bag, minimal):
@@ -113,7 +113,7 @@ elements:""",
 
 def test_outline_color_reads_a_conditional_expression(write_design, bag, minimal):
     """`outline.color` accepts a full expression, not just a bare
-    reference -- the same grammar `color:` itself has (D8)."""
+    reference -- the same grammar `color:` itself has."""
     face = load(write_design(_design(
         minimal, _outline_text('"copy == 0 ? color.fg : color.bg"'))), bag)
     # `copy` is only bound inside a pattern part -- this design is a

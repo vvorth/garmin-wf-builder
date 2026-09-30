@@ -1,5 +1,4 @@
-"""The host-side preview renderer, a pattern `shape: text` part (plan 06
-§3.4, phase B3).
+"""The host-side preview renderer, a pattern `shape: text` part.
 
 Same discipline as `tests/test_patterns_preview.py`, whose fixtures and
 small pixel-probing helpers (`_near`, `_polar`, the fixed device/colours)

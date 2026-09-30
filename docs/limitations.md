@@ -659,7 +659,7 @@ then runs the view's `applyStoredConfig` itself.
 ### Garmin Connect does not edit a sideloaded face's settings
 
 Phone-side settings work only for a Connect IQ Store install, private beta
-included (`docs/research/17-phone-settings.md` §2), so this project generates
+included (research 17 §2, deleted; see `docs/CLAUDE.md`), so this project generates
 none. On a watch without the native editor, the wearer edits `config:` in the
 generated on-watch menu, opened from the Watch Face menu
 (`AppBase.getSettingsView`), which `fenix5`/`fenix5x` lack. **The mechanism
@@ -708,7 +708,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install (`docs/research/17-phone-settings.md` §2), and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. The old WIP on `wip/phone-settings` is design reference only |
+| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install (research 17 §2, deleted; see `docs/CLAUDE.md`), and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `data` element inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |

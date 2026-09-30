@@ -1,14 +1,13 @@
-"""Plan 07 phase C: `align:`/`vertical_align:` on `icon` (mechanism (b), a
+"""`align:`/`vertical_align:` on `icon` (mechanism (b), a
 glyph kind -- the same device-side justify a `text` element already uses)
 and `complication_slot` (mechanism (c), ADR 0004's runtime-measured
-exception -- the arithmetic lives on the device) (`docs/plans/
-07-align-everywhere.md` §4, Phase C row).
+exception -- the arithmetic lives on the device).
 
 Covers: an icon's lint box (static and dynamic `icon_for:`) moved by
 `wfb.layout.alignment_shift` exactly like `text`'s, while its runtime anchor
 (`Layout.<P>_CX/_CY`) stays put; the generated `TEXT_JUSTIFY_*` flags and the
 `dc.getFontHeight` subtraction for `bottom`; that the exact default draw call
-is unchanged (R5); icon preview ink on the correct side of the anchor; a
+is unchanged; icon preview ink on the correct side of the anchor; a
 `complication_slot`'s per-`icon_position:` runtime arithmetic for a
 non-default `align:`/`vertical_align:` (the pieces §3.2(c) specifies,
 asserted literally); that its default codegen (every `icon_position:`,
@@ -127,7 +126,7 @@ def _view_icon(write_design, bag, db, align: str, vertical_align: str, dynamic: 
 
 
 def test_icon_default_draw_call_is_byte_identical(write_design, bag, db):
-    """The exact literal this call has always emitted (R5) -- center/center,
+    """The exact literal this call has always emitted -- center/center,
     the anchor untouched, the flags a fixed literal, no getFontHeight."""
     view = _view_icon(write_design, bag, db, "center", "center")
     assert 'dc.drawText(Layout.WICON_CX, Layout.WICON_CY, font,\n                    "' in view
@@ -142,7 +141,7 @@ def test_icon_left_top_uses_left_justify_with_no_vcenter(write_design, bag, db):
     view = _view_icon(write_design, bag, db, "left", "top")
     assert "Graphics.TEXT_JUSTIFY_LEFT);" in view
     assert "TEXT_JUSTIFY_VCENTER" not in view
-    # the anchor itself never moves for a glyph kind (§3.2(b)).
+    # the anchor itself never moves for a glyph kind .
     assert "Layout.WICON_CX, Layout.WICON_CY, font," in view
 
 
@@ -165,7 +164,7 @@ def test_icon_dynamic_bottom_also_subtracts_font_height(write_design, bag, db):
 
 def test_icon_layout_constant_comment_only_on_non_default(write_design, bag, db):
     """The `_CX`/`_CY` constant names and values stay byte-identical either
-    way (R5); only the trailing comment changes, and only when aligned."""
+    way; only the trailing comment changes, and only when aligned."""
     from wfb.emit.monkeyc import emit_layout
 
     def _layout(align, vertical_align):
@@ -328,7 +327,7 @@ def test_default_codegen_matches_no_keys_at_all(write_design, bag, db):
 @pytest.mark.parametrize("icon_position", ["right", "top", "bottom"])
 def test_default_codegen_matches_no_keys_at_all_off_the_fast_path(write_design, bag, db, icon_position):
     """The general path (any position but 'left', here) is unaffected by
-    plan 07 phase C when neither key is authored either."""
+    alignment when neither key is authored either."""
     with_keys = _view_cs(write_design, bag, db, icon_position, "center", "center")
     face = load(write_design(CS_BASE + f"""elements:
   slot:

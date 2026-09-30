@@ -97,7 +97,7 @@ class Color:
         """WCAG relative luminance -- Rec. 709 primaries over sRGB-degamma'd
         channels -- used by the contrast lint and, since it is the same
         "fraction of full white" figure Garmin's unpublished AOD rule wants
-        (research 11 §1.2, §5), by the AOD burn-in lint too
+        (research 11 §1.2), by the AOD burn-in lint too
         (`wfb.lint.check_aod_burn_in`)."""
         red, green, blue = LUMINANCE_WEIGHTS
         return (red * srgb_channel_to_linear(self.r)
@@ -113,8 +113,8 @@ class Color:
         return f"#{self.value:06X}"
 
     def dim(self, num: int, den: int) -> "Color":
-        """Scale this colour's luminance by ``num/den`` (`aod: {dim: ...}`,
-        plan 14 slice 3): each channel times ``num/den``, rounded to the
+        """Scale this colour's luminance by ``num/den`` (`aod: {dim: ...}`):
+        each channel times ``num/den``, rounded to the
         nearest integer with :func:`dim_channel`'s own plain integer
         arithmetic, never a float -- see that function's docstring for why.
         """
@@ -171,8 +171,7 @@ MONO_THRESHOLD = round(MONO_CROSSOVER * MONO_SCALE)
 
 def dim_channel(value: int, num: int, den: int) -> int:
     """Scale one 0-255 channel by ``num/den``, rounded to the nearest integer
-    (ties up), with only integer arithmetic (plan 14 slice 3, `aod: {dim:
-    ...}`).
+    (ties up), with only integer arithmetic (`aod: {dim: ...}`).
 
     This exact formula is computed in three places that must agree bit for
     bit: here, in Python, for a build-time-constant colour (a bare hex

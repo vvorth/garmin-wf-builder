@@ -1,6 +1,6 @@
-"""`aod: {mask: ...}` (plan 16 slice 1): the moving 2x2 pixel mask over the
+"""`aod: {mask: ...}`: the moving 2x2 pixel mask over the
 AOD frame -- format + codegen only. Host-side (`wfb/aod_mask.py`, preview,
-heatmap, lint) is slice 2, in `tests/test_aod_mask_preview.py`.
+heatmap, lint) is `tests/test_aod_mask_preview.py`.
 
 Each test names, in its own docstring, the contrast it drives -- the same
 discipline `tests/test_aod.py` documents at its own top
@@ -131,8 +131,8 @@ def test_mask_call_emitted_after_element_draws_on_a_mixed_build(write_design, ba
 
 
 def test_mask_true_and_mask_absent_are_byte_identical(write_design, bag, db):
-    """`mask:` omitted and `mask: true` written out mean the same thing --
-    D2 of plan 16 -- so their generated sources must match exactly."""
+    """`mask:` omitted and `mask: true` written out mean the same thing,
+    so their generated sources must match exactly."""
     bag_a, bag_b = Bag(), Bag()
     text_absent = BASE + _ONE_SHOWN_CLOCK
     text_true = BASE.replace("""resources:
@@ -266,7 +266,7 @@ def test_an_all_mip_build_is_byte_identical_whatever_mask_says(
 def test_empty_aod_set_emits_no_mask_call(write_design, bag, db):
     """An AMOLED target with nothing shown in AOD (the face default `hide`,
     no element opts in) must not emit the mask call either -- masking an
-    all-black frame is pure waste (plan 16 §4)."""
+    all-black frame is pure waste."""
     text = BASE + _ONE_HIDDEN_CLOCK  # no `aod:` on the element -> hidden by default
     project = _project(text, write_design, bag, db, ["fenix847mm"])
     view = _view_text_from(project)
@@ -295,7 +295,7 @@ resources:
 
 
 # --------------------------------------------------------------------------
-# the phase table (plan 16 §2): parsed straight out of the real .mc source,
+# the phase table: parsed straight out of the real .mc source,
 # not re-typed from the plan, so a transposed dx/dy or an off-by-one phase
 # boundary in the actual runtime file would be caught.
 

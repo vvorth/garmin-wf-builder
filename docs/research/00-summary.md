@@ -27,7 +27,6 @@ Detail lives in:
 | `14-stamped-ring-text.md` | the "stamped ring" workaround, measured: offset sets at r=1/2/3 against a true dilation and FreeType's stroker, per-font-kind validity (including the radial-text geometry), lit-pixel and code-size cost, alternatives, a proposed `outline:` format |
 | `15-aod-pixel-masks.md` | a rotating pixel mask for the AOD frame compared with jitter: the 3-minute rule by construction, lit-pixel and luminance cut by the duty, the toroidal "queen-5" pattern that never drops a 1 px line, and device routes -- built as `aod: {mask: ...}` (plan 16): a simpler moving 2×2 single-pixel tile, on by default, drawn as black `fillRectangle` strips rather than queen-5's overlay bitmap |
 | `16-screen-shapes.md` | rectangular, semi-octagon and semi-round screens: 21 face-capable devices, 13 realistic at the 3.1.0 floor, none installed; the simulator skin's alpha as an exact visible-area mask; the Instinct subscreen; 2-colour panels; `overrides:` as ADR 0004 already specifies -- feeds plan 20 |
-| `17-phone-settings.md` | properties and settings: phone settings do **not** reach a sideloaded app; the three routes that do (private Store beta, a hand-copied `.SET`, an on-watch `getSettingsView` menu), measured by probe (+112 B / +459 B); the frozen WIP's state -- built as the `config:` settings menu (`docs/guide/configuration.md`) |
 | `18-device-independent-face-model.md` | a reference model for one face across the fleet (115 round / 21 other shapes; 2, 8, 14, 64 and 65 536 colours; 17 resolutions): device profile, shape-aware geometry, colour classes, a metric catalogue filterable by range and history (15 series only), a conditional language split into build-time and runtime scopes, a data widget with eligible parts; mapped against `wfb`, with six gaps that each need a plan -- its format consequences feed plan 22 (format 2) |
 | `19-outline-everything.md` | `outline:` beyond text: the stamp reaches every kind (openings ringed when wider than 2w), analytic dilation is one draw but gap-ridden at 1 px (Pillow model), a group outline is exact in two passes (every ring, then every member); one unified `outline:` key -- built as plan 23 (`docs/guide/outlines.md`) |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
@@ -194,6 +193,6 @@ Raised now rather than discovered later:
 2. **On-device config:** the native editor for the four `config:` axes; on
    a watch without it (fr955), the same axes in a generated on-watch
    `getSettingsView` menu, since phone settings never reach a sideload
-   (research 17; ADR 0006 tenth and eleventh amendments;
+   (research 17, deleted; ADR 0006 tenth and eleventh amendments;
    `docs/guide/configuration.md`).
 3. **Host language:** Python (ADR 0001).

@@ -1,5 +1,5 @@
-"""`outline:` on a standalone `text` element (plan 15 slice 1) -- layout box
-growth (§6, D9): the ink box grows by the ring's own width on every side,
+"""`outline:` on a standalone `text` element -- layout box
+growth: the ink box grows by the ring's own width on every side,
 for all three draw shapes a standalone element can take (upright, `curve:
 {style: angled}`, `curve: {style: radial}`), and the pre-existing off-screen/
 safe-area checks still catch the grown box with zero new geometry of their

@@ -1,7 +1,7 @@
-"""`aod: {mask: ...}` (plan 16 slice 2): the host-side twin
+"""`aod: {mask: ...}`: the host-side twin
 (`wfb/aod_mask.py`), preview integration (`wfb/preview.py`) and the
-burn-in lint's masked scoring (`wfb/lint.py::check_aod_burn_in`). Slice 1
-(`tests/test_aod_mask.py`) covers format + codegen only.
+burn-in lint's masked scoring (`wfb/lint.py::check_aod_burn_in`).
+`tests/test_aod_mask.py` covers format + codegen only.
 
 Each test names, in its own docstring, the contrast it drives -- the same
 discipline `tests/test_aod.py` documents at its own top
@@ -67,7 +67,7 @@ def _example(bag, db, device_id="fenix847mm"):
 
 # --------------------------------------------------------------------------
 # the phase table: Python and Monkey C must never drift (same discipline as
-# slice 1's own `test_phase_table_matches_the_plan`, extended to this
+# `test_aod_mask.py::test_phase_table_matches_the_plan`, extended to this
 # module's own `PHASES`)
 
 
@@ -160,7 +160,7 @@ def test_render_aod_obeys_the_phase_rule_for_its_own_minute(write_design, bag, d
 
 def test_render_aod_pixel_lit_at_minute_m_is_black_at_m_plus_1(write_design, bag, db):
     """A pixel lit at minute m must be black at minute m+1 -- the "no pixel
-    lit two consecutive minutes" guarantee plan 16 promises. Must fail
+    lit two consecutive minutes" guarantee the mask promises. Must fail
     against a preview that reuses the same phase for consecutive minutes."""
     resolved = _resolved(BASE + _DISC, write_design, bag, db)
     options_m = PreviewOptions(scale=1, mask_shape=False, aod=True, time=(8, 37, 0))
@@ -230,7 +230,7 @@ _HEATMAP_MINUTES = range(0, 12)
 
 def test_heatmap_peak_is_at_most_a_quarter_when_masked(bag, db):
     """The shipped AOD example, masked (the default): the heatmap's own
-    peak share must be <= 25% by construction (plan 16). Must fail against
+    peak share must be <= 25% by construction. Must fail against
     a heatmap that does not apply the mask, or applies it inconsistently
     across frames."""
     resolved = _example(bag, db)
@@ -272,8 +272,8 @@ def test_heatmap_peak_is_higher_with_mask_false(write_design, bag, db):
 # figures, and `mask: false` keeps the old message shape verbatim
 
 
-#: The exact shape the message had before plan 16 slice 2 (no "with the
-#: pixel mask" clause) -- `mask: false` must reproduce this verbatim.
+#: The message without the pixel mask (no "with the pixel mask"
+#: clause) -- `mask: false` must reproduce this verbatim.
 _OLD_MESSAGE_RE = re.compile(
     r"^fenix847mm: the AOD frame lights [\d.]+% of pixels and [\d.]+% of luminance at "
     r"\d\d:\d\d \(Garmin's 10% rule, research 11 §1\.2\) -- top contributor: .+$"

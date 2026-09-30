@@ -163,7 +163,7 @@ class GlyphHelpers(AbsenceChecks):
         self, node: dict[str, Any], label: str, *, vertical_align: str, font_ok: bool,
         font_is_vector: bool, font_note: str | None = None,
     ) -> Curve | None:
-        """`curve:` (plan 11) on a `text` element or a pattern's `shape: text`
+        """`curve:` on a `text` element or a pattern's `shape: text`
         part: bends the text along a line (`style: angled`) or around a
         circle (`style: radial`).  `label` leads every message (the element
         id, or the part's `part_where`).

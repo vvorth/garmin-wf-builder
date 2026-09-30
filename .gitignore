@@ -243,8 +243,8 @@ wfb/assets/icons/LICENSE-nerd-fonts.txt
 
 # Registry-driven system fonts (wfb/fonts/registry.json): downloaded and
 # hash-checked by tools/fetch-system-fonts.py / wfb/fonts/fetch_system.py
-# (run by tools/setup-env.sh and the Dockerfile).
-# docs/plans/09-system-font-metrics.md. Ignore the directory's *contents*
+# (run by tools/setup-env.sh and the Dockerfile); see
+# docs/research/10-system-fonts.md. Ignore the directory's *contents*
 # generically -- which keys land here depends on which devices were
 # prefetched, not a fixed Roboto set.
 wfb/assets/system-fonts/*

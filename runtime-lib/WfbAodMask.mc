@@ -1,8 +1,8 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 
-//! A moving 2x2 pixel mask over the AOD frame (`aod: {mask: ...}`, plan 16
-//! slice 1, docs/guide/always-on-display.md).
+//! A moving 2x2 pixel mask over the AOD frame (`aod: {mask: ...}`,
+//! docs/guide/always-on-display.md).
 module WfbAodMask {
 
     //! Force every pixel except one per on-screen 2x2 tile to black, moving

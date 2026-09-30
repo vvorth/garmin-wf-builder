@@ -473,7 +473,7 @@ def test_a_bars_graph_resolves_its_own_bar_width(resolved_for):
     assert placed.bar_width == 4
 
 
-# -- complication_slot_pair_geometry (plan 03 §6.3) --------------------------
+# -- complication_slot_pair_geometry -----------------------------------------
 
 
 from wfb.layout import complication_slot_pair_geometry  # noqa: E402

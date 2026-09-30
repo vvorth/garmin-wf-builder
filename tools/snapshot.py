@@ -126,7 +126,7 @@ from typing import Callable
 ROOT = Path(__file__).resolve().parent.parent
 WFB = ROOT / "wfb.py"
 
-#: Build device sets beyond a design's own `targets:` (plan 19 §A0).
+#: Build device sets beyond a design's own `targets:`.
 AMOLED_MIX = ["fenix847mm", "fenix8solar47mm", "fr245", "fenix6"]
 FENIX9_MIX = ["fenix947mm", "fr955"]
 

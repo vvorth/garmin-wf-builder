@@ -250,10 +250,10 @@ for the same reason.
 
 **The alpha route stays unverified.** AMOLED supports `alphaBlendingSupport`
 and `Dc.setStroke` takes `0xAARRGGBB`, which could in principle dim by
-blending toward black instead of pre-computing a darker colour. Plan 14 §4.5
-left this route open but unbuilt: it depends on the burn-in lint (slice 4)
-confirming the meter counts the *blended* result, not the nominal colour,
-and that has not been checked. Pre-computed/on-device channel arithmetic is
+blending toward black instead of pre-computing a darker colour. That route is
+open but unbuilt: it depends on confirming that the burn-in meter counts
+the *blended* result, not the nominal colour, and that has not been
+checked. Pre-computed/on-device channel arithmetic is
 what ships, and works on every device regardless of alpha support.
 
 **Palette lint.** The 64-colour MIP palette rule (`docs/limitations.md` §2,
@@ -272,7 +272,7 @@ aod:
 ```
 
 A moving 2x2 pixel mask sits over the whole AOD frame, on top of restyling
-and dimming (plan 16 §1-2, `docs/research/15-aod-pixel-masks.md`): one pixel
+and dimming (`docs/research/15-aod-pixel-masks.md`): one pixel
 in each on-screen 2x2 tile stays lit as drawn, and the other three are
 forced black. Which pixel of the tile stays lit moves every minute, so no
 single pixel is ever lit for two consecutive minutes and every pixel is lit
@@ -414,9 +414,9 @@ computes on the device agree to the pixel.
 The moving pixel mask (above) applies last, over the frame's own clock
 minute — `--time`/`--minute` when given, otherwise the sample clock's own
 minute (10:09) — exactly the way `WfbAodMask.apply` masks the device's own
-frame (`wfb.aod_mask.apply`, plan 16, ADR 0004's shared-renderer stance
+frame (`wfb.aod_mask.apply`, ADR 0004's shared-renderer stance
 extended to this too). `aod: {mask: false}` renders the plain unmasked
-frame instead, same as before the mask existed.
+frame instead.
 
 `--asleep` is the narrower, older flag: it only hides an `awake`-only
 second hand (`seconds: awake`), on any device shape, without touching AOD
@@ -454,7 +454,7 @@ does (potentially 100% on a static pixel).
   ...}`) — an AMOLED target where nothing in the design draws in AOD at
   all. Since the face default is `hide`, an unconverted design triggers
   this on every AMOLED target until at least one element opts in.
-- **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D) — is the rendered
+- **`aod-burn-in`** (research 11 §6 D) — is the rendered
   AOD frame within Garmin's rule of thumb? *Measured*, not estimated: it
   renders the resolved `aod:` set the same way `wfb preview --aod` does
   (`wfb.preview.render`), at device resolution, with the round bezel
@@ -520,7 +520,7 @@ does (potentially 100% on a static pixel).
   runs at all (D5: `aod:` doesn't apply there).
 
   **What it cannot see:** with the mask on, the 3-minute static-pixel rule
-  holds *by construction* (plan 16: no pixel is ever lit two consecutive
+  holds *by construction* (no pixel is ever lit two consecutive
   minutes), so this check no longer needs to see it — with `mask: false`
   that guarantee is gone and it is once again a property of a *sequence* of
   frames this check cannot see (`--heatmap` above approximates it). Either
@@ -536,7 +536,4 @@ See [Lints and suppression](lints.md) for the general mechanism.
 
 - [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, restyled, on `fenix847mm` (`wfb preview --aod`, above).
 - [Power modes and touch-and-hold](modes-and-interaction.md) — `sleep_update:`, the orthogonal MIP partial-update axis.
-- `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options this plan chose between.
-- Plan 14 is what built this chapter, slice by slice; it is deleted now that
-  every slice has shipped — `docs/CLAUDE.md`'s "Built plans are deleted"
-  table has the `git show` incantation to read it as proposed.
+- `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options chosen between.

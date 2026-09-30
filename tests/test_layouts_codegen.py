@@ -1,11 +1,11 @@
-"""Codegen for `layouts:` (plan 02 §6.4, §5.4), through
+"""Codegen for `layouts:`, through
 `examples/features/styles/face.yaml` -- the one example that actually ships both a
 layout-only and a colour-only-adjacent entry, a hold target with a layout,
 and a `low_power` element inside a layout.
 
 A full golden file is not needed here (`tests/golden/` already pins the
 byte-identical, no-`layouts:` case): this asserts on the specific shapes
-plan 02 promises -- `resolveStyle`'s combined colour/layout blocks, the
+`layouts:` promises -- `resolveStyle`'s combined colour/layout blocks, the
 guarded `onUpdate`/`onPartialUpdate`/`renderStatic` call sequences, and the
 delegate's guarded hold hit test through the view's `configLayout()`
 accessor.  Each assertion is driven from the design's own known shape
@@ -102,8 +102,7 @@ def test_on_update_guards_each_layouts_calls_as_one_block(view_text):
     compact_block = on_update[compact_guard_index:]
     assert "drawCompactClock(dc, clock);" in compact_block
     assert "drawStepsArc(dc, activity);" in compact_block
-    # Consecutive calls sharing one layout share one guard block (plan 02
-    # §6.4): both compact calls fall inside the single 'if' opened above, so
+    # Consecutive calls sharing one layout share one guard block: both compact calls fall inside the single 'if' opened above, so
     # there is no second 'if (_configLayout == 1)' between them.
     assert compact_block.count("if (_configLayout == 1)") == 1
 

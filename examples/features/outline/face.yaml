@@ -1,6 +1,5 @@
 # `outline:` (docs/guide/text.md "outline: -- the stamped ring", and
-# docs/guide/patterns.md "Text parts"; built as plan 15, all three slices --
-# git show e31117b:docs/plans/15-text-outline.md is the design record).
+# docs/guide/patterns.md "Text parts").
 #
 # There is no filled-outline draw mode on this platform (no destination-out
 # blend, no font-engine switch Connect IQ can reach -- docs/research/
@@ -166,7 +165,7 @@ elements:
   # A pattern `type: text` part with outline:, upright (no curve: at all --
   # only each copy's anchor turns).  A small, clustered arc rather than a
   # full ring, so its own bounding box stays clear of every other element
-  # here (docs/lore/codegen.md's own note on why plan 15's golden fixture
+  # here (docs/lore/codegen.md's own note on why the outline golden fixture
   # keeps its pattern clusters small).
   ticks:
     type: pattern

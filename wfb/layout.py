@@ -151,7 +151,7 @@ def radial_text_angle_span(
     by `direction` (counter-clockwise advances Garmin angle).  Returned as
     `(theta_a, theta_b)`, not ordered -- `arc_bbox` takes either order.
 
-    `pad` (an `outline:` ring, plan 15 D9) extends *both* ends by that many
+    `pad` (an `outline:` ring) extends *both* ends by that many
     pixels.  It is added after the unpadded `align_offset`, not by widening
     `total_advance`, which would grow only the far end under `align: left`.
     """
@@ -207,7 +207,7 @@ def _curve_ascent(metric: FontMetric | None, line_height: float,
     other kind); a missing one takes the whole line height. `fonts_root`
     is the device's own `--fonts DIR` override (`Device.fonts_root`), so
     this locates the same file `wfb.layout`/`wfb.preview` measure and draw
-    the same run with (plan 18 item 8)."""
+    the same run with."""
     return fallback.ascent(metric, fonts_root=fonts_root) if metric is not None else line_height
 
 
@@ -471,7 +471,7 @@ def text_ink(
       panel the glyphs themselves never leave.  With no usable radius
       (schema-unreachable) a conservative disc instead.
 
-    `pad` is an `outline:` ring's width (plan 15 D9): the box is dilated
+    `pad` is an `outline:` ring's width: the box is dilated
     about its already-aligned centre, never re-anchored as a wider box --
     alignment still reads the unpadded `width`/`height`.
 
@@ -873,7 +873,7 @@ class PlacedHands(Placed):
     #: check reasons about the real disc, not its bounding square.
     reach: float = 0.0
     #: The `aod: {thickness: ...}` override, one value for every part of
-    #: every hand (plan 14 §5.1); `None` for none.
+    #: every hand; `None` for none.
     aod_thickness: int | None = None
 
 
@@ -1167,7 +1167,7 @@ class _Font:
     `FontMetric` a system or vector font is measured through. `fonts_root`
     is the device's own `--fonts DIR` override (`Device.fonts_root`), so a
     system/vector font is measured with the same file `wfb.preview` then
-    draws with (plan 18 item 8)."""
+    draws with."""
 
     px: int
     reference: str
@@ -1362,7 +1362,7 @@ class Resolver:
         return True
 
     def _resolve_vector_face(self, spec: FontSpec, curve: "Curve | None") -> tuple[str, bool]:
-        """Gates 1-3 (plan 11 §1) for one `face:` `FontSpec`, on this device:
+        """Gates 1-3 for one `face:` `FontSpec`, on this device:
         the *first* of `spec.face`'s candidates this device publishes
         (`Device.scalable_faces`) and `True`, or `("", False)`.  One name,
         never the array: a runtime pick could not be measured or named in an
@@ -1602,7 +1602,7 @@ class Resolver:
         """The `aod:` override of `key` (`thickness`/`bar_width`), resolved
         like the element's own (`extent`, `Axis.MINOR`), or `None` when the
         resolved `aod:` does not override it -- codegen then keeps the plain
-        constant (plan 14 §4.2).  Always `min_1px`, and never recorded as a
+        constant.  Always `min_1px`, and never recorded as a
         `SubPixelLength`: an override is a restyling choice with no authored
         line of geometry for the lint to point at.  Never feeds `box`.
         """
@@ -1628,7 +1628,7 @@ class Resolver:
         system font's `FontMetric`, with a `ResolveWarning` against the
         current owner when the device has none.
         The metric rides onto the `Placed*` so `wfb.preview` measures and
-        draws through the same face (plan 09 §4 R2.3)."""
+        draws through the same face."""
         if font_is_custom:
             baked = self.fonts.get(font)
             size = baked.size if baked else self.face.fonts[font].pixel_size(self.minor_radius)
@@ -1715,7 +1715,7 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     `fonts_root` (the device's own `--fonts DIR` override): see
     :func:`text_ink` -- this re-derivation must locate the same file
     `wfb.kinds.text.TextKind.resolve` already measured with, or a `safe-area`
-    check could disagree with the box it is re-checking (plan 18 item 8).
+    check could disagree with the box it is re-checking.
     """
     circle = circular_extent(placed)
     if circle is not None:

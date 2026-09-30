@@ -295,7 +295,7 @@ def test_weather_condition_today_has_no_launch_target():
     assert CATALOG["weather.condition_today"].launch_complication is None
 
 
-# -- renamed sources (D1) -----------------------------------------------------
+# -- renamed sources ----------------------------------------------------------
 
 
 def test_renamed_source_keys_are_gone_from_the_catalog():

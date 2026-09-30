@@ -21,7 +21,7 @@
 # * **Three `config: style:` entries over two layouts and two schemes**:
 #   `big_dark`, `big_light` and `compact_dark` -- `big` paired with both
 #   schemes, `compact` with only one, which is exactly the "author writes
-#   however many entries they want" point plan 02 §4.1 makes (there is no
+#   however many entries they want" point (there is no
 #   generated layout x scheme product).
 # * **A hold target with a layout** (`big_clock`'s `on_hold: heart_rate`) --
 #   only reachable while `big` is the active layout, which is what exercises

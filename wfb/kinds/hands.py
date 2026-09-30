@@ -34,8 +34,8 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class HandAngle:
-    """One analog hand's angle rule (plan 04), both halves side by side --
-    the `expr.Function`/`formatting.Code` pattern (plan 19 A1) applied to
+    """One analog hand's angle rule, both halves side by side --
+    the `expr.Function`/`formatting.Code` pattern applied to
     `runtime-lib/WfbHands.mc`: `monkeyc_function`/`monkeyc_return` are that
     function's name and its exact `return` expression, checked against the
     real `.mc` source by `tests/test_hand_angles.py` so the two cannot
@@ -288,7 +288,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         then hour, minute, second in that fixed order, with an `awake` second
         hand's parts wrapped in `if (!_sleeping)`.
 
-        `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
+        `aod: {color: ...}`/`{thickness: ...}` apply uniformly to
         every part of every hand: one ternary against one element-level override,
         reused by every part's own colour/pen-width line.
 

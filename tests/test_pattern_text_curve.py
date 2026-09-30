@@ -1,9 +1,9 @@
-"""`curve:` on a pattern's own `shape: text` part (plan 11 slice 2):
+"""`curve:` on a pattern's own `shape: text` part:
 `docs/limitations.md`'s "a bitmap font cannot turn, so only the anchor
 turns" finally gets its answer -- rotated hour numerals around a dial, each
 tangent to its own radius, through a device-resident `face:` font.
 
-Slice 1 (`tests/test_vector_fonts.py`, `tests/test_vector_text_*.py`)
+`tests/test_vector_fonts.py` and `tests/test_vector_text_*.py`)
 covers a standalone `text` element's own `curve:`; this file covers what is
 *different* about a pattern's own text part: the authored angle is in the
 template's own local (copy-0) frame, and a radial pattern composes it with
@@ -423,8 +423,7 @@ def test_radial_style_pattern_part_emits_draw_radial_text_and_radius_constant(
 
 
 def test_vector_font_local_is_never_early_return_guarded_in_a_pattern(write_design, bag, db):
-    """The critical difference from a baked custom font (plan 11 slice 2's
-    own design note): an early `return;` before the loop would cancel
+    """The critical difference from a baked custom font ): an early `return;` before the loop would cancel
     every OTHER part of this same pattern too, so a vector font's local is
     loaded once but the null check happens per copy, wrapping only its own
     draw call."""

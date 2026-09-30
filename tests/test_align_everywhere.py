@@ -1,11 +1,11 @@
-"""Plan 07 phase A: `align:`/`vertical_align:` as a placement property of
+"""`align:`/`vertical_align:` as a placement property of
 every element, starting with the shared foundation -- `group`, `text` and a
-pattern's `shape: text` part (`docs/plans/07-align-everywhere.md`).
+pattern's `shape: text` part.
 
 Covers: `wfb.layout.alignment_shift` itself (R1's nine combinations); a
 `text` element's lint box for every combination; the `baseline` -> `bottom`
-rename (R6), including "one error, not N" on both a `text` element and a
-pattern text part; the §1.2 device/preview bug fix (R7) in codegen (the
+rename, including "one error, not N" on both a `text` element and a
+pattern text part; the §1.2 device/preview bug fix in codegen (the
 `dc.getFontHeight` subtraction, present only for `bottom`) and in the host
 preview (ink lies on the correct side of the anchor).
 """
@@ -143,7 +143,7 @@ def test_text_box_bottom_matches_the_pre_rename_baseline_box():
     computed before the rename (the §1.2 bug was in the *draw*, never the
     lint box) -- `top = anchor_y - line_height`, checked arithmetically
     rather than by re-authoring the removed spelling."""
-    # No live design can spell `baseline` any more (R6): this is the same
+    # No live design can spell `baseline` any more: this is the same
     # arithmetic `wfb.kinds.text.TextKind.resolve` used for it, kept here as the
     # historical cross-check that the rename did not also change the box.
     width, line_height = 40.0, 20.0
@@ -265,7 +265,7 @@ def test_radial_pattern_text_top_center_do_not_touch_cy():
     top/center, which `tests/test_pattern_text_codegen.py::
     test_radial_text_part_calls_draw_text_rotated_with_the_anchor_and_trig`
     already pins to the literal `cx, cy, sin, cos,` -- byte-identical to
-    before this phase (R5). Documented here rather than duplicated."""
+    before this phase. Documented here rather than duplicated."""
 
 
 # -- preview: R7, ink on the correct side of the anchor ----------------------
@@ -316,7 +316,7 @@ def _white_rows(image, x_range, y_range):
 
 def test_system_font_bottom_ink_lies_above_the_anchor_row(write_design, bag, db):
     """R7, system-font path (`draw_text` over a device face): drive this red first by
-    checking it against the *old* meaning of `baseline` (§1.2) -- the old
+    checking it against the *old* meaning of `baseline` -- the old
     code drew a bottom-anchored line exactly like `top`, hanging down from
     the anchor, so this same assertion made against that code fails (see
     the session notes / `wfb/preview.py` history for the manual before/after

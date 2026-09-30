@@ -221,7 +221,7 @@
       }
     },
     "font": {
-      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time (plan 11) -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
+      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
       "oneOf": [
         {
           "$ref": "#/$defs/bakedFont"
@@ -487,7 +487,7 @@
       ]
     },
     "patternStep": {
-      "description": "The offset between consecutive copies of a linear pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical (docs/plans/05-patterns.md D4).",
+      "description": "The offset between consecutive copies of a linear pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -533,7 +533,7 @@
       "type": "object"
     },
     "configStyle": {
-      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list (plan 02 \u00a74.1, \u00a712.4). Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
+      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list. Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
       "type": "object",
       "required": [
         "default",
@@ -836,13 +836,13 @@
       "additionalProperties": false,
       "properties": {
         "dim": {
-          "description": "Scale the luminance of every colour the AOD frame draws (docs/plans/14-aod.md \u00a74.5): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon: {color:}' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
+          "description": "Scale the luminance of every colour the AOD frame draws (docs/guide/always-on-display.md): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon: {color:}' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1
         },
         "mask": {
-          "description": "A moving 2x2 pixel mask over the whole AOD frame (docs/plans/16-aod-pixel-mask.md): one pixel in each on-screen 2x2 tile stays lit, the other three are forced black, and which pixel of the tile is lit moves to a 4-neighbour once a minute (phase = minute mod 4). On (the default) unless set to false. No pixel is lit for two consecutive minutes and every pixel is lit at most one minute in four, cutting lit-pixel count and luminance to about a quarter of the unmasked frame. Stacks with 'dim:'.",
+          "description": "A moving 2x2 pixel mask over the whole AOD frame (docs/guide/always-on-display.md): one pixel in each on-screen 2x2 tile stays lit, the other three are forced black, and which pixel of the tile is lit moves to a 4-neighbour once a minute (phase = minute mod 4). On (the default) unless set to false. No pixel is lit for two consecutive minutes and every pixel is lit at most one minute in four, cutting lit-pixel count and luminance to about a quarter of the unmasked frame. Stacks with 'dim:'.",
           "type": "boolean",
           "default": true
         },
@@ -1996,7 +1996,7 @@
           "$ref": "#/$defs/curve"
         },
         "outline": {
-          "description": "Draws this text's string four times at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring (research 13/14, plan 15). 'none' (the default) draws no ring at all, byte-identical to today.",
+          "description": "Draws this text's string four times at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring (research 13/14). 'none' (the default) draws no ring at all, byte-identical to today.",
           "$ref": "#/$defs/outline"
         },
         "at": {
@@ -2682,7 +2682,7 @@
           "$ref": "#/$defs/position"
         },
         "count": {
-          "description": "How many copies. Dc draws one primitive per call -- there is no repeat/instancing call on this platform (docs/plans/05-patterns.md 1) -- so this is also how many times the device loops and rotates or translates the template.",
+          "description": "How many copies. Dc draws one primitive per call -- there is no repeat/instancing call on this platform -- so this is also how many times the device loops and rotates or translates the template.",
           "type": "integer",
           "minimum": 1,
           "maximum": 360

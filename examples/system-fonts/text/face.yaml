@@ -1,5 +1,5 @@
-# A calibration face for the five text system fonts (plan 09
-# docs/plans/09-system-font-metrics.md, step C): FONT_XTINY, FONT_TINY,
+# A calibration face for the five text system fonts:
+# FONT_XTINY, FONT_TINY,
 # FONT_SMALL, FONT_MEDIUM, FONT_LARGE. Every string is a literal (`text:`,
 # no placeholder), so this face has no data bindings and no clock.
 #
@@ -30,14 +30,13 @@
 # (`wfb.devices.Device.system_fonts`, `wfb.fonts.fallback.measure`, the same
 # numbers `wfb build`'s `safe-area`/`text-overflow` lints already check
 # against) -- worked numbers land in `docs/research/10-system-fonts.md` once
-# the user's calibration screenshots come back (plan 09 S7).
+# the user's calibration screenshots come back.
 #
 # How to compare: build and sideload (or run in the simulator with a build
 # from this repo) on a real target, screenshot it, and compare pixel-for-
 # pixel against `wfb preview`'s PNG for the same target. Any mismatch in
-# line height, baseline position or glyph width is exactly what plan 09 S7
-# (docs/plans/09-system-font-metrics.md) asks the user's screenshots to
-# calibrate -- record findings in docs/research/10-system-fonts.md.
+# line height, baseline position or glyph width is what the
+# screenshots calibrate -- record findings in docs/research/10-system-fonts.md.
 #
 # Build it with:     ./wfb.py build examples/system-fonts/text/face.yaml
 # Preview it with:   ./wfb.py preview examples/system-fonts/text/face.yaml

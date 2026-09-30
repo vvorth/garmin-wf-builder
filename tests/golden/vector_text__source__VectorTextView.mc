@@ -19,7 +19,7 @@ class VectorTextView extends WatchUi.WatchFace {
     //! onLayout rather than per frame.
     private var _fontClock as FontResource?;
 
-    //! Device-resident scalable ('face:') fonts (plan 11) -- a Graphics.
+    //! Device-resident scalable ('face:') fonts -- a Graphics.
     //! VectorFont handed back by Graphics.getVectorFont, not a loaded
     //! resource; null wherever this device cannot build it, which every
     //! draw call below checks before using it.

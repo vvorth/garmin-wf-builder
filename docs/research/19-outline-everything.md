@@ -370,7 +370,7 @@ samples of a millisecond timer, so their ratios are rough.
 
 ## 7. Decisions
 
-**Decided by the user on 2026-09-29, and being built (`docs/plans/23-outline-everything.md`):**
+**Decided by the user on 2026-09-29, and built (`git show 96462ed:docs/plans/23-outline-everything.md`):**
 
 - D1: one key everywhere.
 - D2: the enlarged copy only where it is mathematically the dilation:

@@ -289,8 +289,8 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, A
     return True
 
 
-#: Format 2 keys whose vocabulary is fixed but which are not built yet
-#: (plan 22 §5): where each may appear, and what the error says.
+#: Format 2 keys whose vocabulary is fixed but which are not built yet:
+#: where each may appear, and what the error says.
 _RESERVED_ELEMENT_KEYS = {
     "effects": "'effects:' (a drop shadow and the like) is reserved and not implemented yet",
     "use": "components ('use:'/'with:', declared under 'resources: components:') are "
@@ -307,7 +307,7 @@ _RESERVED_NOTE = "docs/limitations.md, \"Not implemented yet\""
 
 
 def _check_reserved(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
-    """Format 2's reserved vocabulary (plan 22 §5): each key is a friendly
+    """Format 2's reserved vocabulary: each key is a friendly
     "not implemented yet" error, never a generic unknown key.  Returns the
     paths accounted for; a reserved key inside an object is also stripped
     from that object's own unknown-key error (`_drop_reserved_keys`)."""

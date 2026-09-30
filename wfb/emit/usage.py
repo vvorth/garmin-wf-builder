@@ -1,5 +1,5 @@
 """What generated Monkey C actually calls: runtime-lib barrel modules, and
-`Toybox` modules -- read straight off the emitted source text (plan 19 A3).
+`Toybox` modules -- read straight off the emitted source text.
 
 The alternative the plan itself proposed -- have each emitter *record* a
 barrel helper or a `Toybox` module as it writes one, e.g. at `Writer.call`

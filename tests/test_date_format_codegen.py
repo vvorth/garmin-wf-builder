@@ -111,7 +111,7 @@ elements:
 
 
 def test_aod_format_override_can_need_the_short_reader_on_its_own(write_design, bag, db):
-    """An `aod: {format: ...}` override (plan 14) is not validated against
+    """An `aod: {format: ...}` override is not validated against
     the value's own codes, and can use `%m` even when the awake `format:`
     never does -- the read plan has to check both specs, or this element's
     AOD ternary reads an undeclared `dateShort` local."""

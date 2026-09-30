@@ -1,4 +1,4 @@
-"""`min_1px:` -- the sub-pixel clamp, opt-in (plan 08).
+"""`min_1px:` -- the sub-pixel clamp, opt-in.
 
 The user's original ask (`%`/`%r` scale per device, so a hairline authored as
 e.g. `thickness: 0.5%r` or `radius: 0.3%r` can resolve to 0.6px on one screen
@@ -134,7 +134,7 @@ def group(id_: str, children_block: str, indent: int = 2, *,
 
 
 # ============================================================================
-# The switch's own mechanics (§5 tests 1-5) -- a single hairline circle
+# The switch's own mechanics -- a single hairline circle
 # radius stands in for all of them; §2.1 scope coverage (every in-scope key,
 # every out-of-scope key) is proven separately further down.
 # ============================================================================
@@ -818,7 +818,7 @@ def test_min_1px_is_rejected_on_text_as_an_unknown_key(write_design, bag):
 
 
 # ============================================================================
-# `Box.rounded()`'s degenerate round-half-to-even tie -- now gated (§3.3).
+# `Box.rounded()`'s degenerate round-half-to-even tie -- now gated.
 # ============================================================================
 
 

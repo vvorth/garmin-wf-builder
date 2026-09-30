@@ -1,4 +1,4 @@
-"""Always-on display (`aod:`, plan 14 slice 1): resolution precedence, the
+"""Always-on display (`aod:`): resolution precedence, the
 `always_on` removal, the two AOD lints, and the byte-identical guarantee for
 an all-MIP build.
 
@@ -45,7 +45,7 @@ def _by_id(face, element_id):
 
 
 # --------------------------------------------------------------------------
-# `always_on` removed (D3)
+# `always_on` removed
 
 
 def test_hands_modes_accepts_only_active(write_design, bag):
@@ -93,7 +93,7 @@ resources:
 
 
 # --------------------------------------------------------------------------
-# friendly build errors for what slice 2 does not restyle (house style:
+# friendly build errors for what AOD does not restyle (house style:
 # never silently no-op an unimplemented override -- CLAUDE.md §7)
 
 
@@ -185,7 +185,7 @@ elements:
     assert "polygon" in hits[0].message and "drawPolygon" in hits[0].message
 
 
-# -- the same refusals when the key is inherited from a group (plan 18 item 5)
+# -- the same refusals when the key is inherited from a group
 
 _GROUP_AOD_CHILDREN = {
     "slot": """
@@ -240,8 +240,8 @@ elements:
 
 
 def test_group_inherited_unsupported_aod_keys_are_errors_on_each_element(write_design, bag):
-    """The plan's scratch design: before plan 18 item 5 this validated "ok",
-    every key silently dropped by codegen."""
+    """A regression: this design once validated "ok", every key silently
+    dropped by codegen."""
     text = _group_aod_design('{font: FONT_TINY, filled: false, text: "{:%H}"}',
                              ["slot", "tri", "label", "p"])
     assert load(write_design(text), bag) is None
@@ -314,7 +314,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# resolution precedence (plan 14 §3)
+# resolution precedence
 
 
 def test_element_own_aod_wins_key_by_key_over_its_ancestor(write_design, bag):
@@ -417,7 +417,7 @@ elements:
 
 
 def test_group_hide_is_unconditional_and_cannot_be_undone_below(write_design, bag):
-    """The one asymmetry (§3): an explicit `aod: hide` on a group hides the
+    """The one asymmetry: an explicit `aod: hide` on a group hides the
     whole subtree even against a descendant's own explicit `aod: show`."""
     text = BASE + """
 elements:
@@ -616,7 +616,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# byte-identical guarantee for an all-MIP build (plan 14 §4.1, §6 slice 1)
+# byte-identical guarantee for an all-MIP build
 
 
 MIP_BASE = """
@@ -700,7 +700,7 @@ elements:
 
 
 def test_an_all_mip_build_has_no_display_mode_code_either(write_design, bag, db):
-    """The same byte-identical guarantee, restated for slice 6's own new
+    """The same byte-identical guarantee, restated for the display-mode
     lines specifically: an all-MIP build must carry none of the
     `getDisplayMode`/`DISPLAY_MODE_OFF` ladder, not just none of `_aod`
     itself -- would fail against an implementation that forgot to gate the
@@ -719,7 +719,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# the getDisplayMode ladder (plan 14 slice 6, research 11 §6 F): skip
+# the getDisplayMode ladder (research 11 §6 F): skip
 # drawing entirely on DISPLAY_MODE_OFF, guarded per device.
 
 
@@ -804,7 +804,7 @@ def test_display_mode_ladder_compiles_warning_free_on_a_mixed_build(
     AMOLED + MIP build must compile warning-free on every target with the
     new `getDisplayMode` ladder in place -- the has-guarded form on the MIP
     devices, the plain form is never reached on them since `_aod` stays
-    false there (D5)."""
+    false there."""
     text = BASE.replace(
         """build:
   targets: [fenix847mm]""", """build:
@@ -819,7 +819,7 @@ def test_display_mode_ladder_compiles_warning_free_on_a_mixed_build(
 
 
 # --------------------------------------------------------------------------
-# restyling (plan 14 slice 2): one ternary/branch per override key
+# restyling: one ternary/branch per override key
 
 
 def _layout_text(text, write_design, bag, db, device_id="fenix847mm"):
@@ -968,7 +968,7 @@ elements:
 
 
 def test_aod_format_with_its_own_extra_reader_declares_it(write_design, bag, db):
-    """Plan 18 item 1: `%h` needs `device.is_24_hour`'s reader.  When only
+    """`%h` needs `device.is_24_hour`'s reader.  When only
     the `aod: {format: ...}` override uses it, the awake format alone must
     not decide which readers the draw method gets, or `monkeyc` fails with
     `Undefined symbol ':settings'`."""
@@ -1007,8 +1007,8 @@ elements:
 
 
 def test_wftime_is_copied_only_for_a_code_that_calls_it(write_design, bag, db):
-    """Plan 18 item 9: `%H:%M` never calls `WfbTime`, so the barrel file is
-    not copied for it (before, any time format pulled it in)."""
+    """`%H:%M` never calls `WfbTime`, so the barrel file is not copied for
+    it."""
     text = _CLOCK_WITH_AOD.replace('    aod: {text: "{time.clock:%I:%M}"}\n', "")
     assert text != _CLOCK_WITH_AOD
     assert "WfbTime.mc" not in _barrel(text, write_design, bag, db)
@@ -1022,7 +1022,7 @@ def test_wftime_is_copied_when_only_the_aod_format_calls_it(write_design, bag, d
 
 @pytest.mark.parametrize("style,wants_arc", [("bar", False), ("arc", True)])
 def test_wfbarc_is_copied_only_for_an_arc_progress(write_design, bag, db, style, wants_arc):
-    """Plan 18 item 9: a bar progress draws with fillRectangle and never
+    """A bar progress draws with fillRectangle and never
     calls `WfbArc`; only the arc style does."""
     geometry = ("at: {anchor: center}\n    size: {width: 50%, height: 5%}" if style == "bar"
                 else "at: {anchor: center}\n    radius: 40%r\n    thickness: 4px\n"
@@ -1051,8 +1051,8 @@ def test_a_wftime_code_in_the_aod_format_alone_compiles(write_design, db, tmp_pa
 
 @pytest.mark.slow
 def test_aod_format_with_its_own_extra_reader_compiles(write_design, db, tmp_path, toolchain):
-    """The real `monkeyc` half of the test above: before plan 18 item 1 this
-    exact design failed with `Undefined symbol ':settings'`."""
+    """The real `monkeyc` half of the test above: this exact design
+    once failed with `Undefined symbol ':settings'`."""
     text = BASE + """
 elements:
   clock:
@@ -1164,7 +1164,7 @@ elements:
 
 
 def test_static_element_bypasses_its_buffer_in_aod(write_design, bag, db):
-    """plan 14 §4.4: a static element with its own `aod:` override draws
+    """A static element with its own `aod:` override draws
     directly in the AOD branch -- must fail against an implementation that
     still excludes every static id from the AOD call list."""
     text = BASE + """
@@ -1182,7 +1182,7 @@ static:
 
 
 def test_aod_only_baked_font_is_loaded_only_in_on_enter_sleep(write_design, bag, db):
-    """plan 14 §4.3: a baked font named only by an `aod: {font: ...}`
+    """A baked font named only by an `aod: {font: ...}`
     override is a second resource -- never loaded in onLayout, only inside
     onEnterSleep's own `if (_aod)`, and released again in onExitSleep."""
     text = with_resources(BASE, f"""
@@ -1305,7 +1305,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# preview (plan 14 slice 2): overridden colour and thickness actually render
+# preview: overridden colour and thickness actually render
 
 
 def _resolved(text, write_design, bag, db, device_id="fenix847mm"):
@@ -1439,14 +1439,14 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# `aod: dim:` (plan 14 slice 3, docs/guide/always-on-display.md): scales the
+# `aod: dim:` (docs/guide/always-on-display.md): scales the
 # luminance of every AOD colour, override colours excepted.
 
 
 def test_dim_0_is_a_schema_error(write_design, bag):
     """0 would dim every undimmed colour to black -- indistinguishable from
     `aod: hide` -- so the schema refuses it outright (`exclusiveMinimum: 0`),
-    the same house style a bad `modes: [always_on]` already gets (D3)."""
+    the same house style a bad `modes: [always_on]` already gets."""
     text = BASE.replace("""resources:
   palette:
 """, """aod:
@@ -1593,8 +1593,8 @@ elements:
 def test_an_all_mip_build_stays_byte_identical_with_dim_set(write_design, bag, db):
     """`dim` is AMOLED-only like the rest of `aod:` (constraint 5): an
     all-MIP build's generated source must not change at all, even with
-    `dim:` set and an element drawn in AOD -- the same guarantee slice 1
-    established for `aod:` itself, now re-checked with `dim:` in the mix."""
+    `dim:` set and an element drawn in AOD -- the same guarantee `aod:`
+    itself has, now re-checked with `dim:` in the mix."""
     without = MIP_BASE + """
 elements:
   clock:
@@ -1657,14 +1657,14 @@ elements:
     resolved = _resolved(text, write_design, bag, db)
     cx, cy = resolved.device.width // 2, resolved.device.height // 2
     # `aod_mask=False`: this test is about the dimmed colour value, not
-    # plan 16's pixel mask (on by default) -- see the sibling test above.
+    # the pixel mask (on by default) -- see the sibling test above.
     asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True,
                                              aod_mask=False))
     assert asleep.getpixel((cx, cy)) == (0x2B, 0x2B, 0x2B) == (43, 43, 43)
 
 
 def test_no_palette_lint_fires_on_a_dimmed_constant(write_design, bag, db):
-    """plan 14 §4.6: the 64-colour palette lint checks `palette:`/`config:`/
+    """The 64-colour palette lint checks `palette:`/`config:`/
     `color_scheme:`'s own *declared* entries, never a dimmed colour -- a
     dimmed value is a synthetic literal that never becomes one of those.
     `#FFFFFF` dimmed by 0.4 is `0x666666`, off the 64-colour grid, which
@@ -1733,13 +1733,11 @@ def test_a_runtime_dimmed_colour_compiles_warning_free(write_design, db, tmp_pat
     that goes through `WfbColor.dim` at runtime -- a face-level Python
     codegen test cannot catch a barrel file the real compiler needs but the
     barrel-selection logic of the day forgot to copy in (`Undefined symbol
-    ':WfbColor'`, found by building this exact design for real while
-    developing this slice: the then-current `_barrel_for` only listed the
-    pre-existing helpers, so a design whose only dimmed colour was a
-    `config.colors.*` field failed to compile even though the Python-level
-    codegen tests above were all green -- plan 19 A3 later replaced that
-    ladder with `wfb.emit.usage.barrel_modules`, which scans the generated
-    text directly and cannot have this particular gap, but this real build
+    ':WfbColor'`, found by building this exact design for real: a design
+    whose only dimmed colour was a `config.colors.*` field failed to
+    compile even though the Python-level codegen tests above were all
+    green. `wfb.emit.usage.barrel_modules` scans the generated text
+    directly and cannot have that particular gap, but this real build
     stays as the check that a future gap of the same *shape* -- Python
     codegen green, `monkeyc` red -- gets caught)."""
     text = """
@@ -1780,7 +1778,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# burn-in (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8): lit-pixel
+# burn-in (research 11 §6 D, ADR 0008 check 8): lit-pixel
 # and luminance fractions from the same `--aod` render, per element.
 
 #: A near-full-screen filled disc, shown unrestyled in AOD -- Garmin's FAQ
@@ -1841,7 +1839,7 @@ def test_aod_burn_in_names_the_right_top_contributor(write_design, bag, db):
     that always blames the first/last AOD-shown element regardless of its
     real share.
 
-    `mask: false`: this test is about attribution/ranking, not plan 16's
+    `mask: false`: this test is about attribution/ranking, not the
     pixel mask -- masking this design's lit fraction down to about a
     quarter would drop it under `AOD_BURN_IN_THRESHOLD` and turn the
     `error` this test checks for into a `note` (masking's own severity
@@ -1923,7 +1921,7 @@ elements:
 def test_the_aod_example_stays_clean_under_burn_in(write_design, bag, db):
     """The shipped example (`examples/features/aod/face.yaml`) must stay
     clean under this new check: a `note` is fine, a `warning` or `error` is
-    not (plan 14 slice 4 §6)."""
+    not."""
     face = load(ROOT / "examples" / "features" / "aod" / "face.yaml", bag)
     assert face is not None, bag.render()
     device = db.get("fenix847mm")
@@ -1944,7 +1942,7 @@ def test_heatmap_counts_each_minute_separately(write_design, bag, db):
     frame, or OR-ing frames together, would leave no partial pixel.
 
     `mask: false`: this test is about the heatmap's own summing logic, not
-    plan 16's pixel mask (on by default), which would cap every pixel's
+    the pixel mask (on by default), which would cap every pixel's
     share at 25% regardless of how the summing worked -- the mask's own
     heatmap ceiling has its own coverage in
     `tests/test_aod_mask_preview.py`."""

@@ -246,7 +246,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
     )
 
     # The header/import block is written last, once the body below is known:
-    # `usage.toybox_modules` (plan 19 A3) reads which `Toybox` modules the
+    # `usage.toybox_modules` reads which `Toybox` modules the
     # body actually names straight off its own rendered text -- the generated
     # source is the one complete record of what the view calls
     # (`wfb.emit.usage`'s own module docstring).
@@ -258,10 +258,10 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
         "the element's `id:` in the source YAML, so a change on screen leads back to\n"
         "a line in the design file."
     )
-    # `aod` (plan 14 D1's build-time half): only when *any* target in this
+    # `aod` (the build-time half of "burn-in device"): only when *any* target in this
     # build is AMOLED does the shared view carry `_aod`, its sleep-hook
     # burn-in check and the onUpdate branch reading it -- an all-MIP build
-    # emits none of it. `aod: {dim: ...}` (§4.5) is one `(num, den)` ratio
+    # emits none of it. `aod: {dim: ...}` is one `(num, den)` ratio
     # every dimming call site shares.
     aod_on = guards.amoled_target
     aod = AodStyle(on=aod_on, dim=dim_fraction(face.aod_dim)
@@ -271,7 +271,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
     prof = profile_mod.plan_for(resolved, profile) if profile else None
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
-    # `aod: {font: ...}` (plan 14 §4.3): baked fonts only an AOD override
+    # `aod: {font: ...}`: baked fonts only an AOD override
     # names, loaded in onEnterSleep instead of onLayout.
     aod_only_fonts = _aod_only_fonts(resolved) if aod.on else []
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
@@ -520,8 +520,8 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
         w.blank()
     if aod_only_fonts:
         w.doc(
-            "Bitmap fonts named only by an 'aod: {font: ...}' override (plan 14\n"
-            "§4.3) -- never drawn while awake, so they are loaded in onEnterSleep\n"
+            "Bitmap fonts named only by an 'aod: {font: ...}' override\n"
+            "-- never drawn while awake, so they are loaded in onEnterSleep\n"
             "instead of here, only when _aod ends up true, and released (nulled) in\n"
             "onExitSleep so they do not sit in memory the whole time."
         )
@@ -529,14 +529,14 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
             w.line(f"private var _{aod_font_field(name)} as FontResource?;")
         w.blank()
     if vector_fonts:
-        # Not a `WatchUi.loadResource` resource at all (plan 11) -- a
+        # Not a `WatchUi.loadResource` resource at all -- a
         # `Graphics.VectorFont` handed back by `Graphics.getVectorFont`, or
         # `null` when this device cannot build it (a target that fails
         # gates 1-3 under `if_unavailable: hide`, or `Graphics.
         # getVectorFont`'s own documented "or NULL" even when it can --
         # gate 4, never assumed away). Every draw call using one checks for
         # `null` before drawing (`wfb.kinds.text._emit_text_draw`).
-        w.doc("Device-resident scalable ('face:') fonts (plan 11) -- a Graphics.\n"
+        w.doc("Device-resident scalable ('face:') fonts -- a Graphics.\n"
               "VectorFont handed back by Graphics.getVectorFont, not a loaded\n"
               "resource; null wherever this device cannot build it, which every\n"
               "draw call below checks before using it.")
@@ -816,8 +816,8 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
 
 
 def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> None:
-    """One font's `Graphics.getVectorFont(...)` construction in `onLayout`
-    (plan 11 §3): the plain form when every target device in this build
+    """One font's `Graphics.getVectorFont(...)` construction in `onLayout`:
+    the plain form when every target device in this build
     resolves `name` (the "no guard for a thing every target has"
     philosophy, `wfb/availability.py`'s `Guards` docstring), or wrapped in
     `if (Layout.FONT_<NAME>_AVAILABLE && (Graphics has :getVectorFont))`
@@ -833,7 +833,7 @@ def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> No
     (gates 2/3) has no runtime query at all and has to be resolved at build
     time per device instead -- see `wfb.availability.vector_font_face`.
     Neither on its own is enough, and `-O 3z` is not relied on to fold
-    either away (CLAUDE.md constraint on this exact point, plan 11 §3).
+    either away (CLAUDE.md constraint on this exact point).
     """
     field = f"_{font_field(name)}"
     prefix = f"FONT_{const_prefix(name)}"
@@ -1188,10 +1188,10 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                    guards: "Guards" = _NO_GUARDS, rings: Rings = _NO_RINGS) -> None:
-    """The AMOLED always-on frame (plan 14): every element whose resolved
+    """The AMOLED always-on frame: every element whose resolved
     `aod:` is not `None`, calling the same per-element method the active
     frame calls (restyled inside by `AodStyle`'s `_aod` ternaries), then
-    `WfbAodMask.apply` (plan 16) when `face.aod_mask` is on and something
+    `WfbAodMask.apply` when `face.aod_mask` is on and something
     was drawn for it to mask.
 
     **`DISPLAY_MODE_OFF` draws nothing, not even the black clear** (research
@@ -1201,7 +1201,7 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     when some target lacks `getDisplayMode` (`Guards.display_mode_guarded`);
     such a device simply draws the AOD set on every asleep frame.
 
-    **A static element bypasses its buffer here** (§4.4): the buffer holds
+    **A static element bypasses its buffer here**: the buffer holds
     the *active* styling, so the element's own method (which
     `renderStatic` calls anyway) is called directly instead.
 
@@ -1245,7 +1245,7 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     # The moving 2x2 pixel mask, drawn last; an empty frame is already black.
     if resolved.face.aod_mask and entries:
         w.blank()
-        w.comment("aod: {mask: ...} (plan 16): moves the lit pixel every minute")
+        w.comment("aod: {mask: ...}: moves the lit pixel every minute")
         w.line("WfbAodMask.apply(dc, System.getClockTime().min);")
 
 
@@ -1343,8 +1343,8 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
             # Released unconditionally, not only when it was actually
             # loaded -- nulling an already-null field is harmless, and this
             # is simpler than tracking whether onEnterSleep's own load ran
-            # (plan 14 §4.3: "released in onExitSleep so it doesn't sit in
-            # memory all the time").
+            # (released in onExitSleep so it doesn't sit in memory all the
+            # time).
             w.line(f"_{aod_font_field(name)} = null;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
@@ -1371,7 +1371,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
             else:
                 w.line(f"_aod = settings.{Device.BURN_IN_FIELD};")
             if aod_only_fonts:
-                w.comment("plan 14 §4.3: loaded only now, only when this device actually")
+                w.comment("Loaded only now, only when this device actually")
                 w.comment("enters the AOD frame -- never sits in memory while awake")
                 with w.block("if (_aod)"):
                     for name in aod_only_fonts:

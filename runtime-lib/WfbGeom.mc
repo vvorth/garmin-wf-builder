@@ -2,8 +2,8 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
 
-//! Shared rotate/translate-and-draw helpers for analog hands (plan 04) and
-//! patterns (plan 05), plus a pattern's `shape: text` parts (plan 06).  Both
+//! Shared rotate/translate-and-draw helpers for analog hands and
+//! patterns, plus a pattern's `shape: text` parts.  Both
 //! resolve a template's geometry once at build time, in a frame whose origin
 //! is the axis (a hand) or the pattern's own `at:` (a pattern's template,
 //! copy 0 as authored) -- and leave only the per-frame transform to the
@@ -12,7 +12,7 @@ import Toybox.Math;
 //! font cannot rotate -- so only its anchor point goes through the rotation;
 //! `drawTextRotated` is `dc.drawText` with that same rotate-the-point step in
 //! front of it.  Moved out of WfbHands.mc when patterns needed the same four
-//! calls (plan 05 §6.3, "one convention, one helper", the precedent
+//! calls ("one convention, one helper", the precedent
 //! WfbArc.mc already set for arcs) -- WfbHands.mc keeps only the three
 //! clock-to-angle functions.
 //!
@@ -71,7 +71,7 @@ module WfbGeom {
         dc.drawCircle(cx + x * cos - y * sin, cy + x * sin + y * cos, r);
     }
 
-    //! A polygon part in a *linear* pattern (plan 05 §6.4): no rotation, just
+    //! A polygon part in a *linear* pattern: no rotation, just
     //! translate every vertex by the current copy's own origin.  A hand
     //! never calls this -- only a linear pattern ever translates rather than
     //! rotates.
@@ -86,11 +86,11 @@ module WfbGeom {
         dc.fillPolygon(out);
     }
 
-    //! A text part (plan 06): rotate only the anchor -- the glyphs stay
+    //! A text part: rotate only the anchor -- the glyphs stay
     //! upright, a bitmap font cannot turn -- round it half up, then draw.
     //!
-    //! **Round half up, not `(v + 0.5).toNumber()` alone** (fixed
-    //! 2026-09-23): `.toNumber()` truncates toward zero
+    //! **Round half up, not `(v + 0.5).toNumber()` alone**:
+    //! `.toNumber()` truncates toward zero
     //! (`WfbArc.roundAway`'s own docstring), which disagrees with `Math.
     //! floor` for a negative `v + 0.5` that is not itself a whole number --
     //! e.g. `v = -1.6`: `floor(-1.1) == -2` but `(-1.1).toNumber() == -1`.
@@ -99,19 +99,19 @@ module WfbGeom {
     //! build-rejected, case -- `docs/limitations.md`'s "off-screen" lint is
     //! suppressible, not a hard error), so this is reachable on a real
     //! design, not merely a theoretical corner. `wfb.layout.
-    //! pattern_text_anchor`, the preview's own twin, has always used
-    //! `math.floor(v + 0.5)`; before this fix the two disagreed by one
-    //! pixel for exactly the negative, non-half-integer inputs above, so
-    //! the device drew one pixel off from what `wfb preview` showed.
+    //! pattern_text_anchor`, the preview's own twin, uses
+    //! `math.floor(v + 0.5)`; without this the two disagree by one pixel
+    //! for exactly the negative, non-half-integer inputs above, and the
+    //! device draws one pixel off from what `wfb preview` shows.
     //!
-    //! **Found 2026-09-18:** a single combined `drawTextRotated(dc, x, y,
-    //! cx, cy, sin, cos, font, text, justify)` is 10 parameters wide, and
+    //! **Why the point is rotated separately:** a single combined
+    //! `drawTextRotated(dc, x, y, cx, cy, sin, cos, font, text, justify)`
+    //! is 10 parameters wide, and
     //! CIQ 3.x rejects a function past 9 outright ("Too many arguments
     //! passed to method 'drawTextRotated'. Only 9 arguments are allowed.",
     //! seen on fenix6/fenix6xpro/fr245 -- `docs/lore/monkeyc.md`). Folding
-    //! `cx`/`cy` or `sin`/`cos` into one argument was rejected instead of
-    //! fixing this: either shape needs a fresh two-element array (a
-    //! `Point2D` or similar) built *inside* this pattern's per-copy draw
+    //! `cx`/`cy` or `sin`/`cos` into one argument would not help: either
+    //! shape needs a fresh two-element array (a `Point2D` or similar) built *inside* this pattern's per-copy draw
     //! loop, which every other helper in this file avoids by taking plain
     //! `Number`/`Decimal` scalars. Splitting the rotate-the-point step from
     //! the draw keeps every argument a scalar and adds no allocation: the

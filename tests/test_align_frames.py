@@ -1,6 +1,5 @@
-"""Plan 07 phase D: `align:`/`vertical_align:` on hand and pattern parts
-`rectangle` and `circle` (`docs/plans/07-align-everywhere.md` §4, Phase D
-row).
+"""`align:`/`vertical_align:` on hand and pattern parts
+`rectangle` and `circle`.
 
 Mechanism (a), in the part's own frame: `Resolver._resolve_hand_part` shifts
 the part's frame centre (`_hand_point(part.at)`, or the resolved radius for a

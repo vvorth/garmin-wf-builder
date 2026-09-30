@@ -88,7 +88,7 @@ class Divergence:
     they say must hold on every target; only `Layout.mc` is per device.
     `generate` emits each shared source from every target and compares, so a
     per-device fact leaking into one is a build error, not a silent
-    "follows the first target" (plan 19 A5).
+    "follows the first target".
     """
 
     path: str

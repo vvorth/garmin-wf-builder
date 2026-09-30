@@ -132,10 +132,8 @@ specifies each item.
 5. **Phone-side settings and `wfb package`.** Phone editing needs a Store
    install, which needs `wfb package` (research 17 §2); wearer settings
    beyond `config:` were decided against, and there is no `.SET` writer
-   (ADR 0006 tenth and eleventh amendments). The
-   2026-09-11 WIP is pinned on `wip/phone-settings`. It is design reference
-   only: it predates the builder, emitter and kinds refactors. Do not
-   resume it without asking the user.
+   (ADR 0006 tenth and eleventh amendments). Do not revisit it without
+   asking the user.
 6. Catalogue generation from the SDK (ADR 0005 §1).
 7. `catalog.Source.requires` is set on no source. ADR 0008's check 2 is
    otherwise built (`api-gated`: modules, fields, complication types); the

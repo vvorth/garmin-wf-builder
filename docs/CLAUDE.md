@@ -19,7 +19,7 @@ rewrite it in place rather than adding a dated correction beside it; history
 lives in git. ADRs are the exception: amend them with a dated note, because
 they record when and why a decision changed.
 
-**Built plans are deleted.** Code and docs still cite them (`plan 02
+**Built plans are deleted.** Docs (ADRs, research, lore) still cite them (`plan 02
 §12.4`). To read one as built:
 
 | Plans | Read with |
@@ -42,6 +42,12 @@ they record when and why a decision changed.
 | 19 architecture refactor | `git show d325e77:docs/plans/19-architecture-refactor.md` (§1 "Done" lists A0–A6 and the small items with their commits and how each was proven output-identical; §2 P2 and §3 A7 are the one option not taken, see `docs/lore/roadmap.md`) |
 | 22 format 2 | `git show 9480d08:docs/plans/22-format-2.md` (§1–§2 are the decisions F1–F7, Q1–Q5 and names N1–N18; §3.4 the full v1 → v2 table, also `docs/guide/format-2-migration.md`; §5 the reserved vocabulary, each still to be planned; §6 records every slice: plan `6cfb9b6`, slice 0 `1189e94` (the baseline snapshot), slice 1 `d0256b9` (`wfb migrate`), slice 2 `c97710d` (both formats compiled), slice 3 `4c657a7` (the switch-over), slice 4 `9480d08` (an absent gauge keeps its track), slice 5 the tidy commit that deleted it) |
 | 23 `outline:` everywhere | `git show 96462ed:docs/plans/23-outline-everything.md` (§1 is D1–D5, §3 the slices: slice 1 `badb527` (shapes, icons), slice 2 `fde32fa` (hands), slice 3 `88f79ae` (groups), slice 4 `96462ed` (patterns, gauges), slice 5 the example/screenshot/doc-sweep commit that deleted it; research 19 is the measurement record) |
+
+**Deleted research.** Research 17 (phone-side settings: Garmin Connect edits
+settings only for a Store install, so they never reach a sideload) backed the
+removed `settings:` block and is still cited as "research 17". Read it and its
+probe with `git show 44ba633:docs/research/17-phone-settings.md` and
+`git show 44ba633:docs/research/probes/phone-settings/`.
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

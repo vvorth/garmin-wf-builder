@@ -26,7 +26,7 @@ from wfb.fonts import cft
 
 # ---------------------------------------------------------------------------
 # test-side encoder -- the inverse of cft.py's decode, built from the format
-# spec (plan 10 §2.2), not from cft.py's own code
+# spec, not from cft.py's own code
 # ---------------------------------------------------------------------------
 
 
@@ -265,8 +265,8 @@ def _flatten(grid: list[list[int]]) -> bytes:
 def test_escape_literal_round_trips(tmp_path):
     """A pixel whose level equals the RLE escape value, appearing on its
     own (not as part of a run), must decode via the `r=0` "this escape read
-    is actually a literal" path -- plan 10 §3
-    A.3's "escape literal (r=0)" case."""
+    is actually a literal" path -- the
+    "escape literal (r=0)" case."""
     escape = 3  # max level at 2 bpp
     grid = [
         [0, 1, 2, escape],
@@ -421,7 +421,7 @@ def test_raw_1bpp_36_byte_header_round_trips(tmp_path):
 
 # ---------------------------------------------------------------------------
 # 40-byte header, zlib, 1 bpp, row alignment 8 -- all three maybe-compressed
-# magic variants (plan 10 §2.2)
+# magic variants
 # ---------------------------------------------------------------------------
 
 

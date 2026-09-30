@@ -1,4 +1,4 @@
-"""Host-side twin of `runtime-lib/WfbAodMask.mc` (plan 16): the moving 2x2
+"""Host-side twin of `runtime-lib/WfbAodMask.mc`: the moving 2x2
 pixel mask over the AOD frame, applied here by `wfb.preview.render` (and so
 `--heatmap`/`--minute`) and by `wfb.lint.check_aod_burn_in`, so both agree
 with the device to the pixel about which minute keeps which pixel lit --
@@ -6,7 +6,7 @@ ADR 0004's anti-drift stance, extended from layout to this too. There is no
 second implementation of the mask for either of those callers to drift
 from; both go through `apply` below.
 
-The mask, exactly (plan 16 §2): in minute `m`, `phase = m mod 4` selects
+The mask, exactly: in minute `m`, `phase = m mod 4` selects
 `(dx, dy)` from the fixed 4-cycle `PHASES`. Device pixel `(x, y)` keeps its
 drawn colour iff `x mod 2 == dx` and `y mod 2 == dy`; every other pixel
 becomes pure black. Each step moves the lit pixel to a 4-neighbour, never a
@@ -14,9 +14,9 @@ diagonal jump, and both 60 and 1440 are multiples of 4, so the cycle stays
 continuous across the hour and the day.
 
 The two must never drift on the phase table itself:
-`tests/test_aod_mask_preview.py` (extending slice 1's own
+`tests/test_aod_mask_preview.py` (extending
 `tests/test_aod_mask.py`) parses `PHASES`'s dx/dy logic straight out of the
-real `runtime-lib/WfbAodMask.mc` source, rather than re-typing plan 16 §2 a
+real `runtime-lib/WfbAodMask.mc` source, rather than re-typing the table a
 third time.
 """
 
@@ -27,7 +27,7 @@ from functools import lru_cache
 
 from PIL import Image
 
-#: `[(dx, dy), ...]` indexed by `minute % 4` -- plan 16 §2, mirrored from
+#: `[(dx, dy), ...]` indexed by `minute % 4`, mirrored from
 #: `runtime-lib/WfbAodMask.mc`'s own `dx`/`dy` expressions.
 PHASES: tuple[tuple[int, int], ...] = ((0, 0), (1, 0), (1, 1), (0, 1))
 

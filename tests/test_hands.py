@@ -1,4 +1,4 @@
-"""Analog hands (plan 04): `hands:` sets and `type: hands` elements.
+"""Analog hands: `hands:` sets and `type: hands` elements.
 
 Every diagnostic here was driven red first -- run against the violating input
 below with the fix reverted, each one raised a different, wrong error (or
@@ -423,7 +423,7 @@ def test_a_percent_r_length_resolves_per_device(resolved_for):
 
 
 def test_a_mirrored_pair_resolves_to_mirrored_pixels(resolved_for):
-    """Round half away from zero (§5.3): -1.5px/1.5px must resolve to -2/2,
+    """Round half away from zero: -1.5px/1.5px must resolve to -2/2,
     not 0/2 the way round-half-to-even would for a *different* value."""
     hands = """
 resources:
@@ -440,7 +440,7 @@ resources:
 
 
 def test_a_rectangle_part_becomes_a_polygon_in_corner_order(resolved_for):
-    """top-left, top-right, bottom-right, bottom-left (§6) -- the order a
+    """top-left, top-right, bottom-right, bottom-left -- the order a
     rotated rectangle keeps no matter which corner ends up where."""
     hands = """
 resources:
@@ -473,7 +473,7 @@ resources:
 
 
 def test_a_seconds_never_hand_is_excluded_from_reach_and_from_drawing(resolved_for):
-    """'seconds: never' -- the set's second hand is not drawn at all (§5.6),
+    """'seconds: never' -- the set's second hand is not drawn at all,
     so its geometry must not inflate the swept disc either."""
     hands = """
 resources:

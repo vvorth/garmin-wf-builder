@@ -299,7 +299,7 @@ class ElementTree(StaticPass):
     def _hold_auto_sources(element: Element) -> tuple[str, ...]:
         """The catalogue paths `on_hold: auto` may resolve from, for one element.
 
-        Every `ROLE_VALUE`-tagged bound expression's sources (plan 19 A2) --
+        Every `ROLE_VALUE`-tagged bound expression's sources --
         deliberately not `color:`/`max:`, since a conditional colour's
         reference is not what the element is *about*.  A `text`'s `value:`,
         a `progress`'s `value:` (not `max:`), and an `icon`'s `icon_for:`

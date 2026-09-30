@@ -1,4 +1,4 @@
-"""`align:`/`vertical_align:` on a `group` (plan 06 §4).
+"""`align:`/`vertical_align:` on a `group`.
 
 Every test picks pixel (`px`) units for `at:`/`size:` so the expected box is
 hand-computable exactly, no float rounding to reason about. The device is

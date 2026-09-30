@@ -1,16 +1,14 @@
-# Golden coverage for plan 15 slices 1 and 2 (`outline:` on a standalone
+# Golden coverage for `outline:` on a standalone
 # `text` element, and on a pattern's own `type: text` part) -- a
 # background, a baked-font clock with a plain (upright) outline, an
 # upright vector-font text with an outline (shorthand spelling), one of
 # each `curve:` style with an outline (every draw shape a standalone
-# element can take, plan 15 §14 slice 1), a radial pattern of rotated
+# element can take), a radial pattern of rotated
 # numerals with an outline (`curve: {style: angled}`, per-copy rotation
-# composed with the outline's own screen-space offsets, plan 15 §14 slice
-# 2), and a radial pattern of numerals bent along the dial with an
+# composed with the outline's own screen-space offsets), and a radial pattern of numerals bent along the dial with an
 # outline (`curve: {style: radial}`, the other pattern-part curve style).
 #
-# Every text element below demonstrates the canonical hollow idiom (plan
-# 15 §3/§12): `color:` repeats `color.bg` verbatim, so the interior reads
+# Every text element below demonstrates the canonical hollow idiom: `color:` repeats `color.bg` verbatim, so the interior reads
 # as empty against the full-screen `background` element and `outline.color`
 # carries the only visible ink. This is deliberate, not incidental: it is
 # what makes the design warning-free under `text-outline-interior` (the

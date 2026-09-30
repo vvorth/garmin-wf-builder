@@ -337,7 +337,7 @@ def _emit_vector_draw_call(
 ) -> None:
     """One `dc.drawText`/`drawAngledText`/`drawRadialText` call against a
     `face:` (vector) font, at the given screen-space anchor -- shared by
-    the interior pass and every `outline:` stamp (plan 15 §5, §8): `angle`/
+    the interior pass and every `outline:` stamp: `angle`/
     `radius`/`direction`/justify stay exactly what the interior pass would
     have used regardless of which anchor `x_expr`/`y_expr` name, since a
     screen-space anchor shift commutes with the rest of the call's
@@ -366,7 +366,7 @@ def _emit_vector_text_draw(
     w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str, color_code: str,
     aod: AodStyle, ring: RingPass | None = None,
 ) -> None:
-    """A `face:` (vector) font's draw call (plan 11 §3-4): plain
+    """A `face:` (vector) font's draw call: plain
     `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
     drawRadialText` under one.
 
@@ -381,10 +381,10 @@ def _emit_vector_text_draw(
     null)`) -- only a local's narrowing does.  The `if` *wraps* the draw
     call here, rather than the baked branch's early `return`, so a curved
     element reads as "an ordinarily-missing thing, drawn as nothing" rather
-    than "a load failure", matching how plan 11 §3's own generated-code
-    example presents it.
+    than "a load failure", matching how the generated code reads
+    elsewhere.
 
-    **`outline:`'s stamp loop moves inside this same guard** (plan 15 §5):
+    **`outline:`'s stamp loop moves inside this same guard**:
     a missing vector font draws nothing at all, ring included, exactly as
     it draws nothing today -- one `if (font != null)`, never two.
     """
@@ -682,7 +682,7 @@ class TextKind(ElementKind[Text, PlacedText]):
         if aod.on and element.aod is not None and element.aod.format is not None:
             # `format:` changes the formatting code, not just an argument -- the
             # same "AOD redraws once a minute anyway, so dropping seconds is
-            # free" reasoning plan 14 §2.3 states -- so both formatted strings
+            # free" reasoning -- so both formatted strings
             # are built once, up front, and the ternary between them stands in
             # for `value_code` everywhere below, including inside a
             # placeholder/fallback substitution.
@@ -722,7 +722,7 @@ class TextKind(ElementKind[Text, PlacedText]):
 
     def layout_constants(self, prefix: str, placed: PlacedText) -> "layout_constants_mod.Constants":
         # For `curve: {style: radial}` this is the *centre of the circle*
-        # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
+        # (`at:` reinterpreted: `PlacedText.anchor_point`'s
         # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
         # since the codegen call site reads it that way regardless.
         note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'

@@ -1,4 +1,4 @@
-"""`outline:` on a standalone `text` element (plan 15 slice 1) -- preview
+"""`outline:` on a standalone `text` element -- preview
 rendering (`wfb.preview`). The simulator does not run in this environment
 (`CLAUDE.md` §3), so preview is the only way this feature can be seen at
 all: these tests render a real baked (1-bit, non-anti-aliased) glyph three
@@ -104,7 +104,7 @@ def test_ring_alone_is_visible_when_interior_matches_background(write_design, db
                                                                  repo_root):
     """`color: color.bg` (interior invisible against the background) plus
     `outline:` -- the ring must still be visible: this is the canonical
-    "hollow" case plan 15 §3 documents, and it fails outright if the
+    "hollow" case `docs/guide/outlines.md` documents, and it fails outright if the
     stamped ring were somehow gated on the interior colour."""
     image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.bg
@@ -139,7 +139,7 @@ def test_solid_plus_ring_lights_more_pixels_than_solid_alone(write_design, db, b
     colours) must light strictly more pixels overall than the plain fill it
     replaces -- the ring adds ink at the glyph's edge, it does not merely
     recolour existing ink. This is the exact "more lit pixels at the
-    glyph's edge" contrast plan 15 §14 slice 1 asks the preview test to
+    glyph's edge" contrast the preview test has to
     exercise."""
     solid_image = _render(write_design, db, bag, repo_root,
                           _ELEMENT.format(extra="""    color: color.fg

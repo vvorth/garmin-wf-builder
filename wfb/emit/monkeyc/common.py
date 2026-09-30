@@ -194,8 +194,8 @@ def aod_font_field(name: str) -> str:
     """The view field a baked font used *only* by an `aod: {font: ...}`
     override (never drawn while awake) is loaded into -- `font_field(name)`
     with an `Aod` suffix, so it never collides with an awake field for a
-    font of the same name used elsewhere too (plan 14 §4.3: "a resource
-    font used only as an AOD override is a second resource").
+    font of the same name used elsewhere too (a resource font used only as an AOD
+    override is a second resource).
     """
     return f"{font_field(name)}Aod"
 
@@ -209,7 +209,7 @@ def mc_color(expression: Expression | None) -> str:
     return expression.code
 
 
-#: `aod: {dim: ...}` (plan 14 slice 3), as the `(num, den)` integer ratio
+#: `aod: {dim: ...}`, as the `(num, den)` integer ratio
 #: `wfb.palette.dim_channel`/the generated `WfbColor.dim` both read -- `None`
 #: means "no dimming", the same as the face never writing `dim:` at all
 #: (`Face.aod_dim`'s own normalisation folds `dim: 1` into this too).
@@ -220,8 +220,8 @@ def _dim_color_code(expression: Expression | None, awake_code: str,
                     dim: tuple[int, int]) -> str:
     """The AOD Monkey C expression for one colour that has **no** explicit
     `aod: {color: ...}`-style override, when the face's own `aod: {dim:
-    ...}` still applies to it (plan 14 §4.5: dimming reaches every colour
-    the AOD frame draws, override or not).
+    ...}` still applies to it (dimming reaches every colour the AOD
+    frame draws, override or not).
 
     A colour whose value is fixed at build time -- a bare hex literal, or a
     `palette.<name>` reference, `Expression.is_constant` either way -- is
@@ -244,8 +244,8 @@ def _dim_color_code(expression: Expression | None, awake_code: str,
 
 @dataclass(frozen=True)
 class AodStyle:
-    """How this build restyles a draw call for the AMOLED always-on frame
-    (plan 14 §4.2): every override becomes an inline ``_aod ? <aod> :
+    """How this build restyles a draw call for the AMOLED always-on frame:
+    every override becomes an inline ``_aod ? <aod> :
     <awake>`` ternary at the draw call site.
 
     ``on`` is whether this build emits AOD code at all (some target is
@@ -284,7 +284,7 @@ class AodStyle:
         An override colour is a fully resolved `Expression` built by the same
         machinery as the element's own `color:`, so it follows
         `color_scheme:`/`config.colors` at runtime exactly as the awake one
-        does (plan 14 §4.6). Which of the three applies is `aod_color_choice`
+        does. Which of the three applies is `aod_color_choice`
         (`wfb.ir`), the one decision `wfb.preview.aod_color` also reads --
         this method only turns that decision into Monkey C.
         """
@@ -298,7 +298,7 @@ class AodStyle:
 
     def part_color(self, element: Element, color_expr: Expression | None) -> str:
         """`color`'s rule for one `hands`/`pattern` part: the element-level
-        `aod: {color: ...}` applies uniformly to every part (§5.1), and
+        `aod: {color: ...}` applies uniformly to every part, and
         `dim` dims each part's own colour."""
         awake_code = mc_color(color_expr)
         if not self.on or element.aod is None:
@@ -397,7 +397,7 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     (`wfb.icons.font_key`) alike, and each one's ring font
     (`wfb.kinds.ring_fonts`) when ringed text or an icon draws with it.
 
-    **A `face:` (vector) font is never in this list** (plan 11): it is not
+    **A `face:` (vector) font is never in this list**: it is not
     a resource at all, and `_vector_fonts_used` covers it instead.
     """
     face = resolved.face
@@ -415,8 +415,8 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
 def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
     """Baked (non-vector) custom fonts named only by a `text` element's own
     `aod: {font: ...}` override, and never drawn while awake (`_loaded_
-    fonts`) -- plan 14 §4.3's "a resource font used only as an AOD override
-    is a second resource": loaded in `onEnterSleep`, only when `_aod`, and
+    fonts`) -- a resource font used only as an AOD override is a second
+    resource: loaded in `onEnterSleep`, only when `_aod`, and
     released (nulled) in `onExitSleep`, so it does not sit in memory the
     whole time the way an ordinarily-loaded font does.
 
@@ -449,7 +449,7 @@ def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
     """Every `face:` (vector) font name a `text` element, or a pattern's own
     `shape: text` part, draws with, in first-appearance draw order -- the
     vector counterpart of :func:`_loaded_fonts` (built through
-    `Graphics.getVectorFont`, not `WatchUi.loadResource`, plan 11 §3).  A
+    `Graphics.getVectorFont`, not `WatchUi.loadResource`).  A
     declared but undrawn font contributes nothing.  `wfb.availability.
     vector_fonts_used(face)` answers the same question off the IR, for the
     build-wide guard decision made before any device is resolved.
@@ -500,7 +500,7 @@ def _mc_string(value: str) -> str:
     Every string this project ever emits into a `Layout` constant is a
     device-published face *name* (`Device.scalable_faces`, straight out of
     a device's own `simulator.json`) or the empty string (an unavailable
-    font, plan 11 -- never drawn, since the null check at the call site
+    font -- never drawn, since the null check at the call site
     always gates it) -- neither can contain a `"` or a control character in
     practice, but the two characters that would break the literal if they
     somehow did are still escaped rather than assumed absent.

@@ -1,4 +1,4 @@
-"""`wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): the one definition of a
+"""`wfb.kinds.pattern.PatternTextAngle`: the one definition of a
 `shape: text` pattern part's per-copy curved-text angle, shared by the lint
 ink (`_pattern_text_ink`), the preview (`_pattern_text`) and codegen
 (`_emit_pattern_text_angle_expr`) instead of each recomputing

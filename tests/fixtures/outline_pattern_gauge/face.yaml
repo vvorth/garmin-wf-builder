@@ -1,4 +1,4 @@
-# Coverage for `outline:` on `pattern` and `gauge` (research 19, plan 23):
+# Coverage for `outline:` on `pattern` and `gauge` (research 19):
 # a radial pattern (polygon, line and text parts, each copy ringed whole by
 # moving its rotation centre), a linear one (moving its origin), an arc
 # gauge ringed round its track, a bar gauge with no track ringed round its

@@ -1,5 +1,5 @@
-"""The host-side preview renderer, analog hands (plan 04 §7), and how it
-renders `--asleep`/`--aod` (plan 14).
+"""The host-side preview renderer, analog hands, and how it
+renders `--asleep`/`--aod`.
 
 Each test exercises a contrast a broken renderer could fail: a pixel that
 must differ between two known clock times or between the awake and asleep/
@@ -93,13 +93,13 @@ def test_the_default_sample_time_still_renders(resolved):
 
 
 #: `examples/features/analog/face.yaml` declares no `aod:` at all (it is not
-#: the plan 14 example), so the face default (`hide`, D2) would render an
-#: empty `--aod` frame for it -- exactly right per plan 14, but useless for
+#: the AOD example), so the face default (`hide`) would render an
+#: empty `--aod` frame for it -- exactly right, but useless for
 #: exercising hands-in-AOD. A small, self-contained hands fixture with its
 #: own `aod: show` is what `test_hands_codegen.py`'s own `NO_HANDS`/
 #: `SECONDS_NEVER` constants already do for the same reason.
 #:
-#: `mask: false` (plan 16): these tests check single exact pixels along a
+#: `mask: false`: these tests check single exact pixels along a
 #: thin hand line, which the pixel mask (on by default) would black out on
 #: three renders in four -- an orthogonal concern with its own coverage in
 #: `tests/test_aod_mask_preview.py`, not something this file's hand-geometry
@@ -172,7 +172,7 @@ def test_aod_at_9_00_the_hour_tip_is_to_the_left(aod_resolved):
 def test_an_aod_render_has_no_second_hand_pixel_where_awake_does(aod_resolved):
     """The second hand's far reach (beyond the minute hand's own tip) is
     exactly where an `awake` render draws and an `--aod` one does not --
-    the awake-only second hand hides while asleep, same as before plan 14."""
+    the awake-only second hand hides while asleep."""
     cx, cy = AXIS
     awake = render_at(aod_resolved, (3, 0, 0), aod=False)
     aod = render_at(aod_resolved, (3, 0, 0), aod=True)
@@ -181,7 +181,7 @@ def test_an_aod_render_has_no_second_hand_pixel_where_awake_does(aod_resolved):
 
 
 def test_a_hands_element_with_no_aod_of_its_own_is_hidden_in_aod(write_design, db):
-    """The face default is `hide` (D2): a hands element that never mentions
+    """The face default is `hide`: a hands element that never mentions
     `aod:` simply does not draw in the `--aod` frame at all."""
     no_aod = HANDS_AOD.replace("    aod: show\n", "")
     bag = Bag()

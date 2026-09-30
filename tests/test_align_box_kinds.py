@@ -1,7 +1,6 @@
-"""Plan 07 phase B: `align:`/`vertical_align:` on `shape` (rectangle,
+"""`align:`/`vertical_align:` on `shape` (rectangle,
 rounded_rectangle, ellipse, circle, arc -- not polygon or line), `progress`
-(both styles) and `graph` (`docs/plans/07-align-everywhere.md` §4, Phase B
-row).
+(both styles) and `graph`.
 
 Mechanism (a) only: every one of these resolves alignment entirely at build
 time by moving the placement box's centre (`wfb.layout.alignment_shift`,
@@ -18,7 +17,7 @@ outlined shape's *declared* geometry is what aligns, not its pen-padded
 `box`; that `shape: arc`/`progress` `style: arc` align by the full circle
 regardless of `sweep:`; the generated `Layout` constants for one shape,
 proving the device reads the moved geometry; and the polygon/line rejection
-messages (R3), one error per key, not per element.
+messages, one error per key, not per element.
 """
 
 from __future__ import annotations
@@ -179,7 +178,7 @@ def _arc_yaml(align: str, vertical_align: str, element_id: str, sweep: str) -> s
 
 
 def test_arc_aligns_like_a_full_circle_regardless_of_sweep(write_design, bag, db):
-    """Plan 07 choice 3 (§6): the placement box is the full circle
+    """The placement box is the full circle
     (`2*radius`), whatever `sweep:` is -- an arc with `sweep: 90deg` moves
     exactly as a full-circle (`sweep: 360deg`) arc does."""
     elements = _arc_yaml("left", "top", "quarter", "90deg") + \
@@ -309,7 +308,7 @@ def test_graph_right_bottom(write_design, bag, db):
     assert (box.x + box.width, box.y + box.height) == AT_CENTER
 
 
-# -- default byte-identity (R5) -----------------------------------------------
+# -- default byte-identity ----------------------------------------------------
 
 
 def test_default_center_center_is_byte_identical_to_no_keys_at_all(write_design, bag, db):

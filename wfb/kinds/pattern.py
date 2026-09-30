@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class PatternTextAngle:
     """The terms of the per-copy Garmin-degrees angle a `shape: text`
-    pattern part's own `curve:` draws at (plan 11 slice 2, plan 19 A1):
+    pattern part's own `curve:` draws at:
     `local` -- the part's own local, copy-0 angle (`part.curve.angle_garmin`);
     `start`/`step` -- the pattern's own repeat angle, design degrees
     clockwise from 12 (`0.0`/`0.0` for a linear pattern, which then leaves
@@ -285,7 +285,7 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
     effect" wording, so both notes read the same across every element
     kind that has one.
 
-    Reads `element.bound_expressions()` by role (plan 19 A2) rather
+    Reads `element.bound_expressions()` by role rather
     than `element.colors`/`element.parts` directly -- `ROLE_COLOR` is
     every colour `.colors` already dedups, `ROLE_PART_VISIBLE` every
     part's own `visible:` -- so this is the same collection as before,
@@ -459,7 +459,7 @@ def _pattern_angle_expr(element: PatternElement) -> tuple[str, str]:
 
 def _emit_pattern_text_angle_expr(element: PatternElement, part: ResolvedTextPart) -> str:
     """The per-copy Garmin-degrees angle a `shape: text` part's own
-    `curve:` draws at (plan 11 slice 2): the part's own local, copy-0 angle
+    `curve:` draws at: the part's own local, copy-0 angle
     (`part.curve.angle_garmin`) composed with the copy's rotation, `g0 - i *
     step_deg` with `element.start_angle` folded into `g0` -- the same shape
     an `arc` part's `start_angle` gets (`_emit_pattern_part`).  A clockwise
@@ -522,8 +522,8 @@ def _emit_pattern_text_draw(
     stamped in that colour (the pattern's own `outline:`): this copy's own
     anchor, then --
     ahead of the interior pass, inside the same vector-font null guard --
-    the part's own `outline:` stamp loop, if it has one (plan 15 §14
-    slice 2), then the interior call itself (`_emit_pattern_text_call`).
+    the part's own `outline:` stamp loop, if it has one, then the
+    interior call itself (`_emit_pattern_text_call`).
 
     **Gate 4 is never omitted, on any device, in either `if_unavailable:`
     mode** (`docs/research/12-vector-fonts.md` §1, `wfb.kinds.text.
@@ -541,7 +541,7 @@ def _emit_pattern_text_draw(
     alone decides which of the two this part gets. `outline:`'s stamp loop
     and the interior call both move inside this one guard together, never
     two guards -- the same shape `wfb.kinds.text._emit_vector_text_draw`
-    already uses for a standalone element (plan 15 §5/§8).
+    already uses for a standalone element.
 
     **The ring colour, and its own `dc.setColor` restore, are entirely
     local to this one part's own draw sequence** -- they do not interact
@@ -566,7 +566,7 @@ def _emit_pattern_text_draw(
         # under `curve:`: `vertical_align: bottom` is rejected there
         # (`Builder.build_curve`), and `center`/`top` need no
         # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
-        # never a coordinate shift (plan 11 §2.3).
+        # never a coordinate shift.
         cy_expr = "cy" if curve_style is not None else glyph_y_expr(
             "cy", part.vertical_align, font_expr)
         x_expr = (
@@ -888,7 +888,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         if key == "font":
             return (
                 "aod",
-                "a pattern's 'aod: {font: ...}' override is not implemented yet (plan 14)",
+                "a pattern's 'aod: {font: ...}' override is not implemented yet",
                 ["restyle this pattern's colour/thickness in AOD instead, or drop the font "
                  "override for now"],
             )
@@ -986,7 +986,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
         two parts naming the *same* font share one load and one guard.  **A
         `face:` (vector) font is the one exception to "guard once, before the
-        loop"** (plan 11 slice 2): it is still loaded into a local once, but
+        loop"**: it is still loaded into a local once, but
         never early-return-guarded here -- gate 4 means it can be null on the
         ordinary "this device just doesn't have it" path, not only on a
         structural failure, and an early `return;` here would also cancel every
@@ -998,7 +998,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         """
         element = placed.element
         prefix = const_prefix(placed.id)
-        # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
+        # `aod: {color: ...}`/`{thickness: ...}`: one override,
         # applied uniformly to every part, hoisted or not.
         thickness_override = rotated.aod_thickness_override(placed, prefix)
         # `element.parts[i]` and `placed.parts[i]` are the same template, in the

@@ -1,9 +1,8 @@
-"""Vector fonts and `curve:` (plan 11 slice 1) -- the device layer
+"""Vector fonts and `curve:` -- the device layer
 (`Device.scalable_faces`, gate 1's symbol constants), the IR
 (`FontSpec.is_vector`/`is_baked`, `Curve`, `Text.curve`/`if_unavailable`),
-and every builder diagnostic plan 11 §2 asks for.  Layout, lint, codegen and
-preview are later slices (plan 11 §5; deleted once built, `docs/CLAUDE.md` --
-`git show e744913:docs/plans/11-vector-text.md`) and are not exercised here.
+and every builder diagnostic.  Layout, lint, codegen and preview are
+`tests/test_vector_text_*.py` and are not exercised here.
 """
 
 import textwrap
@@ -169,7 +168,7 @@ def test_source_and_face_are_mutually_exclusive_and_jointly_required(
     write_design, bag, repo_root, both_source_and_face,
 ):
     """A `oneOf` in the schema, so the error names the missing half rather
-    than reading as an unknown key (plan 11 §2.1)."""
+    than reading as an unknown key."""
     if both_source_and_face:
         fonts = f"""\
   bezel:
@@ -194,7 +193,7 @@ def test_source_and_face_are_mutually_exclusive_and_jointly_required(
 def test_baking_keys_are_rejected_on_a_vector_font(write_design, bag, repo_root, key, value):
     """`glyphs:`/`monospace:`/`align:`/`antialias:` are properties of baking a
     sheet, and a vector font has no sheet -- each must name why, not just
-    reject (plan 11 §2.1)."""
+    reject."""
     fonts = f"""\
   bezel:
     face: RobotoCondensedBold
@@ -444,8 +443,7 @@ elements:
 
 
 def test_vector_font_is_accepted_on_a_pattern_text_part(write_design, bag, repo_root):
-    """Slice 2 of plan 11 (`git show 35217d1:docs/plans/11-vector-text.md`
-    §5): a pattern's own `shape: text` part may name a `face:` (vector)
+    """A pattern's own `shape: text` part may name a `face:` (vector)
     font, with or without
     `curve:` -- this used to be a build error naming "the next slice", and
     now that slice has landed. See `tests/test_pattern_text_curve.py` for

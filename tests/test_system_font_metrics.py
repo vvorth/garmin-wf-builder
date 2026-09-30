@@ -1,4 +1,4 @@
-"""Plan 09 §4 R2: real device typefaces for system-font measurement/preview.
+"""Real device typefaces for system-font measurement/preview.
 
 `wfb.devices.Device.system_fonts` merges the scraped SDK reference table
 (`face`/`font`/`size_px`) with the installed device's own `simulator.json`
@@ -13,7 +13,7 @@ Every test here goes through `_no_garmin_fonts` (autouse): it monkeypatches
 exercise the registry/free-stand-in path exclusively and never the user's
 own licensed Garmin font files (`vendor/fonts/`, the platform Garmin
 `Fonts` directories) -- those may appear on this machine after this file was
-written (plan 09 R1b), and a test that happened to pick them up would not be
+written, and a test that happened to pick them up would not be
 reproducible. `WFB_OFFLINE=1` is already set for the whole session
 (`tests/conftest.py`); the free stand-ins these tests need
 (`roboto-condensed-bold`, `roboto-black`, `bionic-substitute`, ...) are
@@ -93,7 +93,7 @@ def _ink_y_bounds(image, bg, x_lo: int, x_hi: int,
 
 
 def test_fenix8_font_medium_matches_the_worked_example(db):
-    """plan 09 §4 R2.6's own numbers: Roboto
+    """The expected numbers: Roboto
     Condensed Bold at `FONT_MEDIUM`, em ~32.86 (`11.7109 * 202 / 72`), a
     line height of 39 and a baseline of 30 (`round(32.8556 * 1900/2048)`,
     RobotoCondensed-Bold's own `hhea`)."""
@@ -221,7 +221,7 @@ _ALIGN_ELEMENTS = """  top_line:
 
 
 def test_vertical_align_top_and_bottom_ink_sits_against_the_anchor(write_design, bag, db):
-    """`wfb.preview.draw_text`'s line-box model (plan 09 §4 R2.4):
+    """`wfb.preview.draw_text`'s line-box model:
     a `top`-aligned line's box starts exactly at the anchor, a `bottom`-
     aligned line's box ends exactly at it -- so the ink (which sits inside
     the box, offset only by internal leading/descender) must appear at or
@@ -306,7 +306,7 @@ def test_fenix6_has_no_ppi_and_falls_back_to_the_scraped_metrics(db):
     assert face.match in ("exact", "family", "substitute")
 
 
-# -- the device's own numbers (plan 09 §7) ------------------------------------
+# -- the device's own numbers -------------------------------------------------
 
 #: `docs/research/probes/system-font-metrics/results-2026-09-18.txt`: what the
 #: simulator itself reported, per device and symbol.

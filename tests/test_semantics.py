@@ -672,15 +672,12 @@ def test_a_non_nullable_colour_needs_no_when_absent(write_design, bag):
 
 
 # --------------------------------------------------------------------------
-# Bug 6 (pre-plan-14): `modes: [always_on]` elements were generated but never
-# drawn. `always_on` was removed outright (plan 14 D3); `aod:` is its
-# replacement, and the equivalent regression test now drives *that* path.
+# Elements drawn in the sleep frame must actually be called from it.
 
 
 def test_aod_elements_are_drawn_while_asleep(write_design, bag, db):
     """`_emit_on_update` reads `_aod`, and the aod branch calls exactly the
-    elements whose resolved `aod:` is not `None` -- the plan 14 analogue of
-    the always_on fix this replaces."""
+    elements whose resolved `aod:` is not `None`."""
     from wfb.emit import generate
     from wfb.emit.resources import bake_fonts
 
@@ -1069,7 +1066,7 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
 
 
 # --------------------------------------------------------------------------
-# `on_hold: auto` -- resolved from the element's own value binding (D3)
+# `on_hold: auto` -- resolved from the element's own value binding
 
 
 def test_auto_is_not_a_complication_type():
@@ -1397,7 +1394,7 @@ def test_an_unknown_series_is_reported_with_a_suggestion(write_design, bag):
     ("body_battery", "SensorHistory"),
     ("stress", "SensorHistory"),
     ("ambient.pressure", "SensorHistory"),   # matched on the trailing segment
-    ("sensor_pressure", "SensorHistory"),    # ... on an underscore, too (plan 18 item 9)
+    ("sensor_pressure", "SensorHistory"),    # ... on an underscore, too
     ("ambient_stress", "SensorHistory"),
     ("solar", "no solar history API"),
     ("solar_intensity", "no solar history API"),

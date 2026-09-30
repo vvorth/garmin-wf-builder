@@ -197,7 +197,7 @@ def test_low_power_inside_a_static_subtree_is_an_error(write_design):
     assert "charged by clip *area*" in " ".join(errors[0].notes)
 
 
-#: `always_on` was removed outright (plan 14 D3), leaving `active` the only
+#: `always_on` was removed outright, leaving `active` the only
 #: legal `modes:` value for static content (`low_power` is separately
 #: forbidden there, tested above) -- so `_check_static_modes`, which used to
 #: catch two static elements disagreeing about `modes:`, is no longer
@@ -452,9 +452,8 @@ def test_the_generated_view_has_a_buffer_a_fallback_and_one_blit(write_design, d
 
 
 def test_static_content_does_not_blit_in_the_aod_branch(write_design, db, tmp_path):
-    """A static element's own `aod:` is not consulted at all yet (plan 14
-    §4.4: static bypass is slice 2's job) -- for slice 1, static content
-    simply never appears in the AMOLED always-on frame, and the blit stays
+    """A static element's own `aod:` is not consulted by the blit: static content
+    never appears in the AMOLED always-on frame, and the blit stays
     exactly where it always was: the awake ('active') branch only.
     """
     view = _view(BLOCK_FORM, write_design, db, tmp_path, device_id="fenix847mm")

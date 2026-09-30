@@ -45,7 +45,7 @@ class AbsenceChecks(Readers):
             # effect there would contradict the error the author just fixed.
             # Every *other* bound expression, `visible:` excluded -- it has
             # its own "absent means hidden" rule with no `when_absent:` of
-            # its own to speak of (plan 19 A2: read by role, not identity,
+            # its own to speak of (read by role, not identity,
             # so this reads the same as the isinstance-free form below).
             others_nullable = any(
                 expression is not bound and role != ROLE_VISIBLE and expression.nullable

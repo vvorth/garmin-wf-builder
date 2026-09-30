@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce the em/ascent/descent/height metric model from plan 09 §2, and
+"""Reproduce the em/ascent/descent/height metric model (research 10 §3), and
 check the scraped ``size_px`` against a from-scratch prediction, using the
 *actual* downloaded TTFs' ``hhea``/``head`` tables.
 
@@ -21,7 +21,7 @@ this script does not download anything):
 
    and compare against the device file's own ``ascent``/``descent``/``height``.
    docs/research/10-system-fonts.md cites this script's output as reproducing
-   plan 09 §2's preliminary "35 entries, 20 exact, rest off by 1-2 px, mostly
+   the preliminary "35 entries, 20 exact, rest off by 1-2 px, mostly
    apac_vie" result.
 
 2. **size_px cross-check.** For every ``ww`` entry (across the 13 locally
@@ -83,7 +83,7 @@ def find_devices_root() -> Path | None:
 
 def load_hhea(path: Path) -> tuple[int, int, int]:
     """``(unitsPerEm, hhea_ascent, hhea_descent)`` -- ``hhea_descent`` as-signed
-    (negative) exactly as it sits in the font, matching plan 09 §2's own sign
+    (negative) exactly as it sits in the font, matching research 10's own sign
     convention.
     """
     from fontTools.ttLib import TTFont  # local import: only needed for this script
@@ -112,7 +112,7 @@ def name_to_symbol(name: str) -> str:
 
 def check_35_entries(devices_root: Path, fonts_dir: Path) -> None:
     print("=" * 70)
-    print("Check 1: reproduce plan 09 §2's ascent/descent/height model")
+    print("Check 1: reproduce the ascent/descent/height model")
     print("=" * 70)
 
     hhea_cache: dict[str, tuple[int, int, int]] = {}

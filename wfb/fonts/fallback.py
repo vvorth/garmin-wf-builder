@@ -141,7 +141,7 @@ def _hhea(path: str) -> tuple[int, int, int] | None:
     """``(unitsPerEm, hhea.ascent, hhea.descent)`` of the TTF at ``path``, or
     `None` if it cannot be read (not a real TrueType/OpenType file, or
     missing a table this needs) -- never raises. `hhea.descent` is kept
-    signed (negative) exactly as it sits in the font, matching plan 09 §2's
+    signed (negative) exactly as it sits in the font, matching research 10's
     own convention (`tools/research/font_metric_check.py`'s `load_hhea`,
     which this mirrors for the same reason: `wfb.devices` must not import
     `fontTools`, so the read happens here, lazily, once per distinct path).
@@ -317,7 +317,7 @@ def measure(text: str, metric: FontMetric, *, fonts_root: str | None = None) -> 
     ``fonts_root`` is the same `--fonts DIR` override `system_face` takes
     (`wfb.devices.Device.fonts_root`, in every caller that has a device
     handy) -- passing it is what keeps this measurement in step with
-    whatever file the preview then draws with (plan 18 item 8).
+    whatever file the preview then draws with.
     """
     if not text:
         return 0, True

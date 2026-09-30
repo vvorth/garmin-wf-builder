@@ -1,4 +1,4 @@
-"""Vector fonts and `curve:` (plan 11 slice 1) -- step 2: per-device face
+"""Vector fonts and `curve:` -- step 2: per-device face
 resolution (gates 1-3), the `if_unavailable:` policy (including the
 cross-device `error`/`hide` aggregate in `wfb.lint.check_vector_font_
 availability`, wired into `wfb.build.resolve_all`), and the angled/radial
@@ -11,16 +11,11 @@ Real installed devices throughout, per the task brief: `fenix8solar47mm`/
 **Why `resolve_all`'s own font baking is stubbed out** (`_stub_baking`):
 `wfb.emit.resources.bake_fonts` iterates every `face.fonts` entry and calls
 `bake(spec.source, ...)` unconditionally -- for a `face:` (vector) `FontSpec`
-`spec.source` is `None`, so a real, unmodified `wfb build` of any design
-with a vector font fails today with a confusing `cannot open resource`
-`font` error, before layout or this step's own lint ever run. That is a
-pre-existing gap in `wfb/emit/resources.py` (font baking -- codegen, a
-later slice, plan 11 §5), not something this step introduces or is asked to
-fix -- so these tests monkeypatch `bake_fonts` to skip baking (an empty
-`dict`, exactly the "resolved layout with no baked fonts" shape `wfb.layout.
-Resolver.font_for_ref` already documents as a normal caller) purely to
-exercise `wfb.build.resolve_all`'s own per-device loop and the new
-cross-device check wired into it, without tripping over that unrelated bug.
+these tests are about layout and lint, not baking, so they monkeypatch
+`bake_fonts` to skip it (an empty `dict`, exactly the "resolved layout with
+no baked fonts" shape `wfb.layout.Resolver.font_for_ref` already documents
+as a normal caller) purely to exercise `wfb.build.resolve_all`'s own
+per-device loop and the cross-device check wired into it.
 """
 
 from __future__ import annotations
@@ -113,7 +108,7 @@ def test_vector_face_resolves_to_the_first_published_candidate(write_design, bag
     """`face: [NotARealFace, RobotoCondensedBold]` -- the first candidate is
     never published by any device, so this only passes if resolution really
     walks the list in author order rather than, say, always taking the
-    first entry regardless (plan 11 §2.1)."""
+    first entry regardless."""
     face = _load(write_design, bag, _design(_CANDIDATE_FONT, _text("brand")))
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
@@ -354,7 +349,7 @@ def test_angled_box_is_the_rotated_bounding_box(write_design, bag, db):
 
 
 def test_radial_box_is_a_tight_arc_not_the_old_square(write_design, bag, db):
-    """2026-09-21 follow-up to plan 11 §4: the old box was a SQUARE, centre
+    """The old box was a SQUARE, centre
     +/- (radius + line_height) -- on a round screen its corners sit at
     (radius + line_height) * sqrt(2) from centre, comfortably outside the
     panel even when the run itself sits nowhere near the edge (the false
@@ -543,8 +538,8 @@ def test_arc_bbox_axis_crossing_finds_the_true_extreme_not_just_the_corners():
     neither of its two corners (45/135 degrees). Using only the four
     corner points would put the box's top at `r_outer * cos(45deg) ~=
     7.07`, not the true `r_outer == 10` -- a real under-report, which is
-    exactly the "missing the axis-extreme point" failure mode plan 11's
-    follow-up calls out."""
+    exactly the "missing the axis-extreme point" failure mode a square
+    box has."""
     box = arc_bbox(0.0, 0.0, 5.0, 10.0, 45.0, 135.0)
     half_diag_outer = 10.0 * math.sqrt(2.0) / 2.0
     half_diag_inner = 5.0 * math.sqrt(2.0) / 2.0
@@ -666,7 +661,7 @@ def test_annulus_sector_reach_falls_back_to_the_nearer_endpoint_when_out_of_swee
 def test_radial_text_crossing_a_diagonal_passes_where_its_aabb_corner_would_fail(
     write_design, bag, db,
 ):
-    """The standalone-element half of fix B (`docs/plans/` numerals case):
+    """The standalone-element half of the numerals case:
     a `curve: {style: radial}` run centred away from 12/3/6/9 o'clock (a
     diagonal, 45 degrees here) has an AABB whose own corners sit farther
     from the screen centre than the run's real ink ever does -- exactly
@@ -770,7 +765,7 @@ def test_visible_reach_is_none_for_upright_text_and_ordinary_shapes(write_design
 
 
 def test_a_sub_pixel_curve_radius_is_recorded_for_the_lint(write_design, bag, db):
-    """Plan 18 item 9: a standalone text's `curve.radius` resolved through
+    """A standalone text's `curve.radius` resolved through
     the plain length path, so a relative radius under 1 px never reached the
     `sub-pixel-length` lint (a pattern part's `curve.radius` already did)."""
     element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 0.3%r}\n")

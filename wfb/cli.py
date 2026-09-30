@@ -305,7 +305,7 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--aod", action="store_true",
                          help="render the AMOLED always-on-display frame: the resolved "
                               "'aod:' set, restyled, with every awake-only second hand "
-                              "hidden (plan 14)")
+                              "hidden")
     preview.add_argument("--minute", type=int, metavar="N",
                          help="render minute N of the day (0-1439); sugar for --time, "
                               "and mutually exclusive with it")
@@ -589,7 +589,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     label = _status("preview", color=color_out)
     # Collects every distinct face this whole call resolves, across every
     # device and (with --all-styles) every panel, so the stand-in warning
-    # below fires once per run rather than once per device (plan 12 R1.1/R1.2).
+    # below fires once per run rather than once per device.
     used_faces: dict[FontMetric, fonts.fallback.SystemFace] = {}
     try:
         for device_id, result in resolved.items():
@@ -621,7 +621,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     except UnknownStyleError as exc:
         _error(str(exc))
         return 1, watched
-    # Not suppressed by -q/-o - (R1.4): those silence stdout progress, and a
+    # Not suppressed by -q/-o -: those silence stdout progress, and a
     # wrong typeface is a correctness warning, not progress.  Always to
     # stderr, always after every device/panel has had a chance to record a
     # face, so it names everything the whole run drew with, not just the
@@ -673,10 +673,9 @@ def _preview(args: argparse.Namespace) -> int:
     `--time HH:MM[:SS]` renders analog hands (and any `time.*`-bound
     element) at that time instead of the sample 10:09:42. `--asleep` hides
     every `awake`-only second hand, simulating a sleeping glance, on any
-    device shape -- no mode switch, unlike before plan 14 (`always_on` is
-    gone). `--aod` renders the AMOLED always-on-display frame -- the
+    device shape, with no mode switch. `--aod` renders the AMOLED always-on-display frame -- the
     resolved `aod:` set, restyled -- and implies `--asleep` too, the same
-    choice the generated `_aod` branch makes (plan 14). `--minute N`
+    choice the generated `_aod` branch makes. `--minute N`
     (0-1439) is `--time` given as a minute of the day. `--heatmap` implies
     `--aod`, renders every minute of the day and sums them into one PNG in
     which a pixel lit every minute is white, printing the largest share of
@@ -716,7 +715,7 @@ def _preview(args: argparse.Namespace) -> int:
     # hands `PreviewOptions.fonts_root` -- one CLI flag, so the geometry this
     # resolves (`Device.fonts_root`, what `wfb.layout` measures with) and
     # what the render then draws with can never come from two different
-    # roots (plan 18 item 8).
+    # roots.
     db = DeviceDatabase.discover(args.devices_dir, fonts_root=args.fonts_dir)
     if not args.watch:
         if not (args.quiet or _is_stdout(args.output)):
@@ -1447,7 +1446,7 @@ def _complications(args: argparse.Namespace) -> int:
     Printed for each: the name a design writes, the Monkey C constant it
     compiles to, the API level that type was introduced at, and the
     catalogue icon a `complication_slot`'s `icon_size:` draws for it by
-    default (`wfb.icons.COMPLICATION_ICON`, all 42 types since 2026-09-13 --
+    default (`wfb.icons.COMPLICATION_ICON`, all 42 types --
     a `choices:` mapping-form entry can override this per design). An API
     level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also

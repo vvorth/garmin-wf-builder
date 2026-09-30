@@ -131,7 +131,7 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
 
 
 def test_a_dithered_outline_color_can_be_suppressed_on_its_text(check):
-    """Plan 18 item 6: a palette entry used only as a text element's
+    """A palette entry used only as a text element's
     `outline: ...` has a real user -- the warning must not claim
     there is "nowhere to put" the suppression, and the text's own
     `lint: allow` must work."""
@@ -338,7 +338,7 @@ def test_suppression_needs_a_reason_and_then_silences(check):
     assert "safe-area" not in codes(bag)
 
 
-# -- check 4b: sub-pixel relative lengths (plan 08 §4) -----------------------
+# -- check 4b: sub-pixel relative lengths ------------------------------------
 
 #: 0.3%r of fenix8solar47mm's 130px minor radius is 0.39px -- nonzero, and
 #: bare `round()` sends it to 0, so this is a relative length that would
@@ -681,7 +681,7 @@ def _contrast_hits(write_design, bag, db, text):
 
 
 def test_night_layout_text_is_judged_against_the_night_backdrop(write_design, bag, db):
-    """Plan 18 item 7, false positive: white text on the night layout's
+    """False positive: white text on the night layout's
     black backdrop was judged against the day layout's white one."""
     text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", "  {}")
     hits = _contrast_hits(write_design, bag, db, text)
@@ -689,7 +689,7 @@ def test_night_layout_text_is_judged_against_the_night_backdrop(write_design, ba
 
 
 def test_dark_night_layout_text_warns_against_the_night_backdrop(write_design, bag, db):
-    """Plan 18 item 7, missed warning: navy on black is unreadable, but it
+    """Missed warning: navy on black is unreadable, but it
     passed because it was compared with the day layout's white."""
     text = DAY_NIGHT.replace("{night_ink}", "navy").replace("{shared}", "  {}")
     hits = _contrast_hits(write_design, bag, db, text)
@@ -1869,21 +1869,21 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     gap `check_api_gated` treats as a WARNING (reads-as-absent) must be a
     kind the codegen can actually turn into a runtime guard, and the ERROR
     kind must be exactly the one it cannot. Of `Guards`' fields, only three --
-    `modules` (bare module names, plan 18 item 2), `complications` (the one
+    `modules` (bare module names), `complications` (the one
     module several non-reader sites also guard, always mirrored in
     `modules`) and `fields` (bare field names) -- are `check_api_gated`'s
     own namespace; never one for a function, which is
     precisely why `kind == "function"` is promoted to the different,
-    unsuppressible code. `vector_fonts` (plan 11) is a third, unrelated
+    unsuppressible code. `vector_fonts` is a third, unrelated
     guard -- a `face:` font's own gates 1-3, governed by `if_unavailable:`
     and `wfb.lint.check_vector_font_availability`'s `font-unavailable`, not
     a `check_api_gated` "kind" at all -- so it is excluded from the
     comparison below rather than added to it. `amoled_target`/`burn_in_
-    field_guarded`/`display_mode_guarded` (plan 14) are a fourth, unrelated
+    field_guarded`/`display_mode_guarded` are a fourth, unrelated
     group: the AOD gate's own build-time/runtime halves (the last one added
-    by slice 6, research 11 §6 F), governed by `wfb.emit.monkeyc.view`
+    research 11 §6 F), governed by `wfb.emit.monkeyc.view`
     directly, never by `check_api_gated` -- excluded the same way, as is
-    `partial_update_unsupported` (plan 19 A5), the view's build-wide
+    `partial_update_unsupported`, the view's build-wide
     `onPartialUpdate` decision, `config_menu`, whether the build carries
     the `config:` settings menu, and `subscreen_hidden`, governed by
     `if_unavailable:` and `wfb.lint.check_subscreen_availability`."""
@@ -1913,7 +1913,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     assert "stressScore" in guards.fields
 
 
-# -- check_text_outline_interior (plan 15 §7, D10) --------------------------
+# -- check_text_outline_interior --------------------------------------------
 
 
 _OUTLINE_TEXT = """  clock:
@@ -1972,7 +1972,7 @@ def test_outline_interior_with_no_colour_still_warns(check):
     """A `text` element may omit `color:`; its outline interior is then no
     build-time constant, so it can never be proven to match the backdrop
     under it and the overlap must still be reported -- not skipped because
-    there is no interior colour to compare (plan 19 A2 review)."""
+    there is no interior colour to compare."""
     bag = check(_OUTLINE_TEXT.replace("    color: {color}\n", "").format(
         outline="""
     outline: color.fg"""))
@@ -2118,8 +2118,8 @@ def test_outline_interior_fires_once_the_pair_is_moved_to_overlap(write_design, 
     assert "'clock'" in hits[0].message and "'corner'" in hits[0].message
 
 
-# -- check_text_outline_interior on a pattern's own text part (plan 15 §14
-# slice 2, D10: element-level, via `_outlined_interiors`) ------------------
+# -- check_text_outline_interior on a pattern's own text part (element-level,
+# via `_outlined_interiors`) -----------------------------------------------
 
 
 _PATTERN_OUTLINE = """\

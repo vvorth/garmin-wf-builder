@@ -578,7 +578,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             # this mirrors it. `fonts_root` matches `_system_face` below (the
             # same `PreviewOptions.fonts_root` every other measurement this
             # renderer makes goes through), so a slot's box is sized from the
-            # same file it is then drawn with (plan 18 item 8).
+            # same file it is then drawn with.
             text_width, _ = fallback.measure(text, placed.font.metric,
                                              fonts_root=renderer.options.fonts_root)
             text_height = fallback.line_height(placed.font.metric,

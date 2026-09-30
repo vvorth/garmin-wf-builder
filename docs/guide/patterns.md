@@ -310,8 +310,8 @@ correctly with a radial pattern's own per-copy rotation: the offset is
 applied to the copy's own already-turned anchor, in screen space, exactly
 like the interior draw, so the ring turns with the numeral instead of
 smearing across the disc as the pattern rotates. Twelve numerals with an
-outline cost N+1 draws each — the same per-element multiplier plan 15
-measures for a standalone element, now paid once per copy: width 1 (4
+outline cost N+1 draws each — the same per-element multiplier a
+standalone element pays, now paid once per copy: width 1 (4
 offsets) means 5 draws per copy instead of 1, so a 12-copy ring costs 60
 draws a frame instead of 12 — cheap in generated code (the loop body is
 emitted once regardless of copy count), unmeasured in CPU (no

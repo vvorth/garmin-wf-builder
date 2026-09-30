@@ -1,7 +1,7 @@
 """Guards Connect IQ 3.x's 9-parameter ceiling on every Monkey C function.
 
 Found 2026-09-18: `WfbGeom.drawTextRotated` grew a 10th parameter
-(`justify`) in plan 06 and built fine on every target this project's tests
+(`justify`) and built fine on every target this project's tests
 happened to exercise -- CIQ 5.x/6.x devices don't enforce a lower bound, so
 nothing caught it until a real `monkeyc` run against fenix6/fenix6xpro/fr245
 (API 3.4.5/3.4.5/3.3.6) produced "Too many arguments passed to method

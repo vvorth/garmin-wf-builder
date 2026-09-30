@@ -119,7 +119,7 @@ def test_new_refuses_to_overwrite(tmp_path):
 
 @pytest.mark.parametrize("escape", ["absolute", "relative"])
 def test_new_only_reads_its_own_templates(tmp_path, escape):
-    """Plan 18 item 9: `--template` names a template, not a path. Before, it
+    """`--template` names a template, not a path. It once
     was joined onto the template directory unchecked, so `../x` or an
     absolute path read any `.yaml` on disk."""
     outside = tmp_path / "outside.yaml"
@@ -592,8 +592,7 @@ def test_preview_to_stdout_refuses_to_watch(db):
     assert "--watch" in result.stderr
 
 
-#: `FONT_NUMBER_HOT` on `fenix8solar47mm` resolves to `Bionic_semibold`
-#: (`docs/plans/12-preview-font-fidelity.md` §1.1's own worked example),
+#: `FONT_NUMBER_HOT` on `fenix8solar47mm` resolves to `Bionic_semibold`,
 #: which the registry's `names` table maps to the `bionic-substitute`
 #: stand-in -- match `"substitute"`, a different family entirely, not a
 #: free release of Bionic itself (`tests/test_font_registry.py`) -- which

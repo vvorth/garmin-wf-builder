@@ -51,7 +51,7 @@
 # and no watch in this container. `wfb preview --time 10:09:42` is the same
 # resolved geometry the generated code draws from, rendered with no
 # simulator. (`--aod` does not apply here: this design declares no `aod:`,
-# so plan 14's face default -- hide -- would render nothing at all; see
+# so the face default -- hide -- would render nothing at all; see
 # `examples/features/aod/face.yaml` for that instead.)
 #
 # Build it with:     ./wfb.py build examples/features/analog/face.yaml

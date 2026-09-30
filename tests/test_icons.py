@@ -212,7 +212,7 @@ def test_every_night_variant_has_a_matching_day_entry():
             assert day_name in icons.CATALOG, f"{name!r} has no day counterpart {day_name!r}"
 
 
-# -- COMPLICATION_ICON: all 42 types mapped (plan 03 §6.4/§6.7) -------------
+# -- COMPLICATION_ICON: all 42 types mapped ---------------------------------
 
 
 def test_complication_icon_covers_every_native_type():

@@ -97,8 +97,8 @@ class FontBlock(VisibilityHelpers):
     _VECTOR_FONT_BAKING_KEYS = ("glyphs", "monospace", "align", "antialias")
 
     def _build_vector_font(self, name: str, spec: dict[str, Any], span: Span | None) -> FontSpec | None:
-        """`fonts.<name>.face:` -- a device-resident scalable face (plan 11
-        §2.1), resolved per device later (`wfb.availability.
+        """`fonts.<name>.face:` -- a device-resident scalable face,
+        resolved per device later (`wfb.availability.
         vector_font_face`); here only the author-facing shape is checked.
         """
         ok = True

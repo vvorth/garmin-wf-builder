@@ -1,9 +1,9 @@
-"""Host/device parity for the expression language (plan 19 A1).
+"""Host/device parity for the expression language.
 
 `wfb.expr` evaluates every operator and function twice: on the host, for
 constant folding (the answer is baked into generated code) and the preview;
-and on the device, as the Monkey C `emit` produces. Plan 18 items 3-4 were
-the two disagreeing (`round`, `percent`, `clamp`, `%`).
+and on the device, as the Monkey C `emit` produces. The two once disagreed on
+`round`, `percent`, `clamp` and `%`.
 
 Nothing here can *run* Monkey C (no simulator, `docs/lore/codegen.md`
 finding 11), so parity is checked as far as the compiler itself goes

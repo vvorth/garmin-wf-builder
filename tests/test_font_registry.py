@@ -1,6 +1,6 @@
 """wfb/fonts/registry.json resolves every system-font name in scope.
 
-Scope (plan 09 R0, section 3): every
+Scope: every
 ``(face, font)`` pair in the *default* language's ``fixed`` and ``scalable``
 tables of every device in ``docs/research/data/devices/*.json`` (164 devices
 at the time this was written -- ``wfb.devices.Device.system_fonts`` reads

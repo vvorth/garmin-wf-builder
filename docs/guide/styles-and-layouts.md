@@ -76,20 +76,19 @@ regardless of `z:`. A shared element with `z: 50` still draws *before* every
 layout element, including one with no `z:` at all; `z:` only orders content
 *within* the shared layer or *within* one layout's own layer. There is no way
 to interleave a layout's content with the shared content by `z:` -- writing
-one is the escape route a later phase does not build (plan 02 §12.3).
+one is not supported.
 
 **A `data` element may not appear inside a `layouts:` body, in either
 `static:` or `elements:`.** The Data axis is face-wide -- one `<complication
 id=...>` in the generated resource, however many layouts read it -- so a
 slot belongs in the shared top-level `elements:` only. This also keeps the
 editor's own hit-testing and `getComplicationDrawable` simple: there is
-exactly one element that ever draws a given slot, never one per layout (plan
-02 §12.5).
+exactly one element that ever draws a given slot, never one per layout.
 
 **`unreachable-layout` (suppressible).** A declared layout no `config: style:`
 entry's `layout:` ever names can never be drawn -- but its elements, fonts and
-code still ship in the `.prg`, the same "content is not free" point plan 02
-§1 makes about every layout. Warned once per design, at the layout's own
+code still ship in the `.prg`, the same "content is not free" point that holds
+for every layout. Warned once per design, at the layout's own
 line, and suppressed with `lint: {allow: [unreachable-layout], reason: ...}`
 on the **layout body** (`layouts: <name>: { lint: {...} }`) -- a layout has
 no element of its own to hang `lint:` on otherwise.

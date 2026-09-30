@@ -2,8 +2,8 @@
 # three-hand dial with tick and numeral patterns), `digital` (a dense
 # dashboard: two-tone clock, weather row, heart-rate graph, data clusters,
 # gauge bar and ring, status row), and `roman` (a vintage roman-numeral
-# dial with Breguet-style hands and a mechanical day/date aperture -- plan
-# 13, `docs/plans/13-showcase-roman-layout.md`). Two shared
+# dial with Breguet-style hands and a mechanical day/date aperture). Two
+# shared
 # `data` element registers draw beneath all three.
 #
 # Config: several colour schemes paired with the layouts as `config: style:`
@@ -104,7 +104,7 @@ resources:
   # give -- without inventing any part kind a hand does not already have
   # (`docs/guide/analog-hands.md` -- polygon/rectangle/line/circle only).
   # The hour hand is both shorter AND visibly heavier (a 4%r-wide shaft
-  # against the minute's 2.4%r) than the minute hand, per plan 13 R2.3, and
+  # against the minute's 2.4%r) than the minute hand, and
   # both stay clear of the numeral ring, which starts well past the minute
   # hand's -64%r tip.
   #
@@ -792,8 +792,7 @@ layouts:
         color: "device.alarm_count > 0 ? color.accent : color.dark"
 
   # -------------------------------------------------------------------
-  # Roman: a classy, vintage dial (plan 13,
-  # docs/plans/13-showcase-roman-layout.md). Big roman numerals curved
+  # Roman: a classy, vintage dial. Big roman numerals curved
   # around the rim (with II and X given up to the two shared registers,
   # which read as sub-dials at 2 and 10 o'clock -- see `skip:` below),
   # Breguet-style hands (see `hand_sets: vintage:` above), and a
@@ -813,7 +812,7 @@ layouts:
       # (`wfb/expr.py`) -- verbose on purpose, reads as a table.
       #
       # Size and radius (26%r, -69%r) were tuned by rendering, not
-      # asserted (plan 13 R1.4): the probe in the plan (22%r/-78%r)
+      # asserted: a first try (22%r/-78%r)
       # tripped `safe-area` on fenix8solar47mm and fr955 because the ring's
       # ink reached past the round panel's own visible disc
       # (`wfb.layout.BEZEL_MARGIN`, a 2% inset). 26%r/-69%r is
@@ -861,7 +860,7 @@ layouts:
             watch's chapter ring; the glyphs' outer edge meets the round screen
             edge by design, and the device clips the few pixels past it"
 
-      # A "mechanical opening" without alpha (plan 13 R3.2):
+      # A "mechanical opening" without alpha:
       # `alphaBlendingSupport` is false on every target (root CLAUDE.md
       # constraint 10), so there is no way to cut a hole in the dial --
       # an aperture is drawn, not cut.
@@ -878,20 +877,17 @@ layouts:
       # frame colour, not `fg`, is deliberate: it has to read as a third,
       # distinct tone against a light (`fg`) well, which a same-colour
       # frame could not. Both windows sit on the vertical centre line,
-      # day-of-week above the axle and day-of-month below it, per the
-      # user's own words in plan 13 R4 -- well inside the numeral ring and
+      # day-of-week above the axle and day-of-month below it, as the
+      # user asked -- well inside the numeral ring and
       # well clear of the shared register cards, which are off at dx
       # ±50%r.
       #
-      # Both windows are also sized wider than tall now, not the first
-      # draft's tall, narrow "keycap": day/date text moved from
-      # FONT_XTINY/FONT_TINY to FONT_XTINY for both (below), so one line
-      # height governs both boxes' height, and only the width differs --
-      # wider for "Wed"/"Mon" (day), narrower for a 1-2 digit date. This
-      # supersedes plan 13 R3.4's "the date is the larger of the two":
-      # that pairing was what produced the keycap shape in the first
-      # place, and a convincing window shape matters more here than which
-      # of the two reads bigger.
+      # Both windows are wider than tall, not a tall, narrow "keycap":
+      # day and date are both FONT_XTINY (below), so one line height
+      # governs both boxes' height, and only the width differs -- wider
+      # for "Wed"/"Mon" (day), narrower for a 1-2 digit date. A
+      # convincing window shape matters more here than which of the two
+      # reads bigger.
       day_window_well:
         type: rectangle
         at: { anchor: center, dy: -26%r }
@@ -929,8 +925,8 @@ layouts:
       # and frames can. Document order puts them after the wells/frames
       # (already drawn first, being static) and before the hands below, so
       # a real watch's own draw order falls out for free: hands are drawn
-      # last and cross over the date windows, exactly like the real thing
-      # (plan 13 R3.3). The format has no case-transform or letter-spacing
+      # last and cross over the date windows, exactly like the real thing.
+      # The format has no case-transform or letter-spacing
       # key, so `%a` draws exactly what the firmware's own localisation
       # returns (e.g. "Thu") rather than a forced, tracked "THU" -- noted
       # here rather than silently claimed otherwise.

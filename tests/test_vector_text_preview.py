@@ -1,4 +1,4 @@
-"""Vector fonts and `curve:` (plan 11) -- preview rendering (`wfb.preview`).
+"""Vector fonts and `curve:` -- preview rendering (`wfb.preview`).
 
 The simulator does not run in this environment (`CLAUDE.md` §3), so preview
 is the only way this feature can be seen at all -- these tests exercise the
@@ -251,7 +251,7 @@ def test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image(write_des
     minx, miny, maxx, maxy = bbox
     # Every pixel is down and to the right of the anchor: the box's own
     # upper-left corner sits at (or past) the anchor, never inside the
-    # opposite quadrant. Tolerance is 2px, not 1px: plan 12 R2 rasterises
+    # opposite quadrant. Tolerance is 2px, not 1px: the preview rasterises
     # this run through a 4x-supersampled layer instead of resampling an
     # already-blurred one, so a corner that used to anti-alias down below
     # `_ink_bbox`'s own 60-level threshold before it could ever reach this
@@ -799,7 +799,7 @@ def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, d
     assert dist < 3.0, (
         f"glyph centre of mass is {dist:.2f}px off the radius through "
         f"curve.angle ({placed.curve.angle_garmin:.1f}deg Garmin) -- "
-        "expected it to sit on that radius (R1); a distance anywhere near "
+        "expected it to sit on that radius; a distance anywhere near "
         "the glyph's own half-advance width means the pre-fix left-edge-"
         "anchored placement bug is back"
     )
@@ -988,7 +988,7 @@ def test_radial_glyph_stroke_points_at_the_circles_centre(write_design, db, bag)
 def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, db, bag):
     """fenix6 has no vector fonts at all (gate 1) -- `if_unavailable: hide`
     on the font means every element using it draws nothing, upright or
-    curved, the same as the real watch (plan 11 §2.4): the honest preview
+    curved, the same as the real watch: the honest preview
     of "this element does not exist on this device" is a blank image, not
     a fallback face drawn at the wrong place."""
     body = """  upright:
@@ -1013,7 +1013,7 @@ def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, d
             assert image.getpixel((x, y)) == BACKGROUND, (x, y)
 
 
-# -- R2 (plan 12): rasterised, not resampled --------------------------------
+# -- R2: rasterised, not resampled ------------------------------------------
 
 
 def _weighted_centroid(image, region: tuple[int, int, int, int] = (0, 0, 260, 260),
@@ -1053,7 +1053,7 @@ def _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body: str)
     added (the supersampled `_system_face` lookup, the wider layer, the
     `Image.LANCZOS` downsample) and falls straight through to exactly the
     arithmetic that shipped before this slice, so this comparison *is* the
-    "against the pre-change implementation" check plan 12 R2.2 asks for,
+    "against the pre-change implementation" check,
     read from the one place that arithmetic lives rather than re-derived.
 
     A regression here would mean every `angled`/`radial` element this

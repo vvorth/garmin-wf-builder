@@ -248,7 +248,7 @@ def test_view_imports_complications(write_design, bag, db, tmp_path):
 
 def test_low_power_element_may_bind_a_complication(write_design, bag, db, tmp_path):
     """The refresh-tier restriction that used to reject a slow/event-tier
-    source on a low_power element is gone (D2): a complication is an
+    source on a low_power element is gone: a complication is an
     ordinary per-frame read now, so it is fine anywhere a plain value is."""
     design = """
   bb:

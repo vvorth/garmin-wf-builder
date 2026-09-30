@@ -1,5 +1,4 @@
-"""Golden-file coverage for vector fonts and `curve:` (plan 11 slice 1,
-step 3 -- codegen). `tests/test_golden.py` pins `tests/fixtures/slice/`,
+"""Golden-file coverage for vector fonts and `curve:` (codegen). `tests/test_golden.py` pins `tests/fixtures/slice/`,
 which has no vector font in it; this is the same discipline
 (`tests/CLAUDE.md`: "a golden diff is a real output change: explain it, do
 not just regenerate") applied to `tests/fixtures/vector_text/face.yaml`,
@@ -67,7 +66,7 @@ def test_bezel_uses_getvectorfont_not_loadresource(generated):
 
 
 def test_no_font_resource_or_glyph_set_for_the_vector_font(generated):
-    """Plan 11 step 3's own headline fix: a vector font contributes no
+    """A vector font contributes no
     `<font>` resource and no glyph set, because there is no sheet."""
     fonts_xml = generated.files()["resources-fenix8solar47mm/fonts/fonts.xml"]
     assert "bezel" not in fonts_xml
@@ -103,8 +102,7 @@ def test_gate_4_null_check_present_for_every_vector_draw(generated):
 
 def test_every_target_resolves_so_no_available_guard_is_emitted(generated):
     """Every one of this design's three targets (`fenix8solar47mm`/`51mm`/
-    `fr955`) publishes RobotoCondensedBold (plan 11 §1's own verified
-    claim) -- so the plain, unguarded construction form is generated, not
+    `fr955`) publishes RobotoCondensedBold (verified, research 12) -- so the plain, unguarded construction form is generated, not
     the `if (Layout.FONT_BEZEL_AVAILABLE && ...)` one, and no `_AVAILABLE`
     constant is emitted at all ("no guard for a thing every target has")."""
     view = generated.files()["source/VectorTextView.mc"]

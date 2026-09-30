@@ -13,7 +13,7 @@
 #                                    macOS: read in place, like the devices)
 #   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
 #   - the system fonts registry   -> wfb/assets/system-fonts/ (downloaded,
-#                                    hash-checked; docs/plans/09-system-font-metrics.md)
+#                                    hash-checked; docs/research/10-system-fonts.md)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -295,7 +295,7 @@ else
 fi
 
 # One line stating what the absence of a Garmin font root actually *costs*
-# (plan 12 R3.1) -- not just that it is optional. Mirrors garmin_font_root's
+# -- not just that it is optional. Mirrors garmin_font_root's
 # own priority closely enough for a status line: vendor/fonts/ (just handled
 # above) or FONTS_DEST (already installed from a previous run, or placed
 # there by hand) either one means "found".

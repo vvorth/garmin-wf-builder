@@ -46,9 +46,8 @@ def _documented_font_symbols() -> frozenset[str]:
     """The union of every ``FONT_*`` key across every scraped device's
     ``fonts.default.fixed`` table (``docs/research/data/devices/*.json``) --
     22 symbols (``FONT_XTINY`` ... ``FONT_NUMBER_THAI_HOT``, ``FONT_SYSTEM_*``,
-    ``FONT_GLANCE*``, ``FONT_AUX1``/``FONT_AUX2``) at the time plan 17 was
-    written. Gate 2 of :attr:`Device.system_fonts`' third source (plan 17
-    §3): a ``simulator.json`` ``ww`` entry whose derived ``FONT_*`` symbol
+    ``FONT_GLANCE*``, ``FONT_AUX1``/``FONT_AUX2``). Gate 2 of :attr:`Device.system_fonts`'
+    third source: a ``simulator.json`` ``ww`` entry whose derived ``FONT_*`` symbol
     (:meth:`Device._symbol_for_simulator_name`) is *not* in this set is a
     scalable-table-only or simulator-extension name with no ``FONT_*``
     counterpart at all (``glanceFont`` -> ``FONT_GLANCE_FONT``, not the real
@@ -83,7 +82,7 @@ def _sfnt_head_hhea(path: str) -> tuple[int, int, int] | None:
     """``(head.unitsPerEm, hhea.ascent, hhea.descent)`` read directly out of
     the sfnt table directory with :mod:`struct` -- **stdlib only**, so this
     module never needs Pillow/fontTools just to derive a fallback metric for
-    a device the scraped reference has nothing for (plan 17 §3; the module
+    a device the scraped reference has nothing for (the module
     docstring's own "never import Pillow/fontTools" rule stays true).
 
     Parses the offset table (``numTables`` at offset 4, big-endian
@@ -134,15 +133,14 @@ def _locate_garmin_outline_font(filename: str, fonts_root: str | os.PathLike[str
     (`wfb.fonts.fetch_system.garmin_font_root`/`garmin_any_file`), never the
     registry's `ensure()` (no download from inside a device property). A
     located ``.cft`` doesn't qualify: it is Garmin's bitmap container, not a
-    scalable outline this reader's `head`/`hhea` model applies to (plan 17
-    §3 rule 4, plan 10 §2.3's own "no verified model for `.cft` height").
+    scalable outline this reader's `head`/`hhea` model applies to (there is
+    no verified model for `.cft` height).
 
     ``fonts_root`` is the same ``--fonts DIR`` override every other font
     locator takes (:attr:`Device.fonts_root`, passed straight to
     `garmin_font_root`) -- without it, a device with no scraped page (the
     fenix 9 family) derived its metrics from whatever root happened to be
-    installed, never the one a caller actually pointed `--fonts` at
-    (plan 18 item 8).
+    installed, never the one a caller actually pointed `--fonts` at.
 
     **Imported lazily**, not at module level: `wfb.fonts` (the package
     `wfb.fonts.fetch_system` lives in) has its own `__init__` that imports
@@ -207,7 +205,7 @@ class Device:
     #: third (derived) source and by every measuring/drawing caller that
     #: holds a `Device` (`wfb.layout`, `wfb.preview`) -- the one field that
     #: keeps "what a build measured a font with" and "what it drew that
-    #: font with" from ever being two different roots (plan 18 item 8).
+    #: font with" from ever being two different roots.
     fonts_root: str | None = None
 
     # -- geometry ---------------------------------------------------------
@@ -519,11 +517,11 @@ class Device:
     # -- fonts ------------------------------------------------------------
 
     #: The ``simulator.json`` `fontSet` this project measures against --
-    #: worldwide/default, per plan 09 R2.1 (English-only scope, `docs/
+    #: worldwide/default (English-only scope, `docs/
     #: research/10-system-fonts.md` §1).
     _SIMULATOR_FONT_SET = "ww"
 
-    #: Gate 1 of plan 11's four vector-font gates (`docs/research/
+    #: Gate 1 of the four vector-font gates (`docs/research/
     #: 12-vector-fonts.md` §3): the three ``Toybox`` symbols a device needs
     #: before ``Graphics.getVectorFont`` -- and rotated/curved text through
     #: it -- can be used at all. Named here so a caller asks
@@ -539,7 +537,7 @@ class Device:
     DRAW_ANGLED_TEXT_SYMBOL = "Dc.drawAngledText"
     DRAW_RADIAL_TEXT_SYMBOL = "Dc.drawRadialText"
 
-    #: `System.DeviceSettings`' own burn-in flag (plan 14 D1) -- the runtime
+    #: `System.DeviceSettings`' own burn-in flag -- the runtime
     #: half of "is this a burn-in device", checked with `has_field` per
     #: device the same way any other bare field is (never by API level,
     #: CLAUDE.md constraint 6). Present on all four devices research 11 §2
@@ -548,7 +546,7 @@ class Device:
     #: could lack it.
     BURN_IN_FIELD = "requiresBurnInProtection"
 
-    #: `System.getDisplayMode` (plan 14 slice 6, research 11 §6 F/§2) -- the
+    #: `System.getDisplayMode` (research 11 §6 F/§2) -- the
     #: FAQ's own ladder's second rung, checked with `has_symbol` per device
     #: (never by API level): a device can report `requiresBurnInProtection`
     #: (the original-Venu rule) without this newer (5.0.0) method existing
@@ -571,7 +569,7 @@ class Device:
     def _symbol_for_simulator_name(name: str) -> str:
         """``simulator.json`` ``name`` (``"xtiny"``, ``"numberHot"``,
         ``"systemXtiny"``, ...) -> the ``FONT_*`` symbol it corresponds to
-        (plan 09 §4 R2.1's table: ``FONT_XTINY``, ``FONT_NUMBER_HOT``,
+        (``FONT_XTINY``, ``FONT_NUMBER_HOT``,
         ``FONT_SYSTEM_XTINY``). A plain camelCase-to-`SCREAMING_SNAKE_CASE`
         split, prefixed with ``FONT_`` -- every observed name already reads
         as a `FONT_*` symbol's own lowerCamelCase spelling, with no separate
@@ -606,7 +604,7 @@ class Device:
 
     @cached_property
     def scalable_faces(self) -> tuple[str, ...]:
-        """Gates 2 and 3 of plan 11's four vector-font gates (`docs/
+        """Gates 2 and 3 of the four vector-font gates (`docs/
         research/12-vector-fonts.md` §3.1): the device-resident face names
         this device publishes to ``Graphics.getVectorFont``.
 
@@ -631,7 +629,7 @@ class Device:
     @cached_property
     def scalable_face_files(self) -> dict[str, str]:
         """:attr:`scalable_faces`' own ``name`` -> the same ``system_ttf``
-        entry's ``filename`` (plan 11 §4: measuring a resolved vector face
+        entry's ``filename`` (measuring a resolved vector face
         the same way a system font's real file is already located).
         ``name`` is the ``:face`` string an author writes and this device
         publishes (``"RobotoCondensedBold"``); ``filename`` is the on-disk
@@ -774,7 +772,7 @@ class DeviceDatabase:
     #: The ``--fonts DIR`` override every `Device` this database creates is
     #: stamped with (:attr:`Device.fonts_root`) -- one root for the whole
     #: build, so a device's measured metrics and its drawn glyphs can never
-    #: come from two different places (plan 18 item 8).
+    #: come from two different places.
     fonts_root: str | None = None
     _cache: dict[str, Device] = field(default_factory=dict, repr=False)
 

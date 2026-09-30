@@ -1,4 +1,4 @@
-"""The host-side preview renderer, `type: pattern` (plan 05, phase 2b).
+"""The host-side preview renderer, `type: pattern`.
 
 Each test exercises a contrast a broken `PlacedPattern.transform` (or a
 broken draw-order/part-shape branch in `wfb.kinds.pattern.PatternKind.draw_preview`) could fail --
@@ -75,8 +75,7 @@ def _render(write_design, db, bag, body: str, **options):
 
 def _polar(cx: int, cy: int, r: float, degrees: float) -> tuple[int, int]:
     """A pixel at `r` px from `(cx, cy)`, `degrees` clockwise from 12
-    o'clock -- the author convention `docs/plans/05-patterns.md` §5.3 uses
-    for `start_angle`/`start`/`step`, and the same one `arc_span` maps onto
+    o'clock -- the author convention for `start_angle`/`start`/`step`, and the same one `arc_span` maps onto
     Pillow's own (3-o'clock, clockwise) coordinate system."""
     theta = math.radians(degrees)
     return (round(cx + r * math.sin(theta)), round(cy - r * math.cos(theta)))

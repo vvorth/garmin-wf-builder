@@ -1,6 +1,5 @@
 # Vector fonts and `curve:` (docs/guide/fonts.md "Vector (`face:`) fonts", and
-# docs/guide/text.md "`curve:` -- rotated and radial text"; built as plan 11, both slices --
-# git show 35217d1:docs/plans/11-vector-text.md is the design record).
+# docs/guide/text.md "`curve:` -- rotated and radial text").
 #
 # A rugged field-watch dial: twelve numerals turn to sit tangent to their
 # own radius around a compass-style bezel, a wordmark curves along the

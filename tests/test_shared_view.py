@@ -1,4 +1,4 @@
-"""Plan 19 A5: one view and one delegate serve every target, so nothing in
+"""One view and one delegate serve every target, so nothing in
 them may follow whichever device happens to come first.
 
 `wfb.build` resolves each target once and `generate` reuses those faces;

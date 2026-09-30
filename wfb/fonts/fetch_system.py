@@ -5,7 +5,7 @@ Garmin's own system-font files are proprietary and cannot be downloaded
 **free stand-ins**: ``wfb/fonts/registry.json`` maps every system-font name
 this project knows about (an ``exact``/``family``/``substitute`` match, or
 deliberately ``none``) to a pinned, hash-checked, freely-licensed TTF. See
-plan 09 (R1, R1b) and ``docs/research/10-system-fonts.md`` for the mapping
+``docs/research/10-system-fonts.md`` for the mapping
 rationale.
 
 **Standard library only, and no import of the ``wfb`` package or of
@@ -28,7 +28,7 @@ Three groups of functionality:
 * **Garmin's own font files** (:func:`garmin_font_root`,
   :func:`garmin_font_file`, :func:`garmin_cft_file`, :func:`garmin_any_file`)
   -- the user's own licensed copy of Garmin's real fonts, which rank above
-  the registry when present (plan 09 R1b). A ``.cft`` bitmap container is
+  the registry when present. A ``.cft`` bitmap container is
   decoded by :mod:`wfb.fonts.cft`; :func:`locate` puts all of the above
   together into one lookup.
 
@@ -420,13 +420,13 @@ def install(keys: Iterable[str], dest: os.PathLike[str] | str) -> dict[str, bool
 
 
 # ---------------------------------------------------------------------------
-# Garmin's own font files (plan 09 R1b)
+# Garmin's own font files
 # ---------------------------------------------------------------------------
 
 
 def garmin_font_root(override: os.PathLike[str] | str | None = None) -> Path | None:
     """The Garmin SDK Manager's own ``Fonts`` directory. The first existing,
-    non-empty candidate wins, in this order (plan 09 R1b.2, mirroring
+    non-empty candidate wins, in this order (mirroring
     ``wfb.devices.DEFAULT_DEVICE_ROOTS``'s own shape):
 
     1. ``override`` (a CLI ``--fonts``);
@@ -563,7 +563,7 @@ def locate(name: str, face: str | None = None,
 
 
 # ---------------------------------------------------------------------------
-# what a device needs (plan 09 R1.3)
+# what a device needs
 # ---------------------------------------------------------------------------
 
 
@@ -629,6 +629,6 @@ def _first_per_name(pairs: Iterable[tuple[str | None, str | None]],
 
 def all_scraped_device_ids() -> list[str]:
     """Every device id ``docs/research/data/devices/*.json`` has a file for
-    (164 at the time plan 09's research was written) -- what ``--all`` in
+    -- what ``--all`` in
     ``tools/fetch-system-fonts.py`` prefetches fonts for."""
     return sorted(path.stem for path in _SCRAPED_DEVICES.glob("*.json"))

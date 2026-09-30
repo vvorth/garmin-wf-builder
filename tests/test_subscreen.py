@@ -1,4 +1,4 @@
-"""`at: {anchor: subscreen}` (plan 20 D2): an element laid out inside the
+"""`at: {anchor: subscreen}`: an element laid out inside the
 Instinct family's subscreen window, and `if_unavailable: error|hide` on a
 target without one."""
 

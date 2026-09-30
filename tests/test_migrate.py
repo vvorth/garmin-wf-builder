@@ -1,4 +1,4 @@
-"""`wfb migrate`: format 1 -> format 2 (plan 22 §3.4, §4).
+"""`wfb migrate`: format 1 -> format 2.
 
 Each row of the migration table has a test comparing the migrated document's
 *data* with the v2 spelling; comment, quoting and layout survival have their
@@ -495,7 +495,7 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# refusals (§4): each one leaves the file untouched
+# refusals: each one leaves the file untouched
 
 
 def test_refuses_a_static_flag_nested_in_a_group():

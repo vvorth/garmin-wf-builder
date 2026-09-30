@@ -286,8 +286,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `aod: {filled: ...}` on `type: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
   - wearer settings beyond `config:` (booleans, choices) -- decided
-    against, 2026-09-27. The old WIP on `wip/phone-settings` is design
-    reference only. Do not resume it without asking;
+    against, 2026-09-27. Do not revisit it without asking;
   - non-round screens: checked against the simulator skin's visible area
     and (2-colour) palette, `anchor: subscreen` for the Instinct window,
     never seen on a watch; no per-shape `overrides:` — plan 20;

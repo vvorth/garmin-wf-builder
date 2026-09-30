@@ -1,6 +1,5 @@
 """`color_scheme:` and `config: style:` -- the third `config:` axis, riding
-Styles (docs/research/09-data-library-and-config-axes.md §3,
-plan 02 §12.4).
+Styles (docs/research/09-data-library-and-config-axes.md §3).
 
 `config: style:` replaces the earlier `config: colors:` outright (no shim):
 `choices:` is now an author-named, ordered mapping of entry name -> entry,
@@ -38,7 +37,7 @@ resources:
 #: Two schemes, three roles each, all four colours legal on a 64-colour panel
 #: -- the palette-dither tests below build their own off-grid variant.  Two
 #: entries, neither with its own `label:`, so both exercise the label
-#: fallback (§12.4) at the same time -- the generated `<style label=...>`
+#: fallback at the same time -- the generated `<style label=...>`
 #: text comes from `color_scheme.dark`/`color_scheme.light`'s own `label:`.
 SCHEME_BLOCK = """theme:
   schemes:
@@ -440,8 +439,7 @@ config:
 
 
 def test_the_old_config_colors_spelling_is_now_a_schema_error(write_design):
-    """`config: colors:` was removed outright, no shim (plan 02 §12, decision
-    3) -- the old spelling is now an unknown-key schema error, reported on
+    """`config: colors:` was removed outright, no shim -- the old spelling is now an unknown-key schema error, reported on
     the author's own `config:` line, the same as `on_tap:`/`carousel`/bare
     font `scale:` (CLAUDE.md §6)."""
     text = HEAD + """theme:
@@ -505,7 +503,7 @@ def test_config_unsupported_is_suppressible_from_any_one_referencing_element(wri
 
 
 def test_config_unsupported_is_suppressible_from_an_outline_only_user(write_design, db):
-    """Plan 18 item 6: an element that reaches `color.dim` only
+    """An element that reaches `color.dim` only
     through `outline: ...` is a user of it, so its `lint: allow`
     counts -- before, `_users_of` never looked at an outline."""
     text = DESIGN.replace(
@@ -601,7 +599,7 @@ config:
 
 
 def test_duplicate_style_fires_for_two_entries_resolving_the_same_way(write_design, bag):
-    """`check_duplicate_style` is design-level (§12.6), not part of
+    """`check_duplicate_style` is design-level, not part of
     `lint.run`'s per-device checks -- called directly here, the same way
     `resolve_all` calls it, rather than through the `_lint` helper."""
     face = _face(DUPLICATE_STYLE, write_design, bag)
@@ -626,7 +624,7 @@ def test_duplicate_style_is_suppressible_on_the_second_entry(write_design, bag):
 
 def test_duplicate_style_is_suppressible_only_on_the_second_entry(write_design, bag):
     """Suppression lives on the entry that *makes* the pair a duplicate
-    (§12.6) -- putting it on the first entry instead leaves the warning
+    -- putting it on the first entry instead leaves the warning
     live."""
     text = DUPLICATE_STYLE.replace(
         "      dark: { scheme: dark }\n",
@@ -640,7 +638,7 @@ def test_duplicate_style_is_suppressible_only_on_the_second_entry(write_design, 
 
 
 def test_duplicate_style_is_reported_once_across_every_target(write_design, bag):
-    """Design-level, not per-target (§12.6): `check_duplicate_style` runs
+    """Design-level, not per-target: `check_duplicate_style` runs
     once in `resolve_all`, before the per-device loop -- unlike an ordinary
     `lint.run` check, which runs once per resolved device.  `DUPLICATE_STYLE`
     targets all three of this project's devices."""
@@ -663,7 +661,7 @@ def test_duplicate_style_is_reported_once_across_every_target(write_design, bag)
 
 def test_an_unknown_style_entry_lint_code_is_a_lint_allow_error(write_design, bag):
     """`check_lint_allow` validates a `config: style:` entry's own `lint:`
-    the same way it validates an element's (§12.6) -- a typo there must not
+    the same way it validates an element's -- a typo there must not
     fail silently either.  Called directly, the same way `resolve_all` does
     -- `check_lint_allow` is device-independent, not part of `lint.run`."""
     text = DUPLICATE_STYLE.replace(
@@ -799,7 +797,7 @@ config:
 
 def test_labelled_schemes_get_shared_strings(write_design, bag):
     """Both `DESIGN` entries have no `label:` of their own, so both exercise
-    the label fallback (§12.4): the generated `<string>` text is the
+    the label fallback: the generated `<string>` text is the
     `color_scheme:` entry's own `label:`."""
     from wfb.emit.resources import shared_strings
 
@@ -811,7 +809,7 @@ def test_labelled_schemes_get_shared_strings(write_design, bag):
 
 def test_an_entrys_own_label_overrides_the_schemes(write_design, bag):
     """An entry's own `label:` wins over its scheme's -- the fallback only
-    applies when the entry has none of its own (§12.4)."""
+    applies when the entry has none of its own."""
     from wfb.emit.resources import config_resource, shared_strings
 
     text = HEAD + """theme:

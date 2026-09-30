@@ -1,5 +1,5 @@
-# A calibration face for the two *lighter* number system fonts (plan 09
-# docs/plans/09-system-font-metrics.md, step C): FONT_NUMBER_MILD and
+# A calibration face for the two *lighter* number system fonts:
+# FONT_NUMBER_MILD and
 # FONT_NUMBER_MEDIUM. FONT_NUMBER_HOT and FONT_NUMBER_THAI_HOT are in the
 # sibling face `examples/system-fonts/numbers-large/face.yaml` instead --
 # see that face's header for why all four don't fit one screen. Every
@@ -35,13 +35,12 @@
 # run ahead of time against `wfb.devices.Device.system_fonts` and
 # `wfb.fonts.fallback.measure`) -- worked numbers land in
 # `docs/research/10-system-fonts.md` once the user's calibration
-# screenshots come back (plan 09 S7).
+# screenshots come back.
 #
 # How to compare: build and sideload (or run in the simulator with a build
 # from this repo) on a real target, screenshot it, and compare pixel-for-
-# pixel against `wfb preview`'s PNG for the same target -- exactly what
-# plan 09 S7 (docs/plans/09-system-font-metrics.md) asks the user's
-# screenshots to calibrate.
+# pixel against `wfb preview`'s PNG for the same target -- record
+# findings in docs/research/10-system-fonts.md.
 #
 # Build it with:     ./wfb.py build examples/system-fonts/numbers/face.yaml
 # Preview it with:   ./wfb.py preview examples/system-fonts/numbers/face.yaml

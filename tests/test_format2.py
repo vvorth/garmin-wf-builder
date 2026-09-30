@@ -247,7 +247,7 @@ def test_an_aod_template_may_leave_the_placeholder_empty(write_design):
 
 
 # --------------------------------------------------------------------------
-# reserved vocabulary (plan 22 §5): friendly errors, never "unknown key"
+# reserved vocabulary: friendly errors, never "unknown key"
 
 
 @pytest.mark.parametrize("snippet, message", [
@@ -300,7 +300,7 @@ V1_TERMS = re.compile(
     r"'placeholder'|placeholder:|'fallback'|fallback:|'glyph'|glyph:|"
     r"shape: |'shape'|type: shape|type: progress|'progress'|static: true|'hands'|hands:")
 
-#: One erroneous format 2 design per moved or renamed key (plan 22 §8).
+#: One erroneous format 2 design per moved or renamed key.
 MESSAGE_CASES = {
     "absent-missing": "elements:\n  t: {type: text, text: '{heart_rate.current:d}'}\n",
     "absent-placeholder-on-gauge":

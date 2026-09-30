@@ -18,7 +18,7 @@ module Layout {
     const SCREEN_WIDTH as Number = 260;
     const SCREEN_HEIGHT as Number = 260;
 
-    //! Device-resident scalable ('face:') fonts this design draws with (plan 11).
+    //! Device-resident scalable ('face:') fonts this design draws with.
     //!
     //! '_FACE'/'_SIZE' feed Graphics.getVectorFont directly, in onLayout.
     //! '_AVAILABLE' is emitted only for a font at least one target device in

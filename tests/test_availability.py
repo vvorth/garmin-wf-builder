@@ -73,15 +73,15 @@ def test_weather_readers_track_the_weather_module(db):
     `Device.has_module("Weather")` holds, and reported unavailable -- naming
     the right missing symbol -- everywhere it does not.
 
-    Both readers set `Reader.requires_module = "Weather"` (plan 18 item 2),
+    Both readers set `Reader.requires_module = "Weather"`,
     so on a device lacking the whole module the gap `reader_unavailable`
     finds is a `"module"` gap -- one codegen can guard with `Toybox has
     :Weather` -- not a `"function"` gap off `Reader.requires`, which the
     lint reports as an unguardable ERROR. Confirmed by asserting `gap.kind`
     below, not just that a gap exists.
 
-    This is the real contrast plan 14 slice 0's own false-universal
-    (`docs/lore` -- `tests/CLAUDE.md`) was standing in for, and it can
+    This is the real contrast a false-universal test would only stand in
+    for (`tests/CLAUDE.md`), and it can
     actually fail: without both a Weather-having and a Weather-lacking
     installed device, every branch below degrades to "vacuously true",
     which is exactly what happened before `fenix5`/`fenix5x` were
@@ -109,7 +109,7 @@ def test_weather_readers_track_the_weather_module(db):
     assert saw_weather, "no installed device has Toybox.Weather -- the 'available' branch was never exercised"
     assert saw_no_weather, (
         "no installed device lacks Toybox.Weather -- the 'unavailable' branch was never exercised "
-        "(this is exactly the false-universal tests/CLAUDE.md records for plan 14 slice 0)"
+        "(this is exactly the false-universal tests/CLAUDE.md warns about)"
     )
 
 
@@ -392,7 +392,7 @@ def _weather_face(write_design, bag, targets: str):
 
 
 def test_compute_guards_guards_weather_when_fenix5_is_a_target(db, write_design, bag):
-    """Plan 18 item 2: a target lacking `Toybox.Weather` puts the module in
+    """A target lacking `Toybox.Weather` puts the module in
     `Guards.modules`; the complications flag is unrelated and stays off."""
     _skip_unless_installed(db, "fenix5")
     face = _weather_face(write_design, bag, "fenix5, fenix8solar47mm")
@@ -494,7 +494,7 @@ def _generate_weather(write_design, bag, db, tmp_path, targets: str):
 
 
 def test_fenix5_target_gets_the_weather_guards(write_design, bag, db, tmp_path):
-    """Plan 18 item 2: every `Toybox.Weather` reference in the shared view --
+    """Every `Toybox.Weather` reference in the shared view --
     both catalogue readers and a forecast graph's own acquisition -- sits
     behind `Toybox has :Weather`, and reads as null on fenix5."""
     _skip_unless_installed(db, "fenix5")

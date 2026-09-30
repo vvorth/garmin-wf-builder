@@ -1,10 +1,10 @@
-//! Analog hands (plan 04): convert the current time into each hand's own
+//! Analog hands: convert the current time into each hand's own
 //! rotation angle.
 //!
 //! Drawing itself -- turning a hand's build-time-resolved geometry by that
-//! angle, or (for a pattern, plan 05) turning or translating a template's --
+//! angle, or (for a pattern) turning or translating a template's --
 //! lives in WfbGeom.mc, the "one convention, one helper" precedent WfbArc.mc
-//! already set for arcs (plan 05 §6.3).
+//! already set for arcs.
 
 import Toybox.Lang;
 import Toybox.Math;

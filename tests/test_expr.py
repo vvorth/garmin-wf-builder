@@ -179,7 +179,7 @@ def test_percent_of_a_zero_goal_is_zero_not_a_crash(scope):
     assert evaluate(node, {"activity.steps": 100, "activity.step_goal": -5}) == 0.0
 
 
-# -- host/device parity (plan 18 items 3-4) ---------------------------------
+# -- host/device parity ----------------------------------------------------
 #
 # The host half of every function and operator is what constant folding bakes
 # into generated code and what the preview draws, so it must compute exactly

@@ -59,7 +59,7 @@ EXAMPLES = {
     "system-fonts": ("system-fonts/text", [], ((0, 0, 260, 195), SCALE)),
     # The only topic example needing a non-default (AMOLED) device --
     # see EXAMPLE_DEVICE below -- and the only one passing `--aod`, so the
-    # shot shows the restyled sleep frame (plan 14 slice 2), not the awake
+    # shot shows the restyled sleep frame, not the awake
     # design.
     "aod": ("features/aod", ["--aod"], None),
 }

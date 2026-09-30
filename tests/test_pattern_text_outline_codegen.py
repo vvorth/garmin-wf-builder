@@ -1,9 +1,9 @@
-"""`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice 2) --
+"""`outline:` on a pattern's own `shape: text` part --
 layout box growth (one level down from `tests/test_text_outline_layout.py`)
 and codegen (one level down from `tests/test_text_outline_golden.py`).
 
-The one thing genuinely new at this level, beyond "the same mechanism as
-slice 1": a pattern's own per-copy rotation and a part's own `curve:` angle
+The one thing genuinely new at this level, beyond "the same mechanism as a
+standalone element": a pattern's own per-copy rotation and a part's own `curve:` angle
 both already turn the anchor/angle *before* an outline stamp's offset is
 added, so the stamp has to land in screen space -- after both transforms,
 never composed into either -- or the ring would smear as the pattern turns.
@@ -162,12 +162,12 @@ def test_no_outline_pattern_part_box_is_unchanged(write_design, bag, db):
 
 
 def test_off_screen_catches_a_pattern_box_that_only_overflows_once_ringed(write_design, bag, db):
-    """The same D11 contrast slice 1 already proved for a standalone
+    """The same contrast already proved for a standalone
     element (`tests/test_text_outline_layout.py::test_off_screen_catches_
     a_box_that_only_overflows_once_ringed`), one level down: a pattern
     positioned so its plain box fits the framebuffer exactly, but a wide
     ring pushes it over the edge -- `off-screen` fires only once
-    `outline:` is added, with no new lint code (D11)."""
+    `outline:` is added, with no new lint code."""
     elements = (
         """  plain:
     type: pattern

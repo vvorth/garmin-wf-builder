@@ -172,10 +172,7 @@ def test_scaling_a_source_shrinks_its_digit_count():
 
 
 def test_every_time_or_date_code_is_correctly_barrel_scanned():
-    """Plan 19 A3 superseded `Code.helper`/`formatting.helpers`, which this
-    test used to check for internal consistency (plan 18 item 9), with
-    `wfb.emit.usage.barrel_modules` scanning the actual generated text
-    instead. The same protection, aimed at the new function: for every code
+    """`wfb.emit.usage.barrel_modules` scans the actual generated text: for every code
     with an `emit`, whether its own compiled Monkey C calls into `WfbTime`
     is exactly what the scanner finds when handed that text alone -- so a
     future code that starts (or stops) calling `WfbTime` cannot silently

@@ -1,4 +1,4 @@
-"""`wfb.emit.usage` (plan 19 A3): what generated Monkey C actually calls,
+"""`wfb.emit.usage`: what generated Monkey C actually calls,
 read off the emitted text itself rather than re-derived from the IR --
 comment/string stripping, barrel-module detection and its closure over
 runtime-lib, and `Toybox` module detection."""

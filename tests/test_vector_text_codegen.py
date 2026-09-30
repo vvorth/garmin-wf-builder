@@ -1,14 +1,13 @@
-"""Codegen for vector fonts and `curve:` (plan 11 slice 1, step 3).
+"""Codegen for vector fonts and `curve:`.
 
-`tests/test_vector_fonts.py` covers the IR (step 1), `tests/
-test_vector_text_layout.py` covers per-device face resolution and lint
-(step 2); this covers `wfb/emit/**`: `Graphics.getVectorFont` construction
+`tests/test_vector_fonts.py` covers the IR, `tests/
+test_vector_text_layout.py` covers per-device face resolution and lint; this covers `wfb/emit/**`: `Graphics.getVectorFont` construction
 (plain and guarded), the null check (gate 4, never omitted), the
 `dc.drawAngledText`/`dc.drawRadialText` calls with the converted angle and
 justification, direction constants, and the fact that a vector font
 contributes no `<font>` resource or glyph set. `tests/
 test_vector_text_golden.py` pins a full generated file for one design; this
-asserts on the specific shapes plan 11 §3 promises, driven from small
+asserts on the specific shapes vector fonts promise, driven from small
 designs built directly rather than a golden diff, the same
 `tests/test_hands_codegen.py` precedent.
 

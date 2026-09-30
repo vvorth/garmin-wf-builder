@@ -1,4 +1,4 @@
-"""`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice 2) --
+"""`outline:` on a pattern's own `shape: text` part --
 preview rendering, one level down from `tests/test_text_outline_preview.py`.
 
 The property genuinely new at this level (the orchestrator's own brief):

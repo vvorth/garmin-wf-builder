@@ -245,7 +245,7 @@ def check_unreachable_layout(face: Face, bag: Bag) -> None:
 
 
 def check_shared_view_targets(resolved: dict[str, ResolvedFace], bag: Bag) -> None:
-    """One view serves every target (plan 19 A5), so code that only some
+    """One view serves every target, so code that only some
     targets can run is compiled into the rest too. The one such need is the
     AMOLED always-on frame (`Guards.amoled_target`): in a build with both
     AMOLED and MIP targets, every MIP target carries `_aod`, its sleep-hook
@@ -319,7 +319,7 @@ def check_subscreen_availability(
 def check_vector_font_availability(
     face: Face, resolved: dict[str, ResolvedFace], bag: Bag,
 ) -> None:
-    """`if_unavailable:` (plan 11 §2.4) is a cross-device question ("did
+    """`if_unavailable:` is a cross-device question ("did
     gates 1-3 fail on any target?"), so unlike :func:`run`'s per-device
     checks this takes every target's `ResolvedFace` and `wfb.build.
     resolve_all` calls it once, after all of them are resolved.  Layout has
@@ -332,7 +332,7 @@ def check_vector_font_availability(
     design that still asks for a face that will never draw.  The message
     names each failing device and *why* -- gate 1 (the symbol is missing)
     and gates 2/3 (none of the requested faces is published) have different
-    fixes (plan 11 §1), so they are never collapsed.
+    fixes, so they are never collapsed.
 
     **`hide`** draws nothing there: a suppressible warning naming every
     device the carrier will not draw on.
@@ -342,7 +342,7 @@ def check_vector_font_availability(
     window) is left out: :func:`check_subscreen_availability` already says
     it does not draw there.
 
-    A `Text` element and a pattern's `shape: text` part (plan 11 slice 2)
+    A `Text` element and a pattern's `shape: text` part
     go through the same gates, the same `if_unavailable:` precedence (the
     carrier's own value over the font's) and the same wording; a part is
     suppressed through its pattern's `lint:`.
@@ -488,7 +488,7 @@ def _users_of(face: Face, token: str) -> list[Element]:
     dithering is a property of the named colour, and tracing it through
     arbitrary expressions would overclaim what this can verify.
 
-    Reads `Element.color_roles()` (plan 19 A2), which already answers
+    Reads `Element.color_roles()`, which already answers
     "which colours does this element draw" once for every kind -- a
     `hands`/`pattern` element's own `.colors` (every effective part colour,
     already folded at build time), a `text` element's `outline: {color:
@@ -1121,7 +1121,7 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
     The arithmetic is exact; the 3.0 threshold is a judgement call, which is why
     this is a warning and is suppressible.
 
-    **An `outline:`-bearing element or part (plan 15, research 19) is
+    **An `outline:`-bearing element or part (research 19) is
     judged on its ring**, which can fail two ways independently:
 
     * **ring vs. backdrop**, when the interior does not itself read against
@@ -1228,8 +1228,8 @@ def _backdrop_color(resolved: ResolvedFace, placed: Placed) -> Color | None:
 def _backdrops(resolved: ResolvedFace, index: int) -> list[Color]:
     """Every distinct colour behind ``resolved.items[index]``, one per
     (mode, layout) it can be drawn in: the last backdrop drawn before it
-    that is drawn in that same mode and layout, or `palette.bg` when none is
-    (plan 18 item 7). An element with no layout is on screen in every
+    that is drawn in that same mode and layout, or `palette.bg` when none is.
+    An element with no layout is on screen in every
     layout, so it is judged against each one's backdrop; a backdrop with no
     layout is behind every layout's content."""
     element = resolved.items[index].element
@@ -1517,8 +1517,8 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
 
 def check_aod_unreachable(resolved: ResolvedFace, bag: Bag) -> None:
     """An element/group whose own `aod:` (a `show` or an override block) can
-    never draw because an ancestor already wrote an explicit `aod: hide`
-    (plan 14 §3): that hide is sticky and unconditional, so the descendant's
+    never draw because an ancestor already wrote an explicit `aod: hide`:
+    that hide is sticky and unconditional, so the descendant's
     own `aod:` is dead weight the moment it is written, not just a redundant
     duplicate.
 
@@ -1540,7 +1540,7 @@ def check_aod_unreachable(resolved: ResolvedFace, bag: Bag) -> None:
             f"writes 'aod: hide', which hides the whole subtree and cannot "
             f"be undone below it",
             element.span,
-            notes=["plan 14 §3: an explicit 'aod: hide' on a group is sticky "
+            notes=["an explicit 'aod: hide' on a group is sticky "
                    "-- nothing beneath it can turn AOD back on",
                    "delete this element's own 'aod:', or drop the ancestor's "
                    "'aod: hide'"],
@@ -1550,7 +1550,7 @@ def check_aod_unreachable(resolved: ResolvedFace, bag: Bag) -> None:
 
 def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
     """D2: a face whose target is AMOLED but whose resolved `aod:` set is
-    empty -- the face default is `hide` (D2), so an unconverted design
+    empty -- the face default is `hide`, so an unconverted design
     silently ships a blank always-on frame on every AMOLED target unless an
     element opts back in. Garmin treats an absent always-on view as a defect
     on such a device, not a stylistic choice (research 11 §1.3).
@@ -1584,7 +1584,7 @@ def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
     )
 
 
-# -- burn-in (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8) ----------
+# -- burn-in (research 11 §6 D, ADR 0008 check 8) ---------------------------
 
 #: Garmin's 10% rule (research 11 §1.2) has two different bases depending on
 #: device generation -- the original Venu counts **lit pixels**, Venu 2 and
@@ -1596,7 +1596,7 @@ def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
 #: specific generation's own rule.
 AOD_BURN_IN_THRESHOLD = 0.10
 
-#: Two worst-case sample clocks (plan 14 slice 4 §2), not an exhaustive scan
+#: Two worst-case sample clocks, not an exhaustive scan
 #: of all 1,440 minutes -- that is what the simulator's own Screen Heat Map
 #: is for (research 11 §1.5), and it is unreachable in this environment
 #: (root `CLAUDE.md` §3). "10:08" and "20:08" between them draw a 24-hour
@@ -1608,11 +1608,10 @@ AOD_BURN_IN_SAMPLE_TIMES: tuple[tuple[int, int, int], ...] = ((10, 8, 0), (20, 8
 
 #: Full battery, so a `progress`/`graph` element bound to `system.battery`
 #: is measured at its own worst case too -- every other sample value stays
-#: `wfb.preview.SAMPLE`'s own default (plan 14 slice 4 §2: "whatever sample
-#: values wfb preview uses by default").
+#: `wfb.preview.SAMPLE`'s own default.
 AOD_BURN_IN_SAMPLE: dict[str, object] = {"system.battery": 100.0}
 
-#: How many top contributors the diagnostic names (plan 14 slice 4 §3).
+#: How many top contributors the diagnostic names.
 _AOD_BURN_IN_TOP_N = 3
 
 
@@ -1678,7 +1677,7 @@ def _aod_burn_in_measure(image: Image.Image,
     (WCAG-style: Rec. 709 primaries over sRGB-degamma'd channels) across
     the same pixels, already a 0-1 fraction of full white by construction
     (`relative_luminance()` of pure white is exactly `1.0`). Garmin's own
-    integral is unpublished (plan 14 §8, research 11 §5) -- this is a
+    integral is unpublished (research 11 §5) -- this is a
     stated, reused choice (the same formula the contrast lint already
     uses), not a claim of matching Garmin's firmware bit for bit.
     """
@@ -1716,11 +1715,11 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     (`wfb.preview.render`), at device resolution, so it can never disagree
     with the author's own preview.  **Worst case, not every frame:** the
     worse of `AOD_BURN_IN_SAMPLE_TIMES` with `AOD_BURN_IN_SAMPLE`.  With the
-    pixel mask on (plan 16), each sample is rendered unmasked and scored
+    pixel mask on, each sample is rendered unmasked and scored
     under all 4 phases (`wfb.aod_mask.apply`) -- every phase recurs every
     hour, so the worst one counts, not the sampled minute's own.
 
-    **Attribution (plan 14 slice 4 §3):** each AOD-shown leaf is rendered
+    **Attribution:** each AOD-shown leaf is rendered
     alone (`resolved.items` narrowed to it -- geometry is already absolute)
     at the worst time and phase; the top contributors are named and the
     diagnostic is anchored at the biggest one's line.
@@ -1796,7 +1795,7 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
         "share; Venu 2+: luminance share), since the device files do not say which generation "
         "a target is",
         (
-            "the moving pixel mask (aod: {mask: ...}, on by default, plan 16) guarantees no "
+            "the moving pixel mask (aod: {mask: ...}, on by default) guarantees no "
             "pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by "
             "construction -- this still cannot see any minute or data value but the sampled "
             "ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md"
@@ -2229,7 +2228,7 @@ def _same_provable_color(a: Expression | None, b: Expression | None) -> bool:
     A palette reference's constant *is* its resolved colour, so this covers
     "same palette role" and "equal literals" at once.  A `config.*` colour
     or a data-conditional has no constant and is never provably equal
-    (plan 15: provably equal at build time, not "probably matches").
+    (provably equal at build time, not "probably matches").
     """
     if a is None or b is None:
         return False
@@ -2240,10 +2239,10 @@ def _same_provable_color(a: Expression | None, b: Expression | None) -> bool:
 
 def _outlined_interiors(element: Element) -> list[Expression | None]:
     """Every interior colour this element draws under a ring: a `text`
-    element's own, or one per outlined `shape: text` part of a pattern
-    (plan 15 §14 slice 2).  `[]` for any kind that cannot have one.
+    element's own, or one per outlined `shape: text` part of a pattern.
+    `[]` for any kind that cannot have one.
 
-    Derived from `Element.color_roles()` (plan 19 A2): the ink colour of
+    Derived from `Element.color_roles()`: the ink colour of
     every label that also has a `"ring"` role -- the same pairing
     `PatternElement.color_roles()` already makes per part, and the one a
     plain `Text` makes for itself, both under one label-keyed lookup here
@@ -2270,7 +2269,7 @@ def _outlined_interiors(element: Element) -> list[Expression | None]:
 
 def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     """`outline:`'s interior pass paints over whatever is beneath it -- it
-    does not reveal it (research 14 §6.4, plan 15 §3/§7).  Fires when an
+    does not reveal it (research 14 §6.4).  Fires when an
     outlined element's (ring-grown) box may overlap (:func:`_may_overlap`)
     an **earlier-drawn** element's, unless that overlap is provably
     invisible: repainting a pixel in the colour it already is changes
@@ -2290,8 +2289,8 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
 
     Draw order is already final in `resolved.items`, so every earlier
     overlapping element is a candidate (unlike `static-overlap`, which only
-    looks at hoisted pairs).  Box-level, and element-level for a pattern
-    (D10).  A suppressible WARNING.
+    looks at hoisted pairs).  Box-level, and element-level for a pattern.
+    A suppressible WARNING.
     """
     drawn = [p for p in resolved.items if p.kind != "group"]
     for index, later in enumerate(drawn):

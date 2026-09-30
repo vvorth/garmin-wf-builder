@@ -13,13 +13,13 @@ Loaded automatically when working under `tests/`.
   example lints clean on every target: intended rim contact and platform
   gaps are accepted per element with `lint: {allow: [...], reason: ...}`.
   `test_hands_*.py` assert against `examples/features/analog/`, which is the
-  generated plan-04 design and is kept that way; the user's hand-tuned copy
+  generated analog-hands design and is kept that way; the user's hand-tuned copy
   is `examples/analog-custom/`. A red test here is a real regression.
 
   `test_availability.py::test_an_ordinary_reader_is_available_everywhere_installed`,
   `test_devices.py::test_every_target_has_weather_and_solar_intensity` and
   `test_font_registry.py::test_every_installed_ww_filename_resolves_or_is_unmapped`
-  were once known failures (plan 14 slice 0, 2026-09-23): `fenix847mm`'s
+  were once known failures (2026-09-23): `fenix847mm`'s
   incremental device install also installed `enduro3`, `fenix5`, `fenix5x`,
   `fenix947mm`, `vivoactive4` and `vivoactive4s` in the same pass (root
   `CLAUDE.md` §2), surfacing that `fenix5`/`fenix5x` (ConnectIQ 3.1.6)

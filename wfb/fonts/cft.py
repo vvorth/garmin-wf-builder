@@ -58,7 +58,7 @@ Everything in the container is big-endian::
   exist. Ported faithfully from the reference, but with a byte-array output
   writer and a small bounded bit accumulator rather than the reference's
   approach of shifting one Python-scale big integer -- the naive port grows
-  quadratically on a large glyph (plan 10 §3 A.1's warning); this
+  quadratically on a large glyph; this
   implementation is linear in the glyph's pixel count.
 * **40-byte header**: glyph data may be zlib-compressed. At the glyph-data
   offset, a first u32 of ``0xCD00000D`` (3439329293) means "skip 4, then a
@@ -110,8 +110,8 @@ class Glyph:
 class CftFont:
     """A decoded `.cft` font. Build with :func:`load`, never directly.
 
-    All fields but the leading-underscore ones are the public API
-    (plan 10 §3 A.1). Decoded glyphs are cached by the module-level
+    All fields but the leading-underscore ones are the public API.
+    Decoded glyphs are cached by the module-level
     :func:`_decode_glyph_cached`, keyed on
     ``(path, glyph_index)`` -- this dataclass stays frozen and holds no
     mutable cache of its own.

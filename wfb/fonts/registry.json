@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "comment": "Free-font stand-ins for Garmin's system fonts (docs/plans/09-system-font-metrics.md R0, docs/research/10-system-fonts.md). Resolution order: names (exact) -> patterns (ordered, first match wins) -> faces (last resort, keyed by the scraped device-reference 'face' column). 'unmapped' lists faces/names deliberately left unresolved (CJK/Thai/Arabic/Hebrew/Armenian-only, or scalable-only supplementary faces never exposed via a FONT_* symbol) -- see docs/research/10-system-fonts.md.",
+  "comment": "Free-font stand-ins for Garmin's system fonts (docs/research/10-system-fonts.md). Resolution order: names (exact) -> patterns (ordered, first match wins) -> faces (last resort, keyed by the scraped device-reference 'face' column). 'unmapped' lists faces/names deliberately left unresolved (CJK/Thai/Arabic/Hebrew/Armenian-only, or scalable-only supplementary faces never exposed via a FONT_* symbol) -- see docs/research/10-system-fonts.md.",
   "sources": {
     "roboto-condensed-bold": {
       "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",

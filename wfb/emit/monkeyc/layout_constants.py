@@ -36,8 +36,8 @@ def _emit_constants(w: Writer, constants: Constants) -> None:
 
 
 def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") -> Constants:
-    """The `Layout` constants for one used `face:` (vector) font, by name
-    (plan 11 §3) -- `FONT_<NAME>_FACE`/`_SIZE` always, `_AVAILABLE` only
+    """The `Layout` constants for one used `face:` (vector) font, by name:
+    `FONT_<NAME>_FACE`/`_SIZE` always, `_AVAILABLE` only
     when `guards.vector_fonts` says at least one *target* device in this
     build fails to resolve it (`wfb.emit.monkeyc.view._emit_on_layout`'s
     guarded construction reads it; the plain form does not, and the
@@ -123,8 +123,7 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
         if vector_fonts:
             w.blank()
             w.doc(
-                "Device-resident scalable ('face:') fonts this design draws with "
-                "(plan 11).\n"
+                "Device-resident scalable ('face:') fonts this design draws with.\n"
                 "\n"
                 "'_FACE'/'_SIZE' feed Graphics.getVectorFont directly, in onLayout.\n"
                 "'_AVAILABLE' is emitted only for a font at least one target device in\n"
@@ -248,7 +247,7 @@ def aod_thickness_constant(prefix: str,
                            | PlacedPattern,
                            note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
-    overrides `thickness:` (plan 14 §4.2) -- the codegen ternary at the draw
+    overrides `thickness:` -- the codegen ternary at the draw
     call site falls back to the plain `_THICKNESS` constant otherwise."""
     if placed.aod_thickness is None:
         return []
@@ -256,7 +255,7 @@ def aod_thickness_constant(prefix: str,
 
 
 #: One override, applied uniformly to every part of a hands/pattern element
-#: (plan 14 §5.1) -- not one constant per part.
+#: -- not one constant per part.
 EVERY_PART_NOTE = "aod: thickness override, applied to every part"
 
 
@@ -281,7 +280,7 @@ def hand_part_constants(
     ``"template"`` for a pattern, which has only the one), folded into
     that comment.
 
-    A text part's own `curve: {style: radial}` (plan 11 slice 2) adds one
+    A text part's own `curve: {style: radial}` adds one
     more constant, `_RADIUS`, the device-dependent circle radius -- the
     same reason a standalone `curve: {style: radial}` `text` element's own
     `PlacedText` gets one (`wfb.kinds.text.TextKind.layout_constants`).

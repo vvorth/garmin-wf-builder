@@ -27,11 +27,10 @@ def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
 class AodPass(HandParts):
     """`aod:` reading and resolution."""
 
-    # -- always-on display (`aod:`, plan 14) --------------------------------
+    # -- always-on display (`aod:`) -----------------------------------------
 
     def _build_face_aod(self, raw: dict[str, Any]) -> None:
-        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), `mask:`
-        (plan 16 §4)."""
+        """Top-level `aod:`: `default:`, `dim:`, `mask:`."""
         self.face_aod_default_hide = raw.get("default", "hide") == "hide"
         lint = _lint_suppression(raw)
         self.face_aod_lint_allow = lint["lint_allow"]
@@ -49,14 +48,14 @@ class AodPass(HandParts):
         both an element's own block (`_build_aod_authored`,
         `wfb.kinds.text.TextKind.build`) and a key it inherits from a group
         (`_resolve_aod`) are checked
-        against, so the two cannot drift (plan 18 item 5).  Each kind's own
+        against, so the two cannot drift.  Each kind's own
         refusal rule lives on its `ElementKind.aod_refusal` method."""
         if kind is None or kind not in kinds.names():
             return None
         return kinds.get(kind).aod_refusal(key, shape, literal_text)
 
     def _build_aod_authored(self, node: dict[str, Any]) -> tuple[bool, dict[str, object] | None]:
-        """Parse one element/group's own `aod:` (plan 14 §2.1) into
+        """Parse one element/group's own `aod:` into
         ``(hide, keys)``: ``hide`` is `True` only for the literal `aod: hide`;
         ``keys`` is `None` when nothing but that was written (or nothing at
         all), or the resolved key -> value dict an `aod: show` (`{}`) or an
@@ -106,8 +105,7 @@ class AodPass(HandParts):
                     self.bag.error(
                         "aod",
                         f"{element_id}: an 'aod: {{font: ...}}' override "
-                        f"naming a 'face:' (vector) font is not implemented yet "
-                        f"(plan 14)",
+                        f"naming a 'face:' (vector) font is not implemented yet",
                         self.doc.span(raw, "font"),
                         notes=[f"{resolved[0]!r} is declared with 'face:', not 'source:' "
                                "-- name a baked font instead, or drop the override "
@@ -151,7 +149,7 @@ class AodPass(HandParts):
         )
 
     def _resolve_aod(self, elements: list[Element]) -> None:
-        """Resolve `aod:` over the whole tree (plan 14 §3): element wins key
+        """Resolve `aod:` over the whole tree: element wins key
         by key over its nearest ancestor group's own `aod:`, which wins over
         the face's `aod: default:`.
 
@@ -176,7 +174,7 @@ class AodPass(HandParts):
         against the same per-kind refusals its own block would get
         (`aod_refusal`), because only here has a group's key reached the
         element: one error per element, on the element, naming the group,
-        and the key is dropped (plan 18 item 5).
+        and the key is dropped.
         """
         def visit(items: list[Element], forced_hidden: bool,
                  nearest: dict[str, object] | None, nearest_from: Element | None) -> None:

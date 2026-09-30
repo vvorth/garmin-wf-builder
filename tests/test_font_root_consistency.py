@@ -1,5 +1,4 @@
-"""Plan 18 item 8: `wfb preview --fonts DIR` used to measure with one font
-and draw with another.
+"""`wfb preview --fonts DIR` must measure and draw with the same font.
 
 `--fonts` used to reach only `PreviewOptions.fonts_root` (`wfb/cli.py`,
 `wfb/preview.py`'s own `_system_face`); everything that *measures* --
@@ -95,8 +94,8 @@ elements:
 def test_layout_measures_with_the_database_fonts_root(write_design, tmp_path):
     """A `DeviceDatabase` built with a `fonts_root` override must resolve a
     text element's width from *that* file, not the default root's stand-in
-    -- the exact contrast plan 18 item 8 names: layout measured with one
-    font while (before the fix) drawing used another.
+    -- the exact contrast that matters: layout measured with one font
+    while drawing used another.
     """
     default_db = _default_db()
     _require_override_face()
@@ -138,7 +137,7 @@ _GARMIN_FONTS_DIR = Path.home() / ".Garmin" / "ConnectIQ" / "Fonts"
 
 
 def test_fenix9_gets_derived_metrics_only_through_the_database_root():
-    """`fenix947mm` has no scraped reference page at all (plan 17), so its
+    """`fenix947mm` has no scraped reference page at all, so its
     system-font metrics can only come from the third, derived source --
     which needs a real `.ttf` under *some* Garmin font root. The session-
     wide `WFB_NO_GARMIN_FONTS=1` (`tests/conftest.py`) makes the ordinary

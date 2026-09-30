@@ -145,7 +145,7 @@ class ReadPlan:
                 readers = self._dedupe_readers(self._per_element[placed.id], readers)
             self._readers_for_mode[mode] = readers
 
-        # `aod` (plan 14): not a `modes:` membership at all -- the resolved
+        # `aod`: not a `modes:` membership at all -- the resolved
         # `aod:` set (`Element.aod is not None`). Needs the readers every
         # aod-drawn element's own method already needs (the same per-element
         # call the active frame makes), plus whatever `aod:
@@ -174,8 +174,8 @@ class ReadPlan:
         """Ids of every drawn (non-group) element/part-owner whose resolved
         `aod:` is not `None`, in resolved draw order -- the set `_emit_mode_
         body`'s aod branch calls, exactly the same per-element methods the
-        active branch calls, unrestyled (plan 14 slice 1; restyling is
-        slice 2)."""
+        active branch calls, unrestyled (restyling happens at each draw
+        call, `AodStyle`)."""
         return list(self._aod_ids)
 
     def complication_readers(self) -> list[str]:
@@ -313,7 +313,7 @@ class ReadPlan:
     @staticmethod
     def _value_expressions(element: Element) -> tuple[Expression, ...]:
         """Which of an element's bound expressions its `when_absent:`
-        policy governs -- `element.VALUE_ROLES` (plan 19 A2): `{value}` for
+        policy governs -- `element.VALUE_ROLES`: `{value}` for
         a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
         on both together -- one nullable reading is as absent as the other,
         from the fraction's own point of view, which is also why

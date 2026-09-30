@@ -416,7 +416,7 @@ def test_a_stale_copy_is_ignored_and_replaced(_isolated):
 
 
 # ---------------------------------------------------------------------------
-# Garmin font root discovery (plan 09 R1b)
+# Garmin font root discovery
 # ---------------------------------------------------------------------------
 
 

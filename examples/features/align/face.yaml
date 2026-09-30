@@ -1,13 +1,13 @@
-# `align:` (docs/guide/placement.md "Placement: `at:` and `align:`",
-# plan 07): every accepting kind, with non-default alignment on both axes,
+# `align:` (docs/guide/placement.md "Placement: `at:` and `align:`"):
+# every accepting kind, with non-default alignment on both axes,
 # on one legible analog face rather than a test dump.
 #
 # The face is a classic hour/minute dial with a ring of tick marks and hour
 # numerals, and four small readouts at the diagonals (NE/SE/SW/NW) -- exactly
 # where a real Garmin face puts its complications. Each readout's box is
 # anchored at its diagonal point and aligned to grow *away* from the centre,
-# towards the bezel, rather than being centred on the point the way every
-# element was before plan 07 -- which is what makes the four diagonals cover
+# towards the bezel, rather than being centred on the point (the default)
+# -- which is what makes the four diagonals cover
 # all four corner alignments for free:
 #
 #   NE (up-right):   align: bottom_left   -- grows right + up
@@ -124,7 +124,7 @@ resources:
           # `at: {dy: 0}` + `align: bottom`: the box's bottom edge
           # sits on the axis, so the rectangle runs from the axis to the tip
           # without computing `dy: -length/2` by hand (docs/guide/placement.md
-          # "Analog hands", plan 07 phase D).
+          # "Analog hands").
           - type: rectangle
             at: { dy: 0 }
             align: bottom

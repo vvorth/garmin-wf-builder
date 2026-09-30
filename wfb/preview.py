@@ -141,7 +141,7 @@ class PreviewOptions:
     skin: bool = False
 
 
-#: `SystemFace.match` levels a stand-in warning is owed (plan 12 R1.3):
+#: `SystemFace.match` levels a stand-in warning is owed:
 #: `"garmin"` and `"exact"`/`"family"` all draw the *same letterforms* the
 #: device does -- the installed root, or a free release of the very same
 #: (or, for `family`, a closely related) typeface -- so only `"substitute"`
@@ -832,7 +832,7 @@ class Renderer:
                 image.paste(tint, (int(round(pen)), int(round(top))), mask)
             pen += advance
 
-    # -- vector fonts / curve: (plan 11) -----------------------------------
+    # -- vector fonts / curve: ---------------------------------------------
 
     def draw_vector_text(
         self, text: str, anchor_point: tuple[int, int], align: str, vertical_align: str,

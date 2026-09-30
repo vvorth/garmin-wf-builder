@@ -1,8 +1,8 @@
-"""Pattern text parts (plan 06 §3): a `type: pattern` template part with
+"""Pattern text parts: a `type: pattern` template part with
 `shape: text` -- upright glyphs whose anchor turns (radial) or steps
-(linear) with the copy.  This is phase B1 (`docs/plans/06-pattern-text-and-
-group-align.md` §5): schema, IR, layout, `glyph_set` and the glyph lint --
-not the barrel or codegen (B2) and not the preview (B3).
+(linear) with the copy: schema, IR, layout, `glyph_set` and the glyph lint --
+not the barrel or codegen (`test_pattern_text_codegen.py`) and not the
+preview (`test_pattern_text_preview.py`).
 
 Every diagnostic here was driven red first, `tests/CLAUDE.md`'s own
 discipline: run against the violating input below with the corresponding
@@ -57,9 +57,8 @@ def ring(part_yaml: str, count: int = 4, extra: str = "") -> str:
 
 
 #: The reference text part: twelve copies, `(copy + 11) % 12 + 1` -- copy 0
-#: draws "12", copy 1 draws "1", ... copy 11 draws "11" -- the exact example
-#: `docs/plans/06-pattern-text-and-group-align.md` §3.1 gives for a clock
-#: face's hour numerals.
+#: draws "12", copy 1 draws "1", ... copy 11 draws "11" -- a clock face's
+#: hour numerals.
 HOURS = """  hours:
     type: pattern
     pattern: radial
@@ -133,7 +132,7 @@ def test_value_reading_a_palette_reference_is_one_error(write_design, bag):
 
 def test_value_reading_a_data_source_is_one_error(write_design, bag):
     """A data source, not just palette: the same rule, a different kind of
-    non-`copy` reference (§3.3 check 2)."""
+    non-`copy` reference."""
     part_yaml = """      - type: text
         text: "{activity.steps}"
         at: {dy: -50px}
@@ -278,7 +277,7 @@ def test_radial_text_box_is_the_union_of_every_drawn_copy(resolved_for):
 
 
 def test_radial_reach_accounts_for_the_upright_text_box(resolved_for):
-    """Upright text is not rotation-invariant (plan 06 §3.4): `reach` has to
+    """Upright text is not rotation-invariant: `reach` has to
     be at least the `at:` radius plus half the text's own height, not just
     the bare 50px a rotation-invariant shape would report."""
     resolved = resolved_for(design(LAYOUT_RING))
@@ -312,13 +311,13 @@ def test_linear_text_anchor_steps_by_dx(resolved_for):
     assert anchors == [(cx, cy), (cx + 30, cy), (cx + 60, cy)]
 
 
-# -- half-up rounding (D5) ----------------------------------------------------
+# -- half-up rounding ---------------------------------------------------------
 
 
 def test_pattern_text_anchor_rounds_half_up_not_to_even_or_away_from_zero():
     """Plan §3.2 D5: `floor(v + 0.5)`, not Python's banker's `round()` and
     not `_round_away`'s half-away-from-zero -- picked so the device's own
-    `(v + 0.5).toNumber()` (`runtime-lib/WfbGeom.mc`, phase B2) matches this
+    `(v + 0.5).toNumber()` (`runtime-lib/WfbGeom.mc`) matches this
     exactly. `x = 2.5` rounds up to 3 (`round(2.5)` would give 2, banker's
     rounding to even); `y = -0.5` rounds up to 0 (`_round_away(-0.5)` would
     give -1, rounding away from zero)."""

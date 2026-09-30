@@ -1,4 +1,4 @@
-"""`Element.bound_expressions()`/`.color_roles()` (plan 19 A2): one place
+"""`Element.bound_expressions()`/`.color_roles()`: one place
 that tags "which expression is this" and "which colours does this element
 draw", read by `ReadPlan`/`Builder._hold_auto_sources`/the absence checks
 and by `wfb.lint`'s palette-declaration and contrast checks respectively,

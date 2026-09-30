@@ -22,7 +22,7 @@ from ..series import SeriesDef
 from ..units import Angle, Length
 from .naming import _pascal, config_field, font_resource_id
 
-#: `always_on` was removed outright (plan 14 D3): the AMOLED sleep frame is
+#: `always_on` was removed outright: the AMOLED sleep frame is
 #: `aod:` now, not a mode to opt an element into. `modes:` means only the two
 #: MIP partial-update modes.
 MODES = ("active", "low_power")
@@ -66,7 +66,7 @@ GROUP_KEYS: dict[str, str] = {
     "overrides": "refused",
 }
 
-#: `Element.bound_expressions()` role tags (plan 19 A2): what a compiled
+#: `Element.bound_expressions()` role tags: what a compiled
 #: expression *is*, not just that it exists.  Each is read by exactly the
 #: downstream logic named on it, so a role is added here once, not
 #: re-derived per reader:
@@ -224,7 +224,7 @@ class Expression:
 @dataclass
 class FontSpec:
     """One `fonts:` entry -- a **baked** bitmap sheet (`source:`) or a
-    **vector** device-resident face (`face:`, plan 11).  The two are
+    **vector** device-resident face (`face:`).  The two are
     mutually exclusive and jointly required (`schema/wfb-face-2.schema.json`
     `$defs/font`'s own `oneOf`), so exactly one of `source`/`face` is set on
     any `FontSpec` that reaches the IR -- see :attr:`is_baked`/:attr:`is_vector`,
@@ -255,7 +255,7 @@ class FontSpec:
     #: **Baked only.** Where a glyph's ink sits inside that shared cell.
     #: Meaningless, and therefore an error, without :attr:`monospace`.
     align: str = "center"
-    #: **Vector only** (plan 11 §2.1): candidate device-resident face names,
+    #: **Vector only**: candidate device-resident face names,
     #: in author order.  Resolved per device to the one face it publishes
     #: (`wfb.availability.vector_font_face`) -- never Garmin's own runtime
     #: array fallback, which would leave the build unable to say which face
@@ -299,7 +299,7 @@ class FontSpec:
 
 @dataclass(frozen=True)
 class Curve:
-    """`curve:` on a `text` element (plan 11 §2.2) -- bends the text along a
+    """`curve:` on a `text` element -- bends the text along a
     straight line (`style: angled`, `Dc.drawAngledText`) or around a circle
     (`style: radial`, `Dc.drawRadialText`).  Both calls refuse a resource
     font outright ("These APIs only support scalable fonts and do not
@@ -337,7 +337,7 @@ class Outline:
 
 @dataclass(frozen=True)
 class AodOverride:
-    """The resolved `aod:` override for one element (plan 14 §2-§3): element
+    """The resolved `aod:` override for one element: element
     wins key by key over its nearest ancestor group's own `aod:`, which wins
     over the face's `aod: default:` -- `Builder._resolve_aod`.
     `Element.aod` is `None` when the element is hidden in AOD; a drawn
@@ -345,8 +345,8 @@ class AodOverride:
     unrestyled".  Each value is resolved by the same machinery as the
     element's own property of that name.
 
-    `hands`/`pattern`: `color`/`thickness` apply uniformly to every part
-    (§5.1); there is no per-part override.
+    `hands`/`pattern`: `color`/`thickness` apply uniformly to every part;
+    there is no per-part override.
     """
 
     color: Expression | None = None
@@ -375,7 +375,7 @@ class AodOverride:
 @dataclass(frozen=True)
 class ColorRole:
     """One colour an element draws with, tagged with what role it plays
-    (`Element.color_roles()`, plan 19 A2): `wfb.lint`'s palette-declaration
+    (`Element.color_roles()`): `wfb.lint`'s palette-declaration
     and contrast checks read this instead of separately deciding "which
     colours does this element draw" (`_users_of`/`_contrast_subjects`/
     `_outlined_interiors` were three separate answers to that question
@@ -401,7 +401,7 @@ class ColorRole:
 def aod_color_choice(aod: AodOverride | None, key: str, dim_set: bool) -> tuple[str, Expression | None]:
     """The one decision behind an AOD-shown colour role (`color`/
     `track_color`/`icon_color`, or a `hands`/`pattern` part's own colour
-    under the element-level override -- plan 14 §4.2/§4.5, plan 19 A1):
+    under the element-level override):
     this element's own `aod:` override for ``key`` wins if it set one;
     else, when the face has an `aod: {dim: ...}` at all, the awake colour
     is dimmed; else the awake colour is unchanged.
@@ -719,7 +719,7 @@ class ConfigDataSlot:
 @dataclass
 class Element:
     #: The `bound_expressions()` roles a `when_absent:` policy on this kind
-    #: governs (plan 19 A2) -- `{ROLE_VALUE}` for `Text`, `{ROLE_VALUE,
+    #: governs -- `{ROLE_VALUE}` for `Text`, `{ROLE_VALUE,
     #: ROLE_MAX}` for `Progress`, empty for every other kind, which has no
     #: `when_absent:` field at all.  `ReadPlan._value_expressions` reads
     #: this directly; `Builder._hold_auto_sources` does not (see
@@ -844,8 +844,8 @@ class Element:
         return []
 
     def bound_expressions(self) -> list[tuple[str, Expression]]:
-        """Every compiled expression on this element, tagged with its role
-        (plan 19 A2), `visible:` included.
+        """Every compiled expression on this element, tagged with its role,
+        `visible:` included.
 
         Kind-specific roles come from :meth:`_own_roles`; this wrapper
         appends `(ROLE_VISIBLE, visible)` itself, so a subclass only ever
@@ -871,8 +871,8 @@ class Element:
         return []
 
     def color_roles(self) -> list["ColorRole"]:
-        """Every colour this element draws with, one :class:`ColorRole` each
-        (plan 19 A2): its own ink/track/icon colours, a `Text`'s outline
+        """Every colour this element draws with, one :class:`ColorRole` each:
+        its own ink/track/icon colours, a `Text`'s outline
         ring, and its resolved `aod:` override's colours -- in that order.
         `wfb.lint`'s palette-declaration and contrast checks read this
         instead of separately deciding "which colours does this element
@@ -1137,7 +1137,7 @@ class HandsElement(Element):
         give each colour than the element that draws them all.  A `hands`
         element accepts no `track_color:`/`icon_color:` at all, so those
         roles never apply here; its `outline:` ring and its resolved `aod:`
-        override (`color`/`thickness` uniformly, plan 14 §5.1 -- no
+        override (`color`/`thickness` uniformly -- no
         `track_color`/`icon_color` key even reaches this element's
         `AodOverride`) still do.
         """
@@ -1531,10 +1531,10 @@ class Face:
     #: `aod: lint:` -- suppresses a face-level AOD lint (`aod-empty`).
     aod_lint_allow: frozenset[str] = frozenset()
     aod_lint_reason: str | None = None
-    #: `aod: dim:` luminance scale for the AOD frame (plan 14 §4.5); `None`
+    #: `aod: dim:` luminance scale for the AOD frame; `None`
     #: for both "absent" and `dim: 1`, so the generated source is identical.
     aod_dim: float | None = None
-    #: `aod: mask:` (plan 16) -- the moving 2x2 pixel mask over the AOD
+    #: `aod: mask:` -- the moving 2x2 pixel mask over the AOD
     #: frame; on unless `mask: false`.
     aod_mask: bool = True
 

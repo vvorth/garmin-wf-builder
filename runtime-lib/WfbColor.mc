@@ -4,8 +4,8 @@ import Toybox.Lang;
 module WfbColor {
 
     //! Scale one packed 0xRRGGBB colour's channels by num/den, rounded to
-    //! the nearest integer, for the AOD frame's `aod: {dim: ...}` (plan 14
-    //! slice 3, docs/guide/always-on-display.md).
+    //! the nearest integer, for the AOD frame's `aod: {dim: ...}`
+    //! (docs/guide/always-on-display.md).
     //!
     //! Used only for a colour whose value is not known at build time -- a
     //! `config.colors.<role>` field read, or a conditional between several

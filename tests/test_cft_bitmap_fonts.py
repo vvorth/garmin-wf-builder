@@ -27,7 +27,7 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 #: The synthetic font's file stem -- deliberately `FNT_`-prefixed, matching
-#: a real bitmap `FONT_*` symbol's own file naming (plan 10 §2.1), though
+#: a real bitmap `FONT_*` symbol's own file naming, though
 #: nothing here depends on the prefix specifically (an exact-stem match is
 #: `garmin_any_file`'s first `.cft` try either way; see
 #: `tests/test_system_fonts_fetch.py` for the prefix-guessing fallback).

@@ -1,4 +1,4 @@
-"""Plan 17: derived `FONT_*` metrics for a device the SDK's scraped device
+"""Derived `FONT_*` metrics for a device the SDK's scraped device
 reference has no page for at all (the fenix 9 family -- `fenix947mm`,
 `fenix9prosolar47mm`, `fenix9prosolar51mm`).
 
@@ -125,8 +125,7 @@ def test_a_symbol_outside_the_vocabulary_is_not_added(tmp_path, monkeypatch):
     monkeypatch.setenv("WFB_FONTS", str(fonts_root))
 
     # "glanceFont" -> FONT_GLANCE_FONT, which is not in the 22-symbol
-    # vocabulary (the real symbol is FONT_GLANCE) -- plan 17 §3 rule 2's own
-    # example.
+    # vocabulary (the real symbol is FONT_GLANCE).
     assert "FONT_GLANCE_FONT" not in _documented_font_symbols()
     device = _device(ppi=326, ww_entries=[
         {"name": "glanceFont", "filename": "OpenSans-Regular", "size": 20, "type": "ttf"},

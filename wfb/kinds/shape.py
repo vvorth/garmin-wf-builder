@@ -93,7 +93,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
 
 
 def _shape_filled_override(element: Shape, aod: AodStyle) -> bool:
-    """Does this shape's resolved `aod:` flip `filled:` (plan 14 §4.2) --
+    """Does this shape's resolved `aod:` flip `filled:` --
     `True` only when this build ever emits AOD code, an override exists, and
     it actually differs from the awake `filled:`; a same-valued override
     changes nothing and is not worth a runtime branch.
@@ -121,7 +121,7 @@ def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
     ``override`` (`_shape_filled_override`), wrap both in
     ``if (_aod) { <opposite> } else { <awake> }`` -- the "changes the draw
     call itself, not just an argument" shape `filled: true -> false`
-    deserves (plan 14 §1). The `else` branch is byte-identical to what the
+    deserves. The `else` branch is byte-identical to what the
     element would have emitted with no `filled` override at all, so a
     design that never overrides `filled:` sees no change here.
     """
@@ -137,7 +137,7 @@ def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
 def _needs_thickness_constant(element: Shape) -> bool:
     """Does this `shape` need a `_THICKNESS` `Layout` constant at all -- the
     plain unfilled-outline case, or an `aod: {filled: false}` override on an
-    otherwise-filled shape (plan 14 §4.2), which needs a pen width for the
+    otherwise-filled shape, which needs a pen width for the
     AOD-only outline draw even though the awake draw never did.  `line`/`arc`
     always need one regardless (there is no `filled` concept there), so
     neither call site of this helper is reached for them.
@@ -149,7 +149,7 @@ def _needs_thickness_constant(element: Shape) -> bool:
 
 
 #: The shapes whose `outline:` ring is one grown copy of the primitive
-#: (plan 23 D2): the dilation of a filled circle is a circle `w` larger, and
+#: (research 19): the dilation of a filled circle is a circle `w` larger, and
 #: of a filled rectangle a rounded rectangle `w` larger on every side with
 #: its corner radius grown by `w`.  Every other shape is stamped -- an
 #: ellipse's offset curve is not an ellipse, a stroke's or an arc's ends are
@@ -494,7 +494,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                   value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         """The primitive's `Dc` call, after its `outline:` ring when it has
-        one (research 19, plan 23 D2): a filled circle or rectangle grows
+        one (research 19): a filled circle or rectangle grows
         one copy of itself -- exactly its dilation -- and every other shape
         is stamped at the ring's offsets, the exact dilation of the drawn
         pixels.  With `ring`, only the ring is drawn."""
@@ -580,7 +580,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             if placed.ring_grow:
                 # Its 1px ring (research 19): the polygon shifted to each of
                 # the four points 1px away, at build time -- four native
-                # fills and no loop on the watch (§4.6).
+                # fills and no loop on the watch.
                 for index, (dx, dy) in enumerate(RING_OFFSETS):
                     shifted = ", ".join(f"[{x + dx}, {y + dy}]" for x, y in placed.points)
                     out.append((

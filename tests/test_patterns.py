@@ -1,4 +1,4 @@
-"""Patterns (plan 05): `type: pattern` templates, drawn repeatedly -- turned
+"""Patterns: `type: pattern` templates, drawn repeatedly -- turned
 about a centre (`pattern: radial`) or stepped along a line (`pattern:
 linear`).
 
@@ -45,7 +45,7 @@ def design(elements_block: str) -> str:
 
 
 #: A four-copy radial ring -- 90deg apart, the default step -- used as the
-#: "everything builds" fixture and as the geometry fixture below (§4).
+#: "everything builds" fixture and as the geometry fixture below.
 RADIAL_RING = """  ring:
     type: pattern
     pattern: radial
@@ -217,7 +217,7 @@ def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
 
 @pytest.mark.parametrize("shape,reason", [
     ("ellipse", "rotated or translated ellipse"),
-    # "text" left this table 2026-09-15 (plan 06 §3): a pattern text part's
+    # "text" left this table 2026-09-15: a pattern text part's
     # glyphs are upright, only the anchor rotates/steps, so it is a real,
     # drawable shape now -- see tests/test_pattern_text.py. A hand part still
     # rejects it outright (a bitmap font really cannot rotate) -- covered by
@@ -664,7 +664,7 @@ def test_percent_and_pt_are_rejected_in_a_part_length(write_design, bag, length)
     assert face is None
     assert len(bag.errors) == 1, bag.render()
     assert "px or %r only" in bag.errors[0].message
-    # Worded for a pattern, not borrowed from hands (plan 18 item 9).
+    # Worded for a pattern, not borrowed from hands.
     assert "hand" not in bag.errors[0].message
     assert "pattern part" in bag.errors[0].message.split(";")[1]
 
@@ -710,7 +710,7 @@ def test_default_radial_step_is_360_over_count(write_design, bag):
 
 def test_radial_transform_turns_a_12_oclock_point_to_3_oclock(resolved_for):
     """Copy 1 is 90deg clockwise (the default step for 4 copies): a point
-    straight up from the axis lands to its right (§5.3)."""
+    straight up from the axis lands to its right."""
     placed = find(resolved_for(design(RADIAL_RING)), "ring")
     assert isinstance(placed, PlacedPattern)
     ox, oy, sin_t, cos_t = placed.transform(1)
@@ -891,7 +891,7 @@ def test_pattern_step_does_not_fire_for_a_radial_pattern(lint_run):
     assert findings == []
 
 
-# -- barrel selection (§6.5 dispatch) -------------------------------------------
+# -- barrel selection -----------------------------------------------------------
 
 
 ALL_ARC_RING = """  segs:
