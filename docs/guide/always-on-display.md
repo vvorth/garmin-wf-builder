@@ -60,7 +60,7 @@ the only ink, a fraction of the lit pixels solid digits take:
 ```yaml
 clock:
   type: text
-  text: "{time.clock}"
+  text: "{time.clock:%H:%M}"
   color: color.white
   aod:
     color: color.black              # the interior -- invisible on the black AOD frame
@@ -152,6 +152,7 @@ elements:
       hr:
         type: data
         slot: top
+        color: color.fg
         aod: show            # has no effect -- warns: aod-unreachable
 ```
 
@@ -204,12 +205,12 @@ aod:
 elements:
   clock:
     type: text
-    text: "{time.clock}"
+    text: "{time.clock:%H:%M}"
     color: color.white
     aod: {color: color.white}     # explicit -- never dimmed
   date:
     type: text
-    text: "{time.date}"
+    text: "{date.today:%a %e %b}"
     color: color.white
     aod: show                      # dimmed to 60% -- no override of its own
 ```

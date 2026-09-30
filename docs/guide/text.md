@@ -38,6 +38,7 @@ elements:
     type: pattern
     pattern: radial
     count: 12
+    color: color.fg
     parts:
       - type: text
         text: "{(copy + 11) % 12 + 1}"

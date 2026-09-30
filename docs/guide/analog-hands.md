@@ -237,10 +237,10 @@ entry, the same way any other widget switches (see
 
 ```yaml
 layouts:
-  classic: {elements: {hands: {type: hands, set: classic}}}
+  classic: {elements: {classic_hands: {type: hands, set: classic}}}
   sport:
     elements:
-      hands: {type: hands, set: sport}
+      sport_hands: {type: hands, set: sport}   # ids are face-wide: one name per layout
 config:
   style:
     default: classic_dark
