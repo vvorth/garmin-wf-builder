@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""Extract a per-device capability database from the Connect IQ SDK's offline docs.
+"""Extract the per-device reference from the Connect IQ SDK's offline docs.
 
 Source of truth: ``$CIQ_SDK/doc/docs/Device_Reference/<id>.html``, which ships
-inside the SDK zip and is therefore version-pinned to the SDK release (9.2.0).
+inside the SDK zip and is therefore version-pinned to the SDK release. The
+output is derived data, never committed: ``tools/setup-env.sh`` (and the
+Dockerfile) regenerate it into ``.cache/device-reference/`` whenever it is
+missing or the SDK changes. ``wfb.devices`` reads it for the facts a device's
+own ``compiler.json``/``simulator.json`` omit -- the real palette size and the
+per-font pixel metrics -- and ``wfb.fonts.fetch_system`` for font names.
 
-This is Phase 0 research instrumentation, not framework code. It exists to
-produce the capability matrix; the eventual ``devices/`` package will likely
-prefer the richer ``compiler.json`` / ``simulator.json`` files that the SDK
-Manager downloads per device, which we do not currently have (they sit behind
-an authenticated Garmin endpoint -- see docs/research/03-toolchain.md).
+Output: ``<out>/devices/<id>.json`` per device, ``<out>/devices-index.json``,
+and ``<out>/source.txt`` naming the SDK it was extracted from.
 
 Usage:
-    python3 tools/research/extract_device_db.py --sdk ~/ciq/sdks/9.2.0 \
-        --out docs/research/data
+    python3 tools/extract-device-reference.py --sdk ~/ciq/sdks/9.2.0
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 from html import unescape
 from pathlib import Path
@@ -202,7 +204,8 @@ def parse_device(path: Path) -> dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sdk", default=os.environ.get("CIQ_SDK", ""))
-    ap.add_argument("--out", default="docs/research/data")
+    ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent
+                                         / ".cache" / "device-reference"))
     args = ap.parse_args()
 
     ref = Path(args.sdk).expanduser() / "doc" / "docs" / "Device_Reference"
@@ -211,14 +214,19 @@ def main() -> int:
         return 1
 
     out = Path(args.out).expanduser()
-    (out / "devices").mkdir(parents=True, exist_ok=True)
+    # Built beside the target and swapped in whole, so a device dropped from
+    # a newer SDK leaves no stale file and an interrupted run leaves the old
+    # reference intact.
+    staging = out.with_name(out.name + ".tmp")
+    shutil.rmtree(staging, ignore_errors=True)
+    (staging / "devices").mkdir(parents=True)
 
     devices = []
     for path in sorted(ref.glob("*.html")):
         if path.stem.lower() == "overview":
             continue
         dev = parse_device(path)
-        (out / "devices" / f"{dev['id']}.json").write_text(
+        (staging / "devices" / f"{dev['id']}.json").write_text(
             json.dumps(dev, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         devices.append(dev)
@@ -227,9 +235,12 @@ def main() -> int:
         {"id": d["id"], "name": d.get("name", ""), **d.get("normalized", {})}
         for d in devices
     ]
-    (out / "devices-index.json").write_text(
+    (staging / "devices-index.json").write_text(
         json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+    (staging / "source.txt").write_text(f"{ref.resolve()}\n", encoding="utf-8")
+    shutil.rmtree(out, ignore_errors=True)
+    staging.rename(out)
     print(f"parsed {len(devices)} devices -> {out}")
     return 0
 

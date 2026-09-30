@@ -75,7 +75,11 @@ Manager's own SDK, devices and fonts in place instead), the developer key at
 `~/.Garmin/ConnectIQ/Devices/`, the Nerd Fonts icon font at
 `wfb/assets/icons/` (downloaded and hash-checked by
 `tools/fetch-icon-font.py`; **not committed**, so a fresh clone needs it before
-anything with an icon validates), `CIQ_SDK` and `PATH` in
+anything with an icon validates), the SDK device reference at
+`.cache/device-reference/` (extracted from the SDK's own device pages by
+`tools/extract-device-reference.py`; **derived and not committed**, rebuilt
+when missing or the SDK changes, and `wfb` refuses to load devices without
+it), `CIQ_SDK` and `PATH` in
 `/etc/sandbox-persistent.sh`, and `.venv/`. On Debian/Ubuntu, `venv` needs
 `python3-venv`, or the script falls back to `uv`. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device

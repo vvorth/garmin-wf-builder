@@ -19,7 +19,7 @@ These are the findings that shaped every decision. Full detail and citations in
    assume 128 KB.** 131 072 B — one sixth of the 786 432 B the same hardware
    gives a watch app — is the *most common* value, not the rule. Across the
    **136 of 164** documented devices that can run a watch face at all
-   (computed over `docs/research/data/devices/*.json`, SDK 9.2.0):
+   (computed over `.cache/device-reference/devices/*.json`, SDK 9.2.0):
 
    | limit | devices |
    |---|---|

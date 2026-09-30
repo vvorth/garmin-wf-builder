@@ -6,6 +6,7 @@
 tests/golden/
 docs/research/probes/
 docs/research/data/
+.cache/
 vendor/
 build/
 examples/**/assets/

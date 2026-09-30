@@ -20,3 +20,5 @@ vendor/
 # The icon font is fetched in the image build, never copied from the host.
 wfb/assets/icons/SymbolsNerdFont-Regular.ttf
 wfb/assets/icons/LICENSE-nerd-fonts.txt
+# The SDK device reference is extracted from the SDK in the image build.
+.cache/

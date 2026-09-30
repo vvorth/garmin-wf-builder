@@ -31,7 +31,8 @@ from typing import Callable, TextIO
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import BuildResult, Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
-from .devices import Device, DeviceDatabase, DeviceError, FontMetric
+from .devices import (DEVICE_REFERENCE, Device, DeviceDatabase, DeviceError,
+                      DeviceReferenceMissing, FontMetric)
 from .diagnostics import Bag
 from .lint import MemoryStats
 
@@ -950,6 +951,13 @@ def _doctor(args: argparse.Namespace) -> int:
 
     print(f"{ok if SCHEMA_PATH.exists() else missing} schema           {SCHEMA_PATH}")
 
+    # -- the SDK device reference (generated from the SDK, never committed) --
+    have_reference = DEVICE_REFERENCE.is_dir()
+    print(f"{ok if have_reference else missing} device reference {DEVICE_REFERENCE.parent}")
+    if not have_reference:
+        fail("generate the SDK device reference",
+             "run tools/setup-env.sh, or python3 tools/extract-device-reference.py")
+
     # -- the icon font ----------------------------------------------------
     have_icons = icons.FONT_PATH.is_file()
     print(f"{ok if have_icons else missing} icon font        {icons.FONT_PATH}")
@@ -1014,6 +1022,8 @@ def _doctor(args: argparse.Namespace) -> int:
         print(f"{ok} devices          {len(ids)} installed: {', '.join(ids[:4])}"
               f"{' ...' if len(ids) > 4 else ''}")
         hint(str(db.root))
+    except DeviceReferenceMissing:
+        print(f"{absent} devices          not checked: the device reference above is missing")
     except DeviceError:
         print(f"{missing} devices")
         fail("install the device definitions",

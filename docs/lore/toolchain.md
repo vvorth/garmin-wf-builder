@@ -208,6 +208,7 @@ why each part matters:
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
+| SDK device reference | `.cache/device-reference/` | Derived, never committed: `tools/extract-device-reference.py` scrapes the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 164 on SDK 9.2.0). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `tools/fetch-system-fonts.py` prefetches, so it is generated before the fonts. Rebuilt only when missing or when `source.txt` names a different SDK; regenerating it on 9.2.0 is byte-identical. `wfb` refuses to load devices without it (`DeviceReferenceMissing`). |
 | System-font registry stand-ins | `wfb/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `tools/fetch-system-fonts.py`. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
 | Python venv | `.venv/` | `ruamel.yaml`, `jsonschema`, `pillow`, `fonttools`, `pytest`. |

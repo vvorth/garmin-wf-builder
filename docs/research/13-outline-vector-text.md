@@ -64,7 +64,7 @@ here (root `CLAUDE.md` §3), so nothing below was *observed on screen*.
   primitives". The docs never say they apply to text. That turns out to be
   half-wrong for the engine (§2.3), and irrelevant for apps (§3).
 - **The font catalogues hold no outline faces.** Across all 164 devices'
-  scalable-font catalogues (`docs/research/data/devices/*.json`,
+  scalable-font catalogues (`.cache/device-reference/devices/*.json`,
   `fonts.*.scalable`) there are 41 distinct face/file pairs. None is an outline
   or hollow design. The closest are the `-Outdoor` cuts (`Roboto-Medium-Outdoor`
   and others, on 7 devices), which are heavier, high-legibility variants, not
@@ -260,5 +260,5 @@ text on other grounds: use `disc-perimeter`, not `square8`.
 - `$CIQ_SDK/bin/simulator` (SDK 9.2.0, Linux): addresses above, method and
   scripts in `docs/research/probes/outline-text-re/`
 - `~/.Garmin/ConnectIQ/Devices/*/simulator.json`,
-  `docs/research/data/devices/*.json`: font catalogues
+  `.cache/device-reference/devices/*.json`: font catalogues
 - `docs/research/11-always-on-display.md` §1.4, `docs/research/12-vector-fonts.md`

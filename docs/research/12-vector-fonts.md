@@ -170,7 +170,7 @@ scraping:
    `RobotoCondensedRegular`, `RobotoCondensedRegularItalic`, `BionicSemiBold`,
    plus nine CJK/Thai/Arabic/Hebrew/Armenian faces.
 
-2. **The scraped device reference** (`docs/research/data/devices/<id>.json`,
+2. **The scraped device reference** (`.cache/device-reference/devices/<id>.json`,
    all 164 devices): `fonts.default.scalable` is a dict whose **keys** are
    exactly those `:face` names, each with the `face`/`font` columns from
    Garmin's published table.
@@ -551,6 +551,6 @@ unaffected, since the framebuffer really is rectangular.
 | `getVectorFont` signature, API 4.2.1, supported-device list | `$CIQ_SDK/doc/Toybox/Graphics.html`; `$CIQ_SDK/doc/Toybox/Graphics/VectorFont.html`; `$CIQ_SDK/bin/api.debug.xml` |
 | `#face:size` layout syntax, `hasTTFontSupport` | `monkeybrains.jar`, `com/garmin/monkeybrains/resourcecompiler/fonts/TTFont.class`; `com/garmin/connectiq/common/devices/Device.supportsTTFont` |
 | face vocabulary and runtime discovery | `$CIQ_SDK/samples/TrueTypeFonts/` |
-| per-device faces | `~/.Garmin/ConnectIQ/Devices/<id>/simulator.json` (`type: "system_ttf"`); `docs/research/data/devices/<id>.json` (`fonts.default.scalable`) |
-| 44/136, face counts | computed over `docs/research/data/devices/*.json` |
+| per-device faces | `~/.Garmin/ConnectIQ/Devices/<id>/simulator.json` (`type: "system_ttf"`); `.cache/device-reference/devices/<id>.json` (`fonts.default.scalable`) |
+| 44/136, face counts | computed over `.cache/device-reference/devices/*.json` |
 | all measurements | `docs/research/probes/vector-fonts/` |

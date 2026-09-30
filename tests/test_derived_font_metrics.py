@@ -18,8 +18,8 @@ disk needed -- `system_fonts` only reads `self.simulator`/`self.compiler`
 and the module-level scraped-fonts directory keyed by `self.id`), the same
 "construct what no installed device can" move `tests/test_build.py::
 test_a_device_below_the_manifest_floor_is_a_friendly_build_error` already
-uses. A fake id is chosen so it never collides with a real scraped
-`docs/research/data/devices/<id>.json`.
+uses. A fake id is chosen so it never collides with a real SDK
+device-reference entry.
 """
 
 from __future__ import annotations

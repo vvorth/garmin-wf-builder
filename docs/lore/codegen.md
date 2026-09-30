@@ -276,7 +276,7 @@ These cost real time to discover; do not rediscover them.
   2026-09-23): a third source, stdlib `struct` only, that never touches a
   scraped device.** Three installed devices (`fenix947mm`,
   `fenix9prosolar47mm`, `fenix9prosolar51mm`) have no
-  `docs/research/data/devices/<id>.json` at all, so `Device.system_fonts`'
+  `.cache/device-reference/devices/<id>.json` at all, so `Device.system_fonts`'
   first two loops leave them empty and every `text` element degraded to
   "not checked" -- `wfb preview` drew no system-font text on them either.
   A third loop derives `size_px` for the 9 standard `FONT_*` symbols

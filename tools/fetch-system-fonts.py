@@ -4,8 +4,8 @@ devices need.
 
 Each device's needed font *names* come from its installed
 `simulator.json`'s `ww` font set when the device definitions are installed,
-else from the scraped default-language table in
-`docs/research/data/devices/<id>.json` (`wfb/fonts/fetch_system.py`'s
+else from the default-language table in the SDK device reference,
+`.cache/device-reference/devices/<id>.json` (`wfb/fonts/fetch_system.py`'s
 `device_needed_names`). Each name is resolved to a `wfb/fonts/registry.json`
 font-key (`resolve`) and downloaded/hash-checked/cached
 (`wfb/fonts/fetch_system.py`'s `install`), landing in `wfb/assets/system-fonts/`
@@ -21,7 +21,7 @@ any other dependency installed. `tools/fetch-icon-font.py` is the same shape.
 
 With no `--device`, prefetches for this project's three build targets
 (`fetch_system.DEFAULT_TARGET_DEVICES`). `--all` prefetches for every device
-`docs/research/data/devices/` has a scraped file for, not just the three
+the SDK device reference has a file for, not just the three
 targets. `WFB_FONTS_MIRROR` overrides every source URL's host, for a mirror
 (`wfb/fonts/fetch_system.py`'s `_mirrored`).
 

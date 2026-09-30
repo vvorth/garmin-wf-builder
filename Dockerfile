@@ -70,11 +70,11 @@ COPY tools/fetch-icon-font.py /tmp/fetch-icon-font.py
 # it, and that module loads registry.json the same way, so all three are
 # copied preserving the same relative layout as the repo.  The device
 # definitions are not here (they mount at run time), so the needed font names
-# come from the scraped tables under docs/research/data/devices/ -- without
-# them the script finds nothing to fetch, exits 0 and creates no directory.
-COPY tools/fetch-system-fonts.py /tmp/tools/fetch-system-fonts.py
+# come from the SDK device reference, extracted from the SDK just downloaded
+# into the same relative place (.cache/device-reference/) -- without it the
+# script finds nothing to fetch, exits 0 and creates no directory.
+COPY tools/fetch-system-fonts.py tools/extract-device-reference.py /tmp/tools/
 COPY wfb/fonts/fetch_system.py wfb/fonts/registry.json /tmp/wfb/fonts/
-COPY docs/research/data/devices/ /tmp/docs/research/data/devices/
 
 RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
@@ -87,10 +87,13 @@ RUN set -eux; \
     WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" \
         python /tmp/fetch-icon-font.py /opt/icons; \
     rm /tmp/fetch-icon-font.py; \
+    python /tmp/tools/extract-device-reference.py --sdk /opt/ciq; \
+    test -n "$(ls -A /tmp/.cache/device-reference/devices)"; \
+    cp -R /tmp/.cache/device-reference /opt/device-reference; \
     WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \
         python /tmp/tools/fetch-system-fonts.py /opt/system-fonts; \
     test -n "$(ls -A /opt/system-fonts)"; \
-    rm -rf /tmp/tools /tmp/wfb /tmp/docs
+    rm -rf /tmp/tools /tmp/wfb /tmp/.cache
 
 
 # ---------------------------------------------------------------------------
@@ -146,11 +149,11 @@ COPY runtime-lib/ ./runtime-lib/
 COPY schema/ ./schema/
 COPY examples/ ./examples/
 COPY tests/ ./tests/
-# The device-reference scrape: the only source for each panel's real palette size
+# The SDK device reference: the only source for each panel's real palette size
 # (64 colours, not the 256 that bitsPerPixel implies) and for per-device
-# system-font pixel metrics.  Without it the palette and text-overflow lints
-# degrade to "not checked" -- correct, but weaker than they need to be.
-COPY docs/research/data/devices/ ./docs/research/data/devices/
+# system-font pixel metrics.  Extracted from the SDK in the stage above; wfb
+# refuses to load devices without it.
+COPY --from=sdk /opt/device-reference/ ./.cache/device-reference/
 COPY pytest.ini wfb.py README.md ./
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

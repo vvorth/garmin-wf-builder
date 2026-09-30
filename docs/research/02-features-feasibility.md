@@ -388,7 +388,7 @@ pick automatically and fall back where a device lacks vector support.
 The device reference pages give, for every device *and every language*, each
 `FONT_*` symbol's face, **pixel size**, and underlying font file — e.g. on
 `fenix8solar47mm` for Korean, `FONT_XTINY` is NanumGothic-Bold at 21 px,
-`FONT_MEDIUM` at 38 px. Extracted into `docs/research/data/devices/*.json`.
+`FONT_MEDIUM` at 38 px. Extracted into `.cache/device-reference/devices/*.json`.
 
 This means **the compiler can predict text extents at build time** without
 running the device, which makes "does this label overflow its slot on this

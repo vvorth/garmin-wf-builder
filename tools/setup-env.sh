@@ -305,6 +305,26 @@ else
     echo "preview fidelity: stand-in typefaces for any face the registry has no exact match for; see wfb doctor"
 fi
 
+# --------------------------------------------- SDK device reference ---------
+# Derived data, never committed: extracted from the SDK's own
+# doc/docs/Device_Reference pages into .cache/device-reference/. wfb reads each
+# panel's palette size and per-font pixel metrics from it, and the system-fonts
+# step below reads which font names each device needs. Regenerated only when
+# missing or extracted from a different SDK (source.txt names the one it came
+# from).
+say "SDK device reference"
+REF_DEST="${REPO_ROOT}/.cache/device-reference"
+REF_SRC="$(cd "${SDK_ROOT}/doc/docs/Device_Reference" 2>/dev/null && pwd -P || true)"
+if [ -z "${REF_SRC}" ]; then
+    echo "ERROR: no doc/docs/Device_Reference in ${SDK_ROOT}; the device reference is extracted from it." >&2
+    exit 1
+fi
+if [ -f "${REF_DEST}/source.txt" ] && [ "$(cat "${REF_DEST}/source.txt")" = "${REF_SRC}" ]; then
+    echo "up to date: $(count "${REF_DEST}/devices") devices, from ${REF_SRC}"
+else
+    "${PY}" "${REPO_ROOT}/tools/extract-device-reference.py" --sdk "${SDK_ROOT}"
+fi
+
 # -------------------------------------------------------- icon font ---------
 say "icon font"
 "${PY}" "${REPO_ROOT}/tools/fetch-icon-font.py"

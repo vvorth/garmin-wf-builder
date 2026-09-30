@@ -2,8 +2,8 @@
 
 Scope: every
 ``(face, font)`` pair in the *default* language's ``fixed`` and ``scalable``
-tables of every device in ``docs/research/data/devices/*.json`` (164 devices
-at the time this was written -- ``wfb.devices.Device.system_fonts`` reads
+tables of every device in the SDK device reference (``wfb.devices.
+DEVICE_REFERENCE``; ``wfb.devices.Device.system_fonts`` reads
 this same ``fonts["default"]["fixed"]`` key, see ``wfb/devices.py``), plus
 every ``filename`` in the ``fontSet == "ww"`` entry of every *installed*
 device's ``~/.Garmin/ConnectIQ/Devices/<id>/simulator.json`` (13 devices when
@@ -34,7 +34,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_PATH = ROOT / "wfb" / "fonts" / "registry.json"
-SCRAPED_DEVICES = ROOT / "docs" / "research" / "data" / "devices"
+SCRAPED_DEVICES = ROOT / ".cache" / "device-reference" / "devices"
 SIMULATOR_ROOTS = (
     Path.home() / ".Garmin" / "ConnectIQ" / "Devices",
     Path.home() / "Library" / "Application Support" / "Garmin" / "ConnectIQ" / "Devices",

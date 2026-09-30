@@ -13,14 +13,14 @@ slots the wearer changes individually.
 not a plan. §3–§12 give the model. §13 maps it onto what `wfb` already
 builds. §14 lists the gaps that would each need a plan and a user decision.
 Every fleet or platform claim is marked **VERIFIED** (the device database
-`data/devices/*.json`, the installed device files, the SDK, or the code at
+`.cache/device-reference/devices/*.json`, the installed device files, the SDK, or the code at
 the cited path) or **UNVERIFIED**.
 
 ---
 
 ## 1. The fleet, measured
 
-Across the 136 face-capable devices in `data/devices/*.json` (VERIFIED; the
+Across the 136 face-capable devices in `.cache/device-reference/devices/*.json` (VERIFIED; the
 normalised fields come from `$CIQ_SDK/doc/docs/Device_Reference/<id>.html`):
 
 | Axis | Distribution |

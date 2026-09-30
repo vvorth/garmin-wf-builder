@@ -162,8 +162,8 @@ def test_with_the_root_absent_the_registry_path_is_used(monkeypatch):
 
 
 def test_device_system_fonts_carries_the_simulator_filename_for_a_bitmap_entry():
-    """`fenix6`'s own scraped `FONT_MEDIUM` (`docs/research/data/devices/
-    fenix6.json`, no Garmin device install needed to read it) names
+    """`fenix6`'s own scraped `FONT_MEDIUM` (its SDK device reference
+    entry, no Garmin device install needed to read it) names
     `FENIX6_CDPG_ROBOTO_24B` -- no `FNT_` prefix. A bitmap `simulator.json`
     `ww` entry (no `type` key at all) must still replace it with the
     installed device's own filename (plan §3 B.1's decision), the same way

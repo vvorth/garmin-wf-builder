@@ -28,7 +28,7 @@ this script does not download anything):
    installed devices) that has both a point ``size`` and the device has a
    top-level ``ppi``, and whose ``filename`` resolves (via
    ``wfb/fonts/registry.json``) to a font-key backed by an actually-downloaded
-   TTF, compares the *scraped* ``docs/research/data/devices/<id>.json``
+   TTF, compares the *scraped* ``.cache/device-reference/devices/<id>.json``
    ``size_px`` for the matching ``FONT_*`` symbol against
    ``round(em * (asc - desc) / upm)`` computed from that TTF -- independent of
    whatever ``height``/``ascent``/``descent`` the device file itself reports.
@@ -56,7 +56,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 REGISTRY_PATH = ROOT / "wfb" / "fonts" / "registry.json"
-SCRAPED_DEVICES = ROOT / "docs" / "research" / "data" / "devices"
+SCRAPED_DEVICES = ROOT / ".cache" / "device-reference" / "devices"
 SIMULATOR_ROOTS = (
     Path.home() / ".Garmin" / "ConnectIQ" / "Devices",
     Path.home() / "Library" / "Application Support" / "Garmin" / "ConnectIQ" / "Devices",

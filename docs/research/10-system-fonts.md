@@ -16,8 +16,8 @@ files in this repository, or against an actually-downloaded font) or
 **VERIFIED.** There are two independent places a device's system-font names
 come from, and they are not the same vocabulary:
 
-1. **The scraped SDK device reference**, `docs/research/data/devices/*.json`
-   (164 device files, produced by `tools/research/extract_device_db.py`).
+1. **The scraped SDK device reference**, `.cache/device-reference/devices/*.json`
+   (164 device files, produced by `tools/extract-device-reference.py`).
    `fonts` is keyed by a comma-joined language list (e.g.
    `"ara,bul,ces,...,eng,..."`) plus a literal `"default"` key — confirmed by
    reading `fenix8solar47mm.json`'s `fonts` keys directly. `wfb.devices.
@@ -166,7 +166,7 @@ numbers win over the predicted ones.
 of check 1 (which trusts the device file's own `ascent`/`descent`/`height`
 when present), this check instead predicts `size_px` purely from `size`
 (points) + device `ppi` + the downloaded TTF's own hhea, and compares
-against the **scraped** `docs/research/data/devices/<id>.json`
+against the **scraped** `.cache/device-reference/devices/<id>.json`
 `fonts.default.fixed.<FONT_*>.size_px` for the matching symbol — a
 different data source entirely from the device's own `ascent/descent/
 height` fields used in check 1. Restricted to `ww` entries (13 devices)
