@@ -76,11 +76,10 @@ a genuinely different family's letterforms (`wfb.fonts.fallback`'s own
 `"substitute"`/`"none"` match levels). `wfb preview` names exactly which
 fonts this happened to, once per run, on stderr; `wfb doctor` reports the
 same thing as one line next to the root it did or did not find. `--fonts
-DIR` on either command points at a root without installing it system-wide
-(plan 12 R1/R3). On `wfb preview`, that one root reaches layout measurement
+DIR` on either command points at a root without installing it system-wide.
+On `wfb preview`, that one root reaches layout measurement
 and every lint that depends on it too, not only the pixels drawn (`Device.
-fonts_root`, owned by the `DeviceDatabase` the command builds -- plan 18
-item 8): a box is always sized from the same file it is then drawn with.
+fonts_root`, owned by the `DeviceDatabase` the command builds): a box is always sized from the same file it is then drawn with.
 
 **Platforms.** `setup-env.sh` runs on Linux and macOS (`uname -s`). On Linux
 it downloads the Linux SDK and copies devices and fonts into
@@ -163,7 +162,7 @@ wfb/                  the compiler
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
-  fonts/registry.json   device font name -> free-font-key mapping (docs/research/10-system-fonts.md)
+  fonts/registry.json   device font name -> free-font-key mapping
   fonts/fetch_system.py stdlib-only fetch/cache/Garmin-font-root logic driven by registry.json
   icons.py              icon sizing and resolution over the Nerd Fonts icon font
   icon_catalog.py       the icon name -> codepoint table, data only

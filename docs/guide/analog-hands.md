@@ -301,8 +301,7 @@ role on a hand, a pin above the hands, and anti-aliased hands in one layout only
 three targets at 4,669–4,670 B on `--build-stats` (3.6% of 131,072 B; it was
 4,561–4,562 B before `classic`'s hands turned `antialias:` on), most
 of it the dial and the Styles machinery rather than the hands:
-`docs/research/probes/analog-hands/` measured a whole app with two hands
-elements at about 2 KB.
+a whole app with two hands elements measured about 2 KB.
 
 **What is verified, and what is not.** Verified: warning-free builds under
 `-l 3` strict typing on all three targets, and `wfb preview` (which rotates

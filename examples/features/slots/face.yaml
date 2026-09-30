@@ -1,7 +1,6 @@
 # `config: slots:` -- the native editor's **Data axis**: named complication
 # slots the wearer re-points at a different Garmin metric, on the watch, with
-# the editor's own instant preview (docs/research/09-data-library-and-config-
-# axes.md §4). `type: data` is the element that draws one.
+# the editor's own instant preview (docs/guide/configuration.md). `type: data` is the element that draws one.
 #
 # Two slots below, deliberately different shapes of the feature:
 #

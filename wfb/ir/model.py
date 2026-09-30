@@ -329,7 +329,7 @@ class Curve:
 @dataclass(frozen=True)
 class Outline:
     """`outline:`: a ring of :data:`OUTLINE_WIDTH` px round what an element
-    draws (research 19).  `color` follows `color:`'s own grammar
+    draws.  `color` follows `color:`'s own grammar
     (`Builder.color_expression`)."""
 
     color: Expression
@@ -819,7 +819,7 @@ class Element:
     #: and never re-walks the ancestry.
     aod: "AodOverride | None" = None
     #: `outline:` -- a ring of `width` px in `color` around everything this
-    #: element draws (research 19), or `None`.  Each kind draws it its own
+    #: element draws, or `None`.  Each kind draws it its own
     #: way (`wfb.kinds.ElementKind.outline`); on a `group` it rings the
     #: members' union.
     outline: "Outline | None" = None

@@ -358,7 +358,7 @@ def _check_reserved(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
                   notes=[f"write it as:\n    outline: {color}" if isinstance(color, str)
                          else "write it as:\n    outline: <colour>",
                          "a wider ring measured 1.8x the draw time of a 1px one on a "
-                         "watch (docs/research/19-outline-everything.md §4.5)"])
+                         "watch (docs/guide/outlines.md)"])
         bad.append(path + ["outline"])
 
     def visit(element: dict[str, Any], here: list[str | int]) -> None:

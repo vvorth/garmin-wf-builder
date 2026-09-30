@@ -1,4 +1,4 @@
-"""`outline:` on `pattern` and `gauge` (research 19): each
+"""`outline:` on `pattern` and `gauge`: each
 pattern copy ringed whole by moving its own origin, an arc gauge stamped
 round its track, a bar grown round its track or its lit length, a needle
 ringed like a hand -- and the contrast rule for a ring that parts things

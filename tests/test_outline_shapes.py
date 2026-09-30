@@ -1,4 +1,4 @@
-"""`outline:` on shapes and icons (research 19): which shapes grow one
+"""`outline:` on shapes and icons: which shapes grow one
 copy of themselves and which are stamped, the ring growing the element's
 box, the width cap, and the preview ringing what it draws, openings
 included.  The fixture `tests/fixtures/outline_shapes/face.yaml` is also

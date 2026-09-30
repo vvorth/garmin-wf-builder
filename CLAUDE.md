@@ -354,13 +354,13 @@ each other (a plan cites the research it builds on). Docs are everything
 else -- `docs/guide/`, `docs/lore/`, `docs/limitations.md`, the READMEs,
 every `CLAUDE.md`, code comments, the schema and diagnostics -- and hold
 only what is implemented plus platform knowledge learned for future use.
-**Docs never cite plans or research**: no "plan N", "slice N", "research N
-§x", decision ids, or links into `docs/plans/`/`docs/research/`. State the
-fact itself, with its primary evidence (SDK path, API level, the device it
-was measured on) inline. The one exception: a genuinely quirky
-implementation may cite the research or probe proving why it must be that
-way, beside its own one-line reason; plans are never cited. Full rule:
-`docs/CLAUDE.md`.
+**Docs never cite plans** ("plan N", "slice N", decision ids,
+`docs/plans/` links). **Research may be cited only as evidence for a fact
+the doc states itself**, and only in `docs/limitations.md`, `docs/lore/`,
+and code comments explaining behaviour the platform forces (never as a bare
+tag on a feature name). The guide, schema, diagnostics, READMEs, example
+faces and every `CLAUDE.md` cite neither; they point to the guide or
+`limitations.md`. Full table: `docs/CLAUDE.md`.
 
 When a change makes any of these stale, update them **in the same commit**:
 `docs/research/*`, `docs/adr/*`, `docs/lore/*`, this file,

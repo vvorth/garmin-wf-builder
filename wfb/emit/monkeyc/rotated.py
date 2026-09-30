@@ -74,7 +74,7 @@ def emit_part_ring(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | Res
                    part_prefix: str, *, radial: bool,
                    thickness_expr: str, set_pen: bool = True) -> None:
     """One polygon/line/circle part's 1px `outline:` ring, in whatever
-    colour is set (research 19): the part transformed **once**, then drawn
+    colour is set: the part transformed **once**, then drawn
     at the four offsets -- no per-offset rotation or allocation (the stamp
     cost research 19 §4.5 measured).  A filled circle is its own exact
     dilation one pixel larger: one draw.  Pen width as

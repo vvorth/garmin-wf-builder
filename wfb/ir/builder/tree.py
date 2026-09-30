@@ -100,7 +100,7 @@ class ElementTree(StaticPass):
             self._resolve_hold_auto(element)
             if "outline" in node and element.outline is None and element.kind != "text":
                 # `text` builds its own ring, alongside `curve:`; the schema
-                # decides which other kinds accept one (research 19).
+                # decides which other kinds accept one.
                 element.outline = cast("Builder", self).build_outline(
                     node, "outline", element=element)
             refusal = kinds.get(element.kind).ring_refusal(element)
@@ -112,7 +112,7 @@ class ElementTree(StaticPass):
         return element
 
     def check_group_outlines(self, elements: list[Element]) -> None:
-        """What an outlined `group` needs of its members (research 19): a
+        """What an outlined `group` needs of its members: a
         ring every member can draw, and a colour the frame can compute
         without the members' data.
 

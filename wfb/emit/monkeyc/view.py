@@ -92,7 +92,7 @@ class StaticPlan:
                 else _method(placed.id))
 
 
-#: A `ring<Id>` method's own parameter (research 19): the colour of the
+#: A `ring<Id>` method's own parameter: the colour of the
 #: group pass it draws for.
 RING_PARAMETERS = ", ringColor as Number"
 RING_PASS = RingPass("ringColor")
@@ -1430,8 +1430,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
                          ring: bool = False) -> None:
     """`draw<Id>`, or with ``ring`` its `ring<Id>` twin: the same reads and
     guards, then only the element's silhouette dilated by the ring its
-    parameters name -- one member's share of an outlined group's ring
-    (research 19)."""
+    parameters name -- one member's share of an outlined group's ring."""
     element = placed.element
     kind = kinds.for_placed(placed)
     if ring:

@@ -115,8 +115,8 @@ wfb preview my-face.yaml --watch   # leave this running while you edit
 
 `wfb preview` renders from the **same resolved geometry** the generated Monkey C
 uses, so the two cannot disagree about position — which is what makes it a useful
-check and not a second implementation. Why a visual GUI builder is deferred is
-in [`docs/research/06-authoring-ergonomics.md`](../research/06-authoring-ergonomics.md).
+check and not a second implementation. A visual GUI builder is not built; if it is,
+it will be a thin client over the preview.
 
 ## Profiling
 

@@ -622,7 +622,7 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     ``text_fonts`` maps a custom font's resource name to the local
     `emit_draw` loaded it into before the loop.  With ``ring`` (the
     pattern's `outline:` colour, already set), only the part's 1px ring is
-    drawn (research 19).
+    drawn.
     """
     part_prefix = f"{prefix}_{index}"
     if part.shape == "text":

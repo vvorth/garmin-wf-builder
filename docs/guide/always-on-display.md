@@ -4,7 +4,7 @@
 so a MIP-style low-power layout is not an option there. Instead, an
 AMOLED target draws a constrained **always-on-display (AOD)** frame while
 asleep, and Garmin's own guidance treats an absent one as a defect, not an
-optional extra (`docs/research/11-always-on-display.md` §1.3). `aod:` is
+optional extra. `aod:` is
 how a design says what that frame looks like: overrides on the *one*
 design, not a second layout to maintain.
 
@@ -272,7 +272,7 @@ aod:
 ```
 
 A moving 2x2 pixel mask sits over the whole AOD frame, on top of restyling
-and dimming (`docs/research/15-aod-pixel-masks.md`): one pixel
+and dimming: one pixel
 in each on-screen 2x2 tile stays lit as drawn, and the other three are
 forced black. Which pixel of the tile stays lit moves every minute, so no
 single pixel is ever lit for two consecutive minutes and every pixel is lit
@@ -356,7 +356,7 @@ even that clear.
 `_aod` only narrows "asleep, on a burn-in-protected device" — it says
 nothing about *which* of Garmin's own three display modes the panel is
 actually in right now. On a device that has `System.getDisplayMode`
-(`fenix847mm`/`fenix947mm`; research 11 §2), the AOD frame checks it before
+(`fenix847mm`/`fenix947mm`), the AOD frame checks it before
 drawing anything:
 
 ```monkeyc
@@ -389,7 +389,7 @@ every asleep frame exactly as before this ladder existed:
 
 `DISPLAY_MODE_*`'s own constants need no `has` guard of their own — unlike
 `getDisplayMode` (a method call), they are plain compile-time fields, and
-research 11 §2 confirms all three move together with `getDisplayMode` on
+all three move together with `getDisplayMode` on
 every device checked so far. `Application.AppBase.onDisplayModeChanged` is
 deliberately **not** wired to request an update: `WatchFace.onUpdate`
 already runs once a minute while asleep regardless of which display mode
@@ -454,7 +454,7 @@ does (potentially 100% on a static pixel).
   ...}`) — an AMOLED target where nothing in the design draws in AOD at
   all. Since the face default is `hide`, an unconverted design triggers
   this on every AMOLED target until at least one element opts in.
-- **`aod-burn-in`** (research 11 §6 D) — is the rendered
+- **`aod-burn-in`** — is the rendered
   AOD frame within Garmin's rule of thumb? *Measured*, not estimated: it
   renders the resolved `aod:` set the same way `wfb preview --aod` does
   (`wfb.preview.render`), at device resolution, with the round bezel
@@ -462,7 +462,7 @@ does (potentially 100% on a static pixel).
   two things over that rendered frame:
 
   - **lit-pixel fraction** — the share of in-mask pixels that are not pure
-    black. Garmin's own FAQ (research 11 §1.1): "a pixel is considered on
+    black. Garmin's own FAQ: "a pixel is considered on
     when rendering any color other than black" — so lit is *any*
     non-`(0, 0, 0)` pixel, never a brightness threshold of this compiler's
     own invention.
@@ -475,7 +475,7 @@ does (potentially 100% on a static pixel).
     bit for bit.
 
   Garmin's 10% rule differs by device generation — the original Venu
-  counts lit pixels, Venu 2 and later count luminance (research 11 §1.2) —
+  counts lit pixels, Venu 2 and later count luminance —
   and the device files don't say which generation a target is, so this
   check compares **both** fractions against 10% and fires if either one
   is over: the conservative reading that can never pass a design that
@@ -486,7 +486,7 @@ does (potentially 100% on a static pixel).
   full battery (`wfb.preview.SAMPLE`'s other defaults unchanged), and
   reports the worse of the two — a cheap stand-in for scanning every
   minute, which is what the simulator's own Screen Heat Map does
-  (research 11 §1.5) and is unreachable in this environment.
+  and is unreachable in this environment.
 
   **With the pixel mask on (the default), the figures are the masked
   frame's, worst of all four mask phases at each sample time — 8
@@ -536,4 +536,3 @@ See [Lints and suppression](lints.md) for the general mechanism.
 
 - [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, restyled, on `fenix847mm` (`wfb preview --aod`, above).
 - [Power modes and touch-and-hold](modes-and-interaction.md) — `sleep_update:`, the orthogonal MIP partial-update axis.
-- `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options chosen between.

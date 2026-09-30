@@ -11,7 +11,7 @@ import Toybox.Lang;
 //! Rotation is `WfbGeom`'s own (`x' = x cos - y sin`, `y' = x sin + y cos`).
 module WfbRing {
 
-    //! A polygon part's 1px `outline:` ring (research 19): the four fills
+    //! A polygon part's 1px `outline:` ring: the four fills
     //! one pixel left, up, down and right of it.  Rotates the vertices
     //! once and shifts that one array between fills, where a stamp through
     //! `WfbGeom.fillRotated` would rotate and allocate a fresh array per offset --

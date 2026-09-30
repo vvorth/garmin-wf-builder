@@ -251,7 +251,7 @@ def baked_ring(element: Element, face: Face) -> str | None:
 
 def _baked(w: Writer, ring_font_name: str, x_expr: str, y_expr: str, value_code: str,
            justify: str, vertical_align: str) -> Callable[[str], None]:
-    """A text ring from its baked ring font (research 19): the same string,
+    """A text ring from its baked ring font: the same string,
     anchor and justification in the dilated glyphs -- one `drawText`.  A
     ring font that failed to load draws no ring, like its base."""
     def ring(color: str) -> None:
@@ -274,7 +274,7 @@ def _stamp(w: Writer, x_expr: str, y_expr: str,
 def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
                     aod: AodStyle = NO_AOD, ring: RingPass | None = None) -> None:
     """Draw the text, its `outline:` ring first -- or, with ``ring`` (an
-    outlined group's pass, research 19), only that ring."""
+    outlined group's pass), only that ring."""
     element = placed.element
     prefix = const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)

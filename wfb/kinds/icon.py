@@ -215,7 +215,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         literal flags whether or not `align`/`vertical_align` are given.
 
         `outline:` draws the glyph once more in its baked ring font -- the
-        same glyph dilated by 1px (`wfb.fonts.bmfont.dilate`, research 19)
+        same glyph dilated by 1px (`wfb.fonts.bmfont.dilate`)
         -- ahead of the glyph itself: an opening inside the icon wider than
         2px keeps a ring of its own.
         """
@@ -242,7 +242,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         stamp = ring or own_ring(element, aod)
         baked = baked_ring(element, resolved.face) if stamp is not None else None
         if stamp is not None and baked is not None:
-            # One `drawText` in the dilated glyphs (research 19).
+            # One `drawText` in the dilated glyphs.
             w.line(f"var ringFont = _{font_field(baked)};")
             with w.block("if (ringFont != null)"):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")

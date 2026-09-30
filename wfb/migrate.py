@@ -1207,7 +1207,7 @@ def _align(ctx: _Context, body: CommentedMap) -> None:
 
 def _outline(body: CommentedMap) -> None:
     """A colour reference rewritten; the `{color, width}` form collapsed to
-    its colour -- every ring is 1px in format 2 (research 19)."""
+    its colour -- every ring is 1px in format 2."""
     outline = body["outline"]
     if isinstance(outline, CommentedMap):
         if "color" in outline:

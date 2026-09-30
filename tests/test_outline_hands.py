@@ -1,4 +1,4 @@
-"""`outline:` on `hands` (research 19): each hand ringed whole,
+"""`outline:` on `hands`: each hand ringed whole,
 just before its own parts, so its parts never ring each other and its ring
 is drawn over the hand beneath it.  `tests/fixtures/outline_hands/` is built
 for real by `tests/test_outline_build.py` (`slow`)."""

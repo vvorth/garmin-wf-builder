@@ -1121,7 +1121,7 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
     The arithmetic is exact; the 3.0 threshold is a judgement call, which is why
     this is a warning and is suppressible.
 
-    **An `outline:`-bearing element or part (research 19) is
+    **An `outline:`-bearing element or part is
     judged on its ring**, which can fail two ways independently:
 
     * **ring vs. backdrop**, when the interior does not itself read against
@@ -1423,7 +1423,7 @@ def _check_low_power_ring(bag: Bag, placed: Placed, group_ring: bool, face: Face
         f"onPartialUpdate, once a second",
         placed.element.span,
         notes=["measured on a fenix 8, a stamped ring costs about 4x the element's own "
-               "draw time (docs/research/19-outline-everything.md §4.5)",
+               "draw time (docs/guide/outlines.md, \"Cost and the always-on frame\")",
                "exceeding the power budget calls onPowerBudgetExceeded and disables "
                "partial updates PERMANENTLY for the rest of the app's lifecycle",
                "drop the ring or this element's 'sleep_update: true', ring a filled "
@@ -1574,7 +1574,7 @@ def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
         f"in always-on display",
         notes=["Garmin treats an absent always-on view as a defect on an "
                "AMOLED target, not an optional extra "
-               "(docs/research/11-always-on-display.md §1.3)",
+               "(docs/guide/always-on-display.md)",
                "add 'aod: show' (or an override) to at least the time, or "
                "set the face-wide 'aod: {default: show}'",
                "suppress with the face's own "
@@ -1779,7 +1779,7 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     message = (
         f"{device.id}: {masked}the AOD frame lights {lit_fraction * 100:.1f}% of pixels and "
         f"{luminance_fraction * 100:.1f}% of luminance at {hh:02d}:{mm:02d} (Garmin's 10% "
-        f"rule, research 11 §1.2) -- top contributor: {top_line}"
+        f"rule) -- top contributor: {top_line}"
     )
     notes = [
         f"worst of {len(AOD_BURN_IN_SAMPLE_TIMES)} sampled clock times "
@@ -1787,10 +1787,10 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
         + (" x 4 mask phases" if worst_phase is not None else "")
         + ", full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every "
           "possible time/data value",
-        "lit: any pixel rendering other than pure black (research 11 §1.1); luminance: mean "
+        "lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean "
         "relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded "
         "channels) as a fraction of full white -- Garmin's own integral is unpublished "
-        "(research 11 §5)",
+        "(docs/guide/always-on-display.md, \"Lints\")",
         "checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel "
         "share; Venu 2+: luminance share), since the device files do not say which generation "
         "a target is",
@@ -1811,7 +1811,7 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     if over:
         notes += [
             "over Garmin's 10% rule risks the system switching always-on off for this "
-            "app entirely (research 11 §1.2)",
+            "app entirely",
             "lighten the top contributor(s) -- hide, thin, or dim them further in 'aod:' -- "
             "or accept it with lint: {allow: [aod-burn-in], reason: \"...\"} on the "
             "element named above",
@@ -2253,7 +2253,7 @@ def _outlined_interiors(element: Element) -> list[Expression | None]:
     so its overlap is still reported, never silently skipped.
 
     Text only: the hollow idiom this guards (an interior painted to look
-    empty) is a text one.  Any other outlined kind (research 19) paints
+    empty) is a text one.  Any other outlined kind paints
     its interior like any shape does, ring or no ring.
     """
     roles = [role for role in element.color_roles() if not role.aod]
@@ -2283,7 +2283,7 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
        (:func:`_is_solid_backdrop_shape`) -- nothing else promises to paint
        every pixel of its box; and
     3. its box **fully contains** the outlined box.  A partial cover proves
-       nothing about the rest of the box (research 14's own example: a
+       nothing about the rest of the box (for example a
        decorative ring crossing part of the text), so each earlier element
        is judged alone, and a partial one is always reported.
 
@@ -2321,7 +2321,7 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
             later.element.span,
             notes=["'outline:' has no transparency of any kind -- "
                    "Graphics.BlendMode has no destination-out formula reachable "
-                   "from drawText (docs/research/14-stamped-ring-text.md §6)",
+                   "from drawText (docs/guide/text.md)",
                    "write lint: {allow: [text-outline-interior], reason: \"...\"} "
                    "once the interior colour is confirmed correct for what's "
                    "actually underneath"],

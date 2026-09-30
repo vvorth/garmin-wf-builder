@@ -1,4 +1,4 @@
-# A worked example for `outline:` on every kind (research 19):
+# A worked example for `outline:` on every kind:
 # a 1px ring in a second colour round whatever an element draws.
 #
 # Build it with:  ./wfb.py build examples/features/rings/face.yaml

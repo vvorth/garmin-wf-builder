@@ -443,8 +443,7 @@ add for a linear one. It uses the same rotate-and-draw helpers as analog
 hands (`runtime-lib/WfbGeom.mc`) and the same `WfbArc.drawSpan` as every
 other arc. Baking the copies at build time was measured and rejected:
 sixty minute ticks as separate elements add about 5 KB to the 128 KB
-budget, and the loop adds about 170 B whatever the count
-(`docs/research/probes/pattern-cost/`). This is the second exception to
+budget, and the loop adds about 170 B whatever the count. This is the second exception to
 "the watch does no layout arithmetic" (ADR 0004). Hands were the
 first.
 

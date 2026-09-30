@@ -33,14 +33,11 @@
 # corners clear the round screen's visible disc on all three targets with
 # at least ~12px of slack (`wfb.layout.inside_visible_area`'s own check,
 # run ahead of time against `wfb.devices.Device.system_fonts` and
-# `wfb.fonts.fallback.measure`) -- worked numbers land in
-# `docs/research/10-system-fonts.md` once the user's calibration
-# screenshots come back.
+# `wfb.fonts.fallback.measure`).
 #
 # How to compare: build and sideload (or run in the simulator with a build
 # from this repo) on a real target, screenshot it, and compare pixel-for-
-# pixel against `wfb preview`'s PNG for the same target -- record
-# findings in docs/research/10-system-fonts.md.
+# pixel against `wfb preview`'s PNG for the same target.
 #
 # Build it with:     ./wfb.py build examples/system-fonts/numbers/face.yaml
 # Preview it with:   ./wfb.py preview examples/system-fonts/numbers/face.yaml

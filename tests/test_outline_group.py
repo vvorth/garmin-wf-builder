@@ -1,4 +1,4 @@
-"""`outline:` on `group` (research 19): every member's 1px ring just before
+"""`outline:` on `group`: every member's 1px ring just before
 the group's first member, then the members -- the union's ring.  A member
 rings nothing of its own and no outlined group nests in another, so every
 ring stays 1px.  `tests/fixtures/outline_group/` is built for real by

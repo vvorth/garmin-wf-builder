@@ -88,7 +88,7 @@ def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str
     three locals (the probe's own shape: Monkey C has no block scoping that
     would need a fresh declaration per hand).
 
-    `stamp` rings the hand as one silhouette first (research 19): every
+    `stamp` rings the hand as one silhouette first: every
     part's 1px ring in the ring colour (`rotated.emit_part_ring`, each part
     rotated once), then the parts themselves -- so a hand's own parts never
     ring each other, and each hand's ring is drawn over the hand beneath

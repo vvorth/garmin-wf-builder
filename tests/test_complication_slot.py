@@ -1,5 +1,5 @@
 """`config: data:` and `type: data` -- the native editor's Data
-axis (docs/research/09-data-library-and-config-axes.md §4).
+axis.
 
 Every check below is driven red against the exact violating input before it
 is trusted, the same discipline `tests/test_color_scheme.py`'s own module

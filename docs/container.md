@@ -70,7 +70,7 @@ failing deep inside a build.
 ### Garmin's own font files (optional)
 
 Text measurement and previews use free stand-ins for Garmin's system fonts
-by default (`wfb/fonts/registry.json`, plan 09). If the same SDK Manager
+by default (`wfb/fonts/registry.json`). If the same SDK Manager
 install
 that provided the device definitions also has Garmin's own font files —
 under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
@@ -229,8 +229,8 @@ reachable.
 **Stage 1** downloads the SDK with `docker/fetch-sdk.py` and strips it to the
 compiler. It also downloads the Nerd Fonts icon font with
 `tools/fetch-icon-font.py` and the registry's system-font stand-ins (free
-substitutes previews and width estimates use for Garmin's own system fonts,
-plan 09) with `tools/fetch-system-fonts.py` for the three build targets,
+substitutes previews and width estimates use for Garmin's own system fonts)
+with `tools/fetch-system-fonts.py` for the three build targets,
 each checked against pinned SHA-256 hashes;
 stage 2 copies both into `wfb/assets/icons/` and `wfb/assets/system-fonts/`.
 Neither is in the repository, and `.dockerignore` keeps a host copy out of

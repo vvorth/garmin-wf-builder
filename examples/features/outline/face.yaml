@@ -2,8 +2,7 @@
 # docs/guide/patterns.md "Text parts").
 #
 # There is no filled-outline draw mode on this platform (no destination-out
-# blend, no font-engine switch Connect IQ can reach -- docs/research/
-# 13-outline-vector-text.md).  `outline:` is the workable substitute this
+# blend, no font-engine switch Connect IQ can reach; docs/guide/outlines.md).  `outline:` is the workable substitute this
 # project measured instead: the string stamped a handful of times at small
 # pixel offsets in a ring colour, then once more, unshifted, in the
 # element's own `color:`.  What this design exercises:

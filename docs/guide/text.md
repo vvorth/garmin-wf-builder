@@ -142,8 +142,7 @@ even for a system font, whose pixel height this compiler only knows at build
 time from the SDK's published device reference, the installed device's
 `simulator.json`, or its `.cft` font -- or, for a device the SDK's reference
 has no page for at all, derived from a located real `.ttf`/`.otf`'s own
-`head`/`hhea` tables when the user's own licensed Garmin fonts are installed
-(`docs/research/10-system-fonts.md` §3.1).
+`head`/`hhea` tables when the user's own licensed Garmin fonts are installed.
 
 #### `outline:` — the stamped ring
 
@@ -162,7 +161,7 @@ clock:
 
 There is no filled-outline draw mode on this platform (`Dc.drawText` has no
 switch for it, and the one that exists in Garmin's own font engine is not
-reachable from Connect IQ — `docs/research/13-outline-vector-text.md`).
+reachable from Connect IQ).
 `outline:` is the workable substitute this project measured instead: the
 string drawn four times, one pixel off in each direction, in the ring
 colour, then once more, unshifted, in the element's existing `color:` — the
@@ -182,8 +181,7 @@ draws the string once in it before the interior
 vector font is stamped as above.
 
 **Every ring is 1px.** A 2px ring measured about 1.8× the draw time of a
-1px one on a watch, for no gain in legibility
-(`docs/research/19-outline-everything.md` §4.5), so there is no `width:`;
+1px one on a watch, for no gain in legibility, so there is no `width:`;
 the old `{color, width}` form is an error naming the colour spelling.
 `outline:` takes exactly the rules `color:` does — a `color.<name>`, a
 literal, or a full conditional expression over either, data sources
@@ -259,9 +257,7 @@ differs there: a radial pattern's per-copy rotation composes with the
 ring the same way it already composes with `curve:`, and `outline.color`
 may additionally read `copy`.
 
-See [`docs/research/14-stamped-ring-text.md`](../research/14-stamped-ring-text.md)
-for the full measurement record this feature is built from. `outline:` is
-not only for text: every other drawable and a whole `group` take the same
+`outline:` is not only for text: every other drawable and a whole `group` take the same
 key ([Outlines](outlines.md)).
 
 #### `curve:` — rotated and radial text
@@ -336,11 +332,9 @@ and `bottom` mean depends on `style:`:
   once the baseline is rotated that subtraction no longer points along the
   text's own vertical axis, so the ink would land somewhere this compiler
   cannot predict. Use `top` or `center` instead. (`drawAngledText`'s actual
-  no-`VCENTER` device behaviour is otherwise unmeasured — an open question,
-  `docs/research/12-vector-fonts.md` §5.3.)
+  no-`VCENTER` device behaviour is otherwise unmeasured — an open question.)
 * **`style: radial`: all three values are accepted.** Measured on the real
-  simulator (`fenix8solar47mm`, 2026-09-21,
-  `docs/research/12-vector-fonts.md` §5.3): without `TEXT_JUSTIFY_VCENTER`,
+  simulator (`fenix8solar47mm`, 2026-09-21): without `TEXT_JUSTIFY_VCENTER`,
   `Dc.drawRadialText` puts the text's **baseline** on the circle, and each
   glyph grows toward its own "up" — outward under `direction: clockwise`,
   inward under `counter_clockwise`. That *is* `bottom`, used as-is: the
@@ -388,8 +382,7 @@ AABB is the right shape to test there.
 > `angle:` and `radius:`, opposite `direction:`, isolating facing from
 > position. The simulator's rendering agrees with `wfb preview` on facing,
 > angular position and the twelve tangent hour numerals, for both
-> directions. Evidence and full derivation: `docs/research/12-vector-fonts.md`,
-> `docs/research/probes/vector-fonts/README.md`.
+> directions.
 
 Everything else on `text` keeps working untouched under `curve:` —
 `text:`, `color:`, `outline:`, `visible:`, `absent:`, `sleep_update:`,

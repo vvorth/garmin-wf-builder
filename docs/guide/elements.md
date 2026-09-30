@@ -232,8 +232,7 @@ centred reading — are silent, because nothing about the picture changed.
 Whether a *transparent* buffer would work on these devices could not be
 established from the SDK and cannot be tried without a simulator — it is the
 only thing standing between this and a static group that can sit anywhere in
-draw order. The evidence, both ways, is in
-[`docs/research/probes/static-buffer/`](../research/probes/static-buffer/README.md).
+draw order.
 
 Everything else the compiler rejects, and why:
 
@@ -315,8 +314,9 @@ entirely different ways:
   runtime `Dc` call,
   `setAntiAlias`, gated per device with a `has :setAntiAlias` check --
   `doc/docs/Core_Topics/Graphics.html` gives this idiom verbatim, and the
-  generated helper (`applyAntiAlias`, deliberately *not* named `setAntiAlias`
-  -- see `docs/research/probes/antialias/README.md` 3) is unconditional: a
+  generated helper (`applyAntiAlias`, deliberately *not* named `setAntiAlias`:
+  `dc has :setAntiAlias` would then resolve against the view's own private
+  method, and `monkeyc` warns on every target) is unconditional: a
   build-time gate is not an option, because `wfb` generates one view shared by
   every target device. The face default is reset once at the top of
   `onUpdate` (covering both the awake and asleep branches), `onPartialUpdate`

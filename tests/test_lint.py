@@ -1301,7 +1301,7 @@ def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_
 def test_every_target_delivers_a_hold_so_nothing_is_reported(write_design, bag, db):
     """The regression this pins down is a *removed* diagnostic.
 
-    Until `docs/research/07-carousel-interaction.md`, `fr955` drew a note
+    `fr955` once drew a note
     saying its targets "are reached by touch and hold instead" -- true, and
     actively misleading, because it implied the fēnix 8s got taps. They do
     not: `WatchFaceDelegate.onTap` is documented "Only available in WatchFace

@@ -149,7 +149,7 @@ def _needs_thickness_constant(element: Shape) -> bool:
 
 
 #: The shapes whose `outline:` ring is one grown copy of the primitive
-#: (research 19): the dilation of a filled circle is a circle `w` larger, and
+#:: the dilation of a filled circle is a circle `w` larger, and
 #: of a filled rectangle a rounded rectangle `w` larger on every side with
 #: its corner radius grown by `w`.  Every other shape is stamped -- an
 #: ellipse's offset curve is not an ellipse, a stroke's or an arc's ends are
@@ -494,7 +494,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                   value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         """The primitive's `Dc` call, after its `outline:` ring when it has
-        one (research 19): a filled circle or rectangle grows
+        one: a filled circle or rectangle grows
         one copy of itself -- exactly its dilation -- and every other shape
         is stamped at the ring's offsets, the exact dilation of the drawn
         pixels.  With `ring`, only the ring is drawn."""
@@ -578,7 +578,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
             ))
             if placed.ring_grow:
-                # Its 1px ring (research 19): the polygon shifted to each of
+                # Its 1px ring: the polygon shifted to each of
                 # the four points 1px away, at build time -- four native
                 # fills and no loop on the watch.
                 for index, (dx, dy) in enumerate(RING_OFFSETS):

@@ -1,4 +1,4 @@
-"""Baked ring fonts (research 19): a ringed text in a baked font, or a ringed
+"""Baked ring fonts: a ringed text in a baked font, or a ringed
 icon, draws its 1px ring as one `drawText` in a companion font holding just
 the glyphs it rings, each dilated by 1px -- instead of four stamps."""
 

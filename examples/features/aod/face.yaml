@@ -10,8 +10,7 @@
 #
 # - `clock` turns hollow in AOD: `outline:` draws a dim grey ring the awake
 #   design does not have, and `color:` paints the interior black, so only
-#   the ring lights -- the "outlined digits" shape research 14 §8.1 was
-#   modelled on, far fewer lit pixels than solid digits. It also swaps
+#   the ring lights -- the "outlined digits" shape, far fewer lit pixels than solid digits. It also swaps
 #   its `text:` template to a different separator (the same mechanism a design would
 #   use to drop seconds -- free, since AOD redraws once a minute anyway --
 #   kept as a same-width swap here so the widest-rendering estimate, which
@@ -34,8 +33,7 @@
 #   [aod-unreachable]}` here: this pairing is deliberately demonstrating the
 #   rule the lint exists to catch, not an oversight.
 #
-# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection` --
-# docs/research/11-always-on-display.md §2) is the fourth target, installed
+# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection`) is the fourth target, installed
 # by `tools/setup-env.sh`. The generated view is shared across every target
 # in one build (root CLAUDE.md §1); the three MIP verification devices never
 # see a lit `_aod` (their sleep frame stays exactly the awake design).

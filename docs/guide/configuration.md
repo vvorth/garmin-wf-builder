@@ -200,8 +200,7 @@ Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
 Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and all four
 are wired up: the two colour axes, **Styles**, which carries no colour of
 its own and is the only axis Garmin gives no meaning to at all
-(`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why
-this compiler gives each `config: style:` entry a meaning -- a declared
+(which is exactly why this compiler gives each `config: style:` entry a meaning -- a declared
 scheme, read back through `color.<role>`, and a layout), and **Data** --
 named native complication slots under `config: slots:`, drawn by a `type:
 data` element (see "The Data axis" below). `accent_color`/
@@ -220,7 +219,7 @@ automatic: any design with at least one `data` element gets
 draw method -- so there is exactly one implementation of what a slot looks
 like, drawn either by `onUpdate` or by the editor's own `Drawable`. A design
 with no `data` element gets none of this: `onTap` (unlike
-`onPress`) never fires on a live face (research 07 §1), so all of it would be
+`onPress`) never fires on a live face, so all of it would be
 dead weight there. On a fenix8solar47mm the highlight animates over the
 selected slot and previews each choice as the wearer scrolls; the rest is
 unverified -- see "What this compiler cannot tell you" below.
@@ -267,7 +266,7 @@ without the native editor. Without one, the menu titles the slot from its
 name (`top_left` shows as "Top left"). The native editor has nowhere to show
 it: Garmin's `<complication>` resource takes no label (`resources.xsd`,
 `complicationWatchfaceType`); the editor picks a slot out by highlighting
-it on the face (`getComplicationDrawable`, research 08 §3).
+it on the face (`getComplicationDrawable`).
 
 **A `choices:` list item** is either a bare complication type (`steps`) or
 a mapping naming the same type plus a per-choice icon override: `{ type:
@@ -427,8 +426,7 @@ The generated resource (`<watchface-config>`, one `<accentColors>`/
 `<dataColors>`/`<styles>`/`<data>` per declared axis) is emitted **only for a
 device with the native editor** -- checked with `Device.has_symbol`, never an
 API-level compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own
-documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
-and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
+documented 5.1.0, and still has no editor at all (see [Limitations](../limitations.md)). Declaring `config:` forces no
 `minApiLevel` bump on any device, `slots:` included: `manifest.xml`'s
 `minApiLevel` is one number shared by every target device in the build, so it
 stays at the generator's own base floor (`3.1.0`) regardless of what a design

@@ -20,7 +20,7 @@ outline: color.ring                  # a 1 px ring in this colour
 ```
 
 **Every ring is 1 px.** On a watch a 2 px ring cost about 1.8× the draw time
-of a 1 px one ([research 19 §4.5](../research/19-outline-everything.md)), so
+of a 1 px one, so
 there is no `width:`; the old `{color, width}` form is an error that names
 the colour spelling.
 
@@ -135,7 +135,7 @@ update.
 ## Cost and the always-on frame
 
 - **Draws.** A grown copy is one extra draw; a stamp is four. Measured on a
-  fēnix 8 ([research 19 §4.5](../research/19-outline-everything.md)): a
+  fēnix 8: a
   grown ring adds about 0.1 ms, a stamped one about four times the
   element's own draw time. That matters most for an element drawn in
   `sleep_update:`, where an overrun disables partial updates for good, so
@@ -155,6 +155,4 @@ update.
   not warn.
 
 For `text`, including the hollow-text idiom and the `text-outline-interior`
-lint, see [Text](text.md#outline--the-stamped-ring). The measurements
-behind all of this are in
-[`docs/research/19-outline-everything.md`](../research/19-outline-everything.md).
+lint, see [Text](text.md#outline--the-stamped-ring).

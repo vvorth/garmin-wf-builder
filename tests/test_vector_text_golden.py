@@ -102,7 +102,8 @@ def test_gate_4_null_check_present_for_every_vector_draw(generated):
 
 def test_every_target_resolves_so_no_available_guard_is_emitted(generated):
     """Every one of this design's three targets (`fenix8solar47mm`/`51mm`/
-    `fr955`) publishes RobotoCondensedBold (verified, research 12) -- so the plain, unguarded construction form is generated, not
+    `fr955`) publishes RobotoCondensedBold (verified, research 12) -- so
+    the plain, unguarded construction form is generated, not
     the `if (Layout.FONT_BEZEL_AVAILABLE && ...)` one, and no `_AVAILABLE`
     constant is emitted at all ("no guard for a thing every target has")."""
     view = generated.files()["source/VectorTextView.mc"]

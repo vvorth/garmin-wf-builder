@@ -1,4 +1,4 @@
-"""Outlined groups (research 19): which leaves an outlined `group`'s ring goes
+"""Outlined groups: which leaves an outlined `group`'s ring goes
 round.
 
 A group's ring is the union of its members' 1px dilations, drawn just before

@@ -158,7 +158,7 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
         )
 
     # Last: each ring font is dilated from its base's own sheet, glyph for
-    # glyph, so it has to exist first (research 19).
+    # glyph, so it has to exist first.
     for name, (base, glyphs) in kinds.ring_fonts(face).items():
         baked[name], _ = dilate(baked[base], name=name, glyphs="".join(sorted(glyphs)))
     return baked

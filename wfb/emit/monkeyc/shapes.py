@@ -98,7 +98,7 @@ def emit_outline(
 
 def emit_stamp(w: Writer, color_code: str, draw: Callable[[int, int], None], *,
                blank_after: bool = True) -> None:
-    """The stamp itself (research 14, 19): set the ring colour once, then
+    """The stamp itself: set the ring colour once, then
     ``draw(dx, dy)`` for each of `wfb.ir.RING_OFFSETS`, unrolled.  Measured
     on a watch, a loop over an offsets array cost more than the draws it
     made (research 19 §4.6): four calls with literal offsets do the same

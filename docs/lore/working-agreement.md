@@ -65,12 +65,14 @@ lore here, not to `CLAUDE.md`.
 **Records and docs are separate** (`docs/CLAUDE.md`). Research, plans and
 ADRs are records and may cite each other; docs (guide, lore, limitations,
 READMEs, `CLAUDE.md` files, comments, schema) state what is implemented and
-what was learned about the platform, and never cite a plan or research. A
-doc that only says "see research 11 §6" makes the reader open a record to
-learn a fact the doc should have stated. The one exception is a genuinely
-quirky implementation, whose comment may cite the research or probe that
-proves it must be that way, beside its own stated reason, so it is not
-"fixed" back; plans are never cited.
+what was learned about the platform, and never cite a plan. Research may be
+cited as evidence in `limitations.md`, `lore/`, and in a code comment where
+the platform forces surprising code (so it is not "fixed" back) -- always
+beside the fact stated in the doc's own words. The guide, schema,
+diagnostics, READMEs, example faces and `CLAUDE.md` files cite no research:
+an author reading a lint warning or a schema hover should be sent to the
+guide, not into a record. A doc that only says "see research 11 §6" makes
+the reader open a record to learn a fact the doc should have stated.
 
 Prose is part of the deliverable. When a change makes any of these stale, update
 it **in the same commit**: `docs/research/*`, `docs/adr/*`, this file,

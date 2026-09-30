@@ -186,7 +186,7 @@ def test_an_unknown_colour_suggests_the_declared_ones(write_design):
 # -- `default:`/`choices:` as `palette.<name>` references ---------------------
 #
 # `palette:` grew a `{value, label}` long form so a `config:` choice can name
-# an entry instead of retyping its hex and label (docs/research/09 §2).  These
+# an entry instead of retyping its hex and label.  These
 # tests are the IR-level half of that; `test_palette.py` covers the palette
 # block itself.
 

@@ -101,7 +101,7 @@ class GlyphHelpers(AbsenceChecks):
     def build_outline(
         self, node: dict[str, Any], key: str, *, element: Element | None = None,
     ) -> Outline | None:
-        """`outline:` -- a colour, or `none` (research 19): the ring is
+        """`outline:` -- a colour, or `none`: the ring is
         always :data:`OUTLINE_WIDTH` px, so the colour is all there is to
         say.  It goes through the same `color_expression` `color:` uses.
         The removed `{color, width}` form never reaches here: validation

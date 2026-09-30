@@ -276,7 +276,7 @@ def test_heatmap_peak_is_higher_with_mask_false(write_design, bag, db):
 #: clause) -- `mask: false` must reproduce this verbatim.
 _OLD_MESSAGE_RE = re.compile(
     r"^fenix847mm: the AOD frame lights [\d.]+% of pixels and [\d.]+% of luminance at "
-    r"\d\d:\d\d \(Garmin's 10% rule, research 11 §1\.2\) -- top contributor: .+$"
+    r"\d\d:\d\d \(Garmin's 10% rule\) -- top contributor: .+$"
 )
 
 

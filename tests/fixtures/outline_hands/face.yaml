@@ -1,4 +1,4 @@
-# Coverage for `outline:` on `hands` (research 19): each hand
+# Coverage for `outline:` on `hands`: each hand
 # ringed whole, over the hand beneath it -- a polygon, a rectangle, a
 # stroked line and circles, and an awake-only second hand whose ring sits
 # inside its own `if (!_sleeping)`.

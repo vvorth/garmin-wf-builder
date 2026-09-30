@@ -13,8 +13,7 @@
 # (`Weather.getHourlyForecast()`, whose array is itself nullable). None of
 # the three needs a permission. Nothing backed by `Toybox.SensorHistory` --
 # pressure, stress, elevation, Body Battery as a history -- or solar is
-# available to a watch face at all; see docs/limitations.md and
-# docs/research/08-graphs-and-configuration.md §1.
+# available to a watch face at all; see docs/limitations.md.
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

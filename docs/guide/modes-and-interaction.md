@@ -85,8 +85,8 @@ watch face, the physical keys belong to the system, and
 documented **"Only available in WatchFace config mode"**. It is how the
 *on-device editor* learns which complication slot you picked; it never fires on
 a face you are merely looking at. The compiler therefore emits `onPress` alone.
-`docs/research/07-carousel-interaction.md` §1 has the evidence, including the
-SDK's own sample.
+The SDK's own entry for `WatchFaceDelegate.onTap` says "Only available in
+WatchFace config mode".
 
 `wfb validate` warns (`hold-unsupported`) if a target has no `onPress` at all —
 resolved against that device's own symbol table rather than its API level,

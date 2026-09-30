@@ -13,7 +13,7 @@
 #                                    macOS: read in place, like the devices)
 #   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
 #   - the system fonts registry   -> wfb/assets/system-fonts/ (downloaded,
-#                                    hash-checked; docs/research/10-system-fonts.md)
+#                                    hash-checked; docs/lore/toolchain.md)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host

@@ -257,7 +257,7 @@ class ElementKind(Generic[E, P]):
     #: `Dc.setAntiAlias` (`layout.is_antialiased_primitive`); glyph kinds
     #: anti-alias in their baked font instead.
     antialiased: ClassVar[bool] = False
-    #: Draws an `outline:` ring (research 19): `emit_draw` honours `ring`,
+    #: Draws an `outline:` ring: `emit_draw` honours `ring`,
     #: so this kind can carry its own `outline:` and be a member of an
     #: outlined group.  The schema decides who may *write* one.
     ringed: ClassVar[bool] = False
@@ -352,7 +352,7 @@ class ElementKind(Generic[E, P]):
         With `ring` (a `ringed` kind only), emit the body of `ring<Id>`
         instead: nothing but this element's silhouette, own ring included,
         dilated by `ring.width` in `ring.color` -- one pass of an outlined
-        group (research 19)."""
+        group."""
         raise NotImplementedError(f"{self.name}: emit_draw")
 
     def describe(self, placed: P) -> str:

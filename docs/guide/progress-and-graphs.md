@@ -271,8 +271,7 @@ getHistory()`, at most 7 days); the hourly forecast family
 `daily_precipitation_chance` (both `Weather` calls). **Nothing backed by
 `Toybox.SensorHistory` — pressure, stress, elevation, Body Battery as a
 history — and no solar series exist at all**: see
-[`docs/limitations.md`](../limitations.md) and
-`docs/research/08-graphs-and-configuration.md` §1.
+[`docs/limitations.md`](../limitations.md).
 
 Naming one of those anyway is an error that **says why**, rather than
 reporting an unknown name:

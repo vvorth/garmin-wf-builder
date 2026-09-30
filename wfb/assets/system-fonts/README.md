@@ -6,7 +6,7 @@ draw text set in a device's `FONT_*` faces on previews (`wfb/fonts/fallback.py`)
 **Nothing here is committed.** `wfb/fonts/registry.json` maps every system-font
 name this project knows about to a pinned, hash-checked, freely-licensed TTF
 (`exact`/`family`/`substitute`, or deliberately unmapped -- see
-`docs/research/10-system-fonts.md`). `tools/fetch-system-fonts.py` (loaded by
+`docs/lore/toolchain.md`). `tools/fetch-system-fonts.py` (loaded by
 `wfb/fonts/fetch_system.py`, stdlib-only) downloads the ones the project's
 three build targets need into this directory; `tools/setup-env.sh` and the
 Dockerfile both run it. Re-running it is cheap: a font already here is left

@@ -62,7 +62,7 @@ def test_no_offsets_table_is_emitted(generated):
 
 def test_the_baked_font_ring_is_one_draw_in_its_ring_font(generated):
     """`clock` is in a baked font: its ring is one `drawText` in the ring
-    font, ahead of the interior (research 19)."""
+    font, ahead of the interior."""
     view = generated.files()["source/OutlineTextView.mc"]
     method = view.split("private function drawClock")[1].split("\n\n    //!")[0]
     assert "while" not in method

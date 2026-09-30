@@ -90,8 +90,7 @@ Previews and width/height estimates for Garmin's own system fonts use free
 stand-ins — Roboto, DejaVu, Bebas Neue, Rajdhani, and others, each an
 `exact`/`family`/`substitute` match recorded in
 [`wfb/fonts/registry.json`](wfb/fonts/registry.json) with its own pinned
-source, licence (mostly Apache-2.0 or OFL-1.1) and rationale
-([`docs/research/10-system-fonts.md`](docs/research/10-system-fonts.md)).
+source, licence (mostly Apache-2.0 or OFL-1.1) and rationale.
 None of them is in the repository either; setup (or
 `tools/fetch-system-fonts.py`) downloads whichever ones your build targets
 need, each with a licence file alongside it. If you have Garmin's own font

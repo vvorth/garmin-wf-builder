@@ -1,4 +1,4 @@
-"""`outline:` beyond text, compiled for real (research 19): the
+"""`outline:` beyond text, compiled for real: the
 Python-level tests read the generated source text, which cannot see a Monkey
 C typing or scoping error in it (`slow`: runs `monkeyc`)."""
 

@@ -338,7 +338,7 @@ NO_AOD = AodStyle()
 @dataclass(frozen=True)
 class RingPass:
     """One `outline:` ring for a kind's `emit_draw` to paint instead of its
-    interior (research 19): the element's own silhouette dilated by
+    interior: the element's own silhouette dilated by
     `wfb.ir.OUTLINE_WIDTH` px, in ``color`` -- Monkey C: an element's own
     ring colour, or a `ring<Id>` method's `ringColor` for a group's pass.
     A stamping kind draws at the four offsets
@@ -405,7 +405,7 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
         run.font for _, run in kinds.placed_text_runs(resolved.items, face)
         if not run.aod_only and not run.is_vector(face)
     ))
-    # Each ring font (research 19) right after its base.
+    # Each ring font right after its base.
     for ring, (base, _) in kinds.ring_fonts(face).items():
         if base in loaded:
             loaded.insert(loaded.index(base) + 1, ring)

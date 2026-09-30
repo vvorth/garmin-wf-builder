@@ -219,7 +219,7 @@ than reading as an unknown key.
   publish any scalable face at all. `RobotoCondensedBold`/
   `RobotoCondensedRegular` are on 41 of those 44 and are the closest thing to
   a dependable choice; nothing can add a face to the list, so an author's own
-  typeface can never be one. Full measurement: `docs/research/12-vector-fonts.md`.
+  typeface can never be one.
   `wfb fonts <device>` shows exactly which faces one device publishes and
   whether it can pair `Graphics.getVectorFont` with `curve: {style: radial}`
   or `curve: {style: angled}`.

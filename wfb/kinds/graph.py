@@ -258,9 +258,8 @@ class GraphKind(ElementKind[Graph, PlacedGraph]):
                     f"{name!r} cannot be plotted on a watch face",
                     b.doc.span(node, "series"),
                     notes=[reason,
-                           "run `wfb series` for what a watch face can plot",
-                           "docs/research/08-graphs-and-configuration.md §1 has "
-                           "the evidence"],
+                           "run `wfb series` for what a watch face can plot "
+                           "(docs/guide/progress-and-graphs.md)"],
                 )
             else:
                 b.bag.error(

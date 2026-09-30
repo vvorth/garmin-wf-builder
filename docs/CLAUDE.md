@@ -26,23 +26,20 @@ learned along the way that a future session needs.
 | `lore/*.md` | durable facts moved out of the root `CLAUDE.md` | add new lore here, not to the root `CLAUDE.md` |
 | `README.md`, `development.md`, `container.md` | the documentation hub, setup and layout, the Docker image | add a hub row when a chapter is added or renamed |
 
-**Docs never cite plans or research.** No "plan 14 §4.3", "slice 2",
-"research 11 §6", decision ids (D3, R2.1, A5), `docs/plans/` or
-`docs/research/` links, or `git show` of a deleted plan. The same holds for
-every `CLAUDE.md`, code comments, the schema and diagnostics. When a doc
-needs a fact a plan or research established, it states the fact in its own
-words, with the primary evidence inline where it matters: the SDK path, the
-API level, the device and date it was measured on, or the probe that shows
-it. A reader must never have to open a plan or a research file to
-understand a doc. Records may point at docs; docs do not point back.
+**What a doc may cite:**
 
-**One exception: a genuinely quirky implementation.** Where code or lore
-does something that looks wrong or needlessly roundabout because the
-platform forces it (a workaround for a `monkeyc` bug, a measured
-firmware behaviour), the comment or lore entry may cite the research or
-probe that proves it, so nobody "fixes" it back. It still states the
-reason in one or two sentences itself; the citation is the evidence, not
-the explanation. Plans are never cited, not even here.
+| Where | Plans | Research (and probes) |
+|---|---|---|
+| `limitations.md`, `lore/*.md` | never | yes, as the evidence for a stated fact |
+| code comments and docstrings (`wfb/`, `runtime-lib/`, `tests/`, `tools/`) | never | only where the code does something surprising because the platform forces it (a `monkeyc` workaround, a measured firmware behaviour), so nobody "fixes" it back; never as a bare tag on a feature name |
+| `guide/`, the schema, diagnostics (lint/error text), READMEs, example faces, every `CLAUDE.md` | never | never: point to the guide or `limitations.md` instead |
+
+Wherever a research citation is allowed, the doc still states the fact in
+its own words -- the citation is the evidence, not the explanation. A
+reader must never have to open a plan or a research file to understand a
+doc. Plans are never cited anywhere outside the records: no "plan 14 §4.3",
+"slice 2", decision ids (D3, R2.1, A5), `docs/plans/` links or `git show`
+of a deleted plan. Records may point at docs freely.
 
 **House style:** state the current truth. When something is superseded,
 rewrite it in place rather than adding a dated correction beside it; history

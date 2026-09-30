@@ -1,4 +1,4 @@
-# Coverage for `outline:` on `group` (research 19): the union of overlapping
+# Coverage for `outline:` on `group`: the union of overlapping
 # members, a plain group nested inside an outlined one (its members ringed
 # too), a static outlined group (rings drawn into the buffer), a low-power
 # one (rings in onPartialUpdate) and a data-bound member (its `ring<Id>`

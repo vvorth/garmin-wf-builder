@@ -264,8 +264,8 @@ def dilate(base: BakedFont, *, name: str, glyphs: str) -> tuple[BakedFont, Image
     an anti-aliased sheet the brightest of the five.  Every glyph grows one
     pixel each way -- its offsets move by -1 -- while its advance and the
     line metrics stay ``base``'s, so one `drawText` of the same string at the
-    same anchor and justification draws exactly the `outline:` ring
-    (research 19): one extra draw instead of four stamps.
+    same anchor and justification draws exactly the `outline:` ring:
+    one extra draw instead of four stamps.
     """
     assert base.sheet is not None, f"{base.name}: no sheet to dilate"
     rendered: list[tuple[str, Image.Image, int, int, int]] = []
