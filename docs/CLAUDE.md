@@ -3,51 +3,51 @@
 Loaded automatically when working under `docs/`. Prose here is part of the
 deliverable: the user asked for readable reasoning, not just code.
 
+## Records and docs are separate
+
+**Records** are how the project got here. They carry history and may cite
+each other -- a plan cites the research it builds on, an ADR the research
+behind its decision:
+
+| Directory | What it is | Rule |
+|---|---|---|
+| `research/NN-*.md` | investigations, with citations; index `research/00-summary.md` | cite SDK paths and API levels; mark every behavioural claim VERIFIED or UNVERIFIED |
+| `research/probes/` | minimal Monkey C projects backing research claims | a claim about `monkeyc` is only as good as the probe that built it |
+| `plans/NN-*.md` | proposals written but not built; index `plans/README.md` | status at the top; record user decisions there; **delete once built**, and add a row to `plans/README.md`'s deleted-plans table |
+| `adr/NNNN-*.md` | accepted decisions; index in `adr/README.md` | amend with a dated note, never silently rewrite |
+
+**Docs** are what is true now: what is implemented, and platform knowledge
+learned along the way that a future session needs.
+
 | Directory / file | What it is | Rule |
 |---|---|---|
-| `research/NN-*.md` | investigations, with citations | cite SDK paths and API levels; mark every behavioural claim VERIFIED or UNVERIFIED |
-| `research/probes/` | minimal Monkey C projects backing research claims | a claim about `monkeyc` is only as good as the probe that built it |
-| `adr/NNNN-*.md` | accepted decisions; index in `adr/README.md` | amend with a dated note, never silently rewrite |
-| `plans/NN-*.md` | proposals written but not built | status at the top; record user decisions there; **delete once built** (below) |
-| `lore/*.md` | durable facts moved out of the root `CLAUDE.md` | add new lore here, not to the root `CLAUDE.md` |
-| `README.md` | the documentation hub: the guide's table of contents, then everything else | add a row when a chapter is added or renamed |
 | `guide/*.md` | the author-facing guide and format reference, one chapter per feature | keep in step with `schema/`; the schema is normative, the prose explains why |
 | `limitations.md` | platform/linter limits; §2 is the authoritative "not implemented" list | update in the same commit as the change |
+| `lore/*.md` | durable facts moved out of the root `CLAUDE.md` | add new lore here, not to the root `CLAUDE.md` |
+| `README.md`, `development.md`, `container.md` | the documentation hub, setup and layout, the Docker image | add a hub row when a chapter is added or renamed |
+
+**Docs never cite plans or research.** No "plan 14 §4.3", "slice 2",
+"research 11 §6", decision ids (D3, R2.1, A5), `docs/plans/` or
+`docs/research/` links, or `git show` of a deleted plan. The same holds for
+every `CLAUDE.md`, code comments, the schema and diagnostics. When a doc
+needs a fact a plan or research established, it states the fact in its own
+words, with the primary evidence inline where it matters: the SDK path, the
+API level, the device and date it was measured on, or the probe that shows
+it. A reader must never have to open a plan or a research file to
+understand a doc. Records may point at docs; docs do not point back.
+
+**One exception: a genuinely quirky implementation.** Where code or lore
+does something that looks wrong or needlessly roundabout because the
+platform forces it (a workaround for a `monkeyc` bug, a measured
+firmware behaviour), the comment or lore entry may cite the research or
+probe that proves it, so nobody "fixes" it back. It still states the
+reason in one or two sentences itself; the citation is the evidence, not
+the explanation. Plans are never cited, not even here.
 
 **House style:** state the current truth. When something is superseded,
 rewrite it in place rather than adding a dated correction beside it; history
 lives in git. ADRs are the exception: amend them with a dated note, because
 they record when and why a decision changed.
-
-**Built plans are deleted.** Docs (ADRs, research, lore) still cite them (`plan 02
-§12.4`). To read one as built:
-
-| Plans | Read with |
-|---|---|
-| 01–03 | `git show a645d64:docs/plans/02-style-layouts.md` (`01-background-color.md` and `03-complication-slot-icons.md` likewise) |
-| 04 analog hands | `git show 93ef6d7:docs/plans/04-analog-hands.md` (§13 is what shipped) |
-| 05 patterns | `git show f9115ca:docs/plans/05-patterns.md` |
-| 06 pattern text, group align | `git show f5155d7:docs/plans/06-pattern-text-and-group-align.md` |
-| 07 align everywhere | `git show b534b8a:docs/plans/07-align-everywhere.md` |
-| 09 system fonts, 10 `.cft` | `git show 7e8e11d:docs/plans/09-system-font-metrics.md`, `…/10-cft-bitmap-fonts.md` |
-| 11 vector fonts, `curve:` | `git show 35217d1:docs/plans/11-vector-text.md` (§5 "Slices" is what shipped; slice 1 is `e744913`, slice 2 `35217d1`, slice 3 the example/screenshots) |
-| 12 preview font fidelity | `git show 28638ca:docs/plans/12-preview-font-fidelity.md` (§1 is the measured diagnosis — read it before re-investigating "the preview's typeface is wrong"; slice 1 R1/R3 is `28638ca`, slice 2 R2 the commit after it) |
-| 13 showcase `roman` layout | `git show 28638ca:docs/plans/13-showcase-roman-layout.md` (as proposed; built with two deliberate departures recorded in `examples/showcase/face.yaml`'s own comments — `skip: [2, 10]` because the shared registers sit on those spokes, and both apertures on `FONT_XTINY` so each is wider than tall) |
-| 15 `outline:`, the stamped ring | `git show e31117b:docs/plans/15-text-outline.md` (§14 "Slices" is what shipped; slice 1 is `0cebdf0` (amended by `65b8f2a`), slice 2 `e31117b`, slice 3 the example/screenshots/doc-sweep, commit `9a5371f`) |
-| 14 `aod:`, always-on display | `git show 2892263:docs/plans/14-aod.md` (§6 "Slices" is what shipped; slice 0 `02c375d`, slice 1 `1af607e`, slice 2 `b786723`, slice 3 `616b646`, slice 4 `65bca8a`, slice 5 `2892263`, slice 6 `1f8358e`, which deleted it; §7's decisions D1-D5 and §8's open questions live on in ADR 0006's 2026-09-23 amendment and research 11 §5/`docs/limitations.md` §3) |
-| 16 AOD pixel mask | `git show 965518a:docs/plans/16-aod-pixel-mask.md` (§5 "Slices" is what shipped; plan `fd49cab`, slice 1 `3c2b40d`, slice 2 `965518a`, slice 3 the docs closeout that deleted it) |
-| 17 derived system-font metrics | `git show f03d413:docs/plans/17-derived-system-font-metrics.md` (built as written in one commit, the one that deleted it; §2 is the 45/45 evidence, also in research 10 §3.1) |
-| 18 review bug fixes | `git show 45c40b7:docs/plans/18-review-bug-fixes.md` (§1 lists items 1–9 with their commits; §2.1, Float complications converted with `.toFloat()`, is `45c40b7`; §2.2, `contrast` for a slot's `icon_color` but not a progress `track_color`, is the commit that deleted it) |
-| 21 `settings:` | `git show 0e741d9:docs/plans/21-phone-settings.md` (§1 is D1–D3, §4 the slices; slices 1-4 are `3137c80`, `88eb824`, `0e741d9`, `b6aad60`. All of `settings:` was removed the same day in favour of the `config:` settings menu, ADR 0006's eleventh amendment; only the menu machinery lives on) |
-| 19 architecture refactor | `git show d325e77:docs/plans/19-architecture-refactor.md` (§1 "Done" lists A0–A6 and the small items with their commits and how each was proven output-identical; §2 P2 and §3 A7 are the one option not taken, see `docs/lore/roadmap.md`) |
-| 22 format 2 | `git show 9480d08:docs/plans/22-format-2.md` (§1–§2 are the decisions F1–F7, Q1–Q5 and names N1–N18; §3.4 the full v1 → v2 table, also `docs/guide/format-2-migration.md`; §5 the reserved vocabulary, each still to be planned; §6 records every slice: plan `6cfb9b6`, slice 0 `1189e94` (the baseline snapshot), slice 1 `d0256b9` (`wfb migrate`), slice 2 `c97710d` (both formats compiled), slice 3 `4c657a7` (the switch-over), slice 4 `9480d08` (an absent gauge keeps its track), slice 5 the tidy commit that deleted it) |
-| 23 `outline:` everywhere | `git show 96462ed:docs/plans/23-outline-everything.md` (§1 is D1–D5, §3 the slices: slice 1 `badb527` (shapes, icons), slice 2 `fde32fa` (hands), slice 3 `88f79ae` (groups), slice 4 `96462ed` (patterns, gauges), slice 5 the example/screenshot/doc-sweep commit that deleted it; research 19 is the measurement record) |
-
-**Deleted research.** Research 17 (phone-side settings: Garmin Connect edits
-settings only for a Store install, so they never reach a sideload) backed the
-removed `settings:` block and is still cited as "research 17". Read it and its
-probe with `git show 44ba633:docs/research/17-phone-settings.md` and
-`git show 44ba633:docs/research/probes/phone-settings/`.
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

@@ -32,6 +32,11 @@ Detail lives in:
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 
+**Deleted:** `17-phone-settings.md` (phone-side settings reach only a Store
+install, never a sideload; it backed the removed `settings:` block) and its
+probe. Other records still cite it as "research 17"; read it with
+`git show 44ba633:docs/research/17-phone-settings.md`.
+
 ---
 
 ## The five findings that should change your plan

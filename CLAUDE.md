@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), all built but slice 4 (`overrides:`), which awaits decision D1 and is to be rebased onto format 2's key names (plan 22 F7). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/README.md` (open plans, and how to read deleted ones). `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -49,7 +49,7 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`12`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: every element type (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere (plan 07), format 2 (plan 22) shipped — see §6 |
+| 3 breadth | in progress: every element type, `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere and format 2 shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -82,8 +82,7 @@ anything with an icon validates), `CIQ_SDK` and `PATH` in
 copies in just that one, without touching what is already installed
 (`docs/lore/toolchain.md`). It also copies `vendor/fonts/` (Garmin's own,
 optional font files) into place the same incremental way, and prefetches
-`wfb/fonts/registry.json`'s free system-font stand-ins (`docs/lore/toolchain.md`,
-`docs/research/10-system-fonts.md`).
+`wfb/fonts/registry.json`'s free system-font stand-ins (`docs/lore/toolchain.md`).
 
 **Device definitions cannot be downloaded:** Garmin's API returns 401 without
 an SSO login. They are vendored at `vendor/devices/`, which is
@@ -223,7 +222,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
   palette or every supported complication type). No separate wearer
   settings language: the short-lived `settings:` block was removed. Phone
   settings never reach a sideload; no `.SET` writer.
-- **Format 2 (2026-09-28, plan 22):** one designed revision of the YAML
+- **Format 2 (2026-09-28):** one designed revision of the YAML
   format (one `color.` namespace, author-shaped names, one spelling per
   idea, a grouped top level). `wfb migrate` rewrites a format 1 file once;
   the compiler reads format 2 only (ADR 0009 amendment). New features are
@@ -265,8 +264,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - a raw pasted character in `icon:`;
   - refresh tiers (`WfbCache.mc`, `catalog.Tier`);
   - `vertical_align: baseline` (renamed `bottom`);
-  - `modes: [always_on]` (replaced by `aod:`, plan 14 D3 — a schema error
-    names the replacement);
+  - `modes: [always_on]` (replaced by `aod:` — a schema error names the
+    replacement);
   - **format 1**, migrated by `wfb migrate`: `format: 1` is an error naming
     it, and a format 1 key in a format 2 file is a schema error naming the
     replacement. Gone with it: the list form (`- id:`), top-level
@@ -277,19 +276,19 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
     `docs/guide/format-2-migration.md`;
   - `outline: {color, width}`: every ring is 1px, so `outline:` is a colour
-    or `none` (an error names the colour spelling; research 19 §4.5).
+    or `none` (an error names the colour spelling).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
   - a `pattern`'s/`data` element's own `aod: {font: ...}` override;
-    any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
+    any `aod: {font: ...}` naming a `face:` (vector) font;
     `aod: {filled: ...}` on `type: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
   - wearer settings beyond `config:` (booleans, choices) -- decided
     against, 2026-09-27. Do not revisit it without asking;
   - non-round screens: checked against the simulator skin's visible area
     and (2-colour) palette, `anchor: subscreen` for the Instinct window,
-    never seen on a watch; no per-shape `overrides:` — plan 20;
+    never seen on a watch; no per-shape `overrides:` (an open plan);
   - catalogue generation from the SDK;
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
@@ -348,6 +347,20 @@ The full text, with the incident behind each rule, is in
   message.
 
 ### Documentation discipline
+
+**Records and docs are separate.** Records are `docs/research/` (with its
+probes), `docs/plans/` and `docs/adr/`: they carry history and may cite
+each other (a plan cites the research it builds on). Docs are everything
+else -- `docs/guide/`, `docs/lore/`, `docs/limitations.md`, the READMEs,
+every `CLAUDE.md`, code comments, the schema and diagnostics -- and hold
+only what is implemented plus platform knowledge learned for future use.
+**Docs never cite plans or research**: no "plan N", "slice N", "research N
+§x", decision ids, or links into `docs/plans/`/`docs/research/`. State the
+fact itself, with its primary evidence (SDK path, API level, the device it
+was measured on) inline. The one exception: a genuinely quirky
+implementation may cite the research or probe proving why it must be that
+way, beside its own one-line reason; plans are never cited. Full rule:
+`docs/CLAUDE.md`.
 
 When a change makes any of these stale, update them **in the same commit**:
 `docs/research/*`, `docs/adr/*`, `docs/lore/*`, this file,

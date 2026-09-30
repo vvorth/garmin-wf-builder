@@ -48,7 +48,7 @@ lore here, not to `CLAUDE.md`.
   ignore file ownership; one has already wiped another agent's in-flight
   edits here. Disjoint file ownership is what makes parallelism safe, and a
   stash discards that guarantee for everyone, not just the agent running it.
-- **No plan or slice history in code comments** (plan 19 P6, 2026-09-25).
+- **No plan or slice history in code comments.**
   A comment states what the code does and why; "plan N slice M added
   this" belongs in the commit message, where `git log`/`git blame` find
   it. Before the 2026-09-24 review there were about 12k comment and
@@ -61,6 +61,16 @@ lore here, not to `CLAUDE.md`.
   level up.
 
 ### Documentation discipline
+
+**Records and docs are separate** (`docs/CLAUDE.md`). Research, plans and
+ADRs are records and may cite each other; docs (guide, lore, limitations,
+READMEs, `CLAUDE.md` files, comments, schema) state what is implemented and
+what was learned about the platform, and never cite a plan or research. A
+doc that only says "see research 11 §6" makes the reader open a record to
+learn a fact the doc should have stated. The one exception is a genuinely
+quirky implementation, whose comment may cite the research or probe that
+proves it must be that way, beside its own stated reason, so it is not
+"fixed" back; plans are never cited.
 
 Prose is part of the deliverable. When a change makes any of these stale, update
 it **in the same commit**: `docs/research/*`, `docs/adr/*`, this file,
