@@ -238,7 +238,10 @@ Neither is in the repository, and `.dockerignore` keeps a host copy out of
 the build context. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
 documentation, and `share/` plus the simulator, ERA, MonkeyMotion, the language
 server and the FIT graph tool are GUI and analysis programs the container does
-not run. What is left is **26 MB** and builds every target correctly.
+not run. What is left is **26 MB** and builds every target correctly. Before
+pruning, the script sets aside `doc/docs/Device_Reference/`, the one part of
+`doc/` that is data: `tools/extract-device-reference.py` turns it into the
+device reference stage 2 copies into `.cache/device-reference/`.
 
 **Stage 2** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
 `python:3.13-slim`, adds the pruned SDK, installs the four host dependencies, and

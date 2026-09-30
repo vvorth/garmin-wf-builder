@@ -72,7 +72,9 @@ COPY tools/fetch-icon-font.py /tmp/fetch-icon-font.py
 # definitions are not here (they mount at run time), so the needed font names
 # come from the SDK device reference, extracted from the SDK just downloaded
 # into the same relative place (.cache/device-reference/) -- without it the
-# script finds nothing to fetch, exits 0 and creates no directory.
+# script finds nothing to fetch, exits 0 and creates no directory.  The
+# pruning deletes the SDK's doc/ tree, so fetch-sdk.py sets the reference
+# pages aside in /tmp/sdk-doc first and the extractor reads them there.
 COPY tools/fetch-system-fonts.py tools/extract-device-reference.py /tmp/tools/
 COPY wfb/fonts/fetch_system.py wfb/fonts/registry.json /tmp/wfb/fonts/
 
@@ -80,20 +82,21 @@ RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
         echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
     fi; \
-    python /tmp/fetch-sdk.py "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq; \
+    python /tmp/fetch-sdk.py "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq \
+        --device-reference /tmp/sdk-doc; \
     rm /tmp/fetch-sdk.py; \
     echo "${SDK_VERSION}" > /opt/ciq/SDK_VERSION; \
     test -x /opt/ciq/bin/monkeyc; \
     WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" \
         python /tmp/fetch-icon-font.py /opt/icons; \
     rm /tmp/fetch-icon-font.py; \
-    python /tmp/tools/extract-device-reference.py --sdk /opt/ciq; \
+    python /tmp/tools/extract-device-reference.py --sdk /tmp/sdk-doc; \
     test -n "$(ls -A /tmp/.cache/device-reference/devices)"; \
     cp -R /tmp/.cache/device-reference /opt/device-reference; \
     WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \
         python /tmp/tools/fetch-system-fonts.py --all /opt/system-fonts; \
     test -n "$(ls -A /opt/system-fonts)"; \
-    rm -rf /tmp/tools /tmp/wfb /tmp/.cache
+    rm -rf /tmp/tools /tmp/wfb /tmp/.cache /tmp/sdk-doc
 
 
 # ---------------------------------------------------------------------------

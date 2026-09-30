@@ -11,14 +11,19 @@ documentation; ``share/`` and the simulator, ERA, MonkeyMotion, the language
 server and the FIT graph tool are GUI and analysis programs the container does
 not run.  What is left -- the compiler, its API database and the resource XSD --
 is about 26 MB and builds every target correctly.
+
+One part of ``doc/`` is data rather than documentation: the per-device pages
+under ``doc/docs/Device_Reference/``, which ``tools/extract-device-reference.py``
+reads.  ``--device-reference DIR`` moves them to
+``DIR/doc/docs/Device_Reference/`` before pruning, so ``DIR`` can be passed to
+that script as ``--sdk``.
 """
 
 from __future__ import annotations
 
-import os
+import argparse
 import shutil
 import stat
-import sys
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -41,9 +46,19 @@ PRUNE_BIN = (
 EXECUTABLE = ("monkeyc", "monkeydo")
 
 
+#: The device reference pages, relative to the SDK root.
+DEVICE_REFERENCE = Path("doc", "docs", "Device_Reference")
+
+
 def main() -> int:
-    url = sys.argv[1]
-    destination = Path(sys.argv[2] if len(sys.argv) > 2 else "/opt/ciq")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url")
+    parser.add_argument("destination", nargs="?", default="/opt/ciq")
+    parser.add_argument("--device-reference", metavar="DIR",
+                        help="keep the device reference pages under DIR")
+    args = parser.parse_args()
+    url = args.url
+    destination = Path(args.destination)
     archive_path = Path("/tmp/connectiq-sdk.zip")
 
     print(f"fetching {url}", flush=True)
@@ -56,6 +71,14 @@ def main() -> int:
     with zipfile.ZipFile(archive_path) as archive:
         archive.extractall(destination)
     archive_path.unlink()
+
+    if args.device_reference:
+        pages = destination / DEVICE_REFERENCE
+        if not pages.is_dir():
+            raise SystemExit(f"the SDK archive has no {DEVICE_REFERENCE}")
+        kept = Path(args.device_reference) / DEVICE_REFERENCE
+        kept.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(pages, kept)
 
     for tree in PRUNE_TREES:
         shutil.rmtree(destination / tree, ignore_errors=True)
