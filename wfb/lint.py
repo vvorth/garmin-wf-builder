@@ -22,7 +22,7 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
     CONFIG_SYMBOL, Curve, Element, Expression, Face, FontSpec, Graph,
-    PatternElement, StyleEntry, authored_draw_order, never_together, slot_of,
+    PatternElement, StyleEntry, authored_draw_order, never_together, slot_of, walk_elements,
 )
 from .layout import (
     BEZEL_MARGIN, HIDDEN_BY_FONT, Placed, PlacedPattern, PlacedProgress, PlacedText,
@@ -51,7 +51,7 @@ SUPPRESSIBLE = frozenset({
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
     "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
-    "aod-unreachable", "aod-empty", "aod-burn-in",
+    "aod-unreachable", "aod-empty", "aod-burn-in", "override-unreachable",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -80,7 +80,7 @@ ALL_CODES = frozenset({
     "palette-dither", "palette-mono", "partial-update", "partial-update-budget", "pattern",
     "progress-segments",
     "pattern-step", "permission",
-    "on-hold", "overrides", "raw-color", "reserved", "safe-area", "schema", "shared-source",
+    "on-hold", "overrides", "override-unreachable", "raw-color", "reserved", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label", "subscreen",
@@ -88,6 +88,41 @@ ALL_CODES = frozenset({
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
+
+
+def check_override_selectors(face: Face, installed: Iterable[str], devices: list[Device],
+                             bag: Bag) -> None:
+    """Every `overrides:` selector names something: a device id must be an
+    installed device (an error, ADR 0004 §4: never a silent no-op), and a
+    selector no device in this build matches is `override-unreachable` --
+    a warning, since another build (`-d`, a later target) may need it."""
+    known = set(installed)
+    shapes = {device.shape for device in devices}
+    ids = {device.id for device in devices}
+    for element in walk_elements(face.elements):
+        for selector, span in element.override_selectors:
+            if selector.startswith("shape:"):
+                reachable = selector[len("shape:"):] in shapes
+            elif selector not in known:
+                bag.error("overrides",
+                          f"{element.id}: 'overrides:' names {selector!r}, which is not an "
+                          "installed device",
+                          span, notes=["'wfb devices' lists the installed devices; a shape "
+                                       "is written 'shape:round', 'shape:rectangle', "
+                                       "'shape:semi-octagon' or 'shape:semi-round'"])
+                continue
+            else:
+                reachable = selector in ids
+            if reachable:
+                continue
+            _emit_for_users(bag, [element], Diagnostic(
+                Severity.WARNING, "override-unreachable",
+                f"{element.id}: no device in this build matches the override "
+                f"{selector!r}, so it changes nothing",
+                span,
+                notes=["building for: " + ", ".join(sorted(ids))],
+                confidence="exact -- the devices this build resolves",
+            ))
 
 
 def run_design(face: Face, bag: Bag) -> None:

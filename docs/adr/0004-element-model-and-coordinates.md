@@ -566,3 +566,30 @@ found a group's `z:` and `lint: allow` equally inert.
   whole-group or refused. `tests/test_group_keys.py` holds the table equal to
   the schema, so a new group key cannot land without deciding what it does
   to members.
+
+## Amendment (2026-10-01): §4 overrides, geometry only
+
+§4 is built for geometry, as plan 20 decision D1 proposed. An element's
+`overrides:` maps a device id or `shape:<round|rectangle|semi-octagon|
+semi-round>` to a patch of its own `at:`, `size:`, `radius:` and `align:`.
+A patch deep-merges over the element's keys (a mapping key by key, `align:`
+whole), a device id's over its shape's. The builder parses each selector,
+and each shape-and-device pair, into `Element.overrides`, and the resolver
+applies the one for its device (`Resolver.for_device`), so only the
+per-device `Layout.mc` constants move and the shared view is unchanged.
+What follows from keeping the view shared:
+
+- An override changes only keys the element already writes (`size:`,
+  `radius:`), or takes (`at:`, `align:`); it cannot add a key that would
+  change the kind's structure, such as a `size:` turning an arc gauge
+  into a bar.
+- `align:` cannot be overridden on `text`, `icon` or `data`: their
+  alignment is the `drawText` justification, emitted in the shared view.
+- An override cannot move an element into or out of the subscreen
+  window, whose guard is shared code too.
+
+An unknown device id is an error and a selector no device in the build
+matches is the suppressible `override-unreachable` warning, both checked
+when the build's devices are chosen. The `colors:`, `touch:` and `api:`
+selectors, and non-geometry keys, stay unbuilt; the schema refuses them.
+

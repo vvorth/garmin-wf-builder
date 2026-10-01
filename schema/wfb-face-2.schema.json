@@ -545,10 +545,30 @@
       "type": "boolean"
     },
     "overrides": {
-      "additionalProperties": {
-        "type": "object"
+      "description": "Per-device geometry (docs/guide/placement.md, 'Per-device and per-shape overrides'): each key is a device id ('wfb devices') or 'shape:round', 'shape:rectangle', 'shape:semi-octagon' or 'shape:semi-round'; each value patches this element's own at:/size:/radius:/align:, a mapping merged key by key. A device id's patch goes over its shape's. An override changes only keys the element has, and never 'align:' on text, icon or data.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(shape:(round|rectangle|semi-octagon|semi-round)|[a-z0-9_]+)$"
       },
-      "type": "object"
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "at": {
+            "$ref": "#/$defs/position"
+          },
+          "size": {
+            "$ref": "#/$defs/size"
+          },
+          "radius": {
+            "$ref": "#/$defs/length"
+          },
+          "align": {
+            "$ref": "#/$defs/align"
+          }
+        }
+      }
     },
     "configStyle": {
       "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list. Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",

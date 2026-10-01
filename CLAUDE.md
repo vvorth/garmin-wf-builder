@@ -281,7 +281,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `docs/guide/format-2-migration.md`.
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
-  - per-device `overrides` (writing one is a build error);
+  - `overrides:` beyond geometry (`at:`/`size:`/`radius:`/`align:`
+    are built; anything else is a schema or build error);
   - a `pattern`'s/`data` element's own `aod: {font: ...}` override;
     any `aod: {font: ...}` naming a `face:` (vector) font;
     `aod: {filled: ...}` on `type: polygon` (no outline primitive to
@@ -290,7 +291,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     against, 2026-09-27. Do not revisit it without asking;
   - non-round screens: checked against the simulator skin's visible area
     and (2-colour) palette, `anchor: subscreen` for the Instinct window,
-    never seen on a watch; no per-shape `overrides:` (an open plan);
+    never seen on a watch;
   - catalogue generation from the SDK;
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
@@ -302,7 +303,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - format 2's reserved vocabulary (components, `effects:`, `outline:` on parts, the data widget, `when:`
     rules): friendly "not implemented" errors, `docs/limitations.md` §2.
 - **Shipped:** format 2 and `wfb migrate`; several placeholders in one
-  `text:`; every element type; `align:` everywhere, `static:`,
+  `text:`; per-device and per-shape `overrides:` (geometry); every element type; `align:` everywhere, `static:`,
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:` on every drawable and on `group` (grown or stamped,

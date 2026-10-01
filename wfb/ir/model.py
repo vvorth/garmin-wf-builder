@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from .. import catalog, complications, expr, icons, units
 from ..diagnostics import Span
@@ -46,7 +46,6 @@ MODES = ("active", "low_power")
 #: * ``group`` -- means something for the group as a whole, not per
 #:   member (a hold target is the group's box; a ring goes round the
 #:   union; a subscreen window hides the whole subtree);
-#: * ``refused`` -- accepted by the schema only to be a friendly error.
 GROUP_KEYS: dict[str, str] = {
     "type": "structural",
     "at": "structural",
@@ -63,7 +62,7 @@ GROUP_KEYS: dict[str, str] = {
     "on_hold": "group",
     "outline": "group",
     "unsupported": "group",
-    "overrides": "refused",
+    "overrides": "structural",
 }
 
 #: `Element.bound_expressions()` role tags: what a compiled
@@ -770,6 +769,15 @@ class Element:
     #: Rejected where neither applies (`ElementTree._build_element`,
     #: `Builder.check_if_unavailable`).
     if_unavailable: str | None = None
+    #: `overrides:`: the geometry fields (`at`, `size`, `radius`, `align`,
+    #: `vertical_align`) this element takes on a device, keyed by
+    #: ``(shape, device id)`` -- ``(s, None)`` for a `shape:<s>` selector,
+    #: ``(None, d)`` for a device id, ``(s, d)`` for both merged.  Applied
+    #: per device by `Resolver.for_device`.
+    overrides: dict[tuple[str | None, str | None], dict[str, Any]] = field(default_factory=dict)
+    #: Every `overrides:` selector as written, with its span, for
+    #: `wfb.lint.check_override_selectors`.
+    override_selectors: tuple[tuple[str, Span | None], ...] = ()
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
     #: all.  **Absent means hidden** (no `when_absent:` applies).  A group's
     #: is conjoined into every descendant's own (`Builder.push_visible`),

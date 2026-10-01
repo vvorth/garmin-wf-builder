@@ -306,3 +306,49 @@ battery_ring:
 
 *[`examples/features/instinct`](../../examples/features/instinct/face.yaml):
 the battery ring and number anchored to the subscreen.*
+
+## Per-device and per-shape overrides
+
+One design targets watches of different sizes and shapes, and relative units
+(`%`, `%r`) keep most of it right everywhere. When one element still needs to
+sit differently on one watch or one screen shape, `overrides:` patches its
+geometry there. The rest of the design is unchanged:
+
+```yaml
+date:
+  type: text
+  text: "{date.today:%a %d}"
+  at: { anchor: center, dy: 30%r }
+  absent: hide
+  overrides:
+    "shape:rectangle": { at: { dy: 22% } }       # every rectangular target
+    fr955: { at: { anchor: bottom, dy: -18% } }  # this one watch
+```
+
+- **The selector** is a device id (`wfb devices` lists them) or
+  `shape:round`, `shape:rectangle`, `shape:semi-octagon` or
+  `shape:semi-round`. A device id that is not installed is a build error.
+  A selector that matches no device in the build is the
+  `override-unreachable` warning, which `lint: {allow: [...]}` on the
+  element can accept (a design whose rectangle overrides are for a later
+  target, for example).
+- **The keys** are geometry only: `at:`, `size:`, `radius:` and `align:`.
+  An override changes a key the element already has: `size:` and `radius:`
+  only where the element writes them, `at:` and `align:` wherever the
+  element takes them. Colours, fonts, data and anything else stay the same
+  on every watch.
+- **It merges.** A mapping merges key by key into the element's own
+  (`at: { dy: 22% }` above keeps `anchor: center`), and anything else
+  replaces it. `align:` replaces the element's alignment whole. For a
+  device that matches both, the device id's patch goes over the shape's,
+  and both over the element's own keys.
+- **`align:` cannot be overridden on `text`, `icon` or `data`.** Their
+  alignment is the draw call's justification, which is shared by every
+  target. Move them with `at:`.
+- **An override cannot move an element into or out of the
+  [subscreen window](#the-subscreen-window).**
+- A `group`'s override moves or resizes the group's own box, and its
+  children with it.
+
+Each watch's override lands in its own layout constants, so it costs
+nothing at runtime, and `wfb preview -d <device>` shows it.

@@ -116,6 +116,5 @@ built, so adding them later breaks nothing. Writing one today is a friendly
 | `outline:` on a hand, pattern or needle part | the text outline, on parts |
 | `parts:`, `arrange:`, `requires:`, `fallback:` on `type: data` | a data widget built from an icon, value, label, graph or gauge |
 | a `[ {when: …, value: …}, …, {else: …} ]` list as any value | values chosen by rules over live data |
-| `overrides:` | per-device adjustments |
 
 `docs/limitations.md` §2 is the authoritative list.

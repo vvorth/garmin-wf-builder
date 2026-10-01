@@ -456,6 +456,12 @@ class _Lowering:
             self.outline(node)
         for key in ("at", "to"):
             _anchor(node.get(key))
+        overrides = node.get("overrides")
+        if isinstance(overrides, CommentedMap):
+            for patch in overrides.values():
+                if isinstance(patch, CommentedMap):
+                    self.align(patch)
+                    _anchor(patch.get("at"))
         points = node.get("points")
         if isinstance(points, list):
             for point in points:

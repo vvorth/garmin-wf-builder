@@ -187,8 +187,7 @@ in an override is loaded once, not twice.
 `font:` override, a `data` element's `font:` override, and any `font:`
 override naming a `face:` (vector) font rather than a baked one — each is
 rejected outright by the builder with a friendly "not implemented yet"
-error, the same house style per-device `overrides:` already
-follow: never a silent no-op. `aod: {filled: ...}` on a `polygon` gets
+error: never a silent no-op. `aod: {filled: ...}` on a `polygon` gets
 the same treatment, for the same reason the awake element's own `filled:
 false` already does — there is no outline primitive (Dc has fillPolygon,
 not drawPolygon) for either one to switch to. The same holds when the key

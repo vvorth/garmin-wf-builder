@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from ... import catalog, complications, kinds
+from ... import catalog, complications, kinds, vocab
 from ...diagnostics import Span
 
 from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE, Position
@@ -16,6 +16,41 @@ from .static import StaticPass
 
 if TYPE_CHECKING:
     from . import Builder
+
+#: The keys an `overrides:` patch may carry, as `wfb.lower` leaves them.
+_OVERRIDE_FIELDS = ("at", "size", "radius", "align", "vertical_align")
+
+#: Kinds whose `align:` is a `TEXT_JUSTIFY_*` flag in the shared view
+#: rather than a per-device box shift, so no override may change it.
+_GLYPH_KINDS = frozenset({"text", "icon", "complication_slot"})
+
+
+def _merged(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """``patch`` deep-merged over ``base``: mappings key by key, anything
+    else replaced."""
+    out = dict(base)
+    for key, value in patch.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merged(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def _kind_name(element: Element) -> str:
+    """The `type:` the author wrote for ``element``."""
+    if element.kind == "shape":
+        return str(getattr(element, "shape", "shape")).replace("rounded_rectangle", "rectangle")
+    return vocab.kind(element.kind)
+
+
+def _takes_align(element: Element) -> bool:
+    """Whether this element's own `align:` places it -- the kinds whose
+    alignment layout resolves into its box."""
+    if element.kind == "shape":
+        from ...kinds.shape import SHAPE_GEOMETRY_KEYS  # the kind imports the IR
+        return "align" in SHAPE_GEOMETRY_KEYS.get(getattr(element, "shape", ""), frozenset())
+    return element.kind in ("group", "progress", "graph")
 
 
 class ElementTree(StaticPass):
@@ -49,24 +84,6 @@ class ElementTree(StaticPass):
         self.seen_ids[element_id] = span
         if not self._check_symbol_collision(element_id, node, span):
             return None
-        if node.get("overrides"):
-            # Parsed and stored, but applied by nothing (ADR 0004 4 is still
-            # unbuilt).  Accepting it silently would be the worst of the
-            # three options: a misspelled device id and an invented key both
-            # validate clean, and the author would be left believing a
-            # per-device tweak landed.
-            self.bag.error(
-                "overrides",
-                f"{element_id}: per-device 'overrides:' is not implemented yet, "
-                "so this would be silently ignored",
-                self.doc.span(node, "overrides") or span,
-                notes=["ADR 0004 4 specifies it; nothing reads it yet -- see "
-                       "docs/limitations.md 2",
-                       "until it lands, express a per-device difference with a "
-                       "relative unit (%r, %) rather than a fixed px"],
-            )
-            return None
-
         aod_own_hide, aod_own = self._build_aod_authored(node)
         at = self.position(node.get("at"), node, "at", allow_subscreen=True)
         if not self._check_subscreen(node, at, path, span):
@@ -96,6 +113,9 @@ class ElementTree(StaticPass):
         # A kind is written against the whole `Builder`, which this layer
         # only ever is a base of.
         element = kinds.get(node["type"]).build(cast("Builder", self), node, common, path)
+        if element is not None and node.get("overrides"):
+            if not self._build_overrides(node, element):
+                return None
         if element is not None:
             self._resolve_hold_auto(element)
             if "outline" in node and element.outline is None and element.kind != "text":
@@ -110,6 +130,108 @@ class ElementTree(StaticPass):
                                notes=["not implemented yet -- docs/limitations.md §2"])
                 return None
         return element
+
+    # -- overrides --------------------------------------------------------
+
+    def _build_overrides(self, node: dict[str, Any], element: Element) -> bool:
+        """`overrides:` (ADR 0004 §4): each selector's geometry patch
+        checked, then merged over the element's own keys and parsed once per
+        selector and per (shape, device) pair, into `Element.overrides`.
+        False, having reported why, when a patch is refused."""
+        raw = node["overrides"]
+        shapes: dict[str, dict[str, Any]] = {}
+        devices: dict[str, dict[str, Any]] = {}
+        selectors: list[tuple[str, Span | None]] = []
+        ok = True
+        for selector, patch in raw.items():
+            selector = str(selector)
+            selectors.append((selector, self.doc.span(raw, selector, of="key")
+                              or self.doc.span(raw, selector)))
+            if selector.startswith("shape:"):
+                shapes[selector[len("shape:"):]] = patch
+            else:
+                devices[selector] = patch
+            ok = self._check_override_patch(node, element, selector, patch) and ok
+        element.override_selectors = tuple(selectors)
+        if not ok:
+            return False
+        combos: list[tuple[str | None, str | None]] = [
+            *((shape, None) for shape in shapes), *((None, device) for device in devices),
+            *((shape, device) for shape in shapes for device in devices)]
+        for shape, device in combos:
+            patches = [p for p in (shapes.get(shape or ""), devices.get(device or ""))
+                       if p is not None]
+            element.overrides[(shape, device)] = self._override_fields(node, element, patches)
+        return True
+
+    def _check_override_patch(self, node: dict[str, Any], element: Element, selector: str,
+                              patch: dict[str, Any]) -> bool:
+        """One selector's patch: only keys this element writes (or, for
+        `at:`/`align:`, takes), alignment never on a glyph kind, the
+        subscreen window never entered or left, and every length valid."""
+        label = f"{element.id}.overrides.{selector}"
+        errors_before = len(self.bag.errors)
+        for key in patch:
+            span = self.doc.span(patch, key, of="key") or self.doc.span(patch, key)
+            if key in ("align", "vertical_align"):
+                if element.kind in _GLYPH_KINDS:
+                    self.bag.error(
+                        "overrides",
+                        f"{label}: 'align:' on a {_kind_name(element)} is the draw call's "
+                        "justification, which every target shares",
+                        span, notes=["move it with 'at:' instead"])
+                elif not _takes_align(element):
+                    self.bag.error("overrides",
+                                   f"{label}: a {_kind_name(element)} takes no 'align:'", span)
+            elif key in ("size", "radius"):
+                if key not in node:
+                    self.bag.error(
+                        "overrides",
+                        f"{label}: '{key}:' is not a key this element writes",
+                        span, notes=["an override changes the element's own geometry; it "
+                                     "cannot add a key the element does not have"])
+                elif key == "size":
+                    self.size(patch["size"])
+                else:
+                    self.length(patch, "radius")
+            elif key == "at":
+                at = patch["at"]
+                base = node.get("at") or {}
+                merged_anchor = at.get("anchor", base.get("anchor")) if isinstance(at, dict) \
+                    else None
+                if (merged_anchor == "subscreen") != (base.get("anchor") == "subscreen"):
+                    self.bag.error(
+                        "overrides",
+                        f"{label}: an override cannot move an element into or out of "
+                        "the subscreen window", span)
+                elif isinstance(at, dict):
+                    self.position(_merged(base, at), patch, "at",
+                                  allow_subscreen=merged_anchor == "subscreen")
+        return len(self.bag.errors) == errors_before
+
+    def _override_fields(self, node: dict[str, Any], element: Element,
+                         patches: list[dict[str, Any]]) -> dict[str, Any]:
+        """The element's geometry fields with ``patches`` merged over its
+        own keys in order: a mapping key by key, anything else replaced, and
+        `align:` replacing the element's whole alignment."""
+        own: dict[str, Any] = {key: node[key] for key in _OVERRIDE_FIELDS if key in node}
+        for patch in patches:
+            if "align" in patch or "vertical_align" in patch:
+                own.pop("align", None)
+                own.pop("vertical_align", None)
+            own = _merged(own, patch)
+        touched = {key for patch in patches for key in patch}
+        fields: dict[str, Any] = {}
+        if "at" in touched:
+            fields["at"] = self.position(own.get("at"), own, "at",
+                                         allow_subscreen=element.in_subscreen)
+        if "size" in touched:
+            fields["size"] = self.size(own.get("size"))
+        if "radius" in touched:
+            fields["radius"] = self.length(own, "radius")
+        if touched & {"align", "vertical_align"}:
+            fields["align"], fields["vertical_align"] = self.alignment(own)
+        return fields
 
     def check_group_outlines(self, elements: list[Element]) -> None:
         """What an outlined `group` needs of its members: a

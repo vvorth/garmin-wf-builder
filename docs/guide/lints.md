@@ -38,6 +38,7 @@ messages; see `wfb/lint.py` if unsure.
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 | `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
+| `override-unreachable` | an [`overrides:`](placement.md#per-device-and-per-shape-overrides) selector matches no device in this build, so it changes nothing |
 | `aod-burn-in` | the rendered `--aod` frame -- masked, at its worst of 4 mask phases, unless `aod: {mask: false}` -- lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
 
 ## Lint suppression
@@ -69,13 +70,13 @@ the generated code itself, so it follows the ordinary "acknowledge it, with
 a reason" suppression path like every other measured/estimated check
 instead of joining the hard-limit errors below.
 
-Twenty-three codes are suppressible: `palette-dither`, `palette-mono`, `safe-area`, `off-screen`,
+Twenty-four codes are suppressible: `palette-dither`, `palette-mono`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
-`text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in` and
-`font-unavailable` — a `face:` font, or an element using one, that has
+`text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in`,
+`override-unreachable` and `font-unavailable` — a `face:` font, or an element using one, that has
 `unsupported: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
 `error` instead, the same failure is a **hard build error and never

@@ -764,7 +764,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 |---|---|
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
-| Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
+| `overrides:` beyond geometry (`color:`, `visible:`, fonts, data, the `colors:`/`touch:`/`api:` selectors), and an `align:` override on `text`, `icon` or `data` | ADR 0004 §4. The geometry keys (`at:`, `size:`, `radius:`, `align:`) are built; the others are a schema error. A glyph kind's alignment is its `drawText` justification, one flag in the view every target shares, so overriding it is a build error |
 | Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install, and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | Colouring or segmenting a slot gauge by its picked metric's own bands (heart-rate zones, Body Battery and stress levels, sleep-score and VO2 max ratings) | the band edges are in `wfb.complications.SCALE`; drawing them needs band geometry computed on the watch each frame, where `bands:` today are build-time constants |
@@ -889,8 +889,9 @@ semi-octagons, with its battery gauge in the subscreen window
 and nothing here has confirmed that `WatchUi.getSubscreen()` returns the box
 the device files declare.
 `docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
-realistic targets) and a route to exact geometry from the simulator skin;
-`docs/plans/20-screen-shapes.md` is the plan.
+realistic targets) and a route to exact geometry from the simulator skin.
+Where a relative unit is not enough on one shape, `overrides:` patches an
+element's geometry for it (`docs/guide/placement.md`).
 
 ### The simulator crashes when an app is pushed
 

@@ -605,8 +605,8 @@ These cost real time to discover; do not rediscover them.
   hoisted `dc.setColor`/`dc.setPenWidth` call sites against one element-
   level override, never restructuring the hoisting logic itself (plan 14
   §5.1). **Not implemented yet, matching `docs/limitations.md` §2 -- and,
-  per house style (CLAUDE.md §7, the same rule per-device `overrides:`
-  follows), each is a friendly build error, never a silent no-op**: a
+  per house style (CLAUDE.md §7), each is a friendly build error, never
+  a silent no-op**: a
   `pattern`'s own `font:` override (allowlisted, plan 14 §2.3, but a
   pattern's per-copy text font loading has no second-resource slot yet), a
   `complication_slot`'s `font:` override (same reason), any `font:`

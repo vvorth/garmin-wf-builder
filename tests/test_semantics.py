@@ -1661,18 +1661,12 @@ def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
     assert "restyles a placeholder, and this text is fixed" in errors[0].message
 
 
-# -- `overrides:` is not implemented, and now says so -------------------------
+# -- `overrides:` refuses what it cannot apply ----------------------------------
 
 
-def test_overrides_is_rejected_rather_than_silently_ignored(write_design, bag):
-    """ADR 0004 4 is unbuilt, so accepting the key is worse than refusing it.
-
-    Before this error existed, the design below validated with *no diagnostics
-    at all*: a device id that does not exist and a key that is not a property
-    of any element both sailed through, because `$defs/overrides` is
-    `{additionalProperties: {type: object}}` and nothing downstream ever reads
-    `Element.overrides`.
-    """
+def test_overrides_rejects_a_bad_selector_and_a_non_geometry_key(write_design, bag):
+    """Neither a malformed selector nor a key that is not geometry may
+    validate and then do nothing (tests/test_overrides.py covers the rest)."""
     load(write_design(design("""
   ring:
     type: circle
@@ -1684,9 +1678,9 @@ def test_overrides_is_rejected_rather_than_silently_ignored(write_design, bag):
         radius: 999%r
         totally_bogus_key: [1, 2, 3]
 """)), bag)
-    errors = [d for d in bag.errors if d.code == "overrides"]
-    assert len(errors) == 1, bag.render()
-    assert "not implemented" in errors[0].message
+    messages = [d.message for d in bag.errors if d.code == "schema"]
+    assert any("'notADeviceAtAll' is not a valid name" in m for m in messages), bag.render()
+    assert any("'totally_bogus_key' was unexpected" in m for m in messages), bag.render()
 
 
 def test_an_empty_overrides_block_is_not_an_error(write_design, bag):

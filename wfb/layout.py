@@ -15,7 +15,7 @@ import math
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, TypeVar
 
 from . import kinds, units, visible_area
 from .devices import Device, FontMetric
@@ -1203,6 +1203,10 @@ class _Font:
                             self.face, self.is_vector, self.available)
 
 
+#: An element kind, kept through `Resolver.for_device`.
+E = TypeVar("E", bound=Element)
+
+
 class Resolver:
     """Per-device layout: every element of one face placed on one device,
     in whole pixels, for the lints, the preview and codegen.
@@ -1266,6 +1270,7 @@ class Resolver:
         every outlined enclosing group's ring, which grows each leaf's box
         (`Placed.ring_px`)."""
         for element in elements:
+            element = self.for_device(element)
             here, reason = parent, hidden
             if element.in_subscreen:
                 window = self.device.subscreen
@@ -1300,6 +1305,18 @@ class Resolver:
                     reason = reason or kind.hidden_reason(placed)
             if reason is not None:
                 self.hidden[element.id] = reason
+
+    def for_device(self, element: E) -> E:
+        """``element`` with this device's `overrides:` applied: a device
+        id's patch merged over its shape's (`Element.overrides`), or the
+        element itself when neither selector names this device."""
+        if not element.overrides:
+            return element
+        shape, device = self.device.shape, self.device.id
+        fields = (element.overrides.get((shape, device))
+                  or element.overrides.get((None, device))
+                  or element.overrides.get((shape, None)))
+        return replace(element, **fields) if fields else element
 
     @contextmanager
     def _owned_by(self, owner: "_Owner") -> Iterator[None]:

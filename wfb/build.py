@@ -148,6 +148,7 @@ def select_devices(face: Face, db: DeviceDatabase, bag: Bag,
                 notes=["targets: " + ", ".join(face.targets)],
             )
         devices.append(device)
+    lint.check_override_selectors(face, db.ids(), devices, bag)
     return devices
 
 

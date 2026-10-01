@@ -95,6 +95,14 @@ or AOD-related has been observed on a watch or in the simulator.
   40–70 ms per AMOLED target (two full-frame renders plus one per shown
   element). `jitter:` was built and removed on 2026-09-23 in favour of the
   mask. `docs/guide/always-on-display.md`, `docs/research/11`, `15`.
+- **Per-device `overrides:`** (ADR 0004 §4) -- an element's `at:`,
+  `size:`, `radius:` and `align:` patched per device id or `shape:<s>`,
+  deep-merged (device over shape over the element), parsed in
+  `ElementTree._build_overrides` into `Element.overrides` and applied per
+  device by `Resolver.for_device`, so only `Layout.mc` changes; the
+  selectors are checked by `lint.check_override_selectors` (an unknown
+  device is an error, `override-unreachable` a warning).
+  `docs/guide/placement.md`.
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
@@ -133,9 +141,9 @@ specifies each item.
 
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
-2. Per-device `overrides`: writing one is a build error. Plan 20 slice 4
-   proposes the geometry-only subset, with `shape:` selectors, to be
-   rebased onto format 2.
+2. `overrides:` beyond geometry (`color:`, `visible:`, a font, `touch:`/
+   `api:` selectors), and `align:` on `text`/`icon`/`data`, whose
+   justification is shared code: build errors.
 3. Ticks drawn by a `style: scale` gauge itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `data` element.
@@ -168,7 +176,8 @@ specifies each item.
     preview and build against real device files (slice 1); every non-round
     shape's visible area is its simulator skin (slice 2); 2-colour panels
     are black and white only, `palette-mono` (slice 3); `anchor: subscreen`
-    places an element in the Instinct window (D2); `overrides:` awaits D1.
+    places an element in the Instinct window; `overrides:` patches an
+    element's geometry per device id or shape.
 
 ## Architecture options not taken
 
