@@ -1,0 +1,14 @@
+Draft04 (validation, hover): 353 cases, agree 324, false errors on valid 0, missed errors 29 (dependentRequired: 29/36 missed), crashes 0
+  missed: examples/enduro/face.yaml arc_l: dependentRequired at.angle without radius
+  missed: examples/enduro/face.yaml arc_l: dependentRequired gauge value without max
+  missed: examples/features/align/face.yaml main_hands: dependentRequired at.angle without radius
+  missed: examples/features/align/face.yaml steps_bar: dependentRequired gauge value without max
+  missed: examples/features/aod/face.yaml background: dependentRequired at.angle without radius
+  missed: examples/features/aod/face.yaml battery_ring: dependentRequired gauge value without max
+Draft07 (completion): 353 cases, agree 324, false errors on valid 0, missed errors 29 (dependentRequired: 29/36 missed), crashes 0
+  missed: examples/enduro/face.yaml arc_l: dependentRequired at.angle without radius
+  missed: examples/enduro/face.yaml arc_l: dependentRequired gauge value without max
+  missed: examples/features/align/face.yaml main_hands: dependentRequired at.angle without radius
+  missed: examples/features/align/face.yaml steps_bar: dependentRequired gauge value without max
+  missed: examples/features/aod/face.yaml background: dependentRequired at.angle without radius
+  missed: examples/features/aod/face.yaml battery_ring: dependentRequired gauge value without max

@@ -431,6 +431,8 @@ the override that applies on the viewed device (§4.4).
 
 ## 7. Risks and open questions
 
+Research 28 closes or classifies every item below.
+
 - **The span patch is proven for scalar edits only.** Adding, removing and
   moving keys and elements is mechanical but untested (§3.3). The re-parse
   gate means a bug fails loudly, not silently.

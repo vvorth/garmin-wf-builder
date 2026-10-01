@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "codemirror-json-schema": "0.8.1"
+  }
+}

@@ -490,6 +490,8 @@ GUI on top) without waiting for every kind, and without reverting anything.
 
 ## 7. Open questions and first measurements
 
+Research 28 closes or classifies every item below.
+
 - **The `text` port.** This is the next spike: whether the program can
   express every font route and `curve:` while printing byte-identical code.
 - **Primitive twins need property tests.** Each evaluator op should be

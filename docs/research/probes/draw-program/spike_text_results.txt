@@ -1,0 +1,4 @@
+## A. every text element in the examples (awake frame, own outline ring)
+102 text elements by route: baked 5, baked +ring 2, baked literal 1, baked literal +ring 3, system 30, system literal 21, system literal +ring 2, system placeholder 17, vector 5, vector literal 3, vector placeholder 6, vector/angled literal 1, vector/angled literal +ring 1, vector/radial literal 4, vector/radial literal +ring 1
+Monkey C byte-identical to emit_draw: 102/102
+pixels identical to draw_preview: 102/102 at 1x, 102/102 at 2x

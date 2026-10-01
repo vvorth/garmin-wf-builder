@@ -31,4 +31,9 @@ and coverage recovered from the pair; the layers stacked in draw order and
 compared with `preview.render`, before and after quantise and the bezel
 mask.
 
+`spike_text.py` writes `spike_text_results.txt`
+(`docs/research/28-editor-open-questions.md` §6): the same spike for
+`type: text`, covering every font and value route, against
+`TextKind.emit_draw` and `draw_preview`.
+
 `examples/dashboard` is skipped (it is the user's playground).

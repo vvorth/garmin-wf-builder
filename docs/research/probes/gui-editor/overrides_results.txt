@@ -1,0 +1,20 @@
+## a drag under `overrides:`: patch the most specific source of the key
+  card             drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  card             drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  card             drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+  card_inner       drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  card_inner       drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  card_inner       drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+  label            drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  label            drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  label            drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+  pill             drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  pill             drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  pill             drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+  pill_outline     drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  pill_outline     drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  pill_outline     drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+  rule             drag on fenix8solar47mm  patches at.dy: moved here True, other devices as expected True
+  rule             drag on fenix8solar51mm  patches at.dy: moved here True, other devices as expected True
+  rule             drag on fr955            patches overrides.fr955.at.dy: moved here True, other devices as expected True
+18/18 drags moved exactly the devices that read the patched key

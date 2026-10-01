@@ -1,0 +1,9 @@
+## structural text patches over the example corpus
+map: 452/452 elements (groups, `static:` and layout blocks included) found by their span in the composed tree
+set-absent  79/79 accepted
+remove      77/77 accepted
+delete      86/86 accepted
+duplicate   86/86 accepted
+reorder     50/50 accepted
+add         26/26 accepted
+not accepted:
