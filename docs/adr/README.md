@@ -7,7 +7,7 @@ the research file so the evidence is traceable.
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-host-language-python.md) | Host language: **Python** | Accepted |
-| [0002](0002-authoring-interface.md) | Authoring: **YAML canonical, GUI as lossless editor** | Accepted |
+| [0002](0002-authoring-interface.md) | Authoring: **YAML canonical, GUI as lossless editor**; the GUI is a local web app (amended 2026-10-01) | Accepted |
 | [0003](0003-compilation-strategy.md) | Compilation: **code generation**, with a small support barrel | Accepted |
 | [0004](0004-element-model-and-coordinates.md) | Element model; **anchors + relative/polar units**, per-device overrides | Accepted |
 | [0005](0005-data-binding-and-expressions.md) | Typed data catalogue; **expressions compile to Monkey C**, no runtime evaluator | Accepted |

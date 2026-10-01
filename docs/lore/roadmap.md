@@ -161,10 +161,13 @@ specifies each item.
    otherwise built (`api-gated`: modules, fields, complication types); the
    hook is read by `wfb.availability.source_unavailable` for a future
    source whose read needs an extra function.
-8. **The GUI** (ADR 0002). Unit round-tripping and schema churn make it
-   premature (`docs/research/06-authoring-ergonomics.md` §4). If it is ever
-   built, build it as a thin client over `wfb/preview.py`, not a second
-   renderer.
+8. **The GUI** (ADR 0002 amendment, 2026-10-01): decided, not built.
+   `wfb studio` will be a local web app on Starlette and uvicorn, with a
+   no-build-step front end. It edits the file's text by span patches,
+   never by re-dumping (research 26 §3). The first version edits geometry
+   only. The browser draws per-element layers from the single draw
+   program below and makes no drawing decisions (research 27 §5). It
+   follows that program's core and its `shape`/`text` ports.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.

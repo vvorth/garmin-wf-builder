@@ -122,8 +122,35 @@ It also bears on the deferred GUI: a lossless editor must round-trip
 into the list form on save would be exactly the kind of unrequested change
 point 2 of the decision above forbids.
 
+## Amendment (2026-10-01): the GUI is a local web app
+
+The open question below is settled: the GUI is a **local web app**.
+`wfb studio <face.yaml>` serves it on `127.0.0.1`, and the author opens it
+in a browser on the host. It is the only form that works the same in the
+Linux container, which has no display, and on a macOS host. Its server is
+Python on **Starlette and uvicorn**. Its front end is vendored ES modules
+with **no build step**, so Node is never required. Research 26 §5 and §8
+weigh the alternatives (NiceGUI, Qt, a VS Code extension).
+
+The decision's guarantees hold as written, and the research made them
+concrete:
+
+- **Edits are text patches, never a re-serialisation.** A round-trip
+  `load` → `dump` reproduced 0 of 29 example faces byte for byte. A patch
+  that rewrites only the edited scalar's characters, located by the
+  parser's own marks, changed exactly one line in 77 of 77 edits
+  (research 26 §3.2–§3.3). The server holds the file's text and a version
+  number, not a model. Unknown keys and either element spelling therefore
+  survive by construction.
+- **The first GUI edits geometry only**: placement, size, alignment,
+  angles, and adding, deleting, duplicating and reordering elements.
+  Everything else is edited as text in the same window (research 27 §3).
+  "Nothing only through the GUI" holds trivially.
+- **The browser never decides what a face looks like.** It draws
+  per-element layers that the compiler produced, from the single draw
+  program that also generates the Monkey C (research 27 §5). It rasterises
+  them, and makes no drawing decisions of its own.
+
 ## Open
 
-- Whether the GUI is a local web app (browser canvas, Python server) or native.
-  Deferred to Phase 3.8; the canonical-format decision makes it reversible, which
-  is the point of taking this decision first.
+None.

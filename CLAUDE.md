@@ -296,7 +296,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
-  - the GUI, which if built must be a thin client over `wfb/preview.py`;
+  - the GUI: decided as a local web app over the YAML text (ADR 0002
+    amendment), built after the single draw program
+    (`docs/lore/roadmap.md`);
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;

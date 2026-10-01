@@ -518,8 +518,9 @@ GUI on top) without waiting for every kind, and without reverting anything.
 - E3: A7 with three backends.
 - E4: order S3.
 
-Research 26's D1–D3 (platform, server dependencies, front-end tooling)
-remain open, to be settled in the GUI's plan.
+Research 26's D1–D3 were decided the same day: a local web app, Starlette
+and uvicorn, and no front-end build step (research 26 §8, ADR 0002
+amendment).
 
 Since E3 is yes, A7 becomes a plan (`docs/plans/`), and its first slice is the
 spike made real for `shape`, including AOD and group rings, proven by the

@@ -486,8 +486,13 @@ the override that applies on the viewed device (§4.4).
 
 Research 27 revisits D4 and D5. The user decided (2026-10-01) on a
 geometry-only first GUI, reverting no feature, and building plan 19's A7
-first, kind by kind, with the editor as one of its backends. D1–D3 remain
-open.
+first, kind by kind, with the editor as one of its backends.
+
+**D1–D3 decided by the user, 2026-10-01** (recorded in the ADR 0002
+amendment):
+- D1: a local web app, as recommended.
+- D2: **Starlette and uvicorn**, not stdlib only.
+- D3: no build step, as recommended.
 
 If the user picks a GUI at all, it amends ADR 0002 ("Open: whether the GUI
 is a local web app … or native") with the chosen D1, and becomes a plan.
