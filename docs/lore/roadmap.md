@@ -183,18 +183,20 @@ specifies each item.
     places an element in the Instinct window; `overrides:` patches an
     element's geometry per device id or shape.
 
-## Architecture options not taken
+## Architecture work decided, not built
 
-- **A single draw program** (plan 19 A7): lower each element once into a
-  small display list of drawing steps that the preview evaluates and the
-  emitter prints as Monkey C, removing the rules preview and codegen still
-  implement twice (plan 19 §2 P2 lists them). Not built, and not
-  recommended unless many more drawing features are coming: it rewrites
-  most of `wfb/preview.py` and `wfb/emit/monkeyc/`, while A1's shared
-  definitions plus parity tests already cover most of that risk. The
-  user has not decided; read the analysis with
-  `git show d325e77:docs/plans/19-architecture-refactor.md`, and write a
-  new plan before starting it.
+- **A single draw program** (decided 2026-10-01, not started): each
+  element is lowered once into a program of drawing steps over `Layout`
+  constants and readings. A Monkey C printer, a Python evaluator (the
+  preview) and a partly evaluated op list for a browser editor all consume
+  it, so the rules preview and codegen still implement twice go away. It
+  lands one element kind at a time behind `wfb/kinds/`, each port proven
+  output-identical by `tools/snapshot.py`. Two known preview/codegen
+  disagreements are corrected as their own commits: grown outline rings,
+  which the preview draws as stamps, and half-degree arc starts, which the
+  preview rounds 1° off `WfbArc.drawSpan`. Evidence: research 27 §2.5. The
+  visual editor follows it, editing geometry only and reverting no shipped
+  feature. Write a plan before starting.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

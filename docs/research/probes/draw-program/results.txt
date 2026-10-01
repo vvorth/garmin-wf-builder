@@ -1,0 +1,85 @@
+## 1. one element alone through Renderer.render_element, fenix8solar47mm, 2x, ms (min of 5 warm runs)
+face                                           n  median    p90    max    sum  slowest
+examples/analog-custom/face.yaml              21    0.01   0.28   0.62    1.9  hour_ticks (pattern)
+examples/enduro/face.yaml                     16    0.02   0.30   0.33    1.5  minutes (text)
+examples/features/align/face.yaml             21    0.02   0.38   1.33    2.8  hour_numerals (pattern)
+examples/features/analog/face.yaml            10    0.01   0.12   0.12    0.3  background (shape)
+examples/features/aod/face.yaml                6    0.11   0.35   0.35    0.9  date_text (text)
+examples/features/complications/face.yaml     10    0.06   0.28   0.28    0.9  clock (text)
+examples/features/config/face.yaml             5    0.26   0.45   0.45    1.2  clock (text)
+examples/features/gauge/face.yaml              6    0.08   0.30   0.30    0.6  battery_label (text)
+examples/features/graph/face.yaml              5    0.06   0.26   0.26    0.5  clock (text)
+examples/features/grid/face.yaml               4    0.25   0.44   0.44    1.0  weekdays (pattern)
+examples/features/instinct/face.yaml           8    0.11   0.33   0.33    1.2  date (text)
+examples/features/outline/face.yaml            8    1.06 102.09 102.09  134.6  wordmark (text)
+examples/features/patterns/face.yaml          11    0.09   0.29   0.66    1.9  segments (pattern)
+examples/features/profile/face.yaml           18    0.01   0.10   0.26    0.7  label_plain (text)
+examples/features/progress/face.yaml           5    0.10   0.59   0.59    0.9  battery_segments (progress)
+examples/features/rings/face.yaml              9    5.51  65.98  65.98  106.5  ticks (pattern)
+examples/features/shapes/face.yaml            11    0.01   0.10   0.31    0.6  label (text)
+examples/features/slot-gauge/face.yaml         9    0.17   0.31   0.31    1.3  top_reading (complication_slot)
+examples/features/slots/face.yaml              4    0.35   0.53   0.53    1.3  top_reading (complication_slot)
+examples/features/styles/face.yaml             5    0.26   0.46   0.46    1.2  big_clock (text)
+examples/features/sun/face.yaml                2    0.10   0.11   0.11    0.2  daylight (progress)
+examples/features/units/face.yaml              6    0.08   0.37   0.37    0.9  distance (text)
+examples/features/vector-text/face.yaml       10    9.90  32.49  32.49  139.1  left_cw (text)
+examples/generated_by_skill/navy-classic/face.yaml  22    0.06   0.32   0.54    2.2  rim_serration (pattern)
+examples/generated_by_skill/trail-utility/face.yaml  40    0.02   0.12   0.26    1.7  date (text)
+examples/showcase/face.yaml                   28    0.03   0.23   0.49    2.6  date_line (text)
+examples/system-fonts/numbers-large/face.yaml   6    0.05   0.21   0.21    0.5  hot_text (text)
+examples/system-fonts/numbers/face.yaml        8    0.05   0.28   0.28    0.9  mild_text (text)
+examples/system-fonts/text/face.yaml          16    0.05   0.60   0.61    3.1  large_text (text)
+all 330 elements: median 0.06 ms, p90 0.44, p99 31.91, max 102.09
+by kind (median / max ms, count): complication_slot 0.31/0.53 (9); graph 0.03/0.06 (6); hands 0.06/17.66 (7); icon 0.02/5.51 (28); pattern 0.23/65.98 (25); progress 0.03/5.80 (26); shape 0.01/5.84 (138); text 0.26/102.09 (91)
+
+## 2. cross-element coupling per face (elements, not counting groups)
+face                                         elems ringgrp inring outline static layout slot overr  aod kinds
+examples/analog-custom/face.yaml                25       0      0       0     11     19    0     0    0  hands:3,pattern:2,shape:18,text:2
+examples/enduro/face.yaml                       16       0      0       0      9      0    0     0    0  icon:1,progress:3,shape:9,text:3
+examples/features/align/face.yaml               21       0      0       0     11      0    1     0    1  complication_slot:1,graph:1,hands:1,icon:2,pattern:2,progress:2,shape:10,text:2
+examples/features/analog/face.yaml              11       0      0       0      7      5    0     0    0  hands:3,shape:8
+examples/features/aod/face.yaml                  6       0      0       0      0      0    0     0    3  progress:1,shape:3,text:2
+examples/features/complications/face.yaml       10       0      0       0      0      0    0     0    0  icon:4,shape:1,text:5
+examples/features/config/face.yaml               5       0      0       0      3      0    0     0    0  shape:2,text:3
+examples/features/gauge/face.yaml                6       0      0       0      4      0    0     0    0  pattern:1,progress:2,shape:1,text:2
+examples/features/graph/face.yaml                5       0      0       0      0      0    0     0    0  graph:3,shape:1,text:1
+examples/features/grid/face.yaml                 4       0      0       0      2      0    0     0    0  pattern:2,shape:1,text:1
+examples/features/instinct/face.yaml            10       0      0       0      1      0    0     0    0  icon:2,progress:1,shape:2,text:5
+examples/features/outline/face.yaml              8       0      0       5      0      0    0     0    0  pattern:2,shape:1,text:5
+examples/features/patterns/face.yaml            11       0      0       0      8      0    0     0    0  pattern:9,shape:1,text:1
+examples/features/profile/face.yaml             52       2      4      30      1     51    0     0    0  hands:3,icon:6,pattern:3,progress:6,shape:25,text:9
+examples/features/progress/face.yaml             5       0      0       0      1      0    0     0    0  progress:4,shape:1
+examples/features/rings/face.yaml                9       1      2       6      2      0    0     0    0  hands:1,icon:2,pattern:1,progress:2,shape:2,text:1
+examples/features/shapes/face.yaml              11       0      0       0      0      0    0     0    0  shape:10,text:1
+examples/features/slot-gauge/face.yaml           9       0      0       0      0      0    6     0    0  complication_slot:3,progress:4,shape:1,text:1
+examples/features/slots/face.yaml                4       0      0       0      0      0    2     0    0  complication_slot:2,shape:1,text:1
+examples/features/styles/face.yaml               8       0      0       0      3      5    1     0    0  complication_slot:1,progress:1,shape:3,text:3
+examples/features/sun/face.yaml                  2       0      0       0      0      0    0     0    0  progress:1,shape:1
+examples/features/units/face.yaml                6       0      0       0      1      0    0     0    0  shape:1,text:5
+examples/features/vector-text/face.yaml         10       0      0       0      0      0    0     0    0  pattern:1,shape:2,text:7
+examples/generated_by_skill/navy-classic/face.yaml    22       0      0       0     16      0    0     0    0  hands:1,pattern:4,shape:12,text:5
+examples/generated_by_skill/trail-utility/face.yaml    40       0      0       0     19      0    0     0    0  graph:1,icon:6,progress:2,shape:17,text:14
+examples/showcase/face.yaml                     49       0      0       0     15     44    2     0    0  complication_slot:2,graph:1,hands:2,icon:12,pattern:4,progress:3,shape:12,text:13
+examples/system-fonts/numbers-large/face.yaml     6       0      0       0      0      0    0     0    0  shape:4,text:2
+examples/system-fonts/numbers/face.yaml          8       0      0       0      0      0    0     0    0  shape:5,text:3
+examples/system-fonts/text/face.yaml            16       0      0       0      0      0    0     0    0  shape:9,text:7
+totals: aod 4, elems 395, inring 6, kind:complication_slot 9, kind:graph 6, kind:hands 14, kind:icon 35, kind:pattern 31, kind:progress 32, kind:shape 164, kind:text 104, layout 124, outline 41, overr 0, ringgrp 3, slot 12, static 114
+faces using: aod 2, inring 2, kind:complication_slot 5, kind:graph 4, kind:hands 7, kind:icon 8, kind:pattern 11, kind:progress 13, kind:shape 29, kind:text 26, layout 5, outline 3, ringgrp 2, slot 5, static 17
+
+## 3. drawing vocabulary of the generated code (wfb build --no-compile, own targets)
+29 faces, 12635 view lines, 439 draw<Id> functions
+dc.* (24 distinct): setColor 548, drawText 210, setPenWidth 198, fillRectangle 67, drawLine 61, clearClip 30, drawCircle 25, fillCircle 23, clear 19, drawRadialText 19, getWidth 17, getHeight 17, drawBitmap 17, fillRoundedRectangle 17, fillEllipse 17, fillPolygon 17, getTextWidthInPixels 11, getFontHeight 10, drawAngledText 7, setAntiAlias 6, drawRoundedRectangle 3, drawRectangle 1, drawEllipse 1, setClip 1
+barrel (33 distinct): WfbArc.drawSpan 60, WfbGeom.fillRotated 47, WfbGeom.fillCircleRotated 30, WfbMath.percent 28, WfbComplications.valueOf 24, WfbGeom.drawLineRotated 23, WfbGeom.rotatedX 20, WfbGeom.rotatedY 20, WfbArc.drawProgress 17, WfbComplications.count 16, WfbHands.hourAngle 12, WfbHands.minuteAngle 12, WfbComplications.subscribe 12, WfbWeather.chooseIcon 10, WfbHands.secondAngle 8, WfbMath.clamp 7, WfbTime.displayHour 4, WfbGeom.fillTranslated 4, WfbRingWide.rotated 4, WfbGeom.drawCircleRotated 4, WfbSeries.min 3, WfbSeries.autoMax 3, WfbSeries.drawBars 3, WfbSeries.binHeartRate 3, WfbRing.rotated 3, WfbScale.fraction 3, WfbAodMask.apply 2, WfbSeries.drawArea 2, WfbRingWide.lineRotated 2, WfbSeries.autoMin 1, WfbSeries.drawLine 1, WfbRing.lineRotated 1, WfbScale.share 1
+control flow: if 589, for 65, else 49, switch 17
+
+## 4. Pillow calls each element makes through today's Renderer (default frame)
+330 elements; calls: image.paste 412, draw.text 388, draw.line 367, draw.ellipse 121, draw.rectangle 103, draw.polygon 100, draw.arc 56, draw.rounded_rectangle 6
+  complication_slot: elements using each call: draw.text 9, image.paste 7
+  graph: elements using each call: draw.rectangle 3, draw.polygon 2, draw.line 1
+  hands: elements using each call: draw.polygon 6, draw.line 5, draw.ellipse 4, image.paste 1
+  icon: elements using each call: image.paste 27
+  pattern: elements using each call: draw.polygon 7, draw.line 6, image.paste 6, draw.ellipse 5, draw.text 3, draw.arc 1
+  progress: elements using each call: draw.arc 13, draw.rectangle 8, draw.ellipse 4, image.paste 2, draw.polygon 1, draw.line 1
+  shape: elements using each call: draw.rectangle 48, draw.line 46, draw.ellipse 24, draw.arc 10, draw.rounded_rectangle 6, draw.polygon 3, image.paste 1
+  text: elements using each call: draw.text 73, image.paste 16
+

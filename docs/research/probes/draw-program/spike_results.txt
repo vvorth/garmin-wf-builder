@@ -1,0 +1,24 @@
+## A. every shape element in the examples (awake frame, own outline ring)
+163 shape elements: arc 12, arc+ring 2, circle 12, circle outlined 9, circle+ring 3, circle+ring outlined 2, ellipse 3, ellipse outlined 1, ellipse+ring 2, line 47, line+ring 2, polygon 3, polygon+ring 2, rectangle 47, rectangle outlined 1, rectangle+ring 2, rounded_rectangle 8, rounded_rectangle outlined 3, rounded_rectangle+ring 2
+Monkey C byte-identical to emit_draw: 163/163
+pixels identical to draw_preview: 158/163 at 1x, 157/163 at 2x
+  px@1 examples/features/profile/face.yaml disc_ring1 (circle+ring): 8 px differ
+  px@2 examples/features/profile/face.yaml disc_ring1 (circle+ring): 32 px differ
+  px@2 examples/features/profile/face.yaml card_ring1 (rectangle+ring): 12 px differ
+  px@1 examples/features/profile/face.yaml pill_ring1 (rounded_rectangle+ring): 8 px differ
+  px@2 examples/features/profile/face.yaml pill_ring1 (rounded_rectangle+ring): 28 px differ
+  px@1 examples/features/profile/face.yaml disc_ring2 (circle+ring): 28 px differ
+  px@2 examples/features/profile/face.yaml disc_ring2 (circle+ring): 60 px differ
+  px@1 examples/features/profile/face.yaml card_ring2 (rectangle+ring): 8 px differ
+  px@2 examples/features/profile/face.yaml card_ring2 (rectangle+ring): 28 px differ
+  px@1 examples/features/profile/face.yaml pill_ring2 (rounded_rectangle+ring): 8 px differ
+  px@2 examples/features/profile/face.yaml pill_ring2 (rounded_rectangle+ring): 52 px differ
+
+## B. shape: arc start angles on half degrees: today's preview vs WfbArc.drawSpan's arithmetic
+1080 of 2160 (start, sweep) pairs draw a different span
+  start 0.5, sweep 90: preview (-89, 1), device (-90, 0) (Pillow degrees)
+  start 0.5, sweep -90: preview (-179, -89), device (-180, -90) (Pillow degrees)
+  start 0.5, sweep 45.5: preview (-89, -43), device (-90, -44) (Pillow degrees)
+  start 1.5, sweep 90: preview (-88, 2), device (-89, 1) (Pillow degrees)
+  start 1.5, sweep -90: preview (-178, -88), device (-179, -89) (Pillow degrees)
+  start 1.5, sweep 45.5: preview (-88, -42), device (-89, -43) (Pillow degrees)

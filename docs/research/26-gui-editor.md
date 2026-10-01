@@ -484,6 +484,11 @@ the override that applies on the viewed device (§4.4).
 | D4 | First milestone | slice 1 alone · slices 1–3 · all five · A7 first | **slices 1–3**: a viewer, text pane and direct manipulation, with override-aware drags. They do not depend on A7. Layers (slice 4) follow once the patch engine is proven |
 | D5 | Plan 19 A7 (single draw program) | before slice 4 · after slice 4 · never | **decide before slice 4**, after a short research pass on what P2 duplication remains (§7). Building A7 first would delay the editor behind the largest refactor on the table for no slices 1–3 benefit |
 
+Research 27 revisits D4 and D5. The user decided (2026-10-01) on a
+geometry-only first GUI, reverting no feature, and building plan 19's A7
+first, kind by kind, with the editor as one of its backends. D1–D3 remain
+open.
+
 If the user picks a GUI at all, it amends ADR 0002 ("Open: whether the GUI
 is a local web app … or native") with the chosen D1, and becomes a plan.
 
