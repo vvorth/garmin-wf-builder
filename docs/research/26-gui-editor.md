@@ -24,7 +24,11 @@ The recommendation is a local web app served by `wfb` itself (`wfb studio`):
    compiler's resolved geometry (`Placed.box`/`center`). Research 06 §6
    argued this; nothing found here weakens it.
 
-Four decisions are the user's (§8). Nothing is built yet.
+A drag must patch whichever geometry applies on the device being viewed,
+which may be an `overrides:` entry rather than the element's own key
+(§4.4). Five decisions are the user's (§8), one of them whether plan 19's
+"single draw program" comes before the layered canvas. Nothing is built
+yet.
 
 ---
 
@@ -44,7 +48,7 @@ Since then:
 |---|---|
 | 6 element kinds, 3 more planned | 14 element `type:`s in format 2 (`arc`, `circle`, `data`, `ellipse`, `gauge`, `graph`, `group`, `hands`, `icon`, `line`, `pattern`, `polygon`, `rectangle`, `text`), each in its own `wfb/kinds/` module |
 | format 1, migration pending | format 2 (2026-09-28): "one designed revision", with its reserved vocabulary already named (`docs/limitations.md` §2) |
-| config axes, overrides and interactivity unbuilt | all four `config:` axes, Styles `layouts:`, `on_hold:`, `aod:` and screen shapes are built. Only `overrides:` (plan 20 slice 4) is still open |
+| config axes, overrides and interactivity unbuilt | all four `config:` axes, Styles `layouts:`, `on_hold:`, `aod:`, screen shapes and geometry `overrides:` (per device id and per `shape:`) are built |
 | preview fidelity was the weak link (system fonts drew as boxes) | fixed by plans 09, 12 and 17: real metrics, real or free stand-in glyphs, and a stand-in warning |
 | no `--watch` | `wfb preview --watch` re-renders on save |
 | the sketch skill was the next step | built, then deleted at the user's request (research 06 §9 note) |
@@ -291,6 +295,22 @@ choices. A field the author never wrote (dragging horizontally when only
 `dy:` exists) is added in the unit its sibling uses, or `%r` on its own.
 `%r` is the format's own advice for round designs (`docs/guide/placement.md`).
 
+**A drag edits the geometry that applies on the viewed device.** An
+element's `overrides:` maps a device id or `shape:<…>` to a patch of its
+`at:`/`size:`/`radius:`/`align:`, deep-merged over the element's own keys,
+a device id's patch over its shape's (`docs/guide/placement.md`). If the
+viewed device's merged geometry takes the dragged field from an override,
+patching the element's own key changes nothing on screen. The patch target
+is therefore the most specific source of that field for the viewed device:
+the device-id patch, else the shape patch, else the element's own key. The
+inspector offers the choice explicitly, as "all targets" (the element's own
+key; an override that shadows it is shown, not silently left winning) or
+"this device" / "this shape" (adds or edits the override entry, a
+structural patch, §3.3). The span index has to map each override field to
+its author node as it does the element's own keys. The probe ran before
+`overrides:` existed and no example face uses it, so this path is
+UNVERIFIED.
+
 **A drag is relative, and the editor shows that.** Because a `%r` value
 lands at different pixels on the 47 mm and the 51 mm, the canvas can show
 all the face's targets side by side, as small live thumbnails beside the
@@ -334,7 +354,9 @@ deserve them:
 - `angle`;
 - `color`/`colorExpression` (palette or theme swatches, legal MIP-64 only,
   or a free expression);
-- `expression` (a text field with source completion from `wfb.catalog`);
+- `expression` (a text field with source completion from `wfb.catalog`).
+  A `text:` template may hold several placeholders, each its own reading,
+  so completion works per placeholder, not per field;
 - `font`;
 - `align` (a 3×3 picker);
 - icons (the Nerd Fonts catalogue).
@@ -399,11 +421,13 @@ Each slice is useful on its own and ends in something the user can run.
 | **1. Live viewer** | `wfb studio face.yaml`: canvas, device/style/time/AOD/skin switches, diagnostics list, live reload on file change, selection boxes from geometry, and click-to-reveal of the YAML line. Read-only | server, SSE and latency on real faces; font-bake memoisation measured (§3.1) |
 | **2. Text pane + save** | CodeMirror/Monaco with schema completion, debounced re-render, save with version conflicts handled | the schema dialect in the browser editor (§4.5) |
 | **3. Direct manipulation** | drag/resize/rotate via span patches in the authored unit, a multi-target thumbnail strip, snapping | patch engine + ADR 0002 property tests over the example corpus (§3.3) |
+| *decision* | whether plan 19's A7, a single draw program, is built before slice 4 (§7, D5). If it is, it is its own plan, researched first | — |
 | **4. Layers** | per-element transparent layers (preview change), layer panel with show/hide/solo, hit-testing by alpha, add/duplicate/delete/reorder elements, schema-generated inspector | layer compositing equals single-frame render (§4.3); structural patches |
 | **5. Build** | build button, streamed log, memory against the limit, `.prg` download | none new |
 
 Slices 1–2 are about the size of one `wfb` subcommand plus a static page.
-Slice 3 is the heart: the patch engine and its tests.
+Slice 3 is the heart: the patch engine and its tests, including patching
+the override that applies on the viewed device (§4.4).
 
 ## 7. Risks and open questions
 
@@ -418,10 +442,30 @@ Slice 3 is the heart: the patch engine and its tests.
   `size`, `radius`, `thickness`, angles) appear unrenamed in every face
   §3.3 touched. A full check against `wfb/lower.py` is still owed.
 - **Layer compositing fidelity** (§4.3 (b)) is unmeasured.
-- **`overrides:`** (plan 20 slice 4) will add per-device scoping. The
-  inspector then needs "edit for all targets / this device only". Until it
-  ships, a drag always edits the shared design. That is the right default
-  either way.
+- **`overrides:` makes the patch target per device** (§4.4). Editing the
+  shared design stays the default, but a drag on a device with an
+  overriding entry must either edit that entry or say that the override
+  wins. Slice 3 owns this; it is not a later refinement.
+- **The single draw program (plan 19 A7) and the editor.** A7 lowers each
+  element once into a display list of drawing steps that the preview
+  evaluates and the emitter prints as Monkey C, removing the rules the two
+  still implement twice (plan 19 §2 P2). Plan 19 advised against it unless
+  many drawing features were coming. The editor shifts that weighing: the
+  preview becomes the main view rather than a check, so every remaining
+  preview/device disagreement becomes visible as "the editor was wrong".
+  Ordering, as found here:
+  - **Slices 1–3 do not depend on A7.** They consume only `preview.render`'s
+    frame and the resolved geometry (`Placed`/`ResolvedFace`), and A7
+    changes neither interface.
+  - **Slice 4 does.** Per-element layers change `Renderer.render_sequence`.
+    Under A7 they fall out of a per-element display list; without it, the
+    layer mode is written against today's renderer and again if A7 is
+    later built.
+  - So A7 should be decided between slices 3 and 4, after a research pass
+    that re-measures how much of the P2 list remains today (a grep for
+    "matches codegen"-style comments finds few, which is not an audit) and
+    weighs A7 against extending plan 19 A1's shared definitions with
+    parity tests. UNVERIFIED either way.
 - **The simulator stays out of reach** (C7). The editor's "run" is the
   preview plus a build. Glyph shapes and arc caps remain approximations, and
   the preview's own header and the stand-in warning already say so.
@@ -437,7 +481,8 @@ Slice 3 is the heart: the patch engine and its tests.
 | D1 | Platform | web app (A) · NiceGUI (B) · desktop Qt (D) · VS Code extension (E) | **A**, a local web app served by `wfb studio`, because it is the only option that works in the container and on the macOS host alike |
 | D2 | Server dependencies | stdlib only · Starlette/uvicorn | **stdlib only**; revisit if WebSockets prove necessary |
 | D3 | Front-end tooling | no build step (vendored ES modules) · Vite + TypeScript | **no build step** |
-| D4 | First milestone | slice 1 alone · slices 1–3 · all five | **slices 1–3**: a viewer, text pane and direct manipulation. Layers (slice 4) follow once the patch engine is proven |
+| D4 | First milestone | slice 1 alone · slices 1–3 · all five · A7 first | **slices 1–3**: a viewer, text pane and direct manipulation, with override-aware drags. They do not depend on A7. Layers (slice 4) follow once the patch engine is proven |
+| D5 | Plan 19 A7 (single draw program) | before slice 4 · after slice 4 · never | **decide before slice 4**, after a short research pass on what P2 duplication remains (§7). Building A7 first would delay the editor behind the largest refactor on the table for no slices 1–3 benefit |
 
 If the user picks a GUI at all, it amends ADR 0002 ("Open: whether the GUI
 is a local web app … or native") with the chosen D1, and becomes a plan.
@@ -448,7 +493,10 @@ is a local web app … or native") with the chosen D1, and becomes a plan.
 
 - ADR 0002, ADR 0004; research 04 §2 and §4 (prior art: Facer, Watch Face
   Studio, `tobwil/garmincreator`); research 06 §4 and §6–§9; research 19
-  (group rings).
+  (group rings); plan 19 §2 P2 and §3 A7
+  (`git show d325e77:docs/plans/19-architecture-refactor.md`).
+- `docs/guide/placement.md` (`overrides:`), `docs/guide/text.md`
+  (several placeholders in one `text:`).
 - `wfb/yamlsrc.py` (round-trip loader, `lc` spans, `Origin`),
   `wfb/migrate.py` (what a re-dump costs to tame), `wfb/build.py`
   (`load`/`select_devices`/`resolve_all`), `wfb/layout.py` (`Placed`,
