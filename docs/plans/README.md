@@ -10,7 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [26 the single draw program](26-draw-program.md) | proposed 2026-10-01; decisions P1–P4 open, Q1 waits on a simulator capture |
+| [26 the single draw program](26-draw-program.md) | accepted 2026-10-01 (P1–P4 as recommended), not started; Q1 waits on a simulator capture |
 
 ## Built and deleted
 

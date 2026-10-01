@@ -1,8 +1,9 @@
 # 26 — The single draw program
 
-**Status: proposed (2026-10-01). Building it was decided by the user on
-2026-10-01 (research 27 §8, E1–E4). The decisions in §1 are open; Q1 (§7)
-waits on a simulator capture.** Delete this file once every slice has
+**Status: accepted (2026-10-01), not started. Building it was decided by
+the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
+accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
+needed only partway through slice 1.** Delete this file once every slice has
 shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -58,7 +59,15 @@ what the watch draws, except possibly Q1's ring.
   Starlette and uvicorn, with no front-end build step. They bind this plan
   only through the JSON form in slice 3.
 
-### Open
+- **P1–P4 accepted as recommended (2026-10-01).**
+  - P1: a `wfb/draw/` package; each kind gains `lower()`.
+  - P2: printed code is byte-identical while a kind is being ported;
+    deliberate changes come afterwards.
+  - P3: frame membership and the per-element wrapper's guards are in the
+    program, and `view.py`'s frame skeleton stays hand-written.
+  - P4: this plan specifies and tests the JSON form.
+
+  The options as they were weighed:
 
 - **P1: where the program lives.**
   - **A (recommended):** a new package `wfb/draw/` holds the op and value
