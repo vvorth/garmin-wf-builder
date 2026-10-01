@@ -299,10 +299,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;
-  - format 2's reserved vocabulary (several placeholders in one `text:`,
-    components, `effects:`, `outline:` on parts, the data widget, `when:`
+  - format 2's reserved vocabulary (components, `effects:`, `outline:` on parts, the data widget, `when:`
     rules): friendly "not implemented" errors, `docs/limitations.md` §2.
-- **Shipped:** format 2 and `wfb migrate`; every element type; `align:` everywhere, `static:`,
+- **Shipped:** format 2 and `wfb migrate`; several placeholders in one
+  `text:`; every element type; `align:` everywhere, `static:`,
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:` on every drawable and on `group` (grown or stamped,

@@ -12,7 +12,7 @@ from .. import catalog, conversion, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
-from ..ir.model import Element, Expression, Outline, Text, aod_outline_choice
+from ..ir.model import Element, Expression, Outline, Text, TextSegment, aod_outline_choice
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -61,16 +61,21 @@ def _reject_text_antialias(b: Builder, node: dict[str, Any], element: Text) -> N
     )
 
 
+def _source(value: Expression) -> catalog.Source | None:
+    return catalog.get(value.sources[0]) if value.sources else None
+
+
 def _widest_text(element: Text) -> str:
     if element.literal is not None:
         return element.literal
     if element.value is None:
         return ""
-    source = catalog.get(element.value.sources[0]) if element.value.sources else None
     spec = element.format or "{}"
-    widest = formatting.widest(spec, source, element.value.value.type,
+    widest = formatting.widest(spec, _source(element.value), element.value.value.type,
                                element.value.scale, digits=element.unit_digits,
                                unit_widest=_widest_label(element))
+    for value, more_spec in element.segments()[1:]:
+        widest += formatting.widest(more_spec, _source(value), value.value.type, value.scale)
     if element.when_absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
@@ -125,6 +130,8 @@ def _glyphs(element: Text) -> tuple[set[str], set[str]]:
         else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale,
                                digits=element.unit_digits, unit_labels=element.unit_labels)
     )
+    for value, more_spec in element.segments()[1:]:
+        glyphs |= formatting.glyphs(more_spec, _source(value), value.value.type, value.scale)
     if element.placeholder:
         glyphs |= set(element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
@@ -183,6 +190,13 @@ def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
     if element.value is None:
         return None
     spec = renderer.aod_field(element, "format", element.format) or "{}"
+    if element.more:
+        # Several readings: absent when any is (a fallback is refused).
+        rendered = [_render_reading(renderer, value, more_spec, None)
+                    for value, more_spec in [(element.value, spec), *element.segments()[1:]]]
+        if any(text is None for text in rendered):
+            return element.placeholder if element.when_absent == "placeholder" else None
+        return "".join(text for text in rendered if text is not None)
     value_type = element.value.value.type
     if value_type in (Type.TIME, Type.DATE):
         return formatting.render(spec, None, value_type, renderer.values)
@@ -200,6 +214,18 @@ def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
                  if element.unit_label is not None and element.unit_label.ast is not None
                  else None)
     return formatting.render(spec, value, value_type, renderer.values, unit_text=unit_text)
+
+
+def _render_reading(renderer: Renderer, value: Expression, spec: str,
+                    unit_text: str | None) -> str | None:
+    """One reading through its format, or `None` when it is absent."""
+    value_type = value.value.type
+    if value_type in (Type.TIME, Type.DATE):
+        return formatting.render(spec, None, value_type, renderer.values)
+    reading = expr.evaluate(value.ast, renderer.values) if value.ast else None
+    if reading is None:
+        return None
+    return formatting.render(spec, reading, value_type, renderer.values, unit_text=unit_text)
 
 
 def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
@@ -484,6 +510,35 @@ def _in_seconds(b: Builder, node: dict[str, Any], value: Expression) -> Expressi
     return value if scaled is None else scaled
 
 
+def _build_more(b: Builder, node: dict[str, Any], element: Text) -> tuple[TextSegment, ...]:
+    """The readings after the first of a `text:` template with several
+    placeholders (`more_values:`, `wfb.lower`), each compiled and its
+    format checked like the first's.  `units:` and `absent: {value:}`
+    speak of one reading, so either is an error beside several."""
+    entries = node.get("more_values") or []
+    if not entries:
+        return ()
+    for key, what in (("units", "'units:' converts the reading of a text with one placeholder"),
+                      ("fallback", "'absent: {value:}' substitutes the reading of a text "
+                                   "with one placeholder")):
+        if key in node:
+            b.bag.error("format", f"{element.id}: {what}, and this text has "
+                        f"{len(entries) + 1}", b.doc.span(node, key),
+                        notes=["write 'absent: hide' or a text to draw instead "
+                               "('absent: \"--\"'); the text is absent when any reading is"]
+                        if key == "fallback" else
+                        ["give the converted reading a text element of its own"])
+    out = []
+    for entry in entries:
+        value = b.expression(entry, "value")
+        if value is None:
+            continue
+        value = _in_seconds(b, entry, value)
+        b.check_format(entry, value, str(entry["format"]))
+        out.append(TextSegment(value, str(entry["format"])))
+    return tuple(out)
+
+
 def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
     """`{unit}` in `format:` (or its `aod:` twin) is the label of a
     `units:` conversion, so it needs one.  A `units:` that was written but
@@ -537,6 +592,8 @@ class TextKind(ElementKind[Text, PlacedText]):
         )
         if units is not None:
             _, element.units, element.unit_label, element.unit_labels, element.unit_digits = units
+        if value is not None:
+            element.more = _build_more(b, node, element)
         _check_unit_field(b, node, element)
         font_ok = b.resolve_font(node, element)
         if "antialias" in node:
@@ -555,7 +612,8 @@ class TextKind(ElementKind[Text, PlacedText]):
         aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
                            if own_aod_format else None)
         if value is not None:
-            b.check_absence(node, element, value, element.when_absent, element.placeholder,
+            nullable = next((v for v, _ in element.segments() if v.nullable), value)
+            b.check_absence(node, element, nullable, element.when_absent, element.placeholder,
                             element.fallback)
             b.check_format(node, value, element.format)
             if own_aod_format and element.aod_own is not None:
@@ -574,7 +632,7 @@ class TextKind(ElementKind[Text, PlacedText]):
                            notes=notes)
         b.check_other_absence(node, element, "color", element.color)
         b.check_reachable_substitute(node, element, "'color'",
-                                     (element.value,), (element.color,))
+                                     tuple(v for v, _ in element.segments()), (element.color,))
         return element
 
     def hidden_reason(self, placed: PlacedText) -> str | None:
@@ -697,6 +755,9 @@ class TextKind(ElementKind[Text, PlacedText]):
             value.value.type,
             unit_code=unit_code,
         )
+        for more_value, more_spec in element.segments()[1:]:
+            value_code += " + " + formatting.emit(more_spec, more_value.code,
+                                                  more_value.value.type)
         if aod.on and element.aod is not None and element.aod.format is not None:
             # `format:` changes the formatting code, not just an argument -- the
             # same "AOD redraws once a minute anyway, so dropping seconds is

@@ -1988,7 +1988,7 @@
           "const": "text"
         },
         "text": {
-          "description": "What to draw: literal text, with at most one '{expr}' or '{expr:spec}' placeholder (docs/guide/text.md). The expression ends at the first ':' outside parentheses, brackets and quotes, so a ternary is parenthesised: \"{(x > 0 ? x : 0):d}\". 'spec' is a format spec: d, 02d, .1f, strftime codes such as %H:%M for a time, or a duration. '{{' and '}}' are literal braces. With 'units:', '{unit}' is the displayed unit's label (km or mi, \u00b0C or \u00b0F, m or ft, km/h or mph). Two or more placeholders are reserved (not implemented yet).",
+          "description": "What to draw: literal text, with '{expr}' or '{expr:spec}' placeholders (docs/guide/text.md). The expression ends at the first ':' outside parentheses, brackets and quotes, so a ternary is parenthesised: \"{(x > 0 ? x : 0):d}\". 'spec' is a format spec: d, 02d, .1f, strftime codes such as %H:%M for a time, or a duration. '{{' and '}}' are literal braces. With 'units:', '{unit}' is the displayed unit's label (km or mi, \u00b0C or \u00b0F, m or ft, km/h or mph). With several placeholders the text is absent when any reading is, and 'units:', 'absent: {value:}' and 'aod: {text:}' are errors.",
           "type": "string"
         },
         "units": {

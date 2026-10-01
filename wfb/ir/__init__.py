@@ -38,7 +38,7 @@ from .model import (
     CONFIG_AXES, ConfigColor, ColorScheme, LayoutDecl, StyleEntry, ConfigStyle,
     ConfigDataSlot, Element, Group, Shape, HandPart, AnyHandPart, PolygonPart, RectanglePart, LinePart, CirclePart,
     ArcPart, TextPart, Hand, HandSet, HandsElement,
-    PatternElement, Text, Progress, IconElement, ComplicationSlot, Graph, Face,
+    PatternElement, Text, TextSegment, Progress, IconElement, ComplicationSlot, Graph, Face,
     walk_elements, slot_of, authored_draw_order, draw_sort_key, draw_order, never_together,
 )
 from .builder import (
@@ -64,7 +64,7 @@ __all__ = [
     "CONFIG_AXES", "ConfigColor", "ColorScheme", "LayoutDecl", "StyleEntry", "ConfigStyle",
     "ConfigDataSlot", "Element", "Group", "Shape", "HandPart", "AnyHandPart", "PolygonPart", "RectanglePart", "LinePart", "CirclePart",
     "ArcPart", "TextPart", "Hand", "HandSet", "HandsElement",
-    "PatternElement", "Text", "Progress", "IconElement", "ComplicationSlot", "Graph", "Face",
+    "PatternElement", "Text", "TextSegment", "Progress", "IconElement", "ComplicationSlot", "Graph", "Face",
     "walk_elements", "slot_of", "authored_draw_order", "draw_sort_key", "draw_order", "never_together",
     "HAND_PART_GEOMETRY_KEYS", "HAND_PART_FILLED_SHAPES",
     "HAND_PART_NO_UNFILLED", "HAND_PART_REJECTED_SHAPES", "PATTERN_PART_GEOMETRY_KEYS",

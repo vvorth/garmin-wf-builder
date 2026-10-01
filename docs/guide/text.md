@@ -12,7 +12,7 @@ wordmark on this platform.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `text:` | a literal string, or a template with one `{expr:spec}` placeholder | required | [The `text:` template](#the-text-template) |
+| `text:` | a literal string, or a template with `{expr:spec}` placeholders | required | [The `text:` template](#the-text-template) |
 | `units:` | `auto`/`metric`/`statute` | — | show the placeholder's reading in the wearer's units — see [Units](data.md#units) |
 | `font:` | `font.<name>` or a system name | — | [Fonts](fonts.md#fonts) |
 | `color:` | colour expression | — | [Colours](colors.md) |
@@ -85,7 +85,7 @@ clock:
 
 #### The `text:` template
 
-`text:` is the whole string, with at most one **placeholder** in braces:
+`text:` is the whole string, with **placeholders** in braces:
 
 | `text:` | draws |
 |---|---|
@@ -94,6 +94,7 @@ clock:
 | `"{activity.steps:d}"` | the reading through a format spec |
 | `"{activity.steps / 1000.0:.1f}k"` | an expression, a spec, and literal text after it |
 | `"{time.clock:%H:%M}"` | a time through `strftime` codes |
+| `"{heart_rate.current:d} bpm / {activity.steps:d}"` | two readings in one string |
 | `"{{x}}"` | the literal `{x}`: a brace is written twice |
 
 The placeholder is an **expression** over data sources (the language is in
@@ -104,11 +105,15 @@ parentheses: `"{(activity.steps > 0 ? activity.steps : 0):d}"`. Literal text
 may sit on either side of the placeholder. `{unit}` is not a placeholder: it
 is the reading's unit label under [`units:`](data.md#units).
 
-**One placeholder per text, for now.** Two readings in one string
-(`"{time.hour:02d}:{time.minute:02d}"`) is reserved: it is a friendly "not
-implemented" error today, and will make the whole element absent when any
-reading is. Use two elements, or a source that already combines them
-(`time.clock`).
+**Several placeholders** draw several readings in one string,
+`"{time.hour:02d}:{time.minute:02d}"`, each through its own spec, measured
+and baked as one text. The element is **absent when any reading is**:
+`absent: hide` hides the whole string, and `absent: "--"` draws `--` in its
+place. Three things speak of a single reading, so they are errors beside
+several: `absent: {value: <expr>}` (there is no one reading to substitute),
+`units:` and its `{unit}` label (a conversion has one reading to convert),
+and an `aod: {text: ...}` restyle (not implemented yet; the always-on frame
+draws the same template). A pattern's text part reads one placeholder.
 
 A template whose reading can be absent needs `absent:` (`hide`, a string
 drawn instead, or `{value: <expr>}` substituted into the placeholder); see

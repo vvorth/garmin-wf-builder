@@ -190,7 +190,6 @@ def test_a_scheme_role_named_like_an_axis_role(write_design):
 
 
 @pytest.mark.parametrize("text, message", [
-    ("{time.hour}{time.minute}", "several placeholders in one text are not implemented yet"),
     ("{time.hour", "a '{' with no closing '}'"),
     ("a } b", "a single '}' outside a placeholder"),
     ("{unit}", "'{unit}' needs a placeholder"),
@@ -270,12 +269,6 @@ def test_reserved_keys(snippet, message, write_design):
     reserved = [d for d in found if d.code == "reserved"]
     assert reserved and message in reserved[0].message
     assert not [d for d in found if "unknown key" in d.message]
-
-
-def test_several_placeholders_are_reserved(write_design):
-    found = errors(design("elements:\n  t: {type: text, text: '{time.hour}:{time.minute}'}\n"),
-                   write_design)
-    assert [d.code for d in found] == ["reserved"]
 
 
 def test_a_format_1_key_in_a_format_2_file_names_its_replacement(write_design):

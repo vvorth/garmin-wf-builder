@@ -24,7 +24,8 @@ generated project.
 
 The format 2 semantics the schema cannot check are checked here: a colour
 name that is unknown, ambiguous, or a role where a build-time colour is
-needed; a malformed template; and the reserved "several placeholders" form.
+needed; a malformed template; and several placeholders where only one
+reading is drawn.
 """
 
 from __future__ import annotations
@@ -38,7 +39,9 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from .diagnostics import Bag, Span
 from .expr import ExprError, tokenize
-from .template import Placeholder, TemplateError, Template, Unit, parse_template, to_value_format
+from .template import (
+    Placeholder, TemplateError, Template, Unit, parse_template, segments, to_value_format,
+)
 from .yamlsrc import Origin, YamlDocument
 
 #: A compass alias -> the anchor name it stands for (`align:` and `anchor:`).
@@ -403,7 +406,7 @@ class _Lowering:
             node["type"] = "shape"
             self.add(node, "shape", shape, "type", after="type")
         elif kind == "text":
-            self.text(node)
+            self.text(node, several=True)
         elif kind == "gauge":
             node["type"] = "progress"
             if isinstance(node.get("slot"), str):
@@ -481,12 +484,16 @@ class _Lowering:
         elif outline != "none":
             self.expr_key(node, "outline")
 
-    def text(self, node: CommentedMap) -> None:
-        """A ``text:`` template: literal text, or ``value:`` + ``format:``."""
+    def text(self, node: CommentedMap, *, several: bool = False) -> None:
+        """A ``text:`` template: literal text, or ``value:`` + ``format:``.
+        With ``several``, a template with more than one placeholder is
+        accepted: the first reading becomes ``value:`` + ``format:`` and each
+        later one an entry of ``more_values:``, each with the literal text
+        after it (`wfb.template.segments`)."""
         raw = node.get("text")
         if not isinstance(raw, str):
             return
-        template = self.template(node, "text")
+        template = self.template(node, "text", several=several)
         if template is None:
             return
         placeholder = template.placeholder
@@ -494,38 +501,68 @@ class _Lowering:
             node["text"] = template.literal
             self.doc.set_origin(node, "text", Origin("text", raw))
             return
+        lowered = [self.segment(node, raw, segment) for segment in segments(template)]
+        if any(found is None for found in lowered):
+            return
+        keys = list(node)
+        index = keys.index("text")
+        pos = _lc(node, "text")
+        del node["text"]
+        (value, origin, first_fmt), *more = (found for found in lowered if found is not None)
+        node.insert(index, "value", value)
+        if pos is not None:
+            _set_lc(node, "value", list(pos))
+        self.doc.set_origin(node, "value", origin)
+        if first_fmt is not None:
+            node.insert(index + 1, "format", first_fmt)
+            if pos is not None:
+                _set_lc(node, "format", list(pos))
+            self.doc.set_origin(node, "format", Origin("text", raw))
+        if not more:
+            return
+        entries = CommentedSeq()
+        for value, origin, fmt in more:
+            entry = CommentedMap()
+            entry["value"] = value
+            entry["format"] = fmt if fmt is not None else "{}"
+            for key in ("value", "format"):
+                if pos is not None:
+                    _set_lc(entry, key, list(pos))
+            self.doc.set_origin(entry, "value", origin)
+            self.doc.set_origin(entry, "format", Origin("text", raw))
+            entries.append(entry)
+        node.insert(index + (1 if first_fmt is None else 2), "more_values", entries)
+        if pos is not None:
+            _set_lc(node, "more_values", list(pos))
+        self.doc.set_origin(node, "more_values", Origin("text", raw))
+
+    def segment(self, node: CommentedMap, raw: str, template: Template,
+                ) -> tuple[str, Origin, str | None] | None:
+        """One reading of a ``text:`` template (a single-placeholder
+        `Template` cut from it): its lowered expression, the `Origin` that
+        points a diagnostic into the author's template, and its internal
+        ``format:`` (``None`` for the bare reading)."""
+        placeholder = template.placeholder
+        assert placeholder is not None
         try:
             expr, fmt = to_value_format(template)
         except TemplateError as exc:
             self.error("format", f"text: {exc.message}", self.span(node, "text"))
-            return
+            return None
         assert expr is not None
         expr, strip = _strip_template_parens(expr)
         lowered = self.lower_refs(node, "text", text=expr)
         if lowered is None:
-            return
+            return None
         value, offsets = lowered
         base = placeholder.offset + _leading_space(raw, placeholder.offset) + strip
         shifted = tuple((r, a + base) for r, a in offsets) or ((0, base),)
         if offsets and offsets[0][0] != 0:
             shifted = ((0, base),) + shifted
-        keys = list(node)
-        index = keys.index("text")
-        pos = _lc(node, "text")
-        del node["text"]
-        node.insert(index, "value", value)
-        if pos is not None:
-            _set_lc(node, "value", list(pos))
-        self.doc.set_origin(node, "value", Origin("text", raw, shifted,
-                                                  quote=placeholder.expr))
-        if fmt is not None:
-            node.insert(index + 1, "format", fmt)
-            if pos is not None:
-                _set_lc(node, "format", list(pos))
-            self.doc.set_origin(node, "format", Origin("text", raw))
+        return value, Origin("text", raw, shifted, quote=placeholder.expr), fmt
 
     def template(self, node: CommentedMap, key: str, *, aod: bool = False,
-                 ) -> Template | None:
+                 several: bool = False) -> Template | None:
         raw = node[key]
         try:
             template = parse_template(raw)
@@ -534,25 +571,31 @@ class _Lowering:
                        "'{{' and '}}' are a literal brace; a placeholder is '{expr}' or "
                        "'{expr:spec}'")
             return None
-        if len(template.placeholders) > 1:
-            self.error("reserved",
-                       f"{key}: several placeholders in one text are not implemented yet",
+        if len(template.placeholders) > 1 and not several:
+            self.error("format",
+                       f"{key}: only a 'text' element's own 'text:' takes several "
+                       "placeholders; this one reads one",
                        self.span(node, key),
-                       "format 2.0 draws one reading per text: split it into one "
-                       "text element per placeholder",
+                       "a pattern's text part, and an element's 'aod: {text:}', "
+                       "draw a single reading",
                        "docs/limitations.md, \"Not implemented yet\"")
+            return None
+        if len(template.placeholders) > 1 and any(isinstance(p, Unit) for p in template.pieces):
+            self.error("format", f"{key}: '{{unit}}' labels the reading of a 'units:' "
+                       "conversion, and this text has several readings",
+                       self.span(node, key),
+                       "'units:' converts a text with one placeholder")
             return None
         if template.placeholder is None and any(isinstance(p, Unit) for p in template.pieces):
             self.error("format", f"{key}: '{{unit}}' needs a placeholder to be the unit of",
                        self.span(node, key))
             return None
-        placeholder = template.placeholder
-        if placeholder is not None and not placeholder.expr and not aod:
+        if not aod and any(not p.expr for p in template.placeholders):
             self.error("format", f"{key}: the placeholder has no expression",
                        self.span(node, key), "write the reading inside the braces: "
                        "\"{time.hour:02d}\"")
             return None
-        if placeholder is not None and _open_ternary(placeholder):
+        if any(_open_ternary(p) for p in template.placeholders):
             self.error("format",
                        f"{key}: a ternary inside a placeholder must be parenthesised",
                        self.span(node, key),
@@ -627,6 +670,15 @@ class _Lowering:
             self.aod_text(node, aod)
 
     def aod_text(self, node: CommentedMap, aod: CommentedMap) -> None:
+        if "more_values" in node:
+            self.error("format",
+                       "aod.text: restyling a text with several placeholders is not "
+                       "implemented yet",
+                       self.span(aod, "text"),
+                       "the always-on frame draws the same template; its other "
+                       "'aod:' overrides (colour, font, outline) still apply",
+                       "docs/limitations.md, \"Not implemented yet\"")
+            return
         template = self.template(aod, "text", aod=True)
         if template is None:
             return

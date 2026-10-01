@@ -537,3 +537,24 @@ Plan 22 (format 2) changed how a binding is written, not how it compiles.
 - **References.** A colour is `color.<name>` inside an expression too
   (ADR 0006's amendment of the same date); source paths, the expression
   language and the catalogue are unchanged.
+
+## Amendment (2026-10-01): several placeholders in one `text:`
+
+The reserved form is built, with the semantics Q3 fixed: a `text` element's
+template may hold several placeholders, each an expression and spec of its
+own, and the element is absent when any reading is. `wfb.lower` cuts the
+template into one single-placeholder template per reading
+(`wfb.template.segments`: the first keeps the literal text before it, each
+the text after it), so the first reading still lowers to `value:` +
+`format:` and every later one to an internal `more_values:` entry; the IR
+carries them as `Text.more`. Each reading is one more `value`-role
+expression, so the read plan's value guard, `absent:` and the
+`api-gated` lint see every reading with no new mechanism; codegen
+concatenates the formatted strings, and layout measures and bakes the
+concatenation of each reading's widest rendering. A single-placeholder
+template lowers exactly as before (a `tools/snapshot.py` comparison over
+every example and fixture). Three things that speak of one reading are
+errors beside several: `units:` (one quantity to convert), `absent: {value:
+<expr>}` (one reading to substitute) and an `aod: {text:}` restyle, which
+would have to pair each placeholder with its own and is left unbuilt. A
+pattern's text part keeps one placeholder.

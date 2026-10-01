@@ -29,7 +29,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `monospace:`, `min_1px:`. `docs/guide/placement.md`.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
-  `text:` templates (`"{expr:spec}"`, one placeholder), `absent:`;
+  `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
+  element, `wfb.template.segments`, `Text.more`), `absent:`;
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
   `wfb/conversion.py`) and duration formats on a number of seconds
   (`wfb.formatting.DURATION_CODES`, `WfbTime.durationPart`).
@@ -182,8 +183,7 @@ specifies each item.
   `git show d325e77:docs/plans/19-architecture-refactor.md`, and write a
   new plan before starting it.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
-    implemented" error today: several placeholders in one `text:`,
-    `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
+    implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
     rule lists, and an advisory `static-candidate` lint.
     `docs/limitations.md` §2. `outline:` on the element (every kind but

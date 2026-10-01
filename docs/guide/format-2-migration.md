@@ -111,7 +111,6 @@ built, so adding them later breaks nothing. Writing one today is a friendly
 
 | Reserved | What it will be |
 |---|---|
-| more than one placeholder in a `text:` template, `"{time.hour:02d}:{time.minute:02d}"` | several readings in one text, absent if any is |
 | `resources: {components:}`, and `use:`/`with:` on an element | reusable element groups with parameters |
 | `effects:` on an element | drop shadows and similar |
 | `outline:` on a hand, pattern or needle part | the text outline, on parts |

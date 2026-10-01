@@ -1261,11 +1261,25 @@ class PatternElement(Element):
         return out
 
 
+@dataclass(frozen=True)
+class TextSegment:
+    """A later reading of a `text:` template with several placeholders:
+    its expression and the single-field format that draws it with the
+    literal text after it (`wfb.template.segments`)."""
+
+    value: Expression
+    format: str
+
+
 @dataclass
 class Text(Element):
     value: Expression | None = None
     literal: str | None = None
     format: str | None = None
+    #: The readings after the first in a template with several
+    #: placeholders; drawn concatenated after `value`, and the element is
+    #: absent when any reading is.
+    more: tuple[TextSegment, ...] = ()
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     color: Expression | None = None
@@ -1290,9 +1304,19 @@ class Text(Element):
     #: binding `ROLE_VALUE` tags below.
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE})
 
+    def segments(self) -> list[tuple[Expression, str]]:
+        """Every reading with the format that draws it, in order: their
+        concatenation is the text.  Empty for a literal text."""
+        if self.value is None:
+            return []
+        return [(self.value, self.format or "{}"),
+                *((segment.value, segment.format) for segment in self.more)]
+
     def _own_roles(self) -> list[tuple[str, Expression]]:
         out = [(role, e) for role, e in (
-            (ROLE_VALUE, self.value), (ROLE_COLOR, self.color), (ROLE_FALLBACK, self.fallback),
+            (ROLE_VALUE, self.value),
+            *((ROLE_VALUE, segment.value) for segment in self.more),
+            (ROLE_COLOR, self.color), (ROLE_FALLBACK, self.fallback),
         ) if e]
         if self.unit_label is not None:
             out.append((ROLE_UNIT_LABEL, self.unit_label))

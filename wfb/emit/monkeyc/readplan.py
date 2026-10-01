@@ -103,21 +103,26 @@ class ReadPlan:
             # A duration format (strftime codes on a Number or Float of
             # seconds) reads no clock, only its codes' own extra readers.
             format_paths: list[str] = []
-            if (isinstance(element, Text) and element.format
-                    and formatting.is_time_spec(element.format)):
-                value_type = element.value.value.type if element.value is not None else Type.TIME
-                if not value_type.is_numeric():
-                    value_type = Type.DATE if value_type is Type.DATE else Type.TIME
-                    format_paths.append("date.today" if value_type is Type.DATE else "time.clock")
-                # Both the awake `format:` and an `aod: {format: ...}`
-                # override can use such a code independently of one another.
-                specs = [element.format]
-                if element.aod is not None and element.aod.format is not None:
-                    specs.append(element.aod.format)
-                for spec in specs:
-                    for extra in formatting.extra_paths(spec, value_type):
-                        if extra not in format_paths:
-                            format_paths.append(extra)
+            if isinstance(element, Text):
+                for index, (value, spec) in enumerate(element.segments()):
+                    if not formatting.is_time_spec(spec):
+                        continue
+                    value_type = value.value.type
+                    if not value_type.is_numeric():
+                        value_type = Type.DATE if value_type is Type.DATE else Type.TIME
+                        path = "date.today" if value_type is Type.DATE else "time.clock"
+                        if path not in format_paths:
+                            format_paths.append(path)
+                    # Both the awake `format:` and an `aod: {format: ...}`
+                    # override can use such a code independently of one
+                    # another (an override restyles a single reading).
+                    specs = [spec]
+                    if index == 0 and element.aod is not None and element.aod.format is not None:
+                        specs.append(element.aod.format)
+                    for one in specs:
+                        for extra in formatting.extra_paths(one, value_type):
+                            if extra not in format_paths:
+                                format_paths.append(extra)
             # A hands element reads the clock too, with no author expression
             # at all -- the same `time.clock` reader a `Text` element's own
             # time format uses, which is what gives every `draw<Id>(dc, ...)`

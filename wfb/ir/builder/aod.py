@@ -206,7 +206,16 @@ class AodPass(HandParts):
                         # Inherited from a group, whose block may reach
                         # several kinds and value types -- only checkable
                         # here.  An element's own one `wfb.kinds.text.TextKind.build` checked.
-                        self.check_format_spec(element.value, str(fmt), element.span)
+                        if element.more:
+                            self.bag.error(
+                                "format",
+                                f"{element.id}: the inherited 'aod: {{text:}}' restyles one "
+                                "reading, and this text has several -- restyling it is not "
+                                "implemented yet",
+                                element.span,
+                                notes=["docs/limitations.md, \"Not implemented yet\""])
+                        else:
+                            self.check_format_spec(element.value, str(fmt), element.span)
                 visit(element.children(), child_forced_hidden, child_nearest,
                       child_nearest_from)
 

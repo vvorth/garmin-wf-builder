@@ -10,7 +10,9 @@
   (``km``/``mi``), not an expression.
 
 This module only parses.  Lowering a template into the compiler's internal
-``value:`` + ``format:`` pair is :func:`to_value_format`.
+``value:`` + ``format:`` pair is :func:`to_value_format`; a template with
+several placeholders is first cut into one single-placeholder template per
+reading by :func:`segments`.
 """
 
 from __future__ import annotations
@@ -140,6 +142,26 @@ def _placeholder(text: str, start: int) -> tuple[Placeholder | Unit, int]:
     if "{" in spec:
         raise TemplateError("'{' inside a placeholder's format spec", i + 1)
     return Placeholder(expr.strip(), spec or None, start + 1), close + 1
+
+
+def segments(template: Template) -> list[Template]:
+    """``template`` cut into one template per placeholder, in order, whose
+    concatenation is the whole: the first keeps the literal text before
+    it, and each keeps the literal text (and ``{unit}``) after it, up to
+    the next placeholder."""
+    out: list[list[Literal | Placeholder | Unit]] = []
+    lead: list[Literal | Placeholder | Unit] = []
+    for piece in template.pieces:
+        if isinstance(piece, Placeholder):
+            out.append(lead + [piece] if not out else [piece])
+            lead = []
+        elif out:
+            out[-1].append(piece)
+        else:
+            lead.append(piece)
+    if not out:
+        return [template]
+    return [Template(tuple(pieces)) for pieces in out]
 
 
 def to_value_format(template: Template) -> tuple[str | None, str | None]:
