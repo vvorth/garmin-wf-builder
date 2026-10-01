@@ -75,11 +75,14 @@ def element_method_name(element_id: str) -> str:
     return "draw" + _element_suffix(element_id)
 
 
-def element_ring_method(element_id: str) -> str:
+def element_ring_method(element_id: str, width: int = 1) -> str:
     """The private method that draws one member's part of an outlined
-    group's ring (``ringTempLow``).  It shares `draw<Id>`'s
-    suffix, so :meth:`Builder._check_symbol_collision` already covers it."""
-    return "ring" + _element_suffix(element_id)
+    group's ring ``width`` px wide: ``ringTempLow`` at 1px,
+    ``ringTempLow_2`` wider.  It shares `draw<Id>`'s suffix, so
+    :meth:`Builder._check_symbol_collision` already covers it, and a
+    suffix never holds an underscore, so the width cannot collide."""
+    name = "ring" + _element_suffix(element_id)
+    return name if width == 1 else f"{name}_{width}"
 
 
 def static_group_method(element_id: str) -> str:

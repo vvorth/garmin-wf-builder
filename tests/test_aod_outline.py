@@ -3,8 +3,8 @@ applying `dim:` to an `outline:` ring, and the schema error an `aod:`
 block with a key it does not take gets.
 
 The override replaces the awake ring whole, in the element's own
-`outline:` grammar: `none` drops it in AOD, a colour draws that ring
-instead. Each codegen test pins the one generated shape
+`outline:` grammar: `none` drops it in AOD, a colour or `{color, width}`
+draws that ring instead. Each codegen test pins the one generated shape
 its case takes (a ring only in AOD, a ring only while awake, one loop
 with ternaries); each preview test reads the ring's own pixels, so it
 fails against a preview that still draws the awake ring in AOD.
@@ -133,19 +133,24 @@ elements:
 # -- builder -------------------------------------------------------------------
 
 
-def test_the_override_parses_as_a_colour_and_none(write_design, bag):
+def test_the_override_parses_in_both_spellings_and_none(write_design, bag):
     shorthand = _face(BASE + _clock(aod="{outline: color.dim}"), write_design, bag)
     aod = shorthand.elements[0].aod
-    assert (aod.outline.color.shown, aod.outline_none) == ("color.dim", False)
+    assert (aod.outline.color.shown, aod.outline.width, aod.outline_none) == (
+        "color.dim", 1, False)
+    full = _face(BASE + _clock(aod="{outline: {color: color.red, width: 3}}"),
+                 write_design, bag)
+    assert (full.elements[0].aod.outline.color.shown, full.elements[0].aod.outline.width) == (
+        "color.red", 3)
     none = _face(BASE + _clock("color.dim", aod="{outline: none}"), write_design, bag)
     assert none.elements[0].aod.outline is None and none.elements[0].aod.outline_none
 
 
-def test_the_removed_object_form_is_the_same_friendly_error(write_design, bag):
-    assert load(write_design(BASE + _clock(aod="{outline: {color: color.dim, width: 2}}")),
+def test_the_override_width_cap_is_the_same_build_error(write_design, bag):
+    assert load(write_design(BASE + _clock(aod="{outline: {color: color.dim, width: 4}}")),
                 bag) is None
     [error] = bag.errors
-    assert error.code == "outline" and "clock.aod.outline" in error.message, bag.render()
+    assert error.code == "outline" and error.message.startswith("clock.aod: "), bag.render()
 
 
 def test_a_group_passes_its_outline_down_to_a_text(write_design, bag):
@@ -186,23 +191,46 @@ def test_outline_none_keeps_the_awake_ring_out_of_aod(write_design, bag, db):
 
 def test_a_ring_in_both_frames_is_one_ring_with_ternaries(write_design, bag, db):
     method = _method(_view(
-        BASE + _clock("color.dim", aod="{outline: color.red}"),
+        BASE + _clock("color.dim", aod="{outline: {color: color.red, width: 1}}"),
         write_design, bag, db), "drawClock")
     assert method.count("Layout.CLOCK_X - 1") == 1 and "if (_aod) {" not in method
     assert "dc.setColor((_aod ? Palette.RED : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in method
 
 
+def test_rings_of_two_widths_are_one_ring_per_frame(write_design, bag, db):
+    """A 2px AOD ring over a 1px awake one: the stamps differ, so each
+    frame draws its own under `if (_aod) ... else` -- eight points 2px away
+    in AOD, four 1px away awake."""
+    method = _method(_view(
+        BASE + _clock("color.dim", aod="{outline: {color: color.red, width: 2}}"),
+        write_design, bag, db), "drawClock")
+    asleep = method.split("if (_aod) {")[1].split("else {")[0]
+    awake = method.split("else {")[1].split("\n        }")[0]
+    assert "Palette.RED" in asleep and "Layout.CLOCK_X - 2" in asleep
+    assert asleep.count("dc.drawText(") == 8
+    assert "Palette.DIM" in awake and "Layout.CLOCK_X - 2" not in awake
+    assert awake.count("dc.drawText(") == 4
+
+
+def test_a_stamped_text_ring_reads_no_offsets_table(write_design, bag, db):
+    """Every text stamp is unrolled with literal offsets, at any width."""
+    layout = _layout(BASE + _clock("color.dim", aod="{outline: {color: color.dim, width: 3}}"),
+                     write_design, bag, db)
+    assert "OUTLINE_OFFSETS" not in layout
+
+
 def test_an_all_mip_build_ignores_the_override(write_design, bag, db):
     """With no AMOLED target no AOD code is emitted, so the override's own
-    ring must not be either -- the view is byte-identical to the same
-    design without the key."""
+    ring and its width's offsets table must not be either -- the view is
+    byte-identical to the same design without the key."""
     mip = BASE.replace("""build:
   targets: [fenix847mm]""", """build:
   targets: [fenix8solar47mm]""")
-    with_key = mip + _clock("color.dim", aod="{outline: color.red}")
+    with_key = mip + _clock("color.dim", aod="{outline: {color: color.red, width: 3}}")
     without = mip + _clock("color.dim", aod="show")
     assert (_view(with_key, write_design, bag, db, "fenix8solar47mm")
             == _view(without, write_design, bag, db, "fenix8solar47mm"))
+    assert "OUTLINE_OFFSETS_3" not in _layout(with_key, write_design, bag, db, "fenix8solar47mm")
 
 
 def test_a_vector_font_takes_the_override_too(write_design, bag, db):
@@ -354,7 +382,7 @@ elements:
     at: {anchor: center, dy: 30%}
     color: color.fg
     outline: color.red
-    aod: {outline: color.dim}
+    aod: {outline: {color: color.dim, width: 1}}
   curved:
     type: text
     text: "78"

@@ -1,8 +1,8 @@
-# Coverage for `outline:` on `group`: the union of overlapping
-# members, a plain group nested inside an outlined one (its members ringed
-# too), a static outlined group (rings drawn into the buffer), a low-power
-# one (rings in onPartialUpdate) and a data-bound member (its `ring<Id>`
-# takes the same reads as its `draw<Id>`).
+# Coverage for `outline:` on `group`: the union of overlapping members, a
+# member's own ring inside the group's, a nested outlined group, a static
+# outlined group (rings drawn into the buffer), a low-power one (rings in
+# onPartialUpdate) and a data-bound member (its `ring<Id>` takes the same
+# reads as its `draw<Id>`).
 #
 # A test fixture, not an example: tests/test_outline_group.py reads it, and
 # tests/test_outline_build.py builds it for real.
@@ -40,7 +40,7 @@ static:
     type: group
     at: { anchor: center, dy: -30% }
     size: { width: 40%, height: 12% }
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
     children:
       plate:
         type: rectangle
@@ -58,7 +58,7 @@ elements:
     type: group
     at: { anchor: center }
     size: { width: 40%, height: 20% }
-    outline: color.ring
+    outline: { color: color.ring, width: 2 }
     children:
       disc:
         type: circle
@@ -77,18 +77,23 @@ elements:
         absent: "--"
         font: FONT_XTINY
         at: { anchor: center, dx: -6% }
-        color: color.fg
+        color: color.bg
+        outline: { color: color.fg, width: 1 }
+        lint:
+          allow: [text-outline-interior]
+          reason: "the ring is meant to cut into the disc beneath it"
 
   nest:
     type: group
     at: { anchor: center, dy: 28% }
     size: { width: 50%, height: 14% }
-    outline: color.fg
+    outline: { color: color.fg, width: 1 }
     children:
       inner:
         type: group
         at: { anchor: center, dx: -8% }
         size: { width: 20%, height: 12% }
+        outline: { color: color.ring, width: 1 }
         children:
           bar:
             type: rectangle

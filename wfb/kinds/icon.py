@@ -19,7 +19,7 @@ from ..emit.monkeyc.common import (
 from ..emit.monkeyc.shapes import emit_outline, emit_plain_text_call
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
-from .text import baked_ring
+from .text import baked_ring, baked_ring_local
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
@@ -56,7 +56,8 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
     ringed = True
 
     def ring_draws(self, element: IconElement, face: Face) -> int:
-        return 1 if baked_ring(element, face) is not None else 4
+        return (1 if baked_ring(element, face, 1) is not None
+                else super().ring_draws(element, face))
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         name = node.get("icon")
@@ -240,18 +241,19 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
                                  element.vertical_align)
 
         stamp = ring or own_ring(element, aod)
-        baked = baked_ring(element, resolved.face) if stamp is not None else None
+        baked = baked_ring(element, resolved.face, stamp.width) if stamp is not None else None
         if stamp is not None and baked is not None:
             # One `drawText` in the dilated glyphs.
-            w.line(f"var ringFont = _{font_field(baked)};")
-            with w.block("if (ringFont != null)"):
+            local = baked_ring_local(stamp.width)
+            w.line(f"var {local} = _{font_field(baked)};")
+            with w.block(f"if ({local} != null)"):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                emit_plain_text_call(w, x, y, "ringFont", glyph_expr, justify,
+                emit_plain_text_call(w, x, y, local, glyph_expr, justify,
                                      element.vertical_align)
             if ring is None:
                 w.blank()
         elif stamp is not None:
-            emit_outline(w, stamp.color, x, y, glyph, blank_after=ring is None)
+            emit_outline(w, stamp.color, stamp.width, x, y, glyph, blank_after=ring is None)
         if ring is not None:
             return
         w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")

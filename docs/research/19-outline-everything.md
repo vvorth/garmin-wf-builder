@@ -392,6 +392,17 @@ can be: no per-stamp allocation for polygons, and baked fonts (text and
 icons) carry a dilated copy of the glyphs they draw, built as research
 §3.4 describes -- one extra `drawText` per ring.
 
+**Revised again, 2026-10-01, at the user's request:** `{color, width}`
+returns with widths 1, 2 and 3, and a bare colour stays 1 px. A hollow
+always-on glyph (`color:` matching the background, so only the ring
+lights) needs at least 2 px, or whole strokes of it can disappear; §4.5's
+1.8× is the price, paid only where a design asks for it. The cheaper
+paths built for 1 px carry over per width: a stamp unrolls every offset
+point, a baked ring font is dilated per width (one companion font each),
+a standalone polygon bakes one shifted copy per point, and `WfbRing`'s
+runtime parts walk a `Layout.OUTLINE_OFFSETS_<W>` table above 1 px. Group
+rings nest again, a member's dilation the sum of the rings it sits in.
+
 The options as they were put:
 
 - **D1. One key, or one per kind?** Recommendation: **one `outline:` key**

@@ -9,8 +9,10 @@
 #
 # * **The canonical hollow idiom** (`clock`): `color:` repeats the
 #   background's own `color.bg`, so the interior reads as empty and
-#   `outline:`'s ring colour is the only visible ink.
-# * **The same idiom again** (`today`), in a smaller font.
+#   `outline:`'s ring colour is the only visible ink -- the object form,
+#   `{color, width}`, at 2px so every stroke of the hollow digit holds.
+# * **The shorthand spelling** (`today`): `outline: color.ring` alone, a
+#   1px ring -- the same hollow idiom, written the short way.
 # * **A solid-interior ring** (`label`): the interior is a real, visible
 #   fill (`color.slate`, not the background), so this is NOT the hollow
 #   idiom -- both the ring and the interior read as ink.  Because it still
@@ -106,7 +108,7 @@ elements:
     font: font.clock
     at: { anchor: center, dy: -6% }
     color: color.bg
-    outline: color.ring
+    outline: { color: color.ring, width: 2 }
   today:
     type: text
     text: "{date.today:%a %e}"
@@ -124,7 +126,7 @@ elements:
     font: font.label
     at: { anchor: center, dy: 26% }
     color: color.slate
-    outline: color.white
+    outline: { color: color.white, width: 2 }
     lint:
       allow: [text-outline-interior]
       reason: "Deliberately not the hollow idiom -- palette.slate is a real,
@@ -154,7 +156,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center }
-    outline: color.cyan
+    outline: { color: color.cyan, width: 2 }
     curve:
       style: radial
       angle: 165deg
@@ -179,7 +181,7 @@ elements:
         font: font.bezel
         color: color.bg
         at: { dy: -80%r }
-        outline: color.ring
+        outline: { color: color.ring, width: 2 }
 
   # A pattern `type: text` part with outline: AND curve: -- the per-copy
   # rotation composes with the ring exactly as it already composes with

@@ -51,8 +51,11 @@ schema reuses each kind's own property `$ref`s, so there is nothing new to
 typo.
 
 **`outline:` replaces the awake ring whole.** It takes the element's own
-[`outline:`](text.md#outline--the-stamped-ring) grammar — `none`, or a colour (a
-1px ring). `none` drops an awake ring in AOD; a ring written only
+[`outline:`](text.md#outline--the-stamped-ring) grammar — `none`, a bare colour (a 1px ring),
+or `{color, width}` — and is never merged with the awake ring key by key:
+an `aod: {outline: {color: ...}}` with no `width:` is a 1px ring, not the
+awake ring's width.  Hollow digits want `width: 2`: at 1px a thin stroke's
+ring can break up, and whole lines go dark. `none` drops an awake ring in AOD; a ring written only
 here draws in AOD alone. Paired with a `color:` that matches what is
 underneath (black, in the AOD frame), it gives hollow digits — the ring is
 the only ink, a fraction of the lit pixels solid digits take:
@@ -64,7 +67,7 @@ clock:
   color: color.white
   aod:
     color: color.black              # the interior -- invisible on the black AOD frame
-    outline: color.dim
+    outline: {color: color.dim, width: 2}
 ```
 
 Only `text` elements take it. A pattern's own `type: text` parts keep

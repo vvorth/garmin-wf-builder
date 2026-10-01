@@ -67,22 +67,22 @@ def _resolve_vector(write_design, bag, db, design: str):
 
 
 def test_upright_box_grows_by_the_ring_on_every_side(write_design, bag, db, repo_root):
-    """A plain (no `curve:`) element's box grows by the 1px ring on each side, in
+    """A plain (no `curve:`) element's box grows by `2 * outline.width` in
     both dimensions, centred on the same point -- the "Minkowski dilation
     of the pre-transform box" D9 describes, checked against the actual
     numbers, not just "grew at all" (a bug that grew only one side would
     still pass a weaker check)."""
     elements = (
         _text("plain", font="font.clock") + "\n"
-        + _text("ringed", """    outline: color.bg
+        + _text("ringed", """    outline: {color: color.bg, width: 3}
 """, font="font.clock")
     )
     resolved = _resolve_baked(write_design, bag, db, _design(_baked_font(repo_root), elements))
     plain = _placed(resolved, "plain")
     ringed = _placed(resolved, "ringed")
 
-    assert ringed.box.width == plain.box.width + 2
-    assert ringed.box.height == plain.box.height + 2
+    assert ringed.box.width == plain.box.width + 6
+    assert ringed.box.height == plain.box.height + 6
     plain_cx = plain.box.x + plain.box.width / 2
     ringed_cx = ringed.box.x + ringed.box.width / 2
     assert abs(plain_cx - ringed_cx) <= 1
@@ -104,7 +104,7 @@ def test_upright_box_grows_past_the_align_edge_too(write_design, bag, db, repo_r
         _text("plain", "    align: left\n", font="font.clock") + "\n"
         + _text("ringed",
                """    align: left
-    outline: color.bg
+    outline: {color: color.bg, width: 3}
 """,
                font="font.clock")
     )
@@ -141,7 +141,7 @@ def test_angled_box_grows_by_the_ring(write_design, bag, db):
     element_ringed = _text(
         "ringed",
         """    curve: {style: angled, angle: 0deg}
-    outline: color.bg
+    outline: {color: color.bg, width: 2}
 """,
         font="font.bezel",
     )
@@ -150,9 +150,7 @@ def test_angled_box_grows_by_the_ring(write_design, bag, db):
     plain = _placed(resolved, "plain")
     ringed = _placed(resolved, "ringed")
     assert plain.curve.style == "angled"
-    # At 1px the rotated estimate's rounding can absorb the growth along
-    # the baseline; across it, the ring always shows.
-    assert ringed.box.width >= plain.box.width
+    assert ringed.box.width > plain.box.width
     assert ringed.box.height > plain.box.height
 
 
@@ -165,7 +163,7 @@ def test_radial_box_grows_by_the_ring(write_design, bag, db):
     element_ringed = _text(
         "ringed",
         """    curve: {style: radial, angle: 0deg, radius: 40%r}
-    outline: color.bg
+    outline: {color: color.bg, width: 2}
 """,
         font="font.bezel",
     )
@@ -200,7 +198,7 @@ def test_off_screen_catches_a_box_that_only_overflows_once_ringed(write_design, 
 """
     elements = (
         _text("plain", align, font="font.clock", at=at) + "\n"
-        + _text("ringed", align + """    outline: color.bg
+        + _text("ringed", align + """    outline: {color: color.bg, width: 3}
 """,
                font="font.clock", at=at)
     )

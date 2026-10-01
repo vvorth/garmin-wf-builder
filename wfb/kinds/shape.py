@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 from .. import vocab
-from ..ir import RING_OFFSETS
+from ..ir import disc_perimeter_offsets
 from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
 from ..preview import arc_span
@@ -15,8 +15,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import (
-    McLiteral, NO_AOD, RING_WIDTH_CODE, AodStyle, RingPass, article,
-    const_prefix, own_ring, plus,
+    McLiteral, NO_AOD, AodStyle, RingPass, article, const_prefix, own_ring, plus,
 )
 from ..emit.writer import Writer
 from . import ElementKind
@@ -178,9 +177,15 @@ def _emit_grown(w: Writer, prefix: str, shape: str, width: str) -> None:
     ])
 
 
+def _ring_copy(prefix: str, width: int, index: int) -> str:
+    """A polygon's ``index``-th shifted copy for its ``width`` px ring:
+    `<P>_RING_0` at 1px, `<P>_RING2_0` wider."""
+    return f"{prefix}_RING_{index}" if width == 1 else f"{prefix}_RING{width}_{index}"
+
+
 def _stroke_pen(placed: PlacedShape, aod: AodStyle, prefix: str) -> str | None:
     """The pen width a stroked line or outlined shape draws with, when it is
-    the same in every frame -- so a ring's four stamps can set it once
+    the same in every frame -- so a ring's stamps can set it once
     around all of them (`set_pen=False`).  `None` for a filled shape, an
     arc (its barrel call sets its own) or an `aod: {filled: ...}` flip."""
     element = placed.element
@@ -263,7 +268,8 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
 
     def ring_draws(self, element: Shape, face: Face) -> int:
         # MIP partial updates never see an AOD `filled:` flip.
-        return 1 if element.shape in _GROWN and element.filled else 4
+        return (1 if element.shape in _GROWN and element.filled
+                else super().ring_draws(element, face))
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         shape = node["shape"]
@@ -504,15 +510,15 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if stamp is not None:
             if _grows(element, aod):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                _emit_grown(w, prefix, element.shape, RING_WIDTH_CODE)
+                _emit_grown(w, prefix, element.shape, stamp.width_code)
                 if ring is None:
                     w.blank()
             elif element.shape == "polygon":
-                # Four fills of the shifted copies `layout_constants` baked:
-                # no per-vertex work on the watch (research 19 §4.6).
+                # One fill per shifted copy `layout_constants` baked: no
+                # per-vertex work on the watch (research 19 §4.6).
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                for index in range(len(RING_OFFSETS)):
-                    w.line(f"dc.fillPolygon(Layout.{prefix}_RING_{index});")
+                for index in range(len(disc_perimeter_offsets(stamp.width))):
+                    w.line(f"dc.fillPolygon(Layout.{_ring_copy(prefix, stamp.width, index)});")
                 if ring is None:
                     w.blank()
             else:
@@ -520,7 +526,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 if pen:
                     w.line(f"dc.setPenWidth({pen});")
                 shapes.emit_stamp(
-                    w, stamp.color,
+                    w, stamp.color, stamp.width,
                     lambda dx, dy: _emit_primitive(w, placed, aod, prefix, dx, dy,
                                                    set_pen=pen is None),
                     blank_after=False)
@@ -577,16 +583,16 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
                 f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
             ))
-            if placed.ring_grow:
-                # Its 1px ring: the polygon shifted to each of
-                # the four points 1px away, at build time -- four native
-                # fills and no loop on the watch.
-                for index, (dx, dy) in enumerate(RING_OFFSETS):
+            for width in placed.ring_widths:
+                # Its ring: the polygon shifted to each offset point, at
+                # build time -- native fills and no loop on the watch.
+                for index, (dx, dy) in enumerate(disc_perimeter_offsets(width)):
                     shifted = ", ".join(f"[{x + dx}, {y + dy}]" for x, y in placed.points)
                     out.append((
-                        f"{prefix}_RING_{index}",
+                        _ring_copy(prefix, width, index),
                         McLiteral("Array<Graphics.Point2D>", f"[{shifted}]"),
-                        f"the ring's stamp at ({dx}, {dy})",
+                        f"the {width}px ring's stamp at ({dx}, {dy})" if width > 1
+                        else f"the ring's stamp at ({dx}, {dy})",
                     ))
         else:
             rect = placed.rect or placed.inner_box

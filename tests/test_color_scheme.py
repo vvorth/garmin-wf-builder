@@ -504,13 +504,13 @@ def test_config_unsupported_is_suppressible_from_any_one_referencing_element(wri
 
 def test_config_unsupported_is_suppressible_from_an_outline_only_user(write_design, db):
     """An element that reaches `color.dim` only
-    through `outline: ...` is a user of it, so its `lint: allow`
+    through `outline: {color: ...}` is a user of it, so its `lint: allow`
     counts -- before, `_users_of` never looked at an outline."""
     text = DESIGN.replace(
         """    color: color.dim
 """,
         """    color: "#FFFFFF"
-    outline: color.dim
+    outline: {color: color.dim}
     lint:
       allow: [config-unsupported]
       reason: "test"

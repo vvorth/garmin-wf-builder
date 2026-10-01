@@ -1,17 +1,20 @@
 """Baked ring fonts: a ringed text in a baked font, or a ringed
-icon, draws its 1px ring as one `drawText` in a companion font holding just
-the glyphs it rings, each dilated by 1px -- instead of four stamps."""
+icon, draws its ring as one `drawText` in a companion font holding just
+the glyphs it rings, each dilated by the ring's width -- instead of a
+stamp.  One companion per width."""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import pytest
 
 from PIL import Image, ImageChops
 
 from wfb import kinds
 from wfb.fonts import bake
 from wfb.fonts.bmfont import dilate
-from wfb.ir import RING_OFFSETS
+from wfb.ir import disc_perimeter_offsets
 
 from tests.helpers import generate_for_targets, lint_text, load_face
 
@@ -25,16 +28,18 @@ def _tile(font, char: str) -> tuple[Image.Image, int, int]:
             box.xoffset, box.yoffset)
 
 
-def test_a_ring_glyph_is_the_exact_1px_dilation_of_its_glyph():
+@pytest.mark.parametrize("width", [1, 2, 3])
+def test_a_ring_glyph_is_the_exact_dilation_of_its_glyph(width):
     """Placed on one canvas at their own offsets, the ring glyph is the
-    union of the glyph and its four 1px shifts -- what the stamp draws."""
+    union of the glyph and its shifts to every offset point -- what the
+    stamp draws."""
     base, _ = bake(TTF, name="clock", size=30, glyphs="0123456789:")
-    ring, _ = dilate(base, name="clock_ring_glyphs", glyphs="8:")
+    ring, _ = dilate(base, name="clock_ring_glyphs", glyphs="8:", width=width)
     assert set(ring.glyphs) == {"8", ":"}
     for char in "8:":
         tile, left, top = _tile(base, char)
         expected = Image.new("L", (80, 80), 0)
-        for dx, dy in ((0, 0), *RING_OFFSETS):
+        for dx, dy in ((0, 0), *disc_perimeter_offsets(width)):
             shifted = Image.new("L", expected.size, 0)
             shifted.paste(tile, (20 + left + dx, 20 + top + dy))
             expected = ImageChops.lighter(expected, shifted)
@@ -144,7 +149,22 @@ def test_the_ring_fonts_glyphs_are_the_union_over_ringed_runs(write_design, bag)
       outline: color.ring}
   c: {type: text, text: "7", font: font.clock, at: {anchor: center, dy: -20%}, color: color.fg}
 """, write_design, bag)
-    assert kinds.ring_fonts(face) == {"clock_ring_glyphs": ("clock", frozenset("1239"))}
+    assert kinds.ring_fonts(face) == {"clock_ring_glyphs": ("clock", frozenset("1239"), 1)}
+
+
+def test_each_ring_width_gets_its_own_ring_font(write_design, tmp_path):
+    """A 1px and a 2px ring on the same base font: two companions, each
+    loaded right after the base, each drawn by the element of its width."""
+    files, view = _view("""
+  a: {type: text, text: "12", font: font.clock, at: {anchor: center}, color: color.fg,
+      outline: color.ring}
+  b: {type: text, text: "39", font: font.clock, at: {anchor: center, dy: 20%}, color: color.fg,
+      outline: {color: color.ring, width: 2}}
+""", write_design, tmp_path)
+    assert "var ringFont = _fontClockRingGlyphs;" in view.split("private function drawA")[1]
+    assert "var ringFont2 = _fontClockRing2Glyphs;" in view.split("private function drawB")[1]
+    fonts = next(body for name, body in files.items() if name.endswith("fonts.xml"))
+    assert 'id="FontClockRingGlyphs"' in fonts and 'id="FontClockRing2Glyphs"' in fonts
 
 
 def test_a_baked_ring_in_a_partial_update_is_not_reported(write_design, db):

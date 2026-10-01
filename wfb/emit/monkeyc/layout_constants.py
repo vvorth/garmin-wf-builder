@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from ... import kinds
 from ...availability import Guards, vector_font_face
-from ...ir import slot_of
+from ...ir import Element, disc_perimeter_offsets, slot_of
+from ...ir.rings import ring_groups
 from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
     PlacedShape, ResolvedFace, ResolvedHandPart,
@@ -107,6 +108,57 @@ def _highlight(placed: Placed) -> IntBox:
     return getattr(placed, "highlight", None) or placed.box
 
 
+def _transforms_at_runtime(element: Element) -> bool:
+    """Does ``element`` ring parts it transforms on the watch -- a hand, a
+    gauge needle, a pattern copy -- through `WfbRing`?  Every other ring is
+    unrolled with literal offsets and reads no table."""
+    return (element.kind in ("hands", "pattern")
+            or (element.kind == "progress" and getattr(element, "style", None) == "needle"))
+
+
+def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
+    """Every distinct ring width wider than 1px that `WfbRing` draws in this
+    design, in first-appearance draw order: a runtime-transformed element's
+    own `outline:` (`_transforms_at_runtime`), or its share of an outlined
+    group's (`wfb.ir.rings`, the widths summed).  Only what is used
+    generates code, the same rule `_vector_fonts_used`/`_loaded_fonts`
+    follow.  A 1px ring needs no table: `WfbRing`'s own 1px functions spell
+    its four offsets out.
+    """
+    out: list[int] = []
+
+    def add(width: int) -> None:
+        if width > 1 and width not in out:
+            out.append(width)
+
+    for ring in ring_groups(resolved.face.elements):
+        for leaf, width in ring.members:
+            if _transforms_at_runtime(leaf):
+                add(width)
+    for placed in resolved.items:
+        outline = placed.element.outline
+        if outline is not None and _transforms_at_runtime(placed.element):
+            add(outline.width)
+    return out
+
+
+def _outline_offsets_constants(width: int) -> Constants:
+    """`OUTLINE_OFFSETS_<W>` -- the flat `Array<Number>` (`[dx0, dy0, dx1,
+    dy1, ...]`) of `wfb.ir.disc_perimeter_offsets(width)`, which `WfbRing`'s
+    wider-ring functions walk for a part transformed at runtime (a hand, a
+    needle, a pattern copy).  Every other stamp unrolls its offsets as
+    literals.  Flat rather than `Array<Graphics.Point2D>` because each
+    point is applied as two separate `Number` shifts.
+    """
+    offsets = disc_perimeter_offsets(width)
+    flat = ", ".join(str(v) for pair in offsets for v in pair)
+    return [(
+        f"OUTLINE_OFFSETS_{width}",
+        McLiteral("Array<Number>", f"[{flat}]"),
+        f"{len(offsets)} disc-perimeter points, {width}px ring",
+    )]
+
+
 def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 profile: int | None = None) -> SourceFile:
     """One device's `Layout` module.  ``profile`` (the repetition count of
@@ -176,6 +228,16 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 w.blank()
                 w.doc(f"`font.{name}`")
                 _emit_constants(w, _vector_font_constants(resolved, name, guards))
+        outline_widths = _outline_widths_used(resolved)
+        if outline_widths:
+            w.blank()
+            w.doc(
+                "'outline:' offsets for each ring wider than 1px this design uses:\n"
+                "the points WfbRing shifts a runtime-transformed part to, index\n"
+                "i/i+1 per (dx, dy) pair."
+            )
+            for width in outline_widths:
+                _emit_constants(w, _outline_offsets_constants(width))
         for placed, constants in per_item:
             if not constants:
                 continue

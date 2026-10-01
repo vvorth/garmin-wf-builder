@@ -432,36 +432,50 @@ These cost real time to discover; do not rediscover them.
   shared view instead of a per-device `Layout` constant nothing would
   differ across devices for anyway.
 
-- **`outline:` (plan 15, plan 23, research 14 and 19): every ring is
-  1px, drawn one of three ways, each measured on a watch (research 19
-  §4.5-4.6).**  `wfb.emit.monkeyc.common.RingPass` is the ring's colour as
-  Monkey C -- an element's own (`own_ring`, dimmed in AOD) or a `ring<Id>`
-  method's `ringColor`; every `ringed` kind's `emit_draw(..., ring=)`
-  draws only its silhouette's ring when given one.
+- **`outline:` (research 14 and 19): a ring of 1, 2 or 3px, drawn one of
+  three ways, each measured on a watch (research 19 §4.5-4.6).**
+  `wfb.emit.monkeyc.common.RingPass` is the ring's colour as Monkey C --
+  an element's own (`own_ring`, dimmed in AOD) or a `ring<Id>` method's
+  `ringColor` -- and its width, a build-time number; every `ringed` kind's
+  `emit_draw(..., ring=)` draws only its silhouette's ring when given one.
+  The offsets of a ring of width `w` are `wfb.ir.disc_perimeter_offsets(w)`
+  (4/8/16 points at 1/2/3px), the one table every path below reads.
 
   - **Grown**: a filled circle, rectangle or rounded rectangle, a gauge bar
-    and a filled circle part draw one copy 1px larger (`plus()` folds the
-    literal into the constant term).
+    and a filled circle part draw one copy `w` px larger (`plus()` folds
+    the literal into the constant term).
   - **Baked ring font** (below): an icon, or text in a baked font.
-  - **Stamp**: everything else draws at the four `RING_OFFSETS`, unrolled
-    -- `shapes.emit_stamp`/`emit_outline`, four calls with literal `- 1`/
-    `+ 1` (`shapes.shifted`) and the pen set once around them.  A loop over
-    an offsets array cost more than its draws on a watch; unrolled, there
-    is no table in `Layout`, no index and no local to name.  A standalone
-    polygon's four shifted copies are `Layout` constants
-    (`<P>_RING_0`..`_3`): four native fills.  A part of a hand, needle or
-    pattern is transformed at runtime, so it goes through `WfbRing`
-    (`rotated.emit_part_ring`): the points rotated or translated **once**
-    into a fresh array that `shift` moves in place between the four fills
-    (a `Point2D` element assignment typechecks under `-l 3`, by a real
-    build); `lineRotated`/`circleRotated` rotate once and draw four.  That
-    halved the allocation, not the time -- the per-vertex work is
-    interpreted either way (§4.6).  `WfbRing` is its own barrel module so a
-    face without a ring compiles none of it.
+  - **Stamp**: everything else draws at every offset point, unrolled --
+    `shapes.emit_stamp`/`emit_outline`, one call per point with literal
+    offsets (`shapes.shifted`) and the pen set once around them.  A loop
+    over an offsets array cost more than its draws on a watch; unrolled,
+    there is no table in `Layout`, no index and no local to name.  A
+    standalone polygon's shifted copies are `Layout` constants
+    (`<P>_RING_0`..`_3` at 1px, `<P>_RING<W>_<i>` wider, one set per width
+    it rings at, `Placed.ring_widths`): native fills.  A part of a hand,
+    needle or pattern is transformed at runtime, so it goes through
+    `WfbRing` (`rotated.emit_part_ring`): the points rotated or translated
+    **once** into a fresh array that `shift` moves in place between the
+    fills (a `Point2D` element assignment typechecks under `-l 3`, by a
+    real build); `lineRotated`/`circleRotated` rotate once and draw four.
+    Above 1px the same four functions in `WfbRingWide` walk
+    `Layout.OUTLINE_OFFSETS_<W>`, emitted only for a width some
+    runtime-transformed element rings at
+    (`layout_constants._outline_widths_used`); its `lineRotated` takes the
+    line's ends as one array, since a barrel function takes at most nine
+    parameters.  That halved the allocation, not the time -- the
+    per-vertex work is interpreted either way (§4.6).  `WfbRing` is its
+    own barrel module so a face without a ring compiles none of it, and
+    `WfbRingWide` its own so a face whose rings are all 1px compiles none
+    of that.
 
   A screen-space shift commutes with everything else a draw call does,
   rotation and `curve:` included (research 14 §3.2): a pattern text part's
   stamp shifts its already-rotated anchor (`WfbGeom.rotatedX(...) - 1`).
+
+  A text whose AOD ring differs in width from its awake one draws each
+  under `if (_aod) ... else`; a baked ring is read into a local named per
+  width (`ringFont`, `ringFont2`), so the two branches never redeclare it.
 
   **A `monkeyc` finding caught only by a real build: locals are
   block-scoped, and a second `var` of one name in a scope is
@@ -478,10 +492,12 @@ These cost real time to discover; do not rediscover them.
   reads, guards and parameters as `draw<Id>`, plus `ringColor`) just before
   the group's first member in each frame sequence -- active, AOD (each
   under its own `aod: visible` guard), low-power and the static buffer's
-  `drawStatic<Id>` (`view.Rings`, `wfb.ir.rings`).  No member rings itself
-  and outlined groups do not nest, so every ring stays 1px.  The group's
-  colour may not read data: the frame methods read only what members
-  bind.
+  `drawStatic<Id>` (`view.Rings`, `wfb.ir.rings`).  A member's dilation
+  is the sum of every ring it sits in -- its own and each outlined group
+  between it and this one -- so one member can need several widths: one
+  method each, `ring<Id>` at 1px and `ring<Id>_<W>` wider
+  (`element_ring_method`).  The group's colour may not read data: the
+  frame methods read only what members bind.
 
   **The preview rings a silhouette, not a geometry.**  `Renderer.
   silhouette` paints once onto each of two scratch canvases of different
@@ -498,9 +514,10 @@ These cost real time to discover; do not rediscover them.
   the one answer to "which fonts need a ring companion, with which glyphs"
   (the union over every ringed run, a group member's share included; a
   text with an `aod: {font: ...}` override keeps the stamp).  The build
-  bakes each as `<font>_ring_glyphs` (`wfb.fonts.bmfont.dilate`: every
-  glyph dilated by the four `RING_OFFSETS` plus itself, offsets -1,
-  advance and line metrics unchanged), writes it as an ordinary `<font>`
+  bakes each as `<font>_ring_glyphs` at 1px and `<font>_ring<W>_glyphs`
+  wider, one per width some element rings at (`wfb.fonts.bmfont.dilate`:
+  every glyph dilated by `disc_perimeter_offsets(w)` plus itself, offsets
+  `-w`, advance and line metrics unchanged), writes it as an ordinary `<font>`
   resource, and loads it right after its base (`_loaded_fonts`).  The
   resource compiler accepts the resulting negative `xoffset`/`yoffset`
   (a real build on all three targets).  The ring font's glyphs land on

@@ -66,7 +66,7 @@ elements:
     font: font.clock
     at: { anchor: center, dy: -10% }
     color: color.bg
-    outline: color.ring
+    outline: { color: color.ring, width: 2 }
   upright_vector:
     type: text
     text: "UPRIGHT"
@@ -81,7 +81,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center, dy: -55%r }
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
     curve:
       style: angled
       angle: 45deg
@@ -92,7 +92,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center }
-    outline: color.ring
+    outline: { color: color.ring, width: 3 }
     curve:
       style: radial
       angle: 90deg
@@ -112,7 +112,7 @@ elements:
         font: font.bezel
         color: color.bg
         at: { dy: -80%r }
-        outline: color.ring
+        outline: { color: color.ring, width: 2 }
         curve:
           style: angled
           angle: 0deg
@@ -129,7 +129,7 @@ elements:
         text: "I"
         font: font.bezel
         color: color.bg
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
         curve:
           style: radial
           angle: 0deg

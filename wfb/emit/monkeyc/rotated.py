@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...ir import RING_OFFSETS
+from ...ir import disc_perimeter_offsets
 from ..writer import Writer
 
 if TYPE_CHECKING:
@@ -71,31 +71,39 @@ def _shifted(expr: str, by: int) -> str:
 
 
 def emit_part_ring(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart,
-                   part_prefix: str, *, radial: bool,
+                   part_prefix: str, width: int, *, radial: bool,
                    thickness_expr: str, set_pen: bool = True) -> None:
-    """One polygon/line/circle part's 1px `outline:` ring, in whatever
-    colour is set: the part transformed **once**, then drawn
-    at the four offsets -- no per-offset rotation or allocation (the stamp
-    cost research 19 §4.5 measured).  A filled circle is its own exact
-    dilation one pixel larger: one draw.  Pen width as
-    `emit_transformed_part`."""
+    """One polygon/line/circle part's ``width`` px `outline:` ring, in
+    whatever colour is set: the part transformed **once**, then drawn at
+    every `disc_perimeter_offsets(width)` point -- no per-offset rotation or
+    allocation (the stamp cost research 19 §4.5 measured).  A 1px ring calls
+    `WfbRing`, which spells its four points out; a wider one `WfbRingWide`,
+    which walks `Layout.OUTLINE_OFFSETS_<W>`.  A filled circle is its own exact dilation
+    ``width`` px larger: one draw.  Pen width as `emit_transformed_part`."""
     constant = f"Layout.{part_prefix}"
     stroked = part.shape == "line" or (part.shape == "circle" and not part.filled)
+    ring, offsets = (("WfbRing", "") if width == 1
+                     else ("WfbRingWide", f", Layout.OUTLINE_OFFSETS_{width}"))
     if stroked and set_pen:
         w.line(f"dc.setPenWidth({thickness_expr});")
     if part.shape == "polygon":
         if radial:
-            w.line(f"WfbRing.rotated(dc, {constant}_POINTS, cx, cy, sin, cos);")
+            w.line(f"{ring}.rotated(dc, {constant}_POINTS, cx, cy, sin, cos{offsets});")
         else:
-            w.line(f"WfbRing.translated(dc, {constant}_POINTS, ox, oy);")
+            w.line(f"{ring}.translated(dc, {constant}_POINTS, ox, oy{offsets});")
     elif part.shape == "line":
-        if radial:
+        if radial and width > 1:
+            w.call("WfbRingWide.lineRotated", [
+                f"dc, [{constant}_X1, {constant}_Y1, {constant}_X2, {constant}_Y2]",
+                f"cx, cy, sin, cos{offsets}",
+            ])
+        elif radial:
             w.call("WfbRing.lineRotated", [
                 f"dc, {constant}_X1, {constant}_Y1",
                 f"{constant}_X2, {constant}_Y2, cx, cy, sin, cos",
             ])
         else:
-            for dx, dy in RING_OFFSETS:
+            for dx, dy in disc_perimeter_offsets(width):
                 w.call("dc.drawLine", [
                     f"{_shifted(f'ox + {constant}_X1', dx)}, {_shifted(f'oy + {constant}_Y1', dy)}",
                     f"{_shifted(f'ox + {constant}_X2', dx)}, {_shifted(f'oy + {constant}_Y2', dy)}",
@@ -103,16 +111,16 @@ def emit_part_ring(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | Res
     elif part.filled:
         if radial:
             w.call("WfbGeom.fillCircleRotated", [
-                f"dc, {constant}_X, {constant}_Y, {constant}_RADIUS + 1", "cx, cy, sin, cos",
+                f"dc, {constant}_X, {constant}_Y, {constant}_RADIUS + {width}", "cx, cy, sin, cos",
             ])
         else:
-            w.line(f"dc.fillCircle(ox + {constant}_X, oy + {constant}_Y, {constant}_RADIUS + 1);")
+            w.line(f"dc.fillCircle(ox + {constant}_X, oy + {constant}_Y, {constant}_RADIUS + {width});")
     elif radial:
-        w.call("WfbRing.circleRotated", [
-            f"dc, {constant}_X, {constant}_Y, {constant}_RADIUS", "cx, cy, sin, cos",
+        w.call(f"{ring}.circleRotated", [
+            f"dc, {constant}_X, {constant}_Y, {constant}_RADIUS", f"cx, cy, sin, cos{offsets}",
         ])
     else:
-        for dx, dy in RING_OFFSETS:
+        for dx, dy in disc_perimeter_offsets(width):
             w.line(f"dc.drawCircle({_shifted(f'ox + {constant}_X', dx)}, "
                    f"{_shifted(f'oy + {constant}_Y', dy)}, {constant}_RADIUS);")
     if stroked and set_pen:

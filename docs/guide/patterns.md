@@ -299,9 +299,10 @@ pattern (and every other element sharing the font) unaffected.
 element](text.md#outline--the-stamped-ring) — see that section's own
 screenshot, which includes an outlined pattern text part both plain and
 curved (`examples/features/outline/face.yaml`) — one level down: the part's
-own string, drawn four times one screen-space pixel off in the ring colour,
-then once more, unshifted, in the part's own (effective) `color:`. The one
-thing a pattern part's `outline.color` can do
+own string, drawn at every screen-space point the ring's width away in the
+ring colour, then once more, unshifted, in the part's own (effective)
+`color:`. Both spellings (a bare colour, or `{color, width}`, 1–3px,
+default 1) work identically. The one thing a pattern part's `outline.color` can do
 that a standalone element's cannot: it may read **`copy`**, exactly as the
 part's own `color:` does, so the ring can alternate by copy the same way
 the fill can. Reaches every draw shape a part can take — upright,

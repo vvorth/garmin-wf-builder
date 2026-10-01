@@ -344,30 +344,7 @@ def _check_reserved(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
                    here + [key, index, "outline"],
                    "a text part of a pattern takes 'outline:' today")
 
-    def ring_width(container: dict[str, Any], path: list[str | int]) -> None:
-        """`outline: {color, width}` -- removed: a ring is always 1px
-        (measured on a watch, research 19 §4.5), so the colour is all
-        there is to say."""
-        outline = container.get("outline")
-        if not isinstance(outline, dict):
-            return
-        color = outline.get("color")
-        bag.error("outline",
-                  f"{_dotted(path + ['outline'])}: 'outline:' takes a colour or 'none' -- "
-                  "a ring is always 1px", doc.span(container, "outline"),
-                  notes=[f"write it as:\n    outline: {color}" if isinstance(color, str)
-                         else "write it as:\n    outline: <colour>",
-                         "a wider ring measured 1.8x the draw time of a 1px one on a "
-                         "watch (docs/guide/outlines.md)"])
-        bad.append(path + ["outline"])
-
     def visit(element: dict[str, Any], here: list[str | int]) -> None:
-        ring_width(element, here)
-        if isinstance(element.get("aod"), dict):
-            ring_width(element["aod"], here + ["aod"])
-        for index, part in enumerate(element.get("parts") or []):
-            if isinstance(part, dict):
-                ring_width(part, here + ["parts", index])
         for key, message in _RESERVED_ELEMENT_KEYS.items():
             if key in element:
                 report(element, key, message, here + [key])

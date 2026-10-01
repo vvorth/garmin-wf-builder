@@ -89,7 +89,7 @@ def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str
     would need a fresh declaration per hand).
 
     `stamp` rings the hand as one silhouette first: every
-    part's 1px ring in the ring colour (`rotated.emit_part_ring`, each part
+    part's ring in the ring colour (`rotated.emit_part_ring`, each part
     rotated once), then the parts themselves -- so a hand's own parts never
     ring each other, and each hand's ring is drawn over the hand beneath
     it.  `ring_only` (an outlined group's pass) stops after the ring.
@@ -106,7 +106,7 @@ def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str
         w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
         for index, part in enumerate(hand.parts):
             part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
-            rotated.emit_part_ring(w, part, part_prefix, radial=True,
+            rotated.emit_part_ring(w, part, part_prefix, stamp.width, radial=True,
                                    thickness_expr=thickness(part_prefix))
     if ring_only:
         return
@@ -276,7 +276,8 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
                 # Each hand ringed whole, over the hand beneath it -- the
                 # generated `_emit_one_hand`'s own order.
                 renderer.stamp_ring(renderer.silhouette(draw_hand),
-                                    renderer.aod_dimmed(element, element.outline.color))
+                                    renderer.aod_dimmed(element, element.outline.color),
+                                    element.outline.width)
             draw_hand()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,

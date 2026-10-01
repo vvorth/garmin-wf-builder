@@ -19,7 +19,7 @@ class OutlineTextView extends WatchUi.WatchFace {
     //! Bitmap fonts -- custom text and icon glyphs alike -- loaded once in
     //! onLayout rather than per frame.
     private var _fontClock as FontResource?;
-    private var _fontClockRingGlyphs as FontResource?;
+    private var _fontClockRing2Glyphs as FontResource?;
 
     //! Device-resident scalable ('face:') fonts -- a Graphics.
     //! VectorFont handed back by Graphics.getVectorFont, not a loaded
@@ -34,7 +34,7 @@ class OutlineTextView extends WatchUi.WatchFace {
     //! Load resources once.  Loading is expensive and must not happen per frame.
     function onLayout(dc as Dc) as Void {
         _fontClock = WatchUi.loadResource(Rez.Fonts.FontClock) as FontResource;
-        _fontClockRingGlyphs = WatchUi.loadResource(Rez.Fonts.FontClockRingGlyphs) as FontResource;
+        _fontClockRing2Glyphs = WatchUi.loadResource(Rez.Fonts.FontClockRing2Glyphs) as FontResource;
 
         _fontBezel = Graphics.getVectorFont({:face => Layout.FONT_BEZEL_FACE, :size => Layout.FONT_BEZEL_SIZE});
     }
@@ -86,10 +86,10 @@ class OutlineTextView extends WatchUi.WatchFace {
             return;  // the font resource failed to load
         }
 
-        var ringFont = _fontClockRingGlyphs;
-        if (ringFont != null) {
+        var ringFont2 = _fontClockRing2Glyphs;
+        if (ringFont2 != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, ringFont,
+            dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, ringFont2,
                         WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
                         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
@@ -153,16 +153,52 @@ class OutlineTextView extends WatchUi.WatchFace {
         var font = _fontBezel;
         if (font != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            dc.drawRadialText(Layout.BEZEL_TEXT_X - 1, Layout.BEZEL_TEXT_Y, font, "BEZEL",
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 3, Layout.BEZEL_TEXT_Y, font, "BEZEL",
                               Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                               Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
-            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y - 1, font, "BEZEL",
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 2, Layout.BEZEL_TEXT_Y - 2, font, "BEZEL",
                               Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                               Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
-            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y + 1, font, "BEZEL",
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 2, Layout.BEZEL_TEXT_Y - 1, font, "BEZEL",
                               Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                               Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
-            dc.drawRadialText(Layout.BEZEL_TEXT_X + 1, Layout.BEZEL_TEXT_Y, font, "BEZEL",
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 2, Layout.BEZEL_TEXT_Y + 1, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 2, Layout.BEZEL_TEXT_Y + 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 1, Layout.BEZEL_TEXT_Y - 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X - 1, Layout.BEZEL_TEXT_Y + 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y - 3, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y + 3, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 1, Layout.BEZEL_TEXT_Y - 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 1, Layout.BEZEL_TEXT_Y + 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 2, Layout.BEZEL_TEXT_Y - 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 2, Layout.BEZEL_TEXT_Y - 1, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 2, Layout.BEZEL_TEXT_Y + 1, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 2, Layout.BEZEL_TEXT_Y + 2, font, "BEZEL",
+                              Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
+                              Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            dc.drawRadialText(Layout.BEZEL_TEXT_X + 3, Layout.BEZEL_TEXT_Y, font, "BEZEL",
                               Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                               Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
 
@@ -187,16 +223,28 @@ class OutlineTextView extends WatchUi.WatchFace {
             var cos = Math.cos(angle);
             if (font0 != null) {
                 dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) - 1,
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) - 2,
                                   WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos), font0, (i + 1).toString(),
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
-                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) - 1,
                                   WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) - 1, font0, (i + 1).toString(),
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
-                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) - 1,
                                   WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + 1, font0, (i + 1).toString(),
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) - 2, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + 2, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
                 dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) - 1, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + 1,
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + 1, font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + 2,
                                   WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos), font0, (i + 1).toString(),
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
 

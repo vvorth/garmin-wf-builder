@@ -192,7 +192,7 @@ def test_off_screen_catches_a_pattern_box_that_only_overflows_once_ringed(write_
         font: font.bezel
         color: color.fg
         align: top_left
-        outline: color.fg
+        outline: {color: color.fg, width: 3}
 """
     )
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
@@ -258,13 +258,13 @@ def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, 
         font: font.bezel
         color: color.fg
         at: {{dy: -30%r}}
-        outline: color.fg
+        outline: {{color: color.fg, width: 1}}
       - type: text
         text: "B"
         font: font.bezel
         color: color.fg
         at: {{dy: 30%r}}
-        outline: color.fg
+        outline: {{color: color.fg, width: 2}}
 """
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     device = db.get("fenix8solar47mm")
@@ -301,6 +301,20 @@ def test_pattern_outline_vector_gate_wraps_loop_and_interior_together(write_desi
     method = view.split("private function drawRing")[1]
     method = method.split("\n\n    //!")[0]
     assert method.count("if (font0 != null) {") == 1
+
+
+def test_a_wider_text_part_ring_stamps_every_offset_point(write_design, bag, db):
+    """A 3px ring is sixteen stamps, unrolled like the 1px one's four: no
+    offsets table to read."""
+    elements = _upright_ring("ring", """
+        outline: {color: color.fg, width: 3}""")
+    face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    method = emit_view(resolved).text.split("private function drawRing")[1]
+    assert method.count('font0, "12",') == 17  # sixteen stamps and the interior
+    assert "cx, sin, cos) - 3" in method
+    assert "OUTLINE_OFFSETS" not in emit_layout(resolved).text
 
 
 # -- the shared golden fixture (extends tests/fixtures/outline_text) --------

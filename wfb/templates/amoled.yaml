@@ -64,7 +64,9 @@ elements:
     color: color.white
     aod:
       color: color.black   # hollow digits: only the outline lights
-      outline: color.gray
+      outline:
+        width: 2
+        color: color.gray
 
   heart:
     type: group

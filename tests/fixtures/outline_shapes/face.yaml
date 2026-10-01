@@ -41,7 +41,7 @@ elements:
     start_angle: 210deg
     sweep: 300deg
     color: color.cool
-    outline: color.fg
+    outline: { color: color.fg, width: 1 }
 
   disc:
     type: circle
@@ -55,7 +55,7 @@ elements:
     at: { anchor: center, dy: -20% }
     size: { width: 22%, height: 12% }
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
 
   pill:
     type: rectangle
@@ -63,7 +63,7 @@ elements:
     size: { width: 22%, height: 12% }
     corner_radius: 4px
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring, width: 3 }
 
   hoop:
     type: circle
@@ -88,7 +88,7 @@ elements:
     thickness: 2px
     filled: false
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
 
   arrow:
     type: polygon
@@ -105,7 +105,7 @@ elements:
     to: { anchor: center, dx: 10%, dy: 32% }
     thickness: 2px
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
 
   alarm:
     type: icon
@@ -113,4 +113,4 @@ elements:
     size: 14%r
     at: { anchor: center, dx: 22%, dy: 28% }
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }

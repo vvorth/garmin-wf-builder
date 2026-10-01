@@ -17,8 +17,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import (
-    NO_AOD, RING_WIDTH_CODE, AodStyle, RingPass, article, const_prefix,
-    mc_float, own_ring, plus,
+    NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float, own_ring, plus,
 )
 from ..emit.monkeyc.slot_scale import SLOT_SCALE_MODULE
 from ..emit.writer import Writer
@@ -353,7 +352,7 @@ def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: st
     arc lies inside it -- else the lit arc alone, only while it draws."""
     if element.track_color is not None:
         shapes.emit_stamp(
-            w, stamp.color,
+            w, stamp.color, stamp.width,
             lambda dx, dy: shapes.emit_arc_span(w, prefix, thickness_expr, dx, dy),
             blank_after=False)
         return
@@ -366,7 +365,7 @@ def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: st
         ])
 
     with w.block_if(present):
-        shapes.emit_stamp(w, stamp.color, lit, blank_after=False)
+        shapes.emit_stamp(w, stamp.color, stamp.width, lit, blank_after=False)
 
 
 def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
@@ -394,7 +393,7 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
         w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
         for index, part in enumerate(placed.needle):
             part_prefix = f"{prefix}_NEEDLE_{index}"
-            rotated.emit_part_ring(w, part, part_prefix, radial=True,
+            rotated.emit_part_ring(w, part, part_prefix, stamp.width, radial=True,
                                    thickness_expr=thickness(part_prefix))
     if ring_only:
         return
@@ -641,7 +640,7 @@ def _emit_styles(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: 
         # The whole bar is the silhouette: one grown copy is its
         # dilation (`wfb.kinds.shape._emit_grown`).
         w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-        _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", RING_WIDTH_CODE)
+        _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", stamp.width_code)
         if ring is not None:
             return
         w.blank()
@@ -660,7 +659,7 @@ def _emit_styles(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: 
             # No track: the lit length alone is the silhouette.
             with w.block("if (filled > 0)"):
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                _emit_grown_bar(w, prefix, "filled", RING_WIDTH_CODE)
+                _emit_grown_bar(w, prefix, "filled", stamp.width_code)
             if ring is not None:
                 return
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
@@ -729,7 +728,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
     ringed = True
 
     def ring_draws(self, element: Progress, face: Face) -> int:
-        return 1 if element.style == "bar" else 4
+        return 1 if element.style == "bar" else super().ring_draws(element, face)
 
     def ring_refusal(self, element: Progress) -> str | None:
         if element.style in ("segments", "scale"):

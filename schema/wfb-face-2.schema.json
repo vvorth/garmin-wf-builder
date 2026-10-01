@@ -285,7 +285,7 @@
       ]
     },
     "outline": {
-      "description": "A 1px ring in this colour round everything the element draws. A filled circle or rectangle draws one grown copy of itself; a baked-font text or an icon draws a baked, dilated copy of its glyphs; everything else is stamped -- drawn four times one pixel off in the ring colour, then once more in its own colours -- so an opening wider than 2px gets a ring too. On a group the ring goes round the members' union. 'none' (the default) draws no ring. Only 1px: a wider ring measured 1.8x the draw time on a watch (docs/guide/outlines.md).",
+      "description": "A ring in this colour round everything the element draws: a bare colour is a 1px ring, and '{color, width}' picks 1, 2 or 3px. A filled circle or rectangle draws one grown copy of itself; a baked-font text or an icon draws a baked, dilated copy of its glyphs; everything else is stamped -- drawn at every point 'width' pixels away in the ring colour, then once more in its own colours -- so an opening wider than twice the ring gets a ring too. On a group the ring goes round the members' union. 'none' (the default) draws no ring. A wider ring costs more draw time on a watch (docs/guide/outlines.md).",
       "oneOf": [
         {
           "const": "none"
@@ -301,6 +301,24 @@
               }
             }
           ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit. 1 to 3: a wider ring is a build error naming why (docs/guide/outlines.md). A 2px ring keeps a hollow AOD glyph legible where a 1px one can lose whole strokes."
+            }
+          }
         }
       ]
     },
@@ -1370,7 +1388,7 @@
           "$ref": "#/$defs/size"
         },
         "outline": {
-          "description": "A ring round the union of every member, members' own rings included: every member's ring is drawn just before the group's first member, then the members. Every member must be a kind that can carry an outline. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round the union of every member, members' own rings included: every member's ring is drawn just before the group's first member, then the members. Every member must be a kind that can carry an outline. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "z": {
@@ -1460,7 +1478,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1551,7 +1569,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1642,7 +1660,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1733,7 +1751,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1824,7 +1842,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1915,7 +1933,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1996,7 +2014,7 @@
           "$ref": "#/$defs/curve"
         },
         "outline": {
-          "description": "Draws this text's string four times at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring. 'none' (the default) draws no ring at all, byte-identical to today.",
+          "description": "Draws this text's string at every point 'width' pixels away at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring. 'none' (the default) draws no ring at all, byte-identical to today.",
           "$ref": "#/$defs/outline"
         },
         "at": {
@@ -2155,7 +2173,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round everything the gauge draws, track and value alike. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round everything the gauge draws, track and value alike. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "track_color": {
@@ -2347,7 +2365,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round the glyph, stamped exactly as a text 'outline:' is: an opening inside the icon wider than twice the ring gets a ring of its own. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round the glyph, stamped exactly as a text 'outline:' is: an opening inside the icon wider than twice the ring gets a ring of its own. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "at": {
@@ -2633,7 +2651,7 @@
           ]
         },
         "outline": {
-          "description": "A ring round each hand as one silhouette: every part's ring, then the parts, so a hand's own parts never ring each other and each hand is ringed against the one beneath it. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round each hand as one silhouette: every part's ring, then the parts, so a hand's own parts never ring each other and each hand is ringed against the one beneath it. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "z": {
@@ -2741,7 +2759,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring round each copy as one silhouette: every part's ring, then the parts. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round each copy as one silhouette: every part's ring, then the parts. 'none' (the default) draws no ring.",
           "$ref": "#/$defs/outline"
         },
         "parts": {

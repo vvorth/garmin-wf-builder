@@ -66,15 +66,6 @@ def _render(resolved, **options):
     return render(resolved, PreviewOptions(**opts))
 
 
-def _count_reddish(image, region: tuple[int, int, int, int]) -> int:
-    """Pixels that are clearly the ring's red: a 1px stamp of an
-    anti-aliased vector glyph leaves only blended edge pixels, never an
-    exact `RING`."""
-    x0, y0, x1, y1 = region
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1)
-               if (p := image.getpixel((x, y)))[0] >= 100 and p[1] < 60 and p[2] < 60)
-
-
 def _count_color(image, color: tuple[int, int, int],
                  region: tuple[int, int, int, int] | None = None) -> int:
     x0, y0, x1, y1 = region if region is not None else (0, 0, *image.size)
@@ -112,7 +103,7 @@ def test_pattern_ring_alone_is_visible_when_interior_matches_background(
     towards the background instead of hitting either exactly."""
     resolved = _resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
         extra="""        color: color.bg
-        outline: color.ring
+        outline: {color: color.ring, width: 2}
 """))
     image = _render(resolved)
     ring = _count_color(image, RING)
@@ -130,11 +121,26 @@ def test_pattern_ring_lights_fewer_pixels_than_a_solid_fill(write_design, db, ba
 """)))
     ringed = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
         extra="""        color: color.bg
-        outline: color.ring
+        outline: {color: color.ring, width: 2}
 """)))
     solid_count = _count_color(solid, FG)
     ring_count = _count_color(ringed, RING)
     assert 0 < ring_count < solid_count
+
+
+def test_pattern_ring_width_scales_the_lit_ring_pixel_count(write_design, db, bag, repo_root):
+    narrow = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 1}
+""")))
+    wide = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
+        extra="""        color: color.bg
+        outline: {color: color.ring, width: 3}
+""")))
+    narrow_ring = _count_color(narrow, RING)
+    wide_ring = _count_color(wide, RING)
+    assert narrow_ring > 0
+    assert wide_ring > narrow_ring
 
 
 def test_pattern_outline_shorthand_matches_object_form_in_preview(write_design, db, bag, repo_root):
@@ -144,7 +150,7 @@ def test_pattern_outline_shorthand_matches_object_form_in_preview(write_design, 
 """)))
     explicit = _render(_resolved(write_design, db, bag, repo_root, _RING_ELEMENT.format(
         extra="""        color: color.bg
-        outline: color.ring
+        outline: {color: color.ring, width: 1}
 """)))
     assert shorthand.tobytes() == explicit.tobytes()
 
@@ -163,7 +169,7 @@ _ROTATING_RING = """  ring:
         text: "8"
         font: font.bezel
         at: {dy: -70px}
-        outline: color.ring
+        outline: {color: color.ring, width: 2}
         curve: {style: angled, angle: 0deg}
 """
 
@@ -189,7 +195,7 @@ def test_every_copy_gets_its_own_ring_not_just_copy_0(write_design, db, bag, rep
         ox, oy, sin_t, cos_t = placed.transform(index)
         ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         box = (max(0, ax - 20), max(0, ay - 20), min(w, ax + 20), min(h, ay + 20))
-        count = _count_reddish(image, box)
+        count = _count_color(image, RING, box)
         assert count > 0, f"copy {index}'s own anchor ({ax}, {ay}) has no ring pixels nearby"
 
 

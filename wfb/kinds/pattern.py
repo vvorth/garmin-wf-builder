@@ -13,7 +13,7 @@ from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..fonts import BakedFont
 from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
-from ..ir import RING_OFFSETS
+from ..ir import disc_perimeter_offsets
 from ..ir.model import (
     AnyHandPart, Element, Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
     ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
@@ -27,8 +27,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr,
-    mc_float, own_ring,
+    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr, mc_float, own_ring,
 )
 from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline, radial_radius_expr
 from ..emit.writer import Writer
@@ -407,7 +406,7 @@ def _pattern_text(renderer: Renderer, placed: PlacedPattern, part: ResolvedTextP
         def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
             renderer.draw_text(font, text, at, part.align, part.vertical_align,
                                part.font.metric, fill)
-    renderer.draw_outlined(draw, anchor, color, ring_color)
+    renderer.draw_outlined(draw, anchor, color, ring_color, part.outline_width)
 
 
 def _pattern_needs_math(placed: PlacedPattern) -> bool:
@@ -516,7 +515,7 @@ def _emit_pattern_text_call(
 
 def _emit_pattern_text_draw(
     w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str, aod: AodStyle, ring: str | None = None,
+    font_expr: str, value_code: str, justify: str, aod: AodStyle, ring: RingPass | None = None,
 ) -> None:
     """One copy's `shape: text` part -- or with ``ring``, only its 1px ring
     stamped in that colour (the pattern's own `outline:`): this copy's own
@@ -586,7 +585,7 @@ def _emit_pattern_text_draw(
     with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
         if ring is not None:
             emit_outline(
-                w, ring, x_expr, y_expr,
+                w, ring.color, ring.width, x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
@@ -594,7 +593,7 @@ def _emit_pattern_text_draw(
             return
         if part.outline_color is not None:
             emit_outline(
-                w, aod.dimmed(element, part.outline_color), x_expr, y_expr,
+                w, aod.dimmed(element, part.outline_color), part.outline_width, x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
@@ -609,7 +608,7 @@ def _emit_pattern_text_draw(
 def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: int,
                        part: ResolvedHandPart, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
                        thickness_override: str | None, aod: AodStyle,
-                       ring: str | None = None) -> None:
+                       ring: RingPass | None = None) -> None:
     """One template part, drawn for the current copy `i`: polygon/line/
     circle parts go through `rotated.emit_transformed_part` (rotated for a radial
     pattern, translated for a linear one, exactly as a hand's parts are).
@@ -621,7 +620,7 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     `formatting.emit`, since geometry resolution never touches either.
     ``text_fonts`` maps a custom font's resource name to the local
     `emit_draw` loaded it into before the loop.  With ``ring`` (the
-    pattern's `outline:` colour, already set), only the part's 1px ring is
+    pattern's `outline:`, its colour already set), only the part's ring is
     drawn.
     """
     part_prefix = f"{prefix}_{index}"
@@ -648,9 +647,12 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
         return
     thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
     if part.shape != "arc":
-        emit = rotated.emit_part_ring if ring is not None else rotated.emit_transformed_part
-        emit(w, part, part_prefix, radial=radial, thickness_expr=thickness_expr,
-             set_pen=not hoist_pen)
+        if ring is not None:
+            rotated.emit_part_ring(w, part, part_prefix, ring.width, radial=radial,
+                                   thickness_expr=thickness_expr, set_pen=not hoist_pen)
+        else:
+            rotated.emit_transformed_part(w, part, part_prefix, radial=radial,
+                                          thickness_expr=thickness_expr, set_pen=not hoist_pen)
         return
     # arc: always centred on the copy's own origin.  A radial pattern
     # turns the author start angle by plain degree subtraction -- the same
@@ -669,7 +671,7 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     else:
         start_arg = g0
         cx_arg, cy_arg = "ox", "oy"
-    for dx, dy in (RING_OFFSETS if ring is not None else ((0, 0),)):
+    for dx, dy in (disc_perimeter_offsets(ring.width) if ring is not None else ((0, 0),)):
         x = cx_arg if dx == 0 else f"{cx_arg} {'+' if dx > 0 else '-'} {abs(dx)}"
         y = cy_arg if dy == 0 else f"{cy_arg} {'+' if dy > 0 else '-'} {abs(dy)}"
         w.call("WfbArc.drawSpan", [
@@ -955,7 +957,8 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             if element.outline is not None:
                 # Each copy ringed whole, just before it -- `emit_draw`'s order.
                 renderer.stamp_ring(renderer.silhouette(draw_copy),
-                                    renderer.aod_dimmed(element, element.outline.color))
+                                    renderer.aod_dimmed(element, element.outline.color),
+                                    element.outline.width)
             draw_copy()
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
@@ -1091,10 +1094,10 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                 w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
                 w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
 
-            def parts(ring_color: str | None) -> None:
+            def parts(ring_pass: RingPass | None) -> None:
                 current_color = distinct_colors[0] if hoist_color else None
                 for color, (index, part) in zip(colors, live):
-                    if (ring_color is None and not hoist_color
+                    if (ring_pass is None and not hoist_color
                             and color != current_color):
                         w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
                         current_color = color
@@ -1104,12 +1107,12 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                         w.comment(f"visible: {visible.text}")
                     with w.block_if(f"if ({visible.code})" if visible is not None else None):
                         _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
-                                           text_fonts, thickness_override, aod, ring_color)
+                                           text_fonts, thickness_override, aod, ring_pass)
 
             if stamp is not None:
-                # This copy ringed whole: every part's 1px ring, then the parts.
+                # This copy ringed whole: every part's ring, then the parts.
                 w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                parts(stamp.color)
+                parts(stamp)
             if ring is None:
                 parts(None)
         if hoist_pen:

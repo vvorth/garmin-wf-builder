@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate examples/features/profile/face.yaml: the same sixteen drawables
-in two layouts -- no `outline:`, and a 1px ring -- for
+in three layouts -- no `outline:`, a 1px ring and a 2px ring -- for
 `wfb build --profile` to time on a watch (`docs/guide/
 preview-and-cli.md` "Profiling").
 
-Two copies of one design differ only in their ids and their `outline:`,
+Three copies of one design differ only in their ids and their `outline:`,
 which is exactly what a generator is for; the output is committed so the
 face builds without running this.  Run from the repo root:
 
@@ -119,8 +119,9 @@ DRAWABLES = [
 ]
 
 VARIANTS = [
-    ("plain", "No outline", False),
-    ("ring", "1px outline", True),
+    ("plain", "No outline", None),
+    ("ring1", "1px outline", 1),
+    ("ring2", "2px outline", 2),
 ]
 
 HEADER = """\
@@ -129,8 +130,8 @@ HEADER = """\
 # A profiling face for `outline:`: sixteen drawables on a 4x4
 # grid -- the three grown shapes, every stamped shape, text in a baked font
 # (ringed from its baked ring font) and in a system font (stamped), an icon, a
-# pattern, two gauges, hands and a group -- in two layouts: no outline, and
-# a 1px ring.  Switch between them with the watch's style
+# pattern, two gauges, hands and a group -- in three layouts: no outline, a
+# 1px ring and a 2px ring.  Switch between them with the watch's style
 # setting (the native editor, or the generated settings menu on fr955).
 #
 # Build it instrumented, sideload it and read the numbers off the watch:
@@ -192,7 +193,7 @@ def cell(index: int) -> tuple[int, int]:
     return COLUMNS[index % 4], ROWS[index // 4]
 
 
-def element(name: str, body: str, index: int, suffix: str, ring: bool) -> str:
+def element(name: str, body: str, index: int, suffix: str, ring: int | None) -> str:
     dx, dy = cell(index)
     ident = f"{name}_{suffix}"
     text = body.format(
@@ -200,8 +201,9 @@ def element(name: str, body: str, index: int, suffix: str, ring: bool) -> str:
         dx=dx, dy=dy, dx_l=dx - 6, dx_r=dx + 6, dy_t=dy - 4, dy_b=dy + 4, id=ident)
     first, *rest = text.split("\n")
     lines = [f"      {ident}:", f"        {first}"] + [f"    {line}" for line in rest]
-    if ring:
-        lines.append("        outline: color.ring")
+    if ring is not None:
+        lines.append("        outline: color.ring" if ring == 1 else
+                     f"        outline: {{ color: color.ring, width: {ring} }}")
         if name in ("digits", "label"):
             lines += ["        lint:",
                       "          allow: [text-outline-interior]",

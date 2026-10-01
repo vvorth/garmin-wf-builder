@@ -1359,8 +1359,8 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     # "you have overrun" -- there is no measurement here either -- just "this
     # specific read is the expensive kind", independent of the clip-fraction
     # heuristic above.
-    in_group_ring = {leaf.id for ring in ring_groups(resolved.face.elements)
-                     for leaf in ring.members}
+    in_group_ring = {leaf_id for ring in ring_groups(resolved.face.elements)
+                     for leaf_id in ring.ids}
     for placed in low_power:
         _check_low_power_ring(bag, placed, placed.id in in_group_ring, resolved.face)
         if placed.kind == "graph":

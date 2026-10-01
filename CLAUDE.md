@@ -278,9 +278,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
     `when_absent:`, `vertical_align:`, `if_unavailable:`, `modes:`,
     `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
-    `docs/guide/format-2-migration.md`;
-  - `outline: {color, width}`: every ring is 1px, so `outline:` is a colour
-    or `none` (an error names the colour spelling).
+    `docs/guide/format-2-migration.md`.
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);

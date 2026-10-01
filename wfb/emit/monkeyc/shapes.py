@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from .common import AodStyle, glyph_y_expr
-from ...ir import RING_OFFSETS
+from ...ir import disc_perimeter_offsets
 from ..writer import Writer
 
 if TYPE_CHECKING:
@@ -78,12 +78,12 @@ def shifted(expr: str, d: int) -> str:
 
 
 def emit_outline(
-    w: Writer, color_code: str, x_expr: str, y_expr: str,
+    w: Writer, color_code: str, width: int, x_expr: str, y_expr: str,
     draw: Callable[[str, str], None], *, blank_after: bool = True,
 ) -> None:
     """The stamped ring ahead of a draw call's own (unshifted) interior pass:
-    ``draw(x, y)`` at the anchor moved to each of the four points 1px away,
-    in the ring colour (`emit_stamp`).
+    ``draw(x, y)`` at the anchor moved to each point ``width`` px away, in
+    the ring colour (`emit_stamp`).
 
     ``draw`` emits exactly the call the interior pass makes at the given
     anchor: a screen-space anchor shift commutes with everything else the
@@ -92,20 +92,21 @@ def emit_outline(
     the trailing blank line, for a ring that is the whole body of an
     enclosing block.
     """
-    emit_stamp(w, color_code, lambda dx, dy: draw(shifted(x_expr, dx), shifted(y_expr, dy)),
+    emit_stamp(w, color_code, width,
+               lambda dx, dy: draw(shifted(x_expr, dx), shifted(y_expr, dy)),
                blank_after=blank_after)
 
 
-def emit_stamp(w: Writer, color_code: str, draw: Callable[[int, int], None], *,
+def emit_stamp(w: Writer, color_code: str, width: int, draw: Callable[[int, int], None], *,
                blank_after: bool = True) -> None:
-    """The stamp itself: set the ring colour once, then
-    ``draw(dx, dy)`` for each of `wfb.ir.RING_OFFSETS`, unrolled.  Measured
-    on a watch, a loop over an offsets array cost more than the draws it
-    made (research 19 §4.6): four calls with literal offsets do the same
-    work with nothing to read or count.  ``draw`` never sets a colour:
-    every stamp shares the ring's."""
+    """The stamp itself: set the ring colour once, then ``draw(dx, dy)``
+    for each of `wfb.ir.disc_perimeter_offsets(width)` -- 4/8/16 points at
+    1/2/3px -- unrolled.  Measured on a watch, a loop over an offsets array
+    cost more than the draws it made (research 19 §4.6): calls with
+    literal offsets do the same work with nothing to read or count.
+    ``draw`` never sets a colour: every stamp shares the ring's."""
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    for dx, dy in RING_OFFSETS:
+    for dx, dy in disc_perimeter_offsets(width):
         draw(dx, dy)
     if blank_after:
         w.blank()

@@ -12,8 +12,7 @@ from .. import catalog, conversion, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
-from ..ir.model import OUTLINE_WIDTH, Element, Expression, Outline, Text, aod_outline_choice
-from ..ir.rings import ring_groups
+from ..ir.model import Element, Expression, Outline, Text, aod_outline_choice
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -23,7 +22,7 @@ from ..emit.monkeyc.common import (
     mc_color,
 )
 from ..emit.writer import Writer
-from . import ElementKind, TextRun, ring_font
+from . import ElementKind, TextRun, ring_font, ring_widths
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
@@ -211,19 +210,23 @@ def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
     return aod_outline_choice(element.outline, element.aod, dim_set)
 
 
-def _emit_ring(w: Writer, element: Text, aod: AodStyle,
-               ring: Callable[[str], None]) -> None:
+#: Draws one text ring: ``ring(color, width)``, the colour Monkey C.
+RingDraw = Callable[[str, int], None]
+
+
+def _emit_ring(w: Writer, element: Text, aod: AodStyle, ring: RingDraw) -> None:
     """The `outline:` ring ahead of the interior pass, for the awake ring and
-    the AOD frame's own (`aod_outline_choice`): ``ring(color)`` draws it
-    once, with the colour an `_aod ? ... : ...` ternary where the two
-    frames' differ, or under `if (_aod)`/`if (!_aod)` when only one frame
-    has a ring.  With no AOD code in this build, or this element hidden in
-    AOD, only the awake ring exists.
+    the AOD frame's own (`aod_outline_choice`): ``ring(color, width)``
+    draws it once, with the colour an `_aod ? ... : ...` ternary where the
+    two frames' differ; under `if (_aod)`/`if (!_aod)` when only one frame
+    has a ring; or once in each branch of `if (_aod) ... else` when the two
+    rings differ in width.  With no AOD code in this build, or this element
+    hidden in AOD, only the awake ring exists.
     """
     awake = element.outline
     if not aod.on or element.aod is None:
         if awake is not None:
-            ring(mc_color(awake.color))
+            ring(mc_color(awake.color), awake.width)
             w.blank()
         return
     asleep, choice = _aod_ring(element, aod.dim is not None)
@@ -233,41 +236,55 @@ def _emit_ring(w: Writer, element: Text, aod: AodStyle,
         only = asleep if awake is None else awake
         assert only is not None  # both absent returned above
         with w.block("if (_aod)" if awake is None else "if (!_aod)"):
-            ring(mc_color(only.color))
+            ring(mc_color(only.color), only.width)
+        w.blank()
+        return
+    if asleep.width != awake.width:
+        # Only an override has a width of its own: a carried-over ring is
+        # the awake one.
+        with w.block("if (_aod)"):
+            ring(mc_color(asleep.color), asleep.width)
+        with w.block("else"):
+            ring(mc_color(awake.color), awake.width)
         w.blank()
         return
     ring(aod.value(mc_color(asleep.color), mc_color(awake.color)) if choice == "override"
-         else aod.dimmed(element, awake.color))
+         else aod.dimmed(element, awake.color), awake.width)
     w.blank()
 
 
-def baked_ring(element: Element, face: Face) -> str | None:
-    """The ring font this element draws its ring with (`kinds.ring_font`),
-    or `None` when it stamps."""
-    members = {leaf.id for ring in ring_groups(face.elements) for leaf in ring.members}
-    found = ring_font(element, face, members)
+def baked_ring(element: Element, face: Face, width: int) -> str | None:
+    """The ring font this element draws its ``width`` px ring with
+    (`kinds.ring_font`), or `None` when it stamps."""
+    found = ring_font(element, face, width)
     return found[0] if found is not None else None
 
 
-def _baked(w: Writer, ring_font_name: str, x_expr: str, y_expr: str, value_code: str,
-           justify: str, vertical_align: str) -> Callable[[str], None]:
-    """A text ring from its baked ring font: the same string,
-    anchor and justification in the dilated glyphs -- one `drawText`.  A
-    ring font that failed to load draws no ring, like its base."""
-    def ring(color: str) -> None:
-        w.line(f"var ringFont = _{font_field(ring_font_name)};")
-        with w.block("if (ringFont != null)"):
+def baked_ring_local(width: int) -> str:
+    """The local a ``width`` px ring font is read into: one name per width,
+    so an AOD ring of another width in the same method never redeclares
+    it."""
+    return "ringFont" if width == 1 else f"ringFont{width}"
+
+
+def _ring(w: Writer, element: Element, face: Face, x_expr: str, y_expr: str, value_code: str,
+          justify: str, draw: Callable[[str, str], None]) -> RingDraw:
+    """A text ring of either kind, chosen per width: from its baked ring
+    font -- the same string, anchor and justification in the dilated
+    glyphs, one `drawText`; a ring font that failed to load draws no ring,
+    like its base -- or, with no ring font, by stamping ``draw`` at every
+    offset point."""
+    def ring(color: str, width: int) -> None:
+        baked = baked_ring(element, face, width)
+        if baked is None:
+            shapes.emit_outline(w, color, width, x_expr, y_expr, draw, blank_after=False)
+            return
+        local = baked_ring_local(width)
+        w.line(f"var {local} = _{font_field(baked)};")
+        with w.block(f"if ({local} != null)"):
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            shapes.emit_plain_text_call(w, x_expr, y_expr, "ringFont", value_code, justify,
-                                        vertical_align)
-    return ring
-
-
-def _stamp(w: Writer, x_expr: str, y_expr: str,
-           draw: Callable[[str, str], None]) -> Callable[[str], None]:
-    """A text ring by stamping: ``draw`` at the four offsets."""
-    def ring(color: str) -> None:
-        shapes.emit_outline(w, color, x_expr, y_expr, draw, blank_after=False)
+            shapes.emit_plain_text_call(w, x_expr, y_expr, local, value_code, justify,
+                                        element.vertical_align)
     return ring
 
 
@@ -318,11 +335,9 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
                                     element.vertical_align)
 
     x, y = f"Layout.{prefix}_X", f"Layout.{prefix}_Y"
-    baked = baked_ring(element, resolved.face)
-    ring_draw = (_baked(w, baked, x, y, value_code, justify, element.vertical_align)
-                 if baked is not None else _stamp(w, x, y, draw))
+    ring_draw = _ring(w, element, resolved.face, x, y, value_code, justify, draw)
     if ring is not None:
-        ring_draw(ring.color)
+        ring_draw(ring.color, ring.width)
         return
     _emit_ring(w, element, aod, ring_draw)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
@@ -394,13 +409,14 @@ def _emit_vector_text_draw(
     with w.block("if (font != null)"):
         if ring is not None:
             shapes.emit_outline(
-                w, ring.color, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+                w, ring.color, ring.width, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
                 lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
                 blank_after=False)
             return
-        _emit_ring(w, element, aod, _stamp(
-            w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-            lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y)))
+        _emit_ring(w, element, aod, lambda color, width: shapes.emit_outline(
+            w, color, width, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+            lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
+            blank_after=False))
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
@@ -492,7 +508,8 @@ class TextKind(ElementKind[Text, PlacedText]):
     rings_itself = True
 
     def ring_draws(self, element: Text, face: Face) -> int:
-        return 1 if baked_ring(element, face) is not None else 4
+        return (1 if baked_ring(element, face, 1) is not None
+                else super().ring_draws(element, face))
     ir_class = Text
     placed_class = PlacedText
 
@@ -533,7 +550,7 @@ class TextKind(ElementKind[Text, PlacedText]):
         if font_ok and "if_unavailable" in node and not element.in_subscreen:
             b.check_if_unavailable(node, element.id, font_is_vector, font_note)
         if "outline" in node:
-            element.outline = b.build_outline(node, "outline", element=element)
+            element.outline = b.build_outline(node, "outline", element.id, element=element)
         own_aod_format = element.aod_own is not None and "format" in element.aod_own
         aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
                            if own_aod_format else None)
@@ -581,10 +598,10 @@ class TextKind(ElementKind[Text, PlacedText]):
             curve = replace(curve, radius_px=round(r.extent(
                 element.curve.radius, parent, Axis.MINOR, 0,
                 min_1px=element.resolved_min_1px, what="curve.radius")))
-        # The box holds the ring, awake or AOD.
+        # The box holds whichever ring is wider, awake or AOD.
         aod_ring = element.aod.outline if element.aod is not None else None
-        ring_px = float(OUTLINE_WIDTH if element.outline is not None or aod_ring is not None
-                        else 0)
+        ring_px = float(max(ring.width if ring is not None else 0
+                            for ring in (element.outline, aod_ring)))
         box = text_ink(
             x, y, width, line_height, element.align, element.vertical_align,
             curve_style=curve.style, angle_garmin=curve.angle_garmin,
@@ -660,7 +677,8 @@ class TextKind(ElementKind[Text, PlacedText]):
                               else renderer.aod_dimmed(element, outline.color))
         elif outline is not None:
             ring_color = renderer.color(outline.color)
-        renderer.draw_outlined(draw, placed.anchor_point, color, ring_color, box=placed.inner_box)
+        renderer.draw_outlined(draw, placed.anchor_point, color, ring_color,
+                               outline.width if outline is not None else 0, box=placed.inner_box)
 
     def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedText,
                   value_guards: list[str] | None, plan: ReadPlan,

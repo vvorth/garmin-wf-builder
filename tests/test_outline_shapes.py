@@ -63,12 +63,12 @@ def test_a_filled_circle_grows_one_copy(write_design, tmp_path):
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 3}
 """, write_design, tmp_path), "drawDisc")
-    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 1);" in body
+    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 3);" in body
     assert "OUTLINE_OFFSETS" not in body
     # the ring comes first, the interior over it
-    assert body.index("RADIUS + 1") < body.index("dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS);")
+    assert body.index("RADIUS + 3") < body.index("dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS);")
 
 
 def test_a_filled_rectangle_grows_into_a_rounded_one(write_design, tmp_path):
@@ -79,7 +79,7 @@ def test_a_filled_rectangle_grows_into_a_rounded_one(write_design, tmp_path):
     at: {anchor: center}
     size: {width: 40px, height: 20px}
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 1}
 """, write_design, tmp_path), "drawCard")
     assert re.search(r"dc\.fillRoundedRectangle\(Layout\.CARD_X - 1, Layout\.CARD_Y - 1,\s+"
                      r"Layout\.CARD_WIDTH \+ 2, Layout\.CARD_HEIGHT \+ 2,\s+1\);", body), body
@@ -94,25 +94,25 @@ def test_a_rounded_rectangle_grows_its_corner_radius_too(write_design, tmp_path)
     size: {width: 40px, height: 20px}
     corner_radius: 5px
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """, write_design, tmp_path), "drawPill")
-    assert re.search(r"Layout\.PILL_WIDTH \+ 2, Layout\.PILL_HEIGHT \+ 2,\s+Layout\.PILL_CORNER \+ 1\);",
+    assert re.search(r"Layout\.PILL_WIDTH \+ 4, Layout\.PILL_HEIGHT \+ 4,\s+Layout\.PILL_CORNER \+ 2\);",
                      body), body
 
 
 @pytest.mark.parametrize("shape, call", [
     ("type: ellipse\n    at: {anchor: center}\n    size: {width: 40px, height: 20px}",
-     "dc.fillEllipse(Layout.EL_CX - 1, Layout.EL_CY,"),
+     "dc.fillEllipse(Layout.EL_CX - 2, Layout.EL_CY,"),
     ("type: circle\n    at: {anchor: center}\n    radius: 20px\n    thickness: 3px\n    filled: false",
-     "dc.drawCircle(Layout.EL_CX - 1, Layout.EL_CY,"),
+     "dc.drawCircle(Layout.EL_CX - 2, Layout.EL_CY,"),
     ("type: rectangle\n    at: {anchor: center}\n    size: {width: 40px, height: 20px}\n"
      "    thickness: 2px\n    filled: false",
-     "dc.drawRectangle(Layout.EL_X - 1, Layout.EL_Y,"),
+     "dc.drawRectangle(Layout.EL_X - 2, Layout.EL_Y,"),
     ("type: line\n    at: {anchor: center}\n    to: {anchor: center, dx: 30px}\n    thickness: 2px",
-     "dc.drawLine(Layout.EL_CX - 1, Layout.EL_CY, Layout.EL_END_X - 1, Layout.EL_END_Y);"),
+     "dc.drawLine(Layout.EL_CX - 2, Layout.EL_CY, Layout.EL_END_X - 2, Layout.EL_END_Y);"),
     ("type: arc\n    at: {anchor: center}\n    radius: 40px\n    thickness: 3px\n"
      "    start_angle: 0deg\n    sweep: 90deg",
-     "WfbArc.drawSpan(dc, Layout.EL_CX - 1, Layout.EL_CY,"),
+     "WfbArc.drawSpan(dc, Layout.EL_CX - 2, Layout.EL_CY,"),
 ])
 def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
     """No one-draw dilation for these: each is stamped at the ring's
@@ -121,11 +121,13 @@ def test_every_other_shape_is_stamped(write_design, tmp_path, shape, call):
   el:
     {shape}
     color: color.fg
-    outline: color.ring
+    outline: {{color: color.ring, width: 2}}
 """, write_design, tmp_path), "drawEl")
     assert call in body, body
     assert "offsets" not in body and "while" not in body  # unrolled
-    assert "RADIUS + 1" not in body and "_X + 2" not in body  # never grown
+    # eight points 2px away, never the 1px ring's (-1, 0)
+    assert "_X - 1, Layout.EL_Y," not in body and "_CX - 1, Layout.EL_CY," not in body
+    assert "RADIUS + 2" not in body and "_WIDTH + 4" not in body  # never grown
 
 
 def test_a_polygon_fills_its_four_shifted_copies_baked_at_build_time(write_design, tmp_path):
@@ -140,6 +142,24 @@ def test_a_polygon_fills_its_four_shifted_copies_baked_at_build_time(write_desig
 """, write_design, tmp_path), "drawTri")
     assert [f"dc.fillPolygon(Layout.TRI_RING_{i});" in body for i in range(4)] == [True] * 4
     assert "WfbRing" not in body
+
+
+def test_a_wider_polygon_ring_bakes_a_copy_per_offset_point(write_design, tmp_path):
+    """A 3px ring is sixteen shifted copies, under their own names."""
+    text = """
+  tri:
+    type: polygon
+    points: [{anchor: center}, {anchor: center, dx: 20px}, {anchor: center, dy: 20px}]
+    color: color.fg
+    outline: {color: color.ring, width: 3}
+"""
+    path = write_design(_PALETTE + text)
+    files = generate_for_targets(path, tmp_path / "out").files()
+    view = next(body for name, body in files.items() if name.endswith("View.mc"))
+    body = _method(view, "drawTri")
+    assert body.count("dc.fillPolygon(Layout.TRI_RING3_") == 16
+    layout = files["source-fenix8solar47mm/Layout.mc"]
+    assert layout.count("TRI_RING3_") == 16 and "TRI_RING_0" not in layout
 
 
 def test_an_aod_filled_flip_stamps_instead_of_growing(write_design, tmp_path):
@@ -185,7 +205,7 @@ def test_an_icon_draws_its_ring_from_its_ring_font(write_design, tmp_path):
     size: 20%r
     at: {anchor: center}
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 1}
 """, write_design, tmp_path), "drawAlarm")
     assert "offsets" not in body
     assert "dc.drawText(Layout.ALARM_CX, Layout.ALARM_CY, ringFont," in body
@@ -195,17 +215,17 @@ def test_an_icon_draws_its_ring_from_its_ring_font(write_design, tmp_path):
 # -- the IR and layout -----------------------------------------------------------
 
 
-def test_the_removed_object_form_is_refused_on_every_kind(write_design):
+def test_the_width_cap_applies_to_every_kind(write_design):
     errors = load_errors(_PALETTE + """
   disc:
     type: circle
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: {color: color.ring, width: 2}
+    outline: {color: color.ring, width: 4}
 """, write_design)
     assert [e.code for e in errors] == ["outline"], errors
-    assert errors[0].message.startswith("elements.disc.outline: ")
+    assert errors[0].message.startswith("disc: ")
 
 
 def test_the_ring_grows_the_box_but_not_what_is_drawn(write_design, bag, db):
@@ -219,12 +239,12 @@ def test_the_ring_grows_the_box_but_not_what_is_drawn(write_design, bag, db):
     color: color.fg
 """
     _, before = resolve_text(_PALETTE + plain, write_design, bag, db)
-    _, after = resolve_text(_PALETTE + plain + "    outline: color.ring\n",
+    _, after = resolve_text(_PALETTE + plain + "    outline: {color: color.ring, width: 3}\n",
                             write_design, bag, db)
     old, new = find(before, "card"), find(after, "card")
-    assert new.box == old.box.inflate(1)
+    assert new.box == old.box.inflate(3)
     assert new.inner_box == old.box
-    assert new.ring_grow == 1
+    assert new.ring_grow == 3
 
 
 def test_a_circles_round_extent_grows_with_its_ring(write_design, bag, db):
@@ -238,9 +258,9 @@ def test_a_circles_round_extent_grows_with_its_ring(write_design, bag, db):
     color: color.fg
 """
     _, before = resolve_text(_PALETTE + text, write_design, bag, db)
-    _, after = resolve_text(_PALETTE + text + "    outline: color.ring\n", write_design, bag, db)
+    _, after = resolve_text(_PALETTE + text + "    outline: {color: color.ring, width: 2}\n", write_design, bag, db)
     (_, _, r0), (_, _, r1) = circular_extent(find(before, "disc")), circular_extent(find(after, "disc"))
-    assert r1 == r0 + 1
+    assert r1 == r0 + 2
 
 
 def test_a_shape_ring_is_linted_for_contrast_against_its_fill(write_design, db):
@@ -273,7 +293,7 @@ def test_the_preview_rings_a_disc(write_design, bag, db):
     at: {anchor: center}
     radius: 20px
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """, write_design, bag, db)
     cx, cy = find(resolved, "disc").center
     assert image.getpixel((cx, cy)) == FG
@@ -293,7 +313,7 @@ def test_the_preview_rings_the_inside_of_an_opening_too(write_design, bag, db):
     thickness: 4px
     filled: false
     color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """, write_design, bag, db)
     cx, cy = find(resolved, "hoop").center
     column = [image.getpixel((cx, cy - dy)) for dy in range(0, 40)]

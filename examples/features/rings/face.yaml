@@ -1,5 +1,5 @@
 # A worked example for `outline:` on every kind:
-# a 1px ring in a second colour round whatever an element draws.
+# a ring of 1-3 px in a second colour round whatever an element draws.
 #
 # Build it with:  ./wfb.py build examples/features/rings/face.yaml
 #
@@ -147,11 +147,11 @@ elements:
     set: main
     at: { anchor: center }
     seconds: awake
-    outline: color.bg
+    outline: { color: color.bg, width: 2 }
 
   hub:
     type: circle
     at: { anchor: center }
     radius: 4%r
     color: color.heart
-    outline: color.bg
+    outline: { color: color.bg, width: 2 }

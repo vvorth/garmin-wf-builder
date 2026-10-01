@@ -159,8 +159,9 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
 
     # Last: each ring font is dilated from its base's own sheet, glyph for
     # glyph, so it has to exist first.
-    for name, (base, glyphs) in kinds.ring_fonts(face).items():
-        baked[name], _ = dilate(baked[base], name=name, glyphs="".join(sorted(glyphs)))
+    for name, (base, glyphs, width) in kinds.ring_fonts(face).items():
+        baked[name], _ = dilate(baked[base], name=name, glyphs="".join(sorted(glyphs)),
+                                width=width)
     return baked
 
 
@@ -169,7 +170,7 @@ def _ring_font_specs(face: Face, specs: dict[str, FontSpec]) -> dict[str, FontSp
     font's own name, holding just its ringed glyphs."""
     return {
         name: replace(specs[base], name=name, glyphs="".join(sorted(glyphs)))
-        for name, (base, glyphs) in kinds.ring_fonts(face).items()
+        for name, (base, glyphs, _) in kinds.ring_fonts(face).items()
     }
 
 

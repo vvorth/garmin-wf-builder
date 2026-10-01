@@ -11,7 +11,7 @@ from typing import Any, Final, Literal
 from ... import icons, vocab
 from ...diagnostics import Span
 
-from ..model import Curve, Element, Outline
+from ..model import Curve, Element, MAX_OUTLINE_WIDTH, Outline
 from .absence import AbsenceChecks
 
 #: Sentinels for `Builder._resolve_choice_icon_override`'s result: "no
@@ -99,13 +99,19 @@ class GlyphHelpers(AbsenceChecks):
 
 
     def build_outline(
-        self, node: dict[str, Any], key: str, *, element: Element | None = None,
+        self, node: dict[str, Any], key: str, label: str, *, element: Element | None = None,
     ) -> Outline | None:
-        """`outline:` -- a colour, or `none`: the ring is
-        always :data:`OUTLINE_WIDTH` px, so the colour is all there is to
-        say.  It goes through the same `color_expression` `color:` uses.
-        The removed `{color, width}` form never reaches here: validation
-        names its replacement (`wfb.validate._check_reserved`).
+        """`outline:` on an element, or -- with `element=None` -- on a
+        pattern's `shape: text` or hand part: a ring of `width` px, drawn
+        round everything the element draws in `outline.color`.
+
+        Two spellings collapse to one `Outline`: a bare colour expression
+        (`width: 1` implied) or an explicit `{color, width}` mapping.
+        `outline.color` goes through the same `color_expression` `color:`
+        uses.  `width` is capped at `MAX_OUTLINE_WIDTH` with a build error
+        rather than a schema `maximum`, so the message can cite the evidence
+        the cap rests on.  `label` leads the width-cap error (the element
+        id, or the part's `part_where`).
 
         **Absence.** An element (`element` given) gets its own
         `check_other_absence` here.  A pattern part does not: a pattern
@@ -115,15 +121,38 @@ class GlyphHelpers(AbsenceChecks):
         would double-report the same source.
         """
         raw = node.get(key)
-        if raw is None or raw == "none" or isinstance(raw, dict):
+        if raw is None or raw == "none":
             return None
-        color = self.color_expression(node, key)
+        span = self.doc.span(node, key)
+        if isinstance(raw, dict):
+            color = self.color_expression(raw, "color")
+            color_span = self.doc.span(raw, "color") or span
+            width = raw.get("width", 1)
+            width_span = self.doc.span(raw, "width") or span
+        else:
+            color = self.color_expression(node, key)
+            color_span = span
+            width = 1
+            width_span = span
         if color is None:
             return None
+        if width > MAX_OUTLINE_WIDTH:
+            self.bag.error(
+                "outline",
+                f"{label}: 'outline: width: {width}' is more than "
+                f"{MAX_OUTLINE_WIDTH}px",
+                width_span,
+                notes=[
+                    f"a ring is 1 to {MAX_OUTLINE_WIDTH}px: a wider one was never "
+                    "measured to still read as an outline rather than a second, "
+                    "blockier glyph, and each pixel more is a stamp of more draws",
+                    "see docs/guide/outlines.md",
+                ],
+            )
+            return None
         if element is not None:
-            self.check_other_absence(node, element, "outline.color", color,
-                                     span=self.doc.span(node, key))
-        return Outline(color=color)
+            self.check_other_absence(node, element, "outline.color", color, span=color_span)
+        return Outline(color=color, width=width)
 
     def _check_curve_keys(self, node: dict[str, Any], style: str) -> None:
         """Reject a `curve:` key the chosen `style:` does not read -- the same

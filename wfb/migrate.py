@@ -1206,14 +1206,23 @@ def _align(ctx: _Context, body: CommentedMap) -> None:
 
 
 def _outline(body: CommentedMap) -> None:
-    """A colour reference rewritten; the `{color, width}` form collapsed to
-    its colour -- every ring is 1px in format 2."""
+    """A colour reference rewritten, and the ring's width kept: format 1's
+    implied width was 2px, format 2's is 1px, so a ring that was not 1px
+    says its width; a 1px one is its bare colour."""
     outline = body["outline"]
     if isinstance(outline, CommentedMap):
-        if "color" in outline:
-            _replace(body, "outline", rewrite_refs(outline["color"]))
+        if "color" not in outline:
+            return
+        color = rewrite_refs(outline["color"])
+        width = outline.get("width", 2)
     else:
-        _replace(body, "outline", rewrite_refs(outline))
+        if outline == "none":
+            return
+        color, width = rewrite_refs(outline), 2
+    if width == 1:
+        _replace(body, "outline", color)
+    else:
+        _replace(body, "outline", CommentedMap([("color", color), ("width", width)]))
 
 
 def _bands(body: CommentedMap) -> None:

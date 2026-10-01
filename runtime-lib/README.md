@@ -23,6 +23,7 @@ unused helper costs nothing.
 | `WfbHands.mc` | analog hands: `hourAngle`/`minuteAngle`/`secondAngle` — a `System.ClockTime` in, that hand's rotation angle out. Drawing itself is `WfbGeom.mc`, below |
 | `WfbGeom.mc` | rotate/translate-and-draw helpers shared by analog hands and patterns: `fillRotated`/`drawLineRotated`/`fillCircleRotated`/`drawCircleRotated` each turn a build-time-resolved shape by one `sin`/`cos` pair and draw it (a hand's own angle, or a radial pattern's copy angle); `fillTranslated` shifts a polygon part by a linear pattern's copy origin instead, no rotation at all. `sin`/`cos` are typed `Decimal`, not `Float` — `Math.sin`/`Math.cos` are declared to return `Float or Double`, and strict typing fails a narrower parameter. Moved out of `WfbHands.mc` when patterns needed the same four calls — "one convention, one helper", the precedent `WfbArc.mc` already set for arcs |
 | `WfbRing.mc` | a 1px `outline:` ring for a polygon, line or outlined-circle part: `rotated`/`translated` transform a polygon once and shift that one array between its four fills; `lineRotated`/`circleRotated` rotate once and draw four. Its own module so a face without a ring compiles none of it |
+| `WfbRingWide.mc` | the same four functions for a 2px or 3px ring, walking the build's `Layout.OUTLINE_OFFSETS_<W>` table for the points. Its own module so a face whose rings are all 1px compiles none of it |
 
 These files are hand-maintained and are *not* regenerated. Edit them here.
 

@@ -108,7 +108,7 @@ def test_ring_alone_is_visible_when_interior_matches_background(write_design, db
     stamped ring were somehow gated on the interior colour."""
     image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.bg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """))
     ring = _count_color(image, RING, _REGION)
     fg = _count_color(image, FG, _REGION)
@@ -127,7 +127,7 @@ def test_ring_lights_fewer_pixels_than_a_solid_fill_of_the_same_glyph(write_desi
 """))
     ring_image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.bg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """))
     solid = _count_color(solid_image, FG, _REGION)
     ring = _count_color(ring_image, RING, _REGION)
@@ -146,7 +146,7 @@ def test_solid_plus_ring_lights_more_pixels_than_solid_alone(write_design, db, b
 """))
     both_image = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.fg
-    outline: color.ring
+    outline: {color: color.ring, width: 2}
 """))
     solid_total = _count_color(solid_image, FG, _REGION)
     both_fg = _count_color(both_image, FG, _REGION)
@@ -156,18 +156,42 @@ def test_solid_plus_ring_lights_more_pixels_than_solid_alone(write_design, db, b
     assert both_fg + both_ring > solid_total
 
 
+def test_ring_width_scales_the_lit_ring_pixel_count(write_design, db, bag, repo_root):
+    """A wider ring (`width: 3` vs `width: 1`) must light more ring pixels
+    -- not merely "a ring exists", but that `width:` actually drives the
+    resolved offset table (16 disc-perimeter points at r=3 vs. 4 at r=1,
+    research 14 §1's own measured counts)."""
+    narrow = _render(write_design, db, bag, repo_root, _ELEMENT.format(
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 1}
+"""))
+    wide = _render(write_design, db, bag, repo_root, _ELEMENT.format(
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 3}
+"""))
+    narrow_ring = _count_color(narrow, RING, _REGION)
+    wide_ring = _count_color(wide, RING, _REGION)
+    assert narrow_ring > 0
+    assert wide_ring > narrow_ring
+
+
 def test_outline_shorthand_matches_object_form_in_preview(write_design, db, bag, repo_root):
     """The shorthand (`outline: color.ring`) and the equivalent explicit
-    object form (`{color: color.ring, width: 2}`) must render
-    pixel-identical -- D7's own claim that the two spellings resolve to the
-    same `Outline` node, verified end to end through the renderer, not just
-    at the IR."""
+    object form (`{color: color.ring, width: 1}`) must render
+    pixel-identical -- the two spellings resolve to the same `Outline`
+    node, verified end to end through the renderer, not just at the IR --
+    and a 2px ring must not."""
     shorthand = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.bg
     outline: color.ring
 """))
     explicit = _render(write_design, db, bag, repo_root, _ELEMENT.format(
         extra="""    color: color.bg
-    outline: color.ring
+    outline: {color: color.ring, width: 1}
+"""))
+    wider = _render(write_design, db, bag, repo_root, _ELEMENT.format(
+        extra="""    color: color.bg
+    outline: {color: color.ring, width: 2}
 """))
     assert shorthand.tobytes() == explicit.tobytes()
+    assert shorthand.tobytes() != wider.tobytes()

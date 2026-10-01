@@ -125,7 +125,7 @@ def test_a_bar_with_a_track_is_grown_round_the_whole_track(write_design, tmp_pat
     size: {width: 40%, height: 4%}
     color: color.fg
     track_color: color.bg
-    outline: color.fg
+    outline: {color: color.fg, width: 1}
 """), tmp_path / "out").files()
     body = _method(next(b for n, b in files.items() if n.endswith("View.mc")), "drawBar")
     assert re.search(r"dc\.fillRoundedRectangle\(Layout\.BAR_X - 1, Layout\.BAR_Y - 1,\s+"
@@ -135,8 +135,10 @@ def test_a_bar_with_a_track_is_grown_round_the_whole_track(write_design, tmp_pat
 def test_a_needle_is_ringed_whole(view):
     body = _method(view, "drawNeedle")
     ring = body[body.index("Palette.BG"):body.index("Palette.FG")]
-    assert "WfbRing.rotated(dc, Layout.NEEDLE_NEEDLE_0_POINTS, cx, cy, sin, cos);" in ring
-    assert "Layout.NEEDLE_NEEDLE_1_RADIUS + 1," in ring
+    # the fixture's needle ring is 2px
+    assert ("WfbRingWide.rotated(dc, Layout.NEEDLE_NEEDLE_0_POINTS, cx, cy, sin, cos, "
+            "Layout.OUTLINE_OFFSETS_2);") in ring
+    assert "Layout.NEEDLE_NEEDLE_1_RADIUS + 2," in ring
 
 
 @pytest.mark.parametrize("style", ["segments", "scale"])

@@ -194,10 +194,10 @@ A text element doesn't get the icon's size correction or the build's
 glyph-exists check. Also avoid spaces between glyphs: a symbols-only font has
 no space character, and the preview draws it as an empty box.
 
-An icon takes `outline:`: the build bakes the icon's glyph dilated by 1px
-into a companion font and draws it once, in the ring colour, before the
-icon -- so an opening inside the icon wider than 2px keeps a ring of its
-own. See [Outlines](outlines.md).
+An icon takes `outline:`: the build bakes the icon's glyph dilated by the
+ring's width (1px unless `{color, width}` says 2 or 3) into a companion
+font and draws it once, in the ring colour, before the icon -- so an
+opening inside the icon wider than twice the ring keeps a ring of its own. See [Outlines](outlines.md).
 
 ## See also
 

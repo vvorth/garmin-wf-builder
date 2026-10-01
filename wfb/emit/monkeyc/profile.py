@@ -51,7 +51,7 @@ class Entry:
     placed: Placed | None
     #: `face.layouts` index, or -1 for shared content (and the baseline).
     layout: int
-    #: A ring pass's members, whose `ring<Id>` methods it calls.
+    #: A ring pass's `ring<Id>` methods, one per member.
     members: tuple[str, ...] = ()
 
 
@@ -87,7 +87,8 @@ def plan(resolved: ResolvedFace, rings: list[RingGroup], reps: int) -> ProfilePl
                 started.add(ring.group.id)
                 group = by_id[ring.group.id]
                 entries.append(Entry(f"{ring.group.id}.ring", group, layout_index(members[0]),
-                                     tuple(p.id for p in members)))
+                                     tuple(element_ring_method(p.id, ring.width_of(p.id))
+                                           for p in members)))
         entries.append(Entry(placed.id, placed, layout_index(placed)))
     return ProfilePlan(reps, tuple(entries), bool(face.layouts))
 
@@ -102,7 +103,7 @@ def code_report(profile: ProfilePlan, face: Face, sizes: dict[str, int]) -> list
     per_layout: dict[int, int] = {}
     for entry in profile.entries[1:]:
         if entry.members:
-            size = sum(sizes.get(f"{view}.{element_ring_method(m)}", 0) for m in entry.members)
+            size = sum(sizes.get(f"{view}.{method}", 0) for method in entry.members)
         else:
             size = sizes.get(f"{view}.{element_method_name(entry.label)}", 0)
         per_layout[entry.layout] = per_layout.get(entry.layout, 0) + size

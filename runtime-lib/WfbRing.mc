@@ -3,7 +3,8 @@ import Toybox.Lang;
 
 //! A 1px `outline:` ring for a polygon, line or outlined circle (research
 //! 19): the part transformed **once**, then drawn at the four points one
-//! pixel away (`wfb.ir.RING_OFFSETS`, in its order).  Its own module, apart
+//! pixel away (`wfb.ir.disc_perimeter_offsets(1)`, in its order).  A wider
+//! ring is `WfbRingWide`'s.  Its own module, apart
 //! from `WfbGeom`, so a face that draws no ring compiles none of it -- the
 //! barrel copies in only the modules the generated code calls
 //! (`wfb.emit.usage.barrel_modules`).
@@ -45,7 +46,7 @@ module WfbRing {
     }
 
     //! Fill ``out`` at the four offsets, shifting it in place: (-1, 0),
-    //! (0, -1), (0, 1), (1, 0) -- `wfb.ir.RING_OFFSETS`'s order.
+    //! (0, -1), (0, 1), (1, 0) -- `wfb.ir.disc_perimeter_offsets(1)`'s order.
     function polygon(dc as Dc, out as Array<Graphics.Point2D>) as Void {
         shift(out, -1, 0);
         dc.fillPolygon(out);

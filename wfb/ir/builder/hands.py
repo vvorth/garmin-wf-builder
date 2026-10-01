@@ -438,7 +438,7 @@ class HandParts(ConfigAxes):
         # (`build_outline`'s own docstring).
         outline: Outline | None = None
         if "outline" in node:
-            outline = self.build_outline(node, "outline")
+            outline = self.build_outline(node, "outline", part_where)
             if outline is None and node.get("outline") not in (None, "none"):
                 ok = False
 

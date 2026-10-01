@@ -44,7 +44,7 @@ elements:
     count: 12
     step: 30deg
     color: color.accent
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
     parts:
       - type: polygon
         points:
@@ -74,7 +74,7 @@ elements:
     count: 5
     step: { dx: 6% }
     color: color.accent
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
     parts:
       - { type: circle, radius: 2%r }
 
@@ -90,7 +90,7 @@ elements:
     sweep: 240deg
     color: color.accent
     track_color: color.track
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }
 
   steps_bar:
     type: gauge
@@ -112,7 +112,7 @@ elements:
     start_angle: 240deg
     sweep: 240deg
     color: color.fg
-    outline: color.bg
+    outline: { color: color.bg, width: 2 }
     needle:
       - type: polygon
         points: [{ dx: -3%r, dy: 10%r }, { dy: -44%r }, { dx: 3%r, dy: 10%r }]
@@ -130,4 +130,4 @@ elements:
     sweep: 120deg
     color: color.accent
     absent: hide
-    outline: color.ring
+    outline: { color: color.ring, width: 1 }

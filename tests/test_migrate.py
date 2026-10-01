@@ -213,8 +213,9 @@ def test_outline_references():
   outline: palette.a
   aod: {outline: {color: config.colors.b, width: 1}}
 """)
-    assert body["outline"] == "color.a"
-    # the width is dropped: every ring is 1px in format 2
+    # format 1's implied width was 2; format 2's is 1, so it is written out
+    assert body["outline"] == {"color": "color.a", "width": 2}
+    # a 1px ring is its bare colour
     assert body["aod"]["outline"] == "color.b"
 
 

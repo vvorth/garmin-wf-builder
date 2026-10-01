@@ -132,7 +132,7 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
 
 def test_a_dithered_outline_color_can_be_suppressed_on_its_text(check):
     """A palette entry used only as a text element's
-    `outline: ...` has a real user -- the warning must not claim
+    `outline: {color: ...}` has a real user -- the warning must not claim
     there is "nowhere to put" the suppression, and the text's own
     `lint: allow` must work."""
     extra = """
@@ -140,7 +140,7 @@ def test_a_dithered_outline_color_can_be_suppressed_on_its_text(check):
     type: text
     text: "12"
     color: color.bg
-    outline: color.fg
+    outline: {color: color.fg}
 """
     bag = check(extra, palette='  bg: "#000000"\n  fg: "#123456"')
     warning = next(d for d in bag.items if d.code == "palette-dither")
@@ -805,7 +805,7 @@ def test_outline_interior_matching_the_backdrop_is_not_judged_for_contrast(check
     text: "hi"
     at: {anchor: center}
     color: color.bg
-    outline: color.fg
+    outline: {color: color.fg, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"',
     )
@@ -824,7 +824,7 @@ def test_outline_ring_with_poor_contrast_against_the_backdrop_warns(check):
     text: "hi"
     at: {anchor: center}
     color: color.bg
-    outline: color.dim
+    outline: {color: color.dim, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#0A0A0A"',
     )
@@ -846,7 +846,7 @@ def test_outline_ring_with_poor_contrast_against_its_own_interior_warns(check):
     text: "hi"
     at: {anchor: center}
     color: color.mid
-    outline: color.fg
+    outline: {color: color.fg, width: 2}
 """,
         palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  mid: "#DADADA"',
     )
@@ -1945,7 +1945,7 @@ def test_outline_over_an_earlier_element_with_a_different_colour_warns(check):
     bag = check(_OUTLINE_TEXT.format(
         color="color.fg",
         outline="""
-    outline: color.fg"""))
+    outline: {color: color.fg, width: 2}"""))
     warnings = [d for d in bag.items if d.code == "text-outline-interior"]
     assert len(warnings) == 1
     assert "'clock'" in warnings[0].message
@@ -1964,7 +1964,7 @@ def test_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
     bag = check(_OUTLINE_TEXT.format(
         color="color.bg",
         outline="""
-    outline: color.fg"""))
+    outline: {color: color.fg, width: 2}"""))
     assert "text-outline-interior" not in codes(bag)
 
 
@@ -1975,7 +1975,7 @@ def test_outline_interior_with_no_colour_still_warns(check):
     there is no interior colour to compare."""
     bag = check(_OUTLINE_TEXT.replace("    color: {color}\n", "").format(
         outline="""
-    outline: color.fg"""))
+    outline: {color: color.fg, width: 2}"""))
     assert "text-outline-interior" in codes(bag), bag.render()
 
 
@@ -1986,7 +1986,7 @@ def test_outline_interior_can_be_suppressed(check):
     bag = check(_OUTLINE_TEXT.format(
         color="color.fg",
         outline="""
-    outline: color.fg
+    outline: {color: color.fg, width: 2}
     lint: {allow: [text-outline-interior], reason: "deliberate stamp"}"""))
     assert "text-outline-interior" not in codes(bag)
 
@@ -2002,7 +2002,7 @@ _PARTIAL_OVERLAP_DESIGN = """  dot:
     color: color.bg
     at: {anchor: center}
     font: FONT_MEDIUM
-    outline: color.fg
+    outline: {color: color.fg, width: 2}
 """
 
 
@@ -2030,7 +2030,7 @@ _DATA_DRIVEN_COLOR_DESIGN = """  clock:
     absent: hide
     at: {anchor: center}
     font: FONT_MEDIUM
-    outline: color.fg
+    outline: {color: color.fg, width: 2}
 """
 
 
@@ -2089,7 +2089,7 @@ def test_outline_interior_is_silent_when_boxes_do_not_overlap(write_design, bag,
     resolved = _resolved_for(
         write_design, bag, db,
         _NO_OVERLAP_DESIGN.format(outline="""
-    outline: color.fg"""),
+    outline: {color: color.fg, width: 2}"""),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)
@@ -2109,7 +2109,7 @@ def test_outline_interior_fires_once_the_pair_is_moved_to_overlap(write_design, 
     resolved = _resolved_for(
         write_design, bag, db,
         overlapping.format(outline="""
-    outline: color.fg"""),
+    outline: {color: color.fg, width: 2}"""),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)
@@ -2133,7 +2133,7 @@ _PATTERN_OUTLINE = """\
         text: "12"
         font: FONT_MEDIUM
         color: {color}
-        outline: color.fg{lint}
+        outline: {{color: color.fg, width: 2}}{lint}
 """
 
 
@@ -2178,13 +2178,13 @@ _PATTERN_TWO_PARTS_OUTLINE = """  ring:
         text: "12"
         font: FONT_MEDIUM
         color: color.bg
-        outline: color.fg
+        outline: {{color: color.fg, width: 2}}
       - type: text
         text: "34"
         font: FONT_MEDIUM
         at: {{dy: 20px}}
         color: {second_color}
-        outline: color.fg
+        outline: {{color: color.fg, width: 2}}
 """
 
 

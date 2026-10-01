@@ -119,17 +119,10 @@ PATTERN_LOOP_INDEX = "i"
 GRAPH_AREA_MAX_SAMPLES = 62
 
 
-#: Every `outline:` ring is this many pixels wide.  Measured on a watch
-#: (research 19 §4.5), a stamped 2px ring cost about 1.8x a 1px one for no
-#: design gain, so the format has no `width:` at all.
-OUTLINE_WIDTH = 1
-
-#: The stamp's offsets: every integer `(dx, dy)` at distance exactly 1 --
-#: the disc-perimeter set research 14 §1 measured as the exact 1px
-#: dilation (IoU 1.000).  The one source of truth for
-#: `wfb.emit.monkeyc.layout_constants` (`OUTLINE_OFFSETS`), `wfb.preview`'s
-#: stamp and `wfb.fonts.bmfont`'s dilated ring glyphs.
-RING_OFFSETS: tuple[tuple[int, int], ...] = ((-1, 0), (0, -1), (0, 1), (1, 0))
+#: `outline:`'s widest ring: every offset set research 14 measured
+#: (`docs/research/14-stamped-ring-text.md` §1, §4.1) stops at r=3.
+#: `Builder.build_outline` enforces it with an error citing that evidence.
+MAX_OUTLINE_WIDTH = 3
 
 #: System fonts an author may name directly, instead of a baked custom font.
 SYSTEM_FONTS = (
@@ -328,11 +321,13 @@ class Curve:
 
 @dataclass(frozen=True)
 class Outline:
-    """`outline:`: a ring of :data:`OUTLINE_WIDTH` px round what an element
-    draws.  `color` follows `color:`'s own grammar
-    (`Builder.color_expression`)."""
+    """`outline:`: a ring of ``width`` px round what an element draws.
+    `color` follows `color:`'s own grammar (`Builder.color_expression`);
+    `width` is whole pixels, 1 to :data:`MAX_OUTLINE_WIDTH`.
+    """
 
     color: Expression
+    width: int = 1
 
 
 @dataclass(frozen=True)
@@ -445,6 +440,28 @@ def aod_outline_choice(awake: Outline | None, aod: AodOverride | None,
     if aod is not None and aod.outline is not None:
         return aod.outline, "override"
     return awake, ("dim" if dim_set else "awake")
+
+
+def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
+    """The stamped-ring offset table for one ring width, in pixels
+    (research 14 §1): every integer `(dx, dy)` on the outer shell of a disc
+    of this radius, `(r-1)**2 < dx**2 + dy**2 <= r**2` -- 4/8/16 points at
+    r=1/2/3.  The only offset set this format emits.
+
+    The one source of truth for every stamp the codegen unrolls
+    (`wfb.emit.monkeyc.shapes.emit_stamp`), the `WfbRing` offset tables
+    (`Layout.OUTLINE_OFFSETS_<W>`), `wfb.preview`'s stamp and
+    `wfb.fonts.bmfont`'s dilated ring glyphs.
+    """
+    lo = (radius - 1) * (radius - 1)
+    hi = radius * radius
+    out: list[tuple[int, int]] = []
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            d2 = dx * dx + dy * dy
+            if lo < d2 <= hi:
+                out.append((dx, dy))
+    return tuple(out)
 
 
 # --------------------------------------------------------------------------

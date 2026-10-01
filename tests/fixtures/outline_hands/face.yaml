@@ -69,4 +69,4 @@ elements:
     set: main
     at: { anchor: center }
     seconds: awake
-    outline: color.bg
+    outline: { color: color.bg, width: 2 }

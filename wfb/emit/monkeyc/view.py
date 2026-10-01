@@ -92,10 +92,9 @@ class StaticPlan:
                 else _method(placed.id))
 
 
-#: A `ring<Id>` method's own parameter: the colour of the
-#: group pass it draws for.
+#: A `ring<Id>` method's own parameter: the colour of the group pass it
+#: draws for.  Its width is the method's own (`element_ring_method`).
 RING_PARAMETERS = ", ringColor as Number"
-RING_PASS = RingPass("ringColor")
 
 
 @dataclass
@@ -107,9 +106,16 @@ class Rings:
     groups: list[RingGroup]
     aod: AodStyle = NO_AOD
 
-    @property
-    def member_ids(self) -> set[str]:
-        return {leaf_id for ring in self.groups for leaf_id in ring.ids}
+    def widths(self, element_id: str) -> list[int]:
+        """Every width ``element_id`` is ringed at, one `ring<Id>` method
+        each: a nested outlined group rings its members wider."""
+        out: list[int] = []
+        for ring in self.groups:
+            if element_id in ring.ids:
+                width = ring.width_of(element_id)
+                if width not in out:
+                    out.append(width)
+        return out
 
     def prelude(self, items: list[Placed]) -> dict[str, list[tuple[RingGroup, list[Placed]]]]:
         """For one sequence (``items``, in draw order): the id of each
@@ -126,8 +132,9 @@ class Rings:
         """One member's `ring<Id>(...)` call for ``ring``'s pass."""
         outline = ring.group.outline
         assert outline is not None
+        width = ring.width_of(member.id)
         color = self.aod.dimmed(ring.group, outline.color)
-        return f"{element_ring_method(member.id)}(dc{plan.arguments(member)}, {color});"
+        return f"{element_ring_method(member.id, width)}(dc{plan.arguments(member)}, {color});"
 
     def emit_before(self, w: Writer, plan: "ReadPlan",
                     prelude: dict[str, list[tuple[RingGroup, list[Placed]]]], placed: Placed,
@@ -345,11 +352,11 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
             w.blank()
             _emit_element_method(w, resolved, placed, plan, antialias_default, aod,
                                  subscreen_guarded=placed.id in guards.subscreen_hidden)
-            if placed.id in rings.member_ids:
+            for width in rings.widths(placed.id):
                 w.blank()
                 _emit_element_method(w, resolved, placed, plan, antialias_default, aod,
                                      subscreen_guarded=placed.id in guards.subscreen_hidden,
-                                     ring=True)
+                                     ring_width=width)
 
     body_text = w.render()
     modules = sorted(set(_BASE_IMPORTS) | usage.toybox_modules(body_text))
@@ -1427,16 +1434,17 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan: "ReadPlan",
                          antialias_default: bool | None = None,
                          aod: AodStyle = NO_AOD, subscreen_guarded: bool = False,
-                         ring: bool = False) -> None:
-    """`draw<Id>`, or with ``ring`` its `ring<Id>` twin: the same reads and
-    guards, then only the element's silhouette dilated by the ring its
-    parameters name -- one member's share of an outlined group's ring."""
+                         ring_width: int | None = None) -> None:
+    """`draw<Id>`, or with ``ring_width`` its `ring<Id>` twin: the same
+    reads and guards, then only the element's silhouette dilated by
+    ``ring_width`` px in its `ringColor` parameter -- one member's share of
+    an outlined group's ring."""
     element = placed.element
     kind = kinds.for_placed(placed)
-    if ring:
+    if ring_width is not None:
         w.doc(f"`{element.id}`'s share of an outlined group's ring: what `{_method(placed.id)}` "
-              "draws,\ndilated by 1px in `ringColor`, and nothing else.")
-        signature = (f"private function {element_ring_method(placed.id)}"
+              f"draws,\ndilated by {ring_width}px in `ringColor`, and nothing else.")
+        signature = (f"private function {element_ring_method(placed.id, ring_width)}"
                      f"(dc as Dc{plan.parameters(placed)}{RING_PARAMETERS}) as Void")
     else:
         w.doc(_method_doc(placed))
@@ -1509,8 +1517,9 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
         if overrides_antialias:
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
-        if ring:
-            kind.emit_draw(w, resolved, placed, value_guards, plan, aod, ring=RING_PASS)
+        if ring_width is not None:
+            kind.emit_draw(w, resolved, placed, value_guards, plan, aod,
+                           ring=RingPass("ringColor", ring_width))
         else:
             kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
         if overrides_antialias and antialias_default is not None:

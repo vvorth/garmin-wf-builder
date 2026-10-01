@@ -118,7 +118,7 @@ class AodPass(HandParts):
         if "outline" in raw:
             # Same grammar, colour machinery and width cap as the element's
             # own `outline:`; `none` is kept, since it drops an awake ring.
-            outline = self.build_outline(raw, "outline")
+            outline = self.build_outline(raw, "outline", f"{element_id}.aod")
             if outline is not None or raw["outline"] == "none":
                 keys["outline"] = outline if outline is not None else "none"
         if "visible" in raw:

@@ -1,7 +1,7 @@
-"""`outline:` on `group`: every member's 1px ring just before
-the group's first member, then the members -- the union's ring.  A member
-rings nothing of its own and no outlined group nests in another, so every
-ring stays 1px.  `tests/fixtures/outline_group/` is built for real by
+"""`outline:` on `group`: every member's ring just before the group's first
+member, then the members -- the union's ring -- with each member dilated by
+the group's width plus its own ring and any outlined group in between.
+`tests/fixtures/outline_group/` is built for real by
 `tests/test_outline_build.py` (`slow`)."""
 
 from __future__ import annotations
@@ -42,30 +42,34 @@ def test_every_ring_comes_before_every_member(view):
     after an earlier member would cut into it (research 19 §4.4)."""
     calls = _calls(_function(view, "onUpdate"))
     badge = calls[:6]
-    assert badge == ["ringDisc", "ringHeart", "ringRate", "drawDisc", "drawHeart", "drawRate"]
+    assert badge == ["ringDisc_2", "ringHeart_2", "ringRate_3",
+                     "drawDisc", "drawHeart", "drawRate"]
 
 
-def test_every_member_is_ringed_in_the_groups_colour(view):
-    """A plain group nested in an outlined one: its members are the outer
-    group's members too."""
+def test_a_member_is_dilated_by_the_sum_of_every_ring_it_sits_inside(view):
+    """`rate` has its own 1 px ring inside `badge`'s 2 px; `bar` sits inside
+    `inner` (1 px) inside `nest` (1 px)."""
     update = _function(view, "onUpdate")
-    assert "ringRate(dc, activityInfo, Palette.RING);" in update
-    assert "ringDisc(dc, Palette.RING);" in update
-    assert "ringBar(dc, Palette.FG);" in update and "ringDot(dc, Palette.FG);" in update
+    assert "ringRate_3(dc, activityInfo, Palette.RING);" in update
+    assert "ringDisc_2(dc, Palette.RING);" in update
+    assert "ringBar_2(dc, Palette.FG);" in update
+    assert "ringBar(dc, Palette.RING);" in update
+    # the outer group's pass comes before the inner one's
+    assert update.index("ringBar_2(dc, Palette.FG);") < update.index("ringBar(dc, Palette.RING)")
 
 
 def test_a_ring_method_reads_what_its_draw_method_reads(view):
-    ring = _function(view, "ringRate")
-    assert ring.startswith("function ringRate(dc as Dc, activityInfo as Activity.Info?, "
+    ring = _function(view, "ringRate_3")
+    assert ring.startswith("function ringRate_3(dc as Dc, activityInfo as Activity.Info?, "
                            "ringColor as Number)")
     assert 'var text = "--";' in ring  # the same absent placeholder
     assert "dc.setColor(ringColor, Graphics.COLOR_TRANSPARENT);" in ring
     assert "Palette.FG" not in ring and "Palette.BG" not in ring  # nothing but the ring
 
 
-def test_a_grown_member_grows_by_1px(view):
-    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 1);" \
-        in _function(view, "ringDisc")
+def test_a_grown_member_grows_by_its_ring_methods_width(view):
+    assert "dc.fillCircle(Layout.DISC_CX, Layout.DISC_CY, Layout.DISC_RADIUS + 2);" \
+        in _function(view, "ringDisc_2")
 
 
 def test_a_static_group_rings_into_the_buffer(view):
@@ -78,8 +82,9 @@ def test_a_low_power_member_is_ringed_in_the_partial_update(view):
     assert _calls(_function(view, "onPartialUpdate")) == ["ringSecs", "drawSecs"]
 
 
-def test_no_offsets_table_is_emitted(tmp_path_factory):
-    """Every stamp is unrolled with literal offsets: nothing to read."""
+def test_no_offsets_table_without_a_runtime_transformed_member(tmp_path_factory):
+    """A shape or text ring is unrolled with literal offsets at any width:
+    only `WfbRing` reads a table."""
     files = generate_for_targets(FIXTURE, tmp_path_factory.mktemp("build")).files()
     assert "OUTLINE_OFFSETS" not in files["source-fenix8solar47mm/Layout.mc"]
 
@@ -94,8 +99,8 @@ def test_the_aod_frame_rings_under_each_members_own_guard_and_dimmed(write_desig
     update = _function(view, "onUpdate")
     aod = update[update.index("if (_aod)"):update.index("WfbAodMask") if "WfbAodMask" in update
                  else update.index("\n        else {")]
-    assert "ringDisc(" in aod
-    ring_disc = next(line for line in aod.splitlines() if "ringDisc(" in line)
+    assert "ringDisc_2(" in aod
+    ring_disc = next(line for line in aod.splitlines() if "ringDisc_2(" in line)
     assert "_aod ?" in ring_disc  # the ring colour, dimmed like every AOD colour
     guard = aod[:aod.index("ringSecs(")].rsplit("if (", 1)[1]
     assert "1" in guard  # `ringSecs` sits under `secs`'s own aod: visible guard
@@ -136,36 +141,6 @@ def test_a_member_that_cannot_ring_is_an_error(write_design):
 """, write_design)
     assert [e.code for e in errors] == ["outline"], errors
     assert "'hr' is a 'graph'" in errors[0].message
-
-
-def test_a_member_ringing_itself_is_an_error(write_design):
-    """Its own ring would put the group's 2px out -- one error, on it."""
-    errors = load_errors(_BASE + """
-  g:
-    type: group
-    outline: color.fg
-    children:
-      dot: {type: circle, at: {anchor: center}, radius: 5px, color: color.fg,
-            outline: color.bg}
-""", write_design)
-    assert [e.code for e in errors] == ["outline"], errors
-    assert "'dot' has an 'outline:' of its own" in errors[0].message
-
-
-def test_an_outlined_group_inside_an_outlined_group_is_an_error(write_design):
-    errors = load_errors(_BASE + """
-  g:
-    type: group
-    outline: color.fg
-    children:
-      inner:
-        type: group
-        outline: color.bg
-        children:
-          dot: {type: circle, at: {anchor: center}, radius: 5px, color: color.fg}
-""", write_design)
-    assert [e.code for e in errors] == ["outline"], errors
-    assert "'inner' has an 'outline:' of its own" in errors[0].message
 
 
 def test_a_group_ring_colour_reading_data_is_an_error(write_design):

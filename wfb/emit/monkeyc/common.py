@@ -9,7 +9,7 @@ from typing import Iterable
 
 from ... import __version__, kinds
 from ...availability import Guards
-from ...ir import ComplicationSlot, Element, Expression, Face, OUTLINE_WIDTH, aod_color_choice, config_data_ids, \
+from ...ir import ComplicationSlot, Element, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name, slot_of
 from ...layout import Placed, PlacedText, ResolvedFace
 from ...palette import Color
@@ -354,17 +354,21 @@ NO_AOD = AodStyle()
 @dataclass(frozen=True)
 class RingPass:
     """One `outline:` ring for a kind's `emit_draw` to paint instead of its
-    interior: the element's own silhouette dilated by
-    `wfb.ir.OUTLINE_WIDTH` px, in ``color`` -- Monkey C: an element's own
-    ring colour, or a `ring<Id>` method's `ringColor` for a group's pass.
-    A stamping kind draws at the four offsets
-    (`wfb.emit.monkeyc.shapes.emit_stamp`)."""
+    interior: the element's own silhouette dilated by ``width`` px, in
+    ``color`` -- Monkey C: an element's own ring colour, or a `ring<Id>`
+    method's `ringColor` for a group's pass.  ``width`` is a build-time
+    number, never Monkey C: a stamping kind unrolls one draw per
+    `wfb.ir.disc_perimeter_offsets(width)` point
+    (`wfb.emit.monkeyc.shapes.emit_stamp`), and a kind that grows its
+    primitive (a filled circle or rectangle) grows it by ``width``."""
 
     color: str
+    width: int = 1
 
-
-#: `wfb.ir.OUTLINE_WIDTH` as a Monkey C literal, for a grown copy.
-RING_WIDTH_CODE = str(OUTLINE_WIDTH)
+    @property
+    def width_code(self) -> str:
+        """``width`` as a Monkey C literal, for a grown copy."""
+        return str(self.width)
 
 
 def own_ring(element: Element, aod: AodStyle = NO_AOD) -> RingPass | None:
@@ -375,7 +379,7 @@ def own_ring(element: Element, aod: AodStyle = NO_AOD) -> RingPass | None:
     outline = element.outline
     if outline is None:
         return None
-    return RingPass(aod.dimmed(element, outline.color))
+    return RingPass(aod.dimmed(element, outline.color), outline.width)
 
 
 def plus(expr: str, amount: str, times: int = 1) -> str:
@@ -421,10 +425,13 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
         run.font for _, run in kinds.placed_text_runs(resolved.items, face)
         if not run.aod_only and not run.is_vector(face)
     ))
-    # Each ring font right after its base.
-    for ring, (base, _) in kinds.ring_fonts(face).items():
+    # Each ring font right after its base, and after that base's earlier
+    # ring fonts.
+    after: dict[str, int] = {}
+    for ring, (base, _, _) in kinds.ring_fonts(face).items():
         if base in loaded:
-            loaded.insert(loaded.index(base) + 1, ring)
+            after[base] = after.get(base, 0) + 1
+            loaded.insert(loaded.index(base) + after[base], ring)
     return loaded
 
 

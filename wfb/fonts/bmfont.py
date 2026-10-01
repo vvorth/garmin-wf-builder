@@ -18,7 +18,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from ..ir.model import RING_OFFSETS
+from ..ir.model import disc_perimeter_offsets
 
 #: Glyph sheets are padded to a power of two, as BMFont's exports are.
 _MAX_SHEET = 1024
@@ -257,15 +257,17 @@ def bake(
     return baked, sheet
 
 
-def dilate(base: BakedFont, *, name: str, glyphs: str) -> tuple[BakedFont, Image.Image]:
-    """A companion to ``base`` holding ``glyphs`` dilated by 1px: a pixel is
-    ink where the glyph or any of its four neighbours is (`wfb.ir.
-    RING_OFFSETS`, the exact 1px dilation research 14 §1 measured), and for
-    an anti-aliased sheet the brightest of the five.  Every glyph grows one
-    pixel each way -- its offsets move by -1 -- while its advance and the
-    line metrics stay ``base``'s, so one `drawText` of the same string at the
-    same anchor and justification draws exactly the `outline:` ring:
-    one extra draw instead of four stamps.
+def dilate(base: BakedFont, *, name: str, glyphs: str,
+           width: int = 1) -> tuple[BakedFont, Image.Image]:
+    """A companion to ``base`` holding ``glyphs`` dilated by ``width`` px: a
+    pixel is ink where the glyph or any of its `wfb.ir.
+    disc_perimeter_offsets(width)` shifts is -- the same points a stamp
+    draws at, so the ring is the stamp's pixel for pixel (research 14 §1)
+    -- and for an anti-aliased sheet the brightest of them.  Every glyph
+    grows ``width`` pixels each way -- its offsets move by ``-width`` --
+    while its advance and the line metrics stay ``base``'s, so one
+    `drawText` of the same string at the same anchor and justification
+    draws exactly the `outline:` ring: one extra draw instead of a stamp.
     """
     assert base.sheet is not None, f"{base.name}: no sheet to dilate"
     rendered: list[tuple[str, Image.Image, int, int, int]] = []
@@ -277,12 +279,12 @@ def dilate(base: BakedFont, *, name: str, glyphs: str) -> tuple[BakedFont, Image
             rendered.append((char, Image.new("L", (1, 1), 0), 0, 0, box.xadvance))
             continue
         tile = base.sheet.crop((box.x, box.y, box.x + box.width, box.y + box.height))
-        grown = Image.new("L", (box.width + 2, box.height + 2), 0)
-        for dx, dy in ((0, 0), *RING_OFFSETS):
+        grown = Image.new("L", (box.width + 2 * width, box.height + 2 * width), 0)
+        for dx, dy in ((0, 0), *disc_perimeter_offsets(width)):
             shifted = Image.new("L", grown.size, 0)
-            shifted.paste(tile, (1 + dx, 1 + dy))
+            shifted.paste(tile, (width + dx, width + dy))
             grown = ImageChops.lighter(grown, shifted)
-        rendered.append((char, grown, box.xoffset - 1, box.yoffset - 1, box.xadvance))
+        rendered.append((char, grown, box.xoffset - width, box.yoffset - width, box.xadvance))
     if not rendered:
         raise ValueError(f"font {name!r}: no glyphs to dilate")
     sheet_width, sheet_height, placements = _pack([(c, im) for c, im, *_ in rendered])

@@ -66,7 +66,7 @@ or AOD-related has been observed on a watch or in the simulator.
   (`face:`) and `curve:` on `text` and pattern text parts, 44 of 136
   devices; `outline:` (the stamped ring) with lint
   `text-outline-interior`. `docs/guide/fonts.md`, `text.md`.
-- **`outline:` everywhere** (plan 23, research 19) — a 1 px ring on
+- **`outline:` everywhere** (research 19) — a 1–3 px ring on
   shapes, icons, `hands` (each hand whole), `pattern` (each copy whole),
   `arc`/`bar`/`needle` gauges and `group` (the members' union): grown
   where one copy is exactly the dilation (filled circle, rectangle, a bar),
