@@ -301,6 +301,9 @@ of them improves both proposed options.
 > 2026-09-12 (`3293dbb`). Read the skill with
 > `git show 9a8fc53:skills/watchface-builder.md`. The analysis below is kept
 > as written.
+>
+> **2026-10-01:** Option A is revisited, with measurements, in
+> `26-gui-editor.md`.
 
 **Do B, after doing 1–5. Defer A until the schema stops moving.**
 

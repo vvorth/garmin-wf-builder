@@ -1,0 +1,32 @@
+## 1. in-process pipeline latency on fenix8solar47mm, 2x, ms (run 0 is cold)
+face                                       lines run   load  resolve  render  total
+examples/features/progress/face.yaml         103   0     39       38       5     81
+examples/features/progress/face.yaml         103   1     28        1       5     34
+examples/features/progress/face.yaml         103   2     36        1       6     44
+examples/features/progress/face.yaml         103   3     42        1       5     47
+examples/features/styles/face.yaml           196   0     64      109       7    180
+examples/features/styles/face.yaml           196   1     43        1       6     50
+examples/features/styles/face.yaml           196   2     38        2       5     45
+examples/features/styles/face.yaml           196   3     38        1       5     44
+examples/features/vector-text/face.yaml      226   0     47      100     154    301
+examples/features/vector-text/face.yaml      226   1     49      120     168    337
+examples/features/vector-text/face.yaml      226   2     53       86     155    295
+examples/features/vector-text/face.yaml      226   3     43       82     166    291
+examples/showcase/face.yaml                  963   0    294      638       8    940
+examples/showcase/face.yaml                  963   1    287      667      10    964
+examples/showcase/face.yaml                  963   2    406      539       7    953
+examples/showcase/face.yaml                  963   3    301      716      10   1026
+
+## 2. ruamel round-trip load -> dump, byte-identical?
+default YAML():                       0/29 byte-identical
+tuned (quotes, indent, width 4096):  0/29 byte-identical
+changed lines after the tuned dump (-old/+new), smallest and largest:
+     6  examples/features/sun/face.yaml  ['-    at: { anchor: center }', '-    size: { width: 100%, height: 100% }']
+    14  examples/features/aod/face.yaml  ['-    at: { anchor: center }', '-    size: { width: 100%, height: 100% }']
+   253  examples/analog-custom/face.yaml  ['-    white: { value: "#FFFFFF", label: "White" }', '-    black: { value: "#000000", label: "Black" }']
+   364  examples/showcase/face.yaml  ['-    black: { value: "#000000", label: "Black" }', '-    white: { value: "#FFFFFF", label: "White" }']
+
+## 3. span-based patch: at.dy += 10 (author's own unit), up to 3 elements per face
+faces: 29   edits: 77   by unit: {'%r': 27, '%': 41, 'px': 9}
+diff is exactly one changed line:          77/77
+element moved down on fenix8solar47mm, x kept:  77/77
