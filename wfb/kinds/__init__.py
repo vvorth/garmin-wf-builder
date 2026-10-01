@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from typing import TypeAlias
 
     from ..diagnostics import Span
+    from ..draw.program import DrawContext, Op
     from ..emit.monkeyc.common import AodStyle, RingPass
     from ..emit.monkeyc.layout_constants import Constants
     from ..emit.monkeyc.readplan import ReadPlan
@@ -339,6 +340,22 @@ class ElementKind(Generic[E, P]):
         before any device is resolved (glyph baking, vector-font guards) as
         well as after."""
         return []
+
+    # -- the draw program (wfb.draw) --
+
+    def lower(self, ctx: "DrawContext", placed: P) -> "list[Op] | None":
+        """This element's draw program: what `draw<Id>` (or, with
+        `ctx.ring`, `ring<Id>`) draws, as ops the printer writes and the
+        preview evaluates (`wfb.draw`).  `None`, the default, means the kind
+        has not been ported: the view calls `emit_draw` and the preview
+        `draw_preview` instead.  A kind that lowers needs neither."""
+        return None
+
+    @property
+    def lowers(self) -> bool:
+        """Whether this kind overrides `lower`, so callers can skip building
+        a `DrawContext` for a kind that has none."""
+        return getattr(self.lower, "__func__", None) is not ElementKind.lower
 
     # -- preview (wfb.preview) --
 

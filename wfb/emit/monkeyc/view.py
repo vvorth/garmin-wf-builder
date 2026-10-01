@@ -7,7 +7,7 @@ import itertools
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ... import complications, expr, kinds
+from ... import complications, draw, expr, kinds
 from ...availability import Guards
 from ...catalog import READERS
 from ...devices import Device
@@ -1486,7 +1486,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
             # about it -- `color:` is the only ordinary expression here,
             # and `wfb.kinds.complication_slot.ComplicationSlotKind.build` already requires it
             # to be non-nullable.
-            kind.emit_draw(w, resolved, placed, None, plan, aod)
+            draw.emit_body(w, resolved, placed, None, plan, aod)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value or (draws_while_absent and value_guards):
@@ -1518,10 +1518,10 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         if ring_width is not None:
-            kind.emit_draw(w, resolved, placed, value_guards, plan, aod,
+            draw.emit_body(w, resolved, placed, value_guards, plan, aod,
                            ring=RingPass("ringColor", ring_width))
         else:
-            kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
+            draw.emit_body(w, resolved, placed, value_guards, plan, aod)
         if overrides_antialias and antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 

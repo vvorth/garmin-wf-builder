@@ -169,6 +169,8 @@ wfb/                  the compiler
   assets/icons/         the "Symbols Only" icon font, downloaded by tools/fetch-icon-font.py
   assets/system-fonts/  registry.json's free stand-ins for Garmin's system fonts,
                         downloaded by tools/fetch-system-fonts.py
+  draw/                 an element's drawing as one program: ops, the Monkey C printer,
+                        the host evaluator, the barrel's arithmetic transcribed
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`
@@ -206,6 +208,19 @@ class (`wfb/ir/model.py`), a `Placed` class (`wfb/layout.py`), one kind
 module, its name in `wfb.kinds._NAMES` and its schema entry;
 `tests/test_kinds.py` fails until they agree. "Adding an element kind",
 below, walks through one.
+
+**Drawing is moving to one program per element (`wfb/draw/`).** A kind
+may override `lower`, which returns the element's drawing as a list of ops
+(`wfb.draw.program`): `SetColor`, `SetPen`, the `Dc` primitives, the
+barrel's drawing calls, text calls, and null and `_aod` blocks. The view
+prints that list as the body of `draw<Id>` (`wfb.draw.printer`) and the
+preview paints it (`wfb.draw.evaluator`), so the two cannot disagree. A kind
+that lowers needs neither `emit_draw` nor `draw_preview`. One that does not
+keeps both, and `wfb.draw.emit_body` and `paint` route each element to
+whichever its kind has. The evaluator computes a barrel call with its
+Python transcription (`wfb.draw.barrel`). Each transcription is checked
+against the `.mc` source and swept against a model of the pixels the watch
+draws (`tests/test_draw_barrel.py`).
 
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,

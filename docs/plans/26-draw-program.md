@@ -183,7 +183,39 @@ Each slice ships with:
 
 Every new diagnostic or guard is driven red.
 
-### Slice 0 — the core, and primitive twins with property tests
+### Slice 0 — the core, and primitive twins with property tests: done
+
+Built as below:
+- **`wfb/draw/`:**
+  - `program` (values, ops, `DrawContext`);
+  - `printer`;
+  - `evaluator`;
+  - `barrel`, the transcriptions;
+  - `emit_body` and `paint`, which route each element to its program
+    or its kind's old methods.
+- `ElementKind.lower()` defaults to `None`. `view._emit_element_method`
+  and `Renderer.render_element` go through the router.
+  `ElementKind.lowers` (true only when `lower` is overridden) lets the
+  router skip building a `DrawContext`, and the preview its `ReadPlan`,
+  for an unported kind. Today's renders therefore cost what they did.
+- **The preview lowers with always-on code present** and takes the branch
+  of the frame it paints, which is the pixel result of any build's
+  choice. `Renderer.value_guards` gives a program's `LetText` the same
+  locals the view does.
+- **`tests/test_draw_barrel.py`:** the `WfbArc`/`WfbGeom` statements
+  looked up in the source, and the evaluator's arc swept over every
+  half-degree start against a model of `drawArc`'s cells.
+- **`tests/test_draw_program.py`:** the printer for every op, the
+  evaluator against today's preview for every plain primitive and literal
+  text, and the router in both stages.
+- Each guard was seen to fail against a broken twin. The old
+  `preview.arc_span` fails the sweep at exactly the half-degree starts.
+
+Found while building it: `docs/lore/codegen.md` says the preview's
+stamped ring "paints the same pixels" a grown copy does. Research 27 §2.5
+measured that it does not. Slice 1 corrects that line along with the
+preview.
+
 
 - `wfb/draw/` (P1): the value and op types, the printer, the evaluator and
   `lower()` on `ElementKind`. A kind without `lower()` keeps

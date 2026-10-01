@@ -27,11 +27,12 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace as dataclass_replace
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PIL import Image, ImageChops, ImageDraw, ImageMath
 
 from . import aod_mask, expr, kinds, visible_area
+from . import draw as draw_program
 from .devices import Device, FontMetric
 from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
@@ -46,6 +47,9 @@ from .palette import (
     MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD, Color, dim_fraction,
 )
 from .units import IntBox
+
+if TYPE_CHECKING:
+    from .emit.monkeyc.readplan import ReadPlan
 
 #: One drawn colour, as Pillow takes it.
 RGB = tuple[int, int, int]
@@ -535,6 +539,7 @@ class Renderer:
         self.options = options
         #: `render`'s own `used_faces`, or `None` -- see `_system_face`.
         self.used_faces = used_faces
+        self._read_plan: "ReadPlan | None" = None
 
     def _system_face(self, metric: FontMetric, *,
                      scale: float | None = None) -> "fallback.SystemFace | None":
@@ -622,8 +627,20 @@ class Renderer:
                    else placed.element.visible)
         return self.visible(visible)
 
+    def value_guards(self, placed: Placed) -> list[str]:
+        """The reading locals whose absence substitutes ``placed``'s value
+        (`ReadPlan.value_guards`), which a draw program's `LetText` names."""
+        if self._read_plan is None:
+            from .emit.monkeyc.readplan import ReadPlan
+            self._read_plan = ReadPlan(self.resolved)
+        return self._read_plan.value_guards(placed)
+
     def render_element(self, placed: Placed) -> None:
         if not self.shows(placed):
+            return
+        if draw_program.paint(self, placed):
+            # A lowered element draws its own `outline:` ring, as on the
+            # watch.
             return
         kind = kinds.for_placed(placed)
         outline = placed.element.outline
