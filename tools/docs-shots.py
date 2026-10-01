@@ -54,6 +54,7 @@ EXAMPLES = {
     "outlines": ("features/rings", ["--time", "10:08:37"], None),
     "styles": ("features/styles", ["--all-styles"], None),
     "slots": ("features/slots", [], None),
+    "slot-gauge": ("features/slot-gauge", [], None),
     # Cropped to the five system-font-size rows; the two extra vertical_align
     # demo rows below them are calibration detail, not gallery material.
     "system-fonts": ("system-fonts/text", [], ((0, 0, 260, 195), SCALE)),

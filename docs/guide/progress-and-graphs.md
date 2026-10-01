@@ -238,6 +238,13 @@ slot instead of `value:` and `max:`. It shows whatever the wearer picked,
 filled against that metric's own scale, beside the slot's `type: data`
 element or on its own:
 
+![gauges on three slots](../screenshots/slot-gauge.png)
+*From [`examples/features/slot-gauge`](../../examples/features/slot-gauge/face.yaml): steps
+against the step goal round the edge, five cells across the sample
+wearer's VO2 max row, and the date picked on the right, so its needle is
+hidden. The battery bar is `max: auto`, drawn with its track alone because
+the preview has no sample reading for a fixed complication.*
+
 ```yaml
 config:
   slots:
@@ -446,3 +453,4 @@ is unmeasured** — see `docs/limitations.md`.
 - [`examples/features/progress/face.yaml`](../../examples/features/progress/face.yaml) — `segments` and `scale` on an arc and on a bar.
 - [`examples/features/gauge/face.yaml`](../../examples/features/gauge/face.yaml) — gauge needles.
 - [Configuration: the Data axis](configuration.md#the-data-axis) — declaring the slots a gauge can show.
+- [`examples/features/slot-gauge/face.yaml`](../../examples/features/slot-gauge/face.yaml) — gauges on slots, and `max: auto`.

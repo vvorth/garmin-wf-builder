@@ -308,7 +308,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:` on every drawable and on `group` (grown or stamped,
-  `docs/guide/outlines.md`); progress `needle`/`segments`/`scale`; `pattern:
+  `docs/guide/outlines.md`); progress `needle`/`segments`/`scale`; gauges
+  on a slot (`slot:`) and `max: auto`, scaled per metric; `pattern:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
   and the burn-in lint; the `config:` settings menu on a watch without the
   native editor. One line each, with the guide chapter, in

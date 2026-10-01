@@ -76,6 +76,15 @@ or AOD-related has been observed on a watch or in the simulator.
   `segments` and `scale` (`wfb.lint.check_progress_segments`); `absent:
   hide` keeps the track (`wfb.kinds.progress.keeps_track`).
   `docs/guide/progress-and-graphs.md`.
+- **Gauges on a slot, and `max: auto`** (research 24) — `slot:` on a gauge
+  shows the wearer's pick against its own scale, and `max: auto` on a bare
+  `complication.<type>` takes the same: `wfb.complications.SCALE` (0-100,
+  the watch's goals, a day, the wearer's heart-rate zones and VO2 max row),
+  generated into `SlotScale.mc` over `runtime-lib/WfbScale.mc` and
+  `WfbProfileScale.mc`; a pick with no scale hides the gauge whole. The
+  editor treats a slot as every element drawing it
+  (`wfb.emit.monkeyc.common.editor_slots`). Zone colouring by a metric's
+  own bands is not built. `docs/guide/progress-and-graphs.md`.
 - **Always-on display** — `aod:` overrides resolved element > group >
   face default, restyled by inline ternaries; `dim:`; the pixel `mask:`
   (on by default, +279 B on `examples/features/aod/`); the

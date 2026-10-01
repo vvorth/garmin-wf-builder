@@ -5,7 +5,7 @@ probe (§2.3) has run twice in the simulator (`fenix8solar47mm`) and once on
 a real **fr955**: every native complication reported `ranges` as null, in
 both. The per-type table (§3) is the mechanism; `ranges` only covers what
 the table cannot know. Still owed: steps past 10,000 on a watch (§5), and
-a fēnix 8 on a watch. Built on by `docs/plans/25-slot-gauges.md`.
+a fēnix 8 on a watch. Built as plan 25, now deleted (`docs/plans/README.md`).
 
 ## The question
 

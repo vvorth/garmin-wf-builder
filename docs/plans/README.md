@@ -11,7 +11,6 @@ back here.
 | Plan | Status |
 |---|---|
 | [`20-screen-shapes.md`](20-screen-shapes.md) | rectangular and semi-octagon screens: all built but slice 4 (`overrides:`), which awaits decision D1 and is to be rebased onto format 2's key names (plan 22 F7) |
-| [`25-slot-gauges.md`](25-slot-gauges.md) | gauges on a `config: slots:` slot, scaled per picked metric, and `max: auto` on a fixed complication (research 24); slices 1–5 done; zone colouring deferred (§6) |
 
 ## Built and deleted
 
@@ -37,4 +36,5 @@ as built:
 | 21 `settings:` | `git show 0e741d9:docs/plans/21-phone-settings.md` (§1 is D1–D3, §4 the slices; slices 1-4 are `3137c80`, `88eb824`, `0e741d9`, `b6aad60`. All of `settings:` was removed the same day in favour of the `config:` settings menu, ADR 0006's eleventh amendment; only the menu machinery lives on) |
 | 19 architecture refactor | `git show d325e77:docs/plans/19-architecture-refactor.md` (§1 "Done" lists A0–A6 and the small items with their commits and how each was proven output-identical; §2 P2 and §3 A7 are the one option not taken, see `docs/lore/roadmap.md`) |
 | 22 format 2 | `git show 9480d08:docs/plans/22-format-2.md` (§1–§2 are the decisions F1–F7, Q1–Q5 and names N1–N18; §3.4 the full v1 → v2 table, also `docs/guide/format-2-migration.md`; §5 the reserved vocabulary, each still to be planned; §6 records every slice: plan `6cfb9b6`, slice 0 `1189e94` (the baseline snapshot), slice 1 `d0256b9` (`wfb migrate`), slice 2 `c97710d` (both formats compiled), slice 3 `4c657a7` (the switch-over), slice 4 `9480d08` (an absent gauge keeps its track), slice 5 the tidy commit that deleted it) |
+| 25 gauges on a slot, `max: auto` | `git show b1e3a23:docs/plans/25-slot-gauges.md` (§1 is D1–D8; §3 the slices: slice 1 `71859a4` (counts read whole, "10.0K"), slice 2 `0acb5a2` (the scale table), slice 3 `38d2c1c` (`slot:` on a gauge), slice 4 `3c35b10` (the editor sees every element of a slot), slice 5 `b1e3a23` (`max: auto`), slice 6 the example/screenshot/doc-sweep commit that deleted it; **§6 is the deferred zone-colouring proposal**, to start a follow-up plan from; research 24 is the evidence) |
 | 23 `outline:` everywhere | `git show 96462ed:docs/plans/23-outline-everything.md` (§1 is D1–D5, §3 the slices: slice 1 `badb527` (shapes, icons), slice 2 `fde32fa` (hands), slice 3 `88f79ae` (groups), slice 4 `96462ed` (patterns, gauges), slice 5 the example/screenshot/doc-sweep commit that deleted it; research 19 is the measurement record) |

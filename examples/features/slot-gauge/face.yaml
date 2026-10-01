@@ -1,0 +1,173 @@
+# Gauges on `config: slots:` slots, and `max: auto` on a fixed complication
+# (docs/guide/progress-and-graphs.md, "Gauges on a slot").
+#
+# A gauge with `slot:` shows whatever the wearer picked for that slot,
+# filled against the picked metric's own scale -- no `max:` to write, and
+# none that could fit every choice. Each slot here pairs a gauge with the
+# slot's `type: data` reading, and the defaults show the three things a
+# gauge can do with a pick:
+#
+# * `top` (steps by default): a goal scale. The outer ring runs from 0 to
+#   the watch's own step goal; floors and intensity minutes run to theirs,
+#   battery, Body Battery and stress from 0 to 100.
+# * `left` (running VO2 max by default): the wearer's own scale. Five cells
+#   across their rating row (Poor to Superior) for their sex and age; heart
+#   rate runs from their zone 1 minimum to their zone 5 maximum. Both are
+#   read from the profile -- which is why this face declares the
+#   `UserProfile` permission without saying so.
+# * `right` (the date by default): no scale. The date, the weekday, the
+#   weather have none, so the needle hides whole and the reading below it
+#   shows alone. Pick Body Battery or battery and the needle comes back.
+#
+# A scaled pick whose reading is missing for now (heart rate between
+# readings) follows `absent:` like any gauge: `hide` keeps the track.
+#
+# `battery_bar` is the fixed form: `value: complication.battery` with
+# `max: auto` takes battery's own 0-100 from the same table. (`wfb preview`
+# has no sample reading for a fixed complication, so it draws the bar's
+# track alone, as the watch does while the reading is missing.)
+#
+# In the native editor (fenix 8) each slot is its gauge and its reading
+# together: tapping either selects the slot, and the highlight animates
+# over both. The top ring's box encloses the other two slots; a tap
+# selects the smallest slot box holding it, so `left` and `right` stay
+# selectable. fr955 offers the three slots from the generated settings menu.
+#
+# What is verified: this design builds warning-free on all three targets.
+# How the editor's highlight and taps behave on a watch is not.
+#
+# Build it with:  ./wfb.py build examples/features/slot-gauge/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 8c4e2a71-5b39-4f06-a1d8-3e7c9b2f4a15
+  name: Feature Slot Gauge
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
+    warm: "#FFAA00"
+    track: "#555555"
+
+config:
+  slots:
+    top:
+      default: steps
+      choices: [steps, floors_climbed, intensity_minutes, battery, body_battery, stress]
+    left:
+      default: vo2max_run
+      choices: [vo2max_run, heart_rate, pulse_ox, stress]
+    right:
+      default: date
+      choices: [date, weekday_monthday, current_weather, body_battery, battery]
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dy: -6% }
+    color: color.fg
+
+  # -- top: the outer ring, and its reading under the 12 o'clock gap -------
+
+  top_ring:
+    type: gauge
+    slot: top
+    style: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 6px
+    start_angle: 20deg
+    sweep: 320deg
+    color: color.accent
+    track_color: color.track
+    absent: hide
+
+  top_reading:
+    type: data
+    slot: top
+    at: { anchor: center, dy: -38% }
+    font: FONT_XTINY
+    icon: { size: 12%r, gap: 1%r, color: color.accent }
+    color: color.fg
+    absent: "--"
+
+  # -- left: five cells over the wearer's own scale ------------------------
+
+  left_cells:
+    type: gauge
+    slot: left
+    style: segments
+    at: { anchor: center, dx: -22%, dy: 20% }
+    size: { width: 30%, height: 5px }
+    count: 5
+    gap: 2px
+    color: color.warm
+    track_color: color.track
+    absent: hide
+
+  left_reading:
+    type: data
+    slot: left
+    at: { anchor: center, dx: -22%, dy: 29% }
+    font: FONT_XTINY
+    icon: { size: 11%r, gap: 1%r, color: color.warm }
+    color: color.fg
+    short: true
+    absent: "--"
+
+  # -- right: a needle that hides with the date -----------------------------
+
+  right_needle:
+    type: gauge
+    slot: right
+    style: needle
+    at: { anchor: center, dx: 22%, dy: 22% }
+    start_angle: 270deg
+    sweep: 180deg
+    color: color.accent
+    needle:
+      - { type: line, to: { dy: -16%r }, thickness: 2px }
+      - { type: circle, radius: 2px }
+    absent: hide
+
+  right_reading:
+    type: data
+    slot: right
+    at: { anchor: center, dx: 22%, dy: 29% }
+    font: FONT_XTINY
+    color: color.fg
+    short: true
+    absent: "--"
+
+  # -- a fixed complication with max: auto ----------------------------------
+
+  battery_bar:
+    type: gauge
+    style: bar
+    value: complication.battery
+    max: auto
+    at: { anchor: center, dy: 12% }
+    size: { width: 24%, height: 4px }
+    color: color.fg
+    track_color: color.track
+    absent: hide

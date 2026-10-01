@@ -68,6 +68,7 @@ says what it is on the watch.
 | [`features/sun/`](features/sun/face.yaml) | a daylight `gauge` bar computed from `complication.sunrise`/`sunset` expressions (blank in `wfb preview`: no sample data) | [Data](../docs/guide/data.md) |
 | [`features/config/`](features/config/face.yaml) | accent/data colour and colour-scheme settings | [Configuration](../docs/guide/configuration.md) |
 | [`features/slots/`](features/slots/face.yaml) | the Data setting: `data` elements the wearer re-points | [Configuration](../docs/guide/configuration.md) |
+| [`features/slot-gauge/`](features/slot-gauge/face.yaml) | gauges on slots, each against the picked metric's own scale -- a goal ring, cells over the wearer's VO2 max row, a needle that hides with the date -- and `max: auto` on a fixed complication | [Gauges on a slot](../docs/guide/progress-and-graphs.md#gauges-on-a-slot) |
 | [`features/styles/`](features/styles/face.yaml) | `layouts:` switched by style | [Styles and layouts](../docs/guide/styles-and-layouts.md) |
 | [`features/aod/`](features/aod/face.yaml) | `aod:` overrides and a face-wide default, on an AMOLED target (`fenix847mm`) -- the only example targeting AMOLED so far | [Always-on display](../docs/guide/always-on-display.md) |
 
