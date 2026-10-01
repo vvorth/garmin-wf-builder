@@ -1,0 +1,32 @@
+## stacked transparent layers vs preview.render, fenix8solar47mm, 2x
+face                                                 layers raw diff px final diff px
+examples/analog-custom/face.yaml                         21        2938            24
+examples/enduro/face.yaml                                16           0             0
+examples/features/align/face.yaml                        21           0             0
+examples/features/analog/face.yaml                       10           0             0
+examples/features/aod/face.yaml                           6           0             0
+examples/features/complications/face.yaml                10           0             0
+examples/features/config/face.yaml                        5           0             0
+examples/features/gauge/face.yaml                         6           0             0
+examples/features/graph/face.yaml                         5           0             0
+examples/features/grid/face.yaml                          4           0             0
+examples/features/instinct/face.yaml                      8           0             0
+examples/features/outline/face.yaml                       8           0             0
+examples/features/patterns/face.yaml                     11           0             0
+examples/features/profile/face.yaml                      18           0             0
+examples/features/progress/face.yaml                      5           0             0
+examples/features/rings/face.yaml                        10           0             0
+examples/features/shapes/face.yaml                       11           0             0
+examples/features/slot-gauge/face.yaml                    9           0             0
+examples/features/slots/face.yaml                         4           0             0
+examples/features/styles/face.yaml                        5           0             0
+examples/features/sun/face.yaml                           2           0             0
+examples/features/units/face.yaml                         6           0             0
+examples/features/vector-text/face.yaml                  10           0             0
+examples/generated_by_skill/navy-classic/face.yaml       22           0             0
+examples/generated_by_skill/trail-utility/face.yaml      40           0             0
+examples/showcase/face.yaml                              28           0             0
+examples/system-fonts/numbers-large/face.yaml             6           0             0
+examples/system-fonts/numbers/face.yaml                   8           0             0
+examples/system-fonts/text/face.yaml                     16           0             0
+identical: 28/29 unquantised, 28/29 after quantise + bezel mask

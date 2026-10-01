@@ -25,4 +25,10 @@ with `ShapeKind.emit_draw`, then evaluated in Pillow and compared pixel for
 pixel with `draw_preview` at 1× and 2×; and a sweep of half-degree arc start
 angles through `preview.arc_span` and `WfbArc.drawSpan`'s arithmetic.
 
+`layers.py` writes `layers_results.txt` (§5.4): every element, and every
+outlined group's ring, rendered alone onto black and onto white; its colour
+and coverage recovered from the pair; the layers stacked in draw order and
+compared with `preview.render`, before and after quantise and the bezel
+mask.
+
 `examples/dashboard` is skipped (it is the user's playground).

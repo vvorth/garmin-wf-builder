@@ -285,7 +285,7 @@ Against reverting, beyond the table:
   Porting also keeps its tests, research decisions and edge cases. A
   rewrite rediscovers them.
 - **The sequencing benefit is available without deleting anything.** The
-  kind registry (`wfb/kinds/`) lets A7 land one kind at a time (§5.4). A
+  kind registry (`wfb/kinds/`) lets A7 land one kind at a time (§5.5). A
   kind not yet ported keeps `emit_draw`/`draw_preview`. That is "a smaller
   base first" without removing a shipped feature.
 
@@ -371,7 +371,67 @@ drop corrects it. UNVERIFIED, design only.
 
 UNVERIFIED: how this feels at 60 Hz is the editor's first measurement.
 
-### 5.4 Landing it kind by kind
+### 5.4 Layers: one transparent image per element, stacked
+
+**Yes: the Python evaluator renders each element alone onto a transparent
+ground.** The editor stacks these layers in draw order, and drags one
+without touching the others. An outlined group's ring is a layer of its
+own, placed just before the group's first member. Everything that
+belongs to the whole frame runs once, on the stack:
+- the black `dc.clear`;
+- palette quantising;
+- the bezel mask;
+- the AOD pixel mask;
+- the skin.
+
+**Why stacking can be exact.** The watch has no alpha blending
+(constraint 10). No element reads the pixels under it, except where an
+anti-aliased edge blends into them. Drawing in order onto one frame and
+stacking per-element layers in order therefore agree, up to the rounding of
+those blended edge pixels.
+
+**Measured on today's renderer**
+(`docs/research/probes/draw-program/layers.py`, `layers_results.txt`):
+- each element, and each group ring, was rendered alone onto black and
+  onto white;
+- its colour and coverage were recovered from the pair (difference
+  matting);
+- the 29 faces were stacked over black and compared with `preview.render`
+  at 2×.
+
+| | Faces identical |
+|---|---:|
+| unquantised, unmasked | **28/29** |
+| after quantise and the bezel mask, applied to the stack | **28/29** |
+
+The one exception is `analog-custom`. It has two anti-aliased text
+elements: `hour_ticks`' numerals and the data readouts. Its 2 938 differing
+pixels (of 270 400) are **all off by exactly 1** in one channel: 8-bit
+rounding on blended edges. After quantising, 24 of them land in a
+different palette colour. VERIFIED.
+
+So:
+- **in the editor, layers are exact for every aliased element**, and
+  within one level of rounding on anti-aliased edges;
+- **the full-frame render stays authoritative** for `wfb preview`, the
+  lints and the editor's "as on the watch" view;
+- an evaluator that writes coverage straight into the layer's alpha
+  channel avoids matting, but it does not remove the rounding difference
+  in blending.
+
+**A group ring is the one layer that depends on others.** Dragging a member
+changes the ring's shape. In the program, the ring is the members' own ops
+stamped at offsets. So the browser can redraw it during the drag from the
+dragged constants, like any other layer (§5.3), and the server re-renders
+it on release. VERIFIED that the ring stacks correctly as a separate layer
+(`features/rings`, `features/profile` are among the 28). The live redraw is
+UNVERIFIED.
+
+**`static:` and `layouts:`** need nothing special. A `static:` subtree is
+an offscreen buffer on the watch, but in the editor it is ordinary layers.
+A Styles layout filters the layer list.
+
+### 5.5 Landing it kind by kind
 
 - `ElementKind` gains `lower()`. When a kind has it, the view's
   `draw<Id>` body is printed from the program and the preview evaluates
@@ -396,7 +456,7 @@ UNVERIFIED: how this feels at 60 Hz is the editor's first measurement.
   and `preview.py` shrinks to options, the evaluator, quantise, mask and
   skin.
 
-### 5.5 Risks
+### 5.6 Risks
 
 - **Generated-code quality and memory** (constraint 2: 49 152 B is the
   floor). The printer must keep emitting exactly what the hand-tuned
@@ -480,4 +540,5 @@ snapshot. The deliberate preview fixes land as their own commits.
   (`garmin_arc`, `Resolver.for_device`), `runtime-lib/WfbArc.mc`
   (`drawSpan`, `roundAway`), `tools/snapshot.py`.
 - Probes: `docs/research/probes/draw-program/` (`probe.py`,
-  `results.txt`, `spike_shape.py`, `spike_results.txt`).
+  `results.txt`, `spike_shape.py`, `spike_results.txt`, `layers.py`,
+  `layers_results.txt`).
