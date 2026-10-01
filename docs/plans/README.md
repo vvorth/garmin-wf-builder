@@ -11,7 +11,7 @@ back here.
 | Plan | Status |
 |---|---|
 | [`20-screen-shapes.md`](20-screen-shapes.md) | rectangular and semi-octagon screens: all built but slice 4 (`overrides:`), which awaits decision D1 and is to be rebased onto format 2's key names (plan 22 F7) |
-| [`25-slot-gauges.md`](25-slot-gauges.md) | gauges on a `config: slots:` slot, scaled per picked metric, and `max: auto` on a fixed complication (research 24); decided, ready to build; zone colouring deferred (§6) |
+| [`25-slot-gauges.md`](25-slot-gauges.md) | gauges on a `config: slots:` slot, scaled per picked metric, and `max: auto` on a fixed complication (research 24); slice 1 done; zone colouring deferred (§6) |
 
 ## Built and deleted
 

@@ -52,6 +52,7 @@ the expression a real Float.
 from __future__ import annotations
 
 import re
+import struct
 from dataclasses import dataclass
 
 from .diagnostics import Catalogue
@@ -228,6 +229,22 @@ UNIT_SUFFIX: dict[str, str] = {
 }
 
 
+def _single(value: float) -> float:
+    """``value`` rounded to IEEE single precision, Monkey C's ``Float``."""
+    return float(struct.unpack("f", struct.pack("f", value))[0])
+
+
+def count_value(value: object, unit: object) -> object:
+    """The Python twin of ``runtime-lib/WfbComplications.mc``'s ``count``:
+    a count the device scaled to thousands (a non-Number with the String
+    unit ``"K"``) multiplied back and rounded, step for step in single
+    precision as the watch computes it; anything else unchanged."""
+    if (isinstance(value, float) and not isinstance(value, bool)
+            and isinstance(unit, str) and unit == "K"):
+        return int(_single(_single(_single(value) * 1000) + 0.5))
+    return value
+
+
 def format_value(value: object) -> str:
     """A pulled complication value as the watch draws it.
 
@@ -270,7 +287,8 @@ SHORT_LENGTH = 7
 #: the wearer's pick and calls the matching `runtime-lib/WfbReading.mc`
 #: helper; :func:`format_reading` is the Python twin the preview draws with.
 #:
-#: * ``count``: a whole number; 10,000 and up scaled to thousands ("12.9K").
+#: * ``count``: a whole number; 10,000 and up scaled to thousands with one
+#:   decimal ("10.0K", "12.9K").
 #: * ``percent``: a whole number, "%" with `unit:`.
 #: * ``vo2max``: a count, but 0 (nothing recorded) reads as absent.
 #: * ``clock``: seconds since local midnight, as a time of day.
@@ -446,11 +464,14 @@ def _suffixed(number: str, suffix: str, short: bool) -> str:
 
 
 def _count(value: object, device_unit: object) -> str:
+    """``WfbReading.count``'s twin: thousands always carry one decimal."""
     if isinstance(value, float):
+        if device_unit == "K":
+            return f"{value:.1f}K"
         return format_value(value) + (device_unit if isinstance(device_unit, str) else "")
     whole = int(value)  # type: ignore[call-overload]
     if abs(whole) >= 10000:
-        return format_value(whole / 1000.0) + "K"
+        return f"{whole / 1000.0:.1f}K"
     return str(whole)
 
 

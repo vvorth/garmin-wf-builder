@@ -304,7 +304,7 @@ Instead:
 
   | Types | Drawn | With `unit: true` |
   |---|---|---|
-  | steps, calories, floors, intensity minutes, notifications, stress, sleep score, pushes | `8809`; `12.9K` from 10,000 up | -- |
+  | steps, calories, floors, intensity minutes, notifications, stress, sleep score, pushes | `8809`; from 10,000 up, thousands with one decimal: `10.0K`, `12.9K` | -- |
   | heart rate, respiration rate | `77`, `17` | `77bpm`, `17brpm` |
   | battery, body battery, pulse ox, solar input | `100` | `100%` |
   | VO2 max (run, bike) | `49`; 0 (nothing recorded) is absent | -- |

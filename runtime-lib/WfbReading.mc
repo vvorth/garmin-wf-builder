@@ -84,14 +84,19 @@ module WfbReading {
     //! A count.  The device may already have scaled it to thousands (seen in
     //! the simulator: steps past 10,000 arrive as the Float 12.879 with the
     //! unit "K"), so a String unit on a Float is kept; a whole count of
-    //! 10,000 or more is scaled here the same way.
+    //! 10,000 or more is scaled here the same way.  Thousands always carry
+    //! one decimal, "10.0K" as well as "12.9K", so the reading keeps its
+    //! shape as the count grows.
     function count(value as Numeric, unit as Complications.Unit or Lang.String or Null) as String {
         if (value instanceof Lang.Float || value instanceof Lang.Double) {
+            if (unit instanceof Lang.String && unit.equals("K")) {
+                return value.format("%.1f") + "K";
+            }
             return decimalText(value.toDouble()) + ((unit instanceof Lang.String) ? unit : "");
         }
         var whole = value.toNumber();
         if (whole >= 10000 || whole <= -10000) {
-            return decimalText(whole.toDouble() / 1000.0d) + "K";
+            return (whole.toDouble() / 1000.0d).format("%.1f") + "K";
         }
         return whole.toString();
     }

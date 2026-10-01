@@ -80,12 +80,12 @@ _COMPLICATION_VALUE_TYPE: dict[str, Type] = {
     "string": Type.STRING,
 }
 
-#: The Monkey C cast each value type needs -- see `Source.cast`'s docstring.
+#: The Monkey C cast each non-Number value type needs -- see `Source.cast`'s
+#: docstring; a Number complication is read through `Source.count` instead.
 #: A Float complication is read as `Numeric?` and converted (`Source.to_float`):
 #: `ALTITUDE` and `CURRENT_TEMPERATURE` were Numbers before API 5.1.0/5.0.0,
 #: and an `as Float?` cast would only assert the type, not convert it.
 _COMPLICATION_CAST: dict[str, str] = {
-    "number": "Number?",
     "float": "Numeric?",
     "string": "String?",
 }
@@ -370,6 +370,13 @@ class Source:
     #: compiler trusts `type` -- a Number arriving as a "Float" would skip
     #: its `.toFloat()` coercion and truncate `altitude / 1000`.
     to_float: bool = False
+    #: The value is a whole count read through `WfbComplications.count`
+    #: rather than cast: a device may hand a large count over already scaled
+    #: to thousands (a Float with the String unit "K" -- steps 12,569 arrive
+    #: in the simulator as 12.569), and an expression must see the count
+    #: itself, the same as `activity.steps`. Set for every `Number`
+    #: complication, in place of `cast`.
+    count: bool = False
     #: The `complications` type *name* (`wfb.complications.TYPES` key) whose
     #: glance this value conventionally belongs to, or ``None``. Set
     #: automatically to a `complication.*` source's own name; set by hand on
@@ -683,8 +690,9 @@ CATALOG: Catalogue[Source] = Catalogue({
                 quantity=_COMPLICATION_QUANTITY.get(t.name),
                 doc=t.doc,
                 source_ref="Toybox/Complications.html",
-                cast=_COMPLICATION_CAST[t.value_type],
+                cast=_COMPLICATION_CAST.get(t.value_type),
                 to_float=t.value_type == "float",
+                count=t.value_type == "number",
                 launch_complication=t.name,
             )
             for t in complications.TYPES.values()

@@ -65,6 +65,28 @@ def test_a_count_the_device_already_scaled_keeps_its_k():
     assert format_reading("steps", 12.879, "K", unit=True) == "12.9K"
 
 
+@pytest.mark.parametrize("value, unit, shown", [
+    (10.0, "K", "10.0K"),        # a round thousand keeps its decimal...
+    (10000, None, "10.0K"),      # ...whether the device or the face scaled it
+    (16001, None, "16.0K"),
+    (12.569, "K", "12.6K"),
+    (12569, None, "12.6K"),
+    (100.4, "K", "100.4K"),
+    (9999, None, "9999"),        # below 10,000 a count is whole
+])
+def test_thousands_always_carry_one_decimal(value, unit, shown):
+    """From 10,000 up a count is thousands with one decimal, so "10.0K" and
+    "12.6K" keep one shape instead of the reading losing a digit on a round
+    thousand."""
+    assert format_reading("steps", value, unit) == shown
+
+
+def test_a_float_with_another_unit_keeps_its_own_digits():
+    """Only "K" is thousands; an app's Float in some other unit is drawn to
+    three significant figures with its unit, as before."""
+    assert complications._count(3.5, "km") == "3.5km"
+
+
 @pytest.mark.parametrize("name, value", [
     ("vo2max_bike", 0),                    # nothing recorded
     ("race_pace_predictor_5k", 0.0),       # no speed, no pace

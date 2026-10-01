@@ -209,11 +209,17 @@ def test_cast_is_set_iff_the_source_reads_a_union():
     reads under FORMAT_SHORT, where it is always the Number -- so no other
     source should ever set it. A Float complication is cast to `Numeric?`
     and converted (`to_float`), never cast to `Float?` alone -- a cast only
-    asserts, and some types were Numbers on older API levels."""
+    asserts, and some types were Numbers on older API levels. A Number
+    complication is read through `WfbComplications.count` (`Source.count`)
+    instead of any cast, so a count the device scaled to thousands reaches
+    the expression whole."""
     for path, source in CATALOG.items():
         if path.startswith("complication."):
-            assert source.cast is not None, path
-            assert source.cast in ("Number?", "Numeric?", "String?"), (path, source.cast)
+            assert source.count == (source.type is Type.NUMBER), path
+            if source.count:
+                assert source.cast is None, path
+            else:
+                assert source.cast in ("Numeric?", "String?"), (path, source.cast)
             assert source.to_float == (source.type is Type.FLOAT), path
             assert source.to_float == (source.cast == "Numeric?"), path
         elif path == "date.weekday":
@@ -222,15 +228,16 @@ def test_cast_is_set_iff_the_source_reads_a_union():
         else:
             assert source.cast is None, path
             assert not source.to_float, path
+            assert not source.count, path
 
 
 def test_read_expr_does_not_bake_in_the_cast():
     """SPEC contract: `read_expr` names what to read; `cast` is a separate
     instruction the emitter applies where it can parenthesise correctly --
     the two must never be conflated into one string here."""
-    source = CATALOG["complication.body_battery"]
+    source = CATALOG["complication.training_status"]
     assert " as " not in source.read_expr
-    assert source.cast == "Number?"
+    assert source.cast == "String?"
 
 
 def test_every_complication_reader_is_a_plain_pull_not_a_cached_field():

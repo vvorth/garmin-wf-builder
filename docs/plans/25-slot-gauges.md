@@ -1,7 +1,7 @@
 # 25 — Gauges on a slot, scaled by the picked metric
 
-**Status: ready to build (2026-10-01). D1, D2, D4–D8 are decided; D3
-(zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
+**Status: in progress. Slice 1 done (2026-10-01). D1, D2, D4–D8 are
+decided; D3 (zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/24-complication-full-scale.md`. In short:
@@ -120,7 +120,10 @@ derived range; with `date`, no ring at all, and `top_text` alone draws.
 Each slice ships warning-free on the three verification devices, with
 the fast suite green, and with every new diagnostic driven red.
 
-### Slice 1 — unscale `"K"` in every numeric complication read
+### Slice 1 — unscale `"K"` in every numeric complication read: done
+
+Built as below, plus the user's addition (2026-10-01): a slot's count
+from 10,000 up always carries one decimal (`10.0K`, not `10K`).
 
 A bug fix with no format change, so it goes first. Where a numeric
 `complication.*` source is read (`wfb/catalog.py`'s generated sources,

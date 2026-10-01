@@ -114,12 +114,69 @@ def test_onupdate_pulls_the_complication_every_frame(write_design, bag, db, tmp_
 
 def test_read_carries_the_right_cast_per_value_type(write_design, bag, db, tmp_path):
     """`Complications.Complication.value` is a union type -- the declared
-    local for each source must carry that source's own cast."""
+    local for each source must carry that source's own cast, and a
+    whole-number one is read through `WfbComplications.count` instead."""
     view = _view(write_design, bag, db, tmp_path, TWO_COMPLICATIONS)
     assert ("var complicationBodyBattery = (bodyBatteryComplication != null) "
-            "? bodyBatteryComplication.value as Number? : null;") in view
+            "? WfbComplications.count(bodyBatteryComplication) : null;") in view
     assert ("var complicationTrainingStatus = (trainingStatusComplication != null) "
             "? trainingStatusComplication.value as String? : null;") in view
+
+
+STEPS_IN_THOUSANDS = """
+  steps:
+    type: text
+    text: "{complication.steps / 1000.0:.1f}k"
+    absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
+    color: color.fg
+"""
+
+
+def test_a_count_is_read_as_the_count_itself(write_design, bag, db, tmp_path):
+    """Steps past 10,000 can arrive scaled to thousands ("K"); the read goes
+    through `WfbComplications.count`, never `.value` cast, so the expression
+    divides the real count."""
+    view = _view(write_design, bag, db, tmp_path, STEPS_IN_THOUSANDS)
+    assert ("var complicationSteps = (stepsComplication != null) "
+            "? WfbComplications.count(stepsComplication) : null;") in view
+    assert "stepsComplication.value" not in view
+
+
+@pytest.mark.parametrize("count", [10000, 12569, 16001, 99999, 199999])
+def test_a_count_in_thousands_comes_back_whole(count):
+    """The watch computes `(v * 1000 + 0.5).toNumber()` in single precision;
+    its twin recovers the count exactly."""
+    from wfb.complications import _single, count_value
+    assert count_value(_single(count / 1000), "K") == count
+
+
+def test_rounding_recovers_every_count_truncation_does_not():
+    """The contrast that makes rounding necessary: across 10,000-199,999,
+    truncating the single-precision product reads one low 1,384 times
+    (16,001 first), and the rounded twin never does."""
+    from wfb.complications import _single, count_value
+    truncated = [n for n in range(10000, 200000)
+                 if int(_single(_single(n / 1000) * 1000)) != n]
+    assert len(truncated) == 1384 and truncated[0] == 16001
+    assert all(count_value(_single(n / 1000), "K") == n for n in range(10000, 200000))
+
+
+def test_count_leaves_anything_but_k_alone():
+    from wfb.complications import count_value
+    assert count_value(12569, None) == 12569
+    assert count_value(12.5, "km") == 12.5
+    assert count_value(None, "K") is None
+
+
+def test_the_watch_helper_rounds_as_its_twin_does():
+    """`count_value` models `runtime-lib/WfbComplications.mc`'s `count`; this
+    keeps the two from drifting apart by reading the helper's own source."""
+    from pathlib import Path
+    source = (Path(__file__).parent.parent / "runtime-lib" / "WfbComplications.mc").read_text()
+    assert 'unit.equals("K")' in source
+    assert "toFloat() * 1000 + 0.5).toNumber()" in source
 
 
 def test_weekly_run_distance_is_converted_to_float(write_design, bag, db, tmp_path):
@@ -321,6 +378,23 @@ def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db, toolch
 
     design = tmp_path / "hold.yaml"
     design.write_text(DESIGN.format(elements=HOLD_DESIGN), encoding="utf-8")
+
+    result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert result.products, "nothing was compiled"
+    complaints = [d for d in bag.items
+                  if d.severity.value in ("error", "warning")]
+    assert not complaints, bag.render()
+
+
+@pytest.mark.slow
+def test_a_count_complication_compiles_without_warnings(tmp_path, bag, db, toolchain):
+    """`WfbComplications.count` typechecks under `-l 3`, read inside the
+    null-guard ternary and divided in an expression."""
+    from wfb.build import build
+
+    design = tmp_path / "steps.yaml"
+    design.write_text(DESIGN.format(elements=STEPS_IN_THOUSANDS), encoding="utf-8")
 
     result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()

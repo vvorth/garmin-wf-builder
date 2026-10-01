@@ -64,4 +64,21 @@ module WfbComplications {
             return null;
         }
     }
+
+    //! A count-type complication's value, as the count itself.  A device may
+    //! hand a large count over already scaled to thousands: in the simulator
+    //! steps 12,569 arrive as the Float 12.569 with the String unit "K"
+    //! (docs/research/24-complication-full-scale.md §5).  That case is
+    //! multiplied back and rounded -- truncating `12.569 * 1000` in single
+    //! precision reads one low for some counts (16,001 is the first); rounding
+    //! recovers every count to 199,999.  Anything else is returned as it came.
+    function count(c as Complications.Complication) as Number? {
+        var value = c.value;
+        var unit = c.unit;
+        if (value != null && !(value instanceof Lang.String) && !(value instanceof Lang.Number)
+                && unit instanceof Lang.String && unit.equals("K")) {
+            return ((value as Numeric).toFloat() * 1000 + 0.5).toNumber();
+        }
+        return value as Number?;
+    }
 }

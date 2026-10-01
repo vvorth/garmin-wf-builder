@@ -588,7 +588,14 @@ still true of the shipped feature:
   `"K"`, and as the suffix for an app's complication.
   Still unverified: that a real watch, like the simulator, hands steps
   past 10,000 over as a Float in thousands with the unit `"K"` (the fr955
-  run had 150 steps). The weather
+  run had 150 steps). Either way a whole-number `complication.*`
+  binding reads the full count (`WfbComplications.count` multiplies a
+  `"K"` value back, rounding: truncating would read one low for 1,384
+  counts from 10,000 to 199,999, research 24 §5), and a slot draws any
+  count from 10,000 up as thousands with one decimal (`10.0K`).
+  **Measured** (`--build-stats`, fenix8solar47mm): `examples/features/
+  complications/` 2,700 B → 2,861 B and `examples/features/slots/`
+  16,436 B → 16,631 B for the helper and the one-decimal rule. The weather
   condition names are this compiler's English, since the platform names
   none; the date, weekday and event strings are the device's own.
   **Measured** (`--build-stats`, fenix8solar47mm): the rules cost what the

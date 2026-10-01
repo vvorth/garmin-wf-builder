@@ -145,8 +145,13 @@ A `complication.*` binding compiles to a plain pull, exactly like any other
 source — `WfbComplications.valueOf(new Complications.Id(Complications.
 COMPLICATION_TYPE_BODY_BATTERY))` — cast to the source's own type
 (`Complications.Complication.value` is a union of `String or Number or Float
-or Long or Double or Null`, so the cast is required, not decorative). Binding
-one adds the `ComplicationSubscriber` permission. `minApiLevel` itself never
+or Long or Double or Null`, so the cast is required, not decorative). A
+whole-number type is read through `WfbComplications.count` instead, which
+hands the expression the count itself: a device may report a large count
+already scaled to thousands (steps 12,569 as `12.569` with the unit `K`,
+seen in the simulator), and that is multiplied back, so
+`{complication.steps / 1000.0:.1f}k` reads `12.6k` just as it would on
+`activity.steps`. Binding one adds the `ComplicationSubscriber` permission. `minApiLevel` itself never
 moves for this (`manifest.xml` is one file shared by every target device, so
 a per-feature bump would lock out any target that never touches the
 feature -- see [What each device does with it](configuration.md#what-each-device-does-with-it)); a target device that

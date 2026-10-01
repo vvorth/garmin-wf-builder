@@ -440,7 +440,9 @@ class ReadPlan:
                 continue
 
             read = source.read_expr
-            if source.cast is not None:
+            if source.count:
+                read = f"WfbComplications.count({reader.name})"
+            elif source.cast is not None:
                 # `Complication.value` is a union (`String or Number or Float or
                 # Long or Double or Null`), so -l 3 will not let it reach a
                 # typed local unaided.  The cast binds tighter than the ternary
