@@ -2126,7 +2126,8 @@
           "$ref": "#/$defs/expression"
         },
         "max": {
-          "$ref": "#/$defs/expression"
+          "$ref": "#/$defs/expression",
+          "description": "The full-scale amount, or 'auto' when 'value:' is a bare 'complication.<type>': the scale is then that type's own, as on a gauge with 'slot:' (docs/guide/progress-and-graphs.md, \"Gauges on a slot\"), and a type with no scale is a build error."
         },
         "slot": {
           "description": "Which declared 'config: slots:' entry this gauge shows, by name, in place of 'value:' and 'max:': the reading is whatever the wearer picked, against that metric's own scale (0-100 for battery, Body Battery, stress, pulse ox, solar and sleep score; the watch's goal for steps, floors, intensity minutes and pushes; a day for sunrise and sunset; the wearer's heart-rate zones; their VO2 max rating row). A pick with no scale hides the whole gauge. 'max:' and 'bands:' are not read beside it (docs/guide/progress-and-graphs.md, \"Gauges on a slot\").",

@@ -1,6 +1,6 @@
 # 25 — Gauges on a slot, scaled by the picked metric
 
-**Status: in progress. Slices 1–4 done (2026-10-01). D1, D2, D4–D8 are
+**Status: in progress. Slices 1–5 done (2026-10-01). D1, D2, D4–D8 are
 decided; D3 (zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
@@ -282,7 +282,15 @@ elements; a slot gauge makes it the normal case.
   (the `drawSlot` comment). The host cannot check this slice; §5 lists
   the sideload check.
 
-### Slice 5 — `max: auto` on a fixed binding (D4)
+### Slice 5 — `max: auto` on a fixed binding (D4): done
+
+Built as below. The gauge keeps its ordinary read path (the unscaled count
+and its null guards); `max: auto` only adds `SlotScale.scale(<type>,
+<the complication reader>)`, a wrap in `if (scale != null)` -- a scale
+missing at runtime (an unset goal, a VO2 max of 0) hides the gauge whole,
+as on a slot -- and the fill `WfbScale.share(value, scale)`. A type with
+no scale at all is the build error.
+
 
 - `max: auto` is allowed when `value:` is a bare `complication.<type>`
   (anything else is an error naming why).

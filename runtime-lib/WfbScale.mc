@@ -31,12 +31,18 @@ module WfbScale {
         if (!(value instanceof Lang.Number) && unit instanceof Lang.String && unit.equals("K")) {
             reading = reading * 1000;
         }
+        return share(reading, scale);
+    }
+
+    //! How full a gauge on `scale` is for a reading already in the scale's
+    //! units, 0.0 to 1.0.
+    function share(reading as Numeric, scale as Array<Numeric>) as Float {
         var low = scale[0].toFloat();
-        var share = (reading - low) / (scale[1].toFloat() - low);
-        if (share < 0.0) {
+        var full = (reading.toFloat() - low) / (scale[1].toFloat() - low);
+        if (full < 0.0) {
             return 0.0;
         }
-        return (share > 1.0) ? 1.0 : share;
+        return (full > 1.0) ? 1.0 : full;
     }
 
     //! An app complication's own `ranges`, first value to last.  Garmin's

@@ -1291,6 +1291,10 @@ class Progress(Element):
     #: `value`/`maximum`: the reading is the wearer's pick, and the scale is
     #: that type's own (`wfb.complications.SCALE`).
     slot: str | None = None
+    #: `max: auto` on a bare `value: complication.<type>`: that type's name
+    #: (a `wfb.complications.SCALE` key), whose own scale stands in for
+    #: `maximum`.
+    auto_scale: str | None = None
     radius: Length | None = None
     thickness: Length | None = None
     start_angle: Angle | None = None

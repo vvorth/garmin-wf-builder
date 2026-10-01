@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 from typing import Any, TYPE_CHECKING
 
-from .. import complications, expr, vocab
+from .. import catalog, complications, expr, vocab
 from ..catalog import Type
 from ..ir.model import HOLD_AUTO, Element, Expression, Progress
 from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
@@ -99,6 +99,38 @@ _NOT_BESIDE_SLOT = {
     "bands": "'bands:' are fractions of one fixed scale; zones from the picked "
              "metric's own bands are not implemented yet",
 }
+
+
+def _auto_scale_type(b: Builder, node: dict[str, Any], element_id: str,
+                     value: Expression | None) -> str | None:
+    """The complication type `max: auto` scales by: `value:` must be a bare
+    `complication.<type>`, and that type must have a scale.  None, with the
+    reason reported, otherwise."""
+    if value is None:
+        return None  # the value's own error is already reported
+    ref = value.ast
+    if not isinstance(ref, expr.Ref) or not ref.path.startswith("complication."):
+        b.bag.error(
+            "element",
+            f"{element_id}: 'max: auto' needs 'value:' to be a bare 'complication.<type>', "
+            f"got {value.shown}",
+            b.doc.span(node, "max"),
+            notes=["the scale is that complication type's own; write 'max:' as a number or "
+                   "an expression for anything else",
+                   'docs/guide/progress-and-graphs.md, "Gauges on a slot"'],
+        )
+        return None
+    name = ref.path[len("complication."):]
+    if name not in complications.SCALE:
+        b.bag.error(
+            "element",
+            f"{element_id}: 'max: auto' -- {ref.path} has no scale of its own",
+            b.doc.span(node, "max"),
+            notes=["types with one: " + ", ".join(sorted(complications.SCALE)),
+                   "write 'max:' as a number or an expression for this one"],
+        )
+        return None
+    return name
 
 
 def _check_slot_keys(b: Builder, node: dict[str, Any], element_id: str) -> bool:
@@ -520,6 +552,34 @@ def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             ])
 
 
+def _emit_bound(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: str,
+                value_guards: list[str] | None, color_code: str, track_color_code: str | None,
+                aod: AodStyle, ring: RingPass | None) -> None:
+    """A gauge bound to a value: `absent:`'s policy over ``fraction_expr``,
+    then each style's drawing."""
+    element = placed.element
+    present = _present(value_guards) if keeps_track(element) else None
+    if element.when_absent == "fallback" and value_guards:
+        # The fill fraction falls back, not the raw value/max -- 'fallback:'
+        # supplies a number in the same 0.0-1.0 range _fraction() computes, so
+        # it slots into exactly the same drawProgress/fillRectangle call the
+        # real reading would have used.  (This is why a `progress` fallback
+        # means something different from a `text` one, which supplies the
+        # *value* and is then formatted; for progress either half of the pair
+        # can be the absent reading, so the outcome is the only well-defined
+        # thing to substitute.  `_check_fallback_fraction` checks it is
+        # in range and `draw_preview` renders the same substitution.)
+        w.comment("when_absent: fallback")
+        available = " && ".join(f"{name} != null" for name in value_guards)
+        w.line(f"var fraction = {_fallback_fraction(element)};")
+        with w.block(f"if ({available})"):
+            w.line(f"fraction = {fraction_expr};")
+        w.blank()
+        fraction_expr = "fraction"
+    _emit_styles(w, placed, prefix, fraction_expr, present, color_code,
+                 track_color_code, aod, ring)
+
+
 def _slot_preview_fraction(renderer: Renderer, element: Progress) -> tuple[bool, float | None]:
     """A slot gauge in the preview, at its slot's `default:` pick: whether it
     draws at all (a pick with no scale hides it whole, as on the watch), and
@@ -682,8 +742,10 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             slot = resolve_slot_reference(b, str(node["slot"]), b.doc.span(node, "slot"))
             if slot is None or not _check_slot_keys(b, node, common["id"]):
                 return None
+        auto = (slot is None and isinstance(node.get("max"), str)
+                and node["max"].strip() == "auto")
         value = b.expression(node, "value") if slot is None else None
-        maximum = b.expression(node, "max") if slot is None else None
+        maximum = b.expression(node, "max") if slot is None and not auto else None
         align, vertical_align = b.alignment(node)
         element = Progress(
             **common,
@@ -691,6 +753,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             value=value,
             maximum=maximum,
             slot=slot.name if slot is not None else None,
+            auto_scale=_auto_scale_type(b, node, common["id"], value) if auto else None,
             radius=b.length(node, "radius"),
             thickness=b.length(node, "thickness"),
             start_angle=b.angle(node, "start_angle"),
@@ -710,6 +773,8 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     f"gauge {name} must be a number, got {bound.value}",
                     b.doc.span(node, name),
                 )
+        if auto and element.auto_scale is None:
+            return None
         if slot is not None:
             # The wearer's pick can always be absent: no reading yet, or a
             # type this watch does not have.
@@ -815,6 +880,16 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             shown, measured = _slot_preview_fraction(renderer, element)
             if not shown:
                 return
+        elif element.auto_scale is not None:
+            assert element.value is not None and element.value.ast is not None
+            value = expr.evaluate(element.value.ast, renderer.values)
+            scale = complications.scale_for(
+                element.auto_scale, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
+                sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=value)
+            if scale is None:
+                return  # no scale hides the whole gauge, as on the watch
+            measured = (None if value is None
+                        else complications.scale_fraction(value, None, scale))
         else:
             assert element.value is not None and element.maximum is not None  # both required
             value = (expr.evaluate(element.value.ast, renderer.values)
@@ -904,27 +979,20 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                              plan.device_guards.complications, color_code, track_color_code,
                              aod, ring)
             return
-        fraction_expr = _fraction(element)
-        present = _present(value_guards) if keeps_track(element) else None
-        if element.when_absent == "fallback" and value_guards:
-            # The fill fraction falls back, not the raw value/max -- 'fallback:'
-            # supplies a number in the same 0.0-1.0 range _fraction() computes, so
-            # it slots into exactly the same drawProgress/fillRectangle call the
-            # real reading would have used.  (This is why a `progress` fallback
-            # means something different from a `text` one, which supplies the
-            # *value* and is then formatted; for progress either half of the pair
-            # can be the absent reading, so the outcome is the only well-defined
-            # thing to substitute.  `_check_fallback_fraction` checks it is
-            # in range and `draw_preview` renders the same substitution.)
-            w.comment("when_absent: fallback")
-            available = " && ".join(f"{name} != null" for name in value_guards)
-            w.line(f"var fraction = {_fallback_fraction(element)};")
-            with w.block(f"if ({available})"):
-                w.line(f"fraction = {fraction_expr};")
-            w.blank()
-            fraction_expr = "fraction"
-        _emit_styles(w, placed, prefix, fraction_expr, present, color_code,
-                     track_color_code, aod, ring)
+        if element.auto_scale is not None:
+            assert element.value is not None and isinstance(element.value.ast, expr.Ref)
+            reader = catalog.READERS[catalog.CATALOG[element.value.ast.path].reader].name
+            constant = complications.TYPES[element.auto_scale].constant
+            w.comment(f"max: auto -- {element.value.ast.path}'s own scale")
+            w.line(f"var scale = ({reader} != null) "
+                   f"? {SLOT_SCALE_MODULE}.scale(Complications.{constant}, {reader}) : null;")
+            w.comment("no scale (an unset goal, no profile, ...) hides the whole gauge")
+            with w.block("if (scale != null)"):
+                _emit_bound(w, placed, prefix, f"WfbScale.share({element.value.code}, scale)",
+                            value_guards, color_code, track_color_code, aod, ring)
+            return
+        _emit_bound(w, placed, prefix, _fraction(element), value_guards, color_code,
+                    track_color_code, aod, ring)
 
     def draws_while_absent(self, element: Progress) -> bool:
         return keeps_track(element)

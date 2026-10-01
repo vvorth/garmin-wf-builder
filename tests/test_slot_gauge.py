@@ -308,7 +308,7 @@ def test_the_watch_fraction_matches_the_twin():
     from pathlib import Path
     lib = Path(__file__).parent.parent / "runtime-lib"
     source = (lib / "WfbScale.mc").read_text()
-    assert "var share = (reading - low) / (scale[1].toFloat() - low);" in source
+    assert "var full = (reading.toFloat() - low) / (scale[1].toFloat() - low);" in source
     assert 'unit.equals("K")' in source and "reading = reading * 1000;" in source
     assert "if (value instanceof Lang.Number && value == 0)" in (
         lib / "WfbProfileScale.mc").read_text()
@@ -344,6 +344,115 @@ def test_a_slot_gauge_without_profile_scales_compiles(tmp_path, bag, db, toolcha
     design.write_text(_design(ARC).replace(
         "choices: [date, current_weather, steps, heart_rate, battery, body_battery]",
         "choices: [date, steps, battery]"), encoding="utf-8")
+    result = real_build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert len(result.products) == 3
+    complaints = [d for d in bag.items if d.severity.value == "error"
+                  or (d.severity.value == "warning" and d.code == "monkeyc")]
+    assert not complaints, bag.render()
+
+
+# -- max: auto on a fixed complication -----------------------------------------
+
+AUTO_HEAD = """format: 2
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f61
+  name: Test
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    bg: "#000000"
+    fill: "#FFAA00"
+    track: "#555555"
+elements:
+"""
+
+AUTO = """  gauge:
+    type: gauge
+    style: arc
+    value: {value}
+    max: auto
+    at: {anchor: center}
+    radius: 80%r
+    thickness: 8%r
+    start_angle: 0deg
+    sweep: 360deg
+    color: color.fill
+    track_color: color.track
+    absent: hide
+"""
+
+
+def _auto(value: str) -> str:
+    return AUTO_HEAD + AUTO.replace("{value}", value)
+
+
+def test_max_auto_builds_on_a_scaled_complication(write_design):
+    assert load_errors(_auto("complication.steps"), write_design) == []
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("complication.steps / 2", "'max: auto' needs 'value:' to be a bare 'complication.<type>'"),
+    ("activity.steps", "'max: auto' needs 'value:' to be a bare 'complication.<type>'"),
+    ("complication.calories", "'max: auto' -- complication.calories has no scale of its own"),
+])
+def test_max_auto_is_refused_where_there_is_no_scale_to_take(value, expected, write_design):
+    messages = _messages(_auto(value), write_design)
+    assert any(expected in m for m in messages), messages
+
+
+def test_max_auto_wraps_the_gauge_in_the_types_own_scale(write_design, db):
+    method = _method(_auto("complication.steps"), write_design, db)
+    assert ("var scale = (stepsComplication != null) "
+            "? SlotScale.scale(Complications.COMPLICATION_TYPE_STEPS, stepsComplication) : null;"
+            in method)
+    assert method.index("if (scale != null)") < method.index("Palette.TRACK")
+    assert "WfbScale.share(complicationSteps, scale)" in method
+    assert "return;" not in method
+
+
+@pytest.mark.parametrize("value, profile", [
+    ("complication.heart_rate", True), ("complication.vo2max_run", True),
+    ("complication.steps", False), ("complication.body_battery", False),
+])
+def test_max_auto_derives_user_profile_only_for_a_profile_scale(value, profile, write_design, db):
+    text = _auto(value)
+    face = _face(text, write_design, Bag())
+    assert ("UserProfile" in permissions(face)) is profile
+    devices = [db.get(DEVICE)]
+    project = generate(face, devices, write_design(text).parent / "out",
+                       {d.id: bake_fonts(face, d) for d in devices})
+    assert ("WfbProfileScale.mc" in project.barrel) is profile
+
+
+def test_max_auto_hides_whole_without_a_scale_in_the_preview(write_design, db):
+    """A VO2 max of 0 (none recorded) has no scale: no track either -- the
+    contrast with a recorded one, which draws both."""
+    def colors(vo2max):
+        face = _face(_auto("complication.vo2max_run"), write_design, Bag())
+        device = db.get(DEVICE)
+        image = render(resolve(face, device, bake_fonts(face, device)),
+                       PreviewOptions(scale=1, mask_shape=False, quantise=False,
+                                      sample={"complication.vo2max_run": vo2max}))
+        return {color for _, color in image.convert("RGB").getcolors(1 << 20)}
+    recorded = colors(49)
+    assert FILL in recorded and TRACK in recorded
+    none = colors(0)
+    assert FILL not in none and TRACK not in none
+
+
+@pytest.mark.slow
+def test_max_auto_compiles_warning_free(tmp_path, bag, db, toolchain):
+    """A goal scale, the heart-rate zones with a fallback fill, and a fixed
+    0-100, through `-l 3` on all three targets."""
+    design = tmp_path / "auto.yaml"
+    design.write_text(
+        _auto("complication.steps")
+        + AUTO.replace("  gauge:", "  hr:").replace("{value}", "complication.heart_rate")
+              .replace("absent: hide", "absent: {value: 0.0}")
+        + AUTO.replace("  gauge:", "  bb:").replace("{value}", "complication.body_battery"),
+        encoding="utf-8")
     result = real_build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()
     assert len(result.products) == 3

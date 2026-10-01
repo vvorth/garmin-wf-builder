@@ -106,9 +106,15 @@ def slot_gauges(face: Face) -> list[Progress]:
             if isinstance(e, Progress) and e.slot is not None and e.slot in face.config_data]
 
 
+def auto_scale_gauges(face: Face) -> list[Progress]:
+    """Every gauge with `max: auto` on a bare `complication.<type>`."""
+    return [e for e in face.walk() if isinstance(e, Progress) and e.auto_scale is not None]
+
+
 def slot_scale_types(face: Face) -> tuple[list[str], bool]:
-    """The complication types a slot gauge can show, and whether any can show
-    a Connect IQ app's complication (`choices: any`)."""
+    """The complication types a gauge scales by -- every type a slot gauge
+    can show, and each `max: auto` gauge's -- and whether any can show a
+    Connect IQ app's complication (`choices: any`)."""
     names: set[str] = set()
     apps = False
     for gauge in slot_gauges(face):
@@ -116,6 +122,9 @@ def slot_scale_types(face: Face) -> tuple[list[str], bool]:
         slot = face.config_data[gauge.slot]
         names |= set(complications.TYPES) if slot.allow_any else set(slot.choices)
         apps = apps or slot.allow_any
+    for gauge in auto_scale_gauges(face):
+        assert gauge.auto_scale is not None
+        names.add(gauge.auto_scale)
     return sorted(names), apps
 
 

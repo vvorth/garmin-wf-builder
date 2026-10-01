@@ -631,7 +631,9 @@ still true of the shipped feature:
   edges for Body Battery, stress and sleep score are recorded in the table
   and drawn by nothing yet (§2). **Measured** (`--build-stats`,
   fenix8solar47mm): one arc gauge on `examples/features/slots/`' `top`
-  slot (steps, heart rate, calories) is 16,631 B → 18,104 B. The
+  slot (steps, heart rate, calories) is 16,631 B → 18,104 B.
+  `max: auto` on a bare `value: complication.<type>` uses the same
+  table, with the type known at build time. The
   heart-rate and VO2 max reads live in their own barrel module
   (`WfbProfileScale`): `monkeyc` refuses any `Toybox.UserProfile`
   reference without the `UserProfile` permission, so a face whose slot

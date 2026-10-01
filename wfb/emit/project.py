@@ -160,7 +160,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         project.sources.append(monkeyc.emit_slot_drawable(face))
     if monkeyc.complication_slots(face):
         project.sources.append(monkeyc.emit_slot_text(face))
-    if slot_scale.slot_gauges(face):
+    if slot_scale.slot_gauges(face) or slot_scale.auto_scale_gauges(face):
         names, apps = slot_scale.slot_scale_types(face)
         project.sources.append(slot_scale.emit_slot_scale(face, names, apps))
     if monkeyc.needs_delegate(face):

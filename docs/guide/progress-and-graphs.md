@@ -17,7 +17,7 @@ the same placement rule as every other element with a box.
 |---|---|---|---|
 | `style` | `arc`\|`bar`\|`needle`\|`segments`\|`scale` | required | ring, bar, [gauge needle](#gauge-needles), or [segments or a scale](#segments-and-scales) |
 | `value` | expression | required, unless `slot` | the fill amount |
-| `max` | expression | required with `value` | the full-scale amount |
+| `max` | expression \| `auto` | required with `value` | the full-scale amount; `auto` on a bare `complication.<type>` takes that type's own scale ([below](#max-auto-on-a-fixed-complication)) |
 | `slot` | a `config: slots:` name | — | instead of `value`/`max`: the wearer's pick against its own scale ([below](#gauges-on-a-slot)) |
 | `radius` | length | required (`arc`; `segments`/`scale` on an arc) | ring radius |
 | `thickness` | length | required (`arc`; `segments`/`scale` on an arc) | pen width |
@@ -299,6 +299,27 @@ highlight animates over both ([Configuration](configuration.md#configuration)).
 
 The preview draws the slot's `default:` pick with a sample reading, for
 a sample wearer (male, 35, zones 95–190 bpm) and the sample goals.
+
+#### `max: auto` on a fixed complication
+
+The same scales serve a gauge bound to one complication with `max: auto`:
+
+```yaml
+hr_zones:
+  type: gauge
+  style: segments
+  value: complication.heart_rate
+  max: auto                 # the wearer's zone 1 minimum to zone 5 maximum
+  count: 5
+  ...
+```
+
+`value:` must be a bare `complication.<type>` whose type has a scale (the
+table above); anything else, an expression or a type with no scale, is a
+build error saying so. On the watch, a scale that is missing at runtime (an
+unset goal, a VO2 max of 0, a profile without a birth year or sex) hides
+the whole gauge, as on a slot, and a reading missing for now follows
+`absent:`. Heart rate and VO2 max add the `UserProfile` permission here too.
 
 ### `graph`
 
