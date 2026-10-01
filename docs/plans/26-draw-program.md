@@ -1,0 +1,336 @@
+# 26 — The single draw program
+
+**Status: proposed (2026-10-01). Building it was decided by the user on
+2026-10-01 (research 27 §8, E1–E4). The decisions in §1 are open; Q1 (§7)
+waits on a simulator capture.** Delete this file once every slice has
+shipped (`docs/CLAUDE.md`).
+
+Research:
+- `docs/research/27-draw-program.md`: the case, the three backends, layers
+  and sequencing;
+- `docs/research/28-editor-open-questions.md`: the `text` spike, and what
+  was closed.
+
+In short:
+
+* Every element kind draws twice today: `emit_draw` writes Monkey C,
+  `draw_preview` paints Pillow. The two are kept in step by hand. Two
+  disagreements are measured (research 27 §2.5):
+  - a filled circle's or rectangle's grown `outline:` ring, which the
+    preview stamps;
+  - every half-degree arc start, which the preview rounds 1° off
+    `WfbArc.drawSpan`.
+* A kind will instead **lower** each placed element, once, into a small
+  program of drawing steps over `Layout` constants, readings and palette
+  references. Three backends consume it:
+  1. a **printer** that writes the `draw<Id>` body;
+  2. an **evaluator** that paints it in Pillow (the preview, the
+     burn-in lint, per-element layers);
+  3. a **partial evaluator** that folds readings to their sample values
+     and leaves `Layout` constants symbolic, producing a JSON op list per
+     layer for the editor's browser canvas.
+* Spikes did this for `shape` and `text`, the two kinds that cover 266 of
+  the 395 example elements. The printer was byte-identical to today's
+  `emit_draw` on 163/163 and 102/102 elements. The evaluator matched
+  today's preview on every element except the grown rings.
+* **The oracle is `tools/snapshot.py`.** Each port is proven by it:
+  - generated code byte-identical;
+  - preview pixels identical, except where a slice names the preview fix
+    it makes.
+
+  Nothing is reverted first (research 27 E1).
+
+What this plan does **not** do: the editor itself (its own plan, which
+starts after slice 3, research 27 E4); any format change; any change to
+what the watch draws, except possibly Q1's ring.
+
+## 1. Decisions
+
+### Decided
+
+- **E1–E4 (research 27 §8, 2026-10-01):**
+  - revert no feature;
+  - a geometry-only first GUI;
+  - A7 with three backends;
+  - order S3: core, `shape` and `text`, then the GUI viewer, then the
+    remaining kinds while the GUI grows.
+- **D1–D3 (ADR 0002 amendment, 2026-10-01):** a local web app on
+  Starlette and uvicorn, with no front-end build step. They bind this plan
+  only through the JSON form in slice 3.
+
+### Open
+
+- **P1: where the program lives.**
+  - **A (recommended):** a new package `wfb/draw/` holds the op and value
+    types, the printer, the evaluator, the partial evaluator and the
+    primitive twins. A kind's module gains one hook, `lower()`, and loses
+    `emit_draw`/`draw_preview` when it is ported.
+  - **B:** ops live in `wfb/emit/`, the evaluator in `wfb/preview.py`.
+
+  A keeps "what a kind draws" in one place and the backends free of kind
+  knowledge. That is the point of the plan.
+- **P2: byte-identical forever, or only while porting?**
+  - **A (recommended):** while a kind is being ported, its printed code
+    must equal today's byte for byte; the snapshot is the proof. Once the
+    port is done, the generated code may change deliberately, in its own
+    commit with its own `--build-stats` figure, like any other emitter
+    change.
+  - **B:** the program must always reproduce the pre-port emitter.
+
+  B freezes the hand-tuned emitter forever for no benefit once the old
+  code is gone.
+- **P3: the frame, too, or only element bodies?** The preview duplicates
+  frame-level rules as well as element bodies:
+  - which elements draw in the awake, sleep and AOD frames;
+  - the layout switch;
+  - the awake-only second hand;
+  - the `visible:` and absent guards in each `draw<Id>`'s wrapper
+    (`view._emit_element_method`).
+
+  The options:
+  - **A (recommended):** single-source frame membership as one shared
+    function, and move the per-element wrapper's guards into the
+    program. The view's frame skeleton stays hand-written in `view.py`:
+    `onUpdate`, the static buffer, `onPartialUpdate`, the sleep hooks.
+    Those are app structure, not drawing, and the preview has no twin of
+    them.
+  - **B:** program the whole frame skeleton too. That is a large rewrite
+    of `view.py` for code with no second implementation.
+- **P4: where the browser's JSON form is specified.**
+  - **A (recommended):** this plan builds and tests the partial evaluator
+    and its JSON form, with a Python reference rasteriser of the JSON that
+    must equal the evaluator's layer pixel for pixel. The GUI plan builds
+    the JavaScript rasteriser against that contract.
+  - **B:** both go in the GUI plan.
+
+  A puts the contract next to the code that defines it.
+
+## 2. The program
+
+The spikes fix its shape. Each part is named here so slices can refer to
+it.
+
+**Values.** A value is one of:
+- a `Layout` constant, as a name plus this device's value;
+- a literal;
+- either of those shifted by a build-time integer (a stamp offset), or
+  grown (`plus`);
+- a colour `Expression`;
+- a string value:
+  - a literal;
+  - a formatted reading (`formatting.emit` / `formatting.render`, already
+    one source);
+  - a concatenation;
+  - a local;
+- a reading local, i.e. an `Expression` already compiled and evaluated
+  from one AST by `wfb/expr.py`.
+
+**Ops.** The ops are:
+- `SetColor`, `SetPen`;
+- the `Dc` primitives in use: 24 distinct across the examples (research
+  27 §2.3);
+- the barrel's drawing calls (`WfbArc.drawSpan`, `WfbGeom.fillRotated`,
+  …), one op each;
+- `LoadFont`, with its null behaviour;
+- `drawText`, `drawAngledText`, `drawRadialText`;
+- `Let` (a local);
+- `If` on a value (null guards, `_aod`), with `else`;
+- `For` over a range (segments, ticks);
+- `Comment` and `Blank`, which only the printer sees.
+
+**Annotations.** Each element's program carries:
+- its id, and so its author `span` (research 28 §1);
+- whether it is a ring pass (`RingPass`).
+
+A group ring is its own program, addressed by the group's id.
+
+**Printer.** It writes through the emitter's own `Writer` (`call`,
+`block`, `blank`), so wrapping and spacing come out the same by
+construction.
+
+**Evaluator.** It emulates `Dc` on today's `Renderer` machinery:
+- glyph sources;
+- `draw_text`, `draw_vector_text`;
+- the `ImageDraw` primitives.
+
+The barrel's arithmetic is transcribed from `runtime-lib/*.mc` (the
+pattern `tests/test_arc_barrel.py` already uses). The evaluator draws
+either onto the frame or onto a transparent layer.
+
+**Partial evaluator.** It folds every reading, colour and string to its
+sample value and keeps `Layout` constants symbolic, with their values. The
+result is a JSON op list per layer: plain numbers, RGB colours, glyph runs
+by sheet and glyph id, and `Layout` names where the editor may change
+them.
+
+## 3. Slices
+
+Each slice ships with:
+- the fast suite green;
+- a real build warning-free on the three verification devices;
+- `tools/snapshot.py compare` against a baseline saved at the slice's
+  start, showing **no output change** except the diffs the slice lists by
+  name.
+
+Every new diagnostic or guard is driven red.
+
+### Slice 0 — the core, and primitive twins with property tests
+
+- `wfb/draw/` (P1): the value and op types, the printer, the evaluator and
+  `lower()` on `ElementKind`. A kind without `lower()` keeps
+  `emit_draw`/`draw_preview`, so the two coexist per kind.
+- **The primitive twins, each with a sweep test against its barrel
+  function's own arithmetic.** These are transcribed from the `.mc` source
+  and fed *the argument the watch is given* (the Garmin start angle, not
+  the author's). That is exactly what `tests/test_arc_barrel.py` did not
+  do, and why it missed the half-degree start. Slice 0 adds `drawSpan`,
+  `drawProgress`, `roundAway` and the rotation helpers
+  (`WfbGeom.rotatedX`/`Y`). Each later slice adds the barrel functions its
+  kind calls.
+- Nothing is ported. Snapshot: no change.
+
+### Slice 1 — `shape`, with AOD and group ring passes
+
+- `ShapeKind.lower()` covers:
+  - every primitive;
+  - filled and stroked;
+  - its own ring, grown or stamped, and polygon ring copies;
+  - `aod:` overrides (the `_aod ? … : …` ternaries and the
+    `if (_aod) … else` filled toggle);
+  - the `RingPass` mode for an outlined group.
+
+  `emit_draw`/`draw_preview` for `shape` are deleted.
+- The preview is now the evaluator for shapes. **Expected diffs, each its
+  own commit after the identical port:**
+  1. the half-degree arc start (preview pixels only; no example face has
+     one, so a new test fixture shows it);
+  2. the grown ring (preview pixels of `features/profile`'s ringed
+     circles, rectangles and rounded rectangles). This follows Q1. If the
+     watch stamps, the emitter changes instead, and this becomes a code
+     diff with its `--build-stats` figure.
+- Tests: the spike's two comparisons become regression tests over every
+  shape element in `examples/` and the AOD and outline fixtures.
+
+### Slice 2 — `text`
+
+- `TextKind.lower()` covers every font route (baked, system, vector,
+  upright, `angled`, `radial`), every value route (literal, formatted,
+  several placeholders, `placeholder`, `fallback`), ring fonts and stamps,
+  `aod:` overrides of `format`, `font` and `outline`, and the ring pass.
+- A `fallback:` fixture is added, since no example has one (research 28
+  §6).
+- Expected diffs: none (research 28 §6: 102/102 both ways).
+
+### Slice 3 — layers, and the editor's JSON form
+
+- `wfb.draw.layers(resolved, options)` returns each drawn element's
+  layer, in draw order, plus one per outlined group's ring. Each layer
+  has:
+  - an id, the author span and a kind;
+  - an RGBA image;
+  - for ported kinds, the partly evaluated JSON op list.
+
+  An unported kind's layer image comes from today's `render_element` on a
+  transparent ground. It has no op list yet, so the editor shifts its
+  image instead.
+- The whole-frame steps run once on the stack, never per layer: clear,
+  quantise, bezel mask, AOD mask, skin.
+- **Frame membership single-sourced (P3 A).** One function,
+  `frame_members(resolved, frame, style)`, answers which elements draw in
+  awake, sleep or AOD, under the layout switch and the awake-only second
+  hand. `view._drawn_in`, `_emit_layout_guarded`, `_emit_aod_body` and
+  `preview.render` all read it.
+- **The contract (P4 A).** A Python reference rasteriser of the JSON
+  form must equal the evaluator's layer image pixel for pixel, for every
+  ported element. Stacking all layers must equal `preview.render`, within
+  the anti-aliased rounding research 27 §5.4 measured. Both are tests.
+- After this slice the GUI plan can start (research 27 S3).
+
+### Slices 4–9 — the remaining kinds
+
+One kind per slice, in this order. Each deletes its `emit_draw` and
+`draw_preview` and is proven by the snapshot:
+
+| Slice | Kind | New ops and twins | Notes |
+|---|---|---|---|
+| 4 | `icon` | glyph from the icon font, `WfbWeather.chooseIcon` (a dynamic icon) | ring by ring font |
+| 5 | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
+| 6 | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
+| 7 | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
+| 8 | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
+| 9 | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |
+
+Each kind's JSON op list joins the editor's layers as it lands.
+
+### Slice 10 — the wrapper and the close-out
+
+- The per-element wrapper's guards move into the program (P3 A):
+  - `visible:`;
+  - absent → hide;
+  - the nullable colour guard;
+  - the anti-alias bracket.
+
+  The view prints a `draw<Id>` whose body is wholly the program.
+- Delete what has no caller left: the `twin of` helpers in `preview.py`
+  (`aod_color`/`aod_field`/`aod_geometry`, `silhouette`/`dilate` if no
+  kind still uses them, `arc_span`), and the parity comments.
+- Docs, in the same commit as the code they describe:
+  - `docs/development.md` "Element kinds" and "Adding an element kind":
+    `lower()` is the drawing hook;
+  - `docs/lore/codegen.md`;
+  - `docs/lore/roadmap.md`: the draw program moves from "decided" to
+    built;
+  - ADR 0004: a dated amendment, "one lowering, rule-free backends" as the
+    anti-drift guarantee;
+  - ADR 0003's barrel note, where it changes;
+  - `docs/limitations.md` for the preview fixes;
+  - the root `CLAUDE.md` §6 pipeline table: a "Draw program" row.
+- Delete this plan, and add its row to `docs/plans/README.md`.
+
+## 4. Tests, beyond each slice's own
+
+- **The snapshot is the gate**, run at every slice. A diff that is not
+  listed fails the slice.
+- **Golden files** (`tests/golden/`) change only where a slice lists an
+  expected code diff.
+- **Primitive property tests** (slice 0 onwards), as above.
+- **Layer stacking** (slice 3 onwards): every example's stacked layers
+  equal `preview.render`, with the measured anti-aliased tolerance and
+  nothing else.
+- **`mypy --strict`** stays clean over `wfb/` (`pytest -m typecheck`).
+
+## 5. What stays the same
+
+- The format, the schema, the guide's description of every key.
+- The IR, layout, lints, `Layout` constants and `ReadPlan`. The program
+  reads them; it does not replace them.
+- `view.py`'s frame skeleton and the app, delegate and settings menu
+  modules (P3 A).
+- Generated code, byte for byte, through slice 10, except where a slice
+  lists a diff (P2 A).
+
+## 6. Risks
+
+- **`pattern` and `complication_slot` are large and unspiked.** Each
+  slice may take more than one commit. The snapshot keeps every
+  intermediate state honest.
+- **A program that can print *more* than today's emitter is no risk
+  while P2 A holds:** the snapshot proves it prints exactly today's.
+- **Preview speed.** The evaluator replaces the preview's silhouette-and-
+  dilate rings, its slowest path (up to 102 ms for one element, research
+  27 §2.1), with the emitter's stamps and ring fonts. It should be faster.
+  It is measured at slice 1 and slice 2 with research 26's latency probe.
+- **Memory on the watch.** Unchanged while code is byte-identical. Any
+  later deliberate change carries its `--build-stats` figure.
+
+## 7. Open question
+
+- **Q1: grown or stamped ring on the watch** (research 28 §7). Run
+  `build/ring-probe/ring-probe/ring-probe-fenix8solar47mm.prg` in the
+  simulator on the host, save a screen capture, and run
+  `docs/research/probes/ring-on-device/compare.py CAPTURE.png`.
+  - If the grown cells match the evaluator, slice 1's preview fix stands.
+  - If they match the stamp, slice 1 changes the emitter to stamp these
+    shapes, with its draw-count and memory figures.
+
+  Needed before slice 1's second expected-diff commit, not before slice 0.
