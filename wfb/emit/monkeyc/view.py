@@ -21,7 +21,7 @@ from ...palette import dim_fraction
 from .. import usage
 from .common import (
     NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, RingPass, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
-    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _method,
+    _aod_only_fonts, _describe, editor_slots, _loaded_fonts, _mc_bool, _method,
     _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
 )
@@ -270,7 +270,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
     rings = Rings(ring_groups(face.elements), aod)
     prof = profile_mod.plan_for(resolved, profile) if profile else None
     antialias_default = _antialias_default(resolved)
-    slot_pairs = _editor_slot_pairs(face)
+    slot_pairs = editor_slots(face)
     # `aod: {font: ...}`: baked fonts only an AOD override
     # names, loaded in onEnterSleep instead of onLayout.
     aod_only_fonts = _aod_only_fonts(resolved) if aod.on else []
@@ -335,7 +335,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
             if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
                 _emit_complication_slot_hold_method(w, placed, guards)
         if slot_pairs:
-            _emit_complication_slot_editor_methods(w, face, slot_pairs)
+            _emit_complication_slot_editor_methods(w, resolved, plan, slot_pairs)
         if static is not None:
             _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config,
                                  from_menu=guards.config_menu, plan=plan, rings=rings)

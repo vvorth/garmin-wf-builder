@@ -293,7 +293,9 @@ Colouring a gauge by the metric's own bands (heart-rate zones, Body
 Battery levels) is not implemented yet. `on_hold: auto` belongs on the
 slot's `type: data` element; on a slot gauge it is not implemented yet.
 Like a `data` element, a slot gauge belongs in the shared `elements:`,
-never inside a `layouts:` body.
+never inside a `layouts:` body. In the native editor, the slot is the gauge
+and its `data` element together: tapping either selects the slot, and the
+highlight animates over both ([Configuration](configuration.md#configuration)).
 
 The preview draws the slot's `default:` pick with a sample reading, for
 a sample wearer (male, 35, zones 95–190 bpm) and the sample goals.

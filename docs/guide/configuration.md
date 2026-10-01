@@ -211,16 +211,20 @@ is the odd one out, an author-named, ordered set of entries, because Styles
 is the one axis with no meaning of its own for this compiler to key on.
 
 **The editor's own animated highlight is built too**, and it is
-automatic: any design with at least one `data` element gets
-`AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
-`setSelectedComplication` (hit-testing each slot's own resolved box), and
-`WatchFaceDelegate.getComplicationDrawable` returning a generated
-`<Face>SlotDrawable` that delegates straight back to the view's own per-slot
-draw method -- so there is exactly one implementation of what a slot looks
-like, drawn either by `onUpdate` or by the editor's own `Drawable`. A design
-with no `data` element gets none of this: `onTap` (unlike
-`onPress`) never fires on a live face, so all of it would be
-dead weight there. On a fenix8solar47mm the highlight animates over the
+automatic: any design with at least one element drawing a slot (a `data`
+element, or a [gauge with `slot:`](progress-and-graphs.md#gauges-on-a-slot))
+gets `AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
+`setSelectedComplication`, and `WatchFaceDelegate.getComplicationDrawable`
+returning a generated `<Face>SlotDrawable` that delegates straight back to
+the view's own draw methods -- so there is exactly one implementation of
+what a slot looks like, drawn either by `onUpdate` or by the editor's own
+`Drawable`. **A slot is every element drawing it, taken together**: a
+gauge's ring and the slot's reading are selected, highlighted and redrawn
+as one, on the union of their boxes. Where two slots' boxes overlap (a ring
+round the face encloses whatever slot sits inside it), a tap selects the
+smallest slot box holding it, so the inner slot stays selectable. A design
+drawing no slot gets none of this: `onTap` (unlike `onPress`) never fires
+on a live face, so all of it would be dead weight there. On a fenix8solar47mm the highlight animates over the
 selected slot and previews each choice as the wearer scrolls; the rest is
 unverified -- see "What this compiler cannot tell you" below.
 

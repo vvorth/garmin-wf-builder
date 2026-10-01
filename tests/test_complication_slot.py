@@ -746,9 +746,12 @@ def test_the_editor_drawable_draws_the_slot_the_face_skips(write_design, bag, db
     body = _method_body(view, "function drawSlot(dc as Dc, unique as Number) as Void")
     cleared = body.index("_pulsing = 0;")
     restored = body.index("_pulsing = pulsing;")
-    for method in ("drawTopReading", "drawBottomReading"):
-        dispatch = next(i for i, line in enumerate(body) if f"{method}(dc);" in line)
+    for slot_method, method in (("drawSlotTop", "drawTopReading"),
+                                ("drawSlotBottom", "drawBottomReading")):
+        dispatch = next(i for i, line in enumerate(body) if f"{slot_method}(dc);" in line)
         assert cleared < dispatch < restored, body
+        slot_body = _method_body(view, f"private function {slot_method}(dc as Dc) as Void")
+        assert f"{method}(dc);" in slot_body, slot_body
 
     for method, slot in (("drawTopReading", "top"), ("drawBottomReading", "bottom")):
         own = [line for line in _method_body(view, f"private function {method}(dc as Dc) as Void")
@@ -798,7 +801,8 @@ def test_the_editor_drawable_gets_the_highlight_box_and_taps_the_estimate(
     """`drawableFor` builds each slot's drawable on its `_HIGHLIGHT` box --
     the full row for these centred slots, wider than the estimate -- while
     `onTap` keeps hit-testing the estimated `_BOX`, so two slots side by side
-    stay separate tap targets."""
+    stay separate tap targets.  Both are the slot's (`CONFIG_DATA_<SLOT>_`),
+    each element drawing it taken together."""
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
@@ -809,15 +813,18 @@ def test_the_editor_drawable_gets_the_highlight_box_and_taps_the_estimate(
     view = monkeyc.emit_view(resolved).text
     body = "\n".join(_method_body(
         view, "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null"))
-    for prefix in ("TOP_READING", "BOTTOM_READING"):
+    for prefix in ("CONFIG_DATA_TOP", "CONFIG_DATA_BOTTOM"):
         assert f"Layout.{prefix}_HIGHLIGHT_X, Layout.{prefix}_HIGHLIGHT_Y," in body
         assert f"Layout.{prefix}_HIGHLIGHT_WIDTH, Layout.{prefix}_HIGHLIGHT_HEIGHT)" in body
     assert "_BOX_" not in body
 
     delegate = monkeyc.emit_delegate(resolved).text
     tap = "\n".join(_method_body(delegate, "function onTap(clickEvent as ClickEvent) as Boolean"))
-    assert "Layout.TOP_READING_BOX_X" in tap
+    assert "Layout.CONFIG_DATA_TOP_BOX_X" in tap
     assert "HIGHLIGHT" not in tap
+
+    layout = monkeyc.emit_layout(resolved).text
+    assert f"const CONFIG_DATA_TOP_HIGHLIGHT_WIDTH as Number = {device.width};" in layout
 
     slots = [p for p in resolved.items if p.id in ("top_reading", "bottom_reading")]
     assert len(slots) == 2

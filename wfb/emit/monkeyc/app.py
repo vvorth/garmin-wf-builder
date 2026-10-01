@@ -5,7 +5,7 @@ from __future__ import annotations
 from ... import icons, kinds
 from ...availability import Guards
 from ...ir import Face
-from .common import SourceFile, _editor_slot_pairs, header, needs_delegate
+from .common import SourceFile, editor_slots, header, needs_delegate
 from ..writer import Writer
 
 
@@ -13,7 +13,7 @@ def emit_app(face: Face, guards: "Guards | None" = None) -> SourceFile:
     """`source/<Face>App.mc` -- the application entry point.
 
     `onStart`/`_editMode` are only emitted when the design has at least one
-    `complication_slot` (`_editor_slot_pairs`): detecting edit mode is
+    element drawing a slot (`editor_slots`): detecting edit mode is
     otherwise pointless, since nothing else reads it.  Exactly the SDK
     sample's own `ConfigurationWatchFaceApp.onStart`, reading
     `state[:launchedFromWatchFaceSettingsEditor]` -- **not** a level compare
@@ -26,7 +26,7 @@ def emit_app(face: Face, guards: "Guards | None" = None) -> SourceFile:
     """
     needs_it = needs_delegate(face)
     menu = guards is not None and guards.config_menu
-    has_slots = bool(_editor_slot_pairs(face))
+    has_slots = bool(editor_slots(face))
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()

@@ -7,7 +7,7 @@ from ...availability import Guards
 from ...ir import ComplicationSlot, complication_slot_hold_method
 from ...layout import ResolvedFace
 from .common import (
-    CONFIG_LAYOUT_METHOD, SourceFile, _NO_GUARDS, _editor_slot_pairs, const_prefix,
+    CONFIG_LAYOUT_METHOD, EditorSlot, SourceFile, _NO_GUARDS, const_prefix, editor_slots,
     header, hold_targets,
 )
 from ..writer import Writer
@@ -120,7 +120,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     guards = guards if guards is not None else _NO_GUARDS
     targets = hold_targets(face)
     has_config = face.has_config
-    slot_pairs = _editor_slot_pairs(face)
+    slot_pairs = editor_slots(face)
     w = Writer()
     w.doc(header(face)).blank()
     imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
@@ -235,33 +235,48 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
 
 
-def _emit_on_tap(w: Writer, pairs: list[tuple[ComplicationSlot, int]]) -> None:
+def _emit_on_tap(w: Writer, slots: list[EditorSlot]) -> None:
     """`onTap` -- fires only inside the on-device config editor (research 07
-    §1), and only ever emitted when the design has at least one
-    `complication_slot` to tell the editor about.  Hit-tests each slot's own
-    resolved box (`_BOX_*`, the same estimate the editor's Drawable is given
-    in `getComplicationDrawable`) and reports it with `setSelectedComplication`,
-    a `WatchFaceDelegate` method every design inherits -- no import needed.
+    §1), and only ever emitted when the design draws at least one slot.
+    Hit-tests each slot's own box (`CONFIG_DATA_<SLOT>_BOX_*`: the union of
+    every element drawing it, a gauge's ring and the reading alike) and
+    reports it with `setSelectedComplication`, a `WatchFaceDelegate` method
+    every design inherits -- no import needed.
+
+    Where boxes overlap, the smallest box holding the touch wins: a ring
+    round the face encloses whatever slot sits inside it, and testing in
+    document order would leave the inner one impossible to select.  Box
+    sizes differ per device while this file is shared, so the comparison
+    runs on the watch rather than as a build-time ordering.
     """
     w.doc(
         "Only fires inside the on-device config editor (research 07 1a) -- tells\n"
-        "it which complication_slot was pointed at, exactly the SDK sample's own\n"
-        "ConfigurationWatchFaceDelegate.onTap.  Never fires while the face is\n"
-        "simply being looked at, on any device."
+        "it which slot was pointed at, exactly the SDK sample's own\n"
+        "ConfigurationWatchFaceDelegate.onTap: the smallest slot box holding the\n"
+        "touch, so a slot inside a ring stays selectable.  Never fires while the\n"
+        "face is simply being looked at, on any device."
     )
     with w.block("function onTap(clickEvent as ClickEvent) as Boolean"):
         w.line("var where = clickEvent.getCoordinates();")
         w.line("var x = where[0];")
         w.line("var y = where[1];")
-        for element, unique in pairs:
-            prefix = const_prefix(element.id)
+        w.line("var chosen = 0;")
+        w.line("var chosenArea = 0;")
+        for slot in slots:
+            box = f"Layout.{slot.const_prefix}_BOX"
             w.blank()
-            w.comment(f"`{element.id}` (config.data.{element.slot})")
-            with w.block(_hit_test(f"{prefix}_BOX")):
-                w.line(f"setSelectedComplication({unique});")
-                w.line("return true;")
+            ids = ", ".join(f"`{element.id}`" for element in slot.elements)
+            w.comment(f"config.data.{slot.name}: {ids}")
+            with w.block(_hit_test(f"{slot.const_prefix}_BOX")):
+                w.line(f"var area = {box}_WIDTH * {box}_HEIGHT;")
+                with w.block("if (chosen == 0 || area < chosenArea)"):
+                    w.line(f"chosen = {slot.unique};")
+                    w.line("chosenArea = area;")
         w.blank()
-        w.line("return false;")
+        with w.block("if (chosen == 0)"):
+            w.line("return false;")
+        w.line("setSelectedComplication(chosen);")
+        w.line("return true;")
     w.blank()
 
 

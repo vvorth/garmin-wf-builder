@@ -640,18 +640,8 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
              "the icon+reading pair is centred here at runtime"),
             (f"{prefix}_CY", placed.anchor_point[1], ""),
         ]
-        # The editor needs two boxes at build time -- `getComplicationDrawable`
-        # hands the system a `Drawable` up front, before anything is pulled.
-        # `onTap` hit-tests the same estimated `box` the safe-area/overlap
-        # lints accept, so side-by-side slots stay separate targets; the
-        # drawable gets `highlight`, wide enough for whatever the pick draws,
-        # because the editor clips it to that box. Emitted for every slot
-        # regardless of `on_hold:`: the editor can animate any slot.
-        out.extend(layout_constants_mod.box_constants(
-            f"{prefix}_BOX", placed.box, "the editor's tap target (estimated)"))
-        out.extend(layout_constants_mod.box_constants(
-            f"{prefix}_HIGHLIGHT", placed.highlight or placed.box,
-            "the editor clips the slot's drawable to this box"))
+        # The editor's tap target and highlight are the whole slot's, every
+        # element drawing it together (`layout_constants.slot_box_constants`).
         if placed.element.icon_gap is not None:
             # Only when the author wrote 'icon_gap:' -- otherwise the view keeps
             # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'

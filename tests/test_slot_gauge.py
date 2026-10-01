@@ -246,6 +246,22 @@ def test_no_slot_gauge_no_slot_scale(write_design, db):
     assert "source/SlotScale.mc" not in _files(text, write_design, db)
 
 
+def test_a_face_that_never_scales_by_the_profile_ships_none_of_it(write_design, db):
+    """`monkeyc` refuses any `Toybox.UserProfile` reference without the
+    permission, so the profile reads live in their own module, and a slot
+    that cannot show heart rate or VO2 max must not ship it."""
+    text = _design(ARC).replace(
+        "choices: [date, current_weather, steps, heart_rate, battery, body_battery]",
+        "choices: [date, steps, battery]")
+    face = _face(text, write_design, Bag())
+    devices = [db.get(DEVICE)]
+    project = generate(face, devices, write_design(text).parent / "out",
+                       {d.id: bake_fonts(face, d) for d in devices})
+    assert "WfbScale.mc" in project.barrel
+    assert "WfbProfileScale.mc" not in project.barrel
+    assert "UserProfile" not in project.files()["manifest.xml"]
+
+
 @pytest.mark.parametrize("choices, profile", [
     ("[date, steps, heart_rate]", True),
     ("[steps, vo2max_run]", True),
@@ -290,10 +306,12 @@ def test_the_watch_fraction_matches_the_twin():
     """`scale_fraction` models `WfbScale.fraction`; keep the two in step by
     reading the helper's own source."""
     from pathlib import Path
-    source = (Path(__file__).parent.parent / "runtime-lib" / "WfbScale.mc").read_text()
+    lib = Path(__file__).parent.parent / "runtime-lib"
+    source = (lib / "WfbScale.mc").read_text()
     assert "var share = (reading - low) / (scale[1].toFloat() - low);" in source
     assert 'unit.equals("K")' in source and "reading = reading * 1000;" in source
-    assert "if (value instanceof Lang.Number && value == 0)" in source
+    assert "if (value instanceof Lang.Number && value == 0)" in (
+        lib / "WfbProfileScale.mc").read_text()
 
 
 # -- a real build --------------------------------------------------------------
@@ -310,6 +328,22 @@ def test_slot_gauges_compile_warning_free(tmp_path, bag, db, toolchain):
         any_slot + ARC + NEEDLE.replace("  gauge:", "  needle:").replace("slot: top", "slot: bottom")
         + SEGMENTS_FALLBACK.replace("  gauge:", "  bar:"),
         encoding="utf-8")
+    result = real_build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert len(result.products) == 3
+    complaints = [d for d in bag.items if d.severity.value == "error"
+                  or (d.severity.value == "warning" and d.code == "monkeyc")]
+    assert not complaints, bag.render()
+
+
+@pytest.mark.slow
+def test_a_slot_gauge_without_profile_scales_compiles(tmp_path, bag, db, toolchain):
+    """No heart rate or VO2 max among the choices: no UserProfile permission,
+    and nothing that needs it shipped (monkeyc refused this once)."""
+    design = tmp_path / "plain.yaml"
+    design.write_text(_design(ARC).replace(
+        "choices: [date, current_weather, steps, heart_rate, battery, body_battery]",
+        "choices: [date, steps, battery]"), encoding="utf-8")
     result = real_build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()
     assert len(result.products) == 3

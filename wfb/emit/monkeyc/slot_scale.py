@@ -20,7 +20,7 @@ def _number(value: float) -> str:
 
 
 def _vo2max_ends() -> list[float]:
-    """`WfbScale.vo2max`'s table: the female rows then the male rows, ages
+    """`WfbProfileScale.vo2max`'s table: the female rows then the male rows, ages
     20-29 to 70-79, each a minimum then a maximum."""
     ends: list[float] = []
     for sex in ("female", "male"):
@@ -53,7 +53,7 @@ def slot_scale_text(names: Iterable[str], apps: bool, header_text: str) -> str:
     )
     with w.block(f"module {SLOT_SCALE_MODULE}"):
         if "vo2max" in by_kind:
-            w.doc("WfbScale.vo2max's table, from wfb.complications.VO2MAX_RATINGS.")
+            w.doc("WfbProfileScale.vo2max's table, from wfb.complications.VO2MAX_RATINGS.")
             figures = ", ".join(repr(value) for value in _vo2max_ends())
             w.line(f"const VO2MAX_ENDS = [{figures}] as Array<Float>;")
             w.blank()
@@ -82,11 +82,11 @@ def slot_scale_text(names: Iterable[str], apps: bool, header_text: str) -> str:
                     w.line(f"    return WfbScale.upTo((info has :{field}) ? info.{field} : null);")
                 for name in by_kind.get("heart_rate_zones", []):
                     w.line(case(name))
-                    w.line("    return WfbScale.heartRate();")
+                    w.line("    return WfbProfileScale.heartRate();")
                 for name in by_kind.get("vo2max", []):
                     w.line(case(name))
                 if "vo2max" in by_kind:
-                    w.line("    return WfbScale.vo2max(VO2MAX_ENDS, c);")
+                    w.line("    return WfbProfileScale.vo2max(VO2MAX_ENDS, c);")
                 if apps:
                     w.line("case Complications.COMPLICATION_TYPE_INVALID:")
                     w.line("    return WfbScale.ranges(c);")

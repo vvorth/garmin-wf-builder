@@ -631,7 +631,23 @@ still true of the shipped feature:
   edges for Body Battery, stress and sleep score are recorded in the table
   and drawn by nothing yet (§2). **Measured** (`--build-stats`,
   fenix8solar47mm): one arc gauge on `examples/features/slots/`' `top`
-  slot (steps, heart rate, calories) is 16,631 B → 18,104 B.
+  slot (steps, heart rate, calories) is 16,631 B → 18,104 B. The
+  heart-rate and VO2 max reads live in their own barrel module
+  (`WfbProfileScale`): `monkeyc` refuses any `Toybox.UserProfile`
+  reference without the `UserProfile` permission, so a face whose slot
+  gauges cannot show either ships none of it and declares no permission.
+* **The native editor treats a slot as every element drawing it.** Its
+  tap target and highlight are the union of their boxes
+  (`CONFIG_DATA_<SLOT>_BOX`/`_HIGHLIGHT` in `Layout`), and where two
+  slots' boxes overlap a tap selects the smallest box holding it -- a
+  ring round the face would otherwise make any slot inside it
+  unselectable. The union is a rectangle: a tap in a ring's empty middle,
+  outside every smaller slot, still selects the ring's slot. Seen on a
+  watch for a single `data` element per slot only; a slot drawn by a
+  gauge and a reading, and the overlap rule, are UNVERIFIED on a watch.
+  **Measured** (`--build-stats`, fenix8solar47mm):
+  `examples/features/slots/` 16,631 B → 16,733 B for the per-slot draw
+  methods and the overlap rule.
 * **`choices: any` + `icon: {size:}` is accepted.** A Connect IQ-app
   complication picked there draws no icon.
 * **monkeyc 9.2.0 crashes on two different string literals with the same
@@ -751,7 +767,6 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | Colouring or segmenting a slot gauge by its picked metric's own bands (heart-rate zones, Body Battery and stress levels, sleep-score and VO2 max ratings) | the band edges are in `wfb.complications.SCALE`; drawing them needs band geometry computed on the watch each frame, where `bands:` today are build-time constants |
 | `on_hold: auto` on a gauge with `slot:` | a friendly build error; the slot's `type: data` element carries it |
-| The native editor's highlight and tap over a slot gauge | only a slot's `type: data` element is wired to the editor today: the editor selects and highlights it alone, and a slot gauge keeps drawing under the editor's animation |
 | A `data` element, or a gauge with `slot:`, inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
 | Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |

@@ -1,5 +1,6 @@
 """A gauge's automatic scale per complication type: `wfb.complications.SCALE`,
-its Python twin, the generated `SlotScale` module and `runtime-lib/WfbScale.mc`.
+its Python twin, the generated `SlotScale` module and `runtime-lib/WfbScale.mc`/
+`WfbProfileScale.mc`.
 
 The figures are checked against the sources the table cites; the VO2 max
 ends against the derived table recorded in research 24 §7.1, typed here
@@ -139,7 +140,7 @@ def test_only_scaled_names_get_a_case():
     assert "COMPLICATION_TYPE_STEPS:" in text
     assert "COMPLICATION_TYPE_DATE" not in text
     assert "COMPLICATION_TYPE_INVALID" not in text
-    assert "VO2MAX_ENDS" not in text and "WfbScale.heartRate" not in text
+    assert "VO2MAX_ENDS" not in text and "WfbProfileScale" not in text
 
 
 def test_a_module_without_goals_reads_no_activity_monitor():
@@ -167,10 +168,10 @@ def _emitted_ends() -> list[float]:
 
 
 def test_the_watch_reads_the_same_vo2max_ends_as_the_twin():
-    """`WfbScale.vo2max` indexes `(first + (age - 20) / 10) * 2`, with `first`
+    """`WfbProfileScale.vo2max` indexes `(first + (age - 20) / 10) * 2`, with `first`
     0 for female rows and 6 for male; that index into the emitted array
     must land on the twin's ends for every age it accepts."""
-    source = (ROOT / "runtime-lib" / "WfbScale.mc").read_text(encoding="utf-8")
+    source = (ROOT / "runtime-lib" / "WfbProfileScale.mc").read_text(encoding="utf-8")
     assert "var i = (first + (age - 20) / 10) * 2;" in source
     assert "first = 0;" in source and "first = 6;" in source
     ends = _emitted_ends()
@@ -256,8 +257,8 @@ def test_slot_scale_compiles_warning_free(tmp_path, toolchain, device):
     (tmp_path / "source" / "ScaleApp.mc").write_text(_APP, encoding="utf-8")
     (tmp_path / "source" / "SlotScale.mc").write_text(
         slot_scale_text(complications.TYPES, True, "test"), encoding="utf-8")
-    (tmp_path / "source" / "WfbScale.mc").write_bytes(
-        (ROOT / "runtime-lib" / "WfbScale.mc").read_bytes())
+    for module in ("WfbScale.mc", "WfbProfileScale.mc"):
+        (tmp_path / "source" / module).write_bytes((ROOT / "runtime-lib" / module).read_bytes())
 
     result = subprocess.run(
         [str(toolchain.monkeyc), "-f", str(tmp_path / "monkey.jungle"), "-d", device,

@@ -1,6 +1,6 @@
 # 25 — Gauges on a slot, scaled by the picked metric
 
-**Status: in progress. Slices 1–3 done (2026-10-01). D1, D2, D4–D8 are
+**Status: in progress. Slices 1–4 done (2026-10-01). D1, D2, D4–D8 are
 decided; D3 (zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
@@ -242,7 +242,27 @@ Built as below, with these settled while building:
   kept), a non-zero minimum on a host twin, and a layouts-body refusal,
   each driven red.
 
-### Slice 4 — the editor sees every element of a slot
+### Slice 4 — the editor sees every element of a slot: done
+
+Built as below, plus three things found while building it:
+- **Overlapping slots.** A ring's union box encloses any slot inside it,
+  and `onTap` tested in document order, so the inner slot could never be
+  selected. `onTap` now selects the smallest slot box holding the touch,
+  compared on the watch (the delegate is shared, box sizes are per
+  device).
+- **A reading whose colour reads data could not be built at all.** Its
+  draw method takes a reader, and `drawSlot` called it with `dc` alone
+  (`monkeyc`: "wrong number of arguments"). Each slot now has a
+  `drawSlot<Name>` that pulls its members' readers first.
+- **Slice 2/3 regression:** `WfbScale.mc` held the heart-rate and VO2 max
+  reads, so any slot gauge shipped `Toybox.UserProfile` references, and a
+  face whose slot could show neither (no permission) failed to build. The
+  two moved to their own barrel module, `WfbProfileScale`.
+
+The per-element `_BOX`/`_HIGHLIGHT` constants became per-slot
+`CONFIG_DATA_<SLOT>_BOX`/`_HIGHLIGHT`. Measured: `examples/features/slots/`
+16,631 B → 16,733 B.
+
 
 Today `_editor_slot_pairs` (`wfb/emit/monkeyc/common.py`) keeps the
 *first* element per slot. So a second element on one slot is never

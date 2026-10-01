@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from ... import kinds
 from ...availability import Guards, vector_font_face
+from ...ir import slot_of
 from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
     PlacedShape, ResolvedFace, ResolvedHandPart,
 )
 from ...units import IntBox
 from .common import (
-    McLiteral, SourceFile, _NO_GUARDS, _describe, _mc_number, _mc_type,
-    _vector_fonts_used, const_prefix, header,
+    EditorSlot, McLiteral, SourceFile, _NO_GUARDS, _describe, _mc_number, _mc_type,
+    _vector_fonts_used, const_prefix, editor_slots, header,
 )
 from ..writer import Writer
 from . import config_menu
@@ -74,6 +75,38 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     return out
 
 
+def slot_box_constants(resolved: ResolvedFace, slot: EditorSlot) -> Constants:
+    """One slot's two editor boxes on this device, as `Layout` constants.
+
+    The editor needs both at build time -- `getComplicationDrawable` hands
+    the system a `Drawable` up front, before anything is pulled.  `_BOX` is
+    what `onTap` hit-tests: the union of each element's own estimated box,
+    the one the safe-area/overlap lints accept, so side-by-side slots stay
+    separate targets.  `_HIGHLIGHT` is what the drawable is built on, since
+    the editor clips it to that box: the union again, with a reading's box
+    widened to every column its pick could reach
+    (`wfb.kinds.complication_slot.highlight_box`).  Emitted for every slot
+    regardless of `on_hold:`: the editor can animate any slot.
+    """
+    members = [placed for placed in resolved.items if slot_of(placed.element) == slot.name]
+    if not members:
+        return []
+    tap = members[0].box
+    highlight = _highlight(members[0])
+    for placed in members[1:]:
+        tap = tap.union(placed.box)
+        highlight = highlight.union(_highlight(placed))
+    out: Constants = []
+    out.extend(box_constants(f"{slot.const_prefix}_BOX", tap, "the editor's tap target (estimated)"))
+    out.extend(box_constants(f"{slot.const_prefix}_HIGHLIGHT", highlight,
+                             "the editor clips the slot's drawable to this box"))
+    return out
+
+
+def _highlight(placed: Placed) -> IntBox:
+    return getattr(placed, "highlight", None) or placed.box
+
+
 def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
                 profile: int | None = None) -> SourceFile:
     """One device's `Layout` module.  ``profile`` (the repetition count of
@@ -119,6 +152,13 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
         w.line(f"const SCREEN_HEIGHT as Number = {device.height};")
         if menu_slots:
             config_menu.emit_layout_constants(w, face, device)
+        for slot in editor_slots(face):
+            boxes = slot_box_constants(resolved, slot)
+            if boxes:
+                w.blank()
+                w.doc(f"The native editor's boxes for config.data.{slot.name}: every element "
+                      "drawing it,\ntaken together.")
+                _emit_constants(w, boxes)
         vector_fonts = _vector_fonts_used(resolved)
         if vector_fonts:
             w.blank()

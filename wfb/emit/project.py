@@ -31,6 +31,9 @@ BARREL_FILES = {
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
     "WfbColor.mc": "aod: {dim: ...} -- dimming a colour not known until the device resolves it",
     "WfbAodMask.mc": "aod: {mask: ...} -- the moving 2x2 pixel mask over the AOD frame",
+    "WfbScale.mc": "a slot gauge's scale from a goal or an app's ranges, and its fill",
+    "WfbProfileScale.mc": "a slot gauge's scale from the wearer's heart-rate zones or VO2 max "
+                          "row -- needs the UserProfile permission",
 }
 
 
@@ -149,12 +152,13 @@ def generate(face: Face, devices: list[Device], root: Path,
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(_check_shared(project, lambda r: monkeyc.emit_view(r, guards, profile)))
-    if monkeyc.complication_slots(face):
-        # The native editor's animated highlight over a complication_slot --
-        # the callback that constructs it never fires outside the editor
-        # (docs/research/07-carousel-interaction.md), so a design with no
-        # slots emits none of it.
+    if monkeyc.editor_slots(face):
+        # The native editor's animated highlight over a slot -- the callback
+        # that constructs it never fires outside the editor
+        # (docs/research/07-carousel-interaction.md), so a design drawing no
+        # slot emits none of it.
         project.sources.append(monkeyc.emit_slot_drawable(face))
+    if monkeyc.complication_slots(face):
         project.sources.append(monkeyc.emit_slot_text(face))
     if slot_scale.slot_gauges(face):
         names, apps = slot_scale.slot_scale_types(face)

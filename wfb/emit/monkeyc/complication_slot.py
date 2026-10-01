@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ... import complications
 from ...availability import Guards
 from ...ir import (
@@ -10,10 +12,13 @@ from ...ir import (
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
 from .common import (
-    NO_AOD, AodStyle, SourceFile, _NO_GUARDS, complication_slots, const_prefix, font_field, header,
-    mc_color,
+    NO_AOD, AodStyle, EditorSlot, SourceFile, _NO_GUARDS, complication_slots, const_prefix,
+    font_field, header, mc_color,
 )
 from ..writer import Writer
+
+if TYPE_CHECKING:
+    from .readplan import ReadPlan
 
 
 #: The view method holding `onLayout`'s font loading and first config read,
@@ -41,12 +46,12 @@ def _emit_resources_loaded_field(w: Writer) -> None:
 
 
 def _emit_pulsing_field(w: Writer) -> None:
-    """`_pulsing` -- which complication_slot the native editor is currently
-    animating (a `config_data_ids` unique id), or 0 for none.
+    """`_pulsing` -- which slot the native editor is currently animating (a
+    `config_data_ids` unique id), or 0 for none.
 
-    Read by every `complication_slot`'s own draw method
-    (`emit_complication_slot`'s guard), set by `setPulsing` from the
-    delegate's `getComplicationDrawable` and cleared by it from
+    Read by every element drawing a slot (`emit_complication_slot`'s guard,
+    and a slot gauge's), set by `setPulsing` from the delegate's
+    `getComplicationDrawable` and cleared by it from
     `onWatchFaceConfigEdited` -- both of which fire solely inside the
     on-device config editor (`docs/research/07-carousel-interaction.md`),
     so this stays 0 for the entire life of the app on a device with no
@@ -56,39 +61,47 @@ def _emit_pulsing_field(w: Writer) -> None:
     editor's drawable still draws the slot the face itself skips.
     """
     w.doc(
-        "Which complication_slot the native editor is animating right now (a\n"
-        "config_data_ids unique id), or 0 for none.  Read by every\n"
-        "complication_slot's own draw method so the system does not see it drawn\n"
-        "twice while it pulses, and cleared after every onUpdate: the skip covers\n"
-        "the one redraw that follows the editor's request for the drawable."
+        "Which slot the native editor is animating right now (a\n"
+        "config_data_ids unique id), or 0 for none.  Read by every element\n"
+        "drawing a slot so the system does not see it drawn twice while it\n"
+        "pulses, and cleared after every onUpdate: the skip covers the one\n"
+        "redraw that follows the editor's request for the drawable."
     )
     w.line("private var _pulsing as Number = 0;")
     w.blank()
 
 
-def _emit_complication_slot_editor_methods(w: Writer, face: Face,
-                                           pairs: list[tuple[ComplicationSlot, int]]) -> None:
-    """`setPulsing`/`drawSlot`/`drawableFor` -- the view's half of the native
-    editor's animated highlight (`onTap`/`getComplicationDrawable` live on
-    the delegate).  Only ever emitted when ``pairs`` (`_editor_slot_pairs`)
-    is non-empty.
+def _emit_complication_slot_editor_methods(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                                           slots: list[EditorSlot]) -> None:
+    """`setPulsing`/`drawSlot`/`drawableFor`, and one `drawSlot<Name>` per
+    slot -- the view's half of the native editor's animated highlight
+    (`onTap`/`getComplicationDrawable` live on the delegate).  Only ever
+    emitted when ``slots`` (`editor_slots`) is non-empty.
 
-    `drawSlot` is the one new *public* surface a `complication_slot`'s own
-    draw method needs: Monkey C's `private` genuinely blocks a cross-class
-    call (verified by building both ways -- dropping the modifier turns
-    "Cannot find symbol ':drawTopReading'" into a clean build) -- so rather
-    than making every per-slot draw method public, one small dispatcher is,
-    and the per-slot methods stay private like every other element's.
+    `drawSlot` is the one new *public* surface the slot's elements need:
+    Monkey C's `private` genuinely blocks a cross-class call (verified by
+    building both ways -- dropping the modifier turns "Cannot find symbol
+    ':drawTopReading'" into a clean build) -- so rather than making every
+    per-element draw method public, one small dispatcher is, and the rest
+    stay private like every other element's.
+
+    A slot can be drawn by several elements (a gauge's ring and the reading),
+    and the editor selects, highlights and redraws them as one: each slot's
+    `drawSlot<Name>` calls every one of them, pulling first whatever readers
+    their draw methods take (a colour that reads data), the same pulls
+    `onUpdate` makes.
 
     `drawSlot` clears `_pulsing` around its own dispatch and restores it
-    after: the per-slot draw method skips the pulsing slot so the face does
-    not draw it under the editor's animation, and without the lift the
-    editor's own drawable -- which reaches that same method through here --
-    would skip it too, leaving the slot drawn by nobody (seen on a
+    after: each element of the slot skips itself while it pulses so the face
+    does not draw it under the editor's animation, and without the lift the
+    editor's own drawable -- which reaches the same methods through here --
+    would skip them too, leaving the slot drawn by nobody (seen on a
     fenix8solar47mm: the selected slot vanished and never previewed a
     choice).  The SDK sample does the same with `setVisible(false)` around
     `View.onUpdate` and `setVisible(true)` after it.
     """
+    face = resolved.face
+    placed_by_id = {placed.id: placed for placed in resolved.items}
     w.doc(
         "The native editor is telling this view which slot it is about to "
         "animate,\nor, with 0, that none is being animated any more.\n\n"
@@ -100,31 +113,42 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
         w.line("_pulsing = unique;")
     w.blank()
 
+    for slot in slots:
+        members = [placed_by_id[element.id] for element in slot.elements
+                   if element.id in placed_by_id]
+        w.doc(f"Every element drawing config.data.{slot.name}, as the editor's drawable shows it.")
+        with w.block(f"private function {slot.draw_method}(dc as Dc) as Void"):
+            readers: list[str] = []
+            for placed in members:
+                readers += [name for name in plan.readers_of(placed) if name not in readers]
+            plan.emit_pulls(w, readers)
+            for placed in members:
+                w.line(f"{element_method_name(placed.id)}(dc{plan.arguments(placed)});")
+        w.blank()
+
     w.doc(
-        "Draw one complication_slot by its config_data_ids unique id -- the "
-        "one\npublic entry point the generated SlotDrawable needs, so every "
-        "per-slot\ndraw method itself can stay private like every other "
-        "element's.\n\n"
-        "The editor is drawing the slot it animates, so the per-slot method's "
-        "own\n_pulsing skip is lifted for this call: the face skips that slot "
-        "so it is\nnot drawn under the animation, and this is what draws it "
-        "instead."
+        "Draw one slot by its config_data_ids unique id -- the one public entry\n"
+        "point the generated SlotDrawable needs, so every element's own draw\n"
+        "method can stay private.\n\n"
+        "The editor is drawing the slot it animates, so each element's own\n"
+        "_pulsing skip is lifted for this call: the face skips that slot so it is\n"
+        "not drawn under the animation, and this is what draws it instead."
     )
     with w.block("function drawSlot(dc as Dc, unique as Number) as Void"):
         w.line("var pulsing = _pulsing;")
         w.line("_pulsing = 0;")
         with w.block("switch (unique)"):
-            for element, unique_id in pairs:
-                w.line(f"case {unique_id}: {element_method_name(element.id)}(dc); break;")
+            for slot in slots:
+                w.line(f"case {slot.unique}: {slot.draw_method}(dc); break;")
         w.line("_pulsing = pulsing;")
     w.blank()
 
     w.doc(
         "Build the Drawable the editor animates for one slot, on that slot's "
-        "own\nhighlight box.  The editor clips the drawable to this box, and "
-        "what the\npick draws (label, value, unit, icon) is not known until "
-        "the device\npulls it, so the box spans every screen column the slot "
-        "could reach\nrather than the lints' estimate."
+        "own\nhighlight box: every element drawing it, and for a reading, every "
+        "screen\ncolumn it could reach -- the editor clips the drawable to this "
+        "box, and\nwhat the pick draws (label, value, unit, icon) is not known "
+        "until the\ndevice pulls it."
     )
     with w.block(
         "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null",
@@ -135,11 +159,11 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face,
             w.line(f"{LOAD_RESOURCES_METHOD}();")
         w.line("var drawable = null;")
         with w.block("switch (unique)"):
-            for element, unique_id in pairs:
-                prefix = const_prefix(element.id)
-                w.line(f"case {unique_id}: drawable = new {face.entry}SlotDrawable(self, {unique_id},")
-                w.line(f"    Layout.{prefix}_HIGHLIGHT_X, Layout.{prefix}_HIGHLIGHT_Y,")
-                w.line(f"    Layout.{prefix}_HIGHLIGHT_WIDTH, Layout.{prefix}_HIGHLIGHT_HEIGHT); break;")
+            for slot in slots:
+                box = f"Layout.{slot.const_prefix}_HIGHLIGHT"
+                w.line(f"case {slot.unique}: drawable = new {face.entry}SlotDrawable(self, {slot.unique},")
+                w.line(f"    {box}_X, {box}_Y,")
+                w.line(f"    {box}_WIDTH, {box}_HEIGHT); break;")
         with w.block("if (drawable == null)"):
             w.line("return null;")
         w.line("return new WatchUi.ComplicationDrawableRef(")
@@ -157,7 +181,7 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     because `getComplicationDrawable` needs *something* satisfying
     `WatchUi.Drawable` to hand back, not because the drawing lives here.
     Only ever generated, and only ever constructed, when the design has at
-    least one `complication_slot` element (`_editor_slot_pairs`): the whole
+    least one element drawing a slot (`editor_slots`): the whole
     file is dead weight on a passive face, since `getComplicationDrawable`
     itself never fires there (`docs/research/07-carousel-interaction.md`).
 

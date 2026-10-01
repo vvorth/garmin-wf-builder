@@ -10,7 +10,7 @@ from typing import Iterable
 from ... import __version__, kinds
 from ...availability import Guards
 from ...ir import ComplicationSlot, Element, Expression, Face, OUTLINE_WIDTH, aod_color_choice, config_data_ids, \
-    element_const_prefix, element_method_name
+    element_const_prefix, element_method_name, slot_of
 from ...layout import Placed, PlacedText, ResolvedFace
 from ...palette import Color
 
@@ -117,30 +117,46 @@ def needs_delegate(face: Face) -> bool:
     return bool(hold_targets(face)) or face.has_config
 
 
-def _editor_slot_pairs(face: Face) -> list[tuple[ComplicationSlot, int]]:
-    """Every `complication_slot` element this design actually draws, paired
-    with its declared slot's `<complication id=...>` unique id
-    (`wfb.ir.config_data_ids`) -- one pair per distinct slot *name*, in
+@dataclass(frozen=True)
+class EditorSlot:
+    """One declared slot the native editor can select, with every element
+    that draws it (a `data` element, gauges with `slot:`), in document order."""
+
+    name: str
+    #: Its `<complication id=...>` (`wfb.ir.config_data_ids`).
+    unique: int
+    elements: tuple[Element, ...]
+
+    @property
+    def const_prefix(self) -> str:
+        """`Layout`'s prefix for this slot's editor boxes, beside the
+        settings menu's own `CONFIG_DATA_<SLOT>_*` constants."""
+        return f"CONFIG_DATA_{self.name.upper()}"
+
+    @property
+    def draw_method(self) -> str:
+        """The view's method drawing every element of this slot."""
+        return "drawSlot" + "".join(part.capitalize() for part in self.name.split("_"))
+
+
+def editor_slots(face: Face) -> list[EditorSlot]:
+    """Every slot some element draws, each with all of its elements, in
     document order.
 
     Backs every editor-only piece (`onTap`'s hit-test, `getComplicationDrawable`'s
-    dispatch, the generated `SlotDrawable`): all three need "which element
-    goes with which unique id", and deduplicating by slot name here, once, is
-    what keeps two elements bound to the same slot -- legal, if unusual, and
-    not otherwise checked anywhere in this project -- from generating two
-    `case`/`if` labels for one id.
+    dispatch, the generated `SlotDrawable`, the `_pulsing` skip): each needs
+    "which elements go with which unique id".  A slot's ring and its reading
+    are separate elements, so the editor must select, highlight and redraw
+    them together, or the one it does not know keeps drawing under the
+    highlight and is never redrawn by it.
     """
     ids = config_data_ids(face)
-    seen: set[str] = set()
-    pairs = []
-    for element in complication_slots(face):
-        if element.slot in seen:
-            continue
-        seen.add(element.slot)
-        unique = ids.get(element.slot)
-        if unique is not None:
-            pairs.append((element, unique))
-    return pairs
+    groups: dict[str, list[Element]] = {}
+    for element in face.walk():
+        name = slot_of(element)
+        if name is not None and name in ids:
+            groups.setdefault(name, []).append(element)
+    return [EditorSlot(name, ids[name], tuple(elements)) for name, elements in groups.items()]
 
 
 #: The view's public accessor for `CONFIG_LAYOUT_FIELD`, emitted only when

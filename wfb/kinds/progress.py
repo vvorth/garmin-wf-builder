@@ -22,7 +22,7 @@ from ..emit.monkeyc.common import (
 )
 from ..emit.monkeyc.slot_scale import SLOT_SCALE_MODULE
 from ..emit.writer import Writer
-from ..ir.naming import config_field
+from ..ir.naming import config_data_ids, config_field
 from . import ElementKind
 from .complication_slot import COMPLICATION_SLOT_SAMPLE, resolve_slot_reference
 
@@ -610,13 +610,26 @@ def _emit_styles(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: 
         )
 
 
-def _emit_slot_gauge(w: Writer, placed: PlacedProgress, prefix: str, guarded: bool,
-                     color_code: str, track_color_code: str | None, aod: AodStyle,
-                     ring: RingPass | None) -> None:
+def _emit_slot_gauge(w: Writer, placed: PlacedProgress, prefix: str, unique: int,
+                     guarded: bool, color_code: str, track_color_code: str | None,
+                     aod: AodStyle, ring: RingPass | None) -> None:
     """A gauge on a `config: slots:` slot: the wearer's pick, against its own
     scale (`SlotScale`).  A pick with no scale draws nothing, track included;
     a scaled pick with no reading yet follows `absent:` as any gauge does.
+    While the native editor animates this slot it draws nothing either, as
+    the slot's `data` element does: the editor's drawable draws it then.
     Everything is wrapped, never returned from (`docs/lore/codegen.md`)."""
+    element = placed.element
+    assert element.slot is not None
+    w.comment("the editor is animating this slot -- its drawable draws it (drawSlot)")
+    with w.block(f"if (_pulsing != {unique})"):
+        _emit_slot_gauge_body(w, placed, prefix, guarded, color_code, track_color_code,
+                              aod, ring)
+
+
+def _emit_slot_gauge_body(w: Writer, placed: PlacedProgress, prefix: str, guarded: bool,
+                          color_code: str, track_color_code: str | None, aod: AodStyle,
+                          ring: RingPass | None) -> None:
     element = placed.element
     assert element.slot is not None
     field = config_field(f"data_{element.slot}")
@@ -887,8 +900,9 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         track_color_code = (aod.color(element, "track_color")
                             if element.track_color is not None else None)
         if element.slot is not None:
-            _emit_slot_gauge(w, placed, prefix, plan.device_guards.complications,
-                             color_code, track_color_code, aod, ring)
+            _emit_slot_gauge(w, placed, prefix, config_data_ids(resolved.face)[element.slot],
+                             plan.device_guards.complications, color_code, track_color_code,
+                             aod, ring)
             return
         fraction_expr = _fraction(element)
         present = _present(value_guards) if keeps_track(element) else None

@@ -198,6 +198,11 @@ class ReadPlan:
             return
         w.comment("data for this frame" if mode == "active"
                   else f"data for this frame ({mode}); every reader is a plain pull")
+        self.emit_pulls(w, readers)
+
+    def emit_pulls(self, w: Writer, readers: list[str]) -> None:
+        """`var <reader> = <call>;` for each of ``readers``, a module some
+        target lacks read behind one `has<Module>` local."""
         # A reader whose whole module some target lacks
         # (`Guards.modules`: Toybox.Complications on fenix6/fr245,
         # Toybox.Weather on fenix5/fenix5x) is read behind `Toybox has
@@ -228,6 +233,10 @@ class ReadPlan:
                 w.line(f"var {reader.name} = has{reader.requires_module} ? {reader.call} : null;")
             else:
                 w.line(f"var {reader.name} = {reader.call};")
+
+    def readers_of(self, placed: Placed) -> list[str]:
+        """The readers ``placed``'s draw method takes, in parameter order."""
+        return self._readers_used_by(placed)
 
     def parameters(self, placed: Placed) -> str:
         params = []
