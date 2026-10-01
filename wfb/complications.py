@@ -52,6 +52,7 @@ the expression a real Float.
 from __future__ import annotations
 
 import re
+from decimal import ROUND_HALF_UP, Decimal
 import struct
 from dataclasses import dataclass
 
@@ -642,3 +643,155 @@ def reading_glyphs(name: str, unit: bool, short: bool) -> set[str]:
     if kind == "high_low" and short:
         glyphs |= set("/")
     return glyphs
+
+
+# ============================================================================
+# A gauge's automatic scale for each type
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class Scale:
+    """How a gauge finds one complication type's full scale.
+
+    Garmin's native complications leave `Complication.ranges` null (seen on
+    an fr955 and in the simulator, docs/research/24-complication-full-scale.md
+    §2.4), so every figure here is this table's, each with its source.
+    """
+
+    #: ``fixed``: `minimum` to `maximum`; ``goal``: 0 to the device's own
+    #: `ActivityMonitor.Info` goal field; ``heart_rate_zones``: the wearer's
+    #: zone 1 minimum to zone 5 maximum; ``vo2max``: the derived ends of the
+    #: wearer's row in :data:`VO2MAX_RATINGS`.
+    kind: str
+    #: Where the figures come from.
+    source: str
+    minimum: float = 0.0
+    maximum: float = 0.0
+    #: ``goal`` only: the `ActivityMonitor.Info` field.
+    goal: str | None = None
+    #: Garmin's band lower bounds above the minimum, lowest first.  A value
+    #: belongs to the highest band whose lower bound it reaches.  Recorded
+    #: for zone colouring; no gauge draws bands from them yet.
+    bands: tuple[float, ...] = ()
+
+
+_PERCENT_SOURCE = 'Toybox/Complications.html, the Type table: "0 to 100"'
+_DAY = 86400.0
+
+#: Every type a gauge can scale itself; a type not listed has no scale.
+SCALE: dict[str, Scale] = {
+    "battery": Scale("fixed", _PERCENT_SOURCE, 0.0, 100.0),
+    "pulse_ox": Scale("fixed", _PERCENT_SOURCE, 0.0, 100.0),
+    "solar_input": Scale("fixed", _PERCENT_SOURCE, 0.0, 100.0),
+    "sleep_score": Scale(
+        "fixed", _PERCENT_SOURCE + '; bands: Garmin blog, "excellent (90-100), good '
+        '(80-89), fair (60-79) and poor (0-60)", 60 read as fair', 0.0, 100.0,
+        bands=(60.0, 80.0, 90.0)),
+    "body_battery": Scale(
+        "fixed", 'Forerunner 255 Owner\'s Manual, "Body Battery": "from 0 to 100, where '
+        '0 to 25 is low ... 76 to 100 is very high reserve energy"', 0.0, 100.0,
+        bands=(26.0, 51.0, 76.0)),
+    "stress": Scale(
+        "fixed", 'Lily Owner\'s Manual, "Heart Rate Variability and Stress Level": '
+        '"from 0 to 100, where 0 to 25 is a resting state ... 76 to 100 is a high '
+        'stress state"', 0.0, 100.0, bands=(26.0, 51.0, 76.0)),
+    "steps": Scale("goal", "Toybox/ActivityMonitor/Info.html: stepGoal", goal="stepGoal"),
+    "floors_climbed": Scale("goal", "Toybox/ActivityMonitor/Info.html: floorsClimbedGoal",
+                            goal="floorsClimbedGoal"),
+    "intensity_minutes": Scale("goal", "Toybox/ActivityMonitor/Info.html: activeMinutesWeekGoal "
+                               "(the type resets weekly)", goal="activeMinutesWeekGoal"),
+    "wheelchair_pushes": Scale("goal", "Toybox/ActivityMonitor/Info.html: pushGoal",
+                               goal="pushGoal"),
+    "sunrise": Scale("fixed", "seconds since local midnight: one day", 0.0, _DAY),
+    "sunset": Scale("fixed", "seconds since local midnight: one day", 0.0, _DAY),
+    "heart_rate": Scale("heart_rate_zones",
+                        "Toybox/UserProfile.html: getHeartRateZones(HR_ZONE_SPORT_GENERIC)"),
+    "vo2max_run": Scale("vo2max", "fenix 8 Owner's Manual, \"VO2 Max. Standard Ratings\""),
+    "vo2max_bike": Scale("vo2max", "fenix 8 Owner's Manual, \"VO2 Max. Standard Ratings\" "
+                         "(one table, no sport named)"),
+}
+
+#: The age decades :data:`VO2MAX_RATINGS` has a row for: 20-29 to 70-79.
+VO2MAX_AGES = range(20, 80)
+
+#: The fenix 8 Owner's Manual's "VO2 Max. Standard Ratings" (The Cooper
+#: Institute), mL/kg/min: per sex, one row per age decade from 20-29, each
+#: the lowest value of Fair, Good, Excellent and Superior.  Below Fair is Poor.
+VO2MAX_RATINGS: dict[str, tuple[tuple[float, float, float, float], ...]] = {
+    "male": (
+        (41.7, 45.4, 51.1, 55.4),
+        (40.5, 44.0, 48.3, 54.0),
+        (38.5, 42.4, 46.4, 52.5),
+        (35.6, 39.2, 43.4, 48.9),
+        (32.3, 35.5, 39.5, 45.7),
+        (29.4, 32.3, 36.7, 42.1),
+    ),
+    "female": (
+        (36.1, 39.5, 43.9, 49.6),
+        (34.4, 37.8, 42.4, 47.4),
+        (33.0, 36.3, 39.7, 45.3),
+        (30.1, 33.0, 36.7, 41.1),
+        (27.5, 30.0, 33.0, 37.8),
+        (25.9, 28.1, 30.9, 36.7),
+    ),
+}
+
+
+def _tenth(value: float) -> float:
+    """``value`` to one decimal, a half rounding up."""
+    return float(Decimal(repr(value)).quantize(Decimal("0.1"), ROUND_HALF_UP))
+
+
+def vo2max_ends(fair: float, superior: float) -> tuple[float, float]:
+    """A VO2 max scale's two ends.  The table has no floor or ceiling, so
+    Poor and Superior each get the average width of the three bands between
+    them: ``(superior - fair) / 3`` beyond each edge, to one decimal."""
+    lo, hi = Decimal(repr(fair)), Decimal(repr(superior))
+    width = (hi - lo) / 3
+    return _tenth(float(lo - width)), _tenth(float(hi + width))
+
+
+def vo2max_scale(sex: str | None, age: int | None) -> tuple[float, float] | None:
+    """The wearer's VO2 max scale, or None without a sex the table has, an
+    age, or with an age outside 20-79 (the gauge hides as missing data)."""
+    rows = VO2MAX_RATINGS.get(sex or "")
+    if rows is None or age is None or age not in VO2MAX_AGES:
+        return None
+    fair, _, _, superior = rows[(age - 20) // 10]
+    return vo2max_ends(fair, superior)
+
+
+def heart_rate_scale(zones: tuple[int, ...] | list[int] | None) -> tuple[float, float] | None:
+    """Zone 1's minimum to zone 5's maximum, out of
+    `UserProfile.getHeartRateZones`' six values, or None when they are not
+    six increasing values."""
+    if zones is None or len(zones) < 6 or zones[0] >= zones[5]:
+        return None
+    return float(zones[0]), float(zones[5])
+
+
+def ranges_scale(ranges: tuple[float, ...] | list[float] | None) -> tuple[float, float] | None:
+    """An app complication's own `ranges`: the first value to the last."""
+    if ranges is None or len(ranges) < 2 or ranges[0] >= ranges[-1]:
+        return None
+    return float(ranges[0]), float(ranges[-1])
+
+
+def scale_for(name: str, *, goals: dict[str, int], heart_rate_zones: tuple[int, ...] | None,
+              sex: str | None, age: int | None) -> tuple[float, float] | None:
+    """The Python twin of the generated `SlotScale.scale`: type `name`'s
+    `(minimum, maximum)` for a wearer described by the keyword arguments,
+    or None when it has no scale."""
+    scale = SCALE.get(name)
+    if scale is None:
+        return None
+    if scale.kind == "fixed":
+        return scale.minimum, scale.maximum
+    if scale.kind == "goal":
+        assert scale.goal is not None
+        goal = goals.get(scale.goal)
+        return (0.0, float(goal)) if goal is not None and goal > 0 else None
+    if scale.kind == "heart_rate_zones":
+        return heart_rate_scale(heart_rate_zones)
+    return vo2max_scale(sex, age)

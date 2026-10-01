@@ -1,6 +1,6 @@
 # 25 — Gauges on a slot, scaled by the picked metric
 
-**Status: in progress. Slice 1 done (2026-10-01). D1, D2, D4–D8 are
+**Status: in progress. Slices 1 and 2 done (2026-10-01). D1, D2, D4–D8 are
 decided; D3 (zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
@@ -138,7 +138,18 @@ being 16,001 (research 24 §5).
 - `docs/limitations.md`: the steps bullet says reads are unscaled, and
   that the watch side is still unseen.
 
-### Slice 2 — the per-type scale table, on the host and the watch
+### Slice 2 — the per-type scale table, on the host and the watch: done
+
+Built as below: `wfb.complications.SCALE`, `VO2MAX_RATINGS`, the twin
+`scale_for`; `runtime-lib/WfbScale.mc`; `wfb/emit/monkeyc/slot_scale.py`.
+The figures live only in the Python table: the generated module carries
+the constants, including the 24 VO2 max ends, and `WfbScale` only the
+logic that reads the device. Every goal read is `has`-guarded, since
+`pushGoal` is missing on all three verification devices. A slow test
+compiles every case, with `WfbScale`, warning-free on all three. Nothing
+reaches a face until slice 3 wires it in, so the permission, the preview's
+sample wearer and the memory measurement below moved to slice 3.
+
 
 - **`wfb/complications.py`** gains `SCALE`: for each type, either
   - `fixed(min, max)`;
@@ -171,9 +182,11 @@ being 16,001 (research 24 §5).
 - **Tests:** every table entry against its cited figure; VO2's derived
   ends recomputed from the four edges; each D7 hiding case.
 - **Permissions:** `UserProfile` is derived when a gauge can show
-  `heart_rate` or VO2 max (`choices: any` included) (D6).
+  `heart_rate` or VO2 max (`choices: any` included) (D6). *Moved to
+  slice 3.*
 - **Memory:** measured with `--build-stats` before and after on
-  `examples/features/slots/`, recorded in `docs/limitations.md`.
+  `examples/features/slots/`, recorded in `docs/limitations.md`. *Moved to
+  slice 3.*
 
 ### Slice 3 — `slot:` on a gauge
 
@@ -200,7 +213,14 @@ being 16,001 (research 24 §5).
   beside `slot:` draws the track and the pointer only, since its
   `bands:` are refused (D1).
 - **Preview** draws the slot's `default:` pick with
-  `_COMPLICATION_SLOT_SAMPLE` against the slice 2 twin.
+  `_COMPLICATION_SLOT_SAMPLE` against the slice 2 twin, with a fixed
+  sample wearer (male, 30–39, sample heart-rate zones) named in the
+  preview's legend line.
+- **Permissions:** `UserProfile` when a slot gauge can show `heart_rate`
+  or VO2 max, or `choices: any` (D6). `SlotScale.mc` and `WfbScale` ship
+  only with a slot gauge (the barrel scan copies what the code names).
+- **Memory:** `--build-stats` before and after, recorded in
+  `docs/limitations.md` with the table's sources.
 - **Tests:** each D1 refusal, D2's two states (hidden whole vs. track
   kept), a non-zero minimum on a host twin, and a layouts-body refusal,
   each driven red.
@@ -273,7 +293,10 @@ The guide and schema cite neither this plan nor research 24 (`docs/CLAUDE.md`).
    past 10,000 steps, and see the gauge full rather than empty. This is
    also the last open fact in research 24.
 4. **VO2 max on the watch:** the fill should sit inside the column the
-   watch's own VO2 max glance rates the wearer by.
+   watch's own VO2 max glance rates the wearer by. This also checks an
+   assumption `WfbScale.vo2max` makes: that `UserProfile.Profile.
+   birthYear` is a full year (1985), as its documentation ("Birth year as
+   configured by the user") suggests but does not state.
 
 ## 6. Deferred: zone colouring (D3)
 
