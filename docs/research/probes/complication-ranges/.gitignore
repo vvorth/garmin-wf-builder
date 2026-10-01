@@ -1,0 +1,6 @@
+external-mir/
+internal-mir/
+gen/
+bin/
+*.prg
+*.prg.debug.xml

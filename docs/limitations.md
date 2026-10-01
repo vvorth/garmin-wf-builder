@@ -572,16 +572,23 @@ still true of the shipped feature:
 * **A slot's reading is formatted per complication type**
   (`wfb.complications.READING`, the generated `SlotText.mc`), following
   the watch's own units and clock. Each rule rests on the SDK's documented
-  unit (`doc/Toybox/Complications.html`) and on the raw values a fenix 8
-  solar reported in the simulator (2026-09-28); **none is seen on a watch
-  yet.** Specifically unverified: that a real watch, like the simulator,
-  hands steps past 10,000 over as a Float in thousands with the unit `"K"`;
-  what the training status string is on a watch (the short-form table is
-  keyed on the simulator's English capitals, `MAINTAINING`, so a
-  localised status draws as reported, even under `short: true`); what the
-  next calendar event reads when there is none today (documented
-  nullable, so presumably the placeholder); and whether VO2 max bike's 0
-  really means "nothing recorded" (it is drawn as absent). The weather
+  unit (`doc/Toybox/Complications.html`), on the raw values a fenix 8
+  solar reported in the simulator (2026-09-28), and on every raw value a
+  real fr955 reported (2026-10-01, `docs/research/24-complication-full-scale.md`
+  §2.4). The rules themselves are not yet seen drawing on a watch. On the
+  fr955: the training status is English capitals (`PRODUCTIVE`; the
+  short-form lookup ignores case, and a localised status draws as
+  reported, even under `short: true`); no calendar event today reads as
+  null, drawn as absent; VO2 max bike read 0 beside a run VO2 max of 49,
+  consistent with 0 meaning "nothing recorded" (drawn as absent); the
+  high/low temperature is `H 19 / L 13`, as documented; and a native
+  type's `unit` is not dependable (Body Battery, sunrise and sunset carry
+  one in the simulator and none on the watch), so each rule takes its
+  unit from the type; the device's own is read only to keep a count's
+  `"K"`, and as the suffix for an app's complication.
+  Still unverified: that a real watch, like the simulator, hands steps
+  past 10,000 over as a Float in thousands with the unit `"K"` (the fr955
+  run had 150 steps). The weather
   condition names are this compiler's English, since the platform names
   none; the date, weekday and event strings are the device's own.
   **Measured** (`--build-stats`, fenix8solar47mm): the rules cost what the
