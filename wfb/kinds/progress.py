@@ -6,11 +6,13 @@ from __future__ import annotations
 import math
 from typing import Any, TYPE_CHECKING
 
-from .. import expr, vocab
+from .. import complications, expr, vocab
 from ..catalog import Type
-from ..ir.model import Element, Expression, Progress
+from ..ir.model import HOLD_AUTO, Element, Expression, Progress
 from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
-from ..preview import RGB, arc_span
+from ..preview import (
+    RGB, SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX, arc_span,
+)
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
@@ -18,8 +20,11 @@ from ..emit.monkeyc.common import (
     NO_AOD, RING_WIDTH_CODE, AodStyle, RingPass, article, const_prefix,
     mc_float, own_ring, plus,
 )
+from ..emit.monkeyc.slot_scale import SLOT_SCALE_MODULE
 from ..emit.writer import Writer
+from ..ir.naming import config_field
 from . import ElementKind
+from .complication_slot import COMPLICATION_SLOT_SAMPLE, resolve_slot_reference
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -85,6 +90,28 @@ def _fallback_fraction(element: Progress) -> str:
     if fallback.is_constant:
         return f"{float(expr.as_number(fallback.constant))}f"
     return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
+
+
+#: What a gauge with `slot:` does not read, and why.
+_NOT_BESIDE_SLOT = {
+    "max": "the scale is the picked metric's own, and one 'max:' cannot fit every "
+           "choice the wearer has",
+    "bands": "'bands:' are fractions of one fixed scale; zones from the picked "
+             "metric's own bands are not implemented yet",
+}
+
+
+def _check_slot_keys(b: Builder, node: dict[str, Any], element_id: str) -> bool:
+    """Refuse the keys a gauge with `slot:` does not read.  False when
+    anything was reported."""
+    ok = True
+    for key, why in _NOT_BESIDE_SLOT.items():
+        if key in node:
+            b.bag.error("element", f"{element_id}: '{key}:' is not read beside 'slot:' -- {why}",
+                        b.doc.span(node, key),
+                        notes=['docs/guide/progress-and-graphs.md, "Gauges on a slot"'])
+            ok = False
+    return ok
 
 
 def keeps_track(element: Progress) -> bool:
@@ -493,6 +520,134 @@ def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             ])
 
 
+def _slot_preview_fraction(renderer: Renderer, element: Progress) -> tuple[bool, float | None]:
+    """A slot gauge in the preview, at its slot's `default:` pick: whether it
+    draws at all (a pick with no scale hides it whole, as on the watch), and
+    the sample reading's fill fraction, or None without one.  Scaled for the
+    preview's sample wearer (`wfb.preview.SAMPLE_WEARER_*`)."""
+    assert element.slot is not None
+    slot = renderer.resolved.face.config_data.get(element.slot)
+    if slot is None:
+        return False, None
+    sample = COMPLICATION_SLOT_SAMPLE.get(slot.default)
+    scale = complications.scale_for(
+        slot.default, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
+        sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=sample)
+    if scale is None:
+        return False, None
+    return True, complications.scale_fraction(sample, None, scale)
+
+
+def _emit_styles(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: str,
+                 present: str | None, color_code: str, track_color_code: str | None,
+                 aod: AodStyle, ring: RingPass | None) -> None:
+    """Each style's drawing from ``fraction_expr``, the fill fraction; with
+    ``present``, only the value-dependent parts are wrapped in it."""
+    element = placed.element
+    stamp = ring or own_ring(element, aod)
+    if element.style == "needle":
+        _emit_needle(w, element, placed, prefix, fraction_expr, aod, stamp,
+                     ring_only=ring is not None)
+        return
+    if element.style in ("segments", "scale"):
+        # `outline:` is refused on these at build time (`build`).
+        _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
+                     track_color_code, aod, present)
+        return
+    if element.style == "arc":
+        thickness_expr = shapes.thickness_expr(prefix, placed, aod)
+        if stamp is not None:
+            _emit_arc_ring(w, element, prefix, thickness_expr, fraction_expr, present, stamp)
+            if ring is not None:
+                return
+            w.blank()
+        if element.track_color is not None:
+            w.comment("the unfilled track")
+            w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
+            shapes.emit_arc_span(w, prefix, thickness_expr)
+            w.blank()
+        w.comment("the filled portion" if present is None
+                  else "the filled portion -- absent: hide, so only while the value is present")
+        with w.block_if(present):
+            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+            w.call("WfbArc.drawProgress", [
+                f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
+                f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
+                fraction_expr,
+            ])
+        return
+
+    if stamp is not None and element.track_color is not None:
+        # The whole bar is the silhouette: one grown copy is its
+        # dilation (`wfb.kinds.shape._emit_grown`).
+        w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+        _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", RING_WIDTH_CODE)
+        if ring is not None:
+            return
+        w.blank()
+    if element.track_color is not None:
+        w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
+        w.line(
+            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, "
+            f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
+        )
+        w.blank()
+    if present is not None:
+        w.comment("the fill -- absent: hide, so only while the value is present")
+    with w.block_if(present):
+        w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
+        if stamp is not None and element.track_color is None:
+            # No track: the lit length alone is the silhouette.
+            with w.block("if (filled > 0)"):
+                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
+                _emit_grown_bar(w, prefix, "filled", RING_WIDTH_CODE)
+            if ring is not None:
+                return
+        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+        w.line(
+            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, "
+            f"Layout.{prefix}_HEIGHT);"
+        )
+
+
+def _emit_slot_gauge(w: Writer, placed: PlacedProgress, prefix: str, guarded: bool,
+                     color_code: str, track_color_code: str | None, aod: AodStyle,
+                     ring: RingPass | None) -> None:
+    """A gauge on a `config: slots:` slot: the wearer's pick, against its own
+    scale (`SlotScale`).  A pick with no scale draws nothing, track included;
+    a scaled pick with no reading yet follows `absent:` as any gauge does.
+    Everything is wrapped, never returned from (`docs/lore/codegen.md`)."""
+    element = placed.element
+    assert element.slot is not None
+    field = config_field(f"data_{element.slot}")
+    w.comment(f"slot: config.data.{element.slot} -- the wearer's pick, against its own scale")
+    w.line(f"var chosenId = {field};")
+    if guarded:
+        # the slot's Id field is null where Toybox.Complications is absent
+        w.line("var chosenType = (chosenId != null) ? chosenId.getType() : null;")
+        w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
+    else:
+        w.line("var chosenType = chosenId.getType();")
+        w.line("var pulled = WfbComplications.valueOf(chosenId);")
+    w.line(f"var scale = (chosenType != null && pulled != null) "
+           f"? {SLOT_SCALE_MODULE}.scale(chosenType, pulled) : null;")
+    w.comment("a pick with no scale hides the whole gauge, track included")
+    with w.block("if (scale != null && pulled != null)"):
+        w.line("var reading = WfbScale.fraction(pulled, scale);")
+        if element.when_absent == "fallback":
+            w.comment("when_absent: fallback")
+            w.line(f"var fraction = (reading != null) ? reading : {_fallback_fraction(element)};")
+            _emit_styles(w, placed, prefix, "fraction", None, color_code,
+                         track_color_code, aod, ring)
+        elif keeps_track(element):
+            _emit_styles(w, placed, prefix, "reading", "if (reading != null)", color_code,
+                         track_color_code, aod, ring)
+        else:
+            with w.block("if (reading != null)"):
+                _emit_styles(w, placed, prefix, "reading", None, color_code,
+                             track_color_code, aod, ring)
+
+
 class ProgressKind(ElementKind[Progress, PlacedProgress]):
     name = "progress"
     ir_class = Progress
@@ -509,14 +664,20 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         return None
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
-        value = b.expression(node, "value")
-        maximum = b.expression(node, "max")
+        slot = None
+        if "slot" in node:
+            slot = resolve_slot_reference(b, str(node["slot"]), b.doc.span(node, "slot"))
+            if slot is None or not _check_slot_keys(b, node, common["id"]):
+                return None
+        value = b.expression(node, "value") if slot is None else None
+        maximum = b.expression(node, "max") if slot is None else None
         align, vertical_align = b.alignment(node)
         element = Progress(
             **common,
             style=node["style"],
             value=value,
             maximum=maximum,
+            slot=slot.name if slot is not None else None,
             radius=b.length(node, "radius"),
             thickness=b.length(node, "thickness"),
             start_angle=b.angle(node, "start_angle"),
@@ -536,7 +697,25 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     f"gauge {name} must be a number, got {bound.value}",
                     b.doc.span(node, name),
                 )
-        if value is not None or maximum is not None:
+        if slot is not None:
+            # The wearer's pick can always be absent: no reading yet, or a
+            # type this watch does not have.
+            reading = Expression(f"the reading of slot {slot.name}", "",
+                                 expr.Value(Type.NUMBER, True), (), frozenset(), frozenset(), None)
+            b.check_absence(node, element, reading, element.when_absent, None, element.fallback,
+                            key="slot")
+            _check_fallback_fraction(b, node, element)
+            if element.on_hold == HOLD_AUTO:
+                b.bag.error(
+                    "on-hold",
+                    f"{element.id}: 'on_hold: auto' on a gauge with 'slot:' is not "
+                    "implemented yet",
+                    b.doc.span(node, "on_hold"),
+                    notes=["put 'on_hold: auto' on the slot's 'type: data' element, which "
+                           "launches whatever the wearer picked"],
+                )
+                return None
+        elif value is not None or maximum is not None:
             combined = expr.Value(
                 Type.NUMBER,
                 bool((value and value.nullable) or (maximum and maximum.nullable)),
@@ -618,10 +797,25 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
 
     def draw_preview(self, renderer: Renderer, placed: PlacedProgress) -> None:
         element = placed.element
-        assert element.value is not None and element.maximum is not None  # both required
-        value = expr.evaluate(element.value.ast, renderer.values) if element.value.ast else None
-        maximum = (expr.evaluate(element.maximum.ast, renderer.values)
-                   if element.maximum.ast else None)
+        measured: float | None
+        if element.slot is not None:
+            shown, measured = _slot_preview_fraction(renderer, element)
+            if not shown:
+                return
+        else:
+            assert element.value is not None and element.maximum is not None  # both required
+            value = (expr.evaluate(element.value.ast, renderer.values)
+                     if element.value.ast else None)
+            maximum = (expr.evaluate(element.maximum.ast, renderer.values)
+                       if element.maximum.ast else None)
+            if value is None or maximum is None:
+                measured = None
+            else:
+                top = expr.as_number(maximum)
+                measured = (
+                    0.0 if not top or top <= 0
+                    else min(1.0, max(0.0, expr.as_number(value) / top))
+                )
         for other in (element.color, element.track_color):
             # A nullable colour hides the whole gauge, as the device's own
             # guard does (`view._emit_element_method`): there is nothing to
@@ -630,7 +824,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     and expr.evaluate(other.ast, renderer.values) is None):
                 return
         fraction: float | None
-        if value is None or maximum is None:
+        if measured is None:
             if element.when_absent == "hide" and not keeps_track(element):
                 return
             # `fallback:` on a progress substitutes the fill fraction itself,
@@ -643,11 +837,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 if substitute is not None:
                     fraction = min(1.0, max(0.0, float(expr.as_number(substitute))))
         else:
-            top = expr.as_number(maximum)
-            fraction = (
-                0.0 if not top or top <= 0
-                else min(1.0, max(0.0, expr.as_number(value) / top))
-            )
+            fraction = measured
         s = renderer.scale
         if element.style == "needle":
             assert fraction is not None  # an absent needle hides whole
@@ -693,10 +883,14 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                   aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
         element = placed.element
         prefix = const_prefix(placed.id)
-        fraction_expr = _fraction(element)
         color_code = aod.color(element, "color")
         track_color_code = (aod.color(element, "track_color")
                             if element.track_color is not None else None)
+        if element.slot is not None:
+            _emit_slot_gauge(w, placed, prefix, plan.device_guards.complications,
+                             color_code, track_color_code, aod, ring)
+            return
+        fraction_expr = _fraction(element)
         present = _present(value_guards) if keeps_track(element) else None
         if element.when_absent == "fallback" and value_guards:
             # The fill fraction falls back, not the raw value/max -- 'fallback:'
@@ -715,70 +909,8 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 w.line(f"fraction = {fraction_expr};")
             w.blank()
             fraction_expr = "fraction"
-        stamp = ring or own_ring(element, aod)
-        if element.style == "needle":
-            _emit_needle(w, element, placed, prefix, fraction_expr, aod, stamp,
-                         ring_only=ring is not None)
-            return
-        if element.style in ("segments", "scale"):
-            # `outline:` is refused on these at build time (`build`).
-            _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
-                         track_color_code, aod, present)
-            return
-        if element.style == "arc":
-            thickness_expr = shapes.thickness_expr(prefix, placed, aod)
-            if stamp is not None:
-                _emit_arc_ring(w, element, prefix, thickness_expr, fraction_expr, present, stamp)
-                if ring is not None:
-                    return
-                w.blank()
-            if element.track_color is not None:
-                w.comment("the unfilled track")
-                w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-                shapes.emit_arc_span(w, prefix, thickness_expr)
-                w.blank()
-            w.comment("the filled portion" if present is None
-                      else "the filled portion -- absent: hide, so only while the value is present")
-            with w.block_if(present):
-                w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-                w.call("WfbArc.drawProgress", [
-                    f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
-                    f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
-                    fraction_expr,
-                ])
-            return
-
-        if stamp is not None and element.track_color is not None:
-            # The whole bar is the silhouette: one grown copy is its
-            # dilation (`wfb.kinds.shape._emit_grown`).
-            w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-            _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", RING_WIDTH_CODE)
-            if ring is not None:
-                return
-            w.blank()
-        if element.track_color is not None:
-            w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-            w.line(
-                f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, "
-                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
-            )
-            w.blank()
-        if present is not None:
-            w.comment("the fill -- absent: hide, so only while the value is present")
-        with w.block_if(present):
-            w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
-            if stamp is not None and element.track_color is None:
-                # No track: the lit length alone is the silhouette.
-                with w.block("if (filled > 0)"):
-                    w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                    _emit_grown_bar(w, prefix, "filled", RING_WIDTH_CODE)
-                if ring is not None:
-                    return
-            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-            w.line(
-                f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, "
-                f"Layout.{prefix}_HEIGHT);"
-            )
+        _emit_styles(w, placed, prefix, fraction_expr, present, color_code,
+                     track_color_code, aod, ring)
 
     def draws_while_absent(self, element: Progress) -> bool:
         return keeps_track(element)

@@ -21,8 +21,8 @@ from . import availability, catalog, complications, expr, kinds, series, vocab
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph,
-    PatternElement, StyleEntry, authored_draw_order, never_together,
+    CONFIG_SYMBOL, Curve, Element, Expression, Face, FontSpec, Graph,
+    PatternElement, StyleEntry, authored_draw_order, never_together, slot_of,
 )
 from .layout import (
     BEZEL_MARGIN, HIDDEN_BY_FONT, Placed, PlacedPattern, PlacedProgress, PlacedText,
@@ -776,7 +776,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
 
     users = [user for token in colour_tokens for user in _users_of(face, token)]
     users += [element for element in face.walk()
-              if isinstance(element, ComplicationSlot) and element.slot in face.config_data]
+              if slot_of(element) in face.config_data]
     notes = []
     if kept_names_list:
         if slot_tokens and has_complications:
@@ -1998,8 +1998,9 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
                     confidence=f"exact -- {device.id}'s own api.debug.xml",
                 ))
 
-        if isinstance(element, ComplicationSlot):
-            slot = resolved.face.config_data.get(element.slot)
+        slot_name = slot_of(element)
+        if slot_name is not None:
+            slot = resolved.face.config_data.get(slot_name)
             if slot is None:
                 continue
             if has_complications:
@@ -2012,7 +2013,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
                 _emit(bag, placed, Diagnostic(
                     Severity.WARNING,
                     "api-gated",
-                    f"{placed.id}: slot {element.slot!r} needs "
+                    f"{placed.id}: slot {slot_name!r} needs "
                     f"Toybox.Complications, which {device.id} lacks, so it shows its "
                     f"absent state here -- never the declared default",
                     element.span,
@@ -2119,8 +2120,7 @@ def _since_subject(placed: Placed, name: str, kind: str) -> str:
     if kind == "hold":
         return f"holding to launch {name!r}"
     if kind == "slot":
-        assert isinstance(placed.element, ComplicationSlot)
-        return f"slot {placed.element.slot!r}'s 'complication.{name}'"
+        return f"slot {slot_of(placed.element)!r}'s 'complication.{name}'"
     return f"'complication.{name}'"
 
 

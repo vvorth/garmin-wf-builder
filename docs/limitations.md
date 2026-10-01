@@ -606,6 +606,32 @@ still true of the shipped feature:
   23,041 B to 27,207 B. The condition names are packed into one string
   per variant (`WfbReading.packed`), 1,246 B smaller than a 54-way
   `switch`.
+* **A complication carries no scale of its own, so a slot gauge's comes
+  from a table.** `Complication.ranges` (API 4.2.0) is documented as an
+  ordered set of values breaking a reading into ranges, but every native
+  type leaves it null: all 40 an fr955 offered and all 41 the simulator
+  offered, with steps, floors and intensity minutes past their goals
+  (`docs/research/24-complication-full-scale.md` §2.4). A gauge with
+  `slot:` therefore scales by `wfb.complications.SCALE`, every figure
+  with its source: the SDK's "0 to 100" for battery, pulse ox, solar input
+  and sleep score; Garmin's manuals' "from 0 to 100" for Body Battery and
+  stress; the device's own goal fields (`stepGoal`, `floorsClimbedGoal`,
+  `activeMinutesWeekGoal`, `pushGoal` -- `pushGoal` is missing on all
+  three verification devices, so every goal read is `has`-guarded);
+  `UserProfile.getHeartRateZones` for heart rate; and, for VO2 max, the
+  Cooper Institute table in Garmin's fēnix 8 manual (research 24 §7.1).
+  That table has no floor or ceiling, so **the VO2 max scale's ends are
+  this compiler's, not Garmin's**: Poor and Superior each extend past
+  Fair and Superior by the average width of the three bands between them.
+  The wearer's age is this year less `birthYear` (the profile has no birth
+  date), so it can read a year high until the birthday, and that
+  `birthYear` is a full year is assumed, UNVERIFIED on a watch. Only an
+  app's complication is scaled by its own `ranges`, read as first value to
+  last, an inference from the documentation's example. Garmin's band
+  edges for Body Battery, stress and sleep score are recorded in the table
+  and drawn by nothing yet (§2). **Measured** (`--build-stats`,
+  fenix8solar47mm): one arc gauge on `examples/features/slots/`' `top`
+  slot (steps, heart rate, calories) is 16,631 B → 18,104 B.
 * **`choices: any` + `icon: {size:}` is accepted.** A Connect IQ-app
   complication picked there draws no icon.
 * **monkeyc 9.2.0 crashes on two different string literals with the same
@@ -723,7 +749,10 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
 | Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install, and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
-| A `data` element inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
+| Colouring or segmenting a slot gauge by its picked metric's own bands (heart-rate zones, Body Battery and stress levels, sleep-score and VO2 max ratings) | the band edges are in `wfb.complications.SCALE`; drawing them needs band geometry computed on the watch each frame, where `bands:` today are build-time constants |
+| `on_hold: auto` on a gauge with `slot:` | a friendly build error; the slot's `type: data` element carries it |
+| The native editor's highlight and tap over a slot gauge | only a slot's `type: data` element is wired to the editor today: the editor selects and highlights it alone, and a slot gauge keeps drawing under the editor's animation |
+| A `data` element, or a gauge with `slot:`, inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
 | Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |
 | The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |

@@ -21,6 +21,7 @@ from .. import complications as launchable
 from ..devices import Device
 from ..ir import Face
 from .monkeyc import hold_targets
+from .monkeyc.slot_scale import reads_user_profile
 
 #: The floor every generated face declares, and the only level this compiler
 #: ever emits.  ``manifest.xml`` is one file shared by every target device
@@ -76,6 +77,9 @@ def permissions(face: Face) -> list[str]:
     needed = set(face.requirements().permissions)
     if hold_targets(face) or face.config_data:
         needed.add(launchable.EXIT_TO_PERMISSION)
+    if reads_user_profile(face):
+        # a slot gauge's scale for heart rate or VO2 max reads the profile
+        needed.add("UserProfile")
     return sorted(needed)
 
 

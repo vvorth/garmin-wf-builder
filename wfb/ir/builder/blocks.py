@@ -12,7 +12,7 @@ from ...desugar import layout_ids
 from ...diagnostics import Span
 from ...palette import Color, ColorError
 
-from ..model import ColorScheme, ComplicationSlot, Element, LayoutDecl, walk_elements
+from ..model import ColorScheme, ComplicationSlot, Element, LayoutDecl, slot_of, walk_elements
 from ..naming import config_field, local_name
 from .state import _lint_suppression
 from .fonts import FontBlock
@@ -69,10 +69,12 @@ against."""
                         element.layout = decl.name
 
         for element in walk_elements(elements):
-            if isinstance(element, ComplicationSlot) and element.layout is not None:
+            if slot_of(element) is not None and element.layout is not None:
+                what = ("a 'type: data' element" if isinstance(element, ComplicationSlot)
+                        else "a gauge with 'slot:'")
                 self.bag.error(
                     "layouts",
-                    f"{element.id!r}: a 'type: data' element may not be inside "
+                    f"{element.id!r}: {what} may not be inside "
                     f"layout {element.layout!r} content",
                     element.span,
                     notes=[

@@ -14,7 +14,7 @@ from ..fonts import BakedFont
 from ..ir import Face
 from ..layout import ResolvedFace, resolve
 from . import jungle, manifest, monkeyc, resources, strhash, usage
-from .monkeyc import config_menu
+from .monkeyc import config_menu, slot_scale
 from .usage import RUNTIME_LIB
 
 #: Support-barrel files, and what pulls each one in.  Only what a face uses is
@@ -156,6 +156,9 @@ def generate(face: Face, devices: list[Device], root: Path,
         # slots emits none of it.
         project.sources.append(monkeyc.emit_slot_drawable(face))
         project.sources.append(monkeyc.emit_slot_text(face))
+    if slot_scale.slot_gauges(face):
+        names, apps = slot_scale.slot_scale_types(face)
+        project.sources.append(slot_scale.emit_slot_scale(face, names, apps))
     if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
         # are Layout constants, which are already per-device.  A `config:`-only

@@ -16,8 +16,9 @@ the same placement rule as every other element with a box.
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `style` | `arc`\|`bar`\|`needle`\|`segments`\|`scale` | required | ring, bar, [gauge needle](#gauge-needles), or [segments or a scale](#segments-and-scales) |
-| `value` | expression | required | the fill amount |
-| `max` | expression | required | the full-scale amount |
+| `value` | expression | required, unless `slot` | the fill amount |
+| `max` | expression | required with `value` | the full-scale amount |
+| `slot` | a `config: slots:` name | — | instead of `value`/`max`: the wearer's pick against its own scale ([below](#gauges-on-a-slot)) |
 | `radius` | length | required (`arc`; `segments`/`scale` on an arc) | ring radius |
 | `thickness` | length | required (`arc`; `segments`/`scale` on an arc) | pen width |
 | `start_angle` | angle | required (`arc`, `needle`) | where the ring starts, or where the needle points at 0 |
@@ -230,6 +231,73 @@ to hold it. A scale draws no ticks of its own: ticks are a radial
 with none, what is lit), or the needle whole. It is not built yet for
 `segments` or `scale`. See [Outlines](outlines.md).
 
+#### Gauges on a slot
+
+`slot:` binds a gauge to a [`config: slots:`](configuration.md#the-data-axis)
+slot instead of `value:` and `max:`. It shows whatever the wearer picked,
+filled against that metric's own scale, beside the slot's `type: data`
+element or on its own:
+
+```yaml
+config:
+  slots:
+    top:
+      default: steps
+      choices: [date, current_weather, steps, floors_climbed, heart_rate,
+                vo2max_run, battery, body_battery, stress, sleep_score]
+
+elements:
+  top_ring:
+    type: gauge
+    slot: top                 # instead of value:/max:
+    style: segments           # any style: arc, bar, segments, scale, needle
+    at: { anchor: center }
+    radius: 46%r
+    thickness: 5px
+    start_angle: 150deg
+    sweep: 240deg
+    count: 10
+    color: color.accent
+    track_color: color.track
+    absent: hide
+  top_text: { type: data, slot: top, at: { anchor: center, dy: -20% } }
+```
+
+The scale is the picked metric's own:
+
+| Picked | Scale |
+|---|---|
+| battery, Body Battery, stress, pulse ox, solar input, sleep score | 0 to 100 |
+| steps, floors, intensity minutes, wheelchair pushes | 0 to the watch's own goal (this week's, for intensity minutes) |
+| sunrise, sunset | one day |
+| heart rate | the wearer's zone 1 minimum to zone 5 maximum, from their heart-rate zones |
+| VO2 max (run, bike) | the wearer's row of Garmin's VO2 max ratings, by sex and age decade, from Poor to Superior |
+| a Connect IQ app's complication (`choices: any`) | its own published range, if it publishes one |
+| anything else (the date, weather, training status, calories, altitude, ...) | none |
+
+**A pick with no scale hides the whole gauge, track included**: with
+`date` picked, the ring above disappears and `top_text` alone shows the
+date. So does a goal the watch has not set, a VO2 max of 0 (none
+recorded), or, for VO2 max, a wearer with no birth year or sex in their
+profile, or an age outside 20–79. **A scaled pick whose reading is missing
+for now** (heart rate between readings) follows `absent:` like any gauge:
+`hide` keeps the track, `{value: ...}` substitutes a fill fraction. The
+fill runs from the scale's own minimum, so a heart rate at the wearer's
+zone 1 minimum is an empty gauge, not a fifth of one.
+
+A gauge that can show heart rate or VO2 max adds the `UserProfile`
+permission, since the watch reads the zones, sex and birth year from the
+wearer's profile. `max:` and `bands:` are refused beside `slot:`: no one
+maximum fits every choice, and `bands:` are fractions of one fixed scale.
+Colouring a gauge by the metric's own bands (heart-rate zones, Body
+Battery levels) is not implemented yet. `on_hold: auto` belongs on the
+slot's `type: data` element; on a slot gauge it is not implemented yet.
+Like a `data` element, a slot gauge belongs in the shared `elements:`,
+never inside a `layouts:` body.
+
+The preview draws the slot's `default:` pick with a sample reading, for
+a sample wearer (male, 35, zones 95–190 bpm) and the sample goals.
+
 ### `graph`
 
 A time series, drawn as a line, a filled area or bars:
@@ -354,3 +422,4 @@ is unmeasured** — see `docs/limitations.md`.
 - [`docs/limitations.md`](../limitations.md) — `SensorHistory`/solar series are not implemented.
 - [`examples/features/progress/face.yaml`](../../examples/features/progress/face.yaml) — `segments` and `scale` on an arc and on a bar.
 - [`examples/features/gauge/face.yaml`](../../examples/features/gauge/face.yaml) — gauge needles.
+- [Configuration: the Data axis](configuration.md#the-data-axis) — declaring the slots a gauge can show.

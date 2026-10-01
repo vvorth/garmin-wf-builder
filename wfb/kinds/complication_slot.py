@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 #: just something plausible, formatted by the same rules the watch uses
 #: (`wfb.complications.format_reading`).  Falls back to 12 / "--" for a
 #: type not listed here.
-_COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
+COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
     "steps": 8432,
     "heart_rate": 72,
     "calories": 1840,
@@ -82,8 +82,9 @@ _COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
 }
 
 
-def _resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDataSlot | None:
-    """Resolve a `complication_slot`'s `slot: config.data.<name>` reference.
+def resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDataSlot | None:
+    """Resolve a `slot: config.data.<name>` reference -- a `data` element's
+    or a gauge's.
 
     The same declared/rejected cascade every other `config:` sub-block
     keeps: a name that was declared and then rejected (a bad default/
@@ -211,7 +212,7 @@ def _complication_slot_text(element: ComplicationSlot, ctype: complications.Comp
     `wfb.emit.monkeyc.complication_slot.emit_complication_slot` draws one:
     an optional label prefix, then the reading by the type's own rule --
     approximate only in that the label comes from the device at runtime."""
-    value = _COMPLICATION_SLOT_SAMPLE.get(
+    value = COMPLICATION_SLOT_SAMPLE.get(
         ctype.name, 12 if ctype.value_type != "string" else "--")
     reading = complications.format_reading(
         ctype.name, value, unit=element.unit, short=element.short, settings=settings)
@@ -302,7 +303,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         every frame the same way any other `complication.*` source does.
         """
         slot_raw = node["slot"]
-        slot = _resolve_slot_reference(b, str(slot_raw), b.doc.span(node, "slot"))
+        slot = resolve_slot_reference(b, str(slot_raw), b.doc.span(node, "slot"))
 
         icon_size = b.baked_size_length(
             node, "icon_size", code="complication-slot", label="icon: {size:}",
@@ -532,7 +533,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         picked -- the same reason `config:`'s colour axes preview at their
         own `default:` above -- and the default is what a device without the
         native editor (fr955) always shows anyway.  The reading itself is an
-        illustrative sample (`_COMPLICATION_SLOT_SAMPLE`), not real data:
+        illustrative sample (`COMPLICATION_SLOT_SAMPLE`), not real data:
         there is no live `Complications` subscription on the host.
         """
         element = placed.element
@@ -561,7 +562,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             if icon is not None:
                 icon_font = renderer.resolved.fonts.get(placed.icon_font_key)
                 icon_glyph = icon.codepoint
-                sample = _COMPLICATION_SLOT_SAMPLE.get(slot.default)
+                sample = COMPLICATION_SLOT_SAMPLE.get(slot.default)
                 if slot.default in slot.condition_icons and isinstance(sample, int):
                     icon_glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
                         sample, "weather_unknown")].codepoint

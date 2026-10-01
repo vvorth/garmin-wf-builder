@@ -1287,6 +1287,10 @@ class Progress(Element):
     style: str = "arc"
     value: Expression | None = None
     maximum: Expression | None = None
+    #: The declared `config: slots:` slot this gauge shows, in place of
+    #: `value`/`maximum`: the reading is the wearer's pick, and the scale is
+    #: that type's own (`wfb.complications.SCALE`).
+    slot: str | None = None
     radius: Length | None = None
     thickness: Length | None = None
     start_angle: Angle | None = None
@@ -1625,6 +1629,16 @@ def drawn_copies(
         i for i in range(count)
         if i not in skip and (skip_every is None or i % skip_every != 0)
     )
+
+
+def slot_of(element: Element) -> str | None:
+    """The `config: slots:` slot ``element`` draws, if any: a `data` element's,
+    or a gauge's `slot:`."""
+    if isinstance(element, ComplicationSlot):
+        return element.slot
+    if isinstance(element, Progress):
+        return element.slot
+    return None
 
 
 def walk_elements(elements: list[Element]) -> list[Element]:

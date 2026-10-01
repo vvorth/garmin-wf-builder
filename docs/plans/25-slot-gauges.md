@@ -1,6 +1,6 @@
 # 25 — Gauges on a slot, scaled by the picked metric
 
-**Status: in progress. Slices 1 and 2 done (2026-10-01). D1, D2, D4–D8 are
+**Status: in progress. Slices 1–3 done (2026-10-01). D1, D2, D4–D8 are
 decided; D3 (zone colouring) is deferred to a later plan (§6).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
@@ -188,7 +188,24 @@ sample wearer and the memory measurement below moved to slice 3.
   `examples/features/slots/`, recorded in `docs/limitations.md`. *Moved to
   slice 3.*
 
-### Slice 3 — `slot:` on a gauge
+### Slice 3 — `slot:` on a gauge: done
+
+Built as below, with these settled while building:
+- `value:` and `slot:` are a schema `oneOf` ("cannot both be set"), and
+  `max:` is required with `value:` (`dependentRequired`, worded "missing
+  required key 'max' -- 'value' needs it").
+- `on_hold: auto` on a slot gauge is a friendly "not implemented yet",
+  pointing at the slot's `data` element.
+- A VO2 max of 0 (none recorded, as the fr955 reports it) has no scale, so
+  the gauge hides whole, as the slot's text treats 0 as absent.
+- The preview has no legend line; the guide names the sample wearer
+  (male, 35, zones 95–190 bpm) instead.
+- `slot_of(element)` is the one answer to "which slot does this draw",
+  read by the layouts check and the `config-unsupported`/`api-gated`
+  lints.
+- Measured: one arc gauge on `examples/features/slots/`' `top` slot,
+  16,631 B → 18,104 B (fenix8solar47mm).
+
 
 - **Schema and guide:**
   - `gaugeElement` gains `slot:`;

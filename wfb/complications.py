@@ -779,10 +779,11 @@ def ranges_scale(ranges: tuple[float, ...] | list[float] | None) -> tuple[float,
 
 
 def scale_for(name: str, *, goals: dict[str, int], heart_rate_zones: tuple[int, ...] | None,
-              sex: str | None, age: int | None) -> tuple[float, float] | None:
+              sex: str | None, age: int | None, value: object = None) -> tuple[float, float] | None:
     """The Python twin of the generated `SlotScale.scale`: type `name`'s
     `(minimum, maximum)` for a wearer described by the keyword arguments,
-    or None when it has no scale."""
+    or None when it has no scale.  ``value`` is the pulled reading: a VO2
+    max of 0 means none recorded, and has no scale."""
     scale = SCALE.get(name)
     if scale is None:
         return None
@@ -794,4 +795,19 @@ def scale_for(name: str, *, goals: dict[str, int], heart_rate_zones: tuple[int, 
         return (0.0, float(goal)) if goal is not None and goal > 0 else None
     if scale.kind == "heart_rate_zones":
         return heart_rate_scale(heart_rate_zones)
+    if isinstance(value, int) and not isinstance(value, bool) and value == 0:
+        return None
     return vo2max_scale(sex, age)
+
+
+def scale_fraction(value: object, unit: object, scale: tuple[float, float]) -> float | None:
+    """The Python twin of `WfbScale.fraction`: how full a gauge on ``scale``
+    is for a pulled ``value``, 0.0 to 1.0, or None without a numeric one."""
+    if value is None or isinstance(value, (str, bool)) or not isinstance(value, (int, float)):
+        return None
+    reading = float(value)
+    if not isinstance(value, int) and unit == "K":
+        reading *= 1000
+    low, high = scale
+    share = (reading - low) / (high - low)
+    return min(1.0, max(0.0, share))

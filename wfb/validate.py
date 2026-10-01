@@ -894,6 +894,10 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
     elif error.validator == "required":
         missing = error.message.split("'")[1]
         message = f"missing required key {missing!r}"
+    elif error.validator == "dependentRequired":
+        # jsonschema: "'max' is a dependency of 'value'"
+        missing, _, given = error.message.split("'")[1:4]
+        message = f"missing required key {missing!r} -- {given!r} needs it"
     elif error.validator == "additionalProperties":
         message = error.message.replace(
             "Additional properties are not allowed", "unknown key"

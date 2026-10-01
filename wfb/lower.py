@@ -406,6 +406,9 @@ class _Lowering:
             self.text(node)
         elif kind == "gauge":
             node["type"] = "progress"
+            if isinstance(node.get("slot"), str):
+                node["slot"] = f"config.data.{node['slot']}"
+                self.doc.set_origin(node, "slot", Origin("slot"))
             self.expr_key(node, "value")
             self.expr_key(node, "max")
             bands = node.get("bands")

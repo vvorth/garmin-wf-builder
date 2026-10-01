@@ -39,7 +39,7 @@ from .model import (
     ConfigDataSlot, Element, Group, Shape, HandPart, AnyHandPart, PolygonPart, RectanglePart, LinePart, CirclePart,
     ArcPart, TextPart, Hand, HandSet, HandsElement,
     PatternElement, Text, Progress, IconElement, ComplicationSlot, Graph, Face,
-    walk_elements, authored_draw_order, draw_sort_key, draw_order, never_together,
+    walk_elements, slot_of, authored_draw_order, draw_sort_key, draw_order, never_together,
 )
 from .builder import (
     HAND_PART_GEOMETRY_KEYS, HAND_PART_FILLED_SHAPES,
@@ -65,7 +65,7 @@ __all__ = [
     "ConfigDataSlot", "Element", "Group", "Shape", "HandPart", "AnyHandPart", "PolygonPart", "RectanglePart", "LinePart", "CirclePart",
     "ArcPart", "TextPart", "Hand", "HandSet", "HandsElement",
     "PatternElement", "Text", "Progress", "IconElement", "ComplicationSlot", "Graph", "Face",
-    "walk_elements", "authored_draw_order", "draw_sort_key", "draw_order", "never_together",
+    "walk_elements", "slot_of", "authored_draw_order", "draw_sort_key", "draw_order", "never_together",
     "HAND_PART_GEOMETRY_KEYS", "HAND_PART_FILLED_SHAPES",
     "HAND_PART_NO_UNFILLED", "HAND_PART_REJECTED_SHAPES", "PATTERN_PART_GEOMETRY_KEYS",
     "PATTERN_PART_REJECTED_SHAPES", "CURVE_STYLE_KEYS", "Builder", "build",

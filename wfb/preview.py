@@ -90,6 +90,21 @@ SAMPLE: dict[str, object] = {
 }
 
 
+#: The wearer a gauge on a `config: slots:` slot is scaled for in a preview,
+#: where the watch would read the profile: illustrative, nobody's own.
+SAMPLE_WEARER_SEX = "male"
+SAMPLE_WEARER_AGE = 35
+SAMPLE_HEART_RATE_ZONES = (95, 114, 133, 152, 171, 190)
+
+#: `ActivityMonitor.Info` goal fields, as a slot gauge's scale reads them,
+#: from the matching :data:`SAMPLE` readings.
+SAMPLE_GOALS: dict[str, int] = {
+    "stepGoal": 10000,
+    "floorsClimbedGoal": 10,
+    "activeMinutesWeekGoal": 150,
+}
+
+
 class UnknownStyleError(ValueError):
     """`PreviewOptions.style` named something `config: style:` never
     declared, or was given to a design with no `config: style:` at all --

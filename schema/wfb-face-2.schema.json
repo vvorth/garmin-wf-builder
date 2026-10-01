@@ -2058,9 +2058,7 @@
       "type": "object",
       "required": [
         "type",
-        "style",
-        "value",
-        "max"
+        "style"
       ],
       "additionalProperties": false,
       "properties": {
@@ -2129,6 +2127,10 @@
         },
         "max": {
           "$ref": "#/$defs/expression"
+        },
+        "slot": {
+          "description": "Which declared 'config: slots:' entry this gauge shows, by name, in place of 'value:' and 'max:': the reading is whatever the wearer picked, against that metric's own scale (0-100 for battery, Body Battery, stress, pulse ox, solar and sleep score; the watch's goal for steps, floors, intensity minutes and pushes; a day for sunrise and sunset; the wearer's heart-rate zones; their VO2 max rating row). A pick with no scale hides the whole gauge. 'max:' and 'bands:' are not read beside it (docs/guide/progress-and-graphs.md, \"Gauges on a slot\").",
+          "$ref": "#/$defs/identifier"
         },
         "at": {
           "$ref": "#/$defs/position"
@@ -2287,7 +2289,24 @@
             ]
           }
         }
-      ]
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "required": [
+            "slot"
+          ]
+        }
+      ],
+      "dependentRequired": {
+        "value": [
+          "max"
+        ]
+      }
     },
     "iconElement": {
       "type": "object",

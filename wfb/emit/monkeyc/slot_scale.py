@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from ... import complications
-from ...ir import Face
+from ...ir import Face, Progress
 from ..writer import Writer
 from .common import SourceFile, header
 
@@ -86,7 +86,7 @@ def slot_scale_text(names: Iterable[str], apps: bool, header_text: str) -> str:
                 for name in by_kind.get("vo2max", []):
                     w.line(case(name))
                 if "vo2max" in by_kind:
-                    w.line("    return WfbScale.vo2max(VO2MAX_ENDS);")
+                    w.line("    return WfbScale.vo2max(VO2MAX_ENDS, c);")
                 if apps:
                     w.line("case Complications.COMPLICATION_TYPE_INVALID:")
                     w.line("    return WfbScale.ranges(c);")
@@ -98,3 +98,34 @@ def emit_slot_scale(face: Face, names: Iterable[str], apps: bool) -> SourceFile:
     """`source/SlotScale.mc` for ``face``: see :func:`slot_scale_text`."""
     return SourceFile(f"source/{SLOT_SCALE_MODULE}.mc",
                       slot_scale_text(names, apps, header(face)))
+
+
+def slot_gauges(face: Face) -> list[Progress]:
+    """Every gauge drawing a declared `config: slots:` slot, in draw order."""
+    return [e for e in face.walk()
+            if isinstance(e, Progress) and e.slot is not None and e.slot in face.config_data]
+
+
+def slot_scale_types(face: Face) -> tuple[list[str], bool]:
+    """The complication types a slot gauge can show, and whether any can show
+    a Connect IQ app's complication (`choices: any`)."""
+    names: set[str] = set()
+    apps = False
+    for gauge in slot_gauges(face):
+        assert gauge.slot is not None
+        slot = face.config_data[gauge.slot]
+        names |= set(complications.TYPES) if slot.allow_any else set(slot.choices)
+        apps = apps or slot.allow_any
+    return sorted(names), apps
+
+
+#: The `wfb.complications.SCALE` kinds that read `Toybox.UserProfile`.
+PROFILE_SCALES = frozenset({"heart_rate_zones", "vo2max"})
+
+
+def reads_user_profile(face: Face) -> bool:
+    """Does a slot gauge's scale read the wearer's profile (heart-rate zones,
+    sex and birth year), so the build needs the `UserProfile` permission?"""
+    names, _ = slot_scale_types(face)
+    return any(name in complications.SCALE and complications.SCALE[name].kind in PROFILE_SCALES
+               for name in names)
