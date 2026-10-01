@@ -141,6 +141,14 @@ def test_the_preview_says_once_that_the_snap_is_a_guess(db):
     assert mono_guess_warning([mono], quantise=False) is None
 
 
+def _rgb_pixels(image: Image.Image) -> list[tuple[int, int, int]]:
+    """An RGB image's pixels in row order. `tobytes` works on every Pillow
+    the project accepts, where `getdata` is deprecated and its replacement
+    is too new."""
+    data = image.tobytes()
+    return [tuple(data[i:i + 3]) for i in range(0, len(data), 3)]
+
+
 def _colour_grid() -> Image.Image:
     """Every red and green in steps of 3 against 16 blues: dense enough to
     straddle the black/white crossover many times over (#006CFF is one)."""
@@ -160,7 +168,7 @@ def test_the_preview_snaps_every_colour_where_the_lint_says(colors):
     snapped = _quantise(grid, colors).convert("RGB")
     disagree = [
         (Color(*rgb), got)
-        for rgb, got in zip(grid.getdata(), snapped.getdata())
+        for rgb, got in zip(_rgb_pixels(grid), _rgb_pixels(snapped))
         if Color(*got) != Color(*rgb).nearest_legal(colors)
     ]
     assert not disagree, f"{len(disagree)} colours, e.g. {disagree[:3]}"
