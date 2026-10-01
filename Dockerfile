@@ -90,7 +90,8 @@ RUN set -eux; \
     WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" \
         python /tmp/fetch-icon-font.py /opt/icons; \
     rm /tmp/fetch-icon-font.py; \
-    python /tmp/tools/extract-device-reference.py --sdk /tmp/sdk-doc; \
+    python /tmp/tools/extract-device-reference.py --sdk /tmp/sdk-doc \
+        --sdk-version "$(cat /opt/ciq/bin/version.txt)"; \
     test -n "$(ls -A /tmp/.cache/device-reference/devices)"; \
     cp -R /tmp/.cache/device-reference /opt/device-reference; \
     WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \

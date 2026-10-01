@@ -113,3 +113,19 @@ and the only one shipped; golden files were regenerated for format 2
 Format 2 also reserves vocabulary for designed but unbuilt features, each a
 friendly "not implemented" error rather than an unknown key, so building
 one later is additive (`docs/limitations.md` §2).
+
+## Amendment (2026-10-01): §4 built
+
+The SDK version is recorded, not pinned. `tools/extract-device-reference.py`
+writes the SDK release its pages came from to `.cache/device-reference/
+sdk-version.txt` (from the SDK's `bin/version.txt`, or `--sdk-version` where
+only the pages are kept, as in the Docker build), and `tools/setup-env.sh`
+extracts again when it is missing. `wfb build` compares it with the SDK it
+compiles with: a `sdk` warning when they differ, since font metrics and
+palette sizes come from the reference, and a note when the reference
+records no SDK. The build directory gets `build-info.json` naming both SDKs,
+the devices and the `.prg`s; `wfb doctor` reports a mismatch. The
+"device database" here is the extracted reference: the device definitions
+themselves (`compiler.json`, `simulator.json`) carry no SDK version.
+Catalogue regeneration and its CI drift check stay unbuilt (ADR 0005 §1).
+

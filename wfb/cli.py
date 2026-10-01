@@ -30,10 +30,13 @@ from pathlib import Path
 from typing import Callable, TextIO
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
-from .build import BuildResult, Toolchain, build as run_build, load, resolve_all, select_devices, slug
+from .build import (
+    BUILD_INFO, BuildResult, Toolchain, build as run_build, load, resolve_all, select_devices,
+    slug,
+)
 from .simulate import SimulatorError, push, screenshot
 from .devices import (DEVICE_REFERENCE, Device, DeviceDatabase, DeviceError,
-                      DeviceReferenceMissing, FontMetric)
+                      DeviceReferenceMissing, FontMetric, reference_sdk_version)
 from .diagnostics import Bag
 from .lint import MemoryStats
 
@@ -436,6 +439,9 @@ def _build(args: argparse.Namespace) -> int:
         print(line)
     if not result.products and args.no_compile:
         print("           (not compiled: --no-compile)")
+    if result.sdk_version is not None:
+        print(f"{_status('sdk', color=color_out)}        Connect IQ {result.sdk_version}, "
+              f"recorded in {BUILD_INFO}")
     if args.profile and result.products:
         _print_profile_report(result, args.profile)
     _verdict(bag, sys.stdout, "succeeded", "bold", "green", before="\nbuild ",
@@ -1059,6 +1065,12 @@ def _doctor(args: argparse.Namespace) -> int:
              blocks=False)
     else:
         print(f"{ok} Connect IQ SDK   {toolchain.version}  ({toolchain.sdk})")
+        extracted = reference_sdk_version()
+        if extracted is not None and extracted != toolchain.version:
+            print(f"{missing} device reference extracted from SDK {extracted}")
+            fail("extract the device reference from this SDK",
+                 "run tools/setup-env.sh, or python3 tools/extract-device-reference.py",
+                 blocks=False)
         key_dir = toolchain.key.parent
         can_compile = True
         if toolchain.key.exists():

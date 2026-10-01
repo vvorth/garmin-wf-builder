@@ -42,6 +42,17 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 DEVICE_REFERENCE = _REPO_ROOT / ".cache" / "device-reference" / "devices"
 
 
+def reference_sdk_version(reference: Path | None = None) -> str | None:
+    """The SDK release the device reference was extracted from (its
+    ``sdk-version.txt``, written by ``tools/extract-device-reference.py``),
+    or `None` for a reference extracted before it was recorded, or none."""
+    path = (reference or DEVICE_REFERENCE).parent / "sdk-version.txt"
+    try:
+        return path.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
 class DeviceError(Exception):
     pass
 

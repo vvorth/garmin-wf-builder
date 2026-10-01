@@ -11,6 +11,7 @@ makes the compiler testable in CI, where device files are unavailable.
 from __future__ import annotations
 
 import html
+import json
 import os
 import re
 import subprocess
@@ -19,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import desugar, lint, lower, validate, yamlsrc
+from . import devices as devices_mod
 from .devices import Device, DeviceDatabase, DeviceError, version_key
 from .diagnostics import Bag
 from .emit import GeneratedProject, generate
@@ -39,6 +41,35 @@ class BuildResult:
     products: dict[str, Path] = field(default_factory=dict)
     memory: dict[str, lint.MemoryStats] = field(default_factory=dict)
     duration: float = 0.0
+    #: The Connect IQ SDK release the `.prg`s were compiled with, or `None`
+    #: when nothing was compiled.
+    sdk_version: str | None = None
+
+
+#: Written into the build directory beside the `.prg`s: what built them.
+BUILD_INFO = "build-info.json"
+
+
+def check_sdk(toolchain: Toolchain, bag: Bag, reference: Path | None = None) -> str:
+    """The SDK release this build compiles with, warning when the device
+    reference was extracted from another (ADR 0009 §4: recorded, not
+    pinned). The reference supplies palette sizes and font metrics, so a
+    stale one can mislay text the new SDK measures differently."""
+    version = toolchain.version
+    extracted = devices_mod.reference_sdk_version(reference)
+    if extracted is None:
+        bag.note("sdk", f"the device reference does not record its SDK, so it cannot be "
+                 f"checked against SDK {version}",
+                 notes=["run ./tools/setup-env.sh, or python3 tools/extract-device-reference.py, "
+                        "to extract it again"])
+    elif extracted != version:
+        bag.warning("sdk", f"the device reference was extracted from SDK {extracted}, and "
+                    f"this build compiles with SDK {version}",
+                    notes=["font metrics and palette sizes come from the reference, so text "
+                           "placement may not match what this SDK's devices measure",
+                           "run ./tools/setup-env.sh, or python3 tools/extract-device-reference.py, "
+                           "to extract it from this SDK"])
+    return version
 
 
 #: One `<functionEntry>` of a compiled `.prg.debug.xml`: its bytecode span.
@@ -264,11 +295,25 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
                        f"the generated project is complete and is in {build_dir}"],
             )
         else:
+            result.sdk_version = check_sdk(toolchain, bag)
             for device in devices:
                 _compile(result, device, toolchain, bag)
+            _write_build_info(result)
 
     result.duration = time.monotonic() - started
     return result
+
+
+def _write_build_info(result: BuildResult) -> None:
+    """Record what built this directory (ADR 0009 §4)."""
+    info = {
+        "sdk": result.sdk_version,
+        "device_reference_sdk": devices_mod.reference_sdk_version(),
+        "devices": [device.id for device in result.devices],
+        "products": sorted(path.name for path in result.products.values()),
+    }
+    (result.output_dir / BUILD_INFO).write_text(json.dumps(info, indent=2) + "\n",
+                                                encoding="utf-8")
 
 
 def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag) -> None:

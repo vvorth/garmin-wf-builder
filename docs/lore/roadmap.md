@@ -103,6 +103,10 @@ or AOD-related has been observed on a watch or in the simulator.
   selectors are checked by `lint.check_override_selectors` (an unknown
   device is an error, `override-unreachable` a warning).
   `docs/guide/placement.md`.
+- **SDK version recorded** (ADR 0009 §4) -- the device reference records
+  its SDK (`sdk-version.txt`); `wfb build` warns on a mismatch
+  (`wfb.build.check_sdk`) and writes `build-info.json`; `wfb doctor`
+  reports it. `docs/guide/getting-started.md`.
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare

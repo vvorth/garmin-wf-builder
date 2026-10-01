@@ -79,7 +79,7 @@ anything with an icon validates), the SDK device reference at
 `.cache/device-reference/` (extracted from the SDK's own device pages by
 `tools/extract-device-reference.py`; **derived and not committed**, rebuilt
 when missing or the SDK changes, and `wfb` refuses to load devices without
-it), `CIQ_SDK` and `PATH` in
+it; `wfb build` warns when it came from another SDK), `CIQ_SDK` and `PATH` in
 `/etc/sandbox-persistent.sh`, and `.venv/`. On Debian/Ubuntu, `venv` needs
 `python3-venv`, or the script falls back to `uv`. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device
@@ -303,7 +303,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - format 2's reserved vocabulary (components, `effects:`, `outline:` on parts, the data widget, `when:`
     rules): friendly "not implemented" errors, `docs/limitations.md` §2.
 - **Shipped:** format 2 and `wfb migrate`; several placeholders in one
-  `text:`; per-device and per-shape `overrides:` (geometry); every element type; `align:` everywhere, `static:`,
+  `text:`; per-device and per-shape `overrides:` (geometry); the SDK
+  version recorded per build (`build-info.json`); every element type;
+  `align:` everywhere, `static:`,
   `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:` on every drawable and on `group` (grown or stamped,

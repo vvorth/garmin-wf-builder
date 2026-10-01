@@ -102,7 +102,13 @@ generated  /home/you/faces/build/my-face
 built      my-face-fenix8solar47mm.prg  2,775 B / 131,072 B (2.1%)
 built      my-face-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
 built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
+sdk        Connect IQ 9.2.0, recorded in build-info.json
 ```
+
+`build-info.json`, beside the `.prg`s, records the SDK that compiled them,
+the SDK the device reference was extracted from, and the watches. A build
+warns when the two SDKs differ, since text is measured from that reference;
+`./tools/setup-env.sh` extracts it again (`wfb doctor` reports it too).
 
 `-d <device>` (repeatable) limits `preview`, `validate` and `build` to the
 watches you name. It takes any watch you have definitions for, not only the

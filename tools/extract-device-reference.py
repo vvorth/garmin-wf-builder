@@ -10,7 +10,8 @@ own ``compiler.json``/``simulator.json`` omit -- the real palette size and the
 per-font pixel metrics -- and ``wfb.fonts.fetch_system`` for font names.
 
 Output: ``<out>/devices/<id>.json`` per device, ``<out>/devices-index.json``,
-and ``<out>/source.txt`` naming the SDK it was extracted from.
+``<out>/source.txt`` naming the SDK it was extracted from, and
+``<out>/sdk-version.txt`` that SDK's release (its ``bin/version.txt``).
 
 Usage:
     python3 tools/extract-device-reference.py --sdk ~/ciq/sdks/9.2.0
@@ -204,6 +205,9 @@ def parse_device(path: Path) -> dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sdk", default=os.environ.get("CIQ_SDK", ""))
+    ap.add_argument("--sdk-version", default="",
+                    help="the SDK release, when --sdk has no bin/version.txt "
+                         "(the Docker build keeps only the doc pages)")
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent
                                          / ".cache" / "device-reference"))
     args = ap.parse_args()
@@ -239,6 +243,13 @@ def main() -> int:
         json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     (staging / "source.txt").write_text(f"{ref.resolve()}\n", encoding="utf-8")
+    # The SDK release the pages came from, which `wfb build` compares with
+    # the SDK it compiles with (`wfb.devices.reference_sdk_version`).
+    version_file = Path(args.sdk).expanduser() / "bin" / "version.txt"
+    version = args.sdk_version or (
+        version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "")
+    if version:
+        (staging / "sdk-version.txt").write_text(f"{version}\n", encoding="utf-8")
     shutil.rmtree(out, ignore_errors=True)
     staging.rename(out)
     print(f"parsed {len(devices)} devices -> {out}")
