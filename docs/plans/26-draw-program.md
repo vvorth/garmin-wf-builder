@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–7 done, 8–10 to go. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–8 done, 9–10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -531,7 +531,51 @@ the minute hand turned by 9 × 6° at 10:09, and each hand's ring before its
 own parts. Seen red: an always-awake condition, and every hand on the
 hour's angle.
 
-### Slices 8–9 — the remaining kinds
+### Slice 8 — `graph`: done
+
+Built as below. `GraphKind.lower` replaces `emit_draw`, `draw_preview` and
+five private helpers, and `wfb.emit.monkeyc.graph.emit_graph` is gone (its
+fields and rebuild methods stay there). The program gained two ops:
+- `SeriesRebuild`: the once-a-minute rebuild check. On the host the cached
+  series is the preview's stand-in (`_synthetic_series`, still host-side,
+  sized to the watch's sample count) with its `autoMin`/`autoMax`;
+- `SeriesDraw`: `WfbSeries.drawLine`/`drawArea`/`drawBars`, evaluated through
+  their transcriptions in `wfb.draw.barrel` (`series_line`, `series_area`,
+  `series_bars`, `auto_min`, `auto_max`).
+
+Proven before the old methods were deleted, on every graph in `examples/`
+and `tests/fixtures/` on each face's targets:
+- printed code byte-identical: **76/76**;
+- whole-frame renders: every difference has two named causes, shown by
+  emulating both (then **65/65** identical):
+  1. **The series is drawn at the watch's whole pixels.** A point's `x` is
+     `x + (i * w / (n - 1))` on two `Number`s and its `y` truncates; a bar's
+     slot is `w / n` whole pixels and its height truncates. The old preview
+     drew at fractional points and rounded bar heights.
+  2. **A graph draws in its `Layout` box**, `X`/`Y`/`WIDTH`/`HEIGHT`, as the
+     watch does. The old preview used the unrounded size, a pixel narrower
+     or shorter on some devices (`features/graph`: 161 px against the box's
+     162).
+
+  Affected: `features/align`, `features/graph`,
+  `generated_by_skill/trail-utility`, `showcase`.
+
+`runtime-lib/WfbSeries.mc`'s comment on `drawArea` now names its twin,
+`wfb.draw.barrel.series_area`, instead of the deleted preview helper; that
+comment is the one generated change. `tools/snapshot.py` against slice 5's
+starting snapshot: 506 unchanged, 45 changed. Nine are builds, each differing
+only in that comment of the copied `WfbSeries.mc`; six more are the graph
+previews of `features/graph` and `trail-utility`; the other 30 are slices 5
+and 6's. Real builds of `features/graph` and `trail-utility` are
+warning-free on all three targets.
+
+Tests (`tests/test_draw_graph.py`): a line through whole pixels that breaks
+at the stand-in's gap, a graph spanning its `Layout` box (with the
+size-against-box contrast asserted), bars in whole-pixel slots at least
+1 px tall, and the truncating centring of a bar wider than its slot. Seen
+red: a fractional point, a fractional slot, and the unrounded size.
+
+### Slice 9 — the remaining kind
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:
@@ -542,7 +586,7 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 | 5 (done) | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
 | 6 (done) | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
 | 7 (done) | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
-| 8 | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
+| 8 (done) | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
 | 9 | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |
 
 Each kind's JSON op list joins the editor's layers as it lands.

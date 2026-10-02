@@ -69,8 +69,8 @@ module WfbSeries {
     //! series. A single `fillPolygon` cannot represent a gap partway through
     //! its own outline without visibly joining straight across it -- there
     //! is no "lift the pen" for a filled shape -- so a gap here ends one run
-    //! and starts the next, exactly mirroring `wfb/preview.py`'s
-    //! `_graph_area` (which draws the same runs in Pillow), rather than
+    //! and starts the next, exactly as its twin `wfb.draw.barrel.series_area`
+    //! does for the preview, rather than
     //! either interpolating across it (a guess) or leaving the whole graph
     //! blank for one missing sample.
     //!

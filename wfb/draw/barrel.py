@@ -12,7 +12,7 @@ pixels it should cover.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 
@@ -170,3 +170,102 @@ CALLS: dict[str, Callable[..., Any]] = {
 HAND_ANGLES: dict[str, Callable[[int, int, int], float]] = {
     "hour": hour_angle, "minute": minute_angle, "second": second_angle,
 }
+
+
+def _whole_div(a: int, b: int) -> int:
+    """Monkey C `/` on two `Number`s: truncates toward zero."""
+    quotient = abs(a) // abs(b)
+    return quotient if (a < 0) == (b < 0) else -quotient
+
+
+def _span(lo: float, hi: float) -> float:
+    span = hi - lo
+    return 1.0 if span <= 0.0 else span
+
+
+def series_line(x: int, y: int, w: int, h: int, values: Sequence[float | None], lo: float,
+                hi: float) -> list[tuple[int, int, int, int]]:
+    """`WfbSeries.drawLine`'s `dc.drawLine` calls, as ``(x1, y1, x2, y2)``:
+    a segment between each two present neighbours, none across a gap."""
+    n = len(values)
+    if n < 2:
+        return []
+    span = _span(lo, hi)
+    out: list[tuple[int, int, int, int]] = []
+    have = False
+    px = py = 0
+    for i, v in enumerate(values):
+        if v is None:
+            have = False
+            continue
+        cx = x + _whole_div(i * w, n - 1)
+        cy = y + h - to_number((v - lo) * h / span)
+        if have:
+            out.append((px, py, cx, cy))
+        px, py, have = cx, cy, True
+    return out
+
+
+def series_area(x: int, y: int, w: int, h: int, values: Sequence[float | None], lo: float,
+                hi: float) -> list[list[tuple[int, int]]]:
+    """`WfbSeries.drawArea`'s `dc.fillPolygon` calls: one per run of two or
+    more present samples, closed by its own two bottom corners."""
+    n = len(values)
+    if n < 2:
+        return []
+    span = _span(lo, hi)
+    out: list[list[tuple[int, int]]] = []
+    i = 0
+    while i < n:
+        if values[i] is None:
+            i += 1
+            continue
+        start = end = i
+        while end < n and values[end] is not None:
+            end += 1
+        if end - start >= 2:
+            run: list[tuple[int, int]] = []
+            for j in range(start, end):
+                v = values[j]
+                cx = x + _whole_div(j * w, n - 1)
+                cy = y + h - to_number((v - lo) * h / span) if v is not None else y + h
+                run.append((cx, cy))
+            run.append((x + _whole_div((end - 1) * w, n - 1), y + h))
+            run.append((x + _whole_div(start * w, n - 1), y + h))
+            out.append(run)
+        i = end
+    return out
+
+
+def series_bars(x: int, y: int, w: int, h: int, bar_width: int, values: Sequence[float | None],
+                lo: float, hi: float) -> list[tuple[int, int, int, int]]:
+    """`WfbSeries.drawBars`'s `dc.fillRectangle` calls, as ``(x, y, w, h)``:
+    one per present sample, `barWidth` centred in its whole-pixel slot, at
+    least 1 px tall."""
+    n = len(values)
+    if n < 1:
+        return []
+    span = _span(lo, hi)
+    pitch = _whole_div(w, n)
+    out: list[tuple[int, int, int, int]] = []
+    for i, v in enumerate(values):
+        if v is None:
+            continue
+        bar_height = to_number((v - lo) * h / span)
+        if bar_height < 1:
+            bar_height = 1
+        out.append((x + i * pitch + _whole_div(pitch - bar_width, 2), y + h - bar_height,
+                    bar_width, bar_height))
+    return out
+
+
+def auto_min(values: Sequence[float | None]) -> float:
+    """`WfbSeries.autoMin`: the least present sample, 0.0 with none."""
+    present = [v for v in values if v is not None]
+    return min(present) if present else 0.0
+
+
+def auto_max(values: Sequence[float | None]) -> float:
+    """`WfbSeries.autoMax`: the greatest present sample, 0.0 with none."""
+    present = [v for v in values if v is not None]
+    return max(present) if present else 0.0

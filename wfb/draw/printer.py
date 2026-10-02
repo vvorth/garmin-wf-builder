@@ -20,7 +20,7 @@ from .program import (
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
     FillPolygon, FloatLit, FontDrop, For, Glyph, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
-    PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
+    PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
     NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
@@ -154,6 +154,17 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
         else:
             rotated.emit_part_ring(w, op.part, op.prefix, op.ring, radial=op.radial,
                                    thickness_expr=n(op.pen), set_pen=op.set_pen)
+    elif isinstance(op, SeriesRebuild):
+        w.line("var graphMinute = System.getClockTime().min;")
+        with w.block(f"if (graphMinute != {op.built})"):
+            w.line(f"{op.built} = graphMinute;")
+            w.line(f"{op.method}();")
+    elif isinstance(op, SeriesDraw):
+        width = f"{n(op.width)}, " if op.width is not None else ""
+        w.call(f"WfbSeries.draw{op.style.capitalize()}", [
+            f"dc, {n(op.x)}, {n(op.y)}, {n(op.w)}, {n(op.h)}",
+            f"{width}{op.series}, {n(op.lo)}, {n(op.hi)}",
+        ])
     elif isinstance(op, Let):
         w.line(f"var {op.name} = {n(op.value)};" + _note(op.note))
     elif isinstance(op, Assign):

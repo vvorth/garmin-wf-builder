@@ -6,22 +6,26 @@ from typing import Any, TYPE_CHECKING
 
 import math
 
-from .. import expr, series
+from .. import series
 from ..ir.model import Element, Expression, GRAPH_AREA_MAX_SAMPLES, Graph
 from ..layout import Placed, PlacedGraph
 from ..series import Acquisition, SeriesDef
 from ..units import Axis, Box, Duration, UnitError
-from ..emit.monkeyc import graph as graph_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass, article
-from ..emit.writer import Writer
+from ..emit.monkeyc.common import article
+from ..draw.program import (
+    AodPick, AodRestyled, Blank, Comment, Const, Conv, DrawContext, Num, NumLocal, Op, Paren, Read,
+    SeriesDraw, SeriesRebuild, SetColor,
+)
+from ..emit.monkeyc.common import const_prefix
+from ..ir import (
+    graph_built_field, graph_max_field, graph_min_field, graph_rebuild_method, graph_series_field,
+)
 from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver
 
 #: Which key each `graph` `style:` reads (a `bar_width:` on a `style: line`
 #: graph would otherwise be silently dropped).
@@ -117,94 +121,6 @@ def _graph_bound(b: Builder, node: dict[str, Any], key: str) -> tuple[Expression
         )
         return None, False
     return expression, False
-
-
-def _preview_graph_bound(renderer: Renderer, expression: Expression | None,
-                         default: float) -> float:
-    """A fixed `min:`/`max:` expression, evaluated against the same
-    sample readings every other bound value previews against."""
-    if expression is None or expression.ast is None:
-        return default
-    value = expr.evaluate(expression.ast, renderer.values)
-    return float(value) if isinstance(value, (int, float)) else default
-
-
-def _graph_point(renderer: Renderer, placed: PlacedGraph, i: int, n: int, value: float,
-                 lo: float, span: float) -> tuple[float, float]:
-    s = renderer.scale
-    x, y = placed.box.x, placed.box.y
-    w, h = placed.size
-    cx = x + (i * w / (n - 1) if n > 1 else 0)
-    cy = y + h - (value - lo) * h / span
-    return cx * s, cy * s
-
-
-def _graph_line(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color: tuple[int, int, int]) -> None:
-    n = len(values)
-    if n < 2:
-        return
-    s = renderer.scale
-    previous = None
-    for i, value in enumerate(values):
-        if value is None:
-            previous = None
-            continue
-        point = _graph_point(renderer, placed, i, n, value, lo, span)
-        if previous is not None:
-            thickness = renderer.aod_geometry(placed, "thickness", placed.thickness)
-            renderer.draw.line([previous, point], fill=color, width=max(1, thickness * s))
-        previous = point
-
-
-def _graph_area(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color: tuple[int, int, int]) -> None:
-    """One filled run per contiguous stretch of present samples -- the
-    same "a gap must not draw" rule `WfbSeries.drawArea` follows, so a
-    gap in the synthetic series (were one ever added) would look the
-    same way here as it will on the wrist."""
-    n = len(values)
-    if n < 2:
-        return
-    s = renderer.scale
-    y = placed.box.y
-    h = placed.size[1]
-    i = 0
-    while i < n:
-        if values[i] is None:
-            i += 1
-            continue
-        run: list[tuple[float, float]] = []
-        while i < n and values[i] is not None:
-            value = values[i]
-            assert value is not None  # the loop condition
-            run.append(_graph_point(renderer, placed, i, n, value, lo, span))
-            i += 1
-        if len(run) >= 2:
-            bottom = (y + h) * s
-            polygon = run + [(run[-1][0], bottom), (run[0][0], bottom)]
-            renderer.draw.polygon(polygon, fill=color)
-
-
-def _graph_bars(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color: tuple[int, int, int]) -> None:
-    n = len(values)
-    if n < 1:
-        return
-    s = renderer.scale
-    x, y = placed.box.x, placed.box.y
-    w, h = placed.size
-    pitch = w / n
-    bar_width = renderer.aod_geometry(placed, "bar_width", placed.bar_width)
-    for i, value in enumerate(values):
-        if value is None:
-            continue
-        bar_height = max(1, round((value - lo) * h / span))
-        left = (x + i * pitch + (pitch - bar_width) / 2) * s
-        top = (y + h - bar_height) * s
-        renderer.draw.rectangle(
-            [left, top, left + bar_width * s - 1, (y + h) * s - 1], fill=color
-        )
 
 
 def _synthetic_series(n: int) -> list[float | None]:
@@ -368,46 +284,47 @@ class GraphKind(ElementKind[Graph, PlacedGraph]):
             aod_thickness=aod_thickness, aod_bar_width=aod_bar_width,
         )
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedGraph) -> None:
-        """A synthetic series -- shape and placement only, never real data.
+    def lower(self, ctx: DrawContext, placed: PlacedGraph) -> list[Op]:
+        """The rebuild-cadence check, then one `WfbSeries` drawing call per
+        `style:`.  The check runs here rather than in `onUpdate`, after the
+        element's own guards, so a hidden graph does not pay for a rebuild
+        nobody will see this frame.
 
-        There is no live `ActivityMonitor`/`Weather` history on the host, so
-        this draws a deterministic stand-in sized to exactly the sample
-        count the device will draw (`element.sample_count`, resolved at IR
-        build time from `range:`/`buckets:` -- the same figure
-        `wfb.emit.monkeyc` bakes into the generated acquisition call) --
-        the honest analogue of the scalar `SAMPLE` table every other element
-        already previews against. Geometry -- box, thickness, bar width --
-        comes from the same resolved `PlacedGraph` the device draws from, so
-        this is exactly the picture codegen produces, not a second guess at it.
-        """
+        The host has no `ActivityMonitor`/`Weather` history, so its series is
+        a deterministic stand-in sized to exactly the sample count the watch
+        draws (`_synthetic_series`), drawn through the barrel's own
+        arithmetic: the picture codegen produces, with stand-in data."""
         element = placed.element
-        values = _synthetic_series(max(0, element.sample_count))
-        present = ([v for v in values if v is not None]
-                  if element.min_auto or element.max_auto else [])
-        if element.min_auto:
-            lo = min(present) if present else 0.0
-        else:
-            lo = _preview_graph_bound(renderer, element.min, 0.0)
-        if element.max_auto:
-            hi = max(present) if present else 1.0
-        else:
-            hi = _preview_graph_bound(renderer, element.max, 1.0)
-        span = hi - lo
-        if span <= 0:
-            span = 1.0
-        color = renderer.aod_color(element, "color", element.color)
+        prefix = const_prefix(placed.id)
+        series = graph_series_field(element.id)
+        minimum, maximum = graph_min_field(element.id), graph_max_field(element.id)
+        lo: Num = (Conv(NumLocal(minimum), "toFloat") if element.min_auto or element.min is None
+                   else Conv(Paren(Read(element.min)), "toFloat"))
+        hi: Num = (Conv(NumLocal(maximum), "toFloat") if element.max_auto or element.max is None
+                   else Conv(Paren(Read(element.max)), "toFloat"))
+        width: Num | None = None
         if element.style == "line":
-            _graph_line(renderer, placed, values, lo, span, color)
-        elif element.style == "area":
-            _graph_area(renderer, placed, values, lo, span, color)
-        else:
-            _graph_bars(renderer, placed, values, lo, span, color)
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedGraph,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        graph_mod.emit_graph(w, placed, aod)
+            width = AodPick(Const(f"{prefix}_THICKNESS", placed.thickness),
+                            Const(f"{prefix}_AOD_THICKNESS", placed.aod_thickness)
+                            if placed.aod_thickness is not None else None)
+        elif element.style == "bars":
+            width = AodPick(Const(f"{prefix}_BAR_WIDTH", placed.bar_width),
+                            Const(f"{prefix}_AOD_BAR_WIDTH", placed.aod_bar_width)
+                            if placed.aod_bar_width is not None else None)
+        box = placed.box
+        return [
+            Comment("the sample interval here is minutes, so rebuilding more often than"),
+            Comment("once a minute could not show anything new (WfbSeries.mc's docstring)"),
+            SeriesRebuild(graph_built_field(element.id), graph_rebuild_method(element.id),
+                          series, minimum, maximum,
+                          tuple(_synthetic_series(max(0, element.sample_count))),
+                          element.min_auto, element.max_auto),
+            Blank(),
+            SetColor(AodRestyled(element, "color")),
+            SeriesDraw(element.style, Const(f"{prefix}_X", box.x), Const(f"{prefix}_Y", box.y),
+                       Const(f"{prefix}_WIDTH", box.width), Const(f"{prefix}_HEIGHT", box.height),
+                       width, series, lo, hi),
+        ]
 
     def describe(self, placed: PlacedGraph) -> str:
         element = placed.element

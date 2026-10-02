@@ -472,6 +472,42 @@ class Part:
 
 
 @dataclass(frozen=True)
+class SeriesRebuild:
+    """A graph's once-a-minute rebuild: ``var graphMinute =
+    System.getClockTime().min;`` and, when it changed, ``<built> =
+    graphMinute; <method>();``.  On the host the cached fields are the
+    series ``samples`` (the preview's stand-in) and, under `min: auto`/`max:
+    auto`, its `WfbSeries.autoMin`/`autoMax`; a bound field not asked for
+    stays 0."""
+
+    built: str
+    method: str
+    series: str
+    minimum: str
+    maximum: str
+    samples: tuple[float | None, ...]
+    min_auto: bool
+    max_auto: bool
+
+
+@dataclass(frozen=True)
+class SeriesDraw:
+    """`WfbSeries.drawLine`/`drawArea`/`drawBars` (``style``) of the cached
+    series local ``series`` in the box ``x``/``y``/``w``/``h``, between
+    ``lo`` and ``hi``; ``width`` is a line's pen or a bar's width."""
+
+    style: str
+    x: Num
+    y: Num
+    w: Num
+    h: Num
+    width: Num | None
+    series: str
+    lo: Num
+    hi: Num
+
+
+@dataclass(frozen=True)
 class LoadFont:
     """``var <local> = <source>;`` (a font field, or a choice between two),
     then, for ``on_null="return"``, ``if (<local> == null) { return;  //
@@ -686,6 +722,7 @@ class Blank:
 
 
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, ArcProgress, Part,
+                        SeriesRebuild, SeriesDraw,
                         LoadFont, Text, Glyph, LetText, IfNotNull, IfAod, IfAwake, Let, Assign,
                         If, For, Continue, LetSlotPick, LetAutoScale, WrapperGuard, Disagreement, Comment,
                         Blank]

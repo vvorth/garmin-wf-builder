@@ -22,7 +22,7 @@ from .program import (
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
     FillPolygon, FloatLit, FontDrop, For, Glyph, Grown, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
-    PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
+    PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
     NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
@@ -328,6 +328,13 @@ class Evaluator:
             self.pen = 1
         elif isinstance(op, Part):
             self.run(part_ops(op, self))
+        elif isinstance(op, SeriesRebuild):
+            samples = list(op.samples)
+            self.locals[op.series] = samples
+            self.locals[op.minimum] = barrel.auto_min(samples) if op.min_auto else 0
+            self.locals[op.maximum] = barrel.auto_max(samples) if op.max_auto else 0
+        elif isinstance(op, SeriesDraw):
+            self.run(series_ops(op, self))
         elif isinstance(op, Let | Assign):
             self.locals[op.name] = self.num(op.value)
         elif isinstance(op, If):
@@ -516,6 +523,28 @@ def part_ops(op: Part, ev: Evaluator) -> list[Op]:
     if stroked and op.set_pen:
         return [SetPen(op.pen), *body, SetPen(None)]
     return body
+
+
+def series_ops(op: SeriesDraw, ev: Evaluator) -> list[Op]:
+    """What one `WfbSeries.draw*` call draws, as plain `Dc` ops over device
+    numbers (`barrel.series_line`, `series_area`, `series_bars`)."""
+    values = ev.locals[op.series]
+    x, y, w, h = (int(ev.num(n)) for n in (op.x, op.y, op.w, op.h))
+    lo, hi = ev.num(op.lo), ev.num(op.hi)
+    if lo is None or hi is None:
+        return []
+    if op.style == "line":
+        assert op.width is not None
+        lines: list[Op] = [Primitive("drawLine", ((Lit(x1), Lit(y1), Lit(x2), Lit(y2)),))
+                           for x1, y1, x2, y2 in barrel.series_line(x, y, w, h, values, lo, hi)]
+        return [SetPen(op.width), *lines, SetPen(None)] if lines else []
+    if op.style == "area":
+        return [FillPolygon("", tuple((float(px), float(py)) for px, py in run))
+                for run in barrel.series_area(x, y, w, h, values, lo, hi)]
+    assert op.width is not None
+    bar = int(ev.num(op.width))
+    return [Primitive("fillRectangle", ((Lit(bx), Lit(by), Lit(bw), Lit(bh)),))
+            for bx, by, bw, bh in barrel.series_bars(x, y, w, h, bar, values, lo, hi)]
 
 
 def auto_scale(op: LetAutoScale, values: Mapping[str, object]) -> tuple[float, float] | None:

@@ -22,11 +22,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Union
 
 from . import barrel
-from .evaluator import Evaluator, Stop, part_ops, paste_glyph
+from .evaluator import Evaluator, Stop, part_ops, paste_glyph, series_ops
 from .program import (
     AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, Disagreement, FillPolygon,
     Continue, Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
-    LetText, Lit, LoadFont, Num, Op, Part, Primitive, SetColor, SetPen, Shifted, Text,
+    LetText, Lit, LoadFont, Num, Op, Part, Primitive, SeriesDraw, SeriesRebuild, SetColor, SetPen, Shifted, Text,
     WrapperGuard,
 )
 
@@ -140,6 +140,10 @@ class _JsonWriter:
             self.out.append({"op": "pen", "width": 1})  # the barrel resets it
         elif isinstance(op, Part):
             self.walk(part_ops(op, ev))
+        elif isinstance(op, SeriesRebuild):
+            ev.run([op])
+        elif isinstance(op, SeriesDraw):
+            self.walk(series_ops(op, ev))
         elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard)):
             ev.run([op])
         elif isinstance(op, If):

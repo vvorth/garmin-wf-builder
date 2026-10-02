@@ -1,4 +1,5 @@
-"""Element emitter for `graph`, and its cached-series rebuild methods."""
+"""A `graph`'s cached-series fields and rebuild methods; its drawing is
+`wfb.kinds.graph.GraphKind.lower`."""
 
 from __future__ import annotations
 
@@ -10,14 +11,14 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import _NO_GUARDS, NO_AOD, AodStyle, const_prefix
+from .common import _NO_GUARDS
 from ..writer import Writer
 
 
 def _emit_graph_fields(w: Writer, graphs: list[PlacedGraph]) -> None:
     """One cached series (plus its auto bounds, where asked for) per `graph`.
 
-    Rebuilt once a minute (`emit_graph`'s cadence check), not per frame --
+    Rebuilt once a minute (`wfb.kinds.graph.GraphKind.lower`'s cadence check), not per frame --
     see `runtime-lib/WfbSeries.mc`'s module docstring for why.
     """
     if not graphs:
@@ -41,45 +42,6 @@ def _emit_graph_fields(w: Writer, graphs: list[PlacedGraph]) -> None:
         w.doc(f"`{element.id}`: the minute this series was last rebuilt.")
         w.line(f"private var {graph_built_field(element.id)} as Number = -1;")
     w.blank()
-
-
-def emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
-    """The rebuild-cadence check, then one drawing call per `style:`.
-
-    The check runs here rather than unconditionally in `onUpdate` -- after
-    the element's own guards, alongside every other kind's actual drawing --
-    so a hidden graph does not pay for a rebuild nobody will see this frame.
-    """
-    element = placed.element
-    prefix = const_prefix(placed.id)
-    built = graph_built_field(element.id)
-    w.comment("the sample interval here is minutes, so rebuilding more often than")
-    w.comment("once a minute could not show anything new (WfbSeries.mc's docstring)")
-    w.line("var graphMinute = System.getClockTime().min;")
-    with w.block(f"if (graphMinute != {built})"):
-        w.line(f"{built} = graphMinute;")
-        w.line(f"{graph_rebuild_method(element.id)}();")
-    w.blank()
-
-    values = graph_series_field(element.id)
-    # A bound that is not auto was authored, so its expression is set.
-    lo = (f"{graph_min_field(element.id)}.toFloat()" if element.min_auto or element.min is None
-          else f"({element.min.code}).toFloat()")
-    hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto or element.max is None
-          else f"({element.max.code}).toFloat()")
-    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-    # Every style draws into the same box from the same series; `line` and
-    # `bars` add one pen/bar width ahead of it.
-    if element.style == "line":
-        width = aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None) + ", "
-    elif element.style == "bars":
-        width = aod.layout(prefix, "BAR_WIDTH", placed.aod_bar_width is not None) + ", "
-    else:  # area
-        width = ""
-    w.call(f"WfbSeries.draw{element.style.capitalize()}", [
-        f"dc, Layout.{prefix}_X, Layout.{prefix}_Y, Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT",
-        f"{width}{values}, {lo}, {hi}",
-    ])
 
 
 def _emit_graph_rebuild(w: Writer, placed: PlacedGraph, guards: Guards = _NO_GUARDS) -> None:

@@ -189,7 +189,7 @@ specifies each item.
 ## Architecture work decided, not built
 
 - **A single draw program** (decided 2026-10-01; `shape`, `text`, `icon`,
-  `progress`, `pattern` and `hands` are ported, with per-element layers and the JSON
+  `progress`, `pattern`, `hands` and `graph` are ported, with per-element layers and the JSON
   form): each
   element is lowered once into a program of drawing steps over `Layout`
   constants and readings. A Monkey C printer, a Python evaluator (the
