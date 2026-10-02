@@ -10,7 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02 (G4 the user's working-copy rule, the rest as recommended); slice 0 done, 1–7 to go |
+| [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02, re-scoped the same day (client-driven, upload/download bundles, persistent history, every property editable; build postponed); slice 0 done, 1–7 to go |
 
 ## Built and deleted
 

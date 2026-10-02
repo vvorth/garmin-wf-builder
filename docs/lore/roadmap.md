@@ -172,11 +172,15 @@ specifies each item.
    source whose read needs an extra function.
 8. **The GUI** (ADR 0002 amendment, 2026-10-01): decided, not built.
    `wfb studio` will be a local web app on Starlette and uvicorn, with a
-   no-build-step front end. It edits the file's text by span patches,
-   never by re-dumping (research 26 §3). The first version edits geometry
-   only. The browser draws per-element layers from the single draw
-   program and makes no drawing decisions (research 27 §5); the program
-   is built.
+   no-build-step front end, started with no face: the author creates one
+   from a template or uploads one (a `.zip` with `face.yaml` and
+   `assets/`, or a plain `.yaml`), and downloads it to save. It edits the
+   file's text by span patches, never by re-dumping (research 26 §3), over
+   every property: a layer tree, the colours and styles, an inspector, and
+   a YAML tab. Undo, redo and snapshots persist in a history store. The
+   browser draws per-element layers from the single draw program and makes
+   no drawing decisions (research 27 §5); the program is built. Building
+   from the editor is not planned yet.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -197,9 +201,10 @@ specifies each item.
 
 ## Architecture work decided, not built
 
-- **The visual editor** (decided 2026-10-01): it edits geometry only and
-  reverts no shipped feature, drawing per-element layers from the draw
-  program. Its patch engine is built (`wfb/edit/`: text patches, the gate,
+- **The visual editor** (decided 2026-10-01, re-scoped 2026-10-02): a
+  client-driven web app that opens and saves faces by upload and download
+  and edits every property, reverting no shipped feature and drawing
+  per-element layers from the draw program. Its patch engine is built (`wfb/edit/`: text patches, the gate,
   drags in the author's units); the server and the UI are not.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the

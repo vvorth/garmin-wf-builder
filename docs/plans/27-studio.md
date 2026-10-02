@@ -1,10 +1,9 @@
 # 27 — `wfb studio`: the visual editor
 
-**Status: accepted (2026-10-02); slice 0 done, 1–7 to go. Building it was decided by
-the user on 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). On
-2026-10-02 the user decided G4 (a working copy, saved on approval) and
-accepted G1–G3, G5 and G6 as recommended.** Delete this file once every slice has shipped
-(`docs/CLAUDE.md`).
+**Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
+below); slice 0 done, 1–7 to go.** Building it was decided by the user on
+2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
+once every slice has shipped (`docs/CLAUDE.md`).
 
 Research:
 - `docs/research/26-gui-editor.md`: requirements, the text-canonical
@@ -21,109 +20,107 @@ rasteriser.
 
 In short:
 
-* `wfb studio face.yaml` serves a local web app on `127.0.0.1`. The author
-  opens it in a browser on the host. In the container, the port is
-  published to the host's loopback only (`docs/container.md`).
-* **The server holds the file's text and a version number, not a model.**
-  Every edit, from the canvas, the inspector or the text pane, is a text
-  patch. A patch is accepted only if the patched text:
+* **A client-driven web app.** `wfb studio` serves a local web app on
+  `127.0.0.1`, with no file named. The author opens it in a browser on the
+  host and, from there, **creates a new face or opens one**, edits it, and
+  downloads it. Several faces can be open at once, one per tab. In the
+  container, the port is published to the host's loopback only
+  (`docs/container.md`).
+* **A face travels as a bundle.** It is opened by upload and saved by
+  download: a `.zip` holding `face.yaml` and an `assets/` directory, or a
+  plain `.yaml` when the face references no file. The server never reads
+  or writes a host path the author did not hand it.
+* **Each open face is a document**: a throwaway temporary directory the
+  compiler reads (so relative font paths resolve), backed by a durable
+  **history store** that records every accepted change. Undo and redo
+  survive a closed tab and a server restart, and a **snapshot** is taken
+  every few minutes, so there is always a point in time to go back to.
+* **The server holds each document's text and a version, not a model.**
+  Every edit, from the canvas, the inspector, the layer tree or the YAML
+  tab, is a text patch. A patch is accepted only if the patched text:
   - re-parses to exactly the intended data;
   - loads with no new error.
 
-  **Edits go to a working copy, never to the design itself (G4).** The
-  design file is written only when the author saves, after seeing the
-  diff and approving it. An edit made outside the editor (VS Code, a
-  `git checkout`, Claude) reloads the session when there is nothing
-  unsaved, and is shown as a conflict when there is.
-* **The first editor edits geometry only** (research 27 E2): select,
-  move, resize, align, rotate arcs; add an element by type; delete,
-  duplicate, reorder. Everything else is edited as text in the same
-  window, with schema completion.
-* **The canvas is the layer stack** (`wfb.draw.layers`). One transparent
-  image per element, plus one per outlined group's ring. Show, hide and
-  solo per layer. Dragging moves one layer:
-  - every layer shifts its image during the gesture;
-  - a lowered element's layer can instead be redrawn in the browser from
-    its JSON with the dragged `Layout` constant changed (slice 4);
-  - on release, the server patches the text and re-renders, and its
-    images are authoritative.
+  So the author's comments, key order and formatting survive every edit,
+  and the downloaded file stays a hand-editable design.
+* **The editor edits the whole face**, not just geometry:
+  - **left:** the layer tree (static content, dynamic elements, each
+    layout's own two, groups as folders) and the face's global blocks
+    (colours, styles);
+  - **centre:** the live preview, one transparent image per layer
+    (`wfb.draw.layers`), with move and resize handles;
+  - **right:** the properties of the selected item, every key, with a
+    widget per kind of value;
+  - **a YAML tab**, secondary, for what no widget expresses yet.
 * **A drag writes the author's own unit** (research 26 §4.4): a `%r`
   stays `%r`, rounded to what still lands on the dragged pixel. It writes
   the most specific source of the value on the viewed device: a device-id
   override, then a `shape:` override, then the element's own key
   (research 28 §3, 18/18).
+* **Building is postponed.** A downloaded bundle builds with `wfb build`
+  once unpacked; a build button comes later.
 * Nothing on the watch side changes. The editor is host-only.
 
 ## 1. Decisions
 
-### Decided
+### The re-scope (user, 2026-10-02)
+
+The first version of this plan served one design file named on the
+command line, wrote edits to a hidden working copy beside it (G4) and
+edited geometry only (E2). The user re-scoped it the same day:
+
+- **S1: client-driven.** `wfb studio` starts with no face. The browser
+  chooses: new, open, or a recent document. The server is the compiler
+  the browser talks to, not a view of one file.
+- **S2: documents are volatile temporary directories.** No workspace
+  directory, no working copy beside a design. **This supersedes G4.**
+- **S3: open by upload, save by download, only.** The format is a `.zip`
+  with `face.yaml` and `assets/`, or a plain `.yaml` when the face uses no
+  asset file. No File System Access API (save in place), no server-side
+  host paths.
+- **S4: a persistent history.** Every accepted change is recorded so undo
+  and redo survive; a snapshot is written every predefined number of
+  minutes to a store it can be restored from.
+- **S5: edit every property.** The layer hierarchy (static and dynamic,
+  layouts, groups), the global colours and styles, and a properties
+  inspector over every key. **This supersedes E2** (geometry only).
+- **S6: the YAML text pane stays, as a secondary tab.**
+- **S7: postponed:** the build button (old slice 6) and the in-browser
+  live redraw from JSON (old slice 4). Both stay possible later; neither
+  is in this plan's slices.
+
+### Kept from the first version
 
 - **D1–D3 (ADR 0002 amendment, 2026-10-01):** a local web app; Starlette
   and uvicorn; a front end of vendored ES modules with no build step.
-- **E2 (research 27, 2026-10-01):** a round-trip, geometry-only first
-  editor.
 - **E4 (research 27, 2026-10-01):** the editor starts after plan 26 slice
-  3 (done), while plan 26 ports the remaining kinds.
-- **G1, G2, G3, G5, G6 accepted as recommended (2026-10-02).**
-  - G1: the patch engine in `wfb/edit/`, the server in `wfb/studio/`.
-  - G2: `starlette` and `uvicorn` in `requirements.txt`, `httpx` in
-    `requirements-dev.txt`.
-  - G3: HTTP requests plus server-sent events.
-  - G5: CodeMirror vendored as one prebuilt bundle by a maintainer
-    script.
-  - G6: server-applied edits only for now; the linear geometry model is
-    reconsidered only if slice 3 shows the release round trip feels slow.
-
-  The options as they were weighed are kept under "Open" below.
-- **G4: edits go to a working copy; the design is written only on an
-  approved save (user, 2026-10-02).** This replaces the proposal to write
-  every accepted patch at once. How it works is in "The working copy",
-  below.
+  3 (done).
+- **G1:** the patch engine in `wfb/edit/` (pure text in, text out,
+  testable over the corpus with no web stack); the server, documents and
+  history store in `wfb/studio/`; the front end and its vendored libraries
+  in `wfb/studio/static/`.
+- **G2:** `starlette` and `uvicorn` in `requirements.txt`, `httpx`
+  (Starlette's test client) in `requirements-dev.txt`, so the fast suite
+  tests the server like everything else. An optional extra would make a
+  test that can silently stop running (`tests/CLAUDE.md`).
+- **G3:** plain HTTP for requests (an edit, a render, an upload, a
+  download), plus server-sent events for what the server announces (a
+  render finished, a snapshot taken, an error). Every message is
+  inspectable with `curl`. Nothing measured needs a server round trip per
+  pointer move (research 27 §5.3).
+- **G5:** CodeMirror 6 and `codemirror-json-schema` vendored as one
+  prebuilt ES module bundle by a maintainer script
+  (`tools/vendor-studio-frontend.sh`), committed with its versions and
+  licences. Preact and `htm` are vendored as they ship. Contributors and
+  users never need Node. A CDN fails offline and in a locked-down
+  container.
+- **G6:** server-applied edits only (below). A browser-side linear
+  geometry model is reconsidered only if slice 4 shows the release round
+  trip feels slow.
 - **The text pane is CodeMirror 6 with `codemirror-json-schema`**
   (research 28 §5): no false errors on valid faces. It does not enforce
   `dependentRequired`, so `wfb`'s own diagnostics, shown in the same
   gutter, cover that.
-
-### Open (now decided; the options as weighed)
-
-- **G1: where the code lives.**
-  - **A (recommended):**
-    - `wfb/edit/` holds the patch engine: the span index, scalar and
-      structural patches, unit conversion and the override target. It is
-      pure text in, text out, with no server.
-    - `wfb/studio/` holds the server and the session.
-    - `wfb/studio/static/` holds the front end and its vendored libraries.
-  - **B:** all of it in `wfb/studio/`.
-
-  A lets the patch engine be tested over the whole corpus with no web
-  stack, and lets a future VS Code front end (research 26 §5 E) reuse it.
-- **G2: dependencies.**
-  - **A (recommended):** `starlette` and `uvicorn` in `requirements.txt`;
-    `httpx` (Starlette's test client) in `requirements-dev.txt`. The
-    fast suite then tests the server like everything else.
-  - **B:** an optional extra, with `wfb studio` explaining what to install,
-    and server tests skipped when it is missing.
-
-  B means a test that can silently stop running, which `tests/CLAUDE.md`
-  warns against.
-- **G3: the transport.**
-  - **A (recommended):** plain HTTP for requests (a patch, a render, a
-    layer), plus server-sent events for what the server announces: the file
-    changed on disk, a re-render finished, build progress. Every message is
-    inspectable with `curl`.
-  - **B:** one WebSocket, which Starlette supports.
-
-  Nothing measured needs a server round trip per pointer move (research 27
-  §5.3), so the WebSocket's only gain is one connection instead of two.
-- **G5: vendored front-end files.** Preact and `htm` are single ES
-  modules and are vendored as they ship. CodeMirror 6 and
-  `codemirror-json-schema` are many npm packages.
-  - **A (recommended):** a maintainer script
-    (`tools/vendor-studio-frontend.sh`) builds them once with Node into one
-    ES module bundle, committed with its versions and licences.
-    Contributors and users never need Node.
-  - **B:** load them from a CDN. That fails offline and in a locked-down
-    container.
 
 ### Where edits happen
 
@@ -141,12 +138,12 @@ removes between the preview and the watch.
 
 | Step | Where |
 |---|---|
-| The pointer moves: the layer's image shifts, or a lowered layer is redrawn from its JSON (slice 4) | browser, preview only |
-| Release: an intent such as "move `clock` by (+6, −3) px on fenix8solar47mm", or "set `radius` of `ring` to 44%r for all targets" | browser → server |
-| Unit conversion, override target, text patch, gate, working-copy write (G4), re-render | server (`wfb/edit/`, the pipeline) |
+| The pointer moves: the layer's image shifts | browser, preview only |
+| Release, or a value set in the inspector: an intent such as "move `clock` by (+6, −3) px on fenix8solar47mm", or "set `radius` of `ring` to 44%r for all targets" | browser → server |
+| Unit conversion, override target, text patch, gate, history record, re-render | server (`wfb/edit/`, `wfb/studio/`, the pipeline) |
 | New text, version and layers | server → browser |
-| Typing in the text pane | browser (CodeMirror), sent as the whole text against its version; the server gates it the same way |
-| Undo and redo | server: its history of accepted patches |
+| Typing in the YAML tab | browser (CodeMirror), sent as the whole text against its version; the server gates it the same way |
+| Undo and redo | server: the document's history |
 
 The cost is one round trip per release. On loopback that is about the
 pipeline's own time with font baking memoised: 28–40 ms for a typical
@@ -154,10 +151,9 @@ face and 250 ms for the showcase (research 28 §4).
 
 **What plan 26 does and does not move into the browser.** Plan 26 makes
 the last stage, *drawing*, executable by a browser: the program as JSON
-plus a rasteriser with a tested contract (`wfb.draw.jsonform`). That
-removes the largest single reason a browser preview would drift from the
-watch. Every other stage stays Python, and a browser that edited and
-previewed on its own would need all of it:
+plus a rasteriser with a tested contract (`wfb.draw.jsonform`). Every
+other stage stays Python, and a browser that edited and previewed on its
+own would need all of it:
 
 | Stage | Lines today | What a browser would need it for |
 |---|---:|---|
@@ -167,110 +163,137 @@ previewed on its own would need all of it:
 | expressions, formats, the catalogue | ~2 550 | readings and strings at sample values |
 | fonts (baking, metrics, stand-ins) | ~1 800 | text measurement, which moves a text's box |
 | lint | ~2 550 | the diagnostics beside the canvas |
-| drawing: the per-kind draw code and `preview.py` | ~1 300 in `wfb/draw/` once ported | **provided by plan 26** as the JSON and its contract |
+| drawing: the per-kind draw code and `preview.py` | ~1 300 in `wfb/draw/` | **provided by plan 26** as the JSON and its contract |
 
-### The working copy (G4)
+### Documents and the bundle (S2, S3)
 
-- **Where it lives.** It sits beside the design, as
-  `.<name>.studio.yaml` in the design's own directory, so relative paths
-  resolve exactly as they do for the design: `fonts:` sources, assets.
-  The working copy name is gitignored. Every render, lint and build in the
-  session reads the working copy.
-- **What the author sees.** The design file's name, never the working
-  copy's. Diagnostics are reported against the design's path: the session
-  loads the working copy with the design's name as its display path, so a
-  message reads `face.yaml:12:5`, not `.face.studio.yaml:12:5`.
-- **The session.** It records the design's text and modification time
-  when it started or last saved. "Unsaved" means the working copy differs
-  from that recorded text. The editor shows an unsaved marker and the
-  number of changed lines.
-- **Save, approved.** Save shows the diff from the design to the working
-  copy and waits for the author's approval. On approval, the server:
-  1. gates the working copy once more;
-  2. checks the design has not changed on disk since the session recorded
-     it;
-  3. writes the design atomically (a temporary file in the same
-     directory, then a rename).
+- **A document** is one open face: an id, a display name, its text and
+  version, its asset files, and its history. Its **temporary directory**
+  (`tempfile.mkdtemp`) holds `face.yaml` and the asset files at their
+  relative paths, materialised from the history store, so the compiler
+  loads it exactly as it would a face on disk. The directory is
+  disposable: it is rebuilt from the store whenever it is missing (after a
+  server restart, say).
+- **Diagnostics name `face.yaml`**, never the temporary path. A span
+  carries the path the text was loaded under (the temporary one, so fonts
+  resolve), so the server reports each span relative to the document's
+  directory.
+- **New.** From one of `wfb new`'s templates (`wfb/templates/`, with their
+  blurbs), with a name and the targets (default: the three verification
+  devices; any installed watch-face-capable device may be added). It
+  mints a fresh UUID exactly as `wfb new` does, through one shared
+  function, so the CLI and the editor cannot drift.
+- **Open (upload).**
+  - A `.yaml`/`.yml`: becomes `face.yaml`; its file name becomes the
+    display name.
+  - A `.zip`: exactly one `*.yaml` at the bundle root (`face.yaml`, or a
+    single other name, which is taken as the face), plus files beneath
+    it, by convention under `assets/`. Other files are kept and travel
+    back out unchanged (a README, say).
+  - **Refused, with the reason:** an entry with an absolute path, a `..`
+    component or a link; no face or more than one at the root; a bundle
+    over a size or entry-count limit, checked against the uncompressed
+    sizes before extracting (zip bombs); a file that is not UTF-8 YAML.
+- **Missing assets.** A face whose references (a `fonts:` `source:`)
+  point at a file the bundle does not hold (a bare `.yaml` that used
+  fonts, or a reference outside the face's directory, such as
+  `features/profile`'s `../outline/assets/...`) opens anyway. The editor
+  lists each missing file; the author uploads it, it is stored under
+  `assets/`, and the reference is patched to `assets/<file>` as an
+  ordinary, undoable change.
+- **Download (save).** The face plus every file under its directory:
+  - a `.zip` (`face.yaml` and `assets/`) when the face references any
+    file;
+  - a plain `.yaml` when it references none.
 
-  If the design changed meanwhile, the save is refused, and the author
-  chooses between overwriting it (shown its diff first) and reloading it
-  (discarding the unsaved edits).
-- **Discard** deletes the working copy and reloads the design.
-- **An external edit to the design.** With nothing unsaved, the session
-  reloads it. With unsaved edits, it is a conflict: keep editing (the
-  later save will be refused until resolved), or reload and discard.
-- **Resume.** A working copy left from an earlier session, after a crash
-  or a closed tab, is offered on the next `wfb studio` for the same
-  design: resume it, or discard it.
-- **Undo and redo** step through the session's accepted patches, applied
-  to the working copy. A save is not undone; it just records a new base.
-- **Build** (slice 6) builds the working copy and says so in its log and
-  in `build-info.json`, so a `.prg` from unsaved edits is never mistaken
-  for one from the design.
-- **What the rest of the tooling sees.** `git diff`, the CLI and Claude
-  see only the design, and so only saved work. That is the intent of G4.
+  Either can be asked for explicitly; a plain `.yaml` of a face with
+  assets says, before downloading, that it will not build on its own.
+  The file is named after the face (`wfb.build.slug`). Every download takes
+  a snapshot.
+- **`wfb studio <face.yaml|bundle.zip>`** survives as a shortcut that
+  opens one document exactly as an upload would, with the face's
+  referenced files gathered the same way (a file outside the face's
+  directory is copied under `assets/` and its reference patched, as the
+  document's first recorded change). It never writes back to that path.
 
-### G6, a browser-side preview of geometry edits (decided: A)
+### The history store (S4)
 
-There is a middle way that needs none of the Python above in the
-browser. Every unit is linear in pixels (`wfb.units.Length.resolve`,
-research 26 §4.4). So the server could send, per element and per
-editable geometry scalar:
-- its text range and unit;
-- how each of the element's `Layout` constants moves per unit of that
-  scalar on the viewed device: one number per pair, a linear coefficient
-  plus the rounding rule.
+- **Where.** `--state-dir`, defaulting to `$XDG_STATE_HOME/wfb/studio`
+  (`~/.local/state/wfb/studio`). In the container it is a named volume,
+  as the key store is (`-v wfb-studio:/state`, `docs/container.md`);
+  without one, history ends with the container.
+- **What it holds, per document** (`<state-dir>/<document id>/`):
+  - `blobs/<sha256>`: every text version and every asset file, content
+    addressed, so a thousand edits to a 10 KB face cost little and an
+    asset is stored once;
+  - `journal.jsonl`: one line per change, appended and flushed before the
+    change is acknowledged: sequence number, time, a label in the author's
+    terms ("move `clock` by +6, −3 px on fr955", "set `color.bg`",
+    "typed in YAML", "undo"), the resulting text's hash and the asset
+    manifest (path → hash);
+  - `snapshots/`: one small JSON file per snapshot, naming a journal
+    position, with its time and why it was taken.
+- **Undo and redo** are a cursor over the journal. Undo and redo are
+  themselves journal lines, so the cursor survives a restart. A new change
+  after an undo drops the redo branch, as every editor does (its blobs stay
+  until pruned, so a snapshot inside it still restores).
+- **Snapshots** are taken:
+  - every `--snapshot-minutes` (default **5**), when the document changed
+    since the last one;
+  - on every download;
+  - on "snapshot now".
 
-The browser could then:
-1. turn a drag into the new author value;
-2. patch the scalar's characters in its own copy of the text;
-3. move the constants;
-4. redraw the layer from its JSON.
+  **Restore** a snapshot into its own document, as one recorded change, so
+  a restore is itself undoable; or open it as a new document.
+- **Recent.** The home screen lists the documents in the store (name, last
+  change, snapshot count), and reopens any of them. Discarding a document
+  deletes its directory in the store, after a confirmation.
+- **Pruning,** on start: documents untouched for `--keep-days` (default
+  30) are removed, and a document keeps its last 50 snapshots. Both are
+  flags; the prune is logged.
+- **Volatile, by design:** the temporary directories. **Durable:** the
+  store. The browser holds nothing that the store does not.
 
-That is a complete optimistic edit and preview with no round trip. The
-server stays the authority: it gates the same patch on release and
-answers with the real render, which replaces the optimistic one.
-
-What the linear model does not cover:
-- rounding to whole pixels (`round_half_away`);
-- `min_1px` clamps;
-- a text's box, which depends on its measured width (its anchor does
-  not);
-- an `align:` change (discrete);
-- a structural edit.
-
-Those stay server round trips. Whether the linear model matches the
-server's render exactly, apart from the rounding rule, is UNVERIFIED, and
-would be measured over the corpus the way research 28 measured patches.
-
-- **A (recommended for now):** server-applied edits only (above). Slice 4
-  already gives a live redraw during a gesture, and the release is one
-  round trip.
-- **B:** add the linear geometry model and optimistic browser patches as
-  a slice after slice 4, if slice 3's measurement shows the release round
-  trip feels slow.
-
-## 2. What the editor shows and does
+### Editing the whole face (S5)
 
 | Area | Content | Source |
 |---|---|---|
-| Canvas | the layer stack at 2× or 3×, the bezel mask, selection boxes, handles, snapping guides | `wfb.draw.layers`, `Placed.box`/`center` |
-| Device strip | one small live frame per target, with the main view on one; switches for style, time, asleep, AOD and skin | `wfb.preview.PreviewOptions` |
-| Layers | the element tree in draw order, groups as folders, `static:` and layout content marked; show, hide and solo; drag to reorder | the face, `frame_members` |
-| Inspector | the selected element's geometry keys, in the author's units, with "all targets / this device / this shape" for an override | the schema branch for its `type:`, `wfb/edit/` |
-| Text pane | the file, with schema completion and `wfb` diagnostics; the selection follows the canvas, and back | CodeMirror, `Element.span` |
-| Diagnostics | every diagnostic, clickable to its line and element | `wfb.diagnostics.Bag` |
-| Build | build, the streamed log, each target's `.prg` and its measured memory against its limit | `wfb build` as a subprocess |
+| Layer tree | the face in draw order: `static:` and `elements:`, each `layouts:` entry with its own two, groups as folders; show, hide and solo (editor-only); drag to reorder, into or out of a group, or between static and dynamic | the face, `frame_members`, `wfb/edit/` |
+| Global | the face's colours (`color.` names, `palette:`, `theme: schemes:`), and `config:` style entries with their layouts; fonts in use | the face |
+| Canvas | the layer stack at 2× or 3×, the bezel mask, selection boxes, handles, snapping guides; switches for device, style, time, asleep, AOD and skin | `wfb.draw.layers`, `Placed.box`/`center`, `wfb.preview.PreviewOptions` |
+| Properties | every key of the selected element, from the schema branch for its `type:`, in the author's units, with "all targets / this device / this shape" for an override | the schema, `wfb/edit/` |
+| YAML tab | the file, with schema completion and `wfb` diagnostics; the selection follows the canvas, and back | CodeMirror, `Element.span` |
+| Diagnostics | every diagnostic, clickable to its element and line | `wfb.diagnostics.Bag` |
+| History | undo, redo, the journal's labels, snapshots and restore | the history store |
 
-## 3. Slices
+**Widgets** (research 26 §4.6), chosen by the schema node:
+- a length with its unit; an angle; a number; a boolean; an enum;
+- the 3×3 align picker;
+- a colour: a `color.` name from the face, or a literal shown against
+  the 64-colour MIP palette (constraint 13);
+- a font: the face's `fonts:` names and the system fonts;
+- an icon: the named icons, searchable;
+- a data binding: a picker over the catalogue's sources that inserts a
+  placeholder into a `text:` template, or sets a gauge's value;
+- anything else (an expression, a nested structure no widget covers):
+  shown as its text, with "edit in YAML" jumping to its line.
+
+**Static and dynamic.** "Make static" and "make dynamic" move an element
+between a block's `static:` and `elements:` (creating the block if
+absent, removing it when emptied); the same move works across layouts.
+Each is one structural patch, gated like every other: a move the
+compiler refuses (a `data` element into a layout, say) is refused with
+its reason.
+
+## 2. Slices
 
 Each slice ships with:
 - the fast suite and `mypy --strict` green;
 - `tools/snapshot.py` unchanged (the editor never changes a build);
 - the slice's own measurement written down in this plan.
 
-Every new refusal (a patch that would not round-trip, a stale version)
-is driven red.
+Every new refusal (a patch that would not round-trip, a stale version, a
+bad bundle) is driven red.
 
 ### Slice 0 — the patch engine, without a UI: done
 
@@ -285,7 +308,7 @@ Built as below, in `wfb/edit/`:
 - `gate`: `Gate.check` and `load_text`. `wfb.build.load` and
   `wfb.yamlsrc.load` take the text in place of the file, so a text loads
   under the design's own path: fonts resolve and diagnostics name the
-  design. Slice 1's working copy uses the same entry point.
+  design. Slice 1's documents use the same entry point.
 - `geometry`: `target` (the override rule, with "all", "device" and
   "shape" scopes that create the override), `View` (one text placed on
   one device), `move` and `resize`.
@@ -348,50 +371,61 @@ Tests:
 - a conversion lands on the dragged pixel on all three verification
   devices.
 
-### Slice 1 — the server and a read-only viewer
+### Slice 1 — the service, documents and a read-only viewer
 
-- `wfb studio <face.yaml> [--port N] [--host 127.0.0.1]`: Starlette, run
-  by uvicorn. A `--host` other than loopback prints a warning, because the
-  server runs `monkeyc` and writes files (research 26 §4.8).
-- **The session:** the design's recorded text and time, the working
-  copy's text and version (G4); a file watcher on the design (the
-  `preview --watch` polling, shared); one resolve per change across the
+- `wfb studio [face.yaml|bundle.zip] [--port N] [--host 127.0.0.1]
+  [--state-dir DIR]`: Starlette, run by uvicorn. A `--host` other than
+  loopback prints a warning, because the server writes files and, later,
+  runs `monkeyc` (research 26 §4.8).
+- **Documents:** new from a template (with `wfb new`'s minting moved to
+  one shared function), open by upload, the bundle rules and refusals,
+  missing assets listed, download as `.zip` or `.yaml`. The temporary
+  directory materialised from the store; text, assets and the version
+  recorded there from the first change (the journal itself, without undo,
+  so no document is ever held only in memory).
+- **The pipeline per document:** one resolve per change across the
   targets; font baking memoised (research 28 §4: showcase 893 → 250 ms).
-- **The working copy:** created on the first accepted edit, reported
-  under the design's name, offered for resume on the next start, and
-  gitignored (`.*.studio.yaml`). Save with an approved diff, discard,
-  and the external-edit conflict are in this slice. Even a read-only
-  viewer must never touch the design.
-- **Endpoints (G3 A):**
-  - the document (working text, version, unsaved or not, the diff to the
-    design);
-  - save (with the version the author approved) and discard;
-  - the frame and its layers (PNG per layer, JSON ops for lowered kinds,
-    boxes, ids, spans);
+- **Endpoints (G3):**
+  - the home screen's data: templates, recent documents;
+  - a document: text, version, display name, missing assets;
+  - the frame and its layers (a PNG per layer, boxes, ids, spans, the
+    layer tree);
   - the diagnostics;
   - the devices and styles;
-  - an event stream: changed, rendered, error.
-- **Front end:** the canvas from layers, selection by click (the topmost
-  layer whose alpha is opaque under the pointer), boxes, the device
-  strip and switches, the diagnostics list, and "reveal in text" (a line
-  number for now).
-- **Measured:** time from a file save to an updated canvas, on
-  `features/progress`, `showcase` and `vector-text`.
+  - upload, download;
+  - an event stream: rendered, error.
+- **Front end:** the home screen (new, open, recent), the canvas from
+  layers, the layer tree, selection by click (the topmost layer whose
+  alpha is opaque under the pointer) and in the tree, boxes, the device
+  and style switches, the diagnostics list.
+- **Measured:** time from an upload to a drawn canvas, and from a change
+  to an updated canvas, on `features/progress`, `showcase` and
+  `vector-text`.
 
-### Slice 2 — the text pane
+### Slice 2 — history: undo, redo, snapshots, restore
 
-- CodeMirror 6 with the face schema (G5's bundle). `wfb` diagnostics in
-  the gutter.
-- A typed edit is sent, debounced at about 300 ms, as a whole-text
-  replace against the version it started from. A stale version is refused
-  and the pane reloads.
-- **Selection both ways:** a click on the canvas selects the element's
-  text range (`Element.span` to the composed node), and the cursor in the
-  text selects the element on the canvas.
-- Typed edits go to the working copy too (G4), and count as unsaved like
-  any other edit.
+- The journal's undo and redo cursor; snapshots on the timer, on
+  download and on demand; restore into the document (undoable) or as a
+  new one; pruning on start.
+- The history panel: the journal's labels, the snapshots, restore.
+- A change arriving while the store cannot be written is refused, never
+  applied unrecorded.
+- **Measured:** the cost of a journal append per change, and the store's
+  size after the slice 0 corpus edits.
 
-### Slice 3 — direct manipulation
+### Slice 3 — the properties inspector and the global panel
+
+- The inspector generated from the selected element's schema branch,
+  every key, with the widgets above and the override chooser ("all
+  targets", "this device", "this shape").
+- New in `wfb/edit/`: setting a sequence or a mapping value, not only a
+  scalar; a key's removal back to its default; a colour name's add,
+  rename (every use patched, gated) and value change; a style entry's add
+  and remove.
+- The global panel: colours and their swatches against the MIP palette,
+  styles and layouts, fonts in use with upload of a font file.
+
+### Slice 4 — direct manipulation on the canvas
 
 - Handles per kind:
   - position for everything;
@@ -406,98 +440,96 @@ Tests:
   patch snaps back and shows why.
 - **Snapping:** the screen centre, other elements' centres and edges, a
   `%r` grid, and 6°/30° angles.
-- The device strip shows the edit's effect on every target as it lands,
-  so a `%r` drag's cross-device consequence is visible (research 26 §4.4).
+- A small frame per target beside the canvas shows the edit's effect on
+  every target as it lands, so a `%r` drag's cross-device consequence is
+  visible (research 26 §4.4).
 - **Measured:** the drag-to-final-frame time, and whether shifting the
-  image feels direct. This is research 28 §8's first measurement.
+  image feels direct. This is research 28 §8's first measurement, and
+  G6's trigger.
 
-### Slice 4 — live redraw from the JSON
+### Slice 5 — structure
 
-- A JavaScript rasteriser of `wfb.draw.jsonform`'s ops covers the `Dc`
-  primitives and the `drawArc` call. Text uses glyph images the server
-  renders per font id and string, or the sheet's own tiles for a baked
-  font.
-- During a resize, radius or angle gesture on a lowered element's layer,
-  the dragged `Layout` constant changes and the layer is redrawn in the
-  browser.
-- **The contract:** JSON fixtures exported from every example's lowered
-  elements, rasterised in Node when present (opt-in, like
-  `pytest -m typecheck`). They must equal `jsonform.rasterise`'s pixels,
-  allowing for Canvas anti-aliasing on edges only. The tolerance is
-  measured, not assumed.
-- A kind not yet lowered keeps slice 3's image shift.
+- **Add an element** by type from a palette of types (slice 0's add,
+  extended to every type the schema has; a type that needs a choice, such
+  as a `graph`'s series, asks for it first).
+- Delete and duplicate, from the tree and the canvas.
+- Reorder by drag in the tree; into and out of a group; **static and
+  dynamic**, and across layouts (new in `wfb/edit/`: moving an entry
+  between blocks).
+- Group and ungroup a selection.
 
-### Slice 5 — layers, structure and the inspector
+### Slice 6 — the YAML tab
 
-- **The layer panel:** show, hide and solo, editor-only; reorder by drag
-  (a structural patch); groups as folders.
-- **Add an element** by type from a palette (slice 0's add); delete and
-  duplicate.
-- **The inspector**, generated from the element's schema branch
-  (research 26 §4.6). Geometry keys are editable, with their special
-  widgets: length with its unit, angle, the 3×3 align picker. Every other
-  key is shown read-only, with a jump to its line in the text pane.
-- The override chooser: "all targets", "this device", "this shape".
-
-### Slice 6 — build
-
-- A build button runs `wfb build` on the working copy as a subprocess (a
-  hung `monkeyc` cannot take the editor down) and streams its log over the
-  event stream. A build with unsaved edits says so in its log and in
-  `build-info.json`.
-- It shows each target's `.prg` (a download) and its measured memory
-  against `Device.watchface_memory_limit`.
-- Sideloading stays manual (`wfb install` is unbuilt, `docs/limitations.md`
-  §2).
+- CodeMirror 6 with the face schema (G5's bundle). `wfb` diagnostics in
+  the gutter.
+- A typed edit is sent, debounced at about 300 ms, as a whole-text
+  replace against the version it started from, recorded as one change. A
+  stale version is refused and the pane reloads.
+- **Selection both ways:** a selected element selects its text range
+  (`Element.span` to the composed node), and the cursor in the text
+  selects the element on the canvas and in the tree.
 
 ### Slice 7 — close-out
 
 - `docs/guide/studio.md`: a guide chapter, linked from the hub.
-- `docs/container.md`: running it in the container with the port
-  published to loopback.
-- `docs/limitations.md` §2: what the editor does not edit (non-geometry
-  keys, beyond the text pane).
+- `docs/container.md`: the port published to loopback, and the
+  `wfb-studio` volume for the history store.
+- `docs/limitations.md` §2: what the editor does not do (build, values no
+  widget covers, beyond the YAML tab).
 - `docs/lore/roadmap.md`: the editor is built.
 - The root `CLAUDE.md` §6.
 - Delete this plan, and add its row to `docs/plans/README.md`.
 
-## 4. Tests, beyond each slice's own
+### Later, not in this plan (S7)
+
+- A build button: `wfb build` on the document's temporary directory as a
+  subprocess, streaming its log; each target's `.prg` as a download, and
+  its memory against `Device.watchface_memory_limit`.
+- Live redraw from the JSON during a gesture: a JavaScript rasteriser of
+  `wfb.draw.jsonform`'s ops, held to `jsonform.rasterise`'s pixels by
+  fixtures checked in Node.
+- `wfb build` reading a bundle `.zip` directly.
+
+## 3. Tests, beyond each slice's own
 
 - **The patch engine over the corpus** (slice 0 on): every example face,
   every edit kind, a no-op byte-identical, nothing outside the edited
   lines changed.
-- **The server** through Starlette's test client (G2 A):
-  - document versions, and a stale patch refused;
-  - the design byte-identical after any number of edits and a discard,
-    and changed only by an approved save;
-  - a save refused when the design changed on disk after the session
-    recorded it;
-  - an external edit reloaded with nothing unsaved, and a conflict with
-    something unsaved;
-  - a left-over working copy offered for resume;
-  - diagnostics naming the design, never the working copy.
+- **The server** through Starlette's test client (G2):
+  - a stale version refused;
+  - upload then download returns the same bytes (`.yaml` and `.zip`);
+  - each bundle refusal: `..`, an absolute path, a link, no face, two
+    faces, over the limits;
+  - a missing asset listed, uploaded, and its reference patched;
+  - diagnostics naming `face.yaml`, never the temporary path;
+  - the history surviving a new app over the same state directory: the
+    text, the assets, and the undo and redo cursor;
+  - a snapshot on the timer (an injected clock), on download, and a
+    restore that is itself undone;
+  - pruning by age and by count;
+  - nothing written outside the temporary directories and the state
+    directory.
 - **No build changes:** `tools/snapshot.py` at every slice.
-- **The front end:** the pure functions (unit conversion display,
-  snapping, hit-testing by alpha, the JSON rasteriser) as ES modules,
-  checked in Node when it is present. The UI itself is checked by hand.
-  There is no headless browser in the container, and the plan says so
-  rather than claiming coverage.
+- **The front end:** the pure functions (unit display, snapping,
+  hit-testing by alpha) as ES modules, checked in Node when it is present.
+  The UI itself is checked by hand. There is no headless browser in the
+  container, and the plan says so rather than claiming coverage.
 
-## 5. Risks
+## 4. Risks
 
 - **A large face's re-render on release** (showcase, 250 ms memoised)
   could feel slow. The image shift hides it during the gesture, and the
-  drop is one render.
-- **Every drawing kind lowers** (plan 26 slices 1–9), so every layer
-  carries its JSON op list and slice 4's live redraw reaches all of them.
-  Correctness never depended on it: the server renders every release.
+  drop is one render. G6 is the answer if it does.
+- **An inspector over every key is a large surface.** It is generated
+  from the schema, so it is as complete as the schema; a widget the
+  generator does not have falls back to "edit in YAML" rather than to a
+  wrong form.
+- **The history store in the container** is lost without its volume. The
+  editor's home screen says where the store is, and warns when it is
+  inside a container with no volume mounted there (`WFB_CONTAINER`).
 - **CodeMirror bundle upkeep (G5):** one script with pinned versions,
   rerun deliberately.
-- **A forgotten working copy.** Unsaved work sits in a hidden file beside
-  the design. The editor's unsaved marker, the resume offer, and
-  `wfb studio`'s exit message naming it keep it visible, and the file is
-  gitignored so it is never committed by accident.
-- **Security:** the server writes the working copy, writes the design
-  only on an approved save, and runs `monkeyc`.
-  Loopback by default, file access limited to the design's own directory,
-  no arbitrary path reads.
+- **Security:** loopback by default. The server writes only its
+  temporary directories and its state directory, reads only what was
+  uploaded, its templates and its state, and extracts a bundle only after
+  checking every entry. No host path reaches it from the browser.

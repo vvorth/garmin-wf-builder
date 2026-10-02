@@ -151,6 +151,27 @@ concrete:
   program that also generates the Monkey C (research 27 §5). It rasterises
   them, and makes no drawing decisions of its own.
 
+## Amendment (2026-10-02): the GUI is client-driven and edits the whole face
+
+The user re-scoped the GUI before its server was built (plan 27 §1, S1–S7).
+Two points of the amendment above change; its guarantees do not.
+
+- **`wfb studio` starts with no face.** The author creates a face from a
+  template or opens one by uploading it, and saves by downloading it: a
+  `.zip` with `face.yaml` and `assets/`, or a plain `.yaml` when the face
+  uses no asset file. Each open face is held in a temporary directory the
+  compiler reads, backed by a history store that keeps undo, redo and
+  periodic snapshots across restarts. The server reads no host path the
+  author did not upload.
+- **The GUI edits every property, not geometry only**: a layer tree of
+  static and dynamic content, layouts and groups; the face's colours and
+  styles; and an inspector over every key, generated from the schema.
+  The YAML text stays one tab away for what no widget expresses.
+
+Every edit is still a text patch checked by the full load, so the file
+the author downloads keeps their comments, order and formatting, and
+"nothing only through the GUI" still holds: the text is the design.
+
 ## Open
 
 None.
