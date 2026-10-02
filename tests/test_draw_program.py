@@ -288,3 +288,53 @@ def test_lowers_sees_an_override_and_only_an_override(monkeypatch):
     assert not group_kind.lowers
     monkeypatch.setattr(group_kind, "lower", lambda ctx, placed: [])
     assert group_kind.lowers
+
+
+HALF_DEGREE_ARC = """
+format: 2
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette:
+    fg: "#FFFFFF"
+elements:
+  tick:
+    type: arc
+    at: { anchor: center }
+    radius: 40%r
+    thickness: 3px
+    start_angle: 12.5deg
+    sweep: 90deg
+    color: color.fg
+"""
+
+
+def test_a_half_degree_arc_previews_where_the_watch_draws_it(resolved_for):
+    """`start_angle: 12.5deg` is 77.5 in the `Layout` constant, which
+    `WfbArc.drawSpan` rounds to 78: the arc starts at 12 degrees clockwise
+    from 12 o'clock on the watch.  The preview paints exactly that arc, and
+    the old twin (`preview.arc_span`, rounding the author's 12.5 to 13 --
+    still a gauge's until it lowers) is a degree off: the control."""
+    from wfb.draw import barrel
+    from wfb.preview import arc_span
+
+    resolved = resolved_for(HALF_DEGREE_ARC)
+    placed = find(resolved, "tick")
+    assert placed.garmin_start == 77.5
+
+    def arc(span) -> Image.Image:
+        r = _renderer(resolved)
+        s = r.scale
+        cx, cy, rr = placed.center[0] * s, placed.center[1] * s, placed.radius * s
+        r.draw.arc([cx - rr, cy - rr, cx + rr, cy + rr], *span, fill=(255, 255, 255),
+                   width=placed.thickness * s)
+        return r.image
+
+    painted = _renderer(resolved)
+    painted.render_element(placed)
+    watch = arc(barrel.pillow_arc(barrel.draw_span(placed.garmin_start, placed.sweep)))
+    assert _differing(painted.image, watch) == 0
+    assert _differing(painted.image, arc(arc_span(placed.start_angle, placed.sweep))) > 0

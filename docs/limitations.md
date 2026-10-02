@@ -954,6 +954,22 @@ test_an_antialiased_icon_previews_with_intermediate_grey` confirms this end
 to end, through a real design rather than against the baked sheet alone). For
 the primitive gap, the simulator is authoritative.
 
+Two places where the preview is known to differ from the code the watch is
+sent, both measured in the Pillow model (`docs/research/27-draw-program.md`
+§2.5):
+
+- **A filled circle's, rectangle's or rounded rectangle's `outline:`.** The
+  watch is sent one grown copy (`fillCircle(r + w)`, a rounded rectangle
+  `w` larger). The preview stamps the shape at the ring's offsets instead.
+  The two differ by 8–28 px per shape at 1×. Which one the watch's
+  rasteriser matches is not yet measured; the probe for it is
+  `docs/research/probes/ring-on-device/`.
+- **A gauge's arc whose start angle is a half degree** (`12.5deg`, or a
+  `360 / n` step). The watch rounds the start in Garmin's convention
+  (`WfbArc.drawSpan`), and the preview rounds the author's, so the
+  preview draws the arc one degree away. A `type: arc` element is already
+  painted from the watch's arithmetic, and draws where the watch does.
+
 ---
 
 ## 3. What the linter does not check
