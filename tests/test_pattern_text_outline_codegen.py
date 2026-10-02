@@ -278,7 +278,7 @@ def test_pattern_outline_uses_unique_variable_names_per_part(write_design, bag, 
 
 def test_pattern_outline_angle_is_identical_for_stamp_and_interior(write_design, bag, db):
     """The angle argument (the part's own `curve:` composed with the
-    pattern's per-copy rotation, `_emit_pattern_text_angle_expr`) must be
+    pattern's per-copy rotation, `_text_angle`) must be
     the exact same expression for every stamp and the interior draw --
     an outline offset is a screen-space translation only, never a second,
     independently-rotated copy of the glyph."""

@@ -389,7 +389,7 @@ def hand_part_constants(
     The angle itself is deliberately **not** a `Layout` constant: it is
     device-independent (plain degrees) and needs a *per-copy* runtime term
     for a radial pattern, so it is inlined straight into the shared view
-    instead (`wfb.kinds.pattern._emit_pattern_text_angle_expr`) --
+    instead (`wfb.kinds.pattern._text_angle`) --
     exactly the precedent an arc part's own `start_angle`/`sweep` already
     set one row down: those get no `_START`/`_SWEEP` constants here either.
     """

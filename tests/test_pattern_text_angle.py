@@ -1,7 +1,7 @@
 """`wfb.kinds.pattern.PatternTextAngle`: the one definition of a
 `shape: text` pattern part's per-copy curved-text angle, shared by the lint
-ink (`_pattern_text_ink`), the preview (`_pattern_text`) and codegen
-(`_emit_pattern_text_angle_expr`) instead of each recomputing
+ink (`_pattern_text_ink`) and the draw program (`_text_angle`) instead of
+each recomputing
 `(local - (start + index * step)) % 360.0` on its own.
 """
 

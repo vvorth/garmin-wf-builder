@@ -142,4 +142,6 @@ CALLS: dict[str, Callable[..., Any]] = {
     "WfbMath.percent": percent,
     "WfbScale.share": share,
     "WfbScale.fraction": scale_fraction,
+    "WfbGeom.rotatedX": rotated_x,
+    "WfbGeom.rotatedY": rotated_y,
 }

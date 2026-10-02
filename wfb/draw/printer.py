@@ -17,11 +17,11 @@ from ..emit.writer import Writer
 from ..ir import local_name
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
-    Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Conv, Disagreement, FillPolygon,
-    FloatLit, For, Glyph, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
+    FillPolygon, FloatLit, FontDrop, For, Glyph, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
-    PaintPick, Paren, Part, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted, Str,
-    StrLit, Text, WrapperGuard,
+    PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
+    Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
 
@@ -52,6 +52,8 @@ def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
     if isinstance(n, NumPick):
         return (f"({cond_code(n.cond, aod)}) ? {num_code(n.then, aod)} : "
                 f"{num_code(n.otherwise, aod)}")
+    if isinstance(n, FontDrop):
+        return glyph_y_expr(num_code(n.base, aod), n.valign, n.font)
     return plus(num_code(n.base, aod), str(n.by), n.times)
 
 
@@ -61,6 +63,10 @@ def cond_code(c: Cond, aod: AodStyle = NO_AOD) -> str:
         return " && ".join(f"{name} != null" for name in names)
     if isinstance(c, Cmp):
         return f"{num_code(c.a, aod)} {c.op} {num_code(c.b, aod)}"
+    if isinstance(c, AnyOf):
+        return " || ".join(cond_code(term, aod) for term in c.conds)
+    if isinstance(c, Truthy):
+        return c.expr.code
     return f"_pulsing != {c.unique}"
 
 
@@ -76,6 +82,8 @@ def str_code(s: Str, aod: AodStyle = NO_AOD) -> str:
         return " + ".join(str_code(part, aod) for part in s.parts)
     if isinstance(s, IconChoice):
         return f"IconGlyphs.glyph(WfbWeather.chooseIcon({local_name(s.value.sources[0])}))"
+    if isinstance(s, PerCopy):
+        return str_code(s.printed, aod)
     return s.name
 
 
@@ -108,18 +116,26 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
         return num_code(value, aod)
 
     if isinstance(op, SetColor):
-        w.line(f"dc.setColor({color_code(op.color, aod)}, Graphics.COLOR_TRANSPARENT);")
+        w.line(f"dc.setColor({color_code(op.color, aod)}, Graphics.COLOR_TRANSPARENT);"
+               + _note(op.note))
     elif isinstance(op, SetPen):
-        w.line(f"dc.setPenWidth({n(op.width) if op.width is not None else '1'});")
+        w.line(f"dc.setPenWidth({n(op.width) if op.width is not None else '1'});"
+               + _note(op.note))
     elif isinstance(op, Primitive):
         w.call(f"dc.{op.name}", [", ".join(n(v) for v in group) for group in op.args])
     elif isinstance(op, FillPolygon):
         w.line(f"dc.fillPolygon(Layout.{op.const});")
     elif isinstance(op, ArcSpan):
-        w.call("WfbArc.drawSpan", [
-            f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
-            f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
-        ])
+        if op.pen_first:
+            w.call("WfbArc.drawSpan", [
+                f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}, {n(op.pen)}",
+                f"{n(op.start)}, {n(op.sweep)}",
+            ])
+        else:
+            w.call("WfbArc.drawSpan", [
+                f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
+                f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
+            ])
     elif isinstance(op, ArcProgress):
         w.call("WfbArc.drawProgress", [
             f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
@@ -135,7 +151,7 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
             rotated.emit_part_ring(w, op.part, op.prefix, op.ring, radial=op.radial,
                                    thickness_expr=n(op.pen), set_pen=op.set_pen)
     elif isinstance(op, Let):
-        w.line(f"var {op.name} = {n(op.value)};")
+        w.line(f"var {op.name} = {n(op.value)};" + _note(op.note))
     elif isinstance(op, Assign):
         w.line(f"{op.name} = {n(op.value)};")
     elif isinstance(op, If):
@@ -147,6 +163,8 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
     elif isinstance(op, For):
         with w.block(f"for (var {op.var} = 0; {op.var} < {n(op.bound)}; {op.var}++)"):
             print_ops(w, op.body, aod)
+    elif isinstance(op, Continue):
+        w.line("continue;")
     elif isinstance(op, LetSlotPick):
         w.line(f"var chosenId = {op.field};")
         if op.guarded:
@@ -200,12 +218,18 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
         raise TypeError(f"not an op: {op!r}")
 
 
+def _note(note: str) -> str:
+    return f"  // {note}" if note else ""
+
+
 def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
     x, y = num_code(op.x, aod), num_code(op.y, aod)
     justify = " | ".join(f"Graphics.{flag}" for flag in op.justify)
     value = str_code(op.text, aod)
     font = op.font.code
-    if op.style == "angled":
+    if op.split_x:
+        _print_split(w, op, x, y, font, value, justify, aod)
+    elif op.style == "angled":
         assert op.angle is not None
         w.call("dc.drawAngledText", [f"{x}, {y}, {font}, {value}",
                                      f"{justify}, {num_code(op.angle, aod)}"])
@@ -218,7 +242,28 @@ def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
                                      f"{justify}, {num_code(op.angle, aod)}, {radius}",
                                      f"Graphics.{direction}"])
     else:
-        _print_upright(w, op.x, op.y, font, op.text, op.justify, op.valign, aod)
+        _print_upright(w, op.x, op.y, font, op.text, op.justify,
+                       op.valign if op.shift_y else "center", aod)
+
+
+def _print_split(w: Writer, op: Text, x: str, y: str, font: str, value: str, justify: str,
+                 aod: AodStyle) -> None:
+    """A text call with its `x` on a line of its own: a pattern's text
+    part.  Its `y` already carries any `bottom` drop (`FontDrop`)."""
+    head = f"{y}, {font}, {value}"
+    if op.style is None:
+        w.call("dc.drawText", [x, head, justify])
+        return
+    assert op.angle is not None
+    angle = num_code(op.angle, aod)
+    if op.style == "angled":
+        w.call("dc.drawAngledText", [x, head, f"{justify}, {angle}"])
+        return
+    assert op.radius is not None
+    direction = shapes.RADIAL_DIRECTION[op.direction or "clockwise"]
+    radius = shapes.radial_radius_expr(num_code(op.radius, aod), op.valign, op.direction, font)
+    w.call("dc.drawRadialText", [x, head, f"{justify}, {angle}, {radius}",
+                                 f"Graphics.{direction}"])
 
 
 def _print_upright(w: Writer, x: Num, y: Num, font: str, text: Str, justify: tuple[str, ...],

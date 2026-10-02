@@ -19,11 +19,11 @@ from ..ir import disc_perimeter_offsets
 from . import barrel
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
-    Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Conv, Disagreement, FillPolygon,
-    FloatLit, For, Glyph, Grown, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
+    FillPolygon, FloatLit, FontDrop, For, Glyph, Grown, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
-    PaintPick, Paren, Part, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted, Str,
-    StrLit, Text, WrapperGuard,
+    PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
+    Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
 if TYPE_CHECKING:
@@ -47,6 +47,10 @@ class Pulled:
 class Stop(Exception):
     """A `WrapperGuard` found a probe absent: the element draws nothing
     more."""
+
+
+class _Next(Exception):
+    """A `Continue`: the next turn of the innermost `For`."""
 
 
 #: How tightly each operator a `Bin` prints binds, as Monkey C parses it.
@@ -119,6 +123,8 @@ def num_value(n: Num, aod: bool = False, env: Mapping[str, Any] | None = None,
         return barrel.to_number(inner) if n.method == "toNumber" else float(inner)
     if isinstance(n, NumPick):
         return value(n.then if cond_value(n.cond, aod, env, values) else n.otherwise)
+    if isinstance(n, FontDrop):
+        return value(n.base)
     # A chain of infix operators, printed bare: evaluate it the way Monkey C
     # parses the printed text, not the way the tree nests.
     terms: list[Any] = []
@@ -175,6 +181,15 @@ def cond_value(c: Cond, aod: bool = False, env: Mapping[str, Any] | None = None,
         if a is None or b is None:
             return False
         return bool({"<": a < b, ">": a > b, "<=": a <= b, ">=": a >= b}[c.op])
+    if isinstance(c, AnyOf):
+        return any(cond_value(term, aod, env, values) for term in c.conds)
+    if isinstance(c, Truthy):
+        e = c.expr
+        if e.constant is not None:
+            return bool(e.constant)
+        if e.ast is None:
+            return True
+        return bool(expr.evaluate(e.ast, dict(values)))
     assert isinstance(c, NotPulsing)
     return True
 
@@ -205,6 +220,8 @@ def str_value(s: Str, values: dict[str, object], env: Mapping[str, Any],
     if isinstance(s, IconChoice):
         reading = expr.evaluate(s.value.ast, values) if s.value.ast else None
         return icons.CATALOG[icons.choose_weather_icon(reading)].codepoint
+    if isinstance(s, PerCopy):
+        return s.texts[int(env[s.var])]
     found = env[s.name]
     assert found is None or isinstance(found, str), s.name
     return found
@@ -259,6 +276,23 @@ class Evaluator:
         for op in ops:
             self._run(op)
 
+    def loop(self, op: For, body: Any) -> None:
+        """Run ``body(op.body)`` once per turn of ``op``, the loop variable
+        bound, and for a pattern's copies `copy` bound in the readings."""
+        r = self.renderer
+        saved = r.values
+        try:
+            for i in range(int(self.num(op.bound))):
+                self.locals[op.var] = i
+                if op.copy:
+                    r.values = {**saved, expr.COPY: i}
+                try:
+                    body(op.body)
+                except _Next:
+                    continue
+        finally:
+            r.values = saved
+
     def run_program(self, ops: Iterable[Op]) -> None:
         """`run` a whole element's program, which a `WrapperGuard` may end
         early."""
@@ -281,8 +315,10 @@ class Evaluator:
                 r.draw.polygon([(x * s, y * s) for x, y in op.points], fill=self.color)
         elif isinstance(op, ArcSpan):
             self._arc(op)
+            self.pen = 1  # the barrel resets it
         elif isinstance(op, ArcProgress):
             self._progress(op)
+            self.pen = 1
         elif isinstance(op, Part):
             self.run(part_ops(op, self))
         elif isinstance(op, Let | Assign):
@@ -290,16 +326,17 @@ class Evaluator:
         elif isinstance(op, If):
             self.run(op.then if self.cond(op.cond) else op.otherwise)
         elif isinstance(op, For):
-            for i in range(int(self.num(op.bound))):
-                self.locals[op.var] = i
-                self.run(op.body)
+            self.loop(op, self.run)
+        elif isinstance(op, Continue):
+            raise _Next
         elif isinstance(op, LetSlotPick):
             self.locals["pulled"] = Pulled(op.sample)
             self.locals["scale"] = op.scale
         elif isinstance(op, LetAutoScale):
             self.locals["scale"] = auto_scale(op, r.values)
         elif isinstance(op, WrapperGuard):
-            if any(read_value(probe, r.values) is None for probe in op.probes):
+            if (any(read_value(probe, r.values) is None for probe in op.probes)
+                    or any(r.values.get(path) is None for path in op.sources)):
                 raise Stop
         elif isinstance(op, Text):
             self._text(op)
@@ -309,8 +346,8 @@ class Evaluator:
             value = self.string(op.value)
             self.locals[op.name] = value if value is not None else self.string(op.initial)
         elif isinstance(op, IfNotNull):
-            # A loaded font is never null on the host.
-            self.run(op.body)
+            if op.present:
+                self.run(op.body)
         elif isinstance(op, IfAod):
             self.run(op.then if r.options.aod else op.otherwise)
         elif isinstance(op, IfAwake):
@@ -394,7 +431,7 @@ class Evaluator:
         if face.vector:
             r.draw_vector_text(
                 text, anchor, align, op.valign, face.metric, self.color, op.style,
-                op.angle.value if op.angle is not None else 0.0,
+                self.num(op.angle) if op.angle is not None else 0.0,
                 int(op.radius.value) if op.radius is not None else 0,
                 op.direction, box=op.box)
             return

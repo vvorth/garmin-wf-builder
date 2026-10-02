@@ -7,11 +7,10 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .. import catalog, expr, formatting
 from ..catalog import Type
-from ..fonts import BakedFont
 from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
 from ..ir import disc_perimeter_offsets
 from ..ir.model import (
@@ -19,18 +18,19 @@ from ..ir.model import (
     ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
 )
 from ..layout import (
-    Ink, Placed, PlacedPattern, ResolvedArcPart, ResolvedHandPart, ResolvedTextPart,
+    Ink, Placed, PlacedPattern, ResolvedHandPart, ResolvedTextPart,
     round_half_away, text_ink,
 )
-from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated
-from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, const_prefix, font_field, glyph_y_expr, mc_float, own_ring,
+from ..emit.monkeyc.common import const_prefix, font_field
+from ..draw.printer import color_code
+from ..draw.program import (
+    AnyOf, AodDimmed, AodPart, AodPick, ArcSpan, Bin, Blank, Call, Cmp, Comment, Cond, Const,
+    Continue, Disagreement, DrawContext, FloatLit, Font, FontDrop, For, If, IfNotNull, Let, Lit,
+    LoadFont, Num, NumLocal, Op, Paint, Paren, Part, PerCopy, Reading, RingColor, SetColor, SetPen,
+    Shifted, Str, StrLit, Text, Truthy, WrapperGuard,
 )
-from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline, radial_radius_expr
-from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
@@ -39,9 +39,7 @@ if TYPE_CHECKING:
     from . import ContrastSubject
     from ..ir.builder import Builder
     from ..ir.model import Face
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver
 
 
 @dataclass(frozen=True)
@@ -52,14 +50,12 @@ class PatternTextAngle:
     `start`/`step` -- the pattern's own repeat angle, design degrees
     clockwise from 12 (`0.0`/`0.0` for a linear pattern, which then leaves
     every copy at the local angle unchanged).  One definition of the
-    composition, shared by the lint ink (`_pattern_text_ink`), the preview
-    (`_pattern_text`, via :meth:`copy_curve_angle`) and codegen
-    (`_emit_pattern_text_angle_expr`, which reads
-    `local`/`start`/`step` off this same object but builds its own Monkey C
-    from them -- `start` folded into a build-time literal with `local`,
-    `step` multiplied by the runtime copy index -- rather than calling
-    :meth:`copy_curve_angle`, since one runs at build time and the other
-    on-device).
+    composition, shared by the lint ink (`_pattern_text_ink`, via
+    :meth:`copy_curve_angle`) and the draw program (`_text_angle`, which
+    reads `local`/`start`/`step` off this same object but builds a program
+    value from them -- `start` folded into a literal with `local`, `step`
+    multiplied by the runtime copy index -- that the watch and the preview
+    both compute).
     """
 
     local: float
@@ -67,9 +63,8 @@ class PatternTextAngle:
     step: float
 
     def copy_curve_angle(self, index: int) -> float:
-        """`(local - (start + index * step)) % 360.0` -- today's exact
-        expression order, kept so a lint box or a preview pixel never
-        moves."""
+        """`(local - (start + index * step)) % 360.0` -- the expression
+        order the lint box has always used, kept so it never moves."""
         return (self.local - (self.start + index * self.step)) % 360.0
 
 
@@ -101,7 +96,7 @@ def _pattern_text_ink(
     part's local angle composed with the copy's own rotation
     (`start`/`step`, design degrees clockwise from 12; `0.0`/`0.0` for a
     linear pattern) through :class:`PatternTextAngle`, the same composition
-    `_emit_pattern_text_angle_expr` emits.
+    `_text_angle` draws at.
     `fonts_root`: see :func:`text_ink`.
     """
     ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
@@ -324,91 +319,6 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
         )
 
 
-def _pattern_absent(renderer: Renderer, element: PatternElement) -> bool:
-    """Whether any nullable source this pattern's colours
-    (`element.colors`: the default plus every part's own) or any part's
-    own `visible:` reads is absent in the sample -- the host mirror of
-    the null guard the device emits before its copy loop
-    (`emit_draw`, fed by the same
-    expressions). The element's own `visible:` is a separate axis
-    (`render_element`).
-    """
-    sources: set[str] = set()
-    for expression in element.colors:
-        sources.update(expression.sources)
-    for part in element.parts:
-        if part.visible is not None:
-            sources.update(part.visible.sources)
-    return any(
-        catalog.CATALOG[path].guard_needed and renderer.values.get(path) is None
-        for path in sources
-    )
-
-
-def _pattern_arc(renderer: Renderer, placed: PlacedPattern, part: ResolvedArcPart, ox: float, oy: float, index: int,
-                 values: dict[str, object]) -> None:
-    """An `arc` template part -- always centred on the copy's own origin
-    (`at:` is rejected on it), so only its *start angle* turns with the
-    copy, as `WfbArc.drawSpan` is called on the device: `part.start_angle
-    + start + index * step` (plain `part.start_angle` for a linear
-    pattern, whose `start`/`step` are `0`)."""
-    s = renderer.scale
-    fill = renderer.aod_color(placed.element, "color", part.color, values)
-    thickness = renderer.aod_geometry(placed, "thickness", part.thickness)
-    cx, cy = ox * s, oy * s
-    r = part.radius * s
-    author_start = part.start_angle + placed.start + index * placed.step
-    span = arc_span(author_start, part.sweep)
-    if r > 0 and span is not None:
-        renderer.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
-                          fill=fill, width=max(1, thickness * s))
-
-
-def _pattern_text(renderer: Renderer, placed: PlacedPattern, part: ResolvedTextPart, ox: float, oy: float,
-                  sin_t: float, cos_t: float, index: int, values: dict[str, object]) -> None:
-    """A `shape: text` template part, drawn at this copy's own anchor,
-    rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
-    `rotatedY` round it (:func:`pattern_text_anchor`), through the same
-    `draw_text`/`draw_vector_text` a `text` element uses.
-
-    A baked/system font draws upright glyphs. A `face:` font's `curve:`
-    turns them, at the part's own local angle composed with this copy's
-    rotation (:class:`PatternTextAngle`), the composition
-    codegen (`_emit_pattern_text_angle_expr`) and the lint box
-    (`_pattern_text_ink`) also perform. `outline:` stamps the
-    already-transformed anchor, so the ring is a screen-space translation
-    at every copy.
-    """
-    text = part.texts[index]
-    color = renderer.aod_color(placed.element, "color", part.color, values)
-    anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-    ring_color = (
-        renderer.aod_dimmed(placed.element, part.outline_color, values)
-        if part.outline_color is not None else None
-    )
-    if part.font.is_vector:
-        if not part.font.available:
-            return  # `if_unavailable: hide` on this device
-        angle = (
-            PatternTextAngle(part.curve.angle_garmin, placed.start, placed.step)
-            .copy_curve_angle(index) if part.curve.style is not None else 0.0
-        )
-
-        def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
-            renderer.draw_vector_text(
-                text, at, part.align, part.vertical_align, part.font.metric, fill,
-                part.curve.style, angle, part.curve.radius_px, part.curve.direction)
-    else:
-        font: BakedFont | None = (
-            renderer.resolved.fonts.get(part.font.reference) if part.font.is_custom else None
-        )
-
-        def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
-            renderer.draw_text(font, text, at, part.align, part.vertical_align,
-                               part.font.metric, fill)
-    renderer.draw_outlined(draw, anchor, color, ring_color, part.outline_width)
-
-
 def _pattern_needs_math(placed: PlacedPattern) -> bool:
     """Does this pattern's device loop compute a `sin`/`cos` pair at all?
 
@@ -417,7 +327,7 @@ def _pattern_needs_math(placed: PlacedPattern) -> bool:
     (`WfbArc.drawSpan`'s `startDegrees`), not by rotating a coordinate.
     Every other part -- a text part's anchor included (`WfbGeom.rotatedX`/
     `rotatedY`) -- takes `sin`/`cos`.  Shared by the view's import gate and
-    :func:`emit_draw` so the two cannot disagree about whether the loop
+    `PatternKind.lower` so the two cannot disagree about whether the loop
     declares `angle`/`sin`/`cos`.
     """
     if placed.element.pattern != "radial":
@@ -425,259 +335,168 @@ def _pattern_needs_math(placed: PlacedPattern) -> bool:
     return any(part.shape != "arc" for part in placed.parts)
 
 
-def _pattern_skip_condition(element: PatternElement) -> str:
+def _pattern_skip_terms(element: PatternElement) -> list[Cond]:
     """The loop's skip test, in one fixed order: `skip_every:` first, then
-    every explicit `skip:` index it does not already cover -- an index
-    `skip_every:` already catches would otherwise test true a second time
-    for no reason.  Empty when nothing is skipped, which is what lets
-    :func:`emit_draw` omit the `if` entirely.
-    """
-    terms: list[str] = []
+    every explicit `skip:` index it does not already cover (an index
+    `skip_every:` already catches would test true a second time for no
+    reason).  Empty when nothing is skipped, and the loop then has no
+    `if` at all."""
+    i = NumLocal("i")
+    terms: list[Cond] = []
     if element.skip_every is not None:
-        terms.append(f"i % {element.skip_every} == 0")
+        terms.append(Cmp("==", Bin("%", i, Lit(element.skip_every)), Lit(0)))
     for index in element.skip:
         if element.skip_every is None or index % element.skip_every != 0:
-            terms.append(f"i == {index}")
-    return " || ".join(terms)
+            terms.append(Cmp("==", i, Lit(index)))
+    return terms
 
 
-def _pattern_angle_expr(element: PatternElement) -> tuple[str, str]:
-    """The radial loop's `angle` expression (radians, bare `Float`
-    literals) and the degrees comment beside it: `<start> + i * <step>`,
-    with the start term dropped from the *code* when `start: 0deg` (the
-    common case) -- the comment always spells out both numbers, so the
-    general rule stays visible even then.
-    """
-    step_rad = mc_float(math.radians(element.step_angle))
+def _pattern_angle(element: PatternElement) -> tuple[Num, str]:
+    """The radial loop's `angle` (radians, bare `Float` literals) and the
+    degrees comment beside it: `<start> + i * <step>`, the start term left
+    out of the code at `start: 0deg` (the common case); the comment always
+    spells out both numbers."""
+    i = NumLocal("i")
+    step = Bin("*", i, FloatLit(math.radians(element.step_angle)))
     comment = f"({element.start_angle:g} + {element.step_angle:g} i) degrees"
     if element.start_angle == 0.0:
-        return f"i * {step_rad}", comment
-    start_rad = mc_float(math.radians(element.start_angle))
-    return f"{start_rad} + i * {step_rad}", comment
+        return step, comment
+    return Bin("+", FloatLit(math.radians(element.start_angle)), step), comment
 
 
-def _emit_pattern_text_angle_expr(element: PatternElement, part: ResolvedTextPart) -> str:
-    """The per-copy Garmin-degrees angle a `shape: text` part's own
-    `curve:` draws at: the part's own local, copy-0 angle
-    (`part.curve.angle_garmin`) composed with the copy's rotation, `g0 - i *
-    step_deg` with `element.start_angle` folded into `g0` -- the same shape
-    an `arc` part's `start_angle` gets (`_emit_pattern_part`).  A clockwise
-    design-degree rotation is a plain Garmin-degree subtraction whichever
-    `curve.style` produced the local angle, so this never needs to know
-    which; a linear pattern's start/step are `0.0`, leaving the local angle
-    unchanged on every copy.  `local`/`start`/`step` are the same three
-    terms `PatternTextAngle` gives the lint ink and the preview
-    (`copy_curve_angle`) -- this reads them off the same object, but folds
-    `start` into a build-time literal with `local` and multiplies `step` by
-    the runtime copy index `i`, instead of calling the host evaluator.
-    Full derivation: `docs/lore/codegen.md` ("Vector fonts and `curve:` on
-    a pattern's own `shape: text` part").
-    """
-    step = element.step_angle if element.pattern == "radial" else 0.0
-    angle = PatternTextAngle(part.curve.angle_garmin, element.start_angle, step)
-    g0 = mc_float(angle.local - angle.start)
-    if element.pattern == "radial":
-        return f"{g0} - i * {mc_float(angle.step)}"
-    return g0
-
-
-def _emit_pattern_text_call(
-    w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str, x_expr: str, y_expr: str,
-) -> None:
-    """One `dc.drawText`/`drawAngledText`/`drawRadialText` call for one copy
-    of a `shape: text` pattern part, at the given screen-space anchor: plain
-    `dc.drawText` for an upright part, `drawAngledText`/`drawRadialText`
-    under its own `curve:`.  The interior pass and every `outline:` stamp
-    share it (the pattern-level twin of `shapes.emit_plain_text_call`/
-    `wfb.kinds.text.TextKind.lower`); ``x_expr``/``y_expr`` arrive already
-    rotated/translated, and a stamp's screen-space offset commutes with
-    both the copy's rotation and the curve angle (research 14 §3.2).
-    """
-    curve_style = part.curve.style
-    if curve_style is None and not radial:
-        groups = [f"{x_expr}, {y_expr}, {font_expr}", value_code, justify]
-    elif curve_style is None:
-        groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}", justify]
-    elif curve_style == "angled":
-        angle_expr = _emit_pattern_text_angle_expr(element, part)
-        groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}", f"{justify}, {angle_expr}"]
-    else:  # "radial"
-        angle_expr = _emit_pattern_text_angle_expr(element, part)
-        direction = RADIAL_DIRECTION[part.curve.direction or "clockwise"]
-        radius_expr = radial_radius_expr(f"Layout.{part_prefix}_RADIUS", part.vertical_align,
-                                         part.curve.direction, font_expr)
-        groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}",
-                  f"{justify}, {angle_expr}, {radius_expr}", f"Graphics.{direction}"]
-    callee = {None: "dc.drawText", "angled": "dc.drawAngledText"}.get(curve_style, "dc.drawRadialText")
-    w.call(callee, groups)
-
-
-def _emit_pattern_text_draw(
-    w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str, aod: AodStyle, ring: RingPass | None = None,
-) -> None:
-    """One copy's `shape: text` part -- or with ``ring``, only its 1px ring
-    stamped in that colour (the pattern's own `outline:`): this copy's own
-    anchor, then --
-    ahead of the interior pass, inside the same vector-font null guard --
-    the part's own `outline:` stamp loop, if it has one, then the
-    interior call itself (`_emit_pattern_text_call`).
-
-    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
-    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.kinds.text.
-    TextKind.lower`'s own precedent): a vector font's draw
-    call is wrapped `if (<font local> != null)` regardless of `curve_style`
-    -- an upright vector-font pattern text part needs the same null guard a
-    curved one does, since `Graphics.getVectorFont` can return null even
-    when every build-time gate passed. `font_expr` is already a *local*,
-    loaded once before the copy loop by `emit_draw` (never a repeated
-    field access), so this is a plain local `if`, not the field-narrowing
-    trap `docs/lore/monkeyc.md` warns about. A baked custom font never
-    reaches this guard: `emit_draw`'s own pre-loop loading early-returns
-    on a null baked font instead (a structural resource-load failure, not
-    the ordinary case a vector font's null is), so `part.font.is_vector`
-    alone decides which of the two this part gets. `outline:`'s stamp loop
-    and the interior call both move inside this one guard together, never
-    two guards -- the same shape `wfb.kinds.text.TextKind.lower`
-    already uses for a standalone element.
-
-    **The ring colour, and its own `dc.setColor` restore, are entirely
-    local to this one part's own draw sequence** -- they do not interact
-    with `emit_draw`'s own colour hoisting (`hoist_color`/
-    `current_color`, tracking each part's *interior* `color:` across the
-    whole per-copy loop): the sequence below always leaves `dc`'s colour
-    state at `part.color`'s own value -- restyled for the AOD frame by
-    the same `aod.part_color` the outer loop uses -- by the time it
-    returns, exactly the value the outer loop already believed was current
-    both before and after, so the outer loop's own bookkeeping needs no
-    change. The ring itself takes no `aod:` override key (a pattern's
-    `aod: {color: ...}` is the parts' ink, not their rings); it is only
-    dimmed, like every other colour the AOD frame draws.
-    """
-    curve_style = part.curve.style
-    if radial:
-        # `bottom` shifts the shared `cy` translation term only for this
-        # call, not the variable itself (other parts of the same copy
-        # still rotate about the unshifted origin) -- the subtraction
-        # lands outside the rotation, so it moves the drawn point
-        # straight up on screen regardless of `theta`. Skipped entirely
-        # under `curve:`: `vertical_align: bottom` is rejected there
-        # (`Builder.build_curve`), and `center`/`top` need no
-        # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
-        # never a coordinate shift.
-        cy_expr = "cy" if curve_style is not None else glyph_y_expr(
-            "cy", part.vertical_align, font_expr)
-        x_expr = (
-            f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
-            f"Layout.{part_prefix}_Y, cx, sin, cos)"
-        )
-        y_expr = (
-            f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
-            f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
-        )
-    else:
-        x_expr = f"ox + Layout.{part_prefix}_X"
-        oy_expr = f"oy + Layout.{part_prefix}_Y"
-        y_expr = oy_expr if curve_style is not None else glyph_y_expr(
-            oy_expr, part.vertical_align, font_expr)
-
-    with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
-        if ring is not None:
-            emit_outline(
-                w, ring.color, ring.width, x_expr, y_expr,
-                lambda ox_, oy_: _emit_pattern_text_call(
-                    w, element, part, part_prefix, radial, font_expr, value_code, justify,
-                    ox_, oy_),
-                blank_after=False)
-            return
-        if part.outline_color is not None:
-            emit_outline(
-                w, aod.dimmed(element, part.outline_color), part.outline_width, x_expr, y_expr,
-                lambda ox_, oy_: _emit_pattern_text_call(
-                    w, element, part, part_prefix, radial, font_expr, value_code, justify,
-                    ox_, oy_),
-            )
-            w.line(f"dc.setColor({aod.part_color(element, part.color)}, "
-                   "Graphics.COLOR_TRANSPARENT);")
-        _emit_pattern_text_call(
-            w, element, part, part_prefix, radial, font_expr, value_code, justify,
-            x_expr, y_expr)
-
-
-def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: int,
-                       part: ResolvedHandPart, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
-                       thickness_override: str | None, aod: AodStyle,
-                       ring: RingPass | None = None) -> None:
-    """One template part, drawn for the current copy `i`: polygon/line/
-    circle parts go through `rotated.emit_transformed_part` (rotated for a radial
-    pattern, translated for a linear one, exactly as a hand's parts are).
-    An `arc` part always goes through `WfbArc.drawSpan`, its start angle
-    turned by plain degree subtraction.  A `text` part moves only its
-    anchor (`WfbGeom.rotatedX`/`rotatedY`, or `ox + ...`), unless its own
-    `curve:` turns the glyphs too (`_emit_pattern_text_draw`); its value is
-    the IR part's `text:` literal or `value:` compiled through
-    `formatting.emit`, since geometry resolution never touches either.
-    ``text_fonts`` maps a custom font's resource name to the local
-    `emit_draw` loaded it into before the loop.  With ``ring`` (the
-    pattern's `outline:`, its colour already set), only the part's ring is
-    drawn.
-    """
+def _lower_part(element: PatternElement, placed: PlacedPattern, prefix: str, index: int,
+                part: ResolvedHandPart, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
+                pen: AodPick, stamp: tuple[Paint, int] | None, ring: int | None) -> list[Op]:
+    """One template part, drawn for the current copy `i`: polygon, line and
+    circle parts through the barrel (`Part`: rotated for a radial pattern,
+    translated otherwise, as a hand's parts are).  An `arc` part always goes
+    through `WfbArc.drawSpan`, its start angle turned by plain degree
+    subtraction.  A `text` part moves only its anchor (`WfbGeom.rotatedX`/
+    `rotatedY`, or `ox + ...`), unless its own `curve:` turns the glyphs too
+    (`_lower_text_part`).  With ``ring`` (the pattern's `outline:`, its
+    colour already set), only the part's ring is drawn."""
     part_prefix = f"{prefix}_{index}"
     if part.shape == "text":
-        ir_part = element.parts[index]
-        assert ir_part.shape == "text"  # resolved parts are the IR parts, 1:1
-        if ir_part.text_literal is not None:
-            escaped = ir_part.text_literal.replace("\\", "\\\\").replace('"', '\\"')
-            value_code = f'"{escaped}"'
-        else:
-            assert ir_part.text_value is not None  # `text:` or `value:`, never neither
-            value_code = formatting.emit(
-                ir_part.format or "{}",
-                ir_part.text_value.code,
-                ir_part.text_value.value.type,
-            )
-        justify = " | ".join(f"Graphics.{flag}" for flag in part.justify)
-        if part.font.is_custom:
-            font_expr = text_fonts[part.font.reference]
-        else:
-            font_expr = f"Graphics.{part.font.reference}"
-        _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code,
-                                justify, aod, ring)
-        return
-    thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
+        return _lower_text_part(element, part, part_prefix, index, radial, text_fonts, stamp,
+                                ring)
     if part.shape != "arc":
-        if ring is not None:
-            rotated.emit_part_ring(w, part, part_prefix, ring.width, radial=radial,
-                                   thickness_expr=thickness_expr, set_pen=not hoist_pen)
-        else:
-            rotated.emit_transformed_part(w, part, part_prefix, radial=radial,
-                                          thickness_expr=thickness_expr, set_pen=not hoist_pen)
-        return
-    # arc: always centred on the copy's own origin.  A radial pattern
-    # turns the author start angle by plain degree subtraction -- the same
-    # arithmetic `wfb.layout.garmin_arc` performs at build time for a
-    # standalone `shape: arc`, just with `i * step` folded in at runtime --
-    # so copy 0 of a radial pattern's arc reaches `WfbArc.drawSpan` with
-    # exactly the numbers a `shape: arc` of the same angles would.  A
-    # linear pattern never turns at all, so its arc keeps copy 0's angles
-    # unchanged at every copy, and only its centre moves.
-    g0 = mc_float(90.0 - (part.start_angle + element.start_angle))
-    sweep = mc_float(part.sweep)
-    if radial:
-        step_deg = mc_float(element.step_angle)
-        start_arg = f"{g0} - i * {step_deg}"
-        cx_arg, cy_arg = "cx", "cy"
+        drawn = Part(part, part_prefix, radial, pen, set_pen=not hoist_pen, ring=ring)
+        if ring is not None and part.shape == "circle" and part.filled:
+            return [Disagreement(
+                watch=(drawn,), preview=(replace(drawn, stamp=True),),
+                why="the watch is sent a grown circle; the preview stamps, and which of the "
+                    "two the watch's rasteriser matches is not yet measured")]
+        return [drawn]
+    # arc: always centred on the copy's own origin.  A radial pattern turns
+    # the author start angle by plain degree subtraction -- the arithmetic
+    # `wfb.layout.garmin_arc` performs at build time for a standalone `shape:
+    # arc`, with `i * step` folded in at runtime -- so copy 0 reaches
+    # `WfbArc.drawSpan` with exactly the numbers a `shape: arc` of the same
+    # angles would.  A linear pattern never turns, so only its centre moves.
+    g0 = FloatLit(90.0 - (part.start_angle + element.start_angle))
+    start: Num = (Bin("-", g0, Bin("*", NumLocal("i"), FloatLit(element.step_angle)))
+                  if radial else g0)
+    cx, cy = (NumLocal("cx"), NumLocal("cy")) if radial else (NumLocal("ox"), NumLocal("oy"))
+    radius = Const(f"{part_prefix}_RADIUS", part.radius)
+    offsets = disc_perimeter_offsets(ring) if ring is not None else ((0, 0),)
+    return [ArcSpan(Shifted(cx, dx), Shifted(cy, dy), radius, pen, start, FloatLit(part.sweep),
+                    pen_first=True)
+            for dx, dy in offsets]
+
+
+def _text_angle(element: PatternElement, part: ResolvedTextPart) -> Num:
+    """The per-copy Garmin-degrees angle a `shape: text` part's own `curve:`
+    draws at: the part's own local, copy-0 angle (`part.curve.angle_garmin`)
+    composed with the copy's rotation, `g0 - i * step_deg` with
+    `element.start_angle` folded into `g0` -- the same shape an `arc` part's
+    start angle gets (`_lower_part`).  A clockwise design-degree rotation is a
+    plain Garmin-degree subtraction whichever `curve.style` produced the
+    local angle; a linear pattern's start/step are `0.0`, leaving the local
+    angle unchanged on every copy.  `local`/`start`/`step` are the terms
+    `PatternTextAngle` gives the lint ink.  Full derivation:
+    `docs/lore/codegen.md` ("Vector fonts and `curve:` on a pattern's own
+    `shape: text` part")."""
+    radial = element.pattern == "radial"
+    terms = PatternTextAngle(part.curve.angle_garmin, element.start_angle,
+                             element.step_angle if radial else 0.0)
+    g0 = FloatLit(terms.local - terms.start)
+    return Bin("-", g0, Bin("*", NumLocal("i"), FloatLit(terms.step))) if radial else g0
+
+
+def _lower_text_part(element: PatternElement, part: ResolvedTextPart, part_prefix: str,
+                     index: int, radial: bool, text_fonts: dict[str, str],
+                     stamp: tuple[Paint, int] | None, ring: int | None) -> list[Op]:
+    """One copy's `shape: text` part -- or with ``ring``, only its ring
+    stamped in the pattern's ring colour: ahead of the interior, inside the
+    same vector-font null guard, the part's own `outline:` stamp, then the
+    interior call.
+
+    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
+    mode** (`docs/research/12-vector-fonts.md` §1): a vector font's draw is
+    wrapped `if (<font local> != null)` whether or not it is curved, since
+    `Graphics.getVectorFont` can return null even when every build-time
+    gate passed.  The local was loaded once before the copy loop.  A baked
+    font never reaches this guard: its pre-loop load returns on null
+    instead.
+
+    **The ring colour and its restore are local to this part**: the
+    sequence always leaves `dc`'s colour at the part's own (restyled for
+    the AOD frame), exactly what the copy loop already believes is current.
+    The ring takes no `aod:` override key; it is only dimmed."""
+    ir_part = element.parts[index]
+    assert ir_part.shape == "text"  # resolved parts are the IR parts, 1:1
+    printed: Str
+    if ir_part.text_literal is not None:
+        printed = StrLit(ir_part.text_literal.replace("\\", "\\\\").replace('"', '\\"'))
     else:
-        start_arg = g0
-        cx_arg, cy_arg = "ox", "oy"
-    for dx, dy in (disc_perimeter_offsets(ring.width) if ring is not None else ((0, 0),)):
-        x = cx_arg if dx == 0 else f"{cx_arg} {'+' if dx > 0 else '-'} {abs(dx)}"
-        y = cy_arg if dy == 0 else f"{cy_arg} {'+' if dy > 0 else '-'} {abs(dy)}"
-        w.call("WfbArc.drawSpan", [
-            f"dc, {x}, {y}, Layout.{part_prefix}_RADIUS, {thickness_expr}",
-            f"{start_arg}, {sweep}",
-        ])
+        assert ir_part.text_value is not None  # `text:` or `value:`, never neither
+        printed = Reading(ir_part.format or "{}", ir_part.text_value)
+    text = PerCopy(printed, part.texts)
+    font_code = (text_fonts[part.font.reference] if part.font.is_custom
+                 else f"Graphics.{part.font.reference}")
+    vector = part.font.is_vector
+    font = Font(font_code, baked=part.font.reference if part.font.is_custom and not vector
+                else None, metric=part.font.metric, vector=vector)
+    style = part.curve.style
+    px, py = Const(f"{part_prefix}_X", part.x), Const(f"{part_prefix}_Y", part.y)
+    if radial:
+        # `bottom` drops the shared `cy` translation term only for this
+        # call; the subtraction lands outside the rotation, so it moves the
+        # drawn point straight up on screen whatever the angle.  `curve:`
+        # has no `bottom` (`Builder.build_curve`).
+        rotate = (NumLocal("cx"), NumLocal("sin"), NumLocal("cos"))
+        cy: Num = (NumLocal("cy") if style is not None
+                   else FontDrop(NumLocal("cy"), part.vertical_align, font_code))
+        x: Num = Call("WfbGeom.rotatedX", (px, py, *rotate))
+        y: Num = Call("WfbGeom.rotatedY", (px, py, cy, NumLocal("sin"), NumLocal("cos")))
+    else:
+        x = Bin("+", NumLocal("ox"), px)
+        oy = Bin("+", NumLocal("oy"), py)
+        y = oy if style is not None else FontDrop(oy, part.vertical_align, font_code)
+    angle = _text_angle(element, part) if style is not None else None
+
+    def call(dx: int = 0, dy: int = 0) -> Text:
+        return Text(Shifted(x, dx), Shifted(y, dy), font, text, tuple(part.justify),
+                    part.vertical_align, align=part.align, style=style, angle=angle,
+                    radius=(Const(f"{part_prefix}_RADIUS", part.curve.radius_px)
+                            if style == "radial" else None),
+                    direction=part.curve.direction, shift_y=False,
+                    split_x=radial or style is not None)
+
+    body: list[Op]
+    if ring is not None:
+        assert stamp is not None
+        body = [SetColor(stamp[0]), *(call(dx, dy) for dx, dy in disc_perimeter_offsets(ring))]
+    else:
+        body = []
+        if part.outline_color is not None:
+            body += [SetColor(AodDimmed(element, part.outline_color)),
+                     *(call(dx, dy) for dx, dy in disc_perimeter_offsets(part.outline_width)),
+                     Blank(), SetColor(AodPart(element, part.color))]
+        body.append(call())
+    if vector:
+        return [IfNotNull(font_code, tuple(body), present=part.font.available)]
+    return body
 
 
 class PatternKind(ElementKind[PatternElement, PlacedPattern]):
@@ -916,109 +735,71 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                 if_unavailable=part.if_unavailable, curve=part.curve))
         return runs
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedPattern) -> None:
-        """`type: pattern` -- one template, drawn once per copy through
-        :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
-        the generated draw method computes on the device. Copies draw
-        ascending, parts in list order within a copy -- the generated
-        nested-loop order. A polygon/line/circle part reuses `hand_part`;
-        an `arc` part turns its start angle with the copy instead
-        (`_pattern_arc`); a `text` part draws at the copy's own rounded
-        anchor (`_pattern_text`).
-
-        `when_absent: hide` is checked once for the whole element
-        (`_pattern_absent`), the device's own pre-loop null guard. Per copy,
-        each part's own `visible:` is evaluated with `copy` bound, the same
-        `values` its colour uses.
-        """
-        element = placed.element
-        if _pattern_absent(renderer, element):
-            return
-        s = renderer.scale
-        for index in placed.copies:
-            ox, oy, sin_t, cos_t = placed.transform(index)
-            # `copy` is the generated loop's `i`: a colour reading it is
-            # evaluated afresh for every copy, exactly as the device does.
-            values = {**renderer.values, expr.COPY: index}
-
-            def draw_copy(index: int = index, ox: float = ox, oy: float = oy,
-                          sin_t: float = sin_t, cos_t: float = cos_t,
-                          values: dict[str, object] = values) -> None:
-                for part_index, part in enumerate(placed.parts):
-                    if not renderer.visible(element.parts[part_index].visible, values):
-                        continue
-                    if part.shape == "arc":
-                        _pattern_arc(renderer, placed, part, ox, oy, index, values)
-                    elif part.shape == "text":
-                        _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
-                    else:
-                        renderer.hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
-
-            if element.outline is not None:
-                # Each copy ringed whole, just before it -- `emit_draw`'s order.
-                renderer.stamp_ring(renderer.silhouette(draw_copy),
-                                    renderer.aod_dimmed(element, element.outline.color),
-                                    element.outline.width)
-            draw_copy()
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
+    def lower(self, ctx: DrawContext, placed: PlacedPattern) -> list[Op]:
         """`type: pattern` -- loop over the drawn copies, turning (radial) or
-        translating (linear) the template resolved once at build time.  The
-        same bargain `wfb.kinds.hands.HandsKind.emit_draw` already struck for
-        analog hands: the device performs the one piece of layout arithmetic
-        ADR 0004 leaves it (a
-        rotation or a translation), everything else is a `Layout` constant.
+        translating (linear, grid) the template resolved once at build time.
+        The same bargain `wfb.kinds.hands.HandsKind` strikes for analog
+        hands: the device performs the one piece of layout arithmetic ADR
+        0004 leaves it (a rotation or a translation), everything else is a
+        `Layout` constant.
 
         Per-copy part `visible:`: a part whose `visible:` folded to a
-        compile-time `false` is dropped here entirely -- no colour line, no
-        draw call -- the `dead-element` lint already told the author. A part
-        whose `visible:` is not constant is *gated*: its own drawing (everything
-        `_emit_pattern_part` writes for it, pen included) sits inside
-        `if (<condition>) { ... }`, but its `dc.setColor(...)` stays where it
-        already was, **before** the gate and unconditional -- so the pen colour
-        after this part is the same whichever branch ran, and the part *after*
-        it never has to ask whether this one actually drew.
+        compile-time `false` is dropped entirely -- no colour, no draw call --
+        the `dead-element` lint already told the author.  A part whose
+        `visible:` is not constant is *gated*: its own drawing (pen included)
+        sits inside `if (<condition>) { ... }`, but its `dc.setColor(...)`
+        stays before the gate, unconditional, so the pen colour after this
+        part is the same whichever branch ran, and the part after it never
+        has to ask whether this one drew.
 
         A `text` part's custom font is loaded into a local **once, before the
-        loop** -- the same "load once, guard once" rule
-        `wfb.kinds.text.TextKind.lower` follows for a standalone `text`
-        element, just hoisted out of the per-copy body since every copy shares
-        one font.  Two text parts naming different fonts
-        get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
-        two parts naming the *same* font share one load and one guard.  **A
-        `face:` (vector) font is the one exception to "guard once, before the
-        loop"**: it is still loaded into a local once, but
-        never early-return-guarded here -- gate 4 means it can be null on the
-        ordinary "this device just doesn't have it" path, not only on a
-        structural failure, and an early `return;` here would also cancel every
-        *other* part of this same pattern sharing this one draw method, baked
-        fonts and unrelated shapes included.  `_emit_pattern_text_draw` wraps
-        its own draw call in the matching `if (<local> != null)` instead, once
-        per copy, exactly as a standalone vector-font `text` element's own
-        `wfb.kinds.text.TextKind.lower` already does.
-        """
+        loop**, the same "load once, guard once" rule `wfb.kinds.text.
+        TextKind.lower` follows, hoisted since every copy shares one font.
+        Two parts naming different fonts get two locals (``font0``,
+        ``font1``, ...); two naming the same font share one load and one
+        guard.  **A `face:` (vector) font is the exception**: it is loaded
+        once but never early-return-guarded, because it can be null on the
+        ordinary "this device does not have it" path, and an early `return;`
+        would cancel every *other* part of this pattern too.  Its draw is
+        wrapped in `if (<local> != null)` instead, once per copy.
+
+        Colour: one distinct part colour is set once, before the loop;
+        several are set inside it, only on each change.  A colour that reads
+        `copy` is the loop's own `i`, so it is never hoisted.  `outline:`
+        rings each copy whole just before its parts, setting the ring colour
+        every copy, so nothing is hoisted then either.  The pen width is
+        hoisted when every line and outlined circle shares one width and
+        there is no arc part: `WfbArc.drawSpan` resets the pen to 1 itself.
+
+        With `ctx.ring` (an outlined group's pass), only the rings are
+        drawn."""
         element = placed.element
+        aod = ctx.aod
         prefix = const_prefix(placed.id)
-        # `aod: {color: ...}`/`{thickness: ...}`: one override,
-        # applied uniformly to every part, hoisted or not.
-        thickness_override = rotated.aod_thickness_override(placed, prefix)
-        # `element.parts[i]` and `placed.parts[i]` are the same template, in the
-        # same order (`resolve` builds one `ResolvedHandPart`
-        # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
-        # (geometry resolution never touches it), read here by plain index.
+        override = (Const(f"{prefix}_AOD_THICKNESS", placed.aod_thickness)
+                    if placed.aod_thickness is not None else None)
         live = [
             (index, part) for index, part in enumerate(placed.parts)
             if not ((visible := element.parts[index].visible) is not None
                     and visible.is_constant)
         ]
         radial = element.pattern == "radial"
-        needs_trig = _pattern_needs_math(placed)
-
+        i = NumLocal("i")
+        ops: list[Op] = []
+        # The device's own null guard before the copy loop: a nullable
+        # source a colour or a part's `visible:` reads.
+        sources: set[str] = set()
+        for expression in element.colors:
+            sources.update(expression.sources)
+        for ir_part in element.parts:
+            if ir_part.visible is not None:
+                sources.update(ir_part.visible.sources)
+        guarded = tuple(sorted(path for path in sources if catalog.CATALOG[path].guard_needed))
+        if guarded:
+            ops.append(WrapperGuard((), guarded))
         if radial:
-            w.line(f"var cx = Layout.{prefix}_X;")
-            w.line(f"var cy = Layout.{prefix}_Y;")
+            ops += [Let("cx", Const(f"{prefix}_X", placed.center[0])),
+                    Let("cy", Const(f"{prefix}_Y", placed.center[1]))]
 
         text_fonts: dict[str, str] = {}
         vector_text_fonts: set[str] = set()
@@ -1029,94 +810,87 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                 if part.font.is_vector:
                     vector_text_fonts.add(part.font.reference)
         for reference, local in text_fonts.items():
-            w.line(f"var {local} = _{font_field(reference)};")
-            if reference not in vector_text_fonts:
-                with w.block(f"if ({local} == null)"):
-                    w.line("return;  // the font resource failed to load")
-            w.blank()
+            ops += [LoadFont(local, f"_{font_field(reference)}",
+                             on_null="none" if reference in vector_text_fonts else "return"),
+                    Blank()]
 
-        # Colour: one distinct part colour is set once, before the loop; several
-        # are set inside it, only on each change (the same rule
-        # `wfb.kinds.hands._emit_one_hand` already follows within one hand).
-        # A colour that reads `copy` is the
-        # loop's own `i`, so it can never be hoisted: it is set inside the loop,
-        # afresh on every copy.  (A data reading needs no such care -- its local
-        # is declared at the top of the method, before the loop.)  A dead part
-        # (constant-false `visible:`, excluded from `live`) contributes no
-        # colour at all -- it never draws, so its colour is nobody's concern.
-        colors = [aod.part_color(element, part.color) for _, part in live]
-        distinct_colors = list(dict.fromkeys(colors))
+        paints = [AodPart(element, part.color) for _, part in live]
+        codes = [color_code(paint, aod) for paint in paints]
+        distinct = list(dict.fromkeys(codes))
         per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
                        if part.color is not None)
-        # `outline:` rings each copy whole just before its parts (research
-        # 19), setting the ring colour every copy -- so nothing is hoisted.
-        stamp = ring or own_ring(element, aod)
-        hoist_color = len(distinct_colors) == 1 and not per_copy and stamp is None
-
-        # Pen width: hoisted when every line/outlined-circle part shares one
-        # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
-        # 1 itself on every call, which would undo a hoisted width on the very
-        # next copy.
-        pen_parts = [(i, part) for i, part in live
-                    if part.shape == "line" or (part.shape == "circle" and not part.filled)]
+        stamp: tuple[Paint, int] | None = None
+        if ctx.ring is not None:
+            stamp = (RingColor(), ctx.ring.width)
+        elif element.outline is not None:
+            stamp = (AodDimmed(element, element.outline.color), element.outline.width)
+        hoist_color = len(distinct) == 1 and not per_copy and stamp is None
+        pen_parts = [(index, part) for index, part in live
+                     if part.shape == "line" or (part.shape == "circle" and not part.filled)]
         has_arc = any(part.shape == "arc" for _, part in live)
-        hoist_pen = (
-            bool(pen_parts) and not has_arc
-            and len({p.thickness for _, p in pen_parts}) == 1
-        )
+        hoist_pen = (bool(pen_parts) and not has_arc
+                     and len({p.thickness for _, p in pen_parts}) == 1)
+
+        def pen(index: int, part: ResolvedHandPart) -> AodPick:
+            return AodPick(Const(f"{prefix}_{index}_THICKNESS", getattr(part, "thickness", 1)),
+                           override)
 
         if hoist_color:
-            w.line(f"dc.setColor({distinct_colors[0]}, Graphics.COLOR_TRANSPARENT);"
-                  "  // hoisted: one colour")
+            ops.append(SetColor(paints[0], note="hoisted: one colour"))
         if hoist_pen:
-            hoist_index = pen_parts[0][0]
-            hoisted_thickness_expr = aod.value(
-                thickness_override, f"Layout.{prefix}_{hoist_index}_THICKNESS")
-            w.line(f"dc.setPenWidth({hoisted_thickness_expr});"
-                  "  // hoisted: one pen, no arc")
+            ops.append(SetPen(pen(*pen_parts[0]), note="hoisted: one pen, no arc"))
 
-        skip_condition = _pattern_skip_condition(element)
-        with w.block(f"for (var i = 0; i < {element.count}; i++)"):
-            if skip_condition:
-                with w.block(f"if ({skip_condition})"):
-                    w.line("continue;")
-            if radial:
-                if needs_trig:
-                    angle_expr, angle_comment = _pattern_angle_expr(element)
-                    w.line(f"var angle = {angle_expr};  // {angle_comment}")
-                    w.line("var sin = Math.sin(angle);")
-                    w.line("var cos = Math.cos(angle);")
-            elif element.pattern == "grid":
+        body: list[Op] = []
+        skip = _pattern_skip_terms(element)
+        if skip:
+            body.append(If(AnyOf(tuple(skip)), (Continue(),)))
+        if radial:
+            if _pattern_needs_math(placed):
+                angle, note = _pattern_angle(element)
+                body += [Let("angle", angle, note=note),
+                         Let("sin", Call("Math.sin", (NumLocal("angle"),))),
+                         Let("cos", Call("Math.cos", (NumLocal("angle"),)))]
+        else:
+            x0 = Const(f"{prefix}_X", placed.center[0])
+            y0 = Const(f"{prefix}_Y", placed.center[1])
+            dx = Const(f"{prefix}_DX", placed.dx)
+            dy = Const(f"{prefix}_DY", placed.dy)
+            if element.pattern == "grid":
                 # Number / Number is integer division in Monkey C: the row.
-                w.line(f"var ox = Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX;")
-                w.line(f"var oy = Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY;")
+                assert element.columns is not None
+                columns = Lit(element.columns)
+                body += [Let("ox", Bin("+", x0, Bin("*", Paren(Bin("%", i, columns)), dx))),
+                         Let("oy", Bin("+", y0, Bin("*", Paren(Bin("/", i, columns)), dy)))]
             else:
-                w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
-                w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
+                body += [Let("ox", Bin("+", x0, Bin("*", i, dx))),
+                         Let("oy", Bin("+", y0, Bin("*", i, dy)))]
 
-            def parts(ring_pass: RingPass | None) -> None:
-                current_color = distinct_colors[0] if hoist_color else None
-                for color, (index, part) in zip(colors, live):
-                    if (ring_pass is None and not hoist_color
-                            and color != current_color):
-                        w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-                        current_color = color
-                    visible = element.parts[index].visible
-                    if visible is not None:
-                        # Non-constant, or `live` would have excluded it above.
-                        w.comment(f"visible: {visible.text}")
-                    with w.block_if(f"if ({visible.code})" if visible is not None else None):
-                        _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
-                                           text_fonts, thickness_override, aod, ring_pass)
+        def parts(ring: int | None) -> list[Op]:
+            out: list[Op] = []
+            current = codes[0] if hoist_color else None
+            for paint, code, (index, part) in zip(paints, codes, live):
+                if ring is None and not hoist_color and code != current:
+                    out.append(SetColor(paint))
+                    current = code
+                drawn = _lower_part(element, placed, prefix, index, part, radial, hoist_pen,
+                                    text_fonts, pen(index, part), stamp, ring)
+                visible = element.parts[index].visible
+                if visible is not None:
+                    # Non-constant, or `live` would have excluded it above.
+                    out += [Comment(f"visible: {visible.text}"), If(Truthy(visible), tuple(drawn))]
+                else:
+                    out += drawn
+            return out
 
-            if stamp is not None:
-                # This copy ringed whole: every part's ring, then the parts.
-                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                parts(stamp)
-            if ring is None:
-                parts(None)
+        if stamp is not None:
+            # This copy ringed whole: every part's ring, then the parts.
+            body += [SetColor(stamp[0]), *parts(stamp[1])]
+        if ctx.ring is None:
+            body += parts(None)
+        ops.append(For("i", Lit(element.count), tuple(body), copy=True))
         if hoist_pen:
-            w.line("dc.setPenWidth(1);")
+            ops.append(SetPen(None))
+        return ops
 
     def describe(self, placed: PlacedPattern) -> str:
         element = placed.element

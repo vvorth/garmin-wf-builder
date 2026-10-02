@@ -118,7 +118,7 @@ def garmin_curve_angle(style: str, angle: Angle) -> float:
 
     A radial pattern composes either with its per-copy rotation by plain
     subtraction (`_pattern_text_ink`, `wfb.emit.monkeyc.rotated.
-    _emit_pattern_text_angle_expr`): `to_garmin`'s offset, where there is
+    _text_angle`): `to_garmin`'s offset, where there is
     one, is folded in once by the local angle, never per copy.
     """
     if style == "radial":
@@ -821,7 +821,7 @@ class ResolvedTextPart(_ResolvedPart):
     #: `curve.angle_garmin` is the part's *local* angle, for copy 0 only: a
     #: radial pattern's per-copy rotation depends on the runtime copy index,
     #: so it is composed where that index is known (`wfb.kinds.pattern.
-    #: _pattern_text_ink`, `wfb.kinds.pattern._emit_pattern_text_angle_expr`).
+    #: _pattern_text_ink`, `wfb.kinds.pattern._text_angle`).
     curve: ResolvedCurve = ResolvedCurve()
     #: `TextPart.outline`, exploded; `outline_color is None` means none.
     outline_width: int = 0

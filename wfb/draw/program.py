@@ -141,8 +141,20 @@ class NumPick:
     otherwise: "Num"
 
 
+@dataclass(frozen=True)
+class FontDrop:
+    """``base``, less the font's own height for `vertical_align: bottom`
+    (`glyph_y_expr`), wherever in a call the code subtracts it.  The host
+    places the line by its `vertical_align` itself, so this evaluates to
+    ``base``."""
+
+    base: "Num"
+    valign: str
+    font: str
+
+
 Num: "TypeAlias" = Union[Const, Lit, Shifted, Grown, AodPick, FloatLit, NumLocal, Read, Bin,
-                         Paren, Call, Conv, NumPick]
+                         Paren, Call, Conv, NumPick, FontDrop]
 
 
 # -- conditions -----------------------------------------------------------------
@@ -183,7 +195,22 @@ class NotPulsing:
     unique: int
 
 
-Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing]
+@dataclass(frozen=True)
+class AnyOf:
+    """``a || b || ...``."""
+
+    conds: tuple["Cond", ...]
+
+
+@dataclass(frozen=True)
+class Truthy:
+    """An expression's own compiled code as the condition (`visible:`):
+    false on the host when it is absent, as `Renderer.visible` decides."""
+
+    expr: "Expression"
+
+
+Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing, AnyOf, Truthy]
 
 
 # -- strings --------------------------------------------------------------------
@@ -238,7 +265,18 @@ class IconChoice:
     value: "Expression"
 
 
-Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local, AodStr, IconChoice]
+@dataclass(frozen=True)
+class PerCopy:
+    """A pattern text part's string: ``printed`` on the watch, and on the
+    host the copy's own string, rendered at build time (``texts[i]`` for
+    the loop's ``var``)."""
+
+    printed: "Str"
+    texts: tuple[str, ...]
+    var: str = "i"
+
+
+Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local, AodStr, IconChoice, PerCopy]
 
 
 # -- colours and fonts ----------------------------------------------------------
@@ -333,16 +371,20 @@ class Font:
 
 @dataclass(frozen=True)
 class SetColor:
-    """`dc.setColor(<color>, Graphics.COLOR_TRANSPARENT)`."""
+    """`dc.setColor(<color>, Graphics.COLOR_TRANSPARENT)`, with ``note`` as a
+    trailing comment."""
 
     color: "Paint"
+    note: str = ""
 
 
 @dataclass(frozen=True)
 class SetPen:
-    """`dc.setPenWidth(<width>)`; ``None`` resets it to 1."""
+    """`dc.setPenWidth(<width>)`; ``None`` resets it to 1.  ``note`` is a
+    trailing comment."""
 
     width: Num | None
+    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -366,7 +408,8 @@ class FillPolygon:
 @dataclass(frozen=True)
 class ArcSpan:
     """`WfbArc.drawSpan`: ``start`` and ``sweep`` in Garmin's convention,
-    exactly the arguments the watch gets."""
+    exactly the arguments the watch gets.  ``pen_first``: the pen ends the
+    call's first line rather than starting its second."""
 
     cx: Num
     cy: Num
@@ -374,6 +417,7 @@ class ArcSpan:
     pen: Num
     start: Num
     sweep: Num
+    pen_first: bool = False
 
 
 @dataclass(frozen=True)
@@ -443,10 +487,15 @@ class Text:
     #: reads it off ``justify``.
     align: str | None = None
     style: str | None = None
-    angle: Const | None = None
+    angle: Num | None = None
     radius: Const | None = None
     direction: str | None = None
     box: "IntBox | None" = None
+    #: Whether the printer subtracts a `bottom` line's font height from
+    #: ``y`` itself; false when ``y`` already says where (a `FontDrop`).
+    shift_y: bool = True
+    #: The call's `x` on a line of its own, as a pattern's text part prints it.
+    split_x: bool = False
 
 
 @dataclass(frozen=True)
@@ -480,11 +529,14 @@ class LetText:
 
 @dataclass(frozen=True)
 class IfNotNull:
-    """``if (<local> != null) { <body> }``.  A loaded font is never null on
-    the host, so the evaluator always runs the body."""
+    """``if (<local> != null) { <body> }``.  A loaded font is null on the
+    host only when ``present`` says so (a vector font this device does not
+    resolve, `if_unavailable: hide`); otherwise the evaluator runs the
+    body."""
 
     local: str
     body: tuple["Op", ...]
+    present: bool = True
 
 
 @dataclass(frozen=True)
@@ -507,10 +559,11 @@ class IfAwake:
 
 @dataclass(frozen=True)
 class Let:
-    """``var <name> = <value>;``."""
+    """``var <name> = <value>;``, with ``note`` as a trailing comment."""
 
     name: str
     value: Num
+    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -533,11 +586,19 @@ class If:
 
 @dataclass(frozen=True)
 class For:
-    """``for (var <var> = 0; <var> < <bound>; <var>++) { <body> }``."""
+    """``for (var <var> = 0; <var> < <bound>; <var>++) { <body> }``.  With
+    ``copy``, the loop is a pattern's copies: on the host the readings bind
+    `copy` to ``var`` for each one (`wfb.expr.COPY`)."""
 
     var: str
     bound: Num
     body: tuple["Op", ...]
+    copy: bool = False
+
+
+@dataclass(frozen=True)
+class Continue:
+    """``continue;``: the next turn of the innermost `For`."""
 
 
 @dataclass(frozen=True)
@@ -577,9 +638,11 @@ class WrapperGuard:
     """The view's own guard around a `draw<Id>` body (`view.
     _emit_element_method`), which the view prints and the printer
     therefore does not: on the host, nothing more is drawn when any of
-    ``probes`` is absent."""
+    ``probes`` is absent, or any of the catalogue ``sources`` has no sample
+    reading."""
 
     probes: tuple["Expression", ...]
+    sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -608,7 +671,7 @@ class Blank:
 
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, ArcProgress, Part,
                         LoadFont, Text, Glyph, LetText, IfNotNull, IfAod, IfAwake, Let, Assign,
-                        If, For, LetSlotPick, LetAutoScale, WrapperGuard, Disagreement, Comment,
+                        If, For, Continue, LetSlotPick, LetAutoScale, WrapperGuard, Disagreement, Comment,
                         Blank]
 
 

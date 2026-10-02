@@ -109,7 +109,7 @@ ROLE_VISIBLE = "visible"
 HOLD_AUTO = "auto"
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
-#: `wfb.kinds.pattern.PatternKind.emit_draw` draws the copies in (`for (var i = 0; ...)`).
+#: `wfb.kinds.pattern.PatternKind.lower` draws the copies in (`for (var i = 0; ...)`).
 PATTERN_LOOP_INDEX = "i"
 
 #: `Dc.fillPolygon`'s own 64-point limit, already recorded for `shape:

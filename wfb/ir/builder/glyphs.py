@@ -206,7 +206,7 @@ class GlyphHelpers(AbsenceChecks):
         On a pattern part the angle is authored in the template's own local
         frame; a radial pattern's per-copy rotation composes with it
         downstream (`wfb.kinds.pattern._pattern_part_ink`, `wfb.kinds.
-        pattern._emit_pattern_text_angle_expr`), so twelve hour numerals
+        pattern._text_angle`), so twelve hour numerals
         share one authored angle.
         """
         raw = node["curve"]

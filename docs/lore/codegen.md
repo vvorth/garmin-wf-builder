@@ -368,15 +368,13 @@ These cost real time to discover; do not rediscover them.
   definition, `wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): `local`/`start`/
   `step` are the part's local angle and the pattern's own repeat angle, and
   `copy_curve_angle(index)` is `(local - (start + index * step)) % 360.0`,
-  the host evaluator the lint ink box (`wfb.kinds.pattern._pattern_text_ink`) and
-  the preview (`wfb.kinds.pattern._pattern_text`) both call. Codegen
-  (`wfb.kinds.pattern._emit_pattern_text_angle_expr`) reads the same
-  `local`/`start`/`step` off that object but builds Monkey C from them
-  instead of calling the evaluator: `g0 = part.curve.angle_garmin -
-  element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
-  shape a radial pattern's own `arc` part already used for its
-  `start_angle:` (`_emit_pattern_part`'s arc branch, unchanged, one row up
-  from the text branch). Deriving the sign: a radial pattern turns
+  the host evaluator the lint ink box (`wfb.kinds.pattern._pattern_text_ink`)
+  calls. The draw program (`wfb.kinds.pattern._text_angle`) reads the same
+  `local`/`start`/`step` off that object but builds a program value from
+  them, which the watch and the preview both compute: `g0 =
+  part.curve.angle_garmin - element.start_angle`, then `g0 - i * step_deg`
+  per copy, the *exact* shape a radial pattern's own `arc` part uses for
+  its `start_angle:` (`_lower_part`'s arc branch). Deriving the sign: a radial pattern turns
   copy `i` by `element.start_angle + i * element.step_angle` **design**
   degrees, clockwise from 12 -- always a *position*-style rotation of the
   whole template, regardless of the part's own `curve.style`. Composing it
@@ -396,24 +394,20 @@ These cost real time to discover; do not rediscover them.
   (`wfb.kinds.pattern.PatternKind.resolve`), so `g0` reduces to the part's own local
   angle unchanged and no `i *` term is emitted at all -- the "no copy angle
   to compose with" case falls out of the shared formula for free, not a
-  separate branch. `wfb.kinds.pattern._pattern_text` calls the same
-  `PatternTextAngle.copy_curve_angle`, reading `PlacedPattern.start`/`.step`
-  (already `element.start_angle`/`.step_angle` in degrees) instead of
-  re-deriving them.
+  separate branch.
 
   **Why gate 4's guard cannot stay "load once, early-return before the
   loop."** That is exactly what a *baked* custom font on a pattern text
-  part still does (`wfb.kinds.pattern.PatternKind.emit_draw`'s own `text_fonts` pre-loop loading,
-  unchanged) -- reasonable there, because a baked resource failing to load
+  part still does (`wfb.kinds.pattern.PatternKind.lower`'s own `text_fonts` pre-loop loading) -- reasonable there, because a baked resource failing to load
   is a structural failure, essentially never observed. A vector font's
   null is the *ordinary* case under `if_unavailable: hide`, or even under
   `error` (gate 4 has no build-time guarantee at all), and an early
   `return;` before the loop would silently cancel every *other* part of
   the *same* pattern too -- unrelated shapes, unrelated fonts, all sharing
   this one generated draw method. So a vector font's local is still loaded
-  once before the loop (`wfb.kinds.pattern.PatternKind.emit_draw`'s new `vector_text_fonts` split),
+  once before the loop (`wfb.kinds.pattern.PatternKind.lower`'s `vector_text_fonts` split),
   but never early-return-guarded; instead `wfb.kinds.pattern.
-  _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
+  _lower_text_part` wraps only its own draw call in `if (<local> !=
   null)`, every copy, the same shape `wfb.kinds.text.TextKind.lower`
   already uses for a standalone element -- and this
   applies even to an *upright* (uncurved) vector-font pattern part, not
@@ -503,7 +497,8 @@ These cost real time to discover; do not rediscover them.
   **A lowered kind's ring is part of its draw program** (`wfb/draw/`):
   the preview paints the same grown copy, shifted polygon copies or stamp
   the watch is sent, with one exception kept explicit. A filled circle's,
-  rectangle's or rounded rectangle's ring is a grown copy on the watch,
+  rectangle's or rounded rectangle's ring, a gauge bar's, and a filled
+  circle part's (a needle's, a pattern's) is a grown copy on the watch,
   and the preview still stamps it (a `Disagreement` op). The two are
   different pixel sets, 8-28 px per shape at 1x in the Pillow model
   (research 27 §2.5). Which one the watch's rasteriser matches is

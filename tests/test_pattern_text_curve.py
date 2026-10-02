@@ -8,8 +8,8 @@ covers a standalone `text` element's own `curve:`; this file covers what is
 *different* about a pattern's own text part: the authored angle is in the
 template's own local (copy-0) frame, and a radial pattern composes it with
 each copy's own rotation at codegen/preview time (`wfb.kinds.
-pattern._emit_pattern_text_angle_expr`, `wfb.kinds.pattern._pattern_part_ink`,
-`wfb.kinds.pattern._pattern_text`) -- never in `wfb.layout.Resolver.
+pattern._text_angle`, `wfb.kinds.pattern._pattern_part_ink`,
+`wfb.kinds.pattern._lower_text_part`) -- never in `wfb.layout.Resolver.
 _resolve_hand_part`, which stores the part's own *local* angle only (see
 its own docstring). Every check here was driven red first (`tests/
 CLAUDE.md`): run against a design that should fail with the corresponding
@@ -32,7 +32,8 @@ from wfb import build, lint
 from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.resources import bake_fonts
-from wfb.kinds.pattern import _emit_pattern_text_angle_expr, _pattern_part_ink
+from wfb.draw.printer import num_code
+from wfb.kinds.pattern import _pattern_part_ink, _text_angle
 from wfb.layout import PlacedPattern, inside_screen, resolve
 from wfb.preview import PreviewOptions, render
 from tests.helpers import fonts_design as _design
@@ -342,7 +343,7 @@ def test_linear_pattern_curve_has_no_copy_angle_to_compose_with(write_design, ba
 
 def test_angle_expr_composes_local_angle_with_element_start_for_radial(write_design, bag, db):
     """`g0 = part.curve.angle_garmin - element.start_angle`, then `- i *
-    step` per copy -- the exact arithmetic `_emit_pattern_text_angle_expr`
+    step` per copy -- the exact arithmetic `_text_angle`
     performs, checked against hand-derived numbers rather than a substring
     of generated code, so a sign error cannot hide behind a passing
     'contains "i *"' assertion."""
@@ -354,7 +355,7 @@ def test_angle_expr_composes_local_angle_with_element_start_for_radial(write_des
     element = face.elements[0]
     assert element.start_angle == 0.0
     assert element.step_angle == pytest.approx(90.0)  # 360 / 4
-    expr = _emit_pattern_text_angle_expr(element, part)
+    expr = num_code(_text_angle(element, part))
     # g0 = garmin_curve_angle("angled", 0deg) - 0.0 = 0.0; step = 90.0
     assert expr == "0.0 - i * 90.0"
 
@@ -367,7 +368,7 @@ def test_angle_expr_folds_element_start_angle_into_g0(write_design, bag, db):
     placed = _placed_pattern(resolve(face, device, {}), "hours")
     part = placed.parts[0]
     element = face.elements[0]
-    expr = _emit_pattern_text_angle_expr(element, part)
+    expr = num_code(_text_angle(element, part))
     # g0 = 0.0 (garmin_curve_angle("angled", 0deg)) - 10.0 (element.start_angle) = -10.0
     assert expr == "-10.0 - i * 90.0"
 
@@ -378,7 +379,7 @@ def test_angle_expr_has_no_per_copy_term_for_a_linear_pattern(write_design, bag,
     placed = _placed_pattern(resolve(face, device, {}), "row")
     part = placed.parts[0]
     element = face.elements[0]
-    expr = _emit_pattern_text_angle_expr(element, part)
+    expr = num_code(_text_angle(element, part))
     assert "i *" not in expr
     # garmin_curve_angle("angled", 20deg) = (-20) % 360 = 340.0
     assert expr == "340.0"

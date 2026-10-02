@@ -898,8 +898,8 @@ class Renderer:
         exactly like a system font, `draw_text`), `angled`
         (`Dc.drawAngledText`: the whole string rotated about the anchor) or
         `radial` (`Dc.drawRadialText`: per-glyph placement around a circle).
-        Shared by `_text` and `_pattern_text` (which passes its copy's own
-        anchor and copy-composed angle). `box` is the upright path's "no
+        Shared by every text the draw program paints (a pattern's text part
+        passes its copy's own anchor and copy-composed angle). `box` is the upright path's "no
         scalable face" outline fallback.
 
         **`curve_angle_garmin` is Garmin's convention throughout** (degrees

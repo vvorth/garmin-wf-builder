@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–5 done, 6–10 to go. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–6 done, 7–10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -449,7 +449,62 @@ scaleless pick, and a needle's ring through the barrel. Seen red: tree-order
 evaluation, the one-column-wide fill, truncated segment rounding, and a
 scale that vanished with its reading.
 
-### Slices 6–9 — the remaining kinds
+### Slice 6 — `pattern`: done
+
+Built as below. `PatternKind.lower` replaces `emit_draw`, `draw_preview` and
+nine private helpers. The copy loop is a `For` with `copy`, which binds the
+readings' `copy` to the loop index on the host; a skip is `If(AnyOf(...))`
+around a `Continue`; a part's own `visible:` is `If(Truthy(...))`. The
+program gained:
+- `Continue`, `For.copy`, the conditions `AnyOf` and `Truthy`;
+- `PerCopy`, a text part's string: printed as before, and on the host the
+  copy's own string rendered at build time;
+- `FontDrop`, a `bottom` line's height subtracted where the code puts it
+  (inside a radial copy's `WfbGeom.rotatedY`), which the host ignores since
+  it places the line by `vertical_align`;
+- `Text.split_x`, `Text.shift_y`, a `Num` angle (`_text_angle`),
+  `IfNotNull.present` (a vector font this device does not resolve),
+  `ArcSpan.pen_first`, the `note:` comments on `SetColor`/`SetPen`/`Let`,
+  `WrapperGuard.sources`, and the `WfbGeom.rotatedX`/`Y` twins in
+  `barrel.CALLS`. The evaluator now resets the pen after an arc, as
+  `WfbArc.drawSpan` does.
+
+Proven before the old methods were deleted, on every pattern in `examples/`
+and `tests/fixtures/` on each face's targets:
+- printed code byte-identical: **1 392/1 392** (no `aod:`, `aod:` on, with
+  `dim:`; 1 px and 2 px ring passes);
+- whole-frame renders (1×, 2×, 3×, AOD): every difference has one of two
+  named causes, shown by emulating the old behaviour:
+  1. **A radial copy's angle is the printed one**, `start + i * step` in
+     radians, not `radians(start + i * step)`. The two differ only in the
+     last bit, which at a cardinal angle decides which pixel a line end or
+     a circle lands on. With the old angle emulated, 158 of 172 renders are
+     identical, and of the other 14, 5 differ only at 3×, where the old preview
+     scaled the centre and the rotated offset separately (one to a few
+     pixels).
+  2. **A ringed pattern's text part rings with its own glyphs**: the watch
+     draws the text at each ring offset in the ring colour, and the preview
+     now does, so an anti-aliased glyph's ring blends at its edges. The old
+     preview pasted a hard-edged dilation of the text's silhouette (the 9
+     remaining renders, all of `tests/fixtures/outline_pattern_gauge`'s
+     `numerals`; every differing pixel was solid ring colour and is now a
+     blend).
+
+`tools/snapshot.py` against slice 5's starting snapshot: 521 unchanged, 30
+changed, every one a preview. Seventeen are slice 5's bar fills; the other 13
+are `analog-custom`, `features/gauge`, `features/vector-text` and
+`generated_by_skill/navy-classic` (cause 1) and more of
+`outline_pattern_gauge`. No generated file changed. Real builds of
+`features/patterns`, `features/grid`, `features/vector-text` and
+`outline_pattern_gauge` are warning-free on all three targets.
+
+Tests (`tests/test_draw_pattern.py`): a skipped copy draws nothing, a colour
+reading `copy` alternates per copy, a grid's rows step by whole division,
+the radial angle is the printed literal, and a ringed text part draws five
+texts a copy. Seen red: `continue` ignored, `copy` unbound, and `/` as a
+float division.
+
+### Slices 7–9 — the remaining kinds
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:
@@ -458,7 +513,7 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 |---|---|---|---|
 | 4 | `icon` | glyph from the icon font, `WfbWeather.chooseIcon` (a dynamic icon) | ring by ring font |
 | 5 (done) | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
-| 6 | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
+| 6 (done) | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
 | 7 | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
 | 8 | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
 | 9 | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |

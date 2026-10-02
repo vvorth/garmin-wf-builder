@@ -25,7 +25,7 @@ from . import barrel
 from .evaluator import Evaluator, Stop, part_ops, paste_glyph
 from .program import (
     AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, Disagreement, FillPolygon,
-    Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
+    Continue, Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
     LetText, Lit, LoadFont, Num, Op, Part, Primitive, SetColor, SetPen, Shifted, Text,
     WrapperGuard,
 )
@@ -136,6 +136,8 @@ class _JsonWriter:
                 # What `WfbArc.drawProgress` hands `dc.drawArc`.
                 "call": list(call) if call is not None else None,
             })
+            ev.pen = 1
+            self.out.append({"op": "pen", "width": 1})  # the barrel resets it
         elif isinstance(op, Part):
             self.walk(part_ops(op, ev))
         elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard)):
@@ -143,9 +145,9 @@ class _JsonWriter:
         elif isinstance(op, If):
             self.walk(op.then if ev.cond(op.cond) else op.otherwise)
         elif isinstance(op, For):
-            for i in range(int(ev.num(op.bound))):
-                ev.locals[op.var] = i
-                self.walk(op.body)
+            ev.loop(op, self.walk)
+        elif isinstance(op, Continue):
+            ev.run([op])
         elif isinstance(op, ArcSpan):
             call = barrel.draw_span(ev.num(op.start), ev.num(op.sweep))
             self.out.append({
@@ -155,6 +157,8 @@ class _JsonWriter:
                 # What `WfbArc.drawSpan` hands `dc.drawArc`: Garmin degrees.
                 "call": list(call) if call is not None else None,
             })
+            ev.pen = 1
+            self.out.append({"op": "pen", "width": 1})  # the barrel resets it
         elif isinstance(op, Text):
             text = ev.string(op.text)
             if text is None:
@@ -163,7 +167,7 @@ class _JsonWriter:
                 "op": "text", "x": self.num(op.x), "y": self.num(op.y), "text": text,
                 "font": self.font(op.font), "justify": list(op.justify),
                 "align": op.align, "valign": op.valign, "style": op.style,
-                "angle": op.angle.value if op.angle is not None else None,
+                "angle": float(ev.num(op.angle)) if op.angle is not None else None,
                 "radius": op.radius.value if op.radius is not None else None,
                 "direction": op.direction,
                 "box": ([op.box.x, op.box.y, op.box.width, op.box.height]
@@ -184,7 +188,8 @@ class _JsonWriter:
         elif isinstance(op, LetText):
             ev.run([op])
         elif isinstance(op, IfNotNull):
-            self.walk(op.body)
+            if op.present:
+                self.walk(op.body)
         elif isinstance(op, IfAod):
             self.walk(op.then if self.aod else op.otherwise)
         elif isinstance(op, IfAwake):

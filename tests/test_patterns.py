@@ -920,8 +920,8 @@ def _barrel_for(text: str, write_design, bag, db, tmp_path):
 def test_an_all_arc_pattern_does_not_pull_in_wfbgeom(write_design, bag, db, tmp_path):
     """An all-arc pattern (radial or linear) draws only through
     `WfbArc.drawSpan` -- it never rotates a vertex or translates a polygon,
-    so it has no call into `WfbGeom` at all (`_emit_pattern_part` in
-    `wfb/emit/monkeyc/rotated.py`).  `BARREL_FILES`' own promise
+    so it has no call into `WfbGeom` at all (`_lower_part` in
+    `wfb/kinds/pattern.py`).  `BARREL_FILES`' own promise
     ("only what a face uses is copied") means `WfbGeom.mc` must be left
     out here, unlike a pattern with a line/rectangle/circle part."""
     barrel = _barrel_for(design(ALL_ARC_RING), write_design, bag, db, tmp_path)
