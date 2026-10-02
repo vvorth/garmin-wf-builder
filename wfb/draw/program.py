@@ -108,7 +108,16 @@ class Local:
     name: str
 
 
-Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local]
+@dataclass(frozen=True)
+class AodStr:
+    """``awake``, or ``asleep`` in the always-on frame: a text's `aod:
+    {format: ...}`, both strings built up front and ternaried."""
+
+    asleep: "Str"
+    awake: "Str"
+
+
+Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local, AodStr]
 
 
 # -- colours and fonts ----------------------------------------------------------
@@ -145,12 +154,21 @@ class AodDimmed:
 
 
 @dataclass(frozen=True)
+class AodPaint:
+    """``awake``, or ``asleep`` in the always-on frame: a ring whose
+    `aod: {outline: ...}` colour replaces the awake one."""
+
+    asleep: "Paint"
+    awake: "Paint"
+
+
+@dataclass(frozen=True)
 class RingColor:
     """The `ringColor` parameter of a `ring<Id>` method: an outlined
     group's colour, which the group's ring pass hands its members."""
 
 
-Paint: "TypeAlias" = Union[Color, AodRestyled, AodDimmed, RingColor]
+Paint: "TypeAlias" = Union[Color, AodRestyled, AodDimmed, AodPaint, RingColor]
 
 
 @dataclass(frozen=True)
@@ -164,6 +182,9 @@ class Font:
     baked: str | None = None
     metric: "FontMetric | None" = None
     vector: bool = False
+    #: The font drawn in the always-on frame instead, from an `aod: {font:
+    #: ...}` override; ``code`` already names the choice between the two.
+    asleep: "Font | None" = None
 
 
 # -- ops ------------------------------------------------------------------------
@@ -216,13 +237,15 @@ class ArcSpan:
 
 @dataclass(frozen=True)
 class LoadFont:
-    """``var <local> = _<field>;``, then, for ``on_null="return"``,
-    ``if (<local> == null) { return; }``.  A ``"guard"`` load is followed
-    by a `IfNotNull` block instead."""
+    """``var <local> = <source>;`` (a font field, or a choice between two),
+    then, for ``on_null="return"``, ``if (<local> == null) { return;  //
+    <note> }``.  Any other load is followed by an `IfNotNull` block, or by
+    nothing.  The host always has the font, so the evaluator skips it."""
 
     local: str
-    field: str
+    source: str
     on_null: str = "return"
+    note: str = "the font resource failed to load"
 
 
 @dataclass(frozen=True)
@@ -240,6 +263,9 @@ class Text:
     text: Str
     justify: tuple[str, ...]
     valign: str
+    #: The element's `align`, which the preview places the line by; ``None``
+    #: reads it off ``justify``.
+    align: str | None = None
     style: str | None = None
     angle: Const | None = None
     radius: Const | None = None
@@ -279,6 +305,14 @@ class IfAod:
 
 
 @dataclass(frozen=True)
+class IfAwake:
+    """``if (!_aod) { <body> }``: drawn in every frame but the always-on
+    one."""
+
+    body: tuple["Op", ...]
+
+
+@dataclass(frozen=True)
 class Disagreement:
     """A known difference between what the watch is sent (``watch``, which
     the printer writes) and what the host draws (``preview``, which the
@@ -303,7 +337,7 @@ class Blank:
 
 
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, LoadFont, Text,
-                        LetText, IfNotNull, IfAod, Disagreement, Comment, Blank]
+                        LetText, IfNotNull, IfAod, IfAwake, Disagreement, Comment, Blank]
 
 
 # -- what lowering is given ------------------------------------------------------

@@ -15,9 +15,9 @@ from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, plus
 from ..emit.writer import Writer
 from .program import (
-    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Color, Comment, Concat, Const, Disagreement,
-    FillPolygon, IfAod, IfNotNull, LetText, Lit, LoadFont, Num, Op, Paint, Primitive, Reading,
-    SetColor, SetPen, Shifted, Str, StrLit, Text,
+    AodDimmed, AodPaint, AodPick, AodRestyled, AodStr, ArcSpan, Blank, Color, Comment, Concat,
+    Const, Disagreement, FillPolygon, IfAod, IfAwake, IfNotNull, LetText, Lit, LoadFont, Num, Op,
+    Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
 )
 
 
@@ -34,14 +34,16 @@ def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
     return plus(num_code(n.base, aod), str(n.by), n.times)
 
 
-def str_code(s: Str) -> str:
+def str_code(s: Str, aod: AodStyle = NO_AOD) -> str:
+    if isinstance(s, AodStr):
+        return aod.value(str_code(s.asleep, aod), str_code(s.awake, aod))
     if isinstance(s, StrLit):
         return f'"{s.text}"'
     if isinstance(s, Reading):
         return formatting.emit(s.spec, s.value.code, s.value.value.type,
                                unit_code=s.unit.code if s.unit is not None else None)
     if isinstance(s, Concat):
-        return " + ".join(str_code(part) for part in s.parts)
+        return " + ".join(str_code(part, aod) for part in s.parts)
     return s.name
 
 
@@ -52,6 +54,8 @@ def color_code(c: Paint, aod: AodStyle = NO_AOD) -> str:
         return aod.color(c.element, c.key)
     if isinstance(c, AodDimmed):
         return aod.dimmed(c.element, c.expr)
+    if isinstance(c, AodPaint):
+        return aod.value(color_code(c.asleep, aod), color_code(c.awake, aod))
     return "ringColor"
 
 
@@ -80,17 +84,17 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
             f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
         ])
     elif isinstance(op, LoadFont):
-        w.line(f"var {op.local} = _{op.field};")
+        w.line(f"var {op.local} = {op.source};")
         if op.on_null == "return":
             with w.block(f"if ({op.local} == null)"):
-                w.line("return;  // the font resource failed to load")
+                w.line(f"return;  // {op.note}")
     elif isinstance(op, Text):
         _print_text(w, op, aod)
     elif isinstance(op, LetText):
-        w.line(f"var {op.name} = {str_code(op.initial)};")
+        w.line(f"var {op.name} = {str_code(op.initial, aod)};")
         available = " && ".join(f"{guard} != null" for guard in op.guards)
         with w.block(f"if ({available})"):
-            w.line(f"{op.name} = {str_code(op.value)};")
+            w.line(f"{op.name} = {str_code(op.value, aod)};")
     elif isinstance(op, IfNotNull):
         with w.block(f"if ({op.local} != null)"):
             print_ops(w, op.body, aod)
@@ -100,6 +104,9 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
         if op.otherwise:
             with w.block("else"):
                 print_ops(w, op.otherwise, aod)
+    elif isinstance(op, IfAwake):
+        with w.block("if (!_aod)"):
+            print_ops(w, op.body, aod)
     elif isinstance(op, Disagreement):
         print_ops(w, op.watch, aod)
     elif isinstance(op, Comment):
@@ -113,7 +120,7 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
 def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
     x, y = num_code(op.x, aod), num_code(op.y, aod)
     justify = " | ".join(f"Graphics.{flag}" for flag in op.justify)
-    value = str_code(op.text)
+    value = str_code(op.text, aod)
     font = op.font.code
     if op.style == "angled":
         assert op.angle is not None

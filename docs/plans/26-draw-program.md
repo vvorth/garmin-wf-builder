@@ -281,7 +281,27 @@ How the two expected diffs actually landed:
 - Tests: the spike's two comparisons become regression tests over every
   shape element in `examples/` and the AOD and outline fixtures.
 
-### Slice 2 — `text`
+### Slice 2 — `text`: done
+
+Built as below. `TextKind.lower` replaces `emit_draw`, `draw_preview` and
+eight private helpers. The program gained:
+- `AodStr` (an `aod: {format: ...}` string);
+- `Font.asleep` (an `aod: {font: ...}` face);
+- `AodPaint` (an `aod: {outline: ...}` colour);
+- `IfAwake` (`if (!_aod)`);
+- `Text.align`;
+- a `LoadFont` that takes any source and null note (`fontFinal`).
+
+`wfb.draw.drawn_text` returns the string a lowered element draws, for the
+two tests that used to import the preview's private `_text_value`.
+
+The fixture `tests/fixtures/text_fallback/` (`absent: {value: 0}` on
+`"{heart_rate.current} bpm"`, plain and ringed with an `aod:` restyle, on
+an AMOLED and a MIP target) was run through the code before this slice in
+a scratch worktree. Its generated project and its awake and AOD previews
+were identical to the port's. A test checks the substitute goes through
+the format (`0 bpm`).
+
 
 - `TextKind.lower()` covers every font route (baked, system, vector,
   upright, `angled`, `radial`), every value route (literal, formatted,

@@ -16,9 +16,9 @@ from .. import expr, formatting
 from ..catalog import Type
 from . import barrel
 from .program import (
-    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Color, Comment, Concat, Const, Disagreement,
-    FillPolygon, Grown, IfAod, IfNotNull, LetText, Lit, LoadFont, Num, Op, Paint, Primitive,
-    Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    AodDimmed, AodPaint, AodPick, AodRestyled, AodStr, ArcSpan, Blank, Color, Comment, Concat,
+    Const, Disagreement, FillPolygon, Grown, IfAod, IfAwake, IfNotNull, LetText, Lit, LoadFont,
+    Num, Op, Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
 )
 
 if TYPE_CHECKING:
@@ -41,9 +41,12 @@ def num_value(n: Num, aod: bool = False) -> float:
     return num_value(n.base, aod) + n.by * n.times
 
 
-def str_value(s: Str, values: dict[str, object], env: dict[str, str | None]) -> str | None:
-    """``s`` at the sample readings, or `None` when a reading in it is
-    absent."""
+def str_value(s: Str, values: dict[str, object], env: dict[str, str | None],
+              aod: bool = False) -> str | None:
+    """``s`` at the sample readings, in the always-on frame when ``aod``,
+    or `None` when a reading in it is absent."""
+    if isinstance(s, AodStr):
+        return str_value(s.asleep if aod else s.awake, values, env, aod)
     if isinstance(s, StrLit):
         return s.text
     if isinstance(s, Reading):
@@ -57,7 +60,7 @@ def str_value(s: Str, values: dict[str, object], env: dict[str, str | None]) -> 
                 if s.unit is not None and s.unit.ast is not None else None)
         return formatting.render(s.spec, reading, value_type, values, unit_text=unit)
     if isinstance(s, Concat):
-        parts = [str_value(part, values, env) for part in s.parts]
+        parts = [str_value(part, values, env, aod) for part in s.parts]
         if any(part is None for part in parts):
             return None
         return "".join(part for part in parts if part is not None)
@@ -80,6 +83,10 @@ class Evaluator:
     def num(self, n: Num) -> float:
         return num_value(n, self.renderer.options.aod)
 
+    def string(self, s: Str) -> str | None:
+        r = self.renderer
+        return str_value(s, r.values, self.locals, r.options.aod)
+
     def paint(self, c: Paint) -> RGB:
         r = self.renderer
         if isinstance(c, Color):
@@ -88,6 +95,8 @@ class Evaluator:
             return r.aod_color(c.element, c.key, getattr(c.element, c.key))
         if isinstance(c, AodDimmed):
             return r.aod_dimmed(c.element, c.expr)
+        if isinstance(c, AodPaint):
+            return self.paint(c.asleep if r.options.aod else c.awake)
         if self.ring_color is None:
             raise ValueError("a ring pass painted without its group's colour")
         return self.ring_color
@@ -113,14 +122,16 @@ class Evaluator:
         elif isinstance(op, Text):
             self._text(op)
         elif isinstance(op, LetText):
-            value = str_value(op.value, r.values, self.locals)
-            self.locals[op.name] = (value if value is not None
-                                    else str_value(op.initial, r.values, self.locals))
+            value = self.string(op.value)
+            self.locals[op.name] = value if value is not None else self.string(op.initial)
         elif isinstance(op, IfNotNull):
             # A loaded font is never null on the host.
             self.run(op.body)
         elif isinstance(op, IfAod):
             self.run(op.then if r.options.aod else op.otherwise)
+        elif isinstance(op, IfAwake):
+            if not r.options.aod:
+                self.run(op.body)
         elif isinstance(op, Disagreement):
             self.run(op.preview)
         elif isinstance(op, (LoadFont, Comment, Blank)):
@@ -174,21 +185,22 @@ class Evaluator:
 
     def _text(self, op: Text) -> None:
         r = self.renderer
-        text = str_value(op.text, r.values, self.locals)
+        text = self.string(op.text)
         if text is None:
             return
         anchor = (int(self.num(op.x)), int(self.num(op.y)))
-        align = next((_JUSTIFY_ALIGN[f] for f in op.justify if f in _JUSTIFY_ALIGN), "center")
-        if op.font.vector:
+        align = op.align or next(
+            (_JUSTIFY_ALIGN[f] for f in op.justify if f in _JUSTIFY_ALIGN), "center")
+        face = op.font.asleep if r.options.aod and op.font.asleep is not None else op.font
+        if face.vector:
             r.draw_vector_text(
-                text, anchor, align, op.valign, op.font.metric, self.color, op.style,
+                text, anchor, align, op.valign, face.metric, self.color, op.style,
                 op.angle.value if op.angle is not None else 0.0,
                 int(op.radius.value) if op.radius is not None else 0,
                 op.direction, box=op.box)
             return
-        font = r.resolved.fonts.get(op.font.baked) if op.font.baked is not None else None
-        r.draw_text(font, text, anchor, align, op.valign,
-                    None if font is not None else op.font.metric, self.color, box=op.box)
+        font = r.resolved.fonts.get(face.baked) if face.baked is not None else None
+        r.draw_text(font, text, anchor, align, op.valign, face.metric, self.color, box=op.box)
 
 
 def evaluate(ops: Iterable[Op], renderer: "Renderer") -> None:

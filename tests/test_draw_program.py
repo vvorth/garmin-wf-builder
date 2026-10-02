@@ -110,7 +110,7 @@ def test_the_printer_writes_each_op_as_the_emitters_do(db):
         ArcSpan(x, y, Const("A_RADIUS", 30), Const("A_THICKNESS", 2), Const("A_START", 90.0),
                 Const("A_SWEEP", -45.0)),
         Blank(),
-        LoadFont("font", "fontDigits"),
+        LoadFont("font", "_fontDigits"),
         LetText(StrLit("--"), StrLit("12"), ("heartRateCurrent",)),
         IfNotNull("font", (Text(x, y, font, Local("text"), ("TEXT_JUSTIFY_LEFT",), "bottom"),)),
         IfAod((Text(x, y, font, StrLit("a"), ("TEXT_JUSTIFY_CENTER",), "top"),),
@@ -198,22 +198,27 @@ def test_the_evaluator_paints_each_filled_primitive_over_its_resolved_geometry(d
     assert checked == {"rectangle", "circle", "ellipse", "polygon"}
 
 
-def test_the_evaluator_paints_text_as_the_preview_does(db):
+def test_the_evaluator_paints_a_text_call_as_draw_text_at_its_anchor(db):
+    """A `drawText` op is the renderer's own glyph placement at the
+    element's anchor, aligned by its justification: checked for every
+    literal system-font text in the system-fonts example."""
     resolved = resolved_example(TEXT, db, DEVICE)
     texts = [p for p in resolved.shown_items
-             if p.kind == "text" and p.element.literal is not None and p.element.outline is None]
+             if p.kind == "text" and p.element.literal is not None]
     assert texts
     for placed in texts:
         c = _constants(placed)
         font = Font(f"Graphics.{placed.font.reference}", metric=placed.font.metric)
-        today, program = _renderer(resolved), _renderer(resolved)
-        kinds.for_placed(placed).draw_preview(today, placed)
+        direct, program = _renderer(resolved), _renderer(resolved)
+        direct.draw_text(None, placed.element.literal, placed.anchor_point, placed.element.align,
+                         placed.element.vertical_align, placed.font.metric, (255, 255, 255))
         evaluator.evaluate([
-            SetColor(Color(placed.element.color)),
+            SetColor(Color(None)),
             Text(c["X"], c["Y"], font, StrLit(placed.element.literal), tuple(placed.justify),
-                 placed.element.vertical_align, box=placed.inner_box),
+                 placed.element.vertical_align),
         ], program)
-        assert _differing(today.image, program.image) == 0, placed.id
+        assert direct.image.getbbox() is not None, placed.id
+        assert _differing(direct.image, program.image) == 0, placed.id
 
 
 def test_if_aod_takes_the_branch_of_the_frame_painted(db):
@@ -338,3 +343,18 @@ def test_a_half_degree_arc_previews_where_the_watch_draws_it(resolved_for):
     watch = arc(barrel.pillow_arc(barrel.draw_span(placed.garmin_start, placed.sweep)))
     assert _differing(painted.image, watch) == 0
     assert _differing(painted.image, arc(arc_span(placed.start_angle, placed.sweep))) > 0
+
+
+def test_a_fallback_draws_its_substitute_through_the_same_format(db):
+    """`absent: {value: 0}` on `"{heart_rate.current} bpm"`: the reading
+    when there is one, else `0 bpm` -- the substitute through the element's
+    own format, never the bare value (`tests/fixtures/text_fallback/`)."""
+    from wfb.draw import drawn_text
+
+    resolved = resolved_example(Path("tests/fixtures/text_fallback/face.yaml"), db, DEVICE)
+    placed = find(resolved, "heart")
+    present = dict(preview.SAMPLE)
+    absent = {**present, "heart_rate.current": None}
+    assert drawn_text(resolved, placed, present) == f"{present['heart_rate.current']} bpm"
+    assert drawn_text(resolved, placed, absent) == "0 bpm"
+    assert drawn_text(resolved, find(resolved, "heart_ringed"), absent) == "0"

@@ -25,7 +25,6 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
-from wfb.preview import PreviewOptions, render
 
 
 def _template(value: str, fmt: str) -> str:
@@ -77,23 +76,16 @@ def _view(text, write_design, bag, db):
 
 
 def _rendered(text, write_design, bag, db, sample: dict) -> str:
-    """The string the preview draws for `reading`, through the same path
-    (`wfb.kinds.text._text_value`) the rendered PNG uses."""
-    from wfb.kinds.text import _text_value
+    """The string the preview draws for `reading`: the one its draw program
+    names (`wfb.draw.drawn_text`), which the rendered PNG paints."""
+    from wfb.draw import drawn_text
 
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     placed = next(p for p in resolved.items if p.id == "reading")
 
-    class Renderer:
-        options = PreviewOptions()
-        values = sample
-
-        def aod_field(self, element, key, base):
-            return base
-
-    return _text_value(Renderer(), placed)
+    return drawn_text(resolved, placed, sample)
 
 
 # -- the conversion table ------------------------------------------------------

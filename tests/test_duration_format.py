@@ -21,7 +21,6 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
-from wfb.preview import PreviewOptions
 
 BASE = """
 format: 2
@@ -66,22 +65,16 @@ def _method(text, write_design, bag, db) -> str:
 
 
 def _rendered(text, write_design, bag, db, sample: dict) -> str:
-    """What the preview draws for `reading` (`wfb.kinds.text._text_value`)."""
-    from wfb.kinds.text import _text_value
+    """The string the preview draws for `reading`: the one its draw program
+    names (`wfb.draw.drawn_text`), which the rendered PNG paints."""
+    from wfb.draw import drawn_text
 
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     placed = next(p for p in resolved.items if p.id == "reading")
 
-    class Renderer:
-        options = PreviewOptions()
-        values = sample
-
-        def aod_field(self, element, key, base):
-            return base
-
-    return _text_value(Renderer(), placed)
+    return drawn_text(resolved, placed, sample)
 
 
 # -- the rules -------------------------------------------------------------------

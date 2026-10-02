@@ -1,0 +1,53 @@
+# A `text` element whose reading may be absent, with `absent: {value: ...}`
+# substituting another reading through the same format, and the same with
+# an `outline:` and an `aod:` restyle on an AMOLED target. No example face
+# substitutes a value, so this fixture is what puts the fallback's draw
+# code and its preview under `tools/snapshot.py`.
+#
+# A test fixture, not an example.
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 3b8e2d6a-91c4-4f7e-a2d5-6c0f1e9b7a43
+  name: Text Fallback
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix847mm
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    ring: "#FF0000"
+
+defaults:
+  aod: show
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+  heart:
+    type: text
+    text: "{heart_rate.current} bpm"
+    font: FONT_MEDIUM
+    at: { anchor: center, dy: -20%r }
+    color: color.fg
+    absent: { value: 0 }
+  heart_ringed:
+    type: text
+    text: "{heart_rate.current}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dy: 20%r }
+    color: color.bg
+    outline: color.ring
+    absent: { value: 0 }
+    aod: { color: color.fg }

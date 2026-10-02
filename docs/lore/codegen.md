@@ -339,7 +339,7 @@ These cost real time to discover; do not rediscover them.
   **Gate 4 -- `Graphics.getVectorFont` returning `null` even when every
   build-time gate passed -- has no guard of any kind, ever, in either
   `if_unavailable:` mode**, because the platform gives none: every draw
-  call using a vector font (`wfb.kinds.text._emit_vector_text_draw`)
+  call using a vector font (`wfb.kinds.text.TextKind.lower`)
   captures the field into a local first (`var font = _fontBezel;`) and wraps the actual `dc.drawText`/`drawAngledText`/`drawRadialText` in
   `if (font != null)` -- the field-vs-local capture is not optional
   ceremony, it is `docs/lore/monkeyc.md`'s own "type narrowing must go
@@ -414,7 +414,7 @@ These cost real time to discover; do not rediscover them.
   once before the loop (`wfb.kinds.pattern.PatternKind.emit_draw`'s new `vector_text_fonts` split),
   but never early-return-guarded; instead `wfb.kinds.pattern.
   _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
-  null)`, every copy, the same shape `wfb.kinds.text._emit_vector_text_draw`
+  null)`, every copy, the same shape `wfb.kinds.text.TextKind.lower`
   already uses for a standalone element -- and this
   applies even to an *upright* (uncurved) vector-font pattern part, not
   only a curved one: gate 4 does not care whether `curve:` was authored.
@@ -552,7 +552,7 @@ These cost real time to discover; do not rediscover them.
 
 - **`aod: {outline: ...}` on a `text` element: the ring is one more AOD
   override, but not a ternary alone, because a ring can exist in one frame
-  and not the other.** `wfb.kinds.text._emit_ring` reads one decision,
+  and not the other.** `wfb.kinds.text.TextKind._ring` reads one decision,
   `wfb.ir.aod_outline_choice` (which `wfb preview --aod` reads too), and
   draws the ring once in one of three shapes: both frames ringed -- a
   colour ternary; a ring only in AOD -- under `if (_aod) { ... }`; a ring
@@ -633,7 +633,7 @@ These cost real time to discover; do not rediscover them.
   them never reaches codegen or `wfb preview
   --aod` at all -- there is nothing left for either to draw, and the
   runtime fallback code both still carry for the font cases (e.g.
-  `wfb.kinds.text._emit_text_draw`'s `is_vector` check) is
+  `wfb.kinds.text.TextKind._font`'s `is_vector` check) is
   defensive, not a live path.
 
 - **`aod: {dim: ...}` (plan 14 slice 3): the split is `Expression.is_constant`,

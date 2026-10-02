@@ -71,3 +71,45 @@ def paint(renderer: "Renderer", placed: "Placed") -> bool:
         return False
     evaluate(ops, renderer)
     return True
+
+
+def drawn_text(resolved: "ResolvedFace", placed: "Placed", values: dict[str, object],
+               *, aod: bool = False) -> str | None:
+    """The string ``placed`` (a lowered, text-drawing element) draws at the
+    readings ``values``, in the always-on frame when ``aod``: what the
+    preview paints, without painting it.  `None` when it draws none, its
+    reading being absent with nothing to substitute."""
+    from ..emit.monkeyc.common import AodStyle
+    from ..emit.monkeyc.readplan import ReadPlan
+    from .evaluator import str_value
+    from .program import IfAod, IfAwake, IfNotNull, LetText, Text
+
+    ctx = DrawContext(resolved, AodStyle(on=True), tuple(ReadPlan(resolved).value_guards(placed)))
+    ops = lowered(ctx, placed)
+    if ops is None:
+        raise ValueError(f"{placed.id}: its kind does not lower")
+    env: dict[str, str | None] = {}
+
+    def walk(body: "list[Op] | tuple[Op, ...]") -> tuple[bool, str | None]:
+        for op in body:
+            if isinstance(op, LetText):
+                value = str_value(op.value, values, env, aod)
+                env[op.name] = value if value is not None else str_value(op.initial, values, env,
+                                                                          aod)
+            elif isinstance(op, Text):
+                return True, str_value(op.text, values, env, aod)
+            elif isinstance(op, IfNotNull):
+                found = walk(op.body)
+                if found[0]:
+                    return found
+            elif isinstance(op, IfAod):
+                found = walk(op.then if aod else op.otherwise)
+                if found[0]:
+                    return found
+            elif isinstance(op, IfAwake) and not aod:
+                found = walk(op.body)
+                if found[0]:
+                    return found
+        return False, None
+
+    return walk(ops)[1]

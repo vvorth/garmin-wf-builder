@@ -8,28 +8,25 @@ from typing import Any, TYPE_CHECKING
 
 from dataclasses import replace
 
-from .. import catalog, conversion, expr, formatting
+from .. import catalog, conversion, formatting
 from ..catalog import Type
-from ..devices import FontMetric
-from ..fonts import BakedFont
 from ..ir.model import Element, Expression, Outline, Text, TextSegment, aod_outline_choice
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
-from ..units import Axis, Box, IntBox
-from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, aod_font_field, const_prefix, font_field,
-    mc_color,
+from ..units import Axis, Box
+from ..draw.program import (
+    AodDimmed, AodPaint, AodRestyled, AodStr, Blank, Color, Comment, Concat, Const, DrawContext,
+    Font, IfAod, IfAwake, IfNotNull, LetText, Local, LoadFont, Op, Paint, Reading, RingColor,
+    SetColor, Shifted, Str, StrLit, Text as DrawText,
 )
-from ..emit.writer import Writer
+from ..emit.monkeyc import layout_constants as layout_constants_mod
+from ..emit.monkeyc.common import AodStyle, aod_font_field, const_prefix, font_field
+from ..ir import disc_perimeter_offsets
 from . import ElementKind, TextRun, ring_font, ring_widths
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..ir.model import Face
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver
 
 
 def _reject_text_antialias(b: Builder, node: dict[str, Any], element: Text) -> None:
@@ -153,79 +150,7 @@ def _widest_label(element: Text) -> str:
     return max(element.unit_labels, key=len, default="")
 
 
-def _text_font(renderer: Renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
-    """The baked font (or `None` for a system one) and metric a non-vector
-    `text` element draws with, after its `aod: {font: ...}` override --
-    the same scope as codegen's `wfb.kinds.text._emit_text_draw`:
-    an override naming a *different* baked font swaps the sheet, one
-    naming a system `FONT_*` swaps the metric. A vector override is a
-    build error (`Builder._build_aod_authored`), so the `is_vector`
-    check is defensive."""
-    element = placed.element
-    font: BakedFont | None = (
-        renderer.resolved.fonts.get(placed.font.reference) if placed.font.is_custom else None
-    )
-    metric = placed.font.metric
-    aod_font = renderer.aod_field(element, "font", None)
-    if aod_font is None or aod_font == placed.font.reference:
-        return font, metric
-    assert element.aod is not None  # `aod_field` found the override there
-    if element.aod.font_is_custom:
-        override_spec = renderer.resolved.face.fonts.get(aod_font)
-        if override_spec is not None and not override_spec.is_vector:
-            override_font = renderer.resolved.fonts.get(aod_font)
-            if override_font is not None:
-                return override_font, None
-    else:
-        override_metric = renderer.resolved.device.system_fonts.get(aod_font)
-        if override_metric is not None:
-            return None, override_metric
-    return font, metric
 
-
-def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
-    element = placed.element
-    if element.literal is not None:
-        return element.literal
-    if element.value is None:
-        return None
-    spec = renderer.aod_field(element, "format", element.format) or "{}"
-    if element.more:
-        # Several readings: absent when any is (a fallback is refused).
-        rendered = [_render_reading(renderer, value, more_spec, None)
-                    for value, more_spec in [(element.value, spec), *element.segments()[1:]]]
-        if any(text is None for text in rendered):
-            return element.placeholder if element.when_absent == "placeholder" else None
-        return "".join(text for text in rendered if text is not None)
-    value_type = element.value.value.type
-    if value_type in (Type.TIME, Type.DATE):
-        return formatting.render(spec, None, value_type, renderer.values)
-    value = expr.evaluate(element.value.ast, renderer.values) if element.value.ast else None
-    if value is None:
-        if element.when_absent == "placeholder":
-            return element.placeholder
-        if element.when_absent == "fallback" and element.fallback and element.fallback.ast:
-            value = expr.evaluate(element.fallback.ast, renderer.values)
-            if value is None:
-                return None
-        else:
-            return None
-    unit_text = (str(expr.evaluate(element.unit_label.ast, renderer.values))
-                 if element.unit_label is not None and element.unit_label.ast is not None
-                 else None)
-    return formatting.render(spec, value, value_type, renderer.values, unit_text=unit_text)
-
-
-def _render_reading(renderer: Renderer, value: Expression, spec: str,
-                    unit_text: str | None) -> str | None:
-    """One reading through its format, or `None` when it is absent."""
-    value_type = value.value.type
-    if value_type in (Type.TIME, Type.DATE):
-        return formatting.render(spec, None, value_type, renderer.values)
-    reading = expr.evaluate(value.ast, renderer.values) if value.ast else None
-    if reading is None:
-        return None
-    return formatting.render(spec, reading, value_type, renderer.values, unit_text=unit_text)
 
 
 def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
@@ -236,47 +161,7 @@ def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
     return aod_outline_choice(element.outline, element.aod, dim_set)
 
 
-#: Draws one text ring: ``ring(color, width)``, the colour Monkey C.
-RingDraw = Callable[[str, int], None]
 
-
-def _emit_ring(w: Writer, element: Text, aod: AodStyle, ring: RingDraw) -> None:
-    """The `outline:` ring ahead of the interior pass, for the awake ring and
-    the AOD frame's own (`aod_outline_choice`): ``ring(color, width)``
-    draws it once, with the colour an `_aod ? ... : ...` ternary where the
-    two frames' differ; under `if (_aod)`/`if (!_aod)` when only one frame
-    has a ring; or once in each branch of `if (_aod) ... else` when the two
-    rings differ in width.  With no AOD code in this build, or this element
-    hidden in AOD, only the awake ring exists.
-    """
-    awake = element.outline
-    if not aod.on or element.aod is None:
-        if awake is not None:
-            ring(mc_color(awake.color), awake.width)
-            w.blank()
-        return
-    asleep, choice = _aod_ring(element, aod.dim is not None)
-    if awake is None and asleep is None:
-        return
-    if awake is None or asleep is None:
-        only = asleep if awake is None else awake
-        assert only is not None  # both absent returned above
-        with w.block("if (_aod)" if awake is None else "if (!_aod)"):
-            ring(mc_color(only.color), only.width)
-        w.blank()
-        return
-    if asleep.width != awake.width:
-        # Only an override has a width of its own: a carried-over ring is
-        # the awake one.
-        with w.block("if (_aod)"):
-            ring(mc_color(asleep.color), asleep.width)
-        with w.block("else"):
-            ring(mc_color(awake.color), awake.width)
-        w.blank()
-        return
-    ring(aod.value(mc_color(asleep.color), mc_color(awake.color)) if choice == "override"
-         else aod.dimmed(element, awake.color), awake.width)
-    w.blank()
 
 
 def baked_ring(element: Element, face: Face, width: int) -> str | None:
@@ -293,159 +178,8 @@ def baked_ring_local(width: int) -> str:
     return "ringFont" if width == 1 else f"ringFont{width}"
 
 
-def _ring(w: Writer, element: Element, face: Face, x_expr: str, y_expr: str, value_code: str,
-          justify: str, draw: Callable[[str, str], None]) -> RingDraw:
-    """A text ring of either kind, chosen per width: from its baked ring
-    font -- the same string, anchor and justification in the dilated
-    glyphs, one `drawText`; a ring font that failed to load draws no ring,
-    like its base -- or, with no ring font, by stamping ``draw`` at every
-    offset point."""
-    def ring(color: str, width: int) -> None:
-        baked = baked_ring(element, face, width)
-        if baked is None:
-            shapes.emit_outline(w, color, width, x_expr, y_expr, draw, blank_after=False)
-            return
-        local = baked_ring_local(width)
-        w.line(f"var {local} = _{font_field(baked)};")
-        with w.block(f"if ({local} != null)"):
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            shapes.emit_plain_text_call(w, x_expr, y_expr, local, value_code, justify,
-                                        element.vertical_align)
-    return ring
 
 
-def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
-                    aod: AodStyle = NO_AOD, ring: RingPass | None = None) -> None:
-    """Draw the text, its `outline:` ring first -- or, with ``ring`` (an
-    outlined group's pass), only that ring."""
-    element = placed.element
-    prefix = const_prefix(placed.id)
-    justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    color_code = aod.color(element, "color")
-    if placed.font.is_vector:
-        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code, aod, ring)
-        return
-    override_expr = None
-    if aod.on and element.aod is not None and element.aod.font is not None:
-        if not element.aod.font_is_custom:
-            override_expr = f"Graphics.{element.aod.font}"
-        else:
-            override_spec = resolved.face.fonts.get(element.aod.font)
-            # A `face:` (vector) font override never reaches codegen at all
-            # -- it is a friendly build error (`Builder._build_aod_
-            # authored`, docs/limitations.md §2), so `override_spec.
-            # is_vector` is defensive here, not a live case. Naming the
-            # *same* resource the element already draws with while awake is
-            # a legitimate no-op (nothing to load a second time).
-            if (override_spec is not None and not override_spec.is_vector
-                    and element.aod.font != placed.font.reference):
-                override_expr = f"_{aod_font_field(element.aod.font)}"
-    if placed.font.is_custom:
-        w.line(f"var font = _{font_field(placed.font.reference)};")
-        if override_expr is not None:
-            w.line(f"var fontFinal = _aod ? {override_expr} : font;")
-            with w.block("if (fontFinal == null)"):
-                w.line("return;  // no font resource for this frame")
-            w.blank()
-            font_expr = "fontFinal"
-        else:
-            with w.block("if (font == null)"):
-                w.line("return;  // the font resource failed to load")
-            w.blank()
-            font_expr = "font"
-    else:
-        font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
-
-    def draw(x: str, y: str) -> None:
-        shapes.emit_plain_text_call(w, x, y, font_expr, value_code, justify,
-                                    element.vertical_align)
-
-    x, y = f"Layout.{prefix}_X", f"Layout.{prefix}_Y"
-    ring_draw = _ring(w, element, resolved.face, x, y, value_code, justify, draw)
-    if ring is not None:
-        ring_draw(ring.color, ring.width)
-        return
-    _emit_ring(w, element, aod, ring_draw)
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    shapes.emit_plain_text_call(
-        w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
-        element.vertical_align)
-
-
-def _emit_vector_draw_call(
-    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str,
-    x_expr: str, y_expr: str,
-) -> None:
-    """One `dc.drawText`/`drawAngledText`/`drawRadialText` call against a
-    `face:` (vector) font, at the given screen-space anchor -- shared by
-    the interior pass and every `outline:` stamp: `angle`/
-    `radius`/`direction`/justify stay exactly what the interior pass would
-    have used regardless of which anchor `x_expr`/`y_expr` name, since a
-    screen-space anchor shift commutes with the rest of the call's
-    arguments (research 14 §3.2, §5's own table).
-    """
-    element = placed.element
-    if placed.curve.style == "angled":
-        w.call("dc.drawAngledText", [
-            f"{x_expr}, {y_expr}, font, {value_code}", f"{justify}, Layout.{prefix}_ANGLE",
-        ])
-    elif placed.curve.style == "radial":
-        direction = shapes.RADIAL_DIRECTION[placed.curve.direction or "clockwise"]
-        radius = shapes.radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
-                                           placed.curve.direction, "font")
-        w.call("dc.drawRadialText", [
-            f"{x_expr}, {y_expr}, font, {value_code}",
-            f"{justify}, Layout.{prefix}_ANGLE, {radius}",
-            f"Graphics.{direction}",
-        ])
-    else:
-        shapes.emit_plain_text_call(w, x_expr, y_expr, "font", value_code, justify,
-                                    element.vertical_align)
-
-
-def _emit_vector_text_draw(
-    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str, color_code: str,
-    aod: AodStyle, ring: RingPass | None = None,
-) -> None:
-    """A `face:` (vector) font's draw call: plain
-    `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
-    drawRadialText` under one.
-
-    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
-    mode** (`docs/research/12-vector-fonts.md` §1: `Graphics.getVectorFont`
-    can return `null` instead of throwing, so a null font has to simply
-    draw nothing, always) -- captured into the local `font` first, exactly
-    the way `_emit_text_draw`'s own baked-font branch above already reads a
-    nullable field, because narrowing a repeated *field* access does not
-    survive across statements in Monkey C (`docs/lore/monkeyc.md`:
-    `_staticBuffer.getDc()` fails even right after `if (_staticBuffer !=
-    null)`) -- only a local's narrowing does.  The `if` *wraps* the draw
-    call here, rather than the baked branch's early `return`, so a curved
-    element reads as "an ordinarily-missing thing, drawn as nothing" rather
-    than "a load failure", matching how the generated code reads
-    elsewhere.
-
-    **`outline:`'s stamp loop moves inside this same guard**:
-    a missing vector font draws nothing at all, ring included, exactly as
-    it draws nothing today -- one `if (font != null)`, never two.
-    """
-    element = placed.element
-    field = f"_{font_field(placed.font.reference)}"
-    w.line(f"var font = {field};")
-    with w.block("if (font != null)"):
-        if ring is not None:
-            shapes.emit_outline(
-                w, ring.color, ring.width, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-                lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
-                blank_after=False)
-            return
-        _emit_ring(w, element, aod, lambda color, width: shapes.emit_outline(
-            w, color, width, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-            lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
-            blank_after=False))
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        _emit_vector_draw_call(
-            w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
 def _apply_units(
@@ -704,97 +438,163 @@ class TextKind(ElementKind[Text, PlacedText]):
                                 span=element.span, aod_only=True))
         return runs
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedText) -> None:
+    def lower(self, ctx: DrawContext, placed: PlacedText) -> list[Op]:
+        """The text, after its `outline:` ring (or, with `ctx.ring`, only an
+        outlined group's ring).  The string is a literal or the readings
+        through their formats, with an `aod: {format: ...}` as a second
+        string chosen per frame, and a `placeholder:`/`fallback:` built once
+        into a local when the value's readings may be absent.  The font is a
+        baked sheet (an early `return` if it failed to load, and a choice
+        with an `aod: {font: ...}` override), a system `FONT_*` (the choice
+        inline), or a `face:` font, whose draws all sit inside one null check
+        (`docs/lore/codegen.md`, gate 4).  A ring is one `drawText` in the
+        baked ring font where the build has one, else a stamp."""
         element = placed.element
-        text = _text_value(renderer, placed)
-        if text is None:
-            return
-        color = renderer.aod_color(element, "color", element.color)
-        if placed.font.is_vector:
-            # A `face:` font draws upright, angled or radial, never through a
-            # baked sheet.  One this device lacks never gets here: the text
-            # is in `ResolvedFace.hidden` (`hidden_reason`).
-            def draw(anchor: tuple[int, int], fill: tuple[int, int, int],
-                     box: IntBox | None = None) -> None:
-                renderer.draw_vector_text(
-                    text, anchor, element.align, element.vertical_align, placed.font.metric,
-                    fill, placed.curve.style, placed.curve.angle_garmin,
-                    placed.curve.radius_px, placed.curve.direction, box=box)
+        aod = ctx.aod
+        prefix = const_prefix(placed.id)
+        ops: list[Op] = []
+        text: Str = self._text(ctx, element, ops)
+
+        x, y = Const(f"{prefix}_X", placed.anchor_point[0]), Const(f"{prefix}_Y", placed.anchor_point[1])
+        curve = placed.curve
+        angle = (Const(f"{prefix}_ANGLE", float(curve.angle_garmin))
+                 if curve.style is not None else None)
+        radius = (Const(f"{prefix}_RADIUS", curve.radius_px)
+                  if curve.style == "radial" else None)
+        justify = tuple(placed.justify)
+
+        def draw(font: Font, dx: int = 0, dy: int = 0) -> DrawText:
+            interior = (dx, dy) == (0, 0) and font is main
+            return DrawText(Shifted(x, dx), Shifted(y, dy), font, text, justify,
+                        element.vertical_align, align=element.align, style=curve.style,
+                        angle=angle, radius=radius, direction=curve.direction,
+                        box=placed.inner_box if interior else None)
+
+        main = self._font(ctx, placed, ops)
+
+        def ring_ops(paint: Paint, width: int) -> list[Op]:
+            """One ring: the baked ring font's single `drawText`, or a stamp."""
+            baked = None if placed.font.is_vector else baked_ring(element, ctx.resolved.face, width)
+            if baked is None:
+                return [SetColor(paint), *(draw(main, dx, dy)
+                                           for dx, dy in disc_perimeter_offsets(width))]
+            local = baked_ring_local(width)
+            ring_font = Font(local, baked=baked, metric=placed.font.metric)
+            return [LoadFont(local, f"_{font_field(baked)}", on_null="none"),
+                    IfNotNull(local, (SetColor(paint), draw(ring_font)))]
+
+        body: list[Op] = []
+        if ctx.ring is not None:
+            body += ring_ops(RingColor(), ctx.ring.width)
         else:
-            font, metric = _text_font(renderer, placed)
+            body += self._ring(element, aod, ring_ops)
+            body += [SetColor(AodRestyled(element, "color")), draw(main)]
+        if placed.font.is_vector:
+            ops += [LoadFont("font", f"_{font_field(placed.font.reference)}", on_null="none"),
+                    IfNotNull("font", tuple(body))]
+        else:
+            ops += body
+        return ops
 
-            def draw(anchor: tuple[int, int], fill: tuple[int, int, int],
-                     box: IntBox | None = None) -> None:
-                renderer.draw_text(font, text, anchor, element.align, element.vertical_align,
-                                   metric, fill, box=box)
-        outline, ring_color = element.outline, None
-        if renderer.options.aod:
-            outline, choice = _aod_ring(element, renderer.resolved.face.aod_dim is not None)
-            if outline is not None:
-                ring_color = (renderer.color(outline.color) if choice == "override"
-                              else renderer.aod_dimmed(element, outline.color))
-        elif outline is not None:
-            ring_color = renderer.color(outline.color)
-        renderer.draw_outlined(draw, placed.anchor_point, color, ring_color,
-                               outline.width if outline is not None else 0, box=placed.inner_box)
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedText,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        element = placed.element
+    @staticmethod
+    def _text(ctx: DrawContext, element: Text, ops: list[Op]) -> Str:
+        """The string drawn, appending the `placeholder:`/`fallback:` local
+        it needs to ``ops``."""
         if element.literal is not None:
-            _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod, ring)
-            return
-
+            return StrLit(element.literal)
         value = element.value
         assert value is not None  # a text without a literal binds `value:`
-        unit_code = element.unit_label.code if element.unit_label is not None else None
-        value_code = formatting.emit(
-            element.format or "{}",
-            value.code,
-            value.value.type,
-            unit_code=unit_code,
-        )
-        for more_value, more_spec in element.segments()[1:]:
-            value_code += " + " + formatting.emit(more_spec, more_value.code,
-                                                  more_value.value.type)
-        if aod.on and element.aod is not None and element.aod.format is not None:
-            # `format:` changes the formatting code, not just an argument -- the
-            # same "AOD redraws once a minute anyway, so dropping seconds is
-            # free" reasoning -- so both formatted strings
-            # are built once, up front, and the ternary between them stands in
-            # for `value_code` everywhere below, including inside a
-            # placeholder/fallback substitution.
-            aod_value_code = formatting.emit(
-                element.aod.format, value.code, value.value.type,
-                unit_code=unit_code)
-            value_code = aod.value(aod_value_code, value_code)
-        if element.when_absent in ("placeholder", "fallback") and value_guards:
-            # Build the string once rather than duplicating the draw call in both
-            # branches: a placeholder is a different *value*, not a different
-            # draw; a fallback is the same, except its substitute is itself a
-            # compiled expression rather than a literal string, run through the
-            # same format spec the real value uses.
+        unit = element.unit_label
+        segments = element.segments()
+        first = Reading(element.format or "{}", value, unit)
+        text: Str = (first if len(segments) == 1 else
+                     Concat((first, *(Reading(spec, v) for v, spec in segments[1:]))))
+        if ctx.aod.on and element.aod is not None and element.aod.format is not None:
+            # `format:` changes the formatting code, not an argument: both
+            # strings are built up front and chosen per frame, inside any
+            # placeholder or fallback substitution too.
+            text = AodStr(Reading(element.aod.format, value, unit), text)
+        if element.when_absent in ("placeholder", "fallback") and ctx.value_guards:
+            # One string, not two draw calls: a placeholder is a different
+            # value, and a fallback the same, through the same format.
             if element.when_absent == "placeholder":
-                w.comment("when_absent: placeholder")
-                initial = f'"{element.placeholder}"'
+                ops.append(Comment("when_absent: placeholder"))
+                initial: Str = StrLit(element.placeholder or "")
             else:
                 assert element.fallback is not None  # when_absent: fallback sets it
-                initial = formatting.emit(
-                    element.format or "{}",
-                    element.fallback.code,
-                    element.fallback.value.type,
-                    unit_code=unit_code,
-                )
-                w.comment("when_absent: fallback")
-            available = " && ".join(f"{name} != null" for name in value_guards)
-            w.line(f"var text = {initial};")
-            with w.block(f"if ({available})"):
-                w.line(f"text = {value_code};")
-            w.blank()
-            _emit_text_draw(w, resolved, placed, "text", aod, ring)
-            return
-        _emit_text_draw(w, resolved, placed, value_code, aod, ring)
+                initial = Reading(element.format or "{}", element.fallback, unit)
+                ops.append(Comment("when_absent: fallback"))
+            ops += [LetText(initial, text, ctx.value_guards), Blank()]
+            return Local("text")
+        return text
+
+    @staticmethod
+    def _font(ctx: DrawContext, placed: PlacedText, ops: list[Op]) -> Font:
+        """The font every draw names, appending its loading to ``ops``."""
+        element = placed.element
+        aod = ctx.aod
+        metric = placed.font.metric
+        if placed.font.is_vector:
+            return Font("font", metric=metric, vector=True)
+        override_code: str | None = None
+        asleep: Font | None = None
+        if aod.on and element.aod is not None and element.aod.font is not None:
+            override = element.aod.font
+            if not element.aod.font_is_custom:
+                override_code = f"Graphics.{override}"
+                asleep = Font(override_code,
+                              metric=ctx.resolved.device.system_fonts.get(override))
+            else:
+                spec = ctx.resolved.face.fonts.get(override)
+                # A `face:` override is a build error; naming the awake font
+                # again loads nothing a second time.
+                if (spec is not None and not spec.is_vector
+                        and override != placed.font.reference):
+                    override_code = f"_{aod_font_field(override)}"
+                    asleep = Font(override_code, baked=override)
+        if not placed.font.is_custom:
+            awake_code = f"Graphics.{placed.font.reference}"
+            code = aod.value(override_code, awake_code)
+            return Font(code, metric=metric, asleep=replace(asleep, code=code) if asleep else None)
+        field = f"_{font_field(placed.font.reference)}"
+        if override_code is not None:
+            final = "fontFinal"
+            ops += [LoadFont("font", field, on_null="none"),
+                    LoadFont(final, f"_aod ? {override_code} : font",
+                             note="no font resource for this frame"), Blank()]
+            assert asleep is not None
+            return Font(final, baked=placed.font.reference, metric=metric,
+                        asleep=replace(asleep, code=final))
+        ops += [LoadFont("font", field), Blank()]
+        return Font("font", baked=placed.font.reference, metric=metric)
+
+    @staticmethod
+    def _ring(element: Text, aod: AodStyle,
+              ring_ops: Callable[[Paint, int], list[Op]]) -> list[Op]:
+        """The `outline:` ring ahead of the interior, for the awake frame and
+        the always-on one (`aod_outline_choice`): one ring, its colour a
+        choice where the two frames' differ; a ring in only one frame under
+        `if (_aod)`/`if (!_aod)`; or one ring in each branch when their
+        widths differ."""
+        awake = element.outline
+        if not aod.on or element.aod is None:
+            return [*ring_ops(Color(awake.color), awake.width), Blank()] if awake else []
+        asleep, choice = _aod_ring(element, aod.dim is not None)
+        if awake is None and asleep is None:
+            return []
+        if awake is None or asleep is None:
+            only = asleep if awake is None else awake
+            assert only is not None  # both absent returned above
+            drawn = tuple(ring_ops(Color(only.color), only.width))
+            return [IfAod(drawn) if awake is None else IfAwake(drawn), Blank()]
+        if asleep.width != awake.width:
+            # Only an override has a width of its own: a carried-over ring is
+            # the awake one.
+            return [IfAod(tuple(ring_ops(Color(asleep.color), asleep.width)),
+                          tuple(ring_ops(Color(awake.color), awake.width))), Blank()]
+        paint: Paint = (AodPaint(Color(asleep.color), Color(awake.color))
+                        if choice == "override" else AodDimmed(element, awake.color))
+        return [*ring_ops(paint, awake.width), Blank()]
 
     def describe(self, placed: PlacedText) -> str:
         return "text" if placed.element.value is not None else "fixed text"
