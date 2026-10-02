@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slices 0–2 done, 3–7 to go.** Building it was decided by the user on
+below); slices 0–3 done, 4–7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -503,17 +503,99 @@ with an injected clock, restore and its undo, a dropped branch's
 snapshot, open copy, pruning by age and by count, every endpoint, the CLI
 defaults). Each guard was seen red.
 
-### Slice 3 — the properties inspector and the global panel
+### Slice 3 — the properties inspector and the global panel: done
 
-- The inspector generated from the selected element's schema branch,
-  every key, with the widgets above and the override chooser ("all
-  targets", "this device", "this shape").
-- New in `wfb/edit/`: setting a sequence or a mapping value, not only a
-  scalar; a key's removal back to its default; a colour name's add,
-  rename (every use patched, gated) and value change; a style entry's add
-  and remove.
-- The global panel: colours and their swatches against the MIP palette,
-  styles and layouts, fonts in use with upload of a font file.
+Built as below:
+- **New in `wfb/edit/`:**
+  - `set_value` replaces a block mapping or sequence too, in block style
+    at its indent, keeping the key's own line and its comment;
+  - `rename_key`; `rewrite_scalars` (every string value, never a key or
+    a block scalar, each in its own quoting); `chain`, two patches as one
+    with the first's text checked against its data;
+  - `rename_reference`: a declared name and every `color.<name>` (or
+    `font.<name>`) that refers to it, inside expressions too, never a
+    longer name;
+  - the gate's `ordered` moved to `spans`; `Gate` takes a `before` load;
+    `SpanIndex` composes once (below) and `index_for` shares one per text.
+- **`wfb/studio/inspect.py`:** the inspector from the element's schema
+  branch: every key, its widget from the `$defs` entry it names (`length`,
+  `angle`, `align`, a colour, `position` and `size` as nested keys,
+  `visible`/`expression`) or its JSON type, with `text`, `font`, `icon` and
+  `on_hold` given pickers; a shape's keys narrowed to its own
+  (`SHAPE_GEOMETRY_KEYS`); a list or nested structure shown as its text.
+  The overrides the viewed device reads, per scope. The Face panel's data:
+  palette (with the targets whose panel would dither each colour),
+  schemes and roles, style entries, layouts, fonts, targets. The
+  vocabulary: sources by namespace, icon names, complication types, and
+  the installed watch-face devices with their system fonts.
+- **`Document.edit`:** set, remove and rename, gated and recorded with a
+  label in the author's terms. A geometry key edited for "this device" or
+  "this shape" goes to that override (created when missing); any other key
+  is refused there. **`add_asset`** also adds a font from an uploaded file,
+  or replaces a font's file (the old file leaves the bundle when nothing
+  else refers to it).
+- **One load per edit.** The gate's load of the text before the patch is
+  the current version's analysis, and its load of the patched text seeds
+  the next one, so an edit loads the face once, not three times. A test
+  checks that the analysis it gets equals a fresh one.
+- **UI** (`panels.js`, `values.js`): the inspector with the scope chooser
+  ("all targets", the viewed device, its shape), a note where a key is
+  overridden, an override's unit and placeholder taken from the value it
+  replaces, and × to remove a key; widgets for a length or angle with its
+  unit, the 3×3 align picker, a colour (palette and roles, a custom colour,
+  a warning off the MIP palette), a template with a data picker, a font
+  (the face's and the device's system fonts), an icon, a complication, an
+  enum, a boolean, a number. A Face tab beside Layers: targets (add from
+  the installed devices, remove), colours (rename everywhere, edit, add,
+  delete), the schemes' role × scheme table, styles (default, layout,
+  scheme, add shaped like the others, delete), fonts (size, replace the
+  file, add from a file, delete).
+
+**Checked in a DOM.** The UI was driven in jsdom (installed outside the
+repo, not a dependency) against a live server: select an element, set its
+font, override `at.dy` on one device and on the shape, rename a colour,
+add and undo a target, see a refusal as a message, add a style and a font
+from a file, change the font's size and a colour's value. No page errors.
+It found two bugs: a text field committed its state rather than its
+value when the blur arrived before the re-render, and a new style entry
+lacked the `scheme:` its siblings had. A browser by hand is still owed.
+
+**One load per edit, one scan per index.** Measured first, an edit on the
+showcase scanned its 35 KB text four times (the span index composed it and
+parsed it again, the gate parsed the patched text, the gate loaded it)
+and loaded the face three times (the gate's before and after, then the
+analysis). Now the gate's "before" is the current version's analysis, its
+"after" seeds the next analysis, and the span index builds its data from
+its own nodes, composed by the safe loader (identical marks and styles on
+all 39 corpus files; the round-trip composer's folded scalars differ),
+cached per text so the tree, the inspector, the Face panel and the next
+patch share it.
+
+Measured, in-process on fr955 at 2×, best of four `z:` edits on the last
+element, idle machine:
+
+| Face | edit → frame | gate + record | analysis | summary | frame |
+|---|---:|---:|---:|---:|---:|
+| `features/progress` | 105 ms | 35 ms | 2 ms | 1 ms | 67 ms |
+| `showcase` | 616 ms (793 ms before the reuse) | 321 ms | 19 ms | 2 ms | 274 ms |
+| `features/vector-text` | 443 ms | 51 ms | 5 ms | 0 ms | 387 ms |
+
+What is left on the showcase is the gate's one load of the patched face
+(schema and IR) and the frame (each layer painted twice). Both are slice
+4's concern, where a drag's release pays them.
+
+Tests: `tests/test_edit.py` (every face's index data equal to its parse;
+a block list replacing `targets:` in either
+style on all 29 faces, only its lines changed; a block mapping at its
+indent; every palette colour of every face renamed with its references
+and back, byte-identical, 177/177; a rename in expressions and lists but
+not a longer name; renaming onto a sibling refused; keys and block
+scalars left alone; a chain's first step checked);
+`tests/test_studio_inspect.py` (every key of every element of every face
+is a field; a shape's own keys; widgets; the overrides a device reads;
+the Face panel's data and MIP flags; each edit and each refusal; fonts
+added and replaced; one load per edit); `tests/test_studio_frontend.py`
+(`values.js`). Each guard was seen red.
 
 ### Slice 4 — direct manipulation on the canvas
 

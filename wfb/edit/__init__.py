@@ -6,8 +6,9 @@ rewrites some characters of that text and leaves every other byte alone:
 
 - `spans`: the span index, every `key: value` entry with its character
   range, and each element found by its `Element.span`;
-- `patch`: scalar and structural patches (set, add or remove a key;
-  delete, duplicate, move or add an element);
+- `patch`: scalar and structural patches (set a value, block or flow; add,
+  remove or rename a key; rewrite references to a renamed name; delete,
+  duplicate, move or add an element);
 - `gate`: what a patch must pass to be accepted -- it parses to exactly
   the intended data and loads with no new error;
 - `geometry`: a pixel drag on one device, written in the author's units to
@@ -19,12 +20,14 @@ There is no server here: text in, text out.
 from .gate import Gate, Loaded, load_text
 from .geometry import Converted, View, move, resize, target
 from .patch import (
-    Patch, add_element, delete_element, duplicate_element, move_element, remove, set_value,
+    Patch, add_element, chain, delete_element, duplicate_element, move_element, remove,
+    rename_key, rename_reference, rewrite_scalars, set_value,
 )
 from .spans import Entry, Refused, SpanIndex, parse
 
 __all__ = [
     "Converted", "Entry", "Gate", "Loaded", "Patch", "Refused", "SpanIndex", "View",
-    "add_element", "delete_element", "duplicate_element", "load_text", "move", "move_element",
-    "parse", "remove", "resize", "set_value", "target",
+    "add_element", "chain", "delete_element", "duplicate_element", "load_text", "move",
+    "move_element", "parse", "remove", "rename_key", "rename_reference", "resize",
+    "rewrite_scalars", "set_value", "target",
 ]

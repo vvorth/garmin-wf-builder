@@ -12,11 +12,13 @@ from ruamel.yaml.nodes import MappingNode
 
 from tests.helpers import example
 from wfb.edit import (
-    Gate, Patch, Refused, SpanIndex, View, add_element, delete_element, duplicate_element,
-    load_text, move, move_element, remove, resize, set_value, target,
+    Gate, Patch, Refused, SpanIndex, View, add_element, chain, delete_element,
+    duplicate_element, load_text, move, move_element, parse, remove, rename_key,
+    rename_reference, resize, rewrite_scalars, set_value, target,
 )
 from wfb.edit.geometry import candidates, px_per_unit
 from wfb.edit.patch import DEFAULTS, face_color
+from wfb.edit.spans import ordered
 from wfb.units import Axis, Box, Length
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -268,6 +270,14 @@ def test_the_gate_ignores_errors_the_text_already_had(tmp_path):
         gate.check(worse)
 
 
+@pytest.mark.parametrize("path", FACES, ids=lambda p: str(p.relative_to(ROOT / "examples")))
+def test_the_index_data_is_exactly_what_the_text_parses_to(path):
+    # one scan builds the nodes and the data; a folded scalar is where the
+    # round-trip composer's values and the parser's disagree
+    text = path.read_text()
+    assert ordered(SpanIndex(text).data) == ordered(parse(text))
+
+
 def test_invalid_yaml_is_refused_not_raised():
     with pytest.raises(Refused, match="not valid YAML"):
         SpanIndex("a: [1, 2\n")
@@ -432,3 +442,81 @@ def test_a_this_device_drag_creates_the_override(db):
              if _placed_on(db, SHAPES, converted.patch.text, d, "card").center
              != _placed_on(db, SHAPES, text, d, "card").center}
     assert moved == {"fenix8solar51mm"}
+
+
+# -- block values, renames and references ----------------------------------------------
+
+@pytest.mark.parametrize("path", FACES, ids=lambda p: str(p.relative_to(ROOT / "examples")))
+def test_a_list_replaces_targets_in_its_own_style(path):
+    text = path.read_text()
+    index = SpanIndex(text)
+    targets = list(index.data["build"]["targets"])
+    patch = set_value(index, ("build", "targets"), list(reversed(targets)) + ["fenix7"])
+    Gate(path, text).check(patch)
+    after = SpanIndex(patch.text)
+    assert after.data["build"]["targets"] == list(reversed(targets)) + ["fenix7"]
+    entry = index[("build", "targets")]
+    block = not getattr(entry.value, "flow_style", False)
+    assert block == (not getattr(after[("build", "targets")].value, "flow_style", False))
+    # nothing outside the key's line and its value changed
+    head = text[:text.rfind("\n", 0, entry.key.start_mark.index) + 1]
+    tail = text[index.value_end(entry):]
+    assert patch.text.startswith(head) and patch.text.endswith(tail)
+    assert len(patch.text) > len(head) + len(tail)
+
+
+def test_a_block_mapping_is_replaced_at_its_indent_keeping_the_key_line():
+    text = ("format: 2\nresources:\n  palette:  # the swatches\n    a: \"#000000\"\n"
+            "    # a comment inside goes with the old value\n    b: \"#FFFFFF\"\nelements: {}\n")
+    patch = set_value(SpanIndex(text), ("resources", "palette"), {"a": "#000000", "c": "#555555"})
+    assert patch.text == ("format: 2\nresources:\n  palette:  # the swatches\n"
+                          "    a: \"#000000\"\n    c: \"#555555\"\nelements: {}\n")
+    assert parse(patch.text) == patch.expected
+    emptied = set_value(SpanIndex(text), ("resources", "palette"), {})
+    assert parse(emptied.text)["resources"]["palette"] == {}
+
+
+@pytest.mark.parametrize("path", FACES, ids=lambda p: str(p.relative_to(ROOT / "examples")))
+def test_every_colour_renames_with_its_references_and_back(path):
+    text = path.read_text()
+    index = SpanIndex(text)
+    palette = (index.data.get("resources") or {}).get("palette") or {}
+    gate = Gate(path, text)
+    for name in palette:
+        patch = rename_reference(index, ("resources", "palette", name), f"{name}_x", "color.")
+        gate.check(patch)
+        assert f"color.{name}_x" in patch.text or f"color.{name}" not in text
+        back = rename_reference(SpanIndex(patch.text), ("resources", "palette", f"{name}_x"),
+                                name, "color.")
+        assert back.text == text
+
+
+def test_a_rename_reaches_into_expressions_but_not_longer_names():
+    text = ("resources:\n  palette:\n    a: \"#000000\"\n    ab: \"#FFFFFF\"\n"
+            "elements:\n  x:\n    color: \"cond ? color.a : color.ab\"\n"
+            "    choices: [color.a, color.ab]\n    text: 'color.a'\n")
+    patch = rename_reference(SpanIndex(text), ("resources", "palette", "a"), "z", "color.")
+    data = parse(patch.text)
+    assert list(data["resources"]["palette"]) == ["z", "ab"]
+    assert data["elements"]["x"] == {"color": "cond ? color.z : color.ab",
+                                     "choices": ["color.z", "color.ab"], "text": "color.z"}
+    assert "text: 'color.z'" in patch.text           # its own quoting kept
+
+
+def test_a_rename_onto_an_existing_name_is_refused():
+    text = "resources:\n  palette:\n    a: \"#000000\"\n    b: \"#FFFFFF\"\n"
+    with pytest.raises(Refused, match="already exists"):
+        rename_key(SpanIndex(text), ("resources", "palette", "a"), "b")
+
+
+def test_rewrite_leaves_keys_and_block_scalars_alone():
+    text = "color.a: color.a\nnote: |\n  color.a\nlist: [color.a]\n"
+    patch = rewrite_scalars(SpanIndex(text), lambda s: s.replace("color.a", "color.b"), "x")
+    assert patch.text == "color.a: color.b\nnote: |\n  color.a\nlist: [color.b]\n"
+
+
+def test_a_chain_checks_its_first_step():
+    index = SpanIndex("a: 1\n")
+    lying = Patch("a: 2\n", {"a": 1}, "lie")
+    with pytest.raises(Refused, match="more than intended"):
+        chain(lying, lambda i: set_value(i, ("a",), 3))

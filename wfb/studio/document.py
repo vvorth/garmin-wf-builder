@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import base64
 import io
+import json
+import re
 import shutil
 import tempfile
 import threading
@@ -28,13 +30,15 @@ from typing import Any, Callable
 from ..build import resolve_all, select_devices
 from ..devices import DeviceDatabase
 from ..diagnostics import Bag, Diagnostic
-from ..edit import Gate, Refused, SpanIndex, set_value
-from ..edit.gate import load_text
-from ..edit.spans import ELEMENT_BLOCKS, Entry, is_element
+from ..edit import Gate, Refused, SpanIndex, remove, rename_key, rename_reference, set_value
+from ..edit.geometry import target
+from ..edit.gate import Loaded, load_text
+from ..edit.spans import ELEMENT_BLOCKS, Entry, index_for, is_element
 from ..emit.resources import BakeMemo
 from ..ir import Face
 from ..layout import ResolvedFace
-from .bundle import FACE, Bundle, asset_path, missing, references
+from .inspect import GEOMETRY, globals_of, inspect
+from .bundle import FACE, Bundle, asset_path, inside, missing, references
 from .store import REDO, UNDO, Change, Snapshot, Store, UnknownDocument
 
 
@@ -84,6 +88,10 @@ class Document:
         self.directory = studio.scratch / doc_id
         self._analysis: Analysis | None = None
         self._frames: OrderedDict[FrameKey, dict[str, Any]] = OrderedDict()
+        #: This version's load, with its own diagnostics only (`analysis`), and
+        #: the gate's load of the text about to become the head.
+        self._loaded: Loaded | None = None
+        self._seed: Loaded | None = None
         #: What `materialise` last wrote, by path: the content it holds.
         self._written: dict[PurePosixPath, str] = {}
         snapshots = store.snapshots(doc_id)
@@ -138,11 +146,20 @@ class Document:
     # -- changes ----------------------------------------------------------------------
 
     def commit(self, text: str, assets: dict[str, bytes | str], label: str,
-               expected: int) -> Change:
+               expected: int, loaded: Loaded | None = None) -> Change:
         """Record a change against version ``expected``; refused when that is
-        no longer the head, so two tabs cannot overwrite each other."""
+        no longer the head, so two tabs cannot overwrite each other.
+        ``loaded`` is ``text`` as the gate loaded it, reused by the analysis."""
         self._check(expected)
-        return self._moved(self.studio.store.append(self.id, label, text, assets))
+        change = self._moved(self.studio.store.append(self.id, label, text, assets))
+        self._seed = loaded
+        return change
+
+    def _gate(self) -> Gate:
+        """A gate over this version, reusing its load when the analysis ran."""
+        before = self._loaded if self._loaded is not None and \
+            self._loaded.text == self.text else None
+        return Gate(self.path, self.text, before)
 
     def _check(self, expected: int) -> None:
         if expected != self.version:
@@ -207,39 +224,106 @@ class Document:
         }
 
     def add_asset(self, filename: str, data: bytes, reference: str | None,
-                  expected: int) -> Change:
-        """Store an uploaded file under `assets/` and point every font whose
-        `source:` is written ``reference`` at it, as one change.  Each patch
-        rewrites only that value's characters."""
-        if expected != self.version:
-            raise StaleVersion(f"the face is at version {self.version}, not {expected}: "
-                               "reload it to see the newer change")
+                  expected: int, font: tuple[str, str] | None = None) -> Change:
+        """Store an uploaded file under `assets/`, as one change, and either
+        point every font whose `source:` is written ``reference`` at it (a
+        missing file added, or a font's file replaced), or declare it as a
+        new font ``font`` = (name, size). A replaced file nothing else
+        refers to leaves the bundle. Each patch passes the gate."""
+        self._check(expected)
         assets: dict[str, bytes | str] = dict(self.head.assets)
         rel = asset_path(assets, filename)
         assets[rel] = data
         text = self.text
-        if reference is not None:
-            if not any(r.value == reference for r in missing(text, self.head.assets)):
-                raise Refused(f"no missing font source is written {reference!r}")
-            # The gate loads the patched text from the directory, so the
-            # file has to be there first; a refusal rebuilds the directory.
-            target = self.directory / PurePosixPath(rel)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-            try:
+        # The gate loads the patched text from the directory, so the file has
+        # to be there first; a refusal rebuilds the directory.
+        target = self.directory / PurePosixPath(rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        try:
+            if reference is not None:
+                if not any(r.value == reference for r in references(text)):
+                    raise Refused(f"no font's source is written {reference!r}")
                 text = self.repoint(text, {reference: rel})
-            except Refused:
-                self.materialise()
-                raise
-        label = f"add {rel}" + (f" for {reference}" if reference is not None else "")
+                old = inside(reference)
+                if old in assets and not any(r.inside == old for r in references(text)):
+                    del assets[old]
+                label = f"use {rel} for {reference}"
+            elif font is not None:
+                name, size = font
+                index = index_for(text)
+                if index.get(("resources", "fonts", name)) is not None:
+                    raise Refused(f"there is already a font called {name}")
+                patch = set_value(index, ("resources", "fonts", name),
+                                  {"source": rel, "size": size})
+                Gate(self.path, text).check(patch)
+                text = patch.text
+                label = f"add the font {name} from {rel}"
+            else:
+                label = f"add {rel}"
+        except Refused:
+            self.materialise()
+            raise
         return self.commit(text, assets, label, expected)
+
+    def edit(self, op: dict[str, Any], expected: int) -> Change:
+        """One edit from the inspector or the global panel, gated and
+        recorded:
+
+        - `{"op": "set", "path": [...], "value": v}`;
+        - `{"op": "remove", "path": [...]}`;
+        - `{"op": "rename", "path": [...], "to": name, "prefix": "color."}`:
+          a declared name and every reference to it.
+
+        A geometry key of an element (`element` and a `path` relative to it,
+        such as `["at", "dy"]`) is written to the source ``scope`` names on
+        ``device``: "all" (the element's own key), "device" or "shape" (its
+        override, created when missing)."""
+        self._check(expected)
+        kind = op.get("op")
+        if kind not in ("set", "remove", "rename"):
+            raise Refused(f"unknown edit {kind!r}")
+        index = index_for(self.text)
+        path = _path(op.get("path"))
+        if op.get("element") is not None:
+            element = _path(op["element"])
+            scope = op.get("scope", "all")
+            if scope not in ("all", "device", "shape"):
+                raise Refused(f"scope {scope!r} is not all, device or shape")
+            if scope != "all" and (not path or path[0] not in GEOMETRY):
+                raise Refused(f"{'.'.join(map(str, path))} cannot be overridden per "
+                              "device; only at:, size:, radius: and align: can")
+            device = self.studio.db.get(str(op.get("device"))) if scope != "all" else None
+            path = (target(index, element, path, device, scope) if device is not None
+                    else element + path)
+        shown = ".".join(str(p) for p in path)
+        if kind == "set":
+            value = op.get("value")
+            patch = set_value(index, path, value)
+            label = f"set {shown} to {_shown_value(value)}"
+        elif kind == "remove":
+            if index.get(path) is None:
+                raise Refused(f"{shown} is not set")
+            patch = remove(index, path)
+            label = f"remove {shown}"
+        else:
+            to = str(op.get("to", "")).strip()
+            prefix = str(op.get("prefix", ""))
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", to):
+                raise Refused(f"{to!r} is not a name: letters, digits and _, "
+                              "not starting with a digit")
+            patch = (rename_reference(index, path, to, prefix) if prefix
+                     else rename_key(index, path, to))
+            label = f"rename {shown} to {to}"
+        after = self._gate().check(patch)
+        return self.commit(patch.text, dict(self.head.assets), label, expected, after)
 
     def repoint(self, text: str, moved: dict[str, str]) -> str:
         """``text`` with every font `source:` written as a key of ``moved``
         rewritten to its value, each patch through the gate."""
         for ref in [r for r in references(text)
                     if r.value in moved and moved[r.value] != r.value]:
-            patch = set_value(SpanIndex(text), ref.path, moved[ref.value])
+            patch = set_value(index_for(text), ref.path, moved[ref.value])
             Gate(self.path, text).check(patch)
             text = patch.text
         return text
@@ -260,7 +344,15 @@ class Document:
         if self._analysis is not None and self._analysis.version == self.version:
             return self._analysis
         self.ensure_directory()
-        loaded = load_text(self.path, self.text)
+        # The gate's load of an accepted patch is this version's load.
+        seed, self._seed = self._seed, None
+        loaded = seed if seed is not None and seed.text == self.text else load_text(
+            self.path, self.text)
+        # what the gate compares against: the load's own diagnostics, before
+        # the resolve and the lint add theirs to the bag
+        copy = Bag()
+        copy.items = list(loaded.bag.items)
+        self._loaded = Loaded(loaded.text, loaded.face, copy)
         bag = loaded.bag
         analysis = Analysis(self.version, loaded.face, bag)
         if loaded.face is not None:
@@ -346,7 +438,7 @@ class Document:
         children: shared `static:` then `elements:`, then each layout's own
         two."""
         try:
-            index = SpanIndex(self.text)
+            index = index_for(self.text)
         except Refused:
             return []
         blocks: list[dict[str, Any]] = []
@@ -376,7 +468,24 @@ class Document:
             "diagnostics": self.diagnostics(),
             "assets": sorted(self.head.assets),
             "history": self.history(),
+            "globals": globals_of(self.text, self.studio.db),
         }
+
+    def inspect(self, element: Any, device_id: str | None) -> dict[str, Any]:
+        device = self.studio.db.get(device_id) if device_id else None
+        return inspect(self.text, _path(element), device)
+
+
+def _path(raw: Any) -> tuple[str | int, ...]:
+    """An author path from JSON: a list of keys and list indices."""
+    if not isinstance(raw, list) or not all(isinstance(s, (str, int)) for s in raw):
+        raise Refused("a path is a list of keys and indices")
+    return tuple(raw)
+
+
+def _shown_value(value: Any) -> str:
+    text = value if isinstance(value, str) else json.dumps(value)
+    return text if len(text) <= 40 else text[:37] + "..."
 
 
 def _block_paths(index: SpanIndex) -> list[tuple[tuple[str, ...], str]]:

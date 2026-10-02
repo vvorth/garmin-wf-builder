@@ -27,6 +27,7 @@ from starlette.staticfiles import StaticFiles
 
 from .. import starters
 from ..build import slug
+from ..devices import DeviceError
 from ..edit import Refused
 from .bundle import MAX_UPLOAD_BYTES, Bundle, BundleError, read_upload, to_zip
 from .document import Document, FrameKey, StaleVersion, Studio
@@ -87,7 +88,7 @@ def _endpoint(handler: Handler, *, body: bool = False
             return _error(404, "there is no such snapshot; it may have been pruned")
         except StaleVersion as exc:
             return _error(409, str(exc))
-        except (BundleError, Refused, starters.UnknownTemplate) as exc:
+        except (BundleError, Refused, starters.UnknownTemplate, DeviceError) as exc:
             return _error(400, str(exc))
         except StoreError as exc:
             return _error(507, str(exc))
@@ -190,12 +191,41 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
     def add_asset(request: Request, data: bytes) -> Response:
         filename = request.query_params.get("filename", "")
         reference = request.query_params.get("reference") or None
+        font_name = request.query_params.get("font") or None
+        font = (font_name, request.query_params.get("size") or "10%r") if font_name else None
         expected = _int(request, "version")
         with studio.lock:
             document = doc(request)
-            document.add_asset(filename, data, reference, expected)
+            document.add_asset(filename, data, reference, expected, font)
             changed(document)
             return JSONResponse(document.summary())
+
+    def edit(request: Request, data: bytes) -> Response:
+        try:
+            op = json.loads(data or b"{}")
+        except ValueError:
+            raise Refused("the edit is not JSON") from None
+        if not isinstance(op, dict):
+            raise Refused("the edit is a JSON object")
+        with studio.lock:
+            document = doc(request)
+            document.edit(op, _int(request, "version"))
+            changed(document)
+            return JSONResponse(document.summary())
+
+    def inspector(request: Request, data: bytes) -> Response:
+        try:
+            element = json.loads(request.query_params.get("element", "null"))
+        except ValueError:
+            raise Refused("element is a JSON list") from None
+        with studio.lock:
+            return JSONResponse(doc(request).inspect(
+                element, request.query_params.get("device") or None))
+
+    def vocabulary(request: Request, data: bytes) -> Response:
+        from .inspect import devices, vocabulary as words
+        with studio.lock:
+            return JSONResponse({**words(), "devices": devices(studio.db)})
 
     def undo(request: Request, data: bytes) -> Response:
         with studio.lock:
@@ -273,6 +303,9 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}/assets", _endpoint(add_asset, body=True),
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
+            Route("/api/vocabulary", _endpoint(vocabulary)),
+            Route("/api/documents/{doc_id}/edit", _endpoint(edit, body=True), methods=["POST"]),
+            Route("/api/documents/{doc_id}/inspect", _endpoint(inspector)),
             Route("/api/documents/{doc_id}/undo", _endpoint(undo), methods=["POST"]),
             Route("/api/documents/{doc_id}/redo", _endpoint(redo), methods=["POST"]),
             Route("/api/documents/{doc_id}/snapshots", _endpoint(snapshot), methods=["POST"]),

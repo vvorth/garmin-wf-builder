@@ -5,6 +5,7 @@
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
 import { elementAtLine, elementOf, flatten, topmost } from "./hit.js";
+import { FacePanel, Inspector } from "./panels.js";
 
 // -- the server --------------------------------------------------------------------
 
@@ -375,6 +376,27 @@ function Editor({ docId, onError }) {
     return () => removeEventListener("keydown", onKey);
   }, [step]);
   const [tab, setTab] = useState("diagnostics");
+  const [left, setLeft] = useState("layers");
+  const [vocab, setVocab] = useState({});
+  useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
+
+  // One edit from the inspector or the Face panel: the server patches the
+  // text, checks it and answers with the face; a refusal says why.
+  const edit = useCallback(async (op) => {
+    if (!doc) return;
+    try {
+      setDoc(await api(`/api/documents/${docId}/edit?version=${doc.version}`,
+                       { method: "POST", body: JSON.stringify(op) }));
+    } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
+  }, [doc]);
+  const upload = useCallback(async (file, { font, size, reference }) => {
+    if (!doc) return;
+    const q = new URLSearchParams({ filename: file.name, version: doc.version });
+    if (font) { q.set("font", font); q.set("size", size || "10%r"); }
+    if (reference) q.set("reference", reference);
+    try { setDoc(await api(`/api/documents/${docId}/assets?${q}`, { method: "POST", body: file })); }
+    catch (e) { onError(e); if (e.status === 409) loadDoc(); }
+  }, [doc]);
 
   const drawn = useMemo(() => frame && new Set(frame.layers.map((l) => elementOf(l.id))), [frame]);
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
@@ -404,10 +426,15 @@ function Editor({ docId, onError }) {
     </div>
     <div class="columns">
       <div class="panel left">
-        <h3>Layers</h3>
-        <div class="tree root">
-          <${Tree} nodes=${doc.tree} selected=${selected} drawn=${drawn} onSelect=${setSelected} />
+        <div class="tabs top">
+          <button class=${left === "layers" ? "on" : ""} onClick=${() => setLeft("layers")}>Layers</button>
+          <button class=${left === "face" ? "on" : ""} onClick=${() => setLeft("face")}>Face</button>
         </div>
+        ${left === "layers"
+          ? html`<div class="tree root">
+              <${Tree} nodes=${doc.tree} selected=${selected} drawn=${drawn} onSelect=${setSelected} />
+            </div>`
+          : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload} />`}
       </div>
       <div class="stage">
         <div class="controls">
@@ -437,17 +464,13 @@ function Editor({ docId, onError }) {
       </div>
       <div class="panel right">
         <h3>Properties</h3>
-        <div class="body props">
-          ${element ? html`<dl>
-              <dt>id</dt><dd><code>${element.id}</code></dd>
-              <dt>type</dt><dd>${element.type}</dd>
-              <dt>in</dt><dd><code>${element.path.slice(0, -1).join(".")}</code></dd>
-              <dt>line</dt><dd>${element.line}</dd>
-              ${box ? html`<dt>box</dt><dd>${box[2]}×${box[3]} px at (${box[0]}, ${box[1]}) on ${frame.device}</dd>` : null}
-              ${!box && drawn && element.type !== "group" ? html`<dt>drawn</dt><dd class="dim">not in this frame</dd>` : null}
-            </dl>`
-            : html`<span class="dim">Select an element on the face or in the layers.</span>`}
-        </div>
+        ${element ? html`<div class="body dim where">
+            in <code>${element.path.slice(0, -1).join(".")}</code>, line ${element.line}
+            ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
+            ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
+          </div>` : null}
+        <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
+                      onEdit=${edit} onError=${onError} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
             Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>

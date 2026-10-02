@@ -125,3 +125,51 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .states li.redo { opacity: .5; }
 button:disabled { opacity: .4; cursor: default; }
 button:disabled:hover { border-color: var(--line); }
+
+/* -- inspector and Face panel ------------------------------------------------- */
+
+.tabs.top { border-top: none; }
+.where { font-size: 12px; padding-top: 6px; padding-bottom: 0; }
+.inspector { padding: 6px 0 12px; }
+.ins-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 12px 8px; }
+.scope { margin-left: auto; display: flex; }
+.scope button { border-radius: 0; padding: 2px 8px; font-size: 12px; }
+.scope button:first-child { border-radius: 6px 0 0 6px; }
+.scope button:last-child { border-radius: 0 6px 6px 0; }
+.scope button.on, .align button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.field { display: grid; grid-template-columns: 96px 1fr; gap: 6px; padding: 3px 12px; align-items: start; }
+.field.absent .name { color: var(--dim); }
+.field .name { font-size: 12px; padding-top: 5px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.field .req { color: var(--warning); margin-left: 2px; }
+.field .value { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.field .value > input[type="text"] { flex: 1; min-width: 0; }
+.field.object { grid-template-columns: 1fr; }
+.field.object > .children { border-left: 1px solid var(--line); margin-left: 4px; }
+.field.object > .children .field { padding-left: 8px; }
+.field .note, .note { font-size: 11px; color: var(--dim); flex-basis: 100%; }
+button.reset { padding: 0 6px; line-height: 1.4; color: var(--dim); }
+input, select { padding: 3px 6px; }
+.qty { display: inline-flex; gap: 2px; }
+.color { display: inline-flex; gap: 4px; align-items: center; }
+.chip { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); display: inline-block; }
+input[type="color"] { width: 28px; height: 24px; padding: 0 2px; }
+.warn { color: var(--warning); cursor: help; }
+.align { display: inline-flex; flex-direction: column; gap: 2px; }
+.align-row { display: flex; gap: 2px; }
+.align button { width: 16px; height: 16px; padding: 0; border-radius: 3px; }
+.template { display: flex; gap: 4px; width: 100%; }
+.template input { flex: 1; min-width: 0; }
+.template select { max-width: 7em; }
+code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--dim); }
+.face-panel .section-head { padding: 8px 12px; cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); border-bottom: 1px solid var(--line); }
+.face-panel .section-body { padding: 8px 12px; }
+.face-panel .rows { list-style: none; margin: 0 0 8px; padding: 0; }
+.face-panel .rows li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; }
+.face-panel .rows .name { cursor: pointer; min-width: 5em; }
+.face-panel .rows .name:hover { color: var(--accent); }
+.face-panel .row { display: flex; gap: 6px; }
+.face-panel .row select { flex: 1; min-width: 0; }
+.face-panel li.font .dim { font-size: 11px; flex-basis: 100%; }
+table.schemes { border-collapse: collapse; font-size: 12px; }
+table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
+.columns { grid-template-columns: 280px 1fr 340px; }

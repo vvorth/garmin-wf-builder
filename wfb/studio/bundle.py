@@ -23,7 +23,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ..edit.spans import Path as AuthorPath
-from ..edit.spans import SpanIndex
+from ..edit.spans import index_for
 
 #: The design's name inside a bundle and in every document's directory.
 FACE = "face.yaml"
@@ -88,7 +88,7 @@ def references(text: str) -> list[Reference]:
     """Every file ``text`` references, in document order.  A text that does
     not parse references nothing (the gate reports why it does not)."""
     try:
-        index = SpanIndex(text)
+        index = index_for(text)
     except ValueError:
         return []
     data: Any = index.data
@@ -114,7 +114,7 @@ def display_name(filename: str, text: str | None = None) -> str:
     otherwise."""
     if text is not None:
         try:
-            data = SpanIndex(text).data
+            data = index_for(text).data
         except ValueError:
             data = None
         face = data.get("face") if isinstance(data, dict) else None

@@ -15,6 +15,9 @@ Three rules, each found on the example corpus:
   too, since an emptied block mapping parses as null;
 - a duplicate renames every element id inside it, the element's own and
   each descendant's, or a copied group's children clash with the original's.
+
+Two patches can be one edit (`chain`): a colour's rename rewrites its key
+and every `color.<name>` that names it, and only the pair loads.
 """
 
 from __future__ import annotations
@@ -23,12 +26,13 @@ import copy
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
-from ruamel.yaml.nodes import MappingNode, Node, ScalarNode
+from ruamel.yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from .spans import (
-    Entry, Path, Refused, SpanIndex, dotted, is_element, line_start, parse,
+    Entry, Path, Refused, SpanIndex, dotted, indent_of, is_element, line_end, line_start,
+    ordered, parse,
 )
 
 
@@ -202,7 +206,7 @@ def _set_value(index: SpanIndex, path: Path, value: Any) -> Patch:
         elif getattr(node, "flow_style", False) or isinstance(node, ScalarNode):
             new = flow(value)
         else:
-            raise Refused(f"{dotted(path)} is a block; edit its keys one by one")
+            return Patch(_replace_block(index, entry, value), expected, f"set {dotted(path)}")
         start, end = node.start_mark.index, node.end_mark.index
         if isinstance(node, ScalarNode) and node.value == "" and node.style is None:
             # an empty value (`key:`) has a zero-width node: write after the colon
@@ -225,6 +229,103 @@ def _set_value(index: SpanIndex, path: Path, value: Any) -> Patch:
     holder[rest[0]] = _nested(rest[1:], value)
     text = _insert_key(index, mapping, str(rest[0]), _nested(rest[1:], value))
     return Patch(text, expected, f"set {dotted(path)}")
+
+
+def _block(value: Any, indent: int) -> str:
+    """``value`` as block lines at ``indent``: a mapping's keys one per line,
+    a list's items as `- item`, anything nested in a list in flow style."""
+    pad = " " * indent
+    lines = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(v, (dict, list)) and v:
+                lines.append(f"{pad}{key_text(str(k))}:\n" + _block(v, indent + 2))
+            else:
+                lines.append(f"{pad}{key_text(str(k))}: {flow(v)}\n")
+    else:
+        for item in value:
+            lines.append(f"{pad}- {flow(item)}\n")
+    return "".join(lines)
+
+
+def _replace_block(index: SpanIndex, entry: Entry, value: Any) -> str:
+    """The text with a block mapping's or sequence's value replaced by
+    ``value``, in block style at the same indent. The key's own line, and
+    any comment on it, stays; comments inside the old value go with it."""
+    text = index.text
+    node = entry.value
+    end = index.value_end(entry)
+    if isinstance(value, (dict, list)) and value and type(value) is (
+            dict if isinstance(node, MappingNode) else list):
+        first = node.value[0][0] if isinstance(node, MappingNode) else node.value[0]
+        indent = (first.start_mark.column if isinstance(node, MappingNode)
+                  else indent_of(text, first.start_mark.index))
+        start = line_end(text, entry.key.start_mark.index)
+        return text[:start] + _block(value, indent) + text[end:]
+    # an empty or differently shaped value: on the key's line, in flow style
+    colon = text.index(":", entry.key.end_mark.index) + 1
+    return text[:colon] + " " + flow(value) + "\n" + text[end:]
+
+
+def _rename_key(index: SpanIndex, path: Path, new: str) -> Patch:
+    entry = index[tuple(path)]
+    if index.get(tuple(path[:-1]) + (new,)) is not None:
+        raise Refused(f"{dotted(tuple(path[:-1]) + (new,))} already exists")
+    expected = _with(index)
+    holder = _data_at(expected, entry.path[:-1])
+    items = [(new if k == entry.path[-1] else k, v) for k, v in holder.items()]
+    holder.clear()
+    holder.update(items)
+    start, end = entry.key.start_mark.index, entry.key.end_mark.index
+    return Patch(index.text[:start] + key_text(new) + index.text[end:], expected,
+                 f"rename {dotted(entry.path)} to {new}")
+
+
+def _string_values(node: Node) -> list[ScalarNode]:
+    """Every string scalar that is a value (a mapping's value or a list's
+    item, never a key), in document order."""
+    out: list[ScalarNode] = []
+    if isinstance(node, MappingNode):
+        for _, v in node.value:
+            out.extend(_string_values(v))
+    elif isinstance(node, SequenceNode):
+        for v in node.value:
+            out.extend(_string_values(v))
+    elif (isinstance(node, ScalarNode) and str(node.tag or "").endswith(":str")
+          and node.style not in ("|", ">")):
+        out.append(node)
+    return out
+
+
+def _rewrite_data(data: Any, fn: Callable[[str], str]) -> Any:
+    if isinstance(data, dict):
+        return {k: _rewrite_data(v, fn) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_rewrite_data(v, fn) for v in data]
+    return fn(data) if isinstance(data, str) else data
+
+
+def _rewrite_scalars(index: SpanIndex, fn: Callable[[str], str], what: str) -> Patch:
+    text = index.text
+    nodes = _string_values(index.root) if index.root is not None else []
+    for node in reversed(nodes):
+        new = fn(node.value)
+        if new != node.value:
+            style = node.style if node.style in ("'", '"') else None
+            text = (text[:node.start_mark.index] + scalar(new, style)
+                    + text[node.end_mark.index:])
+    return Patch(text, _rewrite_data(_with(index), fn), what)
+
+
+def chain(first: Patch, then: Callable[[SpanIndex], Patch]) -> Patch:
+    """``first`` followed by ``then`` on its text, as one patch. ``first``'s
+    own text is checked against its data before ``then`` builds on it, so
+    the pair keeps each one's guarantee."""
+    index = SpanIndex(first.text)
+    if ordered(index.data) != ordered(first.expected):
+        raise Refused(f"{first.what}: the edit would change more than intended")
+    second = then(index)
+    return Patch(second.text, second.expected, f"{first.what}; {second.what}")
 
 
 def _remove(index: SpanIndex, path: Path) -> Patch:
@@ -463,6 +564,28 @@ def add_element(index: SpanIndex, type_: str, *, block: Path = ("elements",),
     with `DEFAULTS` and `face_color`."""
     return _ended_patch(index, _add_element, type_, block=block, after=after,
                         element_id=element_id)
+
+
+def rename_key(index: SpanIndex, path: Path, new: str) -> Patch:
+    """Rename the key at ``path``, in place; refused when a sibling already
+    has the new name."""
+    return _ended_patch(index, _rename_key, path, new)
+
+
+def rewrite_scalars(index: SpanIndex, fn: Callable[[str], str], what: str) -> Patch:
+    """Rewrite every string value (never a key) through ``fn``, each in its
+    own quoting. Block scalars (`|`, `>`) are left alone."""
+    return _ended_patch(index, _rewrite_scalars, fn, what)
+
+
+def rename_reference(index: SpanIndex, path: Path, new: str, prefix: str) -> Patch:
+    """Rename a declared name, the key at ``path``, and every reference to
+    it written ``<prefix><name>`` (`color.`, `font.`), inside expressions
+    too, as one patch."""
+    old = str(path[-1])
+    pattern = re.compile(rf"(?<![A-Za-z0-9_.]){re.escape(prefix + old)}(?![A-Za-z0-9_])")
+    return chain(rename_key(index, path, new), lambda i: rewrite_scalars(
+        i, lambda s: pattern.sub(prefix + new, s), f"refer to {prefix}{new}"))
 
 
 def node_text(index: SpanIndex, node: Node) -> str:

@@ -183,9 +183,11 @@ specifies each item.
    from the editor is not planned yet. **Built so far:** the server, the
    bundle format, new/open/download, a missing font added in place, the
    history (undo and redo across restarts, snapshots on a timer and on
-   download, restore, open a copy, pruning), and a read-only viewer (layer
-   tree, frames per device and style, selection, diagnostics). Not yet:
-   any edit of the face itself, the inspector, the YAML tab.
+   download, restore, open a copy, pruning), the viewer (layer tree,
+   frames per device and style, selection, diagnostics), the inspector
+   (every key of an element, geometry per device or shape) and the Face
+   panel (targets, colours renamed everywhere, schemes, styles, fonts).
+   Not yet: dragging on the canvas, structure, the YAML tab.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -211,8 +213,8 @@ specifies each item.
   and edits every property, reverting no shipped feature and drawing
   per-element layers from the draw program. Its patch engine is built
   (`wfb/edit/`: text patches, the gate, drags in the author's units), and
-  so are the server and a read-only viewer (`wfb/studio/`); editing in the
-  UI is not.
+  so are the server, the viewer, the inspector and the Face panel
+  (`wfb/studio/`); dragging and structural edits in the UI are not.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

@@ -18,6 +18,7 @@ Two facts about the marks every range here relies on:
 
 from __future__ import annotations
 
+import functools
 import io
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -62,13 +63,24 @@ class Entry:
         return bool(self.parent.flow_style)
 
 
-def compose(text: str) -> Node | None:
+def _composed(text: str) -> tuple[Node | None, Any]:
+    """``text``'s node tree and its plain data, from one scan: the safe
+    loader's composer, whose nodes carry the same marks and styles as the
+    round-trip one's, and its constructor over those nodes, which gives
+    exactly what `parse` gives (the round-trip composer leaves line-fold
+    markers inside a folded scalar's value)."""
+    yaml = YAML(typ="safe", pure=True)
     try:
-        node: Node | None = YAML().compose(io.StringIO(text))
-        return node
+        node: Node | None = yaml.compose(io.StringIO(text))
+        data = yaml.constructor.construct_document(node) if node is not None else None
     except MarkedYAMLError as exc:
         raise Refused(f"the text is not valid YAML: {(exc.problem or 'invalid YAML').strip()}"
                       ) from None
+    return node, data
+
+
+def compose(text: str) -> Node | None:
+    return _composed(text)[0]
 
 
 def parse(text: str) -> Any:
@@ -79,6 +91,16 @@ def parse(text: str) -> Any:
     except MarkedYAMLError as exc:
         raise Refused(f"the text is not valid YAML: {(exc.problem or 'invalid YAML').strip()}"
                       ) from None
+
+
+def ordered(data: Any) -> Any:
+    """``data`` with every mapping as its list of pairs, so equality checks
+    key order too."""
+    if isinstance(data, dict):
+        return [(k, ordered(v)) for k, v in data.items()]
+    if isinstance(data, list):
+        return [ordered(v) for v in data]
+    return data
 
 
 def line_start(text: str, index: int) -> int:
@@ -99,12 +121,12 @@ def indent_of(text: str, index: int) -> int:
 
 class SpanIndex:
     """A design's text, its composed node tree and its plain data, with
-    every mapping entry addressable by its author path."""
+    every mapping entry addressable by its author path. Read-only: one
+    index may be shared (`index_for`)."""
 
     def __init__(self, text: str) -> None:
         self.text = text
-        self.root = compose(text)
-        self.data = parse(text)
+        self.root, self.data = _composed(text)
         self._entries = list(_entries(self.root, ())) if self.root is not None else []
         self._by_path = {e.path: e for e in self._entries}
         self._by_position = {(e.key.start_mark.line + 1, e.key.start_mark.column + 1): e
@@ -187,6 +209,13 @@ class SpanIndex:
             else:
                 break
         return end
+
+
+@functools.lru_cache(maxsize=16)
+def index_for(text: str) -> SpanIndex:
+    """``text``'s index, shared: an editor reads the same version's index
+    for its tree, its inspector and its next patch."""
+    return SpanIndex(text)
 
 
 def is_element(index: SpanIndex, entry: Entry) -> bool:

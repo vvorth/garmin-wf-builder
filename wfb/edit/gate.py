@@ -18,12 +18,11 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from ..diagnostics import Bag, Diagnostic
 from ..ir import Face
 from .patch import Patch
-from .spans import Refused, parse
+from .spans import Refused, index_for, ordered
 
 
 @dataclass(frozen=True)
@@ -53,26 +52,17 @@ def _error_keys(loaded: Loaded) -> Counter[tuple[str, str]]:
     return Counter((d.code, d.message) for d in loaded.errors)
 
 
-def ordered(data: Any) -> Any:
-    """``data`` with every mapping as its list of pairs, so equality checks
-    key order too."""
-    if isinstance(data, dict):
-        return [(k, ordered(v)) for k, v in data.items()]
-    if isinstance(data, list):
-        return [ordered(v) for v in data]
-    return data
-
-
 class Gate:
     """Accepts or refuses patches to one text of one design."""
 
-    def __init__(self, path: Path, text: str) -> None:
+    def __init__(self, path: Path, text: str, before: Loaded | None = None) -> None:
+        """``before`` is ``text`` already loaded, when the caller has it."""
         self.path = path
-        self.before = load_text(path, text)
+        self.before = before if before is not None and before.text == text else load_text(path, text)
 
     def check(self, patch: Patch) -> Loaded:
         """The patched text, loaded; or `Refused`, saying why."""
-        if ordered(parse(patch.text)) != ordered(patch.expected):
+        if ordered(index_for(patch.text).data) != ordered(patch.expected):
             raise Refused(f"{patch.what}: the edit would change more than intended")
         after = load_text(self.path, patch.text)
         new = _error_keys(after) - _error_keys(self.before)
