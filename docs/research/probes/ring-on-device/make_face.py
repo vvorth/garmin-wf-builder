@@ -1,7 +1,11 @@
 """Write face.yaml: each primitive whose `outline:` the compiler draws as one
 *grown* copy, beside the same primitive with the ring built by hand as a
 *stamp* (the primitive in the ring colour at every
-`wfb.ir.disc_perimeter_offsets(width)` point, then the fill).
+`wfb.ir.disc_perimeter_offsets(width)` point, then the fill).  The rows are
+a circle, a rectangle and a rounded rectangle; a gauge bar, whose ring is a
+rounded rectangle with the ring's width as its corner radius; and a filled
+circle part, ringed through `WfbGeom.fillCircleRotated` as a needle's, a
+hand's or a pattern's is (a one-copy radial pattern).
 
 Backs docs/research/28-editor-open-questions.md §8. Today's `wfb preview`
 draws both columns the same way (it always stamps); the generated code draws
@@ -20,12 +24,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from wfb.ir import disc_perimeter_offsets  # noqa: E402
 
-ROWS = {"circle": 70, "rectangle": 130, "rounded": 190}
-COLUMNS = {(1, "grown"): 62, (1, "stamp"): 104, (2, "grown"): 156, (2, "stamp"): 198}
+ROWS = {"circle": 44, "rectangle": 84, "rounded": 120, "bar": 158, "part": 188}
+COLUMNS = {(1, "grown"): 56, (1, "stamp"): 98, (2, "grown"): 142, (2, "stamp"): 184}
 
 
 def shape(kind: str, x: int, y: int, color: str, extra: str = "") -> str:
-    if kind == "circle":
+    """The row's element, top-left at ``(x, y)``: a stamp copy is always a
+    plain shape (a circle for `part`, a rectangle for `bar`); the grown one
+    is the row's own kind."""
+    if kind == "bar" and extra:
+        return (f"{{ type: gauge, style: bar, value: system.battery, max: 100, "
+                f"at: {{ anchor: top_left, dx: {x}px, dy: {y}px }}, "
+                f"size: {{ width: 30px, height: 8px }}, color: {color}, "
+                f"track_color: {color}{extra} }}")
+    if kind == "bar":
+        return (f"{{ type: rectangle, at: {{ anchor: top_left, dx: {x}px, dy: {y}px }}, "
+                f"size: {{ width: 30px, height: 8px }}, color: {color} }}")
+    if kind == "part" and extra:
+        return (f"{{ type: pattern, pattern: radial, count: 1, "
+                f"at: {{ anchor: top_left, dx: {x}px, dy: {y}px }}, "
+                f"color: {color}{extra}, parts: [{{ type: circle, radius: 14px }}] }}")
+    if kind in ("circle", "part"):
         return (f"{{ type: circle, at: {{ anchor: top_left, dx: {x}px, dy: {y}px }}, "
                 f"radius: 14px, color: {color}{extra} }}")
     corner = ", corner_radius: 5px" if kind == "rounded" else ""

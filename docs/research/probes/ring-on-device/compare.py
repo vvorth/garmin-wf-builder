@@ -20,26 +20,35 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[3]))
 sys.path.insert(0, str(HERE.parent / "draw-program"))
 
-from PIL import Image, ImageChops, ImageDraw  # noqa: E402
+from PIL import Image, ImageChops  # noqa: E402
 
 from make_face import ROWS  # type: ignore  # noqa: E402
-from probe import renderer_for, resolve  # noqa: E402
-from spike_shape import evaluate, lower  # noqa: E402
+from probe import resolve  # noqa: E402
 from wfb import preview  # noqa: E402
 from wfb.devices import DeviceDatabase  # noqa: E402
+from wfb.draw import evaluator  # noqa: E402
+from wfb.draw.program import Disagreement  # noqa: E402
 
 sys.path.insert(0, str(HERE))
 FACE = HERE / "face.yaml"
 
 
-def program_frame(resolved) -> Image.Image:
-    renderer, _ = renderer_for(resolved)
-    image = Image.new("RGB", (resolved.device.width, resolved.device.height))
-    renderer.image, renderer.draw, renderer.scale = image, ImageDraw.Draw(image), 1
-    for placed in resolved.shown_items:
-        if placed.kind == "shape":
-            evaluate(lower(placed), renderer)
-    return renderer.image
+def program_frame(resolved, options) -> Image.Image:
+    """The frame the generated code draws: the preview with every
+    `Disagreement` evaluated on the watch's side (the grown copy)."""
+    run = evaluator.Evaluator._run
+
+    def watch_side(self, op):
+        if isinstance(op, Disagreement):
+            self.run(op.watch)
+        else:
+            run(self, op)
+
+    evaluator.Evaluator._run = watch_side
+    try:
+        return preview.render(resolved, options)
+    finally:
+        evaluator.Evaluator._run = run
 
 
 def cell(image: Image.Image, center) -> Image.Image:
@@ -61,11 +70,14 @@ def main() -> None:
     if shot.size != (w, h):
         k = shot.width // w
         shot = shot.resize((w, h), Image.Resampling.NEAREST) if k > 1 else shot
-    stamped = preview.render(resolved, preview.PreviewOptions(scale=1, quantise=False,
-                                                              mask_shape=False))
-    program = program_frame(resolved)
+    options = preview.PreviewOptions(scale=1, quantise=False, mask_shape=False)
+    stamped = preview.render(resolved, options)
+    program = program_frame(resolved, options)
     out = [f"## simulator vs Pillow models, {FACE.name}"]
-    boxes = {p.id: p.center for p in resolved.items}
+    # Each window centres on the element's own box (`inner_box`, without its
+    # ring): a gauge's `center` is its anchor, not its box's middle.
+    boxes = {p.id: (p.inner_box.x + p.inner_box.width // 2, p.inner_box.y + p.inner_box.height // 2)
+             for p in resolved.items}
     for kind in ROWS:
         for width in (1, 2):
             gb, sb = boxes[f"{kind}_grown{width}"], boxes[f"{kind}_stamp{width}"]

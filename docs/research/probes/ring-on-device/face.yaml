@@ -19,51 +19,83 @@ resources:
 
 elements:
   background: { type: rectangle, at: { anchor: center }, size: { width: 100%, height: 100% }, color: color.bg }
-  circle_grown1: { type: circle, at: { anchor: top_left, dx: 62px, dy: 70px }, radius: 14px, color: color.fill, outline: color.ring }
-  circle_stamp1_s0: { type: circle, at: { anchor: top_left, dx: 103px, dy: 70px }, radius: 14px, color: color.ring }
-  circle_stamp1_s1: { type: circle, at: { anchor: top_left, dx: 104px, dy: 69px }, radius: 14px, color: color.ring }
-  circle_stamp1_s2: { type: circle, at: { anchor: top_left, dx: 104px, dy: 71px }, radius: 14px, color: color.ring }
-  circle_stamp1_s3: { type: circle, at: { anchor: top_left, dx: 105px, dy: 70px }, radius: 14px, color: color.ring }
-  circle_stamp1: { type: circle, at: { anchor: top_left, dx: 104px, dy: 70px }, radius: 14px, color: color.fill }
-  circle_grown2: { type: circle, at: { anchor: top_left, dx: 156px, dy: 70px }, radius: 14px, color: color.fill, outline: { color: color.ring, width: 2 } }
-  circle_stamp2_s0: { type: circle, at: { anchor: top_left, dx: 196px, dy: 70px }, radius: 14px, color: color.ring }
-  circle_stamp2_s1: { type: circle, at: { anchor: top_left, dx: 197px, dy: 69px }, radius: 14px, color: color.ring }
-  circle_stamp2_s2: { type: circle, at: { anchor: top_left, dx: 197px, dy: 71px }, radius: 14px, color: color.ring }
-  circle_stamp2_s3: { type: circle, at: { anchor: top_left, dx: 198px, dy: 68px }, radius: 14px, color: color.ring }
-  circle_stamp2_s4: { type: circle, at: { anchor: top_left, dx: 198px, dy: 72px }, radius: 14px, color: color.ring }
-  circle_stamp2_s5: { type: circle, at: { anchor: top_left, dx: 199px, dy: 69px }, radius: 14px, color: color.ring }
-  circle_stamp2_s6: { type: circle, at: { anchor: top_left, dx: 199px, dy: 71px }, radius: 14px, color: color.ring }
-  circle_stamp2_s7: { type: circle, at: { anchor: top_left, dx: 200px, dy: 70px }, radius: 14px, color: color.ring }
-  circle_stamp2: { type: circle, at: { anchor: top_left, dx: 198px, dy: 70px }, radius: 14px, color: color.fill }
-  rectangle_grown1: { type: rectangle, at: { anchor: top_left, dx: 62px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.fill, outline: color.ring }
-  rectangle_stamp1_s0: { type: rectangle, at: { anchor: top_left, dx: 103px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp1_s1: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 129px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp1_s2: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 131px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp1_s3: { type: rectangle, at: { anchor: top_left, dx: 105px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp1: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.fill }
-  rectangle_grown2: { type: rectangle, at: { anchor: top_left, dx: 156px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.fill, outline: { color: color.ring, width: 2 } }
-  rectangle_stamp2_s0: { type: rectangle, at: { anchor: top_left, dx: 196px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s1: { type: rectangle, at: { anchor: top_left, dx: 197px, dy: 129px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s2: { type: rectangle, at: { anchor: top_left, dx: 197px, dy: 131px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s3: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 128px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s4: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 132px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s5: { type: rectangle, at: { anchor: top_left, dx: 199px, dy: 129px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s6: { type: rectangle, at: { anchor: top_left, dx: 199px, dy: 131px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2_s7: { type: rectangle, at: { anchor: top_left, dx: 200px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.ring }
-  rectangle_stamp2: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 130px }, size: { width: 30px, height: 20px }, color: color.fill }
-  rounded_grown1: { type: rectangle, at: { anchor: top_left, dx: 62px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill, outline: color.ring }
-  rounded_stamp1_s0: { type: rectangle, at: { anchor: top_left, dx: 103px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp1_s1: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 189px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp1_s2: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 191px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp1_s3: { type: rectangle, at: { anchor: top_left, dx: 105px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp1: { type: rectangle, at: { anchor: top_left, dx: 104px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill }
-  rounded_grown2: { type: rectangle, at: { anchor: top_left, dx: 156px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill, outline: { color: color.ring, width: 2 } }
-  rounded_stamp2_s0: { type: rectangle, at: { anchor: top_left, dx: 196px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s1: { type: rectangle, at: { anchor: top_left, dx: 197px, dy: 189px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s2: { type: rectangle, at: { anchor: top_left, dx: 197px, dy: 191px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s3: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 188px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s4: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 192px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s5: { type: rectangle, at: { anchor: top_left, dx: 199px, dy: 189px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s6: { type: rectangle, at: { anchor: top_left, dx: 199px, dy: 191px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2_s7: { type: rectangle, at: { anchor: top_left, dx: 200px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
-  rounded_stamp2: { type: rectangle, at: { anchor: top_left, dx: 198px, dy: 190px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill }
+  circle_grown1: { type: circle, at: { anchor: top_left, dx: 56px, dy: 44px }, radius: 14px, color: color.fill, outline: color.ring }
+  circle_stamp1_s0: { type: circle, at: { anchor: top_left, dx: 97px, dy: 44px }, radius: 14px, color: color.ring }
+  circle_stamp1_s1: { type: circle, at: { anchor: top_left, dx: 98px, dy: 43px }, radius: 14px, color: color.ring }
+  circle_stamp1_s2: { type: circle, at: { anchor: top_left, dx: 98px, dy: 45px }, radius: 14px, color: color.ring }
+  circle_stamp1_s3: { type: circle, at: { anchor: top_left, dx: 99px, dy: 44px }, radius: 14px, color: color.ring }
+  circle_stamp1: { type: circle, at: { anchor: top_left, dx: 98px, dy: 44px }, radius: 14px, color: color.fill }
+  circle_grown2: { type: circle, at: { anchor: top_left, dx: 142px, dy: 44px }, radius: 14px, color: color.fill, outline: { color: color.ring, width: 2 } }
+  circle_stamp2_s0: { type: circle, at: { anchor: top_left, dx: 182px, dy: 44px }, radius: 14px, color: color.ring }
+  circle_stamp2_s1: { type: circle, at: { anchor: top_left, dx: 183px, dy: 43px }, radius: 14px, color: color.ring }
+  circle_stamp2_s2: { type: circle, at: { anchor: top_left, dx: 183px, dy: 45px }, radius: 14px, color: color.ring }
+  circle_stamp2_s3: { type: circle, at: { anchor: top_left, dx: 184px, dy: 42px }, radius: 14px, color: color.ring }
+  circle_stamp2_s4: { type: circle, at: { anchor: top_left, dx: 184px, dy: 46px }, radius: 14px, color: color.ring }
+  circle_stamp2_s5: { type: circle, at: { anchor: top_left, dx: 185px, dy: 43px }, radius: 14px, color: color.ring }
+  circle_stamp2_s6: { type: circle, at: { anchor: top_left, dx: 185px, dy: 45px }, radius: 14px, color: color.ring }
+  circle_stamp2_s7: { type: circle, at: { anchor: top_left, dx: 186px, dy: 44px }, radius: 14px, color: color.ring }
+  circle_stamp2: { type: circle, at: { anchor: top_left, dx: 184px, dy: 44px }, radius: 14px, color: color.fill }
+  rectangle_grown1: { type: rectangle, at: { anchor: top_left, dx: 56px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.fill, outline: color.ring }
+  rectangle_stamp1_s0: { type: rectangle, at: { anchor: top_left, dx: 97px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp1_s1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 83px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp1_s2: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 85px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp1_s3: { type: rectangle, at: { anchor: top_left, dx: 99px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.fill }
+  rectangle_grown2: { type: rectangle, at: { anchor: top_left, dx: 142px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.fill, outline: { color: color.ring, width: 2 } }
+  rectangle_stamp2_s0: { type: rectangle, at: { anchor: top_left, dx: 182px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s1: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 83px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s2: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 85px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s3: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 82px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s4: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 86px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s5: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 83px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s6: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 85px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2_s7: { type: rectangle, at: { anchor: top_left, dx: 186px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.ring }
+  rectangle_stamp2: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 84px }, size: { width: 30px, height: 20px }, color: color.fill }
+  rounded_grown1: { type: rectangle, at: { anchor: top_left, dx: 56px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill, outline: color.ring }
+  rounded_stamp1_s0: { type: rectangle, at: { anchor: top_left, dx: 97px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp1_s1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 119px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp1_s2: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 121px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp1_s3: { type: rectangle, at: { anchor: top_left, dx: 99px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill }
+  rounded_grown2: { type: rectangle, at: { anchor: top_left, dx: 142px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill, outline: { color: color.ring, width: 2 } }
+  rounded_stamp2_s0: { type: rectangle, at: { anchor: top_left, dx: 182px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s1: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 119px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s2: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 121px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s3: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 118px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s4: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 122px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s5: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 119px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s6: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 121px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2_s7: { type: rectangle, at: { anchor: top_left, dx: 186px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.ring }
+  rounded_stamp2: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 120px }, size: { width: 30px, height: 20px }, corner_radius: 5px, color: color.fill }
+  bar_grown1: { type: gauge, style: bar, value: system.battery, max: 100, at: { anchor: top_left, dx: 56px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.fill, track_color: color.fill, outline: color.ring }
+  bar_stamp1_s0: { type: rectangle, at: { anchor: top_left, dx: 97px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp1_s1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 157px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp1_s2: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 159px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp1_s3: { type: rectangle, at: { anchor: top_left, dx: 99px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp1: { type: rectangle, at: { anchor: top_left, dx: 98px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.fill }
+  bar_grown2: { type: gauge, style: bar, value: system.battery, max: 100, at: { anchor: top_left, dx: 142px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.fill, track_color: color.fill, outline: { color: color.ring, width: 2 } }
+  bar_stamp2_s0: { type: rectangle, at: { anchor: top_left, dx: 182px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s1: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 157px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s2: { type: rectangle, at: { anchor: top_left, dx: 183px, dy: 159px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s3: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 156px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s4: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 160px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s5: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 157px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s6: { type: rectangle, at: { anchor: top_left, dx: 185px, dy: 159px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2_s7: { type: rectangle, at: { anchor: top_left, dx: 186px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.ring }
+  bar_stamp2: { type: rectangle, at: { anchor: top_left, dx: 184px, dy: 158px }, size: { width: 30px, height: 8px }, color: color.fill }
+  part_grown1: { type: pattern, pattern: radial, count: 1, at: { anchor: top_left, dx: 56px, dy: 188px }, color: color.fill, outline: color.ring, parts: [{ type: circle, radius: 14px }] }
+  part_stamp1_s0: { type: circle, at: { anchor: top_left, dx: 97px, dy: 188px }, radius: 14px, color: color.ring }
+  part_stamp1_s1: { type: circle, at: { anchor: top_left, dx: 98px, dy: 187px }, radius: 14px, color: color.ring }
+  part_stamp1_s2: { type: circle, at: { anchor: top_left, dx: 98px, dy: 189px }, radius: 14px, color: color.ring }
+  part_stamp1_s3: { type: circle, at: { anchor: top_left, dx: 99px, dy: 188px }, radius: 14px, color: color.ring }
+  part_stamp1: { type: circle, at: { anchor: top_left, dx: 98px, dy: 188px }, radius: 14px, color: color.fill }
+  part_grown2: { type: pattern, pattern: radial, count: 1, at: { anchor: top_left, dx: 142px, dy: 188px }, color: color.fill, outline: { color: color.ring, width: 2 }, parts: [{ type: circle, radius: 14px }] }
+  part_stamp2_s0: { type: circle, at: { anchor: top_left, dx: 182px, dy: 188px }, radius: 14px, color: color.ring }
+  part_stamp2_s1: { type: circle, at: { anchor: top_left, dx: 183px, dy: 187px }, radius: 14px, color: color.ring }
+  part_stamp2_s2: { type: circle, at: { anchor: top_left, dx: 183px, dy: 189px }, radius: 14px, color: color.ring }
+  part_stamp2_s3: { type: circle, at: { anchor: top_left, dx: 184px, dy: 186px }, radius: 14px, color: color.ring }
+  part_stamp2_s4: { type: circle, at: { anchor: top_left, dx: 184px, dy: 190px }, radius: 14px, color: color.ring }
+  part_stamp2_s5: { type: circle, at: { anchor: top_left, dx: 185px, dy: 187px }, radius: 14px, color: color.ring }
+  part_stamp2_s6: { type: circle, at: { anchor: top_left, dx: 185px, dy: 189px }, radius: 14px, color: color.ring }
+  part_stamp2_s7: { type: circle, at: { anchor: top_left, dx: 186px, dy: 188px }, radius: 14px, color: color.ring }
+  part_stamp2: { type: circle, at: { anchor: top_left, dx: 184px, dy: 188px }, radius: 14px, color: color.fill }
