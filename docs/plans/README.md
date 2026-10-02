@@ -11,7 +11,7 @@ back here.
 | Plan | Status |
 |---|---|
 | [26 the single draw program](26-draw-program.md) | accepted 2026-10-01 (P1–P4 as recommended); slices 0–3 done, 4–10 to go; Q1 waits on a simulator capture |
-| [27 `wfb studio`, the visual editor](27-studio.md) | proposed 2026-10-02; decisions G1–G5 open |
+| [27 `wfb studio`, the visual editor](27-studio.md) | proposed 2026-10-02; decisions G1–G6 open |
 
 ## Built and deleted
 

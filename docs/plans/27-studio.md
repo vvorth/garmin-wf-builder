@@ -113,6 +113,90 @@ In short:
   - **B:** load them from a CDN. That fails offline and in a locked-down
     container.
 
+### Where edits happen
+
+**The server applies every edit; the browser previews and asks.** The
+patch needs:
+- the YAML composer's marks, to know which characters to rewrite;
+- the device's resolved geometry, to turn a pixel drag into the author's
+  unit;
+- the override rule;
+- the full load as its gate.
+
+All of that is the Python compiler, so doing it in the browser would
+mean a second copy in JavaScript: the duplicated-logic problem plan 26
+removes between the preview and the watch.
+
+| Step | Where |
+|---|---|
+| The pointer moves: the layer's image shifts, or a lowered layer is redrawn from its JSON (slice 4) | browser, preview only |
+| Release: an intent such as "move `clock` by (+6, −3) px on fenix8solar47mm", or "set `radius` of `ring` to 44%r for all targets" | browser → server |
+| Unit conversion, override target, text patch, gate, file write (G4), re-render | server (`wfb/edit/`, the pipeline) |
+| New text, version and layers | server → browser |
+| Typing in the text pane | browser (CodeMirror), sent as the whole text against its version; the server gates it the same way |
+| Undo and redo | server: its history of accepted patches |
+
+The cost is one round trip per release. On loopback that is about the
+pipeline's own time with font baking memoised: 28–40 ms for a typical
+face and 250 ms for the showcase (research 28 §4).
+
+**What plan 26 does and does not move into the browser.** Plan 26 makes
+the last stage, *drawing*, executable by a browser: the program as JSON
+plus a rasteriser with a tested contract (`wfb.draw.jsonform`). That
+removes the largest single reason a browser preview would drift from the
+watch. Every other stage stays Python, and a browser that edited and
+previewed on its own would need all of it:
+
+| Stage | Lines today | What a browser would need it for |
+|---|---:|---|
+| loading: YAML spans, schema, format 2 lowering, desugaring | ~2 400 | finding what to patch; refusing a bad file |
+| IR builder and model | ~6 000 | every semantic check, expressions bound to sources |
+| layout and units | ~2 250 | author units to `Layout` pixels, per device, overrides included |
+| expressions, formats, the catalogue | ~2 550 | readings and strings at sample values |
+| fonts (baking, metrics, stand-ins) | ~1 800 | text measurement, which moves a text's box |
+| lint | ~2 550 | the diagnostics beside the canvas |
+| drawing: the per-kind draw code and `preview.py` | ~1 300 in `wfb/draw/` once ported | **provided by plan 26** as the JSON and its contract |
+
+### Open: G6, a browser-side preview of geometry edits
+
+There is a middle way that needs none of the Python above in the
+browser. Every unit is linear in pixels (`wfb.units.Length.resolve`,
+research 26 §4.4). So the server could send, per element and per
+editable geometry scalar:
+- its text range and unit;
+- how each of the element's `Layout` constants moves per unit of that
+  scalar on the viewed device: one number per pair, a linear coefficient
+  plus the rounding rule.
+
+The browser could then:
+1. turn a drag into the new author value;
+2. patch the scalar's characters in its own copy of the text;
+3. move the constants;
+4. redraw the layer from its JSON.
+
+That is a complete optimistic edit and preview with no round trip. The
+server stays the authority: it gates the same patch on release and
+answers with the real render, which replaces the optimistic one.
+
+What the linear model does not cover:
+- rounding to whole pixels (`round_half_away`);
+- `min_1px` clamps;
+- a text's box, which depends on its measured width (its anchor does
+  not);
+- an `align:` change (discrete);
+- a structural edit.
+
+Those stay server round trips. Whether the linear model matches the
+server's render exactly, apart from the rounding rule, is UNVERIFIED, and
+would be measured over the corpus the way research 28 measured patches.
+
+- **A (recommended for now):** server-applied edits only (above). Slice 4
+  already gives a live redraw during a gesture, and the release is one
+  round trip.
+- **B:** add the linear geometry model and optimistic browser patches as
+  a slice after slice 4, if slice 3's measurement shows the release round
+  trip feels slow.
+
 ## 2. What the editor shows and does
 
 | Area | Content | Source |
