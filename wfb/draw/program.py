@@ -153,8 +153,18 @@ class FontDrop:
     font: str
 
 
+@dataclass(frozen=True)
+class HandAngle:
+    """``WfbHands.<function>(clock)``: a hand's angle from the clock, and on
+    the host from the sample time (`time.hour`/`minute`/`second`) through
+    the twin `barrel.HAND_ANGLES` names by ``hand``."""
+
+    function: str
+    hand: str
+
+
 Num: "TypeAlias" = Union[Const, Lit, Shifted, Grown, AodPick, FloatLit, NumLocal, Read, Bin,
-                         Paren, Call, Conv, NumPick, FontDrop]
+                         Paren, Call, Conv, NumPick, FontDrop, HandAngle]
 
 
 # -- conditions -----------------------------------------------------------------
@@ -210,7 +220,13 @@ class Truthy:
     expr: "Expression"
 
 
-Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing, AnyOf, Truthy]
+@dataclass(frozen=True)
+class NotSleeping:
+    """``!_sleeping``: the face is awake, so neither the asleep nor the
+    always-on frame."""
+
+
+Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing, AnyOf, Truthy, NotSleeping]
 
 
 # -- strings --------------------------------------------------------------------

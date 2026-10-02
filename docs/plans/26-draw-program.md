@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–6 done, 7–10 to go. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–7 done, 8–10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -504,7 +504,34 @@ the radial angle is the printed literal, and a ringed text part draws five
 texts a copy. Seen red: `continue` ignored, `copy` unbound, and `/` as a
 float division.
 
-### Slices 7–9 — the remaining kinds
+### Slice 7 — `hands`: done
+
+Built as below. `HandsKind.lower` replaces `emit_draw`, `draw_preview` and
+`_emit_one_hand`. Each hand is the needle's machinery (`Part`, ringed
+through `WfbRing`/`WfbRingWide`, a filled circle part's grown ring a
+`Disagreement`), with the angle a new value, `HandAngle`
+(`WfbHands.<fn>(clock)`, evaluated at the sample time), and an `awake`
+second hand under the new condition `NotSleeping` (`!_sleeping`). The angle
+twins moved from the kind into `wfb.draw.barrel` (`hour_angle`,
+`minute_angle`, `second_angle`), unchanged; `HAND_ANGLES` points at them.
+
+Proven before the old methods were deleted, on every `hands` element in
+`examples/` and `tests/fixtures/` on each face's targets:
+- printed code byte-identical: **552/552** (no `aod:`, `aod:` on, with
+  `dim:`; 1 px and 2 px ring passes);
+- whole-frame renders identical: **125/125** (1×, 2×, 3×, AOD, asleep).
+  A hand's rotation was already float, as the barrel's is.
+
+`tools/snapshot.py`: the same 30 previews as slice 6, pixel counts and all;
+nothing else changed. Real builds of `features/analog`, `analog-custom` and
+`outline_hands` are warning-free on all three targets.
+
+Tests (`tests/test_draw_hands.py`): the second hand gone asleep and in AOD,
+the minute hand turned by 9 × 6° at 10:09, and each hand's ring before its
+own parts. Seen red: an always-awake condition, and every hand on the
+hour's angle.
+
+### Slices 8–9 — the remaining kinds
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:
@@ -514,7 +541,7 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 | 4 | `icon` | glyph from the icon font, `WfbWeather.chooseIcon` (a dynamic icon) | ring by ring font |
 | 5 (done) | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
 | 6 (done) | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
-| 7 | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
+| 7 (done) | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
 | 8 | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
 | 9 | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |
 

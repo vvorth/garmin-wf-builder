@@ -18,10 +18,10 @@ from ..ir import local_name
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
-    FillPolygon, FloatLit, FontDrop, For, Glyph, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    FillPolygon, FloatLit, FontDrop, For, Glyph, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
-    Str, StrLit, Text, Truthy, WrapperGuard,
+    NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
 
@@ -54,6 +54,8 @@ def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
                 f"{num_code(n.otherwise, aod)}")
     if isinstance(n, FontDrop):
         return glyph_y_expr(num_code(n.base, aod), n.valign, n.font)
+    if isinstance(n, HandAngle):
+        return f"WfbHands.{n.function}(clock)"
     return plus(num_code(n.base, aod), str(n.by), n.times)
 
 
@@ -67,6 +69,8 @@ def cond_code(c: Cond, aod: AodStyle = NO_AOD) -> str:
         return " || ".join(cond_code(term, aod) for term in c.conds)
     if isinstance(c, Truthy):
         return c.expr.code
+    if isinstance(c, NotSleeping):
+        return "!_sleeping"
     return f"_pulsing != {c.unique}"
 
 

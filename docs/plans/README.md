@@ -10,7 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [26 the single draw program](26-draw-program.md) | accepted 2026-10-01 (P1–P4 as recommended); slices 0–6 done, 7–10 to go; Q1 waits on a simulator capture |
+| [26 the single draw program](26-draw-program.md) | accepted 2026-10-01 (P1–P4 as recommended); slices 0–7 done, 8–10 to go; Q1 waits on a simulator capture |
 | [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02 (G4 the user's working-copy rule, the rest as recommended); slice 0 done, 1–7 to go |
 
 ## Built and deleted

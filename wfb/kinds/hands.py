@@ -5,21 +5,22 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
-import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from .. import expr
 from ..ir.builder import dedup_append
 from ..ir.model import Element, Expression, HandsElement
 from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated
-from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, and_list, const_prefix, own_ring,
+from ..emit.monkeyc.common import and_list, const_prefix
+from ..draw import barrel
+from ..draw.printer import color_code
+from ..draw.program import (
+    AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, Disagreement, DrawContext,
+    If, Let, Num, NumLocal, NotSleeping, Op, Paint, Part, RingColor, SetColor,
 )
-from ..emit.writer import Writer
+from ..draw.program import HandAngle as AngleOf
 from . import ElementKind
 
 if TYPE_CHECKING:
@@ -27,9 +28,7 @@ if TYPE_CHECKING:
 
     from . import ContrastSubject
     from ..ir.builder import Builder
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver, RotatablePart
 
 
 @dataclass(frozen=True)
@@ -39,10 +38,8 @@ class HandAngle:
     `runtime-lib/WfbHands.mc`: `monkeyc_function`/`monkeyc_return` are that
     function's name and its exact `return` expression, checked against the
     real `.mc` source by `tests/test_hand_angles.py` so the two cannot
-    drift; `host` is `wfb.preview`'s own radians computation, Python's
-    degrees-to-radians conversion rather than a reimplementation of the
-    Monkey C constant, kept at exactly today's expression so a preview
-    pixel never moves.
+    drift; `host` is its twin in `wfb.draw.barrel`, which the preview
+    evaluates.
     """
 
     monkeyc_function: str
@@ -58,15 +55,13 @@ class HandAngle:
 HAND_ANGLES: dict[str, HandAngle] = {
     "hour": HandAngle(
         "hourAngle", "((clock.hour % 12) * 60 + clock.min) * (Math.PI / 360.0)",
-        lambda hour, minute, second: math.radians(((hour % 12) * 60 + minute) * 0.5),
+        barrel.hour_angle,
     ),
     "minute": HandAngle(
-        "minuteAngle", "clock.min * (Math.PI / 30.0)",
-        lambda hour, minute, second: math.radians(minute * 6.0),
+        "minuteAngle", "clock.min * (Math.PI / 30.0)", barrel.minute_angle,
     ),
     "second": HandAngle(
-        "secondAngle", "clock.sec * (Math.PI / 30.0)",
-        lambda hour, minute, second: math.radians(second * 6.0),
+        "secondAngle", "clock.sec * (Math.PI / 30.0)", barrel.second_angle,
     ),
 }
 
@@ -75,54 +70,6 @@ HAND_ANGLES: dict[str, HandAngle] = {
 _HAND_ANGLE_FUNCTIONS = tuple(
     (name, HAND_ANGLES[name].monkeyc_function) for name in ("hour", "minute", "second")
 )
-
-
-def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str, angle_fn: str,
-                   hand: ResolvedHand,
-                   declared: bool, thickness_override: str | None, aod: AodStyle,
-                   stamp: RingPass | None = None, ring_only: bool = False) -> None:
-    """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
-
-    `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
-    method -- the first hand declares them, every later one reuses the same
-    three locals (the probe's own shape: Monkey C has no block scoping that
-    would need a fresh declaration per hand).
-
-    `stamp` rings the hand as one silhouette first: every
-    part's ring in the ring colour (`rotated.emit_part_ring`, each part
-    rotated once), then the parts themselves -- so a hand's own parts never
-    ring each other, and each hand's ring is drawn over the hand beneath
-    it.  `ring_only` (an outlined group's pass) stops after the ring.
-    """
-    keyword = "" if declared else "var "
-    w.line(f"{keyword}angle = WfbHands.{angle_fn}(clock);")
-    w.line(f"{keyword}sin = Math.sin(angle);")
-    w.line(f"{keyword}cos = Math.cos(angle);")
-
-    def thickness(part_prefix: str) -> str:
-        return aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
-
-    if stamp is not None:
-        w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-        for index, part in enumerate(hand.parts):
-            part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
-            rotated.emit_part_ring(w, part, part_prefix, stamp.width, radial=True,
-                                   thickness_expr=thickness(part_prefix))
-    if ring_only:
-        return
-    # One setColor per colour *change*: consecutive parts of one hand
-    # usually share its default colour.  Reset per hand rather than carried
-    # across hands, because an `awake` second hand sits inside its own `if`
-    # block and cannot rely on a colour set before it.
-    current = None
-    for index, part in enumerate(hand.parts):
-        part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
-        color = aod.part_color(element, part.color)
-        if color != current:
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            current = color
-        rotated.emit_transformed_part(w, part, part_prefix, radial=True,
-                                      thickness_expr=thickness(part_prefix))
 
 
 class HandsKind(ElementKind[HandsElement, PlacedHands]):
@@ -238,82 +185,81 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
     def circular_extent(self, placed: PlacedHands) -> tuple[float, float, float] | None:
         return (placed.center[0], placed.center[1], placed.reach)
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedHands) -> None:
-        """`type: hands` -- the same three angle rules `runtime-lib/
-        WfbHands.mc` computes on the device (`HAND_ANGLES`'s own
-        `host` half), applied to the *resolved* geometry so this can never
-        disagree with the generated code about a hand's shape or its axis.
+    def lower(self, ctx: DrawContext, placed: PlacedHands) -> list[Op]:
+        """`type: hands` -- one `sin`/`cos` pair per drawn hand, then each of
+        its parts rotated and drawn, shaped like the analog-hands probe's
+        `drawMainHands` (`docs/research/probes/analog-hands/`): the axis
+        first, then hour, minute, second in that fixed order, with an `awake`
+        second hand's parts wrapped in `if (!_sleeping)`.  The first hand
+        declares `angle`/`sin`/`cos`; every later one reuses them.
 
-        `--asleep` (or `--aod`, which implies it) hides an `awake`-only
-        second hand, the same choice the generated view makes while
-        `_sleeping`; a `seconds: never` hand was already excluded at resolve
-        time.
-        """
-        element = placed.element
-        s = renderer.scale
-        cx, cy = placed.center[0] * s, placed.center[1] * s
-        hour, minute, second = (int(expr.as_number(renderer.values.get(f"time.{unit}") or 0))
-                                for unit in ("hour", "minute", "second"))
-        angles = {
-            name: HAND_ANGLES[name].host(hour, minute, second)
-            for name in ("hour", "minute", "second")
-        }
-        asleep = renderer.options.asleep or renderer.options.aod
-        for hand_name in ("hour", "minute", "second"):
-            hand = getattr(placed, hand_name)
-            if hand is None:
-                continue
-            if hand_name == "second" and element.seconds == "awake" and asleep:
-                continue
-            sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
+        `aod: {color: ...}`/`{thickness: ...}` apply uniformly to every part
+        of every hand: one element-level override, reused by every part's own
+        colour and pen width.
 
-            def draw_hand(hand: ResolvedHand = hand, sin_t: float = sin_t,
-                          cos_t: float = cos_t) -> None:
-                for part in hand.parts:
-                    renderer.hand_part(placed, part, cx, cy, sin_t, cos_t)
-
-            if element.outline is not None:
-                # Each hand ringed whole, over the hand beneath it -- the
-                # generated `_emit_one_hand`'s own order.
-                renderer.stamp_ring(renderer.silhouette(draw_hand),
-                                    renderer.aod_dimmed(element, element.outline.color),
-                                    element.outline.width)
-            draw_hand()
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
-        draw each of its parts, shaped exactly like the analog-hands probe's
-        `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
-        then hour, minute, second in that fixed order, with an `awake` second
-        hand's parts wrapped in `if (!_sleeping)`.
-
-        `aod: {color: ...}`/`{thickness: ...}` apply uniformly to
-        every part of every hand: one ternary against one element-level override,
-        reused by every part's own colour/pen-width line.
-
-        `outline:` rings each hand whole, just before its parts
-        (`_emit_one_hand`); with `ring`, only the rings are drawn.
-        """
+        `outline:` rings each hand whole, just before its parts: every part's
+        ring in the ring colour (`WfbRing`, each part rotated once), then the
+        parts -- so a hand's own parts never ring each other, and each hand's
+        ring is drawn over the hand beneath it.  With `ctx.ring`, only the
+        rings are drawn.  Colours are set once per change within a hand,
+        reset per hand: an `awake` second hand sits in its own `if` and
+        cannot rely on a colour set before it."""
         element = placed.element
         prefix = const_prefix(placed.id)
-        w.line(f"var cx = Layout.{prefix}_CX;")
-        w.line(f"var cy = Layout.{prefix}_CY;")
-        thickness_override = rotated.aod_thickness_override(placed, prefix)
-        stamp = ring or own_ring(element, aod)
+        override = (Const(f"{prefix}_AOD_THICKNESS", placed.aod_thickness)
+                    if placed.aod_thickness is not None else None)
+        stamp: tuple[Paint, int] | None = None
+        if ctx.ring is not None:
+            stamp = (RingColor(), ctx.ring.width)
+        elif element.outline is not None:
+            stamp = (AodDimmed(element, element.outline.color), element.outline.width)
+        ops: list[Op] = [Let("cx", Const(f"{prefix}_CX", placed.center[0])),
+                         Let("cy", Const(f"{prefix}_CY", placed.center[1]))]
         declared = False
         for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
             hand = getattr(placed, hand_name)
             if hand is None:
                 continue
             gated = hand_name == "second" and element.seconds == "awake"
-            w.blank()
-            w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
-            with w.block_if("if (!_sleeping)" if gated else None):
-                _emit_one_hand(w, element, prefix, hand_name, angle_fn, hand, declared,
-                               thickness_override, aod, stamp, ring_only=ring is not None)
+            angle = NumLocal("angle")
+            assign: Callable[[str, Num], Op] = Assign if declared else Let
+            body: list[Op] = [
+                assign("angle", AngleOf(angle_fn, hand_name)),
+                assign("sin", Call("Math.sin", (angle,))),
+                assign("cos", Call("Math.cos", (angle,))),
+            ]
+            parts = [(f"{prefix}_{hand_name.upper()}_{index}", part)
+                     for index, part in enumerate(hand.parts)]
+
+            def pen(part_prefix: str, part: RotatablePart) -> AodPick:
+                return AodPick(Const(f"{part_prefix}_THICKNESS", getattr(part, "thickness", 1)),
+                               override)
+
+            if stamp is not None:
+                body.append(SetColor(stamp[0]))
+                for part_prefix, part in parts:
+                    ring = Part(part, part_prefix, True, pen(part_prefix, part), ring=stamp[1])
+                    if part.shape == "circle" and part.filled:
+                        body.append(Disagreement(
+                            watch=(ring,), preview=(replace(ring, stamp=True),),
+                            why="the watch is sent a grown circle; the preview stamps, and "
+                                "which of the two the watch's rasteriser matches is not yet "
+                                "measured"))
+                    else:
+                        body.append(ring)
+            if ctx.ring is None:
+                current = None
+                for part_prefix, part in parts:
+                    paint = AodPart(element, part.color)
+                    code = color_code(paint, ctx.aod)
+                    if code != current:
+                        body.append(SetColor(paint))
+                        current = code
+                    body.append(Part(part, part_prefix, True, pen(part_prefix, part)))
+            ops += [Blank(), Comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))]
+            ops += [If(NotSleeping(), tuple(body))] if gated else body
             declared = True
+        return ops
 
     def describe(self, placed: PlacedHands) -> str:
         element = placed.element

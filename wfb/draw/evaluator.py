@@ -20,10 +20,10 @@ from . import barrel
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
-    FillPolygon, FloatLit, FontDrop, For, Glyph, Grown, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    FillPolygon, FloatLit, FontDrop, For, Glyph, Grown, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
-    Str, StrLit, Text, Truthy, WrapperGuard,
+    NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
 )
 
 if TYPE_CHECKING:
@@ -125,6 +125,10 @@ def num_value(n: Num, aod: bool = False, env: Mapping[str, Any] | None = None,
         return value(n.then if cond_value(n.cond, aod, env, values) else n.otherwise)
     if isinstance(n, FontDrop):
         return value(n.base)
+    if isinstance(n, HandAngle):
+        hour, minute, second = (int(expr.as_number(values.get(f"time.{unit}") or 0))
+                                for unit in ("hour", "minute", "second"))
+        return barrel.HAND_ANGLES[n.hand](hour, minute, second)
     # A chain of infix operators, printed bare: evaluate it the way Monkey C
     # parses the printed text, not the way the tree nests.
     terms: list[Any] = []
@@ -164,8 +168,9 @@ def _flatten(n: Num, terms: list[Any], ops: list[str], value: Any) -> None:
 
 
 def cond_value(c: Cond, aod: bool = False, env: Mapping[str, Any] | None = None,
-               values: Mapping[str, object] | None = None) -> bool:
-    """Whether ``c`` holds on the host."""
+               values: Mapping[str, object] | None = None, asleep: bool = False) -> bool:
+    """Whether ``c`` holds on the host, in a sleeping frame when ``asleep``
+    (the always-on frame is one)."""
     env = {} if env is None else env
     values = {} if values is None else values
     if isinstance(c, Present):
@@ -190,6 +195,8 @@ def cond_value(c: Cond, aod: bool = False, env: Mapping[str, Any] | None = None,
         if e.ast is None:
             return True
         return bool(expr.evaluate(e.ast, dict(values)))
+    if isinstance(c, NotSleeping):
+        return not (asleep or aod)
     assert isinstance(c, NotPulsing)
     return True
 
@@ -248,7 +255,7 @@ class Evaluator:
 
     def cond(self, c: Cond) -> bool:
         r = self.renderer
-        return cond_value(c, r.options.aod, self.locals, r.values)
+        return cond_value(c, r.options.aod, self.locals, r.values, r.options.asleep)
 
     def string(self, s: Str) -> str | None:
         r = self.renderer

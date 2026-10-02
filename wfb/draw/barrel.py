@@ -133,6 +133,25 @@ def scale_fraction(c: Any, scale: tuple[float, float]) -> float | None:
     return share(reading, scale)
 
 
+def hour_angle(hour: int, minute: int, second: int) -> float:
+    """`WfbHands.hourAngle`, in radians clockwise from 12: half a degree a
+    minute.  Python's degrees-to-radians conversion rather than Monkey C's
+    `Math.PI / 360.0` constant, kept at the expression the preview has
+    always used so its pixels never move (`tests/test_hand_angles.py` checks
+    the `.mc` return)."""
+    return math.radians(((hour % 12) * 60 + minute) * 0.5)
+
+
+def minute_angle(hour: int, minute: int, second: int) -> float:
+    """`WfbHands.minuteAngle`: 6 degrees a minute."""
+    return math.radians(minute * 6.0)
+
+
+def second_angle(hour: int, minute: int, second: int) -> float:
+    """`WfbHands.secondAngle`: 6 degrees a second."""
+    return math.radians(second * 6.0)
+
+
 #: The functions a program's `Call` may name, by their Monkey C name.
 CALLS: dict[str, Callable[..., Any]] = {
     "Math.sin": math.sin,
@@ -144,4 +163,10 @@ CALLS: dict[str, Callable[..., Any]] = {
     "WfbScale.fraction": scale_fraction,
     "WfbGeom.rotatedX": rotated_x,
     "WfbGeom.rotatedY": rotated_y,
+}
+
+
+#: Each hand's angle twin, by hand name.
+HAND_ANGLES: dict[str, Callable[[int, int, int], float]] = {
+    "hour": hour_angle, "minute": minute_angle, "second": second_angle,
 }
