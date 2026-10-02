@@ -1,8 +1,8 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: proposed (2026-10-02). Building it was decided by the user on
-2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). The decisions in
-§1 are open.** Delete this file once every slice has shipped
+2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). G4 was decided
+on 2026-10-02; G1–G3, G5 and G6 in §1 are open.** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research:
@@ -28,8 +28,11 @@ In short:
   - re-parses to exactly the intended data;
   - loads with no new error.
 
-  Saving writes text the author can already see. An edit made outside the
-  editor (VS Code, a `git checkout`, Claude) reloads and bumps the version.
+  **Edits go to a working copy, never to the design itself (G4).** The
+  design file is written only when the author saves, after seeing the
+  diff and approving it. An edit made outside the editor (VS Code, a
+  `git checkout`, Claude) reloads the session when there is nothing
+  unsaved, and is shown as a conflict when there is.
 * **The first editor edits geometry only** (research 27 E2): select,
   move, resize, align, rotate arcs; add an element by type; delete,
   duplicate, reorder. Everything else is edited as text in the same
@@ -59,6 +62,10 @@ In short:
   editor.
 - **E4 (research 27, 2026-10-01):** the editor starts after plan 26 slice
   3 (done), while plan 26 ports the remaining kinds.
+- **G4: edits go to a working copy; the design is written only on an
+  approved save (user, 2026-10-02).** This replaces the proposal to write
+  every accepted patch at once. How it works is in "The working copy",
+  below.
 - **The text pane is CodeMirror 6 with `codemirror-json-schema`**
   (research 28 §5): no false errors on valid faces. It does not enforce
   `dependentRequired`, so `wfb`'s own diagnostics, shown in the same
@@ -95,14 +102,6 @@ In short:
 
   Nothing measured needs a server round trip per pointer move (research 27
   §5.3), so the WebSocket's only gain is one connection instead of two.
-- **G4: when the file is written.**
-  - **A (recommended):** every accepted patch is written at once. The
-    file on disk is the document, so `git diff`, the CLI and Claude always
-    see what the editor shows. Undo is the editor's own history of
-    patches, and Ctrl-Z writes too.
-  - **B:** edits stay in memory until an explicit Save. That is closer to
-    a desktop editor, but the file and the screen then disagree, and an
-    external edit has to be merged rather than reloaded.
 - **G5: vendored front-end files.** Preact and `htm` are single ES
   modules and are vendored as they ship. CodeMirror 6 and
   `codemirror-json-schema` are many npm packages.
@@ -131,7 +130,7 @@ removes between the preview and the watch.
 |---|---|
 | The pointer moves: the layer's image shifts, or a lowered layer is redrawn from its JSON (slice 4) | browser, preview only |
 | Release: an intent such as "move `clock` by (+6, −3) px on fenix8solar47mm", or "set `radius` of `ring` to 44%r for all targets" | browser → server |
-| Unit conversion, override target, text patch, gate, file write (G4), re-render | server (`wfb/edit/`, the pipeline) |
+| Unit conversion, override target, text patch, gate, working-copy write (G4), re-render | server (`wfb/edit/`, the pipeline) |
 | New text, version and layers | server → browser |
 | Typing in the text pane | browser (CodeMirror), sent as the whole text against its version; the server gates it the same way |
 | Undo and redo | server: its history of accepted patches |
@@ -156,6 +155,47 @@ previewed on its own would need all of it:
 | fonts (baking, metrics, stand-ins) | ~1 800 | text measurement, which moves a text's box |
 | lint | ~2 550 | the diagnostics beside the canvas |
 | drawing: the per-kind draw code and `preview.py` | ~1 300 in `wfb/draw/` once ported | **provided by plan 26** as the JSON and its contract |
+
+### The working copy (G4)
+
+- **Where it lives.** It sits beside the design, as
+  `.<name>.studio.yaml` in the design's own directory, so relative paths
+  resolve exactly as they do for the design: `fonts:` sources, assets.
+  The working copy name is gitignored. Every render, lint and build in the
+  session reads the working copy.
+- **What the author sees.** The design file's name, never the working
+  copy's. Diagnostics are reported against the design's path: the session
+  loads the working copy with the design's name as its display path, so a
+  message reads `face.yaml:12:5`, not `.face.studio.yaml:12:5`.
+- **The session.** It records the design's text and modification time
+  when it started or last saved. "Unsaved" means the working copy differs
+  from that recorded text. The editor shows an unsaved marker and the
+  number of changed lines.
+- **Save, approved.** Save shows the diff from the design to the working
+  copy and waits for the author's approval. On approval, the server:
+  1. gates the working copy once more;
+  2. checks the design has not changed on disk since the session recorded
+     it;
+  3. writes the design atomically (a temporary file in the same
+     directory, then a rename).
+
+  If the design changed meanwhile, the save is refused, and the author
+  chooses between overwriting it (shown its diff first) and reloading it
+  (discarding the unsaved edits).
+- **Discard** deletes the working copy and reloads the design.
+- **An external edit to the design.** With nothing unsaved, the session
+  reloads it. With unsaved edits, it is a conflict: keep editing (the
+  later save will be refused until resolved), or reload and discard.
+- **Resume.** A working copy left from an earlier session, after a crash
+  or a closed tab, is offered on the next `wfb studio` for the same
+  design: resume it, or discard it.
+- **Undo and redo** step through the session's accepted patches, applied
+  to the working copy. A save is not undone; it just records a new base.
+- **Build** (slice 6) builds the working copy and says so in its log and
+  in `build-info.json`, so a `.prg` from unsaved edits is never mistaken
+  for one from the design.
+- **What the rest of the tooling sees.** `git diff`, the CLI and Claude
+  see only the design, and so only saved work. That is the intent of G4.
 
 ### Open: G6, a browser-side preview of geometry edits
 
@@ -259,11 +299,19 @@ Tests:
 - `wfb studio <face.yaml> [--port N] [--host 127.0.0.1]`: Starlette, run
   by uvicorn. A `--host` other than loopback prints a warning, because the
   server runs `monkeyc` and writes files (research 26 §4.8).
-- **The session:** the file's text and version; a file watcher (the
+- **The session:** the design's recorded text and time, the working
+  copy's text and version (G4); a file watcher on the design (the
   `preview --watch` polling, shared); one resolve per change across the
   targets; font baking memoised (research 28 §4: showcase 893 → 250 ms).
+- **The working copy:** created on the first accepted edit, reported
+  under the design's name, offered for resume on the next start, and
+  gitignored (`.*.studio.yaml`). Save with an approved diff, discard,
+  and the external-edit conflict are in this slice. Even a read-only
+  viewer must never touch the design.
 - **Endpoints (G3 A):**
-  - the document (text, version);
+  - the document (working text, version, unsaved or not, the diff to the
+    design);
+  - save (with the version the author approved) and discard;
   - the frame and its layers (PNG per layer, JSON ops for lowered kinds,
     boxes, ids, spans);
   - the diagnostics;
@@ -286,7 +334,8 @@ Tests:
 - **Selection both ways:** a click on the canvas selects the element's
   text range (`Element.span` to the composed node), and the cursor in the
   text selects the element on the canvas.
-- G4's write policy applies to typed edits too.
+- Typed edits go to the working copy too (G4), and count as unsaved like
+  any other edit.
 
 ### Slice 3 — direct manipulation
 
@@ -338,8 +387,10 @@ Tests:
 
 ### Slice 6 — build
 
-- A build button runs `wfb build` as a subprocess (a hung `monkeyc` cannot
-  take the editor down) and streams its log over the event stream.
+- A build button runs `wfb build` on the working copy as a subprocess (a
+  hung `monkeyc` cannot take the editor down) and streams its log over the
+  event stream. A build with unsaved edits says so in its log and in
+  `build-info.json`.
 - It shows each target's `.prg` (a download) and its measured memory
   against `Device.watchface_memory_limit`.
 - Sideloading stays manual (`wfb install` is unbuilt, `docs/limitations.md`
@@ -361,9 +412,16 @@ Tests:
 - **The patch engine over the corpus** (slice 0 on): every example face,
   every edit kind, a no-op byte-identical, nothing outside the edited
   lines changed.
-- **The server** through Starlette's test client (G2 A): document
-  versions, a stale patch refused, a refused patch leaving the file
-  untouched, an external edit reloaded.
+- **The server** through Starlette's test client (G2 A):
+  - document versions, and a stale patch refused;
+  - the design byte-identical after any number of edits and a discard,
+    and changed only by an approved save;
+  - a save refused when the design changed on disk after the session
+    recorded it;
+  - an external edit reloaded with nothing unsaved, and a conflict with
+    something unsaved;
+  - a left-over working copy offered for resume;
+  - diagnostics naming the design, never the working copy.
 - **No build changes:** `tools/snapshot.py` at every slice.
 - **The front end:** the pure functions (unit conversion display,
   snapping, hit-testing by alpha, the JSON rasteriser) as ES modules,
@@ -382,6 +440,11 @@ Tests:
   every release.
 - **CodeMirror bundle upkeep (G5):** one script with pinned versions,
   rerun deliberately.
-- **Security:** the server writes the design's file and runs `monkeyc`.
+- **A forgotten working copy.** Unsaved work sits in a hidden file beside
+  the design. The editor's unsaved marker, the resume offer, and
+  `wfb studio`'s exit message naming it keep it visible, and the file is
+  gitignored so it is never committed by accident.
+- **Security:** the server writes the working copy, writes the design
+  only on an approved save, and runs `monkeyc`.
   Loopback by default, file access limited to the design's own directory,
   no arbitrary path reads.
