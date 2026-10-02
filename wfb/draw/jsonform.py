@@ -22,11 +22,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Union
 
 from . import barrel
-from .evaluator import Evaluator, paste_glyph
+from .evaluator import Evaluator, Stop, part_ops, paste_glyph
 from .program import (
-    AodPick, ArcSpan, Blank, Comment, Const, Disagreement, FillPolygon, Font, Glyph, IfAod,
-    IfAwake, IfNotNull, LetText, Lit, LoadFont, Num, Op, Primitive, SetColor, SetPen, Shifted,
-    Text,
+    AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, Disagreement, FillPolygon,
+    Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
+    LetText, Lit, LoadFont, Num, Op, Part, Primitive, SetColor, SetPen, Shifted, Text,
+    WrapperGuard,
 )
 
 if TYPE_CHECKING:
@@ -61,7 +62,10 @@ def to_json(renderer: "Renderer", placed: "Placed") -> tuple[list[dict[str, Any]
     if ops is None:
         raise ValueError(f"{placed.id}: its kind does not lower")
     writer = _JsonWriter(renderer)
-    writer.walk(ops)
+    try:
+        writer.walk(ops)
+    except Stop:
+        pass
     return writer.out, writer.fonts
 
 
@@ -73,17 +77,27 @@ class _JsonWriter:
         self.fonts: dict[str, FontRef] = {}
 
     def num(self, n: Num) -> JsonNum:
+        """A `Layout` constant, or one moved by a whole amount, stays named;
+        anything else the watch computes is folded to its value."""
         if isinstance(n, Const):
             return {"const": n.name, "value": n.value, "add": 0}
         if isinstance(n, Lit):
             return n.value
         if isinstance(n, AodPick):
             return self.num(n.asleep if self.aod and n.asleep is not None else n.awake)
-        add = n.by if isinstance(n, Shifted) else n.by * n.times
-        base = self.num(n.base)
-        if isinstance(base, dict):
-            return {**base, "add": base["add"] + add}
-        return base + add
+        if isinstance(n, (Shifted, Grown)):
+            add = n.by if isinstance(n, Shifted) else n.by * n.times
+            base = self.num(n.base)
+            if isinstance(base, dict):
+                return {**base, "add": base["add"] + add}
+            return base + add
+        if isinstance(n, Bin) and n.op in ("+", "-") and isinstance(n.a, Const):
+            # `Layout.X + x0`: the constant, moved by what the watch adds.
+            add = self.eval.num(n.b)
+            if isinstance(add, (int, float)):
+                return {"const": n.a.name, "value": n.a.value,
+                        "add": add if n.op == "+" else -add}
+        return float(self.eval.num(n))
 
     def font(self, font: Font) -> str:
         face = font.asleep if self.aod and font.asleep is not None else font
@@ -105,6 +119,7 @@ class _JsonWriter:
             ev.color = ev.paint(op.color)
             self.out.append({"op": "color", "rgb": list(ev.color)})
         elif isinstance(op, SetPen):
+            ev.run([op])
             self.out.append({"op": "pen", "width": self.num(op.width) if op.width else 1})
         elif isinstance(op, Primitive):
             self.out.append({"op": op.name,
@@ -112,6 +127,25 @@ class _JsonWriter:
         elif isinstance(op, FillPolygon):
             self.out.append({"op": "fillPolygon", "const": op.const,
                              "points": [list(p) for p in op.points]})
+        elif isinstance(op, ArcProgress):
+            call = barrel.draw_progress(ev.num(op.start), ev.num(op.sweep), ev.num(op.fraction))
+            self.out.append({
+                "op": "arc", "cx": self.num(op.cx), "cy": self.num(op.cy),
+                "radius": self.num(op.radius), "pen": self.num(op.pen),
+                "start": self.num(op.start), "sweep": self.num(op.sweep),
+                # What `WfbArc.drawProgress` hands `dc.drawArc`.
+                "call": list(call) if call is not None else None,
+            })
+        elif isinstance(op, Part):
+            self.walk(part_ops(op, ev))
+        elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard)):
+            ev.run([op])
+        elif isinstance(op, If):
+            self.walk(op.then if ev.cond(op.cond) else op.otherwise)
+        elif isinstance(op, For):
+            for i in range(int(ev.num(op.bound))):
+                ev.locals[op.var] = i
+                self.walk(op.body)
         elif isinstance(op, ArcSpan):
             call = barrel.draw_span(ev.num(op.start), ev.num(op.sweep))
             self.out.append({
@@ -232,6 +266,8 @@ def rasterise(ops: list[dict[str, Any]], fonts: dict[str, FontRef],
             shape = name[4:]
             if shape in ("Rectangle", "RoundedRectangle"):
                 x, y, w, h = v[:4]
+                if w <= 0 or h <= 0:
+                    continue  # `Dc` draws nothing
                 rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1]
                 if shape == "Rectangle":
                     if fill:

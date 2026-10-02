@@ -12,6 +12,8 @@ pixels it should cover.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from typing import Any
 
 
 def to_number(x: float) -> int:
@@ -83,3 +85,61 @@ def rotated_x(x: float, y: float, cx: float, sin: float, cos: float) -> int:
 def rotated_y(x: float, y: float, cy: float, sin: float, cos: float) -> int:
     """`WfbGeom.rotatedY`, the same for ``y``."""
     return to_number(math.floor(cy + x * sin + y * cos + 0.5))
+
+
+def mc_round(x: float) -> float:
+    """`Math.round`: half up, a whole `Float` the caller then `toNumber`s."""
+    return float(math.floor(x + 0.5))
+
+
+def clamp(value: float, lo: float, hi: float) -> float:
+    """`WfbMath.clamp`."""
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
+
+
+def percent(value: float, goal: float) -> float:
+    """`WfbMath.percent`: ``value`` as a percentage of ``goal``, 0 to 100;
+    0 for a goal at or below zero."""
+    if goal <= 0:
+        return 0.0
+    pct = 100.0 * float(value) / float(goal)
+    return clamp(pct, 0.0, 100.0)
+
+
+def share(reading: float, scale: tuple[float, float]) -> float:
+    """`WfbScale.share`: how full a gauge on ``scale`` is for ``reading``,
+    0.0 to 1.0."""
+    low = float(scale[0])
+    full = (float(reading) - low) / (float(scale[1]) - low)
+    if full < 0.0:
+        return 0.0
+    return 1.0 if full > 1.0 else full
+
+
+def scale_fraction(c: Any, scale: tuple[float, float]) -> float | None:
+    """`WfbScale.fraction`: `share` of the pulled complication ``c``'s
+    numeric `value` (a count the device scaled to thousands, unit "K",
+    multiplied back), null for any other."""
+    value = c.value
+    if value is None or isinstance(value, (str, bool)) or not isinstance(value, (int, float)):
+        return None
+    reading = float(value)
+    if not isinstance(value, int) and getattr(c, "unit", None) == "K":
+        reading = reading * 1000
+    return share(reading, scale)
+
+
+#: The functions a program's `Call` may name, by their Monkey C name.
+CALLS: dict[str, Callable[..., Any]] = {
+    "Math.sin": math.sin,
+    "Math.cos": math.cos,
+    "Math.round": mc_round,
+    "WfbMath.clamp": clamp,
+    "WfbMath.percent": percent,
+    "WfbScale.share": share,
+    "WfbScale.fraction": scale_fraction,
+}

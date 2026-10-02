@@ -11,14 +11,17 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from .. import formatting
-from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, plus
+from ..emit.monkeyc import rotated, shapes
+from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, mc_float, plus
 from ..emit.writer import Writer
 from ..ir import local_name
 from .program import (
-    AodDimmed, AodPaint, AodPick, AodRestyled, AodStr, ArcSpan, Blank, Color, Comment, Concat,
-    Const, Disagreement, FillPolygon, Glyph, IconChoice, IfAod, IfAwake, IfNotNull, LetText, Lit,
-    LoadFont, Num, Op, Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
+    Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Conv, Disagreement, FillPolygon,
+    FloatLit, For, Glyph, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
+    PaintPick, Paren, Part, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted, Str,
+    StrLit, Text, WrapperGuard,
 )
 
 
@@ -32,7 +35,33 @@ def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
     if isinstance(n, AodPick):
         asleep = num_code(n.asleep, aod) if n.asleep is not None else None
         return aod.value(asleep, num_code(n.awake, aod))
+    if isinstance(n, FloatLit):
+        return mc_float(n.value) + n.suffix
+    if isinstance(n, NumLocal):
+        return n.name
+    if isinstance(n, Read):
+        return n.expr.code
+    if isinstance(n, Bin):
+        return f"{num_code(n.a, aod)} {n.op} {num_code(n.b, aod)}"
+    if isinstance(n, Paren):
+        return f"({num_code(n.inner, aod)})"
+    if isinstance(n, Call):
+        return f"{n.fn}({', '.join(num_code(arg, aod) for arg in n.args)})"
+    if isinstance(n, Conv):
+        return f"{num_code(n.inner, aod)}.{n.method}()"
+    if isinstance(n, NumPick):
+        return (f"({cond_code(n.cond, aod)}) ? {num_code(n.then, aod)} : "
+                f"{num_code(n.otherwise, aod)}")
     return plus(num_code(n.base, aod), str(n.by), n.times)
+
+
+def cond_code(c: Cond, aod: AodStyle = NO_AOD) -> str:
+    if isinstance(c, (Present, LocalsSet)):
+        names = c.guards if isinstance(c, Present) else c.names
+        return " && ".join(f"{name} != null" for name in names)
+    if isinstance(c, Cmp):
+        return f"{num_code(c.a, aod)} {c.op} {num_code(c.b, aod)}"
+    return f"_pulsing != {c.unique}"
 
 
 def str_code(s: Str, aod: AodStyle = NO_AOD) -> str:
@@ -59,6 +88,11 @@ def color_code(c: Paint, aod: AodStyle = NO_AOD) -> str:
         return aod.dimmed(c.element, c.expr)
     if isinstance(c, AodPaint):
         return aod.value(color_code(c.asleep, aod), color_code(c.awake, aod))
+    if isinstance(c, AodPart):
+        return aod.part_color(c.element, c.expr)
+    if isinstance(c, PaintPick):
+        return (f"({cond_code(c.cond, aod)}) ? {color_code(c.then, aod)} : "
+                f"{color_code(c.otherwise, aod)}")
     return "ringColor"
 
 
@@ -86,6 +120,50 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
             f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
             f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
         ])
+    elif isinstance(op, ArcProgress):
+        w.call("WfbArc.drawProgress", [
+            f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
+            f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
+            n(op.fraction),
+        ])
+    elif isinstance(op, Part):
+        assert not op.stamp, "a stamped part is only ever the preview side of a Disagreement"
+        if op.ring is None:
+            rotated.emit_transformed_part(w, op.part, op.prefix, radial=op.radial,
+                                          thickness_expr=n(op.pen), set_pen=op.set_pen)
+        else:
+            rotated.emit_part_ring(w, op.part, op.prefix, op.ring, radial=op.radial,
+                                   thickness_expr=n(op.pen), set_pen=op.set_pen)
+    elif isinstance(op, Let):
+        w.line(f"var {op.name} = {n(op.value)};")
+    elif isinstance(op, Assign):
+        w.line(f"{op.name} = {n(op.value)};")
+    elif isinstance(op, If):
+        with w.block(f"if ({cond_code(op.cond, aod)})"):
+            print_ops(w, op.then, aod)
+        if op.otherwise:
+            with w.block("else"):
+                print_ops(w, op.otherwise, aod)
+    elif isinstance(op, For):
+        with w.block(f"for (var {op.var} = 0; {op.var} < {n(op.bound)}; {op.var}++)"):
+            print_ops(w, op.body, aod)
+    elif isinstance(op, LetSlotPick):
+        w.line(f"var chosenId = {op.field};")
+        if op.guarded:
+            # the slot's Id field is null where Toybox.Complications is absent
+            w.line("var chosenType = (chosenId != null) ? chosenId.getType() : null;")
+            w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) "
+                   ": null;")
+        else:
+            w.line("var chosenType = chosenId.getType();")
+            w.line("var pulled = WfbComplications.valueOf(chosenId);")
+        w.line(f"var scale = (chosenType != null && pulled != null) "
+               f"? {op.module}.scale(chosenType, pulled) : null;")
+    elif isinstance(op, LetAutoScale):
+        w.line(f"var scale = ({op.reader} != null) "
+               f"? {op.module}.scale(Complications.{op.constant}, {op.reader}) : null;")
+    elif isinstance(op, WrapperGuard):
+        pass  # the view prints it
     elif isinstance(op, LoadFont):
         w.line(f"var {op.local} = {op.source};")
         if op.on_null == "return":

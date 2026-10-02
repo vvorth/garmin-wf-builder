@@ -4,24 +4,27 @@ needle, lit segments, or a scale with a pointer."""
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any, TYPE_CHECKING
 
 from .. import catalog, complications, expr, vocab
 from ..catalog import Type
 from ..ir.model import HOLD_AUTO, Element, Expression, Progress
 from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
-from ..preview import (
-    RGB, SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX, arc_span,
-)
+from ..preview import SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import rotated, shapes
-from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, article, const_prefix, mc_float, own_ring, plus,
-)
+from ..emit.monkeyc.common import article, const_prefix
 from ..emit.monkeyc.slot_scale import SLOT_SCALE_MODULE
-from ..emit.writer import Writer
 from ..ir.naming import config_data_ids, config_field
+from ..ir import disc_perimeter_offsets
+from ..draw.printer import color_code
+from ..draw.program import (
+    AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp,
+    Comment, Cond, Const, Conv, Disagreement, DrawContext, FloatLit, For, Grown, If, Let,
+    LetAutoScale, LetSlotPick, Lit, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
+    PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted, WrapperGuard,
+)
 from . import ElementKind
 from .complication_slot import COMPLICATION_SLOT_SAMPLE, resolve_slot_reference
 
@@ -30,10 +33,8 @@ if TYPE_CHECKING:
 
     from . import ContrastSubject
     from ..ir.builder import Builder
-    from ..emit.monkeyc.readplan import ReadPlan
     from ..ir.model import Face
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver, RotatablePart
 
 def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress) -> None:
     """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
@@ -41,7 +42,7 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
     This is the one place `fallback:` means something other than "the
     value" -- for a progress, either the value or the max can be the
     absent reading, so the outcome is the only well-defined substitute
-    (see `_fallback_fraction`).  That makes an out-of-range constant a
+    (see `_fallback_num`).  That makes an out-of-range constant a
     plausible mistake -- writing the *step count* you wanted rather than
     the fraction -- and it is the one path not already clamped by
     `WfbMath.percent`, so a bar could be drawn wider than its own box.  Only a build-time constant is checked here; a
@@ -69,26 +70,6 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
             "for 'half full' write 0.5, not the reading you would have shown",
         ],
     )
-
-
-def _fallback_fraction(element: Progress) -> str:
-    """The `progress` fallback, as a Float in 0.0-1.0.
-
-    Two things have to be true of it, and neither is automatic.  It must be a
-    **Float**: `fraction` is reassigned from `_fraction()` (a Float) in the
-    branch below, and a `var` first bound to a Number makes the whole thing a
-    `PolyType<Float or Number>` that `WfbArc.drawProgress`'s `Float` parameter
-    rejects under `-l 3`.  And it must be **in range**: the real path is
-    clamped by `WfbMath.percent`, so an unclamped fallback is the one way a
-    bar could be drawn wider than its own box.  A constant is checked at build
-    time (`_check_fallback_fraction`) and emitted bare; anything else is
-    clamped on device.
-    """
-    fallback = element.fallback
-    assert fallback is not None, "only called for when_absent: fallback, which requires one"
-    if fallback.is_constant:
-        return f"{float(expr.as_number(fallback.constant))}f"
-    return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
 
 
 #: What a gauge with `slot:` does not read, and why.
@@ -150,22 +131,10 @@ def keeps_track(element: Progress) -> bool:
     parts -- the arc or bar track, every segment unlit, a scale's track and
     bands -- and hides only what the value places: the fill, the lit
     segments, the pointer.  A needle has nothing that does not depend on the
-    value, so it hides whole.  The one definition codegen (`emit_draw`) and
-    the preview (`draw_preview`) both read."""
+    value, so it hides whole.  The one definition the program
+    (`ProgressKind.lower`) and the view's guard (`draws_while_absent`) both
+    read."""
     return element.when_absent == "hide" and element.style != "needle"
-
-
-def _present(guards: list[str] | None) -> str | None:
-    """The `if` header that wraps a gauge's value-dependent drawing when it
-    keeps its track while absent, else `None` (no wrap)."""
-    if not guards:
-        return None
-    return "if (" + " && ".join(f"{name} != null" for name in guards) + ")"
-
-
-def _fraction(element: Progress) -> str:
-    assert element.value is not None and element.maximum is not None  # both required
-    return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
 #: Keys a `style: needle` progress does not read: the needle's shape is its
@@ -302,422 +271,381 @@ def _resolve_ticked(r: Resolver, element: Progress, placed: PlacedProgress,
                             bar.width + 2 * placed.pointer, bar.height + 2 * dy)
 
 
-def _device_arc_span(garmin_start: float, sweep: float) -> tuple[int, int] | None:
-    """The Pillow `(start, end)` `WfbArc.drawSpan` draws from a Garmin start
-    angle -- rounded the way the device rounds it, not from the author's
-    angle, so a fractional cell start agrees to the degree."""
-    whole = max(-360, min(360, _round_away(sweep)))
-    if whole == 0:
-        return None
-    start = -_round_away(garmin_start)
-    end = start + whole
-    return (start, end) if whole > 0 else (end, start)
+def _fallback_num(element: Progress) -> Num:
+    """The `progress` fallback, a Float in 0.0-1.0, as a program value.
+
+    Two things have to be true of it, and neither is automatic.  It must be a
+    **Float**: `fraction` is reassigned from the fill fraction (a Float) in the
+    branch below, and a `var` first bound to a Number makes the whole thing a
+    `PolyType<Float or Number>` that `WfbArc.drawProgress`'s `Float` parameter
+    rejects under `-l 3`.  And it must be **in range**: the real path is
+    clamped by `WfbMath.percent`, so an unclamped fallback is the one way a
+    bar could be drawn wider than its own box.  A constant is checked at build
+    time (`_check_fallback_fraction`) and emitted bare; anything else is
+    clamped on device.
+    """
+    fallback = element.fallback
+    assert fallback is not None, "only called for when_absent: fallback, which requires one"
+    if fallback.is_constant:
+        return FloatLit(float(expr.as_number(fallback.constant)), "f")
+    return Conv(Call("WfbMath.clamp", (Read(fallback), FloatLit(0.0), FloatLit(1.0))),
+                "toFloat")
 
 
-def _round_away(value: float) -> int:
-    return int(value - 0.5) if value < 0 else int(value + 0.5)
+class _Lowering:
+    """One gauge's program: `ProgressKind.lower`'s helpers, sharing the
+    placed gauge, its `Layout` constants and its paints."""
 
+    def __init__(self, ctx: DrawContext, placed: PlacedProgress) -> None:
+        self.ctx = ctx
+        self.placed = placed
+        self.element = element = placed.element
+        self.prefix = const_prefix(placed.id)
+        self.consts = {name: Const(name, value) for name, value, _
+                       in KIND.layout_constants(self.prefix, placed)
+                       if isinstance(value, (int, float))}
+        self.color: Paint = AodRestyled(element, "color")
+        self.track: Paint | None = (AodRestyled(element, "track_color")
+                                    if element.track_color is not None else None)
+        #: The ring to draw: an outlined group's pass, else the gauge's own.
+        self.stamp: tuple[Paint, int] | None = None
+        if ctx.ring is not None:
+            self.stamp = (RingColor(), ctx.ring.width)
+        elif element.outline is not None:
+            self.stamp = (AodDimmed(element, element.outline.color), element.outline.width)
 
-def _lit(fraction: float, count: int) -> int:
-    """How many segments light: `(fraction * count + 0.5).toNumber()`."""
-    return int(fraction * count + 0.5)
+    def c(self, suffix: str) -> Const:
+        return self.consts[f"{self.prefix}_{suffix}"]
 
+    def thickness(self) -> AodPick:
+        """The arc's pen width, with its `aod: {thickness: ...}` override."""
+        return AodPick(self.c("THICKNESS"),
+                       self.c("AOD_THICKNESS") if self.placed.aod_thickness is not None else None)
 
-def _mc_round(value: float) -> int:
-    """`Math.round(value).toNumber()` -- half up."""
-    return math.floor(value + 0.5)
+    def ops(self) -> list[Op]:
+        element = self.element
+        ops: list[Op] = []
+        # What the view's own guard hides on the watch, the preview hides
+        # too: a nullable colour, which nothing can be drawn in, and a value
+        # absent under `absent: hide` with nothing kept to draw.
+        colours = tuple(e for e in (element.color, element.track_color)
+                        if e is not None and e.constant is None and e.ast is not None)
+        if colours:
+            ops.append(WrapperGuard(colours))
+        if element.slot is not None:
+            return ops + self.slot_gauge()
+        probes = tuple(e for e in (element.value, element.maximum) if e is not None)
+        if element.when_absent == "hide" and not keeps_track(element):
+            ops.append(WrapperGuard(probes))
+        if element.auto_scale is not None:
+            assert element.value is not None and isinstance(element.value.ast, expr.Ref)
+            reader = catalog.READERS[catalog.CATALOG[element.value.ast.path].reader].name
+            constant = complications.TYPES[element.auto_scale].constant
+            return ops + [
+                Comment(f"max: auto -- {element.value.ast.path}'s own scale"),
+                LetAutoScale(reader, SLOT_SCALE_MODULE, constant, element.auto_scale,
+                             element.value),
+                Comment("no scale (an unset goal, no profile, ...) hides the whole gauge"),
+                If(LocalsSet(("scale",)), tuple(self.bound(
+                    Call("WfbScale.share", (Read(element.value), NumLocal("scale"))),
+                    probes))),
+            ]
+        assert element.value is not None and element.maximum is not None  # both required
+        fraction = Bin("/", Call("WfbMath.percent", (Read(element.value),
+                                                     Read(element.maximum))), FloatLit(100.0))
+        return ops + self.bound(fraction, probes)
 
+    def bound(self, fraction: Num, probes: tuple[Expression, ...]) -> list[Op]:
+        """A gauge bound to a value: `absent:`'s policy over ``fraction``,
+        then each style's drawing."""
+        element = self.element
+        guards = self.ctx.value_guards
+        present = (Present(guards, probes) if keeps_track(element) and guards else None)
+        ops: list[Op] = []
+        if element.when_absent == "fallback" and guards:
+            # The fill fraction falls back, not the raw value/max: either half
+            # of the pair can be the absent reading, so the outcome is the
+            # only well-defined thing to substitute (`_check_fallback_fraction`).
+            ops += [Comment("when_absent: fallback"),
+                    Let("fraction", _fallback_num(element)),
+                    If(Present(guards, probes), (Assign("fraction", fraction),)),
+                    Blank()]
+            fraction = NumLocal("fraction")
+        return ops + self.styles(fraction, present)
 
-def _needle_angle_rad(placed: PlacedProgress, fraction: float) -> float:
-    """The needle's angle, radians clockwise from 12 -- the host twin of the
-    `start + fraction * sweep` line `emit_draw` writes."""
-    return math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
-
-
-def _emit_grown_bar(w: Writer, prefix: str, width_expr: str, ring_width: str) -> None:
-    """A bar's ring: one rounded rectangle ``ring_width`` larger all round,
-    corners of that radius -- exactly the dilation of the rectangle."""
-    p = f"Layout.{prefix}"
-    w.call("dc.fillRoundedRectangle", [
-        f"{plus(f'{p}_X', ring_width, -1)}, {plus(f'{p}_Y', ring_width, -1)}",
-        f"{plus(width_expr, ring_width, 2)}, {plus(f'{p}_HEIGHT', ring_width, 2)}",
-        ring_width,
-    ])
-
-
-def _emit_arc_ring(w: Writer, element: Progress, prefix: str, thickness_expr: str,
-                   fraction_expr: str, present: str | None, stamp: RingPass) -> None:
-    """An arc gauge's ring, stamped (an arc's ends are undocumented, so it
-    has no one-draw dilation): the whole track when there is one -- the lit
-    arc lies inside it -- else the lit arc alone, only while it draws."""
-    if element.track_color is not None:
-        shapes.emit_stamp(
-            w, stamp.color, stamp.width,
-            lambda dx, dy: shapes.emit_arc_span(w, prefix, thickness_expr, dx, dy),
-            blank_after=False)
-        return
-    def lit(dx: int, dy: int) -> None:
-        w.call("WfbArc.drawProgress", [
-            f"dc, {shapes.shifted(f'Layout.{prefix}_CX', dx)}, "
-            f"{shapes.shifted(f'Layout.{prefix}_CY', dy)}, Layout.{prefix}_RADIUS",
-            f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
-            fraction_expr,
-        ])
-
-    with w.block_if(present):
-        shapes.emit_stamp(w, stamp.color, stamp.width, lit, blank_after=False)
-
-
-def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
-                 fraction_expr: str, aod: AodStyle, stamp: RingPass | None = None,
-                 ring_only: bool = False) -> None:
-    """`style: needle`: one `sin`/`cos` pair for the needle's angle, then each
-    part rotated and drawn -- an analog hand's own draw (`wfb.kinds.hands.
-    _emit_one_hand`) with `start + fraction * sweep` in place of the clock.
-    The angle's two constants are device-independent, so they are inlined
-    rather than written to every device's `Layout`."""
-    start = math.radians(placed.start_angle)
-    sweep = math.radians(placed.sweep)
-    w.line(f"var cx = Layout.{prefix}_CX;")
-    w.line(f"var cy = Layout.{prefix}_CY;")
-    w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
-    w.line("var sin = Math.sin(angle);")
-    w.line("var cos = Math.cos(angle);")
-    thickness_override = rotated.aod_thickness_override(placed, prefix)
-
-    def thickness(part_prefix: str) -> str:
-        return aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
-
-    if stamp is not None:
-        # The needle ringed whole, as a hand is (`wfb.kinds.hands._emit_one_hand`).
-        w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-        for index, part in enumerate(placed.needle):
-            part_prefix = f"{prefix}_NEEDLE_{index}"
-            rotated.emit_part_ring(w, part, part_prefix, stamp.width, radial=True,
-                                   thickness_expr=thickness(part_prefix))
-    if ring_only:
-        return
-    current = None
-    for index, part in enumerate(placed.needle):
-        part_prefix = f"{prefix}_NEEDLE_{index}"
-        color = aod.part_color(element, part.color)
-        if color != current:
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            current = color
-        rotated.emit_transformed_part(w, part, part_prefix, radial=True,
-                                      thickness_expr=thickness(part_prefix))
-
-
-def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float | None,
-                    color: RGB, track_color: RGB | None) -> None:
-    """`segments`/`scale` in the preview, mirroring `_emit_ticked` rounding
-    for rounding: `WfbArc.drawSpan`'s whole degrees from a Garmin start, and
-    `toNumber()`'s truncation on a bar. ``fraction`` is `None` while the
-    value is absent under `absent: hide`: no cell lit, no pointer."""
-    element = placed.element
-    s = renderer.scale
-    arc = element.geometry == "arc"
-    if arc:
-        cx, cy, radius = placed.center[0] * s, placed.center[1] * s, placed.radius * s
-        width = max(1, renderer.aod_geometry(placed, "thickness", placed.thickness) * s)
-        box = [cx - radius, cy - radius, cx + radius, cy + radius]
-
-        def arc_cell(garmin_start: float, sweep: float, fill: RGB) -> None:
-            span = _device_arc_span(garmin_start, sweep)
-            if span is not None:
-                renderer.draw.arc(box, *span, fill=fill, width=width)
-    rect = placed.rect or placed.inner_box
-    x, y, w, h = rect.x, rect.y, rect.width, rect.height
-
-    def bar_cell(x0: int, x1: int, fill: RGB) -> None:
-        if x1 > x0:
-            renderer.draw.rectangle([(x + x0) * s, y * s, (x + x1) * s - 1, (y + h) * s - 1],
-                                    fill=fill)
-
-    if element.style == "segments":
-        assert element.count is not None  # `style: segments` requires count:
-        lit = 0 if fraction is None else _lit(fraction, element.count)
-        for i in range(element.count):
-            fill = color if i < lit else track_color
-            if fill is None:
-                continue
-            if arc:
-                arc_cell(placed.garmin_start - i * placed.step, placed.cell, fill)
-            else:
-                x0 = int(i * placed.step)
-                bar_cell(x0, int(i * placed.step + placed.cell), fill)
-        return
-    if track_color is not None:
-        if arc:
-            arc_cell(placed.garmin_start, placed.sweep, track_color)
-        else:
-            bar_cell(0, w, track_color)
-    for (a, b), (_, band_color) in zip(placed.band_spans, element.bands):
-        fill = renderer.aod_dimmed(element, band_color)
-        if arc:
-            arc_cell(90.0 - a, b, fill)
-        else:
-            bar_cell(int(a), int(b), fill)
-    if fraction is None:
-        return
-    if arc:
-        angle = math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
-        px = placed.center[0] + _mc_round(placed.radius * math.sin(angle))
-        py = placed.center[1] - _mc_round(placed.radius * math.cos(angle))
-    else:
-        px = x + int(w * fraction)
-        py = y + h // 2
-    r = placed.pointer * s
-    renderer.draw.ellipse([px * s - r, py * s - r, px * s + r, py * s + r], fill=color)
-
-
-def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
-                 fraction_expr: str, color_code: str, track_color_code: str | None,
-                 aod: AodStyle, present: str | None = None) -> None:
-    """`style: segments`: `(fraction * COUNT + 0.5).toNumber()` cells lit in
-    `color:`, the rest in `track_color:` (or not drawn). `style: scale`: the
-    track, each band, then a dot at the value. An arc cell or band is one
-    `WfbArc.drawSpan`, so it follows the whole-degree rule every arc here
-    does; a bar's cell edges truncate like `style: bar`'s fill. ``present``
-    (`_present`) guards what the value places: while it is absent no cell
-    is lit and no pointer drawn."""
-    arc = element.geometry == "arc"
-    thickness_expr = shapes.thickness_expr(prefix, placed, aod) if arc else None
-    L = f"Layout.{prefix}"
-
-    def arc_span_call(start: str, sweep: str) -> None:
-        w.call("WfbArc.drawSpan", [f"dc, {L}_CX, {L}_CY, {L}_RADIUS",
-                                   f"{thickness_expr}, {start}, {sweep}"])
-
-    def bar_rect(x0: str, x1: str) -> None:
-        w.line(f"var x0 = {x0};")
-        w.line(f"dc.fillRectangle({L}_X + x0, {L}_Y, {x1} - x0, {L}_HEIGHT);")
-
-    if element.style == "segments":
-        count = element.count
-        lit = f"(({fraction_expr}) * {count} + 0.5).toNumber()"
-        if present is None:
-            w.line(f"var lit = {lit};")
-        else:
-            w.comment("absent: hide -- every cell draws unlit while the value is absent")
-            w.line("var lit = 0;")
-            with w.block(present):
-                w.line(f"lit = {lit};")
-        if track_color_code is None:
-            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        bound = "lit" if track_color_code is None else str(count)
-        with w.block(f"for (var i = 0; i < {bound}; i++)"):
-            if track_color_code is not None:
-                w.line(f"dc.setColor((i < lit) ? {color_code} : {track_color_code}, "
-                       "Graphics.COLOR_TRANSPARENT);")
-            if arc:
-                arc_span_call(f"{L}_START - i * {L}_STEP", f"{L}_CELL")
-            else:
-                bar_rect(f"(i * {L}_STEP).toNumber()", f"(i * {L}_STEP + {L}_CELL).toNumber()")
-        return
-
-    if track_color_code is not None:
-        w.comment("the track")
-        w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-        if arc:
-            shapes.emit_arc_span(w, prefix, thickness_expr)
-        else:
-            w.line(f"dc.fillRectangle({L}_X, {L}_Y, {L}_WIDTH, {L}_HEIGHT);")
-    for index, (_, band_color) in enumerate(element.bands):
-        w.comment(f"band {index}")
-        w.line(f"dc.setColor({aod.dimmed(element, band_color)}, Graphics.COLOR_TRANSPARENT);")
-        if arc:
-            arc_span_call(f"{L}_BAND_{index}_START", f"{L}_BAND_{index}_SWEEP")
-        else:
-            w.line(f"dc.fillRectangle({L}_X + {L}_BAND_{index}_X0, {L}_Y, "
-                   f"{L}_BAND_{index}_X1 - {L}_BAND_{index}_X0, {L}_HEIGHT);")
-    w.comment("the pointer" if present is None
-              else "the pointer -- absent: hide, so only while the value is present")
-    with w.block_if(present):
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        if arc:
-            start = math.radians(placed.start_angle)
-            sweep = math.radians(placed.sweep)
-            w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
-            w.call("dc.fillCircle", [
-                f"{L}_CX + Math.round({L}_RADIUS * Math.sin(angle)).toNumber()",
-                f"{L}_CY - Math.round({L}_RADIUS * Math.cos(angle)).toNumber()",
-                f"{L}_POINTER",
-            ])
-        else:
-            w.call("dc.fillCircle", [
-                f"{L}_X + ({L}_WIDTH * ({fraction_expr})).toNumber()",
-                f"{L}_Y + {L}_HEIGHT / 2", f"{L}_POINTER",
-            ])
-
-
-def _emit_bound(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: str,
-                value_guards: list[str] | None, color_code: str, track_color_code: str | None,
-                aod: AodStyle, ring: RingPass | None) -> None:
-    """A gauge bound to a value: `absent:`'s policy over ``fraction_expr``,
-    then each style's drawing."""
-    element = placed.element
-    present = _present(value_guards) if keeps_track(element) else None
-    if element.when_absent == "fallback" and value_guards:
-        # The fill fraction falls back, not the raw value/max -- 'fallback:'
-        # supplies a number in the same 0.0-1.0 range _fraction() computes, so
-        # it slots into exactly the same drawProgress/fillRectangle call the
-        # real reading would have used.  (This is why a `progress` fallback
-        # means something different from a `text` one, which supplies the
-        # *value* and is then formatted; for progress either half of the pair
-        # can be the absent reading, so the outcome is the only well-defined
-        # thing to substitute.  `_check_fallback_fraction` checks it is
-        # in range and `draw_preview` renders the same substitution.)
-        w.comment("when_absent: fallback")
-        available = " && ".join(f"{name} != null" for name in value_guards)
-        w.line(f"var fraction = {_fallback_fraction(element)};")
-        with w.block(f"if ({available})"):
-            w.line(f"fraction = {fraction_expr};")
-        w.blank()
-        fraction_expr = "fraction"
-    _emit_styles(w, placed, prefix, fraction_expr, present, color_code,
-                 track_color_code, aod, ring)
-
-
-def _slot_preview_fraction(renderer: Renderer, element: Progress) -> tuple[bool, float | None]:
-    """A slot gauge in the preview, at its slot's `default:` pick: whether it
-    draws at all (a pick with no scale hides it whole, as on the watch), and
-    the sample reading's fill fraction, or None without one.  Scaled for the
-    preview's sample wearer (`wfb.preview.SAMPLE_WEARER_*`)."""
-    assert element.slot is not None
-    slot = renderer.resolved.face.config_data.get(element.slot)
-    if slot is None:
-        return False, None
-    sample = COMPLICATION_SLOT_SAMPLE.get(slot.default)
-    scale = complications.scale_for(
-        slot.default, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
-        sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=sample)
-    if scale is None:
-        return False, None
-    return True, complications.scale_fraction(sample, None, scale)
-
-
-def _emit_styles(w: Writer, placed: PlacedProgress, prefix: str, fraction_expr: str,
-                 present: str | None, color_code: str, track_color_code: str | None,
-                 aod: AodStyle, ring: RingPass | None) -> None:
-    """Each style's drawing from ``fraction_expr``, the fill fraction; with
-    ``present``, only the value-dependent parts are wrapped in it."""
-    element = placed.element
-    stamp = ring or own_ring(element, aod)
-    if element.style == "needle":
-        _emit_needle(w, element, placed, prefix, fraction_expr, aod, stamp,
-                     ring_only=ring is not None)
-        return
-    if element.style in ("segments", "scale"):
-        # `outline:` is refused on these at build time (`build`).
-        _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
-                     track_color_code, aod, present)
-        return
-    if element.style == "arc":
-        thickness_expr = shapes.thickness_expr(prefix, placed, aod)
-        if stamp is not None:
-            _emit_arc_ring(w, element, prefix, thickness_expr, fraction_expr, present, stamp)
-            if ring is not None:
-                return
-            w.blank()
-        if element.track_color is not None:
-            w.comment("the unfilled track")
-            w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-            shapes.emit_arc_span(w, prefix, thickness_expr)
-            w.blank()
-        w.comment("the filled portion" if present is None
-                  else "the filled portion -- absent: hide, so only while the value is present")
-        with w.block_if(present):
-            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-            w.call("WfbArc.drawProgress", [
-                f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
-                f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
-                fraction_expr,
-            ])
-        return
-
-    if stamp is not None and element.track_color is not None:
-        # The whole bar is the silhouette: one grown copy is its
-        # dilation (`wfb.kinds.shape._emit_grown`).
-        w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-        _emit_grown_bar(w, prefix, f"Layout.{prefix}_WIDTH", stamp.width_code)
-        if ring is not None:
-            return
-        w.blank()
-    if element.track_color is not None:
-        w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.line(
-            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, "
-            f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
-        )
-        w.blank()
-    if present is not None:
-        w.comment("the fill -- absent: hide, so only while the value is present")
-    with w.block_if(present):
-        w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
-        if stamp is not None and element.track_color is None:
-            # No track: the lit length alone is the silhouette.
-            with w.block("if (filled > 0)"):
-                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                _emit_grown_bar(w, prefix, "filled", stamp.width_code)
-            if ring is not None:
-                return
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.line(
-            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, "
-            f"Layout.{prefix}_HEIGHT);"
-        )
-
-
-def _emit_slot_gauge(w: Writer, placed: PlacedProgress, prefix: str, unique: int,
-                     guarded: bool, color_code: str, track_color_code: str | None,
-                     aod: AodStyle, ring: RingPass | None) -> None:
-    """A gauge on a `config: slots:` slot: the wearer's pick, against its own
-    scale (`SlotScale`).  A pick with no scale draws nothing, track included;
-    a scaled pick with no reading yet follows `absent:` as any gauge does.
-    While the native editor animates this slot it draws nothing either, as
-    the slot's `data` element does: the editor's drawable draws it then.
-    Everything is wrapped, never returned from (`docs/lore/codegen.md`)."""
-    element = placed.element
-    assert element.slot is not None
-    w.comment("the editor is animating this slot -- its drawable draws it (drawSlot)")
-    with w.block(f"if (_pulsing != {unique})"):
-        _emit_slot_gauge_body(w, placed, prefix, guarded, color_code, track_color_code,
-                              aod, ring)
-
-
-def _emit_slot_gauge_body(w: Writer, placed: PlacedProgress, prefix: str, guarded: bool,
-                          color_code: str, track_color_code: str | None, aod: AodStyle,
-                          ring: RingPass | None) -> None:
-    element = placed.element
-    assert element.slot is not None
-    field = config_field(f"data_{element.slot}")
-    w.comment(f"slot: config.data.{element.slot} -- the wearer's pick, against its own scale")
-    w.line(f"var chosenId = {field};")
-    if guarded:
-        # the slot's Id field is null where Toybox.Complications is absent
-        w.line("var chosenType = (chosenId != null) ? chosenId.getType() : null;")
-        w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
-    else:
-        w.line("var chosenType = chosenId.getType();")
-        w.line("var pulled = WfbComplications.valueOf(chosenId);")
-    w.line(f"var scale = (chosenType != null && pulled != null) "
-           f"? {SLOT_SCALE_MODULE}.scale(chosenType, pulled) : null;")
-    w.comment("a pick with no scale hides the whole gauge, track included")
-    with w.block("if (scale != null && pulled != null)"):
-        w.line("var reading = WfbScale.fraction(pulled, scale);")
+    def slot_gauge(self) -> list[Op]:
+        """A gauge on a `config: slots:` slot: the wearer's pick, against its
+        own scale (`SlotScale`).  A pick with no scale draws nothing, track
+        included; a scaled pick with no reading yet follows `absent:` as any
+        gauge does.  While the native editor animates this slot it draws
+        nothing either, as the slot's `data` element does: the editor's
+        drawable draws it then.  Everything is wrapped, never returned from
+        (`docs/lore/codegen.md`)."""
+        element = self.element
+        assert element.slot is not None
+        face = self.ctx.resolved.face
+        slot = face.config_data.get(element.slot)
+        sample = COMPLICATION_SLOT_SAMPLE.get(slot.default) if slot is not None else None
+        scale = (complications.scale_for(
+            slot.default, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
+            sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=sample)
+            if slot is not None else None)
+        reading = NumLocal("reading")
+        has_reading = LocalsSet(("reading",))
+        inner: list[Op] = [Let("reading", Call("WfbScale.fraction", (NumLocal("pulled"),
+                                                                     NumLocal("scale"))))]
         if element.when_absent == "fallback":
-            w.comment("when_absent: fallback")
-            w.line(f"var fraction = (reading != null) ? reading : {_fallback_fraction(element)};")
-            _emit_styles(w, placed, prefix, "fraction", None, color_code,
-                         track_color_code, aod, ring)
+            inner += [Comment("when_absent: fallback"),
+                      Let("fraction", NumPick(has_reading, reading, _fallback_num(element))),
+                      *self.styles(NumLocal("fraction"), None)]
         elif keeps_track(element):
-            _emit_styles(w, placed, prefix, "reading", "if (reading != null)", color_code,
-                         track_color_code, aod, ring)
+            inner += self.styles(reading, has_reading)
         else:
-            with w.block("if (reading != null)"):
-                _emit_styles(w, placed, prefix, "reading", None, color_code,
-                             track_color_code, aod, ring)
+            inner.append(If(has_reading, tuple(self.styles(reading, None))))
+        body: list[Op] = [
+            Comment(f"slot: config.data.{element.slot} -- the wearer's pick, against its own "
+                    "scale"),
+            LetSlotPick(config_field(f"data_{element.slot}"), SLOT_SCALE_MODULE,
+                        self.ctx.complications_guarded, sample, scale),
+            Comment("a pick with no scale hides the whole gauge, track included"),
+            If(LocalsSet(("scale", "pulled")), tuple(inner)),
+        ]
+        return [
+            Comment("the editor is animating this slot -- its drawable draws it (drawSlot)"),
+            If(NotPulsing(config_data_ids(face)[element.slot]), tuple(body)),
+        ]
+
+    def styles(self, fraction: Num, present: Cond | None) -> list[Op]:
+        """Each style's drawing from ``fraction``, the fill fraction; with
+        ``present``, only the value-dependent parts are wrapped in it."""
+        style = self.element.style
+        if style == "needle":
+            return self.needle(fraction)
+        if style in ("segments", "scale"):
+            # `outline:` is refused on these at build time (`ring_refusal`).
+            return self.ticked(fraction, present)
+        if style == "arc":
+            return self.arc(fraction, present)
+        return self.bar(fraction, present)
+
+    def arc(self, fraction: Num, present: Cond | None) -> list[Op]:
+        element, c = self.element, self.c
+        thickness = self.thickness()
+
+        def span(dx: int = 0, dy: int = 0) -> ArcSpan:
+            return ArcSpan(Shifted(c("CX"), dx), Shifted(c("CY"), dy), c("RADIUS"), thickness,
+                           c("START"), c("SWEEP"))
+
+        def lit(dx: int = 0, dy: int = 0) -> ArcProgress:
+            return ArcProgress(Shifted(c("CX"), dx), Shifted(c("CY"), dy), c("RADIUS"),
+                               thickness, c("START"), c("SWEEP"), fraction)
+
+        ops: list[Op] = []
+        if self.stamp is not None:
+            # Stamped: an arc's ends are undocumented, so it has no one-draw
+            # dilation.  The whole track when there is one (the lit arc lies
+            # inside it), else the lit arc alone, only while it draws.
+            paint, width = self.stamp
+            offsets = disc_perimeter_offsets(width)
+            if element.track_color is not None:
+                ops += [SetColor(paint), *(span(dx, dy) for dx, dy in offsets)]
+            else:
+                ops += _wrap(present, [SetColor(paint), *(lit(dx, dy) for dx, dy in offsets)])
+            if self.ctx.ring is not None:
+                return ops
+            ops.append(Blank())
+        if self.track is not None:
+            ops += [Comment("the unfilled track"), SetColor(self.track), span(), Blank()]
+        ops.append(Comment("the filled portion" if present is None else
+                           "the filled portion -- absent: hide, so only while the value is "
+                           "present"))
+        return ops + _wrap(present, [SetColor(self.color), lit()])
+
+    def bar(self, fraction: Num, present: Cond | None) -> list[Op]:
+        element, c = self.element, self.c
+
+        def rect(width: Num, dx: int = 0, dy: int = 0) -> Primitive:
+            return Primitive("fillRectangle", ((Shifted(c("X"), dx), Shifted(c("Y"), dy), width,
+                                                c("HEIGHT")),))
+
+        def grown(width: Num) -> Disagreement:
+            """A bar's ring: one rounded rectangle the ring's width larger all
+            round, corners of that radius -- exactly the dilation of the
+            rectangle -- where the preview stamps it."""
+            assert self.stamp is not None
+            paint, ring = self.stamp
+            return Disagreement(
+                watch=(SetColor(paint), Primitive("fillRoundedRectangle", (
+                    (Grown(c("X"), ring, -1), Grown(c("Y"), ring, -1)),
+                    (Grown(width, ring, 2), Grown(c("HEIGHT"), ring, 2)),
+                    (Lit(ring),)))),
+                preview=(SetColor(paint), *(rect(width, dx, dy)
+                                            for dx, dy in disc_perimeter_offsets(ring))),
+                why="the watch is sent a grown copy; the preview stamps, and which of the "
+                    "two the watch's rasteriser matches is not yet measured")
+
+        ops: list[Op] = []
+        ring_only = self.ctx.ring is not None
+        if self.stamp is not None and element.track_color is not None:
+            # The whole bar is the silhouette.
+            ops.append(grown(c("WIDTH")))
+            if ring_only:
+                return ops
+            ops.append(Blank())
+        if self.track is not None:
+            ops += [SetColor(self.track), rect(c("WIDTH")), Blank()]
+        if present is not None:
+            ops.append(Comment("the fill -- absent: hide, so only while the value is present"))
+        filled = NumLocal("filled")
+        body: list[Op] = [Let("filled", Conv(Paren(Bin("*", c("WIDTH"), fraction)), "toNumber"))]
+        if self.stamp is not None and element.track_color is None:
+            # No track: the lit length alone is the silhouette.
+            body.append(If(Cmp(">", filled, Lit(0)), (grown(filled),)))
+            if ring_only:
+                return ops + _wrap(present, body)
+        body += [SetColor(self.color), rect(filled)]
+        return ops + _wrap(present, body)
+
+    def ticked(self, fraction: Num, present: Cond | None) -> list[Op]:
+        """`style: segments`: `(fraction * COUNT + 0.5).toNumber()` cells lit
+        in `color:`, the rest in `track_color:` (or not drawn).  `style:
+        scale`: the track, each band, then a dot at the value.  An arc cell
+        or band is one `WfbArc.drawSpan`, so it follows the whole-degree
+        rule every arc here does; a bar's cell edges truncate like `style:
+        bar`'s fill.  ``present`` guards what the value places: while it is
+        absent no cell is lit and no pointer drawn."""
+        element, placed, c = self.element, self.placed, self.c
+        arc = element.geometry == "arc"
+        thickness = self.thickness() if arc else None
+
+        def span(start: Num, sweep: Num) -> ArcSpan:
+            assert thickness is not None
+            return ArcSpan(c("CX"), c("CY"), c("RADIUS"), thickness, start, sweep)
+
+        def bar_rect(x0: Num, x1: Num) -> list[Op]:
+            return [Let("x0", x0),
+                    Primitive("fillRectangle", ((Bin("+", c("X"), NumLocal("x0")), c("Y"),
+                                                 Bin("-", x1, NumLocal("x0")), c("HEIGHT")),))]
+
+        i = NumLocal("i")
+        if element.style == "segments":
+            count = element.count
+            assert count is not None  # `style: segments` requires count:
+            lit_value = Conv(Paren(Bin("+", Bin("*", Paren(fraction), Lit(count)),
+                                       FloatLit(0.5))), "toNumber")
+            ops: list[Op]
+            if present is None:
+                ops = [Let("lit", lit_value)]
+            else:
+                ops = [Comment("absent: hide -- every cell draws unlit while the value is absent"),
+                       Let("lit", Lit(0)), If(present, (Assign("lit", lit_value),))]
+            if self.track is None:
+                ops.append(SetColor(self.color))
+            cell: list[Op] = []
+            if self.track is not None:
+                cell.append(SetColor(PaintPick(Cmp("<", i, NumLocal("lit")), self.color,
+                                               self.track)))
+            if arc:
+                cell.append(span(Bin("-", c("START"), Bin("*", i, c("STEP"))), c("CELL")))
+            else:
+                cell += bar_rect(Conv(Paren(Bin("*", i, c("STEP"))), "toNumber"),
+                                 Conv(Paren(Bin("+", Bin("*", i, c("STEP")), c("CELL"))),
+                                      "toNumber"))
+            bound: Num = NumLocal("lit") if self.track is None else Lit(count)
+            return ops + [For("i", bound, tuple(cell))]
+
+        ops = []
+        if self.track is not None:
+            ops += [Comment("the track"), SetColor(self.track),
+                    span(c("START"), c("SWEEP")) if arc
+                    else Primitive("fillRectangle", ((c("X"), c("Y"), c("WIDTH"), c("HEIGHT")),))]
+        for index, (_, band_color) in enumerate(element.bands):
+            band = f"BAND_{index}"
+            ops += [Comment(f"band {index}"), SetColor(AodDimmed(element, band_color))]
+            if arc:
+                ops.append(span(c(f"{band}_START"), c(f"{band}_SWEEP")))
+            else:
+                ops.append(Primitive("fillRectangle", ((
+                    Bin("+", c("X"), c(f"{band}_X0")), c("Y"),
+                    Bin("-", c(f"{band}_X1"), c(f"{band}_X0")), c("HEIGHT")),)))
+        ops.append(Comment("the pointer" if present is None
+                           else "the pointer -- absent: hide, so only while the value is "
+                                "present"))
+        pointer: list[Op] = [SetColor(self.color)]
+        if arc:
+            angle = NumLocal("angle")
+
+            def offset(fn: str) -> Conv:
+                return Conv(Call("Math.round", (Bin("*", c("RADIUS"), Call(fn, (angle,))),)),
+                            "toNumber")
+
+            pointer += [
+                Let("angle", Bin("+", FloatLit(math.radians(placed.start_angle)),
+                                 Bin("*", Paren(fraction), FloatLit(math.radians(placed.sweep))))),
+                Primitive("fillCircle", ((Bin("+", c("CX"), offset("Math.sin")),),
+                                         (Bin("-", c("CY"), offset("Math.cos")),),
+                                         (c("POINTER"),))),
+            ]
+        else:
+            pointer.append(Primitive("fillCircle", (
+                (Bin("+", c("X"), Conv(Paren(Bin("*", c("WIDTH"), Paren(fraction))),
+                                       "toNumber")),),
+                (Bin("+", c("Y"), Bin("/", c("HEIGHT"), Lit(2))),),
+                (c("POINTER"),))))
+        return ops + _wrap(present, pointer)
+
+    def needle(self, fraction: Num) -> list[Op]:
+        """`style: needle`: one `sin`/`cos` pair for the needle's angle, then
+        each part rotated and drawn -- an analog hand's own draw with
+        `start + fraction * sweep` in place of the clock.  The angle's two
+        constants are device-independent, so they are inlined rather than
+        written to every device's `Layout`."""
+        element, placed, c, prefix = self.element, self.placed, self.c, self.prefix
+        angle = NumLocal("angle")
+        ops: list[Op] = [
+            Let("cx", c("CX")), Let("cy", c("CY")),
+            Let("angle", Bin("+", FloatLit(math.radians(placed.start_angle)),
+                             Bin("*", Paren(fraction), FloatLit(math.radians(placed.sweep))))),
+            Let("sin", Call("Math.sin", (angle,))),
+            Let("cos", Call("Math.cos", (angle,))),
+        ]
+        asleep = (Const(f"{prefix}_AOD_THICKNESS", placed.aod_thickness)
+                  if placed.aod_thickness is not None else None)
+
+        def pen(part_prefix: str, part: RotatablePart) -> AodPick:
+            return AodPick(Const(f"{part_prefix}_THICKNESS", getattr(part, "thickness", 1)),
+                           asleep)
+
+        parts = [(f"{prefix}_NEEDLE_{index}", part) for index, part in enumerate(placed.needle)]
+        if self.stamp is not None:
+            # The needle ringed whole, as a hand is.
+            paint, width = self.stamp
+            ops.append(SetColor(paint))
+            for part_prefix, part in parts:
+                ring = Part(part, part_prefix, True, pen(part_prefix, part), ring=width)
+                if part.shape == "circle" and part.filled:
+                    ops.append(Disagreement(
+                        watch=(ring,), preview=(replace(ring, stamp=True),),
+                        why="the watch is sent a grown circle; the preview stamps, and which "
+                            "of the two the watch's rasteriser matches is not yet measured"))
+                else:
+                    ops.append(ring)
+            if self.ctx.ring is not None:
+                return ops
+        current = None
+        for part_prefix, part in parts:
+            paint = AodPart(element, part.color)
+            code = color_code(paint, self.ctx.aod)
+            if code != current:
+                ops.append(SetColor(paint))
+                current = code
+            ops.append(Part(part, part_prefix, True, pen(part_prefix, part)))
+        return ops
+
+
+def _wrap(cond: Cond | None, body: list[Op]) -> list[Op]:
+    """``body``, inside ``if (<cond>)`` when there is one."""
+    return [If(cond, tuple(body))] if cond is not None else body
 
 
 class ProgressKind(ElementKind[Progress, PlacedProgress]):
@@ -872,126 +800,12 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             return (placed.center[0], placed.center[1], placed.reach)
         return None
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedProgress) -> None:
-        element = placed.element
-        measured: float | None
-        if element.slot is not None:
-            shown, measured = _slot_preview_fraction(renderer, element)
-            if not shown:
-                return
-        elif element.auto_scale is not None:
-            assert element.value is not None and element.value.ast is not None
-            value = expr.evaluate(element.value.ast, renderer.values)
-            scale = complications.scale_for(
-                element.auto_scale, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
-                sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=value)
-            if scale is None:
-                return  # no scale hides the whole gauge, as on the watch
-            measured = (None if value is None
-                        else complications.scale_fraction(value, None, scale))
-        else:
-            assert element.value is not None and element.maximum is not None  # both required
-            value = (expr.evaluate(element.value.ast, renderer.values)
-                     if element.value.ast else None)
-            maximum = (expr.evaluate(element.maximum.ast, renderer.values)
-                       if element.maximum.ast else None)
-            if value is None or maximum is None:
-                measured = None
-            else:
-                top = expr.as_number(maximum)
-                measured = (
-                    0.0 if not top or top <= 0
-                    else min(1.0, max(0.0, expr.as_number(value) / top))
-                )
-        for other in (element.color, element.track_color):
-            # A nullable colour hides the whole gauge, as the device's own
-            # guard does (`view._emit_element_method`): there is nothing to
-            # draw the track with.
-            if (other is not None and other.constant is None and other.ast is not None
-                    and expr.evaluate(other.ast, renderer.values) is None):
-                return
-        fraction: float | None
-        if measured is None:
-            if element.when_absent == "hide" and not keeps_track(element):
-                return
-            # `fallback:` on a progress substitutes the fill fraction itself,
-            # not the value, as the device does (`_fallback_fraction`);
-            # `hide` keeps the track (`keeps_track`) with nothing on it.
-            fraction = None if element.when_absent == "hide" else 0.0
-            if element.when_absent == "fallback" and element.fallback is not None \
-                    and element.fallback.ast is not None:
-                substitute = expr.evaluate(element.fallback.ast, renderer.values)
-                if substitute is not None:
-                    fraction = min(1.0, max(0.0, float(expr.as_number(substitute))))
-        else:
-            fraction = measured
-        s = renderer.scale
-        if element.style == "needle":
-            assert fraction is not None  # an absent needle hides whole
-            angle = _needle_angle_rad(placed, fraction)
-            sin_t, cos_t = math.sin(angle), math.cos(angle)
-            for part in placed.needle:
-                renderer.hand_part(placed, part, placed.center[0] * s, placed.center[1] * s,
-                                   sin_t, cos_t)
-            return
-        color = renderer.aod_color(element, "color", element.color)
-        track_color = (renderer.aod_color(element, "track_color", element.track_color)
-                       if element.track_color is not None else None)
-        if element.style in ("segments", "scale"):
-            _preview_ticked(renderer, placed, fraction, color, track_color)
-            return
-
-        if element.style == "arc":
-            cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
-            width = max(1, renderer.aod_geometry(placed, "thickness", placed.thickness) * s)
-            box: list[float] = [cx - r, cy - r, cx + r, cy + r]
-            # The whole-degree rule WfbArc.drawSpan applies on the device --
-            # see `arc_span`.
-            track = arc_span(placed.start_angle, placed.sweep)
-            if element.track_color is not None and track is not None:
-                track_color = renderer.aod_color(element, "track_color", element.track_color)
-                renderer.draw.arc(box, *track, fill=track_color, width=width)
-            fill = (arc_span(placed.start_angle, placed.sweep * fraction)
-                    if fraction is not None and fraction > 0 else None)
-            if fill is not None:
-                renderer.draw.arc(box, *fill, fill=color, width=width)
-            return
-
-        box = renderer.rect(placed.inner_box)
-        if element.track_color is not None:
-            track_color = renderer.aod_color(element, "track_color", element.track_color)
-            renderer.draw.rectangle(box, fill=track_color)
-        filled = 0 if fraction is None else int(placed.inner_box.width * fraction) * s
-        if filled > 0:
-            renderer.draw.rectangle([box[0], box[1], box[0] + filled, box[3]], fill=color)
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedProgress,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        element = placed.element
-        prefix = const_prefix(placed.id)
-        color_code = aod.color(element, "color")
-        track_color_code = (aod.color(element, "track_color")
-                            if element.track_color is not None else None)
-        if element.slot is not None:
-            _emit_slot_gauge(w, placed, prefix, config_data_ids(resolved.face)[element.slot],
-                             plan.device_guards.complications, color_code, track_color_code,
-                             aod, ring)
-            return
-        if element.auto_scale is not None:
-            assert element.value is not None and isinstance(element.value.ast, expr.Ref)
-            reader = catalog.READERS[catalog.CATALOG[element.value.ast.path].reader].name
-            constant = complications.TYPES[element.auto_scale].constant
-            w.comment(f"max: auto -- {element.value.ast.path}'s own scale")
-            w.line(f"var scale = ({reader} != null) "
-                   f"? {SLOT_SCALE_MODULE}.scale(Complications.{constant}, {reader}) : null;")
-            w.comment("no scale (an unset goal, no profile, ...) hides the whole gauge")
-            with w.block("if (scale != null)"):
-                _emit_bound(w, placed, prefix, f"WfbScale.share({element.value.code}, scale)",
-                            value_guards, color_code, track_color_code, aod, ring)
-            return
-        _emit_bound(w, placed, prefix, _fraction(element), value_guards, color_code,
-                    track_color_code, aod, ring)
+    def lower(self, ctx: DrawContext, placed: PlacedProgress) -> list[Op]:
+        """The gauge: its value's fill fraction under `absent:`'s policy (a
+        `slot:` pick or `max: auto` scaled first), then its style's drawing,
+        after its `outline:` ring when it has one.  With `ctx.ring` (an
+        outlined group's pass), only the ring is drawn, in its colour."""
+        return _Lowering(ctx, placed).ops()
 
     def draws_while_absent(self, element: Progress) -> bool:
         return keeps_track(element)

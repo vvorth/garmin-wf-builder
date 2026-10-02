@@ -363,8 +363,8 @@ def test_renamed_to_helper():
 #:     one element, but both are this same kind of scope.
 #:   - "text": `wfb.kinds.text.TextKind.lower`'s `when_absent: placeholder`/`fallback`
 #:     branches.
-#:   - "fraction": `wfb.kinds.progress.ProgressKind.emit_draw`'s `when_absent: fallback` branch.
-#:   - "filled": `wfb.kinds.progress.ProgressKind.emit_draw`'s rectangle-style fill width.
+#:   - "fraction": `wfb.kinds.progress.ProgressKind.lower`'s `when_absent: fallback` branch.
+#:   - "filled": `wfb.kinds.progress.ProgressKind.lower`'s rectangle-style fill width.
 #: A future catalogue entry landing on one of these would be exactly the
 #: same class of `Redefinition of variable` this test exists to catch,
 #: just against a name the emitter chose rather than one another catalogue

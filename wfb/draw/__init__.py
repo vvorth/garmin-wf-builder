@@ -38,8 +38,9 @@ def emit_body(w: "Writer", resolved: "ResolvedFace", placed: "Placed",
     the kind's own `emit_draw` when it has none."""
     from .printer import print_ops
 
-    ops = (lowered(DrawContext(resolved, aod, tuple(value_guards or ()), ring), placed)
-           if kinds.for_placed(placed).lowers else None)
+    ctx = DrawContext(resolved, aod, tuple(value_guards or ()), ring,
+                      complications_guarded=plan.device_guards.complications)
+    ops = lowered(ctx, placed) if kinds.for_placed(placed).lowers else None
     if ops is None:
         kind = kinds.for_placed(placed)
         if ring is None:

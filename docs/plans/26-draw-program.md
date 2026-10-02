@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–4 done, 5–10 to go. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–5 done, 6–10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -401,7 +401,55 @@ glyph, the glyph each sample condition chooses (with a contrast between
 two), the barrel's fallback, and the JSON naming the `_CX` constant. The
 chooser was seen red against a constant glyph.
 
-### Slices 5–9 — the remaining kinds
+### Slice 5 — `progress` (gauge): done
+
+Built as below. `ProgressKind.lower` replaces `emit_draw`, `draw_preview` and
+their seventeen private helpers. The program gained:
+- numbers the watch computes: `FloatLit`, `NumLocal`, `Read` (a bound
+  expression), `Bin`, `Paren`, `Call` (a barrel or `Math` function, its
+  twin in `barrel.CALLS`), `Conv` (`toNumber`/`toFloat`) and `NumPick`. A
+  `Bin` prints bare, and the evaluator reads a chain the way Monkey C parses
+  the printed text, `/` of two `Number`s truncating;
+- conditions: `Present` (value guards, probed by their expressions on the
+  host), `LocalsSet`, `Cmp`, `NotPulsing`;
+- ops: `Let`, `Assign`, `If`, `For`, `ArcProgress` (`WfbArc.drawProgress`),
+  `Part` (a rotated or translated part and its `WfbRing`/`WfbRingWide`
+  ring), `LetSlotPick`, `LetAutoScale`, and `WrapperGuard`, the view's own
+  guard, which the printer leaves to the view and the evaluator honours
+  until slice 10;
+- paints `AodPart` and `PaintPick`; `DrawContext.complications_guarded`.
+
+A gauge's arc now paints through `WfbArc.drawSpan`'s transcription.
+The host's complication is always present, with the sample as its value, so
+a `max: auto` gauge with no sample reading keeps its track, as the guide
+says. A bar's or a needle's filled-circle ring stays a `Disagreement` until
+Q1.
+
+Proven before the old methods were deleted, on every gauge in `examples/`
+and `tests/fixtures/` on each face's targets:
+- printed code byte-identical: **1 440/1 440** (no `aod:`, `aod:` on, with
+  `dim:`; 1 px and 2 px ring passes; `Complications` guarded or not);
+- whole-frame renders (1×, 2×, 3×, AOD): **156/204** identical. The other
+  48 are one named preview fix: **a bar's fill was one preview pixel too
+  wide** (the old preview filled to `X + filled` inclusive; `fillRectangle`
+  stops a column short of it). With the old width emulated, renders are
+  **204/204** identical. Affected: `features/align`, `features/profile`,
+  `features/rings`, `showcase`, `tests/fixtures/outline_pattern_gauge`.
+
+`tools/snapshot.py`: 534 unchanged, 17 changed against the slice's starting
+snapshot, every one a preview of those five faces (default, asleep, time,
+all styles); no generated file changed. Real builds of `features/progress`,
+`features/slot-gauge` and `outline_pattern_gauge` are warning-free on all
+three targets.
+
+Tests (`tests/test_draw_gauge.py`): the parse order and integer division,
+`percent`'s clamp, the bar's last fill column, segments lit 7 and 6 of 10,
+`max: auto` with and without a reading, a slot gauge's editor check and a
+scaleless pick, and a needle's ring through the barrel. Seen red: tree-order
+evaluation, the one-column-wide fill, truncated segment rounding, and a
+scale that vanished with its reading.
+
+### Slices 6–9 — the remaining kinds
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:
@@ -409,7 +457,7 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 | Slice | Kind | New ops and twins | Notes |
 |---|---|---|---|
 | 4 | `icon` | glyph from the icon font, `WfbWeather.chooseIcon` (a dynamic icon) | ring by ring font |
-| 5 | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
+| 5 (done) | `progress` (gauge) | `WfbArc.drawProgress`, segments, needle and scale, slot scale (`WfbScale`, `SlotScale`) | the fraction's clamp and minimum (plan 25) as program values |
 | 6 | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
 | 7 | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
 | 8 | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
