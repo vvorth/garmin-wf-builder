@@ -14,9 +14,10 @@ Research:
 - `docs/research/28-editor-open-questions.md`: what was closed by
   measurement.
 
-Plan 26 (the single draw program) is the base. Its slices 0–3 are built:
-per-element layers, single-sourced frame membership, and the JSON form with
-its reference rasteriser.
+Plan 26 (the single draw program) is the base, and is built: every
+element is one program, its guards included, with per-element layers,
+single-sourced frame membership, and the JSON form with its reference
+rasteriser.
 
 In short:
 

@@ -10,7 +10,6 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [26 the single draw program](26-draw-program.md) | accepted 2026-10-01 (P1–P4 as recommended); slices 0–9 done, 10 to go; Q1 waits on a simulator capture |
 | [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02 (G4 the user's working-copy rule, the rest as recommended); slice 0 done, 1–7 to go |
 
 ## Built and deleted
@@ -40,3 +39,4 @@ as built:
 | 25 gauges on a slot, `max: auto` | `git show b1e3a23:docs/plans/25-slot-gauges.md` (§1 is D1–D8; §3 the slices: slice 1 `71859a4` (counts read whole, "10.0K"), slice 2 `0acb5a2` (the scale table), slice 3 `38d2c1c` (`slot:` on a gauge), slice 4 `3c35b10` (the editor sees every element of a slot), slice 5 `b1e3a23` (`max: auto`), slice 6 the example/screenshot/doc-sweep commit that deleted it; **§6 is the deferred zone-colouring proposal**, to start a follow-up plan from; research 24 is the evidence) |
 | 23 `outline:` everywhere | `git show 96462ed:docs/plans/23-outline-everything.md` (§1 is D1–D5, §3 the slices: slice 1 `badb527` (shapes, icons), slice 2 `fde32fa` (hands), slice 3 `88f79ae` (groups), slice 4 `96462ed` (patterns, gauges), slice 5 the example/screenshot/doc-sweep commit that deleted it; research 19 is the measurement record) |
 | 20 screen shapes | `git show fb290f9:docs/plans/20-screen-shapes.md` (§2 is the slices: 1 rectangles exercised, 2 the skin mask, 3 two-colour panels, 5 `anchor: subscreen`; slice 4, `overrides:` with D1 as recommended, is the commit that deleted it; research 16 is the evidence) |
+| 26 the single draw program | `git show 270c595:docs/plans/26-draw-program.md` (§1 is P1–P4; §3 records every slice with its proof: slice 0 `0a699f0` (the core), slice 1 `acf16ad`/`9770f65` (`shape`), slice 2 `27b3a3e` (`text`), slice 3 `dd1d280` (layers and the JSON form), slice 4 `a08431a` (`icon`), slice 5 `84a3e7c` (gauges), slice 6 `b311526` (`pattern`), slice 7 `8819a45` (`hands`), slice 8 `93cc476` (`graph`), slice 9 `d84987a` (`data`), slice 10 `270c595` (the guards, Q1's grown ring, the close-out), and the commit that deleted it; research 27 is the case, research 28 §7 Q1's answer) |
