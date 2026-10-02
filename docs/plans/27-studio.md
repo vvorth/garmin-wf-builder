@@ -1,6 +1,6 @@
 # 27 — `wfb studio`: the visual editor
 
-**Status: accepted (2026-10-02), not started. Building it was decided by
+**Status: accepted (2026-10-02); slice 0 done, 1–7 to go. Building it was decided by
 the user on 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). On
 2026-10-02 the user decided G4 (a working copy, saved on approval) and
 accepted G1–G3, G5 and G6 as recommended.** Delete this file once every slice has shipped
@@ -271,9 +271,50 @@ Each slice ships with:
 Every new refusal (a patch that would not round-trip, a stale version)
 is driven red.
 
-### Slice 0 — the patch engine, without a UI
+### Slice 0 — the patch engine, without a UI: done
 
-`wfb/edit/` (G1 A):
+Built as below, in `wfb/edit/`:
+- `spans`: `SpanIndex` (the composed tree, every entry by author path,
+  each element by its `span`, `entry_range`/`value_end`);
+- `patch`: `set_value` (a scalar in place in its own quoting, or the
+  missing keys as a nested flow value), `remove`, `delete_element`,
+  `duplicate_element`, `move_element` (to any sibling position),
+  `add_element` (shapes and `text`; any other type is refused with "write
+  it in the text");
+- `gate`: `Gate.check` and `load_text`. `wfb.build.load` and
+  `wfb.yamlsrc.load` take the text in place of the file, so a text loads
+  under the design's own path: fonts resolve and diagnostics name the
+  design. Slice 1's working copy uses the same entry point.
+- `geometry`: `target` (the override rule, with "all", "device" and
+  "shape" scopes that create the override), `View` (one text placed on
+  one device), `move` and `resize`.
+
+**Landing is checked, not assumed.** A drag's candidate values run
+coarsest first. Each is placed through the real load and layout on the
+viewed device, with that device's baked fonts reused (re-baked for an
+icon's `size:`), and the first that lands is written.
+
+Measured, over the 29 example faces (`examples/dashboard` excluded):
+
+| Measure | Result |
+|---|---|
+| elements found by their span | **452/452** |
+| delete / duplicate the first three elements of each face | **86/86**, **86/86** |
+| move up / move down | **50/50**, **73/73** |
+| add an absent `at.dx` / remove `at.dy` | **69/69**, **30/30** |
+| add an element of each of the 7 types, per face with `elements:` | **182/182** |
+| moves on `features/shapes`, `align` and `rings`, 3 drags × 3 devices | **360/360** landed on the dragged pixel |
+| resizes (`size`, `radius`, `thickness`) on the same | **141/141** landed |
+
+The fast suite (`tests/test_edit.py`) runs a subset of these per face.
+Two refusals by design, each with its reason: a polygon's move (its
+`points:` are edited in the text), and a position written in `pt`
+(`pt` has no pixel size outside a font). The synthetic `static` group and
+a layout's block are refused too: they are blocks, not elements. Each
+guard was seen red: the duplicate's renaming, the block rule, the override
+order, the gate's data check and the landing check.
+
+What was asked of it:
 
 - **The span index:** the composed tree's marks. Each element is found by
   its `span` (452/452, research 28 §1), and each key's text range taken

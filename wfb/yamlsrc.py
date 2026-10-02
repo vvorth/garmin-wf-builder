@@ -118,13 +118,16 @@ class YamlDocument:
         return span
 
 
-def load(path: Path, bag: Bag) -> YamlDocument | None:
-    """Parse ``path``.  Reports a diagnostic and returns ``None`` on failure."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        bag.error("io", f"cannot read {path}: {exc.strerror}")
-        return None
+def load(path: Path, bag: Bag, text: str | None = None) -> YamlDocument | None:
+    """Parse ``path``, or ``text`` in its place when given -- an editor's
+    unsaved text, reported and resolved (relative font paths) as if it were
+    the file.  Reports a diagnostic and returns ``None`` on failure."""
+    if text is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            bag.error("io", f"cannot read {path}: {exc.strerror}")
+            return None
     bag.register_source(path, text)
 
     yaml = YAML()  # round-trip mode: preserves order, comments and anchors

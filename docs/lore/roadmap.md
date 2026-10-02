@@ -199,7 +199,8 @@ specifies each item.
   which the preview draws as stamps, and half-degree arc starts, which the
   preview rounds 1° off `WfbArc.drawSpan`. Evidence: research 27 §2.5. The
   visual editor follows it, editing geometry only and reverting no shipped
-  feature. Planned, not started.
+  feature. Its patch engine is built (`wfb/edit/`: text patches, the gate,
+  drags in the author's units); the server and the UI are not.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

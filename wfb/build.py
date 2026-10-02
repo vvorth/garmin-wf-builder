@@ -120,9 +120,10 @@ class Toolchain:
 # stages 1-3: no Garmin toolchain required
 
 
-def load(path: Path, bag: Bag) -> Face | None:
-    """Parse and validate a design file into an IR, or report why not."""
-    doc = yamlsrc.load(path, bag)
+def load(path: Path, bag: Bag, text: str | None = None) -> Face | None:
+    """Parse and validate a design file into an IR, or report why not.
+    ``text`` stands in for the file's contents (`yamlsrc.load`)."""
+    doc = yamlsrc.load(path, bag, text)
     if doc is None:
         return None
     # The schema checks the author's own document, on their own lines; then

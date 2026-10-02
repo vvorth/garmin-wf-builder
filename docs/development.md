@@ -171,6 +171,8 @@ wfb/                  the compiler
                         downloaded by tools/fetch-system-fonts.py
   draw/                 an element's drawing as one program: ops, the Monkey C printer,
                         the host evaluator, the barrel's arithmetic transcribed
+  edit/                 the editor's patch engine: the span index, text patches, the
+                        gate, and pixel drags written in the author's units
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`
