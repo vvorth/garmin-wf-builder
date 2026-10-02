@@ -181,10 +181,11 @@ specifies each item.
    browser draws per-element layers from the single draw program and makes
    no drawing decisions (research 27 §5); the program is built. Building
    from the editor is not planned yet. **Built so far:** the server, the
-   bundle format, the history store's journal, new/open/download, a missing
-   font added in place, and a read-only viewer (layer tree, frames per
-   device and style, selection, diagnostics). Not yet: any edit of the
-   face itself, undo and snapshots, the inspector, the YAML tab.
+   bundle format, new/open/download, a missing font added in place, the
+   history (undo and redo across restarts, snapshots on a timer and on
+   download, restore, open a copy, pruning), and a read-only viewer (layer
+   tree, frames per device and style, selection, diagnostics). Not yet:
+   any edit of the face itself, the inspector, the YAML tab.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.

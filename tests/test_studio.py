@@ -15,7 +15,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from wfb import starters
-from wfb.edit import SpanIndex, set_value
+from wfb.edit import Refused, SpanIndex, set_value
 from wfb.emit.resources import BakeMemo
 from wfb.studio import bundle as bundle_mod
 from wfb.studio.app import Events, create_app
@@ -414,3 +414,223 @@ def test_events_reach_every_stream():
 
     (message,) = asyncio.run(run())
     assert message == 'event: changed\ndata: {"id": "x", "version": 2}\n\n'
+
+
+# -- history: undo, redo, snapshots, restore ------------------------------------------
+
+def bumped(doc, n: int) -> str:
+    """The document's text with `face.version` set to 1.0.<n>: one line changed."""
+    return set_value(SpanIndex(doc.text), ("face", "version"), f"1.0.{n}").text
+
+
+def versions(doc) -> str:
+    return SpanIndex(doc.text).data["face"]["version"]
+
+
+def test_replay_moves_a_cursor_and_a_change_after_undo_drops_the_redo_branch():
+    from wfb.studio.store import Change, replay
+
+    def c(seq, kind="change", target=None):
+        return Change(seq, 0.0, str(seq), "t", {}, kind, target)
+
+    line = replay([c(1), c(2), c(3), c(4, "undo", 2), c(5, "undo", 1), c(6, "redo", 2)])
+    assert [s.seq for s in line.states] == [1, 2, 3] and line.cursor == 1
+    assert line.can_undo and line.can_redo
+    line = replay([c(1), c(2), c(3), c(4, "undo", 2), c(5)])
+    assert [s.seq for s in line.states] == [1, 2, 5] and not line.can_redo
+
+
+def test_undo_and_redo_step_through_the_changes(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    first = doc.text
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    doc.commit(bumped(doc, 2), {}, "two", doc.version)
+    doc.undo(doc.version)
+    assert versions(doc) == "1.0.1" and doc.path.read_text() == doc.text
+    doc.undo(doc.version)
+    assert doc.text == first
+    with pytest.raises(Refused, match="nothing to undo"):
+        doc.undo(doc.version)
+    doc.redo(doc.version)
+    doc.redo(doc.version)
+    assert versions(doc) == "1.0.2"
+    with pytest.raises(Refused, match="nothing to redo"):
+        doc.redo(doc.version)
+    # a change after an undo ends the redo line
+    doc.undo(doc.version)
+    doc.commit(bumped(doc, 3), {}, "three", doc.version)
+    with pytest.raises(Refused, match="nothing to redo"):
+        doc.redo(doc.version)
+    labels = [s["label"] for s in doc.history()["states"]]
+    assert labels == ["three", "one", "new"]
+
+
+def test_undo_against_an_old_version_is_refused(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    with pytest.raises(StaleVersion):
+        doc.undo(1)
+
+
+def test_undo_removes_an_added_asset_from_the_directory(studio):
+    doc = studio.create(read_upload("face.yaml", PROFILE.read_bytes()), "open")
+    doc.add_asset("Chivo.ttf", CHIVO.read_bytes(), "../outline/assets/ChivoMono-Bold.ttf",
+                  doc.version)
+    assert (doc.directory / "assets/Chivo.ttf").is_file() and doc.analysis().face is not None
+    doc.undo(doc.version)
+    assert not (doc.directory / "assets/Chivo.ttf").exists()
+    assert doc.missing() == ["../outline/assets/ChivoMono-Bold.ttf"]
+    doc.redo(doc.version)
+    assert (doc.directory / "assets/Chivo.ttf").read_bytes() == CHIVO.read_bytes()
+
+
+def test_undo_and_redo_survive_a_new_server(tmp_path, db):
+    first = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "a")
+    doc = first.create(Bundle("T", minimal_text()), "new")
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    doc.commit(bumped(doc, 2), {}, "two", doc.version)
+    doc.undo(doc.version)
+    doc_id = doc.id
+    first.close()
+
+    again = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "b").document(doc_id)
+    assert versions(again) == "1.0.1"
+    history = again.history()
+    assert history["can_undo"] and history["can_redo"]
+    again.redo(again.version)
+    assert versions(again) == "1.0.2"
+
+
+def test_a_change_the_store_cannot_record_is_not_applied(studio, monkeypatch):
+    from wfb.studio.store import StoreError
+
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    before = (doc.text, doc.version, doc.path.read_text())
+
+    def broken(fd):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "fsync", broken)
+    # a new text: its blob cannot be written
+    with pytest.raises(StoreError, match="disk full"):
+        doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    # the same text: its blob is stored already, so the journal append fails
+    with pytest.raises(StoreError, match="disk full"):
+        doc.commit(doc.text, {}, "again", doc.version)
+    monkeypatch.undo()
+    assert (doc.text, doc.version, doc.path.read_text()) == before
+    assert [c.label for c in studio.store.journal(doc.id)] == ["new"]
+
+
+def test_the_timer_snapshots_a_changed_face_once_per_interval(tmp_path, db):
+    s = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "s", snapshot_minutes=5)
+    doc = s.create(Bundle("T", minimal_text()), "new")
+    start = doc.last_snapshot[0]
+    assert s.tick(start + 60) == []                       # too soon
+    taken = s.tick(start + 301)
+    assert [t.seq for t in taken] == [doc.version]        # the new face, unchanged since
+    assert s.tick(start + 700) == []                      # unchanged since that one
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    assert s.tick(start + 302) == []                      # changed, but too soon
+    assert [t.reason for t in s.tick(start + 700)] == ["timer"]
+    assert [x.seq for x in s.store.snapshots(doc.id)] == [1, 2]
+    s.close()
+
+
+def test_a_restore_is_one_change_and_can_be_undone(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    snap = doc.snapshot("manual")
+    doc.commit(bumped(doc, 2), {}, "two", doc.version)
+    doc.restore(snap.name, doc.version)
+    assert versions(doc) == "1.0.1"
+    assert doc.history()["states"][0]["label"].startswith("restore the snapshot of")
+    doc.undo(doc.version)
+    assert versions(doc) == "1.0.2"
+
+
+def test_a_snapshot_in_a_dropped_redo_branch_still_restores(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    snap = doc.snapshot("manual")
+    doc.undo(doc.version)
+    doc.commit(bumped(doc, 2), {}, "two", doc.version)   # drops "one" from the line
+    doc.restore(snap.name, doc.version)
+    assert versions(doc) == "1.0.1"
+
+
+def test_a_snapshot_opens_as_a_copy(studio):
+    b, moved = from_path(PROFILE)
+    doc = studio.create(b, "open", moved)
+    snap = doc.snapshot("manual")
+    doc.commit(bumped(doc, 7), dict(doc.head.assets), "later", doc.version)
+    copy = studio.fork(doc.id, snap.name)
+    assert copy.id != doc.id and copy.text == studio.store.text(doc.id, snap)
+    assert (copy.directory / "assets/ChivoMono-Bold.ttf").is_file()
+    assert copy.analysis().face is not None
+    assert versions(doc) == "1.0.7"
+
+
+def test_pruning_removes_old_faces_and_old_snapshots(studio):
+    store = studio.store
+    old = studio.create(Bundle("Old", minimal_text()), "new")
+    keep = studio.create(Bundle("Keep", minimal_text()), "new")
+    for i in range(4):
+        keep.commit(bumped(keep, i), {}, f"c{i}", keep.version)
+        keep.snapshot("manual", now=1000.0 + i)
+    now = store.head(keep.id).time + 1
+    # `old` is made to look 31 days untouched
+    journal = store.root / old.id / "journal.jsonl"
+    journal.write_text(journal.read_text().replace(
+        f'"time": {store.head(old.id).time}', f'"time": {now - 31 * 86400}'))
+    removed = store.prune(keep_days=30, keep_snapshots=2, now=now)
+    assert any("Old" in line for line in removed)
+    assert not (store.root / old.id).exists()
+    assert [s.time for s in store.snapshots(keep.id)] == [1002.0, 1003.0]
+
+
+def test_history_over_http(client):
+    doc = client.post("/api/documents/upload?filename=face.yaml",
+                      content=SHOWCASE.read_bytes()).json()
+    url = f"/api/documents/{doc['id']}"
+    assert client.post(f"{url}/undo?version=1").status_code == 400     # nothing to undo
+    added = client.post(f"{url}/assets?filename=a.ttf&reference=assets/ChivoMono-Bold.ttf"
+                        "&version=1", content=CHIVO.read_bytes()).json()
+    assert added["history"]["can_undo"]
+    assert client.post(f"{url}/undo?version=1").status_code == 409     # stale
+    undone = client.post(f"{url}/undo?version=2").json()
+    assert undone["version"] == 3 and len(undone["missing"]) == 2
+    assert undone["history"]["can_redo"]
+    redone = client.post(f"{url}/redo?version=3").json()
+    assert len(redone["missing"]) == 1
+
+    history = client.post(f"{url}/snapshots").json()
+    (snap,) = history["snapshots"]
+    assert snap["reason"] == "manual" and snap["current"]
+    # a download of a version that already has a snapshot adds none
+    client.get(f"{url}/download")
+    assert len(client.get(url).json()["history"]["snapshots"]) == 1
+    restored = client.post(f"{url}/snapshots/{snap['name']}/restore?version=4").json()
+    assert restored["version"] == 5
+    copy = client.post(f"{url}/snapshots/{snap['name']}/copy").json()
+    assert copy["id"] != doc["id"] and copy["missing"] == redone["missing"]
+    assert client.post(f"{url}/snapshots/00000001-1/restore?version=5").status_code == 404
+    assert client.post(f"{url}/snapshots/..%2F..%2Fmeta/restore?version=5").status_code == 404
+
+
+def test_a_download_snapshots_a_version_that_has_none(client):
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    url = f"/api/documents/{doc['id']}"
+    client.get(f"{url}/download")
+    (snap,) = client.get(url).json()["history"]["snapshots"]
+    assert snap["reason"] == "download" and snap["seq"] == 1
+
+
+def test_the_cli_defaults_are_the_studio_defaults():
+    from wfb.cli import _parser
+    from wfb.studio import KEEP_DAYS, KEEP_SNAPSHOTS
+    from wfb.studio.document import SNAPSHOT_MINUTES
+
+    args = _parser().parse_args(["studio"])
+    assert (args.snapshot_minutes, args.keep_days, args.keep_snapshots) == (
+        SNAPSHOT_MINUTES, KEEP_DAYS, KEEP_SNAPSHOTS)

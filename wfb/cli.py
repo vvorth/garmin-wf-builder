@@ -368,6 +368,12 @@ def _parser() -> argparse.ArgumentParser:
     studio.add_argument("--state-dir", type=Path,
                         help="where the history of every face is kept (default: "
                              "$XDG_STATE_HOME/wfb/studio, or ~/.local/state/wfb/studio)")
+    studio.add_argument("--snapshot-minutes", type=float, default=5.0,
+                        help="snapshot a changed face this often (default: 5)")
+    studio.add_argument("--keep-days", type=float, default=30.0,
+                        help="on start, delete faces untouched this long (default: 30)")
+    studio.add_argument("--keep-snapshots", type=int, default=50,
+                        help="on start, keep each face's newest N snapshots (default: 50)")
     studio.add_argument("--devices-dir")
     studio.add_argument("--fonts", dest="fonts_dir",
                         help="Garmin ConnectIQ Fonts directory, as for `wfb preview`")
@@ -865,7 +871,11 @@ def _studio(args: argparse.Namespace) -> int:
 
     Every face's history is kept under `--state-dir`, outside the
     temporary directories the editor builds faces in, so closing the tab
-    or stopping the server loses nothing.
+    or stopping the server loses nothing: every change is recorded as it is
+    made, so undo and redo survive a restart, and a changed face is
+    snapshotted every `--snapshot-minutes` and on every download. On start,
+    faces untouched for `--keep-days` are deleted, and each keeps its
+    newest `--keep-snapshots` snapshots.
 
     `wfb studio face.yaml` opens that face first. It is copied in, with the
     font files it names: the editor never writes to it. `--host` other than
@@ -885,8 +895,13 @@ def _studio(args: argparse.Namespace) -> int:
         _error(str(exc))
         return 1
     try:
+        if args.snapshot_minutes <= 0 or args.keep_days <= 0 or args.keep_snapshots < 1:
+            _error("--snapshot-minutes and --keep-days must be positive, "
+                   "--keep-snapshots at least 1")
+            return 1
         serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
-              db=db, design=args.design)
+              db=db, design=args.design, snapshot_minutes=args.snapshot_minutes,
+              keep_days=args.keep_days, keep_snapshots=args.keep_snapshots)
     except (BundleError, Refused, StoreError) as exc:
         _error(str(exc))
         return 1

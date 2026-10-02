@@ -30,7 +30,7 @@ from ..build import slug
 from ..edit import Refused
 from .bundle import MAX_UPLOAD_BYTES, Bundle, BundleError, read_upload, to_zip
 from .document import Document, FrameKey, StaleVersion, Studio
-from .store import StoreError, UnknownDocument
+from .store import StoreError, UnknownDocument, UnknownSnapshot
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -83,6 +83,8 @@ def _endpoint(handler: Handler, *, body: bool = False
             return await run_in_threadpool(handler, request, data)
         except UnknownDocument:
             return _error(404, "there is no such face; it may have been deleted")
+        except UnknownSnapshot:
+            return _error(404, "there is no such snapshot; it may have been pruned")
         except StaleVersion as exc:
             return _error(409, str(exc))
         except (BundleError, Refused, starters.UnknownTemplate) as exc:
@@ -126,6 +128,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
     """The app over ``studio``.  ``initial`` is a document id the home
     screen opens straight away (`wfb studio face.yaml`)."""
     events = Events()
+    studio.on_event = events.publish
 
     def doc(request: Request) -> Document:
         return studio.document(request.path_params["doc_id"])
@@ -194,11 +197,51 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             changed(document)
             return JSONResponse(document.summary())
 
+    def undo(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            document.undo(_int(request, "version"))
+            changed(document)
+            return JSONResponse(document.summary())
+
+    def redo(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            document.redo(_int(request, "version"))
+            changed(document)
+            return JSONResponse(document.summary())
+
+    def snapshot(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            snap = document.snapshot("manual")
+            events.publish("snapshot", {"id": document.id, "name": snap.name,
+                                        "version": document.version})
+            return JSONResponse(document.history())
+
+    def restore(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            document.restore(request.path_params["name"], _int(request, "version"))
+            changed(document)
+            return JSONResponse(document.summary())
+
+    def fork(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            copy = studio.fork(request.path_params["doc_id"], request.path_params["name"])
+            return JSONResponse(copy.summary())
+
     def download(request: Request, data: bytes) -> Response:
         form = request.query_params.get("form", "auto")
         with studio.lock:
             document = doc(request)
             bundle = document.bundle()
+            # Every download is a point in time worth going back to, unless
+            # that version already has a snapshot.
+            if document.last_snapshot[1] != document.version:
+                snap = document.snapshot("download")
+                events.publish("snapshot", {"id": document.id, "name": snap.name,
+                                            "version": document.version})
         if form == "auto":
             form = "zip" if bundle.files else "yaml"
         stem = slug(bundle.name)
@@ -230,6 +273,13 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}/assets", _endpoint(add_asset, body=True),
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
+            Route("/api/documents/{doc_id}/undo", _endpoint(undo), methods=["POST"]),
+            Route("/api/documents/{doc_id}/redo", _endpoint(redo), methods=["POST"]),
+            Route("/api/documents/{doc_id}/snapshots", _endpoint(snapshot), methods=["POST"]),
+            Route("/api/documents/{doc_id}/snapshots/{name}/restore", _endpoint(restore),
+                  methods=["POST"]),
+            Route("/api/documents/{doc_id}/snapshots/{name}/copy", _endpoint(fork),
+                  methods=["POST"]),
             Route("/api/events", stream),
             Mount("/static", StaticFiles(directory=STATIC), name="static"),
         ],

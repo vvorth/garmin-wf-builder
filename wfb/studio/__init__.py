@@ -23,21 +23,29 @@ from pathlib import Path
 
 from ..devices import DeviceDatabase
 from .bundle import from_path
-from .document import Studio
+from .document import SNAPSHOT_MINUTES, Studio
 from .store import Store
 
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
+#: `--keep-days` and `--keep-snapshots`' defaults.
+KEEP_DAYS = 30.0
+KEEP_SNAPSHOTS = 50
+
+
 def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
-          design: Path | None = None) -> None:
+          design: Path | None = None, snapshot_minutes: float = SNAPSHOT_MINUTES,
+          keep_days: float = KEEP_DAYS, keep_snapshots: int = KEEP_SNAPSHOTS) -> None:
     """Run the editor until interrupted."""
     import uvicorn
 
     from .app import create_app
 
     store = Store(state_dir)
-    studio = Studio(store, db)
+    for line in store.prune(keep_days=keep_days, keep_snapshots=keep_snapshots):
+        print(f"pruned {line}", flush=True)
+    studio = Studio(store, db, snapshot_minutes=snapshot_minutes)
     initial = None
     try:
         if design is not None:
@@ -53,6 +61,7 @@ def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
         elif host not in LOOPBACK:
             print(f"warning: listening on {host}, not loopback: anyone who can reach this "
                   "port can read and write the faces in the editor", file=sys.stderr, flush=True)
+        studio.start_timer()
         uvicorn.run(app, host=host, port=port, log_level="warning")
     finally:
         studio.close()

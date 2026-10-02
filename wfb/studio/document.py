@@ -19,10 +19,11 @@ import io
 import shutil
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 from ..build import resolve_all, select_devices
 from ..devices import DeviceDatabase
@@ -34,7 +35,7 @@ from ..emit.resources import BakeMemo
 from ..ir import Face
 from ..layout import ResolvedFace
 from .bundle import FACE, Bundle, asset_path, missing, references
-from .store import Change, Store, UnknownDocument
+from .store import REDO, UNDO, Change, Snapshot, Store, UnknownDocument
 
 
 class StaleVersion(ValueError):
@@ -85,6 +86,13 @@ class Document:
         self._frames: OrderedDict[FrameKey, dict[str, Any]] = OrderedDict()
         #: What `materialise` last wrote, by path: the content it holds.
         self._written: dict[PurePosixPath, str] = {}
+        snapshots = store.snapshots(doc_id)
+        #: When the last snapshot was taken, and of which version; with none,
+        #: the document's first change stands in, so the timer's first
+        #: snapshot comes an interval after it.
+        self.last_snapshot: tuple[float, int | None] = (
+            (snapshots[-1].time, snapshots[-1].seq) if snapshots
+            else (store.journal(doc_id)[0].time, None))
         self.materialise()
 
     @property
@@ -133,16 +141,70 @@ class Document:
                expected: int) -> Change:
         """Record a change against version ``expected``; refused when that is
         no longer the head, so two tabs cannot overwrite each other."""
+        self._check(expected)
+        return self._moved(self.studio.store.append(self.id, label, text, assets))
+
+    def _check(self, expected: int) -> None:
         if expected != self.version:
             raise StaleVersion(f"the face is at version {self.version}, not {expected}: "
                                "reload it to see the newer change")
-        change = self.studio.store.append(self.id, label, text, assets)
+
+    def _moved(self, change: Change) -> Change:
+        """Make ``change``, just recorded, the head."""
         self.head = change
-        self.text = text
+        self.text = self.studio.store.text(self.id, change)
         self._analysis = None
         self._frames.clear()
         self.materialise()
         return change
+
+    # -- history ----------------------------------------------------------------------
+
+    def undo(self, expected: int) -> Change:
+        self._check(expected)
+        line = self.studio.store.timeline(self.id)
+        if not line.can_undo:
+            raise Refused("there is nothing to undo")
+        undone = line.states[line.cursor]
+        return self._moved(self.studio.store.move(
+            self.id, UNDO, f"undo {undone.label}", line.states[line.cursor - 1]))
+
+    def redo(self, expected: int) -> Change:
+        self._check(expected)
+        line = self.studio.store.timeline(self.id)
+        if not line.can_redo:
+            raise Refused("there is nothing to redo")
+        state = line.states[line.cursor + 1]
+        return self._moved(self.studio.store.move(self.id, REDO, f"redo {state.label}", state))
+
+    def snapshot(self, reason: str, now: float | None = None) -> Snapshot:
+        snap = self.studio.store.snapshot(self.id, self.head, reason, now)
+        self.last_snapshot = (snap.time, snap.seq)
+        return snap
+
+    def restore(self, name: str, expected: int) -> Change:
+        """Make a snapshot the head, as one change: undoable like any other."""
+        self._check(expected)
+        store = self.studio.store
+        snap = store.get_snapshot(self.id, name)
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(snap.time))
+        return self.commit(store.text(self.id, snap), dict(snap.assets),
+                           f"restore the snapshot of {when}", expected)
+
+    def history(self) -> dict[str, Any]:
+        store = self.studio.store
+        line = store.timeline(self.id)
+        return {
+            "version": self.version,
+            "can_undo": line.can_undo, "can_redo": line.can_redo,
+            # newest first, the states past the cursor marked as redoable
+            "states": [{"seq": c.seq, "time": c.time, "label": c.label,
+                        "current": i == line.cursor, "redo": i > line.cursor}
+                       for i, c in reversed(list(enumerate(line.states)))],
+            "snapshots": [{"name": s.name, "time": s.time, "reason": s.reason,
+                           "seq": s.seq, "label": s.label, "current": s.seq == self.version}
+                          for s in reversed(store.snapshots(self.id))],
+        }
 
     def add_asset(self, filename: str, data: bytes, reference: str | None,
                   expected: int) -> Change:
@@ -313,6 +375,7 @@ class Document:
             "tree": self.tree(),
             "diagnostics": self.diagnostics(),
             "assets": sorted(self.head.assets),
+            "history": self.history(),
         }
 
 
@@ -348,12 +411,20 @@ def _children(index: SpanIndex, block: Entry) -> list[dict[str, Any]]:
     return out
 
 
+#: `wfb studio --snapshot-minutes`'s default.
+SNAPSHOT_MINUTES = 5.0
+
+
 class Studio:
     """Every document this server has open, over one store and one device
     database.  One lock serialises the pipeline: it is CPU-bound, and the
-    memo and caches are shared."""
+    memo and caches are shared.
 
-    def __init__(self, store: Store, db: DeviceDatabase, scratch: Path | None = None) -> None:
+    ``on_event(name, data)`` is told what the server did on its own (a
+    snapshot taken by the timer), for the event stream."""
+
+    def __init__(self, store: Store, db: DeviceDatabase, scratch: Path | None = None, *,
+                 snapshot_minutes: float = SNAPSHOT_MINUTES) -> None:
         self.store = store
         self.db = db
         self.memo = BakeMemo()
@@ -361,10 +432,48 @@ class Studio:
         self.scratch = scratch or Path(tempfile.mkdtemp(prefix="wfb-studio-"))
         self.lock = threading.RLock()
         self._open: dict[str, Document] = {}
+        self.snapshot_seconds = snapshot_minutes * 60
+        self.on_event: Callable[[str, dict[str, Any]], None] = lambda name, data: None
+        self._stop = threading.Event()
+        self._timer: threading.Thread | None = None
 
     def close(self) -> None:
+        self._stop.set()
+        if self._timer is not None:
+            self._timer.join(timeout=5)
         if self._own_scratch:
             shutil.rmtree(self.scratch, ignore_errors=True)
+
+    # -- snapshots on the timer ---------------------------------------------------------
+
+    def tick(self, now: float | None = None) -> list[Snapshot]:
+        """Snapshot every open document that changed since its last
+        snapshot, once an interval has passed since that one."""
+        now = time.time() if now is None else now
+        taken = []
+        with self.lock:
+            for doc in list(self._open.values()):
+                when, seq = doc.last_snapshot
+                if seq != doc.version and now - when >= self.snapshot_seconds:
+                    snap = doc.snapshot("timer", now)
+                    taken.append(snap)
+                    self.on_event("snapshot", {"id": doc.id, "name": snap.name,
+                                               "version": doc.version})
+        return taken
+
+    def start_timer(self) -> None:
+        """Run `tick` in the background until `close`."""
+        period = max(1.0, min(30.0, self.snapshot_seconds / 4))
+
+        def run() -> None:
+            while not self._stop.wait(period):
+                try:
+                    self.tick()
+                except Exception as exc:  # the timer must outlive one bad document
+                    self.on_event("error", {"message": f"snapshot failed: {exc}"})
+
+        self._timer = threading.Thread(target=run, name="wfb-studio-snapshots", daemon=True)
+        self._timer.start()
 
     def document(self, doc_id: str) -> Document:
         doc = self._open.get(doc_id)
@@ -385,6 +494,16 @@ class Studio:
             doc.commit(doc.repoint(doc.text, moved), dict(doc.head.assets),
                        "gather assets into the bundle", doc.version)
         return doc
+
+    def fork(self, doc_id: str, name: str) -> Document:
+        """A new document holding a snapshot of ``doc_id``: "open as a copy"."""
+        store = self.store
+        snap = store.get_snapshot(doc_id, name)
+        source = self.document(doc_id)
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(snap.time))
+        bundle = Bundle(f"{source.name} ({when})", store.text(doc_id, snap),
+                        {rel: store.get(doc_id, sha) for rel, sha in snap.assets.items()})
+        return self.create(bundle, f"copy of {source.name}'s snapshot of {when}")
 
     def delete(self, doc_id: str) -> None:
         self._open.pop(doc_id, None)

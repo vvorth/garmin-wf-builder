@@ -130,7 +130,7 @@ function Home({ onError }) {
               ${home.documents.map((d) => html`
                 <li>
                   <span class="name" onClick=${() => go(d.id)}>${d.name}</span>
-                  <span class="dim">v${d.version} · ${ago(d.changed)}</span>
+                  <span class="dim">v${d.version} · ${ago(d.changed)}${d.snapshots ? ` · ${d.snapshots} snapshot${d.snapshots > 1 ? "s" : ""}` : ""}</span>
                   <button class="danger" onClick=${() => remove(d)}>Delete</button>
                 </li>`)}
             </ul>`}
@@ -262,6 +262,46 @@ function Missing({ doc, onChanged, onError }) {
   </div>`;
 }
 
+function History({ doc, onChanged, onOpen, onError }) {
+  const h = doc.history;
+  const post = async (path) => {
+    try { return await api(`/api/documents/${doc.id}/${path}`, { method: "POST" }); }
+    catch (e) { onError(e); return null; }
+  };
+  const restore = async (s) => {
+    const updated = await post(`snapshots/${s.name}/restore?version=${doc.version}`);
+    if (updated) onChanged(updated);
+  };
+  const copy = async (s) => {
+    const created = await post(`snapshots/${s.name}/copy`);
+    if (created) onOpen(created.id);
+  };
+  const snapshotNow = async () => { if (await post("snapshots")) onChanged(null); };
+  const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+  return html`<div class="history">
+    <div class="row">
+      <button onClick=${snapshotNow} title="Keep this version as a point in time">Snapshot now</button>
+    </div>
+    <div class="sub">Snapshots</div>
+    ${h.snapshots.length ? html`<ul class="snaps">
+      ${h.snapshots.map((s) => html`<li>
+        <div><span>${when(s.time)}</span> <span class="dim">${s.reason}${s.current ? " · this version" : ""}</span></div>
+        <div class="dim label">${s.label}</div>
+        <div class="row">
+          <button disabled=${s.current} onClick=${() => restore(s)} title="Make this the current version (undoable)">Restore</button>
+          <button onClick=${() => copy(s)} title="Open it as a separate face">Open copy</button>
+        </div>
+      </li>`)}
+    </ul>` : html`<div class="dim pad">None yet: one is taken every few minutes while the face changes, and on every download.</div>`}
+    <div class="sub">Changes</div>
+    <ul class="states">
+      ${h.states.map((s) => html`<li class=${(s.current ? "current" : "") + (s.redo ? " redo" : "")}>
+        <span class="label">${s.label}</span><span class="dim">${when(s.time)}</span>
+      </li>`)}
+    </ul>
+  </div>`;
+}
+
 function DownloadMenu({ doc }) {
   const [open, setOpen] = useState(false);
   const link = (form) => `/api/documents/${doc.id}/download?form=${form}`;
@@ -315,8 +355,26 @@ function Editor({ docId, onError }) {
   }, [doc && doc.version, doc && doc.targets.join(), view]);
 
   useEvents((name, data) => {
-    if (name === "changed" && doc && data.id === docId && data.version !== doc.version) loadDoc();
+    if (!doc || data.id !== docId) return;
+    if ((name === "changed" && data.version !== doc.version) || name === "snapshot") loadDoc();
   });
+
+  const step = useCallback(async (which) => {
+    if (!doc) return;
+    try { setDoc(await api(`/api/documents/${docId}/${which}?version=${doc.version}`, { method: "POST" })); }
+    catch (e) { onError(e); if (e.status === 409) loadDoc(); }
+  }, [doc]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.target.closest("input, textarea, select, .cm-editor")) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) { e.preventDefault(); step("undo"); }
+      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); step("redo"); }
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [step]);
+  const [tab, setTab] = useState("diagnostics");
 
   const drawn = useMemo(() => frame && new Set(frame.layers.map((l) => elementOf(l.id))), [frame]);
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
@@ -336,6 +394,8 @@ function Editor({ docId, onError }) {
         <button onClick=${() => go(null)} title="All faces">← Faces</button>
         <span class="title">${doc.name}</span>
         <span class="dim">version ${doc.version}</span>
+        <button disabled=${!doc.history.can_undo} onClick=${() => step("undo")} title="Undo (Ctrl+Z)">↶ Undo</button>
+        <button disabled=${!doc.history.can_redo} onClick=${() => step("redo")} title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         <span class="spacer"></span>
         ${counts.error ? html`<span class="error-text">${counts.error} error${counts.error > 1 ? "s" : ""}</span>` : null}
         <${DownloadMenu} doc=${doc} />
@@ -388,8 +448,15 @@ function Editor({ docId, onError }) {
             </dl>`
             : html`<span class="dim">Select an element on the face or in the layers.</span>`}
         </div>
-        <h3>Diagnostics</h3>
-        <${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected} />
+        <div class="tabs">
+          <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
+            Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>
+          <button class=${tab === "history" ? "on" : ""} onClick=${() => setTab("history")}>History</button>
+        </div>
+        ${tab === "diagnostics"
+          ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected} />`
+          : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)}
+                             onChanged=${(updated) => updated ? setDoc(updated) : loadDoc()} />`}
       </div>
     </div>
   </div>`;

@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slices 0 and 1 done, 2–7 to go.** Building it was decided by the user on
+below); slices 0–2 done, 3–7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -447,16 +447,61 @@ design, diagnostics naming `face.yaml`, the tree, frames, every endpoint,
 events) and `tests/test_studio_frontend.py` (`hit.js` in Node). Each
 guard was seen red.
 
-### Slice 2 — history: undo, redo, snapshots, restore
+### Slice 2 — history: undo, redo, snapshots, restore: done
 
-- The journal's undo and redo cursor; snapshots on the timer, on
-  download and on demand; restore into the document (undoable) or as a
-  new one; pruning on start.
-- The history panel: the journal's labels, the snapshots, restore.
-- A change arriving while the store cannot be written is refused, never
-  applied unrecorded.
-- **Measured:** the cost of a journal append per change, and the store's
-  size after the slice 0 corpus edits.
+Built as below:
+- **The journal holds every action.** A `change` line adds a state; an
+  `undo` or `redo` line names the state it moved to (`target`). Every line
+  also names the text and assets the document has after it, so the last
+  line is still the document, and `store.replay` gives the line of
+  states and the cursor. A change after an undo drops the states past the
+  cursor; their blobs stay.
+- **Undo and redo** (`Document.undo`/`redo`), version-checked like a
+  change, refused with "nothing to undo/redo". Ctrl+Z, Ctrl+Shift+Z and
+  Ctrl+Y outside a text field, and two buttons in the top bar.
+- **Snapshots** (`snapshots/<seq>-<ms>.json`, naming text and assets by
+  hash): on the timer (`Studio.tick`, run every quarter interval by a
+  daemon thread, at most 30 s apart), when a document changed since its
+  last snapshot and an interval has passed since that one; on a download
+  of a version that has none; and on "snapshot now".
+- **Restore** is one change, so it can be undone; it works for a snapshot
+  taken in a redo branch a later change dropped. **Open copy** makes a new
+  document from a snapshot, its files copied.
+- **Pruning** on start (`--keep-days`, `--keep-snapshots`), each removal
+  printed.
+- The History tab beside Diagnostics: snapshot now, the snapshots with
+  restore and open copy, and the changes, newest first, the current one
+  marked and the redoable ones dimmed. The home screen shows each face's
+  snapshot count.
+
+**Found on the way:** a journal append whose `fsync` failed left its
+line in the file, so a change reported as refused would have come back as
+applied after a restart. A failed append now truncates the journal to its
+previous length. The test that found it fails the append with the text's
+blob already stored, so only the journal write is exercised.
+
+Measured over the 29 example faces (`examples/dashboard` excluded):
+duplicate, move to the top and delete the first three elements of each,
+258 changes:
+
+| Measure | Result |
+|---|---|
+| journal append (blob write, line, `fsync`) | median 1.28 ms, p95 1.79 ms, max 4.58 ms |
+| store after the 258 changes and 29 opens | 2.5 MB: text versions 1.9 MB, font files 0.6 MB (each stored once), journals 53 KB |
+| text versions under zlib | 3.1× smaller, 0.22 ms a version |
+
+Every version is a full copy of the text. That is cheap until slice 4,
+where each drag's release is a version: a thousand changes to the 35 KB
+showcase would store 35 MB (11 MB compressed). Whether to compress, or
+store versions as differences, is decided in slice 4 against measured
+use.
+
+Tests: `tests/test_studio.py` (replay, undo and redo, a change ending the
+redo line, a stale undo, an undone asset leaving the directory, the
+history across a new server, a refused change not recorded, the timer
+with an injected clock, restore and its undo, a dropped branch's
+snapshot, open copy, pruning by age and by count, every endpoint, the CLI
+defaults). Each guard was seen red.
 
 ### Slice 3 — the properties inspector and the global panel
 

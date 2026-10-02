@@ -10,7 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02, re-scoped the same day (client-driven, upload/download bundles, persistent history, every property editable; build postponed); slices 0 and 1 done, 2–7 to go |
+| [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02, re-scoped the same day (client-driven, upload/download bundles, persistent history, every property editable; build postponed); slices 0–2 done, 3–7 to go |
 
 ## Built and deleted
 
