@@ -38,6 +38,7 @@ from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
 from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
 from .ir.rings import RingGroup, ring_groups
+from .draw.frames import frame_members, in_layout
 from .layout import (
     Placed, PlacedHands, PlacedPattern, PlacedProgress, ResolvedFace, RotatablePart,
     alignment_shift,
@@ -259,6 +260,18 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     """
     options = options or PreviewOptions()
     entry = _resolve_style_entry(resolved.face, options.style)
+    values = sample_values(resolved, options, entry)
+    renderer = new_renderer(resolved, options, values, (0, 0, 0), used_faces)
+    renderer.render_sequence(frame_items(resolved, options, entry),
+                             ring_groups(resolved.face.elements))
+    return finish_frame(renderer.image, resolved, options, values)
+
+
+def sample_values(resolved: ResolvedFace, options: PreviewOptions,
+                  entry: StyleEntry | None) -> dict[str, object]:
+    """The readings a preview frame draws at: `SAMPLE`, the `--time` and
+    `--sample` overrides, the palette, the `config:` defaults and the
+    chosen style's scheme colours."""
     values = dict(SAMPLE)
     if options.time is not None:
         # `--time HH:MM[:SS]` -- overrides the sample clock for both hands
@@ -292,35 +305,39 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         scheme = resolved.face.color_scheme[entry.colors]
         for role, color in scheme.colors.items():
             values.setdefault(f"config.colors.{role}", color.value)
+    return values
 
+
+def new_renderer(resolved: ResolvedFace, options: PreviewOptions, values: dict[str, object],
+                 ground: RGB, used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None,
+                 ) -> "Renderer":
+    """A `Renderer` over a fresh canvas of the device's size at the
+    preview's scale, filled with ``ground``."""
     device = resolved.device
     scale = max(1, options.scale)
-    size = (device.width * scale, device.height * scale)
-    image = Image.new("RGB", size, (0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    image = Image.new("RGB", (device.width * scale, device.height * scale), ground)
+    return Renderer(resolved, ImageDraw.Draw(image), image, scale, values, options, used_faces)
 
-    # The active layout (`None`: no `layouts:`, or a colour-only entry). An
-    # element of a *different* layout is skipped -- the guard
-    # `wfb.emit.monkeyc.view._emit_layout_guarded` compiles into
-    # `if (_configLayout == N)`.
+
+def frame_items(resolved: ResolvedFace, options: PreviewOptions,
+                entry: StyleEntry | None) -> list[Placed]:
+    """What this frame draws, in draw order: the elements the frame draws
+    on this device (`frame_members`: not what the device hides, `--aod`
+    the resolved `aod:` set, `wfb.emit.monkeyc.view`'s own answer), under
+    the chosen style's layout -- the guard the view compiles into
+    `if (_configLayout == N)`."""
     active_layout = entry.layout if entry is not None else None
-    renderer = Renderer(resolved, draw, image, scale, values, options, used_faces)
-    drawn: list[Placed] = []
-    for placed in resolved.shown_items:  # not what this device hides (`if_unavailable: hide`)
-        if placed.kind == "group":
-            continue
-        if options.aod:
-            # `--aod`: the resolved `aod:` set, exactly what
-            # `wfb.emit.monkeyc.view._emit_aod_body` draws.
-            if placed.element.aod is None:
-                continue
-        elif "active" not in placed.element.modes:
-            continue
-        if placed.element.layout is not None and placed.element.layout != active_layout:
-            continue
-        drawn.append(placed)
-    renderer.render_sequence(drawn, ring_groups(resolved.face.elements))
+    frame = "aod" if options.aod else "active"
+    return [placed for placed in frame_members(resolved.shown_items, frame)
+            if in_layout(placed, active_layout)]
 
+
+def finish_frame(image: Image.Image, resolved: ResolvedFace, options: PreviewOptions,
+                 values: dict[str, object]) -> Image.Image:
+    """What the whole frame goes through once its elements are drawn: the
+    AOD pixel mask, the panel's palette, the bezel and the skin."""
+    device = resolved.device
+    scale = max(1, options.scale)
     if options.aod and resolved.face.aod_mask and options.aod_mask:
         # The same moving 2x2 mask the device applies, at the frame's own
         # minute. Before quantising/cropping: black is already an exact MIP

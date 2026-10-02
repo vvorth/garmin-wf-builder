@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from ..layout import Placed, ResolvedFace
     from ..preview import Renderer
 
-__all__ = ["DrawContext", "Op", "emit_body", "lowered", "paint"]
+__all__ = ["DrawContext", "Op", "drawn_text", "emit_body", "lowered", "paint"]
 
 
 def lowered(ctx: DrawContext, placed: "Placed") -> list[Op] | None:
@@ -57,20 +57,28 @@ def paint(renderer: "Renderer", placed: "Placed") -> bool:
     The program is lowered with always-on code present (`AodStyle(on=True)`)
     and the evaluator takes the branch of the frame being painted, which is
     the pixel result of any build's choice."""
-    from ..emit.monkeyc.common import AodStyle
-    from ..palette import dim_fraction
     from .evaluator import evaluate
 
     if not kinds.for_placed(placed).lowers:
         return False
-    dim = renderer.resolved.face.aod_dim
-    aod = AodStyle(on=True, dim=dim_fraction(dim) if dim is not None else None)
-    ctx = DrawContext(renderer.resolved, aod, tuple(renderer.value_guards(placed)))
-    ops = lowered(ctx, placed)
+    ops = lowered(_context(renderer, placed), placed)
     if ops is None:
         return False
     evaluate(ops, renderer)
     return True
+
+
+def _context(renderer: "Renderer", placed: "Placed") -> DrawContext:
+    """How the host lowers ``placed``: with always-on code present
+    (`AodStyle(on=True)`) and the face's own dimming, so the frame being
+    painted picks its branch, and with the same value guards the view
+    passes."""
+    from ..emit.monkeyc.common import AodStyle
+    from ..palette import dim_fraction
+
+    dim = renderer.resolved.face.aod_dim
+    aod = AodStyle(on=True, dim=dim_fraction(dim) if dim is not None else None)
+    return DrawContext(renderer.resolved, aod, tuple(renderer.value_guards(placed)))
 
 
 def drawn_text(resolved: "ResolvedFace", placed: "Placed", values: dict[str, object],

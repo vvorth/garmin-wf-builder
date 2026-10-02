@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from ... import complications, draw, expr, kinds
 from ...availability import Guards
+from ...draw.frames import frame_members
 from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
@@ -1137,8 +1138,7 @@ def _emit_layout_guarded(w: Writer, face: Face, items: list[Placed],
 def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str] = frozenset()) -> list[Placed]:
     """Every element drawn in ``mode``, in draw order, minus ``skip`` (the
     static ids `_emit_mode_body` already blitted from the buffer)."""
-    return [placed for placed in resolved.items
-            if placed.kind != "group" and mode in placed.element.modes and placed.id not in skip]
+    return [placed for placed in frame_members(resolved.items, mode) if placed.id not in skip]
 
 
 def _draw_call(plan: "ReadPlan", placed: Placed) -> str:

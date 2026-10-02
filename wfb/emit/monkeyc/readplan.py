@@ -5,6 +5,7 @@ from __future__ import annotations
 from ... import catalog, formatting
 from ...availability import Guards
 from ...catalog import READERS, Type
+from ...draw.frames import frame_members
 from ...ir import Element, Expression, HandsElement, Text, local_name
 from ...layout import Placed, ResolvedFace
 from .common import _NO_GUARDS
@@ -159,9 +160,7 @@ class ReadPlan:
         # element's own generated method, so its sources need their own
         # locals declared there too (`aod_guard_declarations`).
         self._aod_ids: list[str] = [
-            placed.id for placed in self.resolved.items
-            if placed.kind != "group" and placed.element.aod is not None
-        ]
+            placed.id for placed in frame_members(self.resolved.items, "aod")]
         aod_readers: list[str] = []
         for placed in self.resolved.items:
             aod = placed.element.aod

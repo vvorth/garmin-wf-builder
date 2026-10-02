@@ -248,7 +248,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 | Per-device layout resolve | `wfb/layout.py` | device files |
 | Lint | `wfb/lint.py` | device files |
 | Font baking (TTF → BMFont) | `wfb/fonts/` | no |
-| An element's drawing as one program, printed and evaluated (kinds opt in by `lower`) | `wfb/draw/` | no |
+| An element's drawing as one program, printed and evaluated (kinds opt in by `lower`); a frame as layers, with the program as JSON | `wfb/draw/` | no |
 | Codegen: Monkey C, resources, manifest, jungle | `wfb/emit/` | no |
 | `monkeyc` + measured memory | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |

@@ -311,7 +311,32 @@ the format (`0 bpm`).
   §6).
 - Expected diffs: none (research 28 §6: 102/102 both ways).
 
-### Slice 3 — layers, and the editor's JSON form
+### Slice 3 — layers, and the editor's JSON form: done
+
+Built as below:
+- `wfb/draw/frames.py` (`frame_members`, `in_layout`). `view._drawn_in`,
+  `ReadPlan`'s always-on ids and `preview.render` read it.
+- `preview.render` now composes `sample_values`, `new_renderer`,
+  `frame_items` and `finish_frame`, which the layer stack reuses.
+- `wfb/draw/layers.py`: `Layer`, `layers`, `compose`, and the matte from
+  a black and a white render.
+- `wfb/draw/jsonform.py`: `to_json`, with arcs as the `drawArc` call and
+  fonts by id, and the reference `rasterise`.
+
+Tests:
+- Stacking is within one level of `render` for all 29 example faces,
+  awake and, where a face has one, always-on. It is exact on every face
+  without anti-aliased text, and `analog-custom` rounds exactly as research
+  27 §5.4 measured: 2 938 px at one level, 24 after the palette snap.
+- The JSON contract holds for every lowered element of every example in
+  both frames.
+- The JSON names a rectangle's four `Layout` constants and a stamp's
+  offsets.
+- Group rings sit right before their first member (`features/rings`, and
+  `features/profile` under its `ring1` style).
+- Each guard was seen red: a matte without un-premultiplying, and a
+  reference circle one pixel short.
+
 
 - `wfb.draw.layers(resolved, options)` returns each drawn element's
   layer, in draw order, plus one per outlined group's ring. Each layer

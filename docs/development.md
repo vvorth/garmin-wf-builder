@@ -219,7 +219,24 @@ that lowers needs neither `emit_draw` nor `draw_preview`. One that does not
 keeps both, and `wfb.draw.emit_body` and `paint` route each element to
 whichever its kind has. `shape` and `text` lower; the other kinds
 still have both methods. `wfb.draw.drawn_text` gives the string a lowered
-element draws at given readings, without painting it. The evaluator computes a barrel call with its
+element draws at given readings, without painting it.
+
+**A frame as layers (`wfb.draw.layers`).** `layers(resolved, options)`
+returns each element `wfb.preview.render` draws as its own transparent RGBA
+image, in draw order, with an outlined group's ring as one more layer just
+before its first member. `compose` stacks them and runs the whole-frame
+steps once: the black ground, the AOD mask, the palette, the bezel and the
+skin (`wfb.preview.finish_frame`). Stacking equals `render` before the
+palette snap to within one level per channel, and only anti-aliased edges
+round (`tests/test_draw_layers.py`). A lowered element's layer also carries
+its program as JSON for that frame (`wfb.draw.jsonform.to_json`). Readings,
+colours and always-on choices are folded, and `Layout` constants stay named
+beside their values. Text names its font by an id the layer's `fonts`
+resolves. `jsonform.rasterise` is the reference reader of that JSON and the
+contract a browser canvas implements: for every lowered element it paints
+exactly what the evaluator paints. Which elements a frame draws is one
+function, `wfb.draw.frames.frame_members`, read by the view, its read plan
+and the preview. The evaluator computes a barrel call with its
 Python transcription (`wfb.draw.barrel`). Each transcription is checked
 against the `.mc` source and swept against a model of the pixels the watch
 draws (`tests/test_draw_barrel.py`).
