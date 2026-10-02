@@ -938,9 +938,9 @@ transflective panel's real appearance, or — a deliberate scope decision —
 **a primitive/`gauge`/`graph`/`hands` element's own anti-aliasing**
 (`antialias:`, `docs/guide/elements.md`):
 that side of the feature is a runtime `Dc.setAntiAlias` call, and
-`wfb/preview.py` draws every primitive with plain `PIL.ImageDraw` calls
-(`rectangle`, `ellipse`, `arc`, `polygon`, `line`), which are aliased by
-construction and were not changed to match. ADR 0004 exists precisely so the
+the preview's evaluator (`wfb/draw/evaluator.py`) draws every primitive with
+plain `PIL.ImageDraw` calls (`rectangle`, `ellipse`, `arc`, `polygon`,
+`line`), which are aliased by construction and were not changed to match. ADR 0004 exists precisely so the
 preview and the device cannot disagree about what a design looks like, and a
 second renderer's idea of a soft edge is not Garmin's. Turning `antialias:` on
 for a primitive/`gauge` element changes what the device draws with no
@@ -954,21 +954,25 @@ test_an_antialiased_icon_previews_with_intermediate_grey` confirms this end
 to end, through a real design rather than against the baked sheet alone). For
 the primitive gap, the simulator is authoritative.
 
-Two places where the preview is known to differ from the code the watch is
-sent, both measured in the Pillow model (`docs/research/27-draw-program.md`
-§2.5):
+**The preview draws the program the watch is sent.** Every element is
+lowered once into a draw program that the view prints and the preview
+evaluates (`wfb/draw/`), guards included, with the barrel's arithmetic
+transcribed (`wfb/draw/barrel.py`): arcs start on the watch's whole degree,
+graphs and data elements land on its whole pixels, and an `outline:` ring is
+the same grown copy, shifted polygon or stamp on both. What remains is
+rasterisation:
 
-- **A filled circle's, rectangle's or rounded rectangle's `outline:`.** The
-  watch is sent one grown copy (`fillCircle(r + w)`, a rounded rectangle
-  `w` larger). The preview stamps the shape at the ring's offsets instead.
-  The two differ by 8–28 px per shape at 1×. Which one the watch's
-  rasteriser matches is not yet measured; the probe for it is
-  `docs/research/probes/ring-on-device/`.
-- **A gauge's arc whose start angle is a half degree** (`12.5deg`, or a
-  `360 / n` step). The watch rounds the start in Garmin's convention
-  (`WfbArc.drawSpan`), and the preview rounds the author's, so the
-  preview draws the arc one degree away. A `type: arc` element is already
-  painted from the watch's arithmetic, and draws where the watch does.
+- **Garmin's circles and rounded corners are not Pillow's.** A simulator
+  capture (`docs/research/28-editor-open-questions.md` §7,
+  `docs/research/probes/ring-on-device/`) shows `fillCircle` of radius 14
+  as a different shape from Pillow's `ellipse` (flatter at the top, a pixel
+  off centre, slightly asymmetric: about 80–100 px of a 38×36 window), and
+  `fillRoundedRectangle`'s corners a few pixels off each. A corner radius of
+  1 is square on the watch, where Pillow rounds it, so a filled rectangle's
+  or a gauge bar's 1 px ring shows four corner pixels in the simulator that
+  the preview leaves out. `fillRectangle` matches exactly. The preview does
+  not try to match Garmin's circle or corner rasterisation; for those
+  pixels, the simulator is authoritative.
 
 ---
 

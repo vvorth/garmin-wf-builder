@@ -593,3 +593,28 @@ matches is the suppressible `override-unreachable` warning, both checked
 when the build's devices are chosen. The `colors:`, `touch:` and `api:`
 selectors, and non-geometry keys, stay unbuilt; the schema refuses them.
 
+## Amendment (2026-10-02): one lowering, rule-free backends
+
+The guarantee this ADR rests on -- the preview and the device cannot
+disagree about what a design looks like -- was kept by hand: every kind
+drew twice, once as Monkey C and once in Pillow, and the two were reviewed
+into agreement (research 27 §2). It is now kept by construction (plan 26,
+decided 2026-10-01, research 27 §8). Each element is **lowered once** into
+a draw program (`wfb/draw/`), its guards included: values over `Layout`
+constants and readings, and ops for the `Dc` calls and the barrel's drawing
+calls. Three backends read it and decide nothing about any kind:
+
+- the printer writes it as the body of `draw<Id>`;
+- the evaluator paints it on the host, the preview, with the barrel's
+  arithmetic transcribed from `runtime-lib/` (`wfb/draw/barrel.py`) and a
+  chain of operators read the way Monkey C parses the printed text;
+- the JSON form folds it for one frame, for the editor's browser canvas.
+
+Porting it proved every kind's printed code byte-identical to the old
+emitter and named every preview pixel it moved, each a place the old
+preview disagreed with the watch (plan 26 §3). The one disagreement left
+open, a grown outline ring, was settled by a simulator capture: the watch
+draws the grown copy, and so does the preview (research 28 §7). What the
+evaluator does not reproduce is rasterisation: Garmin's circles and rounded
+corners are not Pillow's (`docs/limitations.md`).
+

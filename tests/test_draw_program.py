@@ -254,45 +254,28 @@ def test_let_text_substitutes_only_when_the_reading_is_absent(db):
 # -- dispatch ---------------------------------------------------------------------
 
 
-def test_a_lowered_kind_is_printed_and_painted_and_its_old_methods_never_run(db, monkeypatch):
+def test_a_kinds_program_is_what_the_view_prints_and_the_preview_paints(db, monkeypatch):
     resolved = resolved_example(SHAPES, db, DEVICE)
     shape_kind = kinds.get("shape")
     programs = {p.id: _shape_program(p) for p in resolved.items if p.kind == "shape"}
+    plain = _plain_shapes(resolved)
+    for placed in plain:
+        # The tag proves the view printed this program.
+        programs[placed.id].insert(0, Comment(f"lowered {placed.id}"))
 
     def lower(ctx: DrawContext, placed):
         assert ctx.aod is not None and ctx.resolved is resolved
-        return programs[placed.id] if placed.element.outline is None else None
-
-    def refuse(*args, **kwargs):
-        raise AssertionError("a lowered element reached its kind's old method")
+        return programs[placed.id]
 
     monkeypatch.setattr(shape_kind, "lower", lower)
-    plain = _plain_shapes(resolved)
-    for placed in plain:
-        # The tag proves the view printed the program, not the old emitter
-        # (which writes the same drawing calls).
-        programs[placed.id].insert(0, Comment(f"lowered {placed.id}"))
     view = emit_view(resolved).text
     for placed in plain:
         assert f"// lowered {placed.id}\n" in view, placed.id
-
-    monkeypatch.setattr(shape_kind, "emit_draw", refuse)
-    monkeypatch.setattr(shape_kind, "draw_preview", refuse)
     for placed in plain:
         through, direct = _renderer(resolved), _renderer(resolved)
         through.render_element(placed)
         evaluator.evaluate(programs[placed.id], direct)
         assert _differing(through.image, direct.image) == 0, placed.id
-
-
-def test_lowers_sees_an_override_and_only_an_override(monkeypatch):
-    """`lowers` is what spares an unported kind the `DrawContext` (and the
-    preview its `ReadPlan`): false for a kind that inherits `lower`
-    (`group` draws nothing and never will), true once one is set."""
-    group_kind = kinds.get("group")
-    assert not group_kind.lowers
-    monkeypatch.setattr(group_kind, "lower", lambda ctx, placed: [])
-    assert group_kind.lowers
 
 
 HALF_DEGREE_ARC = """
@@ -321,10 +304,10 @@ def test_a_half_degree_arc_previews_where_the_watch_draws_it(resolved_for):
     """`start_angle: 12.5deg` is 77.5 in the `Layout` constant, which
     `WfbArc.drawSpan` rounds to 78: the arc starts at 12 degrees clockwise
     from 12 o'clock on the watch.  The preview paints exactly that arc, and
-    the old twin (`preview.arc_span`, rounding the author's 12.5 to 13 --
-    still a gauge's until it lowers) is a degree off: the control."""
+    the old twin (rounding the author's 12.5 to 13, `author_arc_span`) is a
+    degree off: the control."""
+    from tests.helpers import author_arc_span as arc_span
     from wfb.draw import barrel
-    from wfb.preview import arc_span
 
     resolved = resolved_for(HALF_DEGREE_ARC)
     placed = find(resolved, "tick")

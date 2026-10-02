@@ -77,7 +77,7 @@ def _widest_text(element: Text) -> str:
         widest = longer(widest, element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
         # 'fallback:' is drawn through the exact same format spec as the
-        # real value (see `wfb.kinds.text.TextKind.emit_draw`), so its widest
+        # real value (see `wfb.kinds.text.TextKind.lower`), so its widest
         # rendering has to be considered too -- otherwise a font baked
         # from the *value*'s digit range alone can come up short for a
         # wider fallback (e.g. a longer literal string on a nullable
@@ -88,7 +88,7 @@ def _widest_text(element: Text) -> str:
 
 def _fallback_widest(fallback_expr: Expression, spec: str, unit_widest: str = "") -> str:
     """The widest string a `fallback:` expression could render, through the
-    same format spec the bound value uses (see `wfb.kinds.text.TextKind.emit_draw`).
+    same format spec the bound value uses (see `wfb.kinds.text.TextKind.lower`).
 
     A literal string fallback (`fallback: "N/A"`) renders exactly as written,
     the same way `placeholder:` already does above -- `formatting.widest`'s
@@ -294,7 +294,6 @@ def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
 class TextKind(ElementKind[Text, PlacedText]):
     name = "text"
     ringed = True
-    rings_itself = True
 
     def ring_draws(self, element: Text, face: Face) -> int:
         return (1 if baked_ring(element, face, 1) is not None

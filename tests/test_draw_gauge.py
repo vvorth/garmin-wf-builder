@@ -17,7 +17,7 @@ from wfb.draw import evaluator
 from wfb.draw.jsonform import to_json
 from wfb.draw.printer import print_ops
 from wfb.draw.program import (
-    Bin, Call, Conv, Disagreement, DrawContext, FloatLit, Lit, Paren, Part,
+    Bin, Call, Conv, DrawContext, FloatLit, Lit, Paren,
 )
 from wfb.emit.monkeyc.common import NO_AOD
 from wfb.emit.writer import Writer
@@ -155,15 +155,17 @@ def test_a_slot_gauge_whose_pick_has_no_scale_draws_nothing(db):
 
 def test_a_needles_ring_goes_through_the_barrel(db):
     """Each part rings through `WfbRing`/`WfbRingWide`; a filled circle part
-    rings as itself grown, which the preview still stamps (a
-    `Disagreement`, until the ring question is measured)."""
+    rings as itself grown by the ring's width, on the watch and in the
+    preview alike (research 28 §7: the watch's grown ring is not a stamp)."""
     resolved = resolved_example(OUTLINED, db, DEVICE)
     needle = find(resolved, "needle")
     code = _printed(resolved, needle)
     assert "WfbRingWide.rotated(" in code
     assert "_RADIUS + 2" in code
-    ops = kinds.for_placed(needle).lower(DrawContext(resolved, NO_AOD), needle)
-    disagreements = [op for op in ops if isinstance(op, Disagreement)]
-    assert len(disagreements) == 1
-    watch, = disagreements[0].watch
-    assert isinstance(watch, Part) and watch.part.shape == "circle" and not watch.stamp
+    renderer = _renderer(resolved)
+    ops, _ = to_json(renderer, needle)
+    circles = [op for op in ops if op["op"] == "fillCircle"]
+    part = needle.needle[1]
+    assert part.shape == "circle" and part.filled
+    # The ring's one grown circle, then the part itself.
+    assert [op["args"][2] for op in circles] == [part.radius + 2, part.radius]

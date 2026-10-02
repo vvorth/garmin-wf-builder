@@ -7,9 +7,9 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
-from .. import catalog, expr, formatting
+from .. import expr, formatting
 from ..catalog import Type
 from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
 from ..ir import disc_perimeter_offsets
@@ -27,9 +27,9 @@ from ..emit.monkeyc.common import const_prefix, font_field
 from ..draw.printer import color_code
 from ..draw.program import (
     AnyOf, AodDimmed, AodPart, AodPick, ArcSpan, Bin, Blank, Call, Cmp, Comment, Cond, Const,
-    Continue, Disagreement, DrawContext, FloatLit, Font, FontDrop, For, If, IfNotNull, Let, Lit,
+    Continue, DrawContext, FloatLit, Font, FontDrop, For, If, IfNotNull, Let, Lit,
     LoadFont, Num, NumLocal, Op, Paint, Paren, Part, PerCopy, Reading, RingColor, SetColor, SetPen,
-    Shifted, Str, StrLit, Text, Truthy, WrapperGuard,
+    Shifted, Str, StrLit, Text, Truthy,
 )
 from . import ElementKind, TextRun
 
@@ -380,13 +380,7 @@ def _lower_part(element: PatternElement, placed: PlacedPattern, prefix: str, ind
         return _lower_text_part(element, part, part_prefix, index, radial, text_fonts, stamp,
                                 ring)
     if part.shape != "arc":
-        drawn = Part(part, part_prefix, radial, pen, set_pen=not hoist_pen, ring=ring)
-        if ring is not None and part.shape == "circle" and part.filled:
-            return [Disagreement(
-                watch=(drawn,), preview=(replace(drawn, stamp=True),),
-                why="the watch is sent a grown circle; the preview stamps, and which of the "
-                    "two the watch's rasteriser matches is not yet measured")]
-        return [drawn]
+        return [Part(part, part_prefix, radial, pen, set_pen=not hoist_pen, ring=ring)]
     # arc: always centred on the copy's own origin.  A radial pattern turns
     # the author start angle by plain degree subtraction -- the arithmetic
     # `wfb.layout.garmin_arc` performs at build time for a standalone `shape:
@@ -505,7 +499,6 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
     placed_class = PlacedPattern
     antialiased = True
     ringed = True
-    rings_itself = True
 
     def ring_refusal(self, element: PatternElement) -> str | None:
         if any(part.shape == "text" and part.outline is not None for part in element.parts):
@@ -585,7 +578,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
 
         parts: list[AnyHandPart] = []
         # `copy` -- the index of the copy being drawn -- exists only here,
-        # compiled to the generated loop's own index (`emit_draw`).
+        # compiled to the generated loop's own index (`PatternKind.lower`).
         b.scope.define(expr.COPY, expr.Binding(expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX))
         try:
             # Any source is allowed here, absent-able or not:
@@ -786,17 +779,6 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         radial = element.pattern == "radial"
         i = NumLocal("i")
         ops: list[Op] = []
-        # The device's own null guard before the copy loop: a nullable
-        # source a colour or a part's `visible:` reads.
-        sources: set[str] = set()
-        for expression in element.colors:
-            sources.update(expression.sources)
-        for ir_part in element.parts:
-            if ir_part.visible is not None:
-                sources.update(ir_part.visible.sources)
-        guarded = tuple(sorted(path for path in sources if catalog.CATALOG[path].guard_needed))
-        if guarded:
-            ops.append(WrapperGuard((), guarded))
         if radial:
             ops += [Let("cx", Const(f"{prefix}_X", placed.center[0])),
                     Let("cy", Const(f"{prefix}_Y", placed.center[1]))]

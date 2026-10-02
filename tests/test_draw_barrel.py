@@ -1,6 +1,7 @@
 """`wfb.draw.barrel`: the barrel's arithmetic, transcribed, and checked two ways.
 
-1. The `.mc` source still says what is transcribed: each rule-carrying
+1. The `.mc` source still says what is transcribed (`WfbArc`, `WfbGeom`,
+   `WfbMath`, `WfbScale`, `WfbSeries`, `WfbRing`): each rule-carrying
    statement is looked up in the real file.
 2. Swept against an independent model of what the watch draws, fed the
    argument the watch is given -- for an arc, the Garmin start angle in its
@@ -23,7 +24,7 @@ import pytest
 
 from wfb.draw import barrel
 from wfb.layout import garmin_arc
-from wfb.preview import arc_span
+from tests.helpers import author_arc_span as arc_span
 
 RUNTIME = Path(__file__).resolve().parent.parent / "runtime-lib"
 
@@ -56,6 +57,35 @@ def _source(name: str) -> str:
     ("WfbGeom.mc", (
         "return Math.floor(cx + x * cos - y * sin + 0.5).toNumber();",
         "return Math.floor(cy + x * sin + y * cos + 0.5).toNumber();",
+        "out[i] = [cx + x * cos - y * sin, cy + x * sin + y * cos];",
+        "dc.fillCircle(cx + x * cos - y * sin, cy + x * sin + y * cos, r);",
+    )),
+    ("WfbMath.mc", (
+        "if (goal <= 0) { return 0.0; }",
+        "var pct = 100.0 * value.toFloat() / goal.toFloat();",
+        "return clamp(pct, 0.0, 100.0) as Float;",
+    )),
+    ("WfbScale.mc", (
+        "var low = scale[0].toFloat();",
+        "var full = (reading.toFloat() - low) / (scale[1].toFloat() - low);",
+        "if (full < 0.0) { return 0.0; }",
+        "return (full > 1.0) ? 1.0 : full;",
+    )),
+    ("WfbSeries.mc", (
+        "if (span <= 0.0) { span = 1.0; }",
+        "if (v == null) { havePrevious = false; continue; }",
+        "var cx = x + (i * w / (n - 1));",
+        "var cy = y + h - ((v - lo) * h / span).toNumber();",
+        "run[count] = [x + ((end - 1) * w / (n - 1)), y + h];",
+        "run[count + 1] = [x + (start * w / (n - 1)), y + h];",
+        "var pitch = w / n;",
+        "var barHeight = ((v - lo) * h / span).toNumber();",
+        "if (barHeight < 1) { barHeight = 1; }",
+        "x + (i * pitch) + ((pitch - barWidth) / 2), y + h - barHeight,",
+    )),
+    ("WfbRing.mc", (
+        "dc.drawLine(ax - 1, ay, bx - 1, by);",
+        "dc.drawCircle(px - 1, py, r);",
     )),
 ])
 def test_the_transcription_matches_the_barrel_source(name, statements):
@@ -108,7 +138,7 @@ def test_the_evaluator_covers_the_degrees_the_watch_covers():
 
 
 def test_the_sweep_catches_the_old_preview_twin():
-    """`preview.arc_span` rounds the author's start, the watch the Garmin
+    """The old preview twin rounded the author's start, the watch the Garmin
     start, so the two part at every half degree: the sweep above must see
     that, or it could not catch a broken evaluator either."""
     disagree = [

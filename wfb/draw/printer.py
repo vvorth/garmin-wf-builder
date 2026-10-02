@@ -2,8 +2,8 @@
 
 It writes through the emitter's own `Writer` (`call`, `block`, `blank`) and
 its spelling helpers (`shifted`, `plus`, `glyph_y_expr`,
-`radial_radius_expr`, `mc_color`), so a ported kind prints exactly what its
-hand-written `emit_draw` printed.
+`radial_radius_expr`, `mc_color`), so wrapping and spacing come out as the
+rest of the view's.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ from ..emit.writer import Writer
 from ..ir import local_name
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
-    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
+    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv,
     FillPolygon, FloatLit, FontDrop, FontHeight, For, Glyph, HandAngle, IsPulsing, Return,
     SlotIcon, SlotPull, SlotText, TextWidth, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
-    NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
+    NotSleeping, Str, StrLit, Text, Truthy, VisibleGuard, NullGuard, AntiAlias,
 )
 
 
@@ -155,7 +155,6 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
             n(op.fraction),
         ])
     elif isinstance(op, Part):
-        assert not op.stamp, "a stamped part is only ever the preview side of a Disagreement"
         if op.ring is None:
             rotated.emit_transformed_part(w, op.part, op.prefix, radial=op.radial,
                                           thickness_expr=n(op.pen), set_pen=op.set_pen)
@@ -225,8 +224,27 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
     elif isinstance(op, LetAutoScale):
         w.line(f"var scale = ({op.reader} != null) "
                f"? {op.module}.scale(Complications.{op.constant}, {op.reader}) : null;")
-    elif isinstance(op, WrapperGuard):
-        pass  # the view prints it
+    elif isinstance(op, VisibleGuard):
+        e = op.expr
+        if e.constant is not None and e.constant:
+            w.comment(f"visible: {e.text} -- always true, nothing to check")
+            w.blank()
+        else:
+            parts = [f"{name} == null" for name in op.locals] + [op.negated]
+            w.comment(f"visible: {e.text}" + (" -- absent means hidden" if len(parts) > 1 else ""))
+            with w.block(f"if ({' || '.join(parts)})"):
+                w.line("return;")
+            w.blank()
+    elif isinstance(op, NullGuard):
+        w.comment(op.note)
+        with w.block(f"if ({' || '.join(f'{name} == null' for name in op.locals)})"):
+            w.line("return;")
+        w.blank()
+    elif isinstance(op, AntiAlias):
+        on = "true" if op.on else "false"
+        if op.comment:
+            w.comment(f"antialias: {on}")
+        w.line(f"applyAntiAlias(dc, {on});")
     elif isinstance(op, LoadFont):
         w.line(f"var {op.local} = {op.source};")
         if op.on_null == "return":
@@ -253,8 +271,6 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
     elif isinstance(op, IfAwake):
         with w.block("if (!_aod)"):
             print_ops(w, op.body, aod)
-    elif isinstance(op, Disagreement):
-        print_ops(w, op.watch, aod)
     elif isinstance(op, Comment):
         w.comment(op.text)
     elif isinstance(op, Blank):

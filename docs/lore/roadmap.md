@@ -107,6 +107,15 @@ or AOD-related has been observed on a watch or in the simulator.
   its SDK (`sdk-version.txt`); `wfb build` warns on a mismatch
   (`wfb.build.check_sdk`) and writes `build-info.json`; `wfb doctor`
   reports it. `docs/guide/getting-started.md`.
+- **One draw program** — each element is lowered once into a program of
+  drawing steps over `Layout` constants and readings (`wfb/draw/`), its
+  guards included: the view prints it, the preview evaluates it with the
+  barrel's arithmetic transcribed, and a frame is per-element layers with
+  the program as JSON for a browser canvas (`wfb.draw.layers`,
+  `wfb.draw.jsonform`). A grown outline ring is drawn grown in the preview
+  as on the watch (research 28 §7). Garmin's circle and rounded-corner
+  rasterisation is not matched (`docs/limitations.md`).
+  `docs/development.md`, "Element kinds".
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
@@ -166,8 +175,8 @@ specifies each item.
    no-build-step front end. It edits the file's text by span patches,
    never by re-dumping (research 26 §3). The first version edits geometry
    only. The browser draws per-element layers from the single draw
-   program below and makes no drawing decisions (research 27 §5). It
-   follows that program's core and its `shape`/`text` ports.
+   program and makes no drawing decisions (research 27 §5); the program
+   is built.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -188,20 +197,9 @@ specifies each item.
 
 ## Architecture work decided, not built
 
-- **A single draw program** (decided 2026-10-01; every drawing kind is
-  ported, with per-element layers and the JSON form; the per-element
-  wrapper's guards and the close-out remain): each
-  element is lowered once into a program of drawing steps over `Layout`
-  constants and readings. A Monkey C printer, a Python evaluator (the
-  preview) and a partly evaluated op list for a browser editor all consume
-  it, so the rules preview and codegen still implement twice go away. It
-  lands one element kind at a time behind `wfb/kinds/`, each port proven
-  output-identical by `tools/snapshot.py`. Two known preview/codegen
-  disagreements are corrected as their own commits: grown outline rings,
-  which the preview draws as stamps, and half-degree arc starts, which the
-  preview rounds 1° off `WfbArc.drawSpan`. Evidence: research 27 §2.5. The
-  visual editor follows it, editing geometry only and reverting no shipped
-  feature. Its patch engine is built (`wfb/edit/`: text patches, the gate,
+- **The visual editor** (decided 2026-10-01): it edits geometry only and
+  reverts no shipped feature, drawing per-element layers from the draw
+  program. Its patch engine is built (`wfb/edit/`: text patches, the gate,
   drags in the author's units); the server and the UI are not.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the

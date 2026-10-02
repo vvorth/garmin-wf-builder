@@ -23,25 +23,24 @@ is how a caller finds out (`stand_in_warning`).
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass, replace as dataclass_replace
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageChops, ImageDraw, ImageMath
 
-from . import aod_mask, expr, kinds, visible_area
+from . import aod_mask, expr, visible_area
 from . import draw as draw_program
 from .devices import Device, FontMetric
 from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
-from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
+from .ir import Element, Expression, Face, StyleEntry, aod_color_choice
 from .ir.rings import RingGroup, ring_groups
 from .draw.frames import frame_members, in_layout
 from .layout import (
-    Placed, PlacedHands, PlacedPattern, PlacedProgress, ResolvedFace, RotatablePart,
-    alignment_shift,
+    Placed, ResolvedFace, alignment_shift,
     radial_align_offset, radial_direction_sign,
 )
 from .palette import (
@@ -148,7 +147,7 @@ class PreviewOptions:
     #: Render the AMOLED always-on-display frame instead of the awake one --
     #: `wfb preview --aod`. Draws the resolved `aod:` set (`Element.aod is
     #: not None`), restyled and dimmed exactly as codegen does
-    #: (`Renderer.aod_field`/`aod_color`). A design with no `aod:`
+    #: (each program's `_aod` branches). A design with no `aod:`
     #: anywhere renders blank under the face default (`hide`).
     aod: bool = False
     #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
@@ -529,25 +528,24 @@ class _FaceGlyphs:
 
 class Renderer:
     """Draws one resolved face into a Pillow image for `wfb preview`, the
-    way the generated code draws it on the watch.
+    way the generated code draws it on the watch: each element's draw
+    program, evaluated (`wfb.draw.evaluator`), in the order the view draws
+    them, outlined groups' rings included.
 
-    **Helpers for kind authors.**  A kind's `draw_preview` gets the
-    renderer: `renderer.draw` is the `ImageDraw`, `renderer.scale` the
-    upscale every device pixel is multiplied by, and `renderer.values` the
-    sample readings.
+    **What the evaluator reads.**  `draw` is the `ImageDraw`, `scale` the
+    upscale every device pixel is multiplied by, and `values` the sample
+    readings.
 
     - Values: `color` (a colour expression to RGB) and `visible` (a
-      `visible:` expression); `aod_color`, `aod_field` and `aod_geometry`
-      apply the element's `aod:` override and `dim:` while `--aod`
-      renders, the twins of `wfb.emit.monkeyc.common.AodStyle`.
+      `visible:` expression); `aod_color` and `aod_dimmed` apply the
+      element's `aod:` override and `dim:` while `--aod` renders, the twins
+      of `wfb.emit.monkeyc.common.AodStyle`.
     - Text: `draw_text` (upright, in a baked or system font),
       `draw_vector_text` (a `face:` font, upright or curved),
-      `draw_outlined` (an `outline:` ring around either), `glyph_source`,
-      `paste_glyph`.
-    - Shapes: `rect` (a box in preview pixels), `hand_part` (one part of a
-      hand or of a pattern copy).
+      `glyph_source`, `paste_glyph`.
+    - Shapes: `rect` (a box in preview pixels).
 
-    Module level: `baked_glyph`, `arc_span`.
+    Module level: `baked_glyph`.
     """
 
     def __init__(self, resolved: ResolvedFace, draw: ImageDraw.ImageDraw, image: Image.Image,
@@ -580,21 +578,6 @@ class Renderer:
     # The host twins of `wfb.emit.monkeyc.common.AodStyle`: while `--aod`
     # renders, an element's own resolved `aod:` override for a key wins;
     # a colour with no override is dimmed by the face's `aod: {dim: ...}`.
-
-    def aod_field(self, element: Element, key: str, base: Any) -> Any:
-        """``base``, replaced by this element's resolved `aod:` override for
-        ``key`` while `--aod` renders and one is set."""
-        if not self.options.aod or element.aod is None:
-            return base
-        override = getattr(element.aod, key)
-        return override if override is not None else base
-
-    def aod_geometry(self, placed: Placed, key: str, base: int) -> int:
-        """``base`` (a resolved pixel length), replaced by ``placed.aod_<key>``
-        (`thickness`, `bar_width`) while `--aod` renders and it is set. A
-        `hands`/`pattern` override applies uniformly to every part."""
-        override: int | None = getattr(placed, f"aod_{key}") if self.options.aod else None
-        return base if override is None else override
 
     def _dim_rgb(self, rgb: tuple[int, int, int]) -> tuple[int, int, int]:
         """`aod: {dim: ...}` applied to a resolved RGB triple, through the
@@ -649,135 +632,49 @@ class Renderer:
                    else placed.element.visible)
         return self.visible(visible)
 
-    def value_guards(self, placed: Placed) -> list[str]:
-        """The reading locals whose absence substitutes ``placed``'s value
-        (`ReadPlan.value_guards`), which a draw program's `LetText` names."""
+    @property
+    def read_plan(self) -> "ReadPlan":
+        """The reads and guards of the view this preview stands in for
+        (`ReadPlan`), built once."""
         if self._read_plan is None:
             from .emit.monkeyc.readplan import ReadPlan
             self._read_plan = ReadPlan(self.resolved)
-        return self._read_plan.value_guards(placed)
+        return self._read_plan
+
+    def value_guards(self, placed: Placed) -> list[str]:
+        """The reading locals whose absence substitutes ``placed``'s value
+        (`ReadPlan.value_guards`), which a draw program's `LetText` names."""
+        return self.read_plan.value_guards(placed)
 
     def render_element(self, placed: Placed) -> None:
-        if not self.shows(placed):
-            return
-        if draw_program.paint(self, placed):
-            # A lowered element draws its own `outline:` ring, as on the
-            # watch.
-            return
-        kind = kinds.for_placed(placed)
-        outline = placed.element.outline
-        if outline is not None and not kind.rings_itself:
-            # Every other kind's ring is the stamp of whatever it draws
-            #.
-            self.stamp_ring(self.silhouette(lambda: kind.draw_preview(self, placed)),
-                            self.aod_dimmed(placed.element, outline.color), outline.width)
-        kind.draw_preview(self, placed)
+        """``placed``'s program, if it draws in this frame."""
+        if self.shows(placed):
+            draw_program.paint(self, placed)
 
-    def render_sequence(self, items: list[Placed], rings: list[RingGroup],
-                        scope: RingGroup | None = None) -> None:
+    def render_ring(self, ring: RingGroup, members: list[Placed]) -> None:
+        """An outlined group's ring, as the view draws it: every member's
+        `ring<Id>` pass, each at its own width (a nested group rings its
+        members wider), in the group's colour."""
+        from .emit.monkeyc.common import RingPass
+
+        outline = ring.group.outline
+        assert outline is not None
+        color = self.aod_dimmed(ring.group, outline.color)
+        for member in members:
+            if self.shows(member):
+                draw_program.paint(self, member, RingPass("ringColor", ring.width_of(member.id)),
+                                   color)
+
+    def render_sequence(self, items: list[Placed], rings: list[RingGroup]) -> None:
         """Draw ``items`` in order, each outlined group's ring just before
-        its first member here -- the order `wfb.emit.monkeyc.view.Rings`
-        emits.  The ring is the stamp of every member drawn together,
-        inner groups' rings included: ``scope`` is the group whose
-        silhouette this is, and only groups inside it ring here."""
+        its first member here, outermost group first -- the order
+        `wfb.emit.monkeyc.view.Rings` emits."""
         for placed in items:
             for ring in rings:
-                if scope is not None and (ring is scope or not ring.ids <= scope.ids):
-                    continue
                 members = [p for p in items if p.id in ring.ids]
-                if not members or members[0] is not placed:
-                    continue
-                outline = ring.group.outline
-                assert outline is not None
-                self.stamp_ring(
-                    self.silhouette(lambda: self.render_sequence(members, rings, ring)),
-                    self.aod_dimmed(ring.group, outline.color), outline.width)
+                if members and members[0] is placed:
+                    self.render_ring(ring, members)
             self.render_element(placed)
-
-    # -- outline rings ----------------------------------------------------
-
-    def silhouette(self, paint: Callable[[], None]) -> Image.Image:
-        """The pixels ``paint`` touches, as an `L` mask: it paints twice, on
-        two scratch canvases of different solid colours, and a pixel is in
-        the mask when either canvas changed there -- so an element of any
-        colour, black included, has a silhouette.  The real canvas is left
-        untouched."""
-        grounds = ((1, 2, 3), (254, 253, 252))
-        mask = Image.new("L", self.image.size, 0)
-        image, draw = self.image, self.draw
-        try:
-            for ground in grounds:
-                scratch = Image.new("RGB", image.size, ground)
-                self.image, self.draw = scratch, ImageDraw.Draw(scratch)
-                paint()
-                changed = ImageChops.difference(scratch, Image.new("RGB", image.size, ground))
-                mask = ImageChops.lighter(mask, changed.convert("L").point(lambda v: 255 if v else 0))
-        finally:
-            self.image, self.draw = image, draw
-        return mask
-
-    def dilate(self, mask: Image.Image, width: int) -> Image.Image:
-        """``mask`` stamped at every `disc_perimeter_offsets(width)` offset
-        (device pixels, upscaled), the host twin of the codegen stamp loop
-        -- the ring alone, without ``mask`` itself."""
-        ring = Image.new("L", mask.size, 0)
-        for dx, dy in disc_perimeter_offsets(width):
-            shifted = Image.new("L", mask.size, 0)
-            shifted.paste(mask, (dx * self.scale, dy * self.scale))
-            ring = ImageChops.lighter(ring, shifted)
-        return ring
-
-    def stamp_ring(self, mask: Image.Image, color: RGB, width: int) -> None:
-        """Paint the ring of ``width`` round ``mask`` in ``color``."""
-        self.image.paste(color, (0, 0), self.dilate(mask, width))
-
-    # -- elements ---------------------------------------------------------
-
-    def hand_part(self, placed: PlacedHands | PlacedPattern | PlacedProgress, part: RotatablePart,
-                  cx: float, cy: float,
-                  sin_t: float, cos_t: float, values: dict[str, object] | None = None) -> None:
-        """One polygon/line/circle part of a hand or pattern copy, its
-        vertices rotated by `(sin_t, cos_t)` about the scaled `(cx, cy)`.
-        The element-level `aod:` colour/thickness override applies to every
-        part (`aod_color`, `aod_geometry`)."""
-        s = self.scale
-        fill = self.aod_color(placed.element, "color", part.color, values)
-
-        def rotated(x: float, y: float) -> tuple[float, float]:
-            return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
-
-        if part.shape == "polygon":
-            if len(part.points) >= 3:
-                self.draw.polygon([rotated(x, y) for x, y in part.points], fill=fill)
-        elif part.shape == "line":
-            x1, y1 = rotated(part.x1, part.y1)
-            x2, y2 = rotated(part.x2, part.y2)
-            thickness = self.aod_geometry(placed, "thickness", part.thickness)
-            self.draw.line([x1, y1, x2, y2], fill=fill, width=max(1, thickness * s))
-        else:  # circle
-            x, y = rotated(part.x, part.y)
-            r = part.radius * s
-            box = [x - r, y - r, x + r, y + r]
-            if part.filled:
-                self.draw.ellipse(box, fill=fill)
-            else:
-                thickness = self.aod_geometry(placed, "thickness", part.thickness)
-                self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
-
-    def draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color: RGB,
-                      ring_color: RGB | None, ring_width: int, box: IntBox | None = None) -> None:
-        """`draw(anchor, color, box)` once for the interior, preceded by one
-        ring-coloured stamp per `wfb.ir.disc_perimeter_offsets(ring_width)`
-        offset when `ring_color` is set -- the host twin of the codegen stamp
-        loop, using the same offset table, so preview and device stamp the
-        same pixels. `anchor` and the offsets are device pixels; `draw`
-        applies the preview's own upscale. Only the interior gets `box` (the
-        "no face at all" outline fallback)."""
-        if ring_color is not None:
-            ax, ay = anchor
-            for dx, dy in disc_perimeter_offsets(ring_width):
-                draw((ax + dx, ay + dy), ring_color)
-        draw(anchor, color, box)
 
     # -- text helpers -----------------------------------------------------
 
@@ -1133,36 +1030,10 @@ class Renderer:
 def baked_glyph(font: BakedFont | None, char: str | None) -> GlyphBox | None:
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
-    be drawn" check `wfb.draw.evaluator.paste_glyph` and
-    `wfb.kinds.complication_slot.ComplicationSlotKind.draw_preview` share."""
+    be drawn" check `wfb.draw.evaluator.paste_glyph` makes."""
     if font is None or font.sheet is None or char is None:
         return None
     return font.glyphs.get(char)
-
-
-def _round_away(degrees: float) -> int:
-    """Round half away from zero -- `WfbArc.roundAway`, not Python's banker's `round`."""
-    return int(degrees - 0.5) if degrees < 0 else int(degrees + 0.5)
-
-
-def arc_span(start_angle: float, sweep: float) -> tuple[int, int] | None:
-    """The Pillow ``(start, end)`` for an arc, or None when nothing is drawn.
-
-    The host twin of `runtime-lib/WfbArc.mc`'s `drawSpan`. `Dc.drawArc` only
-    takes whole degrees and draws a complete circle when start equals end, so
-    the device decides on the *rounded* sweep: under half a degree draws
-    nothing, and only a sweep of 360 or more is the full ring. The preview
-    applies the same rule so it cannot show a sliver the watch will not draw.
-    ``start_angle`` is the author's clockwise-from-12 angle; Pillow runs
-    clockwise from 3 o'clock, hence the 90-degree shift, and the endpoints are
-    ordered so Pillow takes the short way round.
-    """
-    whole = max(-360, min(360, _round_away(sweep)))
-    if whole == 0:
-        return None
-    start = _round_away(start_angle) - 90
-    end = start + whole
-    return (start, end) if whole > 0 else (end, start)
 
 
 def _quantise(image: Image.Image, display_colors: int | None) -> Image.Image:

@@ -85,6 +85,16 @@ The distinction that keeps this honest: **generated code decides *what* is
 drawn; the barrel only helps with *how*.** If a barrel function ever needs to
 branch on the design, that branch belongs in the generator.
 
+> **Amended (2026-10-02, plan 26): a barrel drawing function has a host
+> twin.** The preview evaluates each element's draw program
+> (ADR 0004's 2026-10-02 amendment), so every barrel function a program
+> calls is transcribed into `wfb/draw/barrel.py` (`WfbArc`, `WfbGeom`,
+> `WfbRing`/`WfbRingWide`, `WfbSeries`, `WfbScale`, `WfbMath`, `WfbHands`)
+> with Monkey C's number semantics, and its rule-carrying statements are
+> looked up in the `.mc` source (`tests/test_draw_barrel.py`; the hand
+> angles' in `tests/test_hand_angles.py`). A new barrel drawing function
+> needs its transcription too.
+
 ## Consequences
 
 - **Generated Monkey C must be readable.** The brief asks to review its quality,

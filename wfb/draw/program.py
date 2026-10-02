@@ -499,9 +499,6 @@ class Part:
     pen: Num
     set_pen: bool = True
     ring: int | None = None
-    #: A filled circle's ring stamped rather than grown: only ever the
-    #: preview side of a `Disagreement`, never printed.
-    stamp: bool = False
 
 
 @dataclass(frozen=True)
@@ -774,27 +771,39 @@ class SlotText:
 
 
 @dataclass(frozen=True)
-class WrapperGuard:
-    """The view's own guard around a `draw<Id>` body (`view.
-    _emit_element_method`), which the view prints and the printer
-    therefore does not: on the host, nothing more is drawn when any of
-    ``probes`` is absent, or any of the catalogue ``sources`` has no sample
-    reading."""
+class VisibleGuard:
+    """`visible:`: ``if (<local> == null || ... || <negated>) { return; }``,
+    one ``== null`` per nullable local the condition reads (``locals``):
+    absent means hidden.  A condition folded to a constant `true` prints
+    only a comment.  On the host, nothing more is drawn when the condition
+    does not hold at the sample readings (`Renderer.visible`)."""
 
-    probes: tuple["Expression", ...]
-    sources: tuple[str, ...] = ()
+    expr: "Expression"
+    locals: tuple[str, ...]
+    negated: str
 
 
 @dataclass(frozen=True)
-class Disagreement:
-    """A known difference between what the watch is sent (``watch``, which
-    the printer writes) and what the host draws (``preview``, which the
-    evaluator paints), kept explicit until it is resolved.  ``why`` names
-    it.  Every use is meant to go once the difference is settled."""
+class NullGuard:
+    """``// <note>`` and ``if (<local> == null || ...) { return; }``: the
+    element hides while a reading it is bound to is absent.  ``sources`` are
+    the catalogue paths the locals read; on the host, nothing more is drawn
+    while any has no sample reading."""
 
-    watch: tuple["Op", ...]
-    preview: tuple["Op", ...]
-    why: str
+    locals: tuple[str, ...]
+    sources: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class AntiAlias:
+    """``applyAntiAlias(dc, <on>);``, after a ``// antialias: <on>`` comment
+    when ``comment``: an element's own `antialias:` against the face's
+    default, set after its guards and restored after its drawing.  The host
+    has no anti-alias switch; the evaluator skips it."""
+
+    on: bool
+    comment: bool = False
 
 
 @dataclass(frozen=True)
@@ -813,7 +822,7 @@ Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, ArcPr
                         SeriesRebuild, SeriesDraw,
                         LoadFont, Text, Glyph, LetText, IfNotNull, IfAod, IfAwake, Let, Assign,
                         If, For, Continue, Return, SlotPull, SlotIcon, SlotText, LetSlotPick,
-                        LetAutoScale, WrapperGuard, Disagreement, Comment,
+                        LetAutoScale, VisibleGuard, NullGuard, AntiAlias, Comment,
                         Blank]
 
 

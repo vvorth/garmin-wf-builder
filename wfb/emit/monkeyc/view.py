@@ -1438,9 +1438,10 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
     """`draw<Id>`, or with ``ring_width`` its `ring<Id>` twin: the same
     reads and guards, then only the element's silhouette dilated by
     ``ring_width`` px in its `ringColor` parameter -- one member's share of
-    an outlined group's ring."""
+    an outlined group's ring.  Everything after the reads -- the guards, the
+    `antialias:` bracket and the drawing -- is the element's draw program
+    (`wfb.draw.program`)."""
     element = placed.element
-    kind = kinds.for_placed(placed)
     if ring_width is not None:
         w.doc(f"`{element.id}`'s share of an outlined group's ring: what `{_method(placed.id)}` "
               f"draws,\ndilated by {ring_width}px in `ringColor`, and nothing else.")
@@ -1449,20 +1450,6 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
     else:
         w.doc(_method_doc(placed))
         signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
-    # 'placeholder'/'fallback' are policies for the *value* -- a substitute
-    # text or fill fraction takes over instead of the element simply not
-    # drawing.  They say nothing about a nullable colour, track colour or
-    # max: there is no placeholder for a colour, so those always get a real
-    # guard regardless of which policy the value chose.  `text`/`progress`
-    # are exactly the kinds with a `when_absent:` on their own value
-    # (`Element.VALUE_ROLES`).
-    substitutes_value = (
-        bool(element.VALUE_ROLES)
-        and getattr(element, "when_absent", None) in ("placeholder", "fallback")
-    )
-    # A gauge under `when_absent: hide` still draws its track: the kind
-    # guards the value-dependent drawing itself.
-    draws_while_absent = kind.draws_while_absent(element)
     with w.block(signature):
         if subscreen_guarded:
             # Before any read: where it does not draw, it reads nothing.
@@ -1477,53 +1464,9 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
             for name, read in declarations:
                 w.line(f"var {name} = {read};")
             w.blank()
-        _emit_visible_guard(w, placed, plan)
-        if isinstance(placed, PlacedComplicationSlot):
-            # Deliberately no element-level guard: `complication_slot`'s
-            # reading is not an element-level binding at all (it is a fresh
-            # per-frame pull off a wearer-editable `Complications.Id`), so
-            # there is nothing for `plan.guards`/`value_guards` to say
-            # about it -- `color:` is the only ordinary expression here,
-            # and `wfb.kinds.complication_slot.ComplicationSlotKind.build` already requires it
-            # to be non-nullable.
-            draw.emit_body(w, resolved, placed, None, plan, aod)
-            return
-        value_guards = plan.value_guards(placed)
-        if substitutes_value or (draws_while_absent and value_guards):
-            other_guards = plan.other_guards(placed)
-            if other_guards:
-                _emit_guard(w, placed, other_guards,
-                           note="hide -- a nullable colour/track_color/max always hides "
-                                "the element, regardless of the value's own when_absent")
-        else:
-            other_guards = plan.guards(placed)
-            if other_guards:
-                _emit_guard(w, placed, other_guards)
-        # Anti-aliasing only ever varies for a primitive-drawing kind
-        # (`kind.antialiased`) -- text and icons draw glyphs, whose anti-aliasing is a font-resource matter
-        # (baked at build time, see wfb.icons/wfb.fonts), not a per-frame Dc
-        # call, so they emit no setAntiAlias-related code at all.  The toggle
-        # brackets only the actual drawing call below, deliberately *after*
-        # every guard above: a guard can return early, and doing this any
-        # earlier would leave the Dc's anti-alias state changed on a frame
-        # that drew nothing, breaking the invariant every other draw method
-        # relies on -- that Dc is already at the face default by the time its
-        # own drawing runs.
-        overrides_antialias = (
-            antialias_default is not None
-            and kind.antialiased
-            and element.resolved_antialias != antialias_default
-        )
-        if overrides_antialias:
-            w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
-            w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
-        if ring_width is not None:
-            draw.emit_body(w, resolved, placed, value_guards, plan, aod,
-                           ring=RingPass("ringColor", ring_width))
-        else:
-            draw.emit_body(w, resolved, placed, value_guards, plan, aod)
-        if overrides_antialias and antialias_default is not None:
-            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
+        draw.emit_body(w, resolved, placed, plan, aod,
+                       RingPass("ringColor", ring_width) if ring_width is not None else None,
+                       antialias_default)
 
 
 def _method_doc(placed: Placed) -> str:

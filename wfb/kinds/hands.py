@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from ..ir.builder import dedup_append
 from ..ir.model import Element, Expression, HandsElement
@@ -17,7 +17,7 @@ from ..emit.monkeyc.common import and_list, const_prefix
 from ..draw import barrel
 from ..draw.printer import color_code
 from ..draw.program import (
-    AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, Disagreement, DrawContext,
+    AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, DrawContext,
     If, Let, Num, NumLocal, NotSleeping, Op, Paint, Part, RingColor, SetColor,
 )
 from ..draw.program import HandAngle as AngleOf
@@ -77,7 +77,6 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
     ir_class = HandsElement
     placed_class = PlacedHands
     ringed = True
-    rings_itself = True
     static_forbidden = (
         "analog hands",
         "a hand's angle is the time -- a buffer filled once would freeze "
@@ -238,15 +237,8 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             if stamp is not None:
                 body.append(SetColor(stamp[0]))
                 for part_prefix, part in parts:
-                    ring = Part(part, part_prefix, True, pen(part_prefix, part), ring=stamp[1])
-                    if part.shape == "circle" and part.filled:
-                        body.append(Disagreement(
-                            watch=(ring,), preview=(replace(ring, stamp=True),),
-                            why="the watch is sent a grown circle; the preview stamps, and "
-                                "which of the two the watch's rasteriser matches is not yet "
-                                "measured"))
-                    else:
-                        body.append(ring)
+                    body.append(Part(part, part_prefix, True, pen(part_prefix, part),
+                                     ring=stamp[1]))
             if ctx.ring is None:
                 current = None
                 for part_prefix, part in parts:

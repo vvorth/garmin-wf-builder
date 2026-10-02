@@ -1,9 +1,9 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–9 done, 10 to go. Building it was decided by
+**Status: accepted (2026-10-01); every slice done; Q1 answered by a simulator capture (research 28 §7). Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
-accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
-needed only partway through slice 1.** Delete this file once every slice has
+accepted as recommended the same day. Q1 (§7) was answered by a simulator
+capture on 2026-10-02.** Delete this file once every slice has
 shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -637,30 +637,59 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 
 Each kind's JSON op list joins the editor's layers as it lands.
 
-### Slice 10 — the wrapper and the close-out
+### Slice 10 — the wrapper, Q1 and the close-out: done
 
-- The per-element wrapper's guards move into the program (P3 A):
-  - `visible:`;
-  - absent → hide;
-  - the nullable colour guard;
-  - the anti-alias bracket.
+Built as below, in three steps, each proven by `tools/snapshot.py` against
+a snapshot saved at the slice's start.
 
-  The view prints a `draw<Id>` whose body is wholly the program.
-- Delete what has no caller left: the `twin of` helpers in `preview.py`
-  (`aod_color`/`aod_field`/`aod_geometry`, `silhouette`/`dilate` if no
-  kind still uses them, `arc_span`), and the parity comments.
-- Docs, in the same commit as the code they describe:
-  - `docs/development.md` "Element kinds" and "Adding an element kind":
-    `lower()` is the drawing hook;
-  - `docs/lore/codegen.md`;
-  - `docs/lore/roadmap.md`: the draw program moves from "decided" to
-    built;
-  - ADR 0004: a dated amendment, "one lowering, rule-free backends" as the
-    anti-drift guarantee;
-  - ADR 0003's barrel note, where it changes;
-  - `docs/limitations.md` for the preview fixes;
-  - the root `CLAUDE.md` §6 pipeline table: a "Draw program" row.
-- Delete this plan, and add its row to `docs/plans/README.md`.
+1. **Q1: the grown ring.** A simulator capture of the ring probe (research
+   28 §7) shows the watch draws the grown copy it is sent, and that it is
+   not the stamp (4–20 px a shape). So the preview draws the grown copy:
+   every `Disagreement` became its watch side (a filled shape's ring, a
+   gauge bar's, a needle's, hand's or pattern's filled circle part), and
+   the op and `Part.stamp` are gone. Snapshot: 538 unchanged, 13 previews
+   changed (`features/profile`'s ringed styles, `features/rings`, and the
+   `outline_hands`, `outline_pattern_gauge`, `outline_shapes` fixtures); no
+   generated file.
+2. **The wrapper's guards in the program (P3 A).** `wfb.draw.program`
+   builds `draw<Id>`'s body after its reads: `VisibleGuard`, the
+   `NullGuard` its `absent:` policy asks for (a data element has none),
+   the `AntiAlias` bracket, then the kind's `lower`. The view prints it
+   (`emit_body`) and the preview paints it (`paint`), so `WrapperGuard` is
+   gone and the view's `_emit_element_method` keeps only the subscreen
+   guard and the reads. **An outlined group's ring** is now each member's
+   `ring<Id>` pass at its own width (`Renderer.render_ring`), as the view
+   draws it, instead of a dilation of the members' union; the layer stack
+   paints the same. Snapshot, both steps together: 535 unchanged, 16
+   previews changed: step 1's 13, with more pixels in `features/profile`
+   and `features/rings`, and `tests/fixtures/outline_group`; no generated
+   file. Per member, against a stamp of its own silhouette: an icon's ring
+   is identical (its ring font is the dilation), a filled shape's is the
+   grown copy, a text's is its ring font or glyph stamp, blending at
+   anti-aliased edges. No example face's preview changed from the guards
+   themselves.
+3. **What had no caller left** is deleted: `ElementKind.draw_preview`,
+   `emit_draw`, `lowers` and `rings_itself`; `Renderer.silhouette`,
+   `dilate`, `stamp_ring`, `hand_part`, `draw_outlined`, `aod_field` and
+   `aod_geometry`; `preview.arc_span`. The tests that kept the old author
+   rounding as a control have it in `tests/helpers.py`
+   (`author_arc_span`).
+
+Docs, in the same commit: `docs/development.md` ("Element kinds", the worked
+`type: dot` example now lowers, and the helper tables), `docs/lore/codegen.md`
+(rings), `docs/lore/roadmap.md` (built), ADR 0004 (one lowering, rule-free
+backends) and ADR 0003 (a barrel drawing function has a host twin),
+`docs/limitations.md` (the preview draws the program; Garmin's circles and
+rounded corners are not Pillow's), and the root `CLAUDE.md` §6.
+`tests/test_draw_barrel.py` now also looks up `WfbMath`, `WfbScale`,
+`WfbSeries` and `WfbRing`'s transcribed statements in their source.
+
+Real builds of `features/rings`, `features/profile`, `showcase`,
+`outline_group` and `outline_shapes` are warning-free on all three targets.
+Tests (`tests/test_draw_wrapper.py`): the guards before the bracket before
+the drawing, the view's order, an element hidden for an absent binding and
+for a false `visible:`, and a group's ring as each member's own pass. Seen
+red: each guard skipped by the evaluator, and every member ringed at 1 px.
 
 ## 4. Tests, beyond each slice's own
 
@@ -698,14 +727,9 @@ Each kind's JSON op list joins the editor's layers as it lands.
 - **Memory on the watch.** Unchanged while code is byte-identical. Any
   later deliberate change carries its `--build-stats` figure.
 
-## 7. Open question
+## 7. Q1, answered
 
-- **Q1: grown or stamped ring on the watch** (research 28 §7). Run
-  `build/ring-probe/ring-probe/ring-probe-fenix8solar47mm.prg` in the
-  simulator on the host, save a screen capture, and run
-  `docs/research/probes/ring-on-device/compare.py CAPTURE.png`.
-  - If the grown cells match the evaluator, slice 1's preview fix stands.
-  - If they match the stamp, slice 1 changes the emitter to stamp these
-    shapes, with its draw-count and memory figures.
-
-  Needed before slice 1's second expected-diff commit, not before slice 0.
+- **Q1: grown or stamped ring on the watch** (research 28 §7). Answered by
+  a simulator capture on the user's host: the watch draws the grown copy,
+  and it is not the stamp. The preview draws it grown (slice 10); the
+  emitter keeps its one draw.

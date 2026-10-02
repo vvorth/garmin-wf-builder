@@ -494,26 +494,19 @@ These cost real time to discover; do not rediscover them.
   (`element_ring_method`).  The group's colour may not read data: the
   frame methods read only what members bind.
 
-  **A lowered kind's ring is part of its draw program** (`wfb/draw/`):
-  the preview paints the same grown copy, shifted polygon copies or stamp
-  the watch is sent, with one exception kept explicit. A filled circle's,
-  rectangle's or rounded rectangle's ring, a gauge bar's, and a filled
-  circle part's (a needle's, a pattern's) is a grown copy on the watch,
-  and the preview still stamps it (a `Disagreement` op). The two are
-  different pixel sets, 8-28 px per shape at 1x in the Pillow model
-  (research 27 §2.5). Which one the watch's rasteriser matches is
-  unmeasured until a simulator capture of
-  `docs/research/probes/ring-on-device/` (research 28 §7).
-  **A kind not yet lowered is ringed by the preview from a silhouette.**
-  `Renderer.silhouette` paints once onto each of two scratch canvases of
-  different solid colours and keeps every pixel either changed, so a black
-  element has a silhouette. `stamp_ring` then pastes the ring colour
-  through that mask, shifted by each offset (times the preview scale).
-  That equals a stamp of what the element draws. It is not a grown copy.
-  An outlined group's ring is drawn the same way, over its members. Kinds
-  whose ring is per hand or per copy draw it themselves
-  (`ElementKind.rings_itself`). `Placed.ring_grow` records how far `box`
-  grew for rings; a kind that draws from its own box reads `inner_box`.
+  **A ring is part of the element's draw program** (`wfb/draw/`): the
+  preview paints the same grown copy, shifted polygon copies or stamp the
+  watch is sent. A filled circle's, rectangle's or rounded rectangle's ring,
+  a gauge bar's and a filled circle part's (a needle's, a hand's, a
+  pattern's) is a grown copy, and a simulator capture shows the watch draws
+  it as such: it is not the stamp, which differs by 4-20 px a shape (research
+  28 §7, `docs/research/probes/ring-on-device/`). The preview's Pillow
+  circles and rounded corners still differ from Garmin's rasteriser
+  (`docs/limitations.md`). An outlined group's ring is each member's
+  `ring<Id>` pass at its own width, before the group's first member
+  (`Renderer.render_ring`), as the view draws it. `Placed.ring_grow`
+  records how far `box` grew for rings; a kind that draws from its own box
+  reads `inner_box`.
 
 - **Baked ring fonts (research 19): a ringed icon, or ringed text in a
   baked font, rings in one `drawText`.** `wfb.kinds.ring_fonts(face)` is

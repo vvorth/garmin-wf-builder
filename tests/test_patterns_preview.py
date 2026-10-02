@@ -1,7 +1,7 @@
 """The host-side preview renderer, `type: pattern`.
 
 Each test exercises a contrast a broken `PlacedPattern.transform` (or a
-broken draw-order/part-shape branch in `wfb.kinds.pattern.PatternKind.draw_preview`) could fail --
+broken draw-order/part-shape branch in `wfb.kinds.pattern.PatternKind.lower`) could fail --
 not just "the preview doesn't crash" (`docs/lore/working-agreement.md` on the
 `00:00`/`11:11` trap). Every design here is a minimal, self-contained face
 built with `write_design` -- a solid black background plus one or two
@@ -75,7 +75,7 @@ def _render(write_design, db, bag, body: str, **options):
 
 def _polar(cx: int, cy: int, r: float, degrees: float) -> tuple[int, int]:
     """A pixel at `r` px from `(cx, cy)`, `degrees` clockwise from 12
-    o'clock -- the author convention for `start_angle`/`start`/`step`, and the same one `arc_span` maps onto
+    o'clock -- the author convention for `start_angle`/`start`/`step`, and the same one `wfb.draw.barrel.pillow_arc` maps onto
     Pillow's own (3-o'clock, clockwise) coordinate system."""
     theta = math.radians(degrees)
     return (round(cx + r * math.sin(theta)), round(cy - r * math.cos(theta)))

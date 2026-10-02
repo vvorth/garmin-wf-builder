@@ -29,14 +29,10 @@ if TYPE_CHECKING:
 
     from ..diagnostics import Span
     from ..draw.program import DrawContext, Op
-    from ..emit.monkeyc.common import AodStyle, RingPass
     from ..emit.monkeyc.layout_constants import Constants
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..emit.writer import Writer
     from ..ir.builder import Builder
     from ..ir.model import Curve, Element, Expression, Face
-    from ..layout import Placed, PlacedPattern, ResolvedFace, ResolvedFont, Resolver
-    from ..preview import Renderer
+    from ..layout import Placed, PlacedPattern, ResolvedFont, Resolver
     from ..units import Box, Length
 
     #: `(label, colour, ring, allow_backdrop_match)`, one per ink an element
@@ -241,14 +237,13 @@ P = TypeVar("P", bound="Placed")
 class ElementKind(Generic[E, P]):
     """One element kind's behaviour.  A kind module subclasses this, sets the
     three class attributes that name it, overrides `build`/`resolve` and
-    either `lower` (its drawing as one program, `wfb.draw`) or both
-    `draw_preview` and `emit_draw`, and assigns an instance to its
-    module-level `KIND`.
+    `lower` (its drawing as one program, `wfb.draw`), and assigns an
+    instance to its module-level `KIND`.
 
     Every other method and attribute has a default meaning "nothing to do
     here", so a kind overrides only where it actually differs.  `group` is
-    the one kind that overrides none of the four drawing methods: the stages
-    recurse into it structurally (`Resolver._resolve_list`) or skip it.
+    the one kind that does not lower: the stages recurse into it
+    structurally (`Resolver._resolve_list`) or skip it.
     """
 
     #: The schema's own discriminator (`type: <name>`).
@@ -273,14 +268,10 @@ class ElementKind(Generic[E, P]):
     #: `Dc.setAntiAlias` (`layout.is_antialiased_primitive`); glyph kinds
     #: anti-alias in their baked font instead.
     antialiased: ClassVar[bool] = False
-    #: Draws an `outline:` ring: `emit_draw` honours `ring`,
+    #: Draws an `outline:` ring: `lower` honours `DrawContext.ring`,
     #: so this kind can carry its own `outline:` and be a member of an
     #: outlined group.  The schema decides who may *write* one.
     ringed: ClassVar[bool] = False
-    #: `draw_preview` draws the element's own `outline:` itself (a `text`
-    #: element's AOD ring, each hand of a `hands` element); otherwise
-    #: `Renderer.render_element` rings the whole of what it draws.
-    rings_itself: ClassVar[bool] = False
 
     def ring_draws(self, element: E, face: "Face") -> int:
         """How many extra draws of the element its widest ring costs: one
@@ -344,51 +335,22 @@ class ElementKind(Generic[E, P]):
 
     # -- the draw program (wfb.draw) --
 
-    def lower(self, ctx: "DrawContext", placed: P) -> "list[Op] | None":
+    def lower(self, ctx: "DrawContext", placed: P) -> "list[Op]":
         """This element's draw program: what `draw<Id>` (or, with
-        `ctx.ring`, `ring<Id>`) draws, as ops the printer writes and the
-        preview evaluates (`wfb.draw`).  `None`, the default, means the kind
-        has not been ported: the view calls `emit_draw` and the preview
-        `draw_preview` instead.  A kind that lowers needs neither."""
-        return None
+        `ctx.ring`, `ring<Id>`) draws after its guards, as ops the printer
+        writes and the preview evaluates (`wfb.draw`).  Every kind that
+        draws overrides it; `group` draws nothing itself."""
+        raise NotImplementedError(f"{self.name}: lower")
 
-    @property
-    def lowers(self) -> bool:
-        """Whether this kind overrides `lower`, so callers can skip building
-        a `DrawContext` for a kind that has none."""
-        return getattr(self.lower, "__func__", None) is not ElementKind.lower
-
-    # -- preview (wfb.preview) --
-
-    def draw_preview(self, renderer: "Renderer", placed: P) -> None:
-        """Draw one placed element in `wfb preview`, the way the generated
-        code draws it on the watch."""
-        raise NotImplementedError(f"{self.name}: draw_preview")
 
     # -- codegen (wfb.emit) --
 
     def draws_while_absent(self, element: E) -> bool:
         """Whether the element still draws something when its value is
-        absent under `absent: hide` -- a gauge's track.  When true, the view
-        guards only the element's other bindings, and `emit_draw` guards the
-        value-dependent drawing itself (`value_guards`)."""
+        absent under `absent: hide` -- a gauge's track.  When true, the
+        element's program guards only its other bindings, and `lower` guards
+        the value-dependent drawing itself (`DrawContext.value_guards`)."""
         return False
-
-    def emit_draw(self, w: "Writer", resolved: "ResolvedFace", placed: P,
-                  value_guards: list[str] | None, plan: "ReadPlan",
-                  aod: "AodStyle", *, ring: "RingPass | None" = None) -> None:
-        """Emit the Monkey C drawing body of `draw<Id>`
-        (`view._emit_element_method`), after the element's own guards.
-        `value_guards` names the locals the value's own absence depends on
-        (`None` for a `complication_slot`, whose reading is a fresh per-frame
-        pull that emits its own guards); `aod` restyles the draw for the
-        always-on frame.
-
-        With `ring` (a `ringed` kind only), emit the body of `ring<Id>`
-        instead: nothing but this element's silhouette, own ring included,
-        dilated by `ring.width` in `ring.color` -- one pass of an outlined
-        group."""
-        raise NotImplementedError(f"{self.name}: emit_draw")
 
     def describe(self, placed: P) -> str:
         """A short phrase for generated doc comments (`common._describe`)."""

@@ -4,7 +4,6 @@ needle, lit segments, or a scale with a pointer."""
 from __future__ import annotations
 
 import math
-from dataclasses import replace
 from typing import Any, TYPE_CHECKING
 
 from .. import catalog, complications, expr, vocab
@@ -21,9 +20,9 @@ from ..ir import disc_perimeter_offsets
 from ..draw.printer import color_code
 from ..draw.program import (
     AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp,
-    Comment, Cond, Const, Conv, Disagreement, DrawContext, FloatLit, For, Grown, If, Let,
+    Comment, Cond, Const, Conv, DrawContext, FloatLit, For, Grown, If, Let,
     LetAutoScale, LetSlotPick, Lit, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
-    PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted, WrapperGuard,
+    PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted,
 )
 from . import ElementKind
 from .complication_slot import COMPLICATION_SLOT_SAMPLE, resolve_slot_reference
@@ -325,18 +324,9 @@ class _Lowering:
     def ops(self) -> list[Op]:
         element = self.element
         ops: list[Op] = []
-        # What the view's own guard hides on the watch, the preview hides
-        # too: a nullable colour, which nothing can be drawn in, and a value
-        # absent under `absent: hide` with nothing kept to draw.
-        colours = tuple(e for e in (element.color, element.track_color)
-                        if e is not None and e.constant is None and e.ast is not None)
-        if colours:
-            ops.append(WrapperGuard(colours))
         if element.slot is not None:
             return ops + self.slot_gauge()
         probes = tuple(e for e in (element.value, element.maximum) if e is not None)
-        if element.when_absent == "hide" and not keeps_track(element):
-            ops.append(WrapperGuard(probes))
         if element.auto_scale is not None:
             assert element.value is not None and isinstance(element.value.ast, expr.Ref)
             reader = catalog.READERS[catalog.CATALOG[element.value.ast.path].reader].name
@@ -468,27 +458,22 @@ class _Lowering:
             return Primitive("fillRectangle", ((Shifted(c("X"), dx), Shifted(c("Y"), dy), width,
                                                 c("HEIGHT")),))
 
-        def grown(width: Num) -> Disagreement:
+        def grown(width: Num) -> list[Op]:
             """A bar's ring: one rounded rectangle the ring's width larger all
-            round, corners of that radius -- exactly the dilation of the
-            rectangle -- where the preview stamps it."""
+            round, corners of that radius -- the watch's dilation of the
+            rectangle (research 28 §7)."""
             assert self.stamp is not None
             paint, ring = self.stamp
-            return Disagreement(
-                watch=(SetColor(paint), Primitive("fillRoundedRectangle", (
-                    (Grown(c("X"), ring, -1), Grown(c("Y"), ring, -1)),
-                    (Grown(width, ring, 2), Grown(c("HEIGHT"), ring, 2)),
-                    (Lit(ring),)))),
-                preview=(SetColor(paint), *(rect(width, dx, dy)
-                                            for dx, dy in disc_perimeter_offsets(ring))),
-                why="the watch is sent a grown copy; the preview stamps, and which of the "
-                    "two the watch's rasteriser matches is not yet measured")
+            return [SetColor(paint), Primitive("fillRoundedRectangle", (
+                (Grown(c("X"), ring, -1), Grown(c("Y"), ring, -1)),
+                (Grown(width, ring, 2), Grown(c("HEIGHT"), ring, 2)),
+                (Lit(ring),)))]
 
         ops: list[Op] = []
         ring_only = self.ctx.ring is not None
         if self.stamp is not None and element.track_color is not None:
             # The whole bar is the silhouette.
-            ops.append(grown(c("WIDTH")))
+            ops += grown(c("WIDTH"))
             if ring_only:
                 return ops
             ops.append(Blank())
@@ -500,7 +485,7 @@ class _Lowering:
         body: list[Op] = [Let("filled", Conv(Paren(Bin("*", c("WIDTH"), fraction)), "toNumber"))]
         if self.stamp is not None and element.track_color is None:
             # No track: the lit length alone is the silhouette.
-            body.append(If(Cmp(">", filled, Lit(0)), (grown(filled),)))
+            body.append(If(Cmp(">", filled, Lit(0)), tuple(grown(filled))))
             if ring_only:
                 return ops + _wrap(present, body)
         body += [SetColor(self.color), rect(filled)]
@@ -622,14 +607,7 @@ class _Lowering:
             paint, width = self.stamp
             ops.append(SetColor(paint))
             for part_prefix, part in parts:
-                ring = Part(part, part_prefix, True, pen(part_prefix, part), ring=width)
-                if part.shape == "circle" and part.filled:
-                    ops.append(Disagreement(
-                        watch=(ring,), preview=(replace(ring, stamp=True),),
-                        why="the watch is sent a grown circle; the preview stamps, and which "
-                            "of the two the watch's rasteriser matches is not yet measured"))
-                else:
-                    ops.append(ring)
+                ops.append(Part(part, part_prefix, True, pen(part_prefix, part), ring=width))
             if self.ctx.ring is not None:
                 return ops
         current = None

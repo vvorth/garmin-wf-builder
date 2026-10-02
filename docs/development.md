@@ -203,24 +203,26 @@ are the internal names: format 2's six primitive types lower to `shape`,
 ...) and an instance of it as the module's `KIND`. A stage never switches on
 kind: it asks the registry (`kinds.for_element`, `kinds.for_placed`) and
 calls a method. The base class is the interface: every method's signature
-and docstring is there, and every method but `build`, `resolve`,
-`draw_preview` and `emit_draw` has a default meaning "nothing to do here",
+and docstring is there, and every method but `build`, `resolve` and
+`lower` has a default meaning "nothing to do here",
 so a kind overrides only where it differs. **Adding a tenth kind** is an IR
 class (`wfb/ir/model.py`), a `Placed` class (`wfb/layout.py`), one kind
 module, its name in `wfb.kinds._NAMES` and its schema entry;
 `tests/test_kinds.py` fails until they agree. "Adding an element kind",
 below, walks through one.
 
-**Drawing is moving to one program per element (`wfb/draw/`).** A kind
-may override `lower`, which returns the element's drawing as a list of ops
-(`wfb.draw.program`): `SetColor`, `SetPen`, the `Dc` primitives, the
-barrel's drawing calls, text calls, and null and `_aod` blocks. The view
-prints that list as the body of `draw<Id>` (`wfb.draw.printer`) and the
-preview paints it (`wfb.draw.evaluator`), so the two cannot disagree. A kind
-that lowers needs neither `emit_draw` nor `draw_preview`. One that does not
-keeps both, and `wfb.draw.emit_body` and `paint` route each element to
-whichever its kind has. Every kind that draws lowers; `group` draws
-nothing itself. `wfb.draw.drawn_text` gives the string a lowered element
+**Drawing is one program per element (`wfb/draw/`).** A kind's `lower`
+returns the element's drawing as a list of ops (`wfb.draw.program`):
+`SetColor`, `SetPen`, the `Dc` primitives, the barrel's drawing calls, text
+calls, locals, loops and conditions over values the watch computes, and
+`_aod` blocks. `wfb.draw.program` puts the element's own guards around it
+(`visible:`, the null guard its `absent:` policy asks for, and the
+`antialias:` bracket). The view prints the result as the body of
+`draw<Id>` after its reads (`wfb.draw.printer`, through `emit_body`), and
+the preview paints it (`wfb.draw.evaluator`, through `paint`), so the two
+cannot disagree: a value prints bare and the evaluator reads it the way
+Monkey C parses the printed text. Every kind that draws lowers; `group`
+draws nothing itself. `wfb.draw.drawn_text` gives the string an element
 draws at given readings, without painting it.
 
 **A frame as layers (`wfb.draw.layers`).** `layers(resolved, options)`
@@ -284,6 +286,9 @@ tree on 2026-09-25, and with it `wfb validate`, `wfb preview` (awake and
 `--aod`) and a real `monkeyc` build were warning-free on `fenix8solar47mm`,
 `fr955` and `fenix847mm`, and the fast suite was unchanged. Nothing else in
 the compiler had to change: every stage reached it through the registry.
+Its drawing was then a pair of methods, one for the view and one for the
+preview; the `lower` below replaced them on 2026-10-02 and prints the same
+two calls.
 
 **1. The schema** (`schema/wfb-face-2.schema.json`). Add a `$defs` entry and
 reference it from `$defs.element.oneOf`. `additionalProperties` is `false`
@@ -362,6 +367,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ..draw.program import AodRestyled, Const, DrawContext, Op, Primitive, SetColor
 from ..ir.model import Dot
 from ..layout import PlacedDot
 from ..units import Axis, Box
@@ -371,7 +377,6 @@ from . import ElementKind
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import Renderer
 
 
 class DotKind(ElementKind):
@@ -397,17 +402,14 @@ class DotKind(ElementKind):
     def circular_extent(self, placed: PlacedDot):
         return (placed.center[0], placed.center[1], placed.radius)
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedDot) -> None:
-        element = placed.element
-        s = renderer.scale
-        (cx, cy), r = placed.center, placed.radius
-        renderer.draw.ellipse([(cx - r) * s, (cy - r) * s, (cx + r) * s, (cy + r) * s],
-                              fill=renderer.aod_color(element, "color", element.color))
-
-    def emit_draw(self, w, resolved, placed: PlacedDot, value_guards, plan, aod) -> None:
+    def lower(self, ctx: DrawContext, placed: PlacedDot) -> list[Op]:
         prefix = const_prefix(placed.id)
-        w.line(f"dc.setColor({aod.color(placed.element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-        w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
+        return [
+            SetColor(AodRestyled(placed.element, "color")),
+            Primitive("fillCircle", ((Const(f"{prefix}_CX", placed.center[0]),
+                                      Const(f"{prefix}_CY", placed.center[1]),
+                                      Const(f"{prefix}_RADIUS", placed.radius)),)),
+        ]
 
     def describe(self, placed: PlacedDot) -> str:
         return "a dot"
@@ -434,16 +436,16 @@ What each part is for:
   what the safe-area, overlap and luminance lints check, so make it cover
   every pixel the element can touch.
 - `layout_constants` is the only way a per-device number reaches the
-  generated code: the view is shared by every target, so `emit_draw` must
-  read `Layout.<PREFIX>_*`, never a pixel literal (a literal that differs
-  between targets fails the build as a `shared-source` error).
-- `emit_draw` writes the body of the generated `draw<Id>(dc)`. The caller
-  has already emitted the element's reads, its `visible:` and null guards
-  and its `antialias:`. `aod.color(element, key)` gives the colour code with
-  the AOD override and `dim:` applied; for an awake-only build it is the
-  plain colour.
-- `draw_preview` draws the same thing with Pillow, from the same `Placed`
-  fields, at `renderer.scale`. `renderer.aod_color` is `aod.color`'s twin.
+  generated code: the view is shared by every target, so a program names
+  `Layout.<PREFIX>_*` (a `Const`, with this device's value beside it), never
+  a pixel literal (a literal that differs between targets fails the build as
+  a `shared-source` error).
+- `lower` is the drawing, once: the view prints it as the body of
+  `draw<Id>(dc)` after the element's reads, guards and `antialias:`, and the
+  preview evaluates it. `AodRestyled(element, key)` is a colour with the AOD
+  override and `dim:` applied, printed as the plain colour in an awake-only
+  build. With `ctx.ring`, it draws only the element's share of an outlined
+  group's ring.
 
 The rest of the interface you can ignore until the kind needs it; each
 default means "nothing to do here":
@@ -509,30 +511,32 @@ and `r.fonts` (the baked fonts) are there to read.
 | `resolve_parts` | a hand's or a pattern's `parts:` |
 | `alignment_shift`, `arc_box`, `stroke_pad`, `longer`, `text_ink`, `resolved_curve`, `round_half_away` (module level) | shared geometry |
 
-**`draw_preview`: the `Renderer` (`wfb/preview.py`).** `renderer.draw` is
-the Pillow `ImageDraw`, `renderer.scale` the upscale every device pixel is
-multiplied by, and `renderer.values` the sample readings.
+**`lower`: the draw program (`wfb/draw/program.py`).** `ctx` is a
+`DrawContext`: the resolved face, the build's `AodStyle`, the value's
+guard locals, the ring pass to draw instead, if any. A program is built
+from these, each printed by `wfb.draw.printer` and evaluated by
+`wfb.draw.evaluator`; a new one needs both.
 
-| Helpers | For |
+| Ops and values | For |
 |---|---|
-| `color`, `visible` | evaluating a colour or a `visible:` expression |
-| `aod_color`, `aod_field`, `aod_geometry` | the same with the element's `aod:` override and `dim:` applied under `--aod` |
-| `draw_text`, `draw_vector_text`, `draw_outlined`, `glyph_source`, `paste_glyph` | text in a baked, system or `face:` font, and its `outline:` |
-| `rect`, `hand_part` | a box in preview pixels; one part of a hand or of a pattern copy |
-| `baked_glyph`, `arc_span` (module level) | a baked font's glyph box; an arc in Pillow's angles |
+| `Const`, `Lit`, `FloatLit`, `Shifted`, `Grown`, `AodPick` | `Layout` constants, literals, a stamp's or a ring's offset, an `aod:` length |
+| `NumLocal`, `Read`, `Bin`, `Paren`, `Call`, `Conv`, `NumPick` | numbers the watch computes: a reading, arithmetic, a barrel or `Math` call (`wfb.draw.barrel.CALLS`) |
+| `Color`, `AodRestyled`, `AodDimmed`, `AodPart`, `AodPaint`, `PaintPick`, `RingColor` | colours, restyled for the always-on frame |
+| `SetColor`, `SetPen`, `Primitive`, `FillPolygon`, `ArcSpan`, `ArcProgress`, `Part` | `Dc` calls and the barrel's drawing calls |
+| `Text`, `Glyph`, `LoadFont`, `LetText`, `Font` and the `Str` values | text and icons |
+| `Let`, `Assign`, `If`, `For`, `Continue`, `Return`, `IfAod`, `IfAwake`, `IfNotNull` and the `Cond` values | locals, loops and conditions |
 
-**`emit_draw` and `layout_constants`: `wfb/emit/monkeyc/`.** `aod` is an
-`AodStyle`: `aod.color(element, key)`, `aod.layout(prefix, suffix,
-has_override)`, `aod.value(override, awake_code)` and
-`aod.part_color(element, color)` restyle a draw call for the always-on
-frame and return the awake code unchanged in an awake-only build.
+**`layout_constants`: `wfb/emit/monkeyc/`.** The printer spells a program's
+always-on choices through the build's `AodStyle` (`aod.color`, `aod.layout`,
+`aod.value`, `aod.part_color`), which returns the awake code unchanged in an
+awake-only build.
 
 | Module | Helpers |
 |---|---|
 | `common` | `const_prefix` (the `Layout.<PREFIX>_*` prefix of an id), `font_field`, `aod_font_field`, `mc_color`, `mc_float`, `glyph_y_expr`, `article`, `and_list` |
 | `layout_constants` | `box_constants`, `arc_constants`, `hand_part_constants`, `aod_thickness_constant`, `EVERY_PART_NOTE` |
 | `shapes` | `emit_arc_span`, `thickness_expr`, `emit_plain_text_call`, `emit_outline_loop`, `radial_radius_expr`, `RADIAL_DIRECTION` |
-| `rotated` | `emit_transformed_part`, `aod_thickness_override` (a hand or pattern part) |
+| `rotated` | `emit_transformed_part`, `emit_part_ring`, `aod_thickness_override` (a hand, needle or pattern part, which the printer writes for a `Part`) |
 
 ## Tests
 

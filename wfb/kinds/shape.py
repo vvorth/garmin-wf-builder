@@ -12,7 +12,7 @@ from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
 from ..units import Axis, Box, IntBox
 from ..draw.program import (
-    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, Disagreement, DrawContext,
+    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, DrawContext,
     FillPolygon, Grown, IfAod, Lit, Num, Op, Paint, Primitive, RingColor, SetColor, SetPen,
     Shifted,
 )
@@ -428,12 +428,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             width = ring.width if ring is not None else (outline.width if outline else 1)
             offsets = disc_perimeter_offsets(width)
             if element.shape in _GROWN and element.filled and not flips:
-                ops.append(Disagreement(
-                    watch=(SetColor(paint), _grown(element.shape, c, width)),
-                    preview=(SetColor(paint), *(op for dx, dy in offsets
-                                                for op in primitive(dx, dy))),
-                    why="the watch is sent a grown copy; the preview stamps, and which "
-                        "of the two the watch's rasteriser matches is not yet measured"))
+                ops += [SetColor(paint), _grown(element.shape, c, width)]
             elif element.shape == "polygon":
                 ops.append(SetColor(paint))
                 ops += [FillPolygon(_ring_copy(prefix, width, index),
@@ -475,7 +470,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if element.shape == "circle":
             out.append((f"{prefix}_RADIUS", placed.radius, ""))
             # A circle's own pen width is inlined as a plain literal at the
-            # draw call site (`emit_draw`), not routed through `Layout` --
+            # draw call site (`lower`), not routed through `Layout` --
             # unlike every other shape here, so its `aod_thickness` override
             # is inlined there too, never as a constant.
         elif element.shape == "line":

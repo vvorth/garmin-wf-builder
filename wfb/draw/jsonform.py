@@ -24,11 +24,11 @@ from typing import TYPE_CHECKING, Any, Union
 from . import barrel
 from .evaluator import Evaluator, Stop, part_ops, paste_glyph, series_ops
 from .program import (
-    AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, Disagreement, FillPolygon,
+    AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, FillPolygon,
     Continue, Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
     LetText, Lit, LoadFont, Num, Op, Part, Primitive, Return, SeriesDraw, SeriesRebuild,
     SlotIcon, SlotPull, SlotText, SetColor, SetPen, Shifted, Text,
-    WrapperGuard,
+    VisibleGuard, NullGuard, AntiAlias,
 )
 
 if TYPE_CHECKING:
@@ -57,11 +57,9 @@ def to_json(renderer: "Renderer", placed: "Placed") -> tuple[list[dict[str, Any]
     """``placed``'s program for the frame ``renderer`` paints (`--aod` or
     not, its sample readings), as JSON ops and the fonts they name.  The
     element must lower, and must show (`Renderer.shows`)."""
-    from . import _context, lowered
+    from . import _context, program
 
-    ops = lowered(_context(renderer, placed), placed)
-    if ops is None:
-        raise ValueError(f"{placed.id}: its kind does not lower")
+    ops = program(_context(renderer, placed), placed, renderer.read_plan)
     writer = _JsonWriter(renderer)
     try:
         writer.walk(ops)
@@ -145,7 +143,7 @@ class _JsonWriter:
             ev.run([op])
         elif isinstance(op, SeriesDraw):
             self.walk(series_ops(op, ev))
-        elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard, Return,
+        elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, VisibleGuard, NullGuard, AntiAlias, Return,
                              SlotPull, SlotIcon, SlotText)):
             ev.run([op])
         elif isinstance(op, If):
@@ -201,8 +199,6 @@ class _JsonWriter:
         elif isinstance(op, IfAwake):
             if not self.aod:
                 self.walk(op.body)
-        elif isinstance(op, Disagreement):
-            self.walk(op.preview)
         elif isinstance(op, (LoadFont, Comment, Blank)):
             pass
         else:  # pragma: no cover - every Op is handled above

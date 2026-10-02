@@ -5,7 +5,7 @@
 `wfb.fonts.fallback.measure`/`line_height`/`ascent` (called from
 `wfb.layout`, both directly and through `_curve_ascent`/`text_ink`'s own
 safe-area re-derivation), the complication-slot measurement in
-`wfb.kinds.complication_slot.ComplicationSlotKind.draw_preview`, and `wfb.devices.Device.
+`wfb.kinds.complication_slot.ComplicationSlotKind.lower`, and `wfb.devices.Device.
 system_fonts`' third (derived-metrics) source -- used the *default* font
 root regardless. The fix threads one root through `wfb.devices.
 DeviceDatabase`/`Device.fonts_root`, read by all three.

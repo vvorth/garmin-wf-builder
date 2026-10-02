@@ -236,3 +236,20 @@ def resolved_example(path: Path, db, device_id: str):
         device = db.get(device_id)
         _RESOLVED_EXAMPLES[key] = resolve(face, device, bake_fonts(face, device))
     return _RESOLVED_EXAMPLES[key]
+
+
+def author_arc_span(start_angle: float, sweep: float) -> tuple[int, int] | None:
+    """The Pillow ``(start, end)`` an arc got when the preview rounded the
+    *author's* clockwise-from-12 start rather than the Garmin start the watch
+    is given: a degree off at every half-degree start.  Kept only as the
+    known-wrong control the barrel's sweeps must tell apart from the watch
+    (`wfb.draw.barrel.draw_span` is the twin)."""
+    def round_away(degrees: float) -> int:
+        return int(degrees - 0.5) if degrees < 0 else int(degrees + 0.5)
+
+    whole = max(-360, min(360, round_away(sweep)))
+    if whole == 0:
+        return None
+    start = round_away(start_angle) - 90
+    end = start + whole
+    return (start, end) if whole > 0 else (end, start)

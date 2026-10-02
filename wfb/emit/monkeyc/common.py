@@ -353,8 +353,8 @@ NO_AOD = AodStyle()
 
 @dataclass(frozen=True)
 class RingPass:
-    """One `outline:` ring for a kind's `emit_draw` to paint instead of its
-    interior: the element's own silhouette dilated by ``width`` px, in
+    """One `outline:` ring for a kind's draw program to paint instead of its
+    interior (`DrawContext.ring`): the element's own silhouette dilated by ``width`` px, in
     ``color`` -- Monkey C: an element's own ring colour, or a `ring<Id>`
     method's `ringColor` for a group's pass.  ``width`` is a build-time
     number, never Monkey C: a stamping kind unrolls one draw per

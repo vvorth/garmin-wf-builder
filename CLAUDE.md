@@ -248,7 +248,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 | Per-device layout resolve | `wfb/layout.py` | device files |
 | Lint | `wfb/lint.py` | device files |
 | Font baking (TTF → BMFont) | `wfb/fonts/` | no |
-| An element's drawing as one program, printed and evaluated (kinds opt in by `lower`); a frame as layers, with the program as JSON | `wfb/draw/` | no |
+| Draw program: each element's drawing and guards as one program (its kind's `lower`), printed by the view and evaluated by the preview; a frame as layers, with the program as JSON | `wfb/draw/` | no |
 | Codegen: Monkey C, resources, manifest, jungle | `wfb/emit/` | no |
 | `monkeyc` + measured memory | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |
@@ -298,14 +298,15 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
   - the GUI: decided as a local web app over the YAML text (ADR 0002
-    amendment), built after the single draw program
-    (`docs/lore/roadmap.md`);
+    amendment); its patch engine (`wfb/edit/`) and the draw program it
+    builds on are built (`docs/lore/roadmap.md`);
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;
   - format 2's reserved vocabulary (components, `effects:`, `outline:` on parts, the data widget, `when:`
     rules): friendly "not implemented" errors, `docs/limitations.md` §2.
-- **Shipped:** format 2 and `wfb migrate`; several placeholders in one
+- **Shipped:** format 2 and `wfb migrate`; one draw program per element,
+  printed by the view and evaluated by the preview (`wfb/draw/`); several placeholders in one
   `text:`; per-device and per-shape `overrides:` (geometry); the SDK
   version recorded per build (`build-info.json`); every element type;
   `align:` everywhere, `static:`,

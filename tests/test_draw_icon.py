@@ -17,6 +17,7 @@ from wfb.draw.printer import print_ops
 from wfb.draw.program import DrawContext, Glyph, IfNotNull, SetColor
 from wfb.emit.monkeyc.common import NO_AOD, RingPass
 from wfb.emit.writer import Writer
+from wfb.ir import disc_perimeter_offsets
 
 RINGS = Path("examples/features/rings/face.yaml")
 TRAIL = Path("examples/generated_by_skill/trail-utility/face.yaml")
@@ -78,12 +79,19 @@ def test_an_icons_ring_paints_the_stamp_of_its_glyph(db):
     painted = _renderer(resolved)
     evaluator.evaluate(ops, painted)
 
-    stamped = _renderer(resolved)
     glyph_only = [op for op in ops if isinstance(op, Glyph)]
     ring = alarm.element.outline
     assert ring is not None
-    stamped.stamp_ring(stamped.silhouette(lambda: evaluator.Evaluator(stamped).run(glyph_only)),
-                       stamped.color(ring.color), ring.width)
+    # The stamp by hand: the glyph's own pixels, shifted to every offset.
+    alone = _renderer(resolved)
+    evaluator.Evaluator(alone).run(glyph_only)
+    mask = alone.image.convert("L").point(lambda v: 255 if v else 0)
+    stamped = _renderer(resolved)
+    s = stamped.scale
+    for dx, dy in disc_perimeter_offsets(ring.width):
+        shifted = Image.new("L", mask.size, 0)
+        shifted.paste(mask, (dx * s, dy * s))
+        stamped.image.paste(stamped.color(ring.color), (0, 0), shifted)
     evaluator.Evaluator(stamped).run([op for op in ops if isinstance(op, SetColor)][-1:]
                                      + glyph_only)
     assert not ImageChops.difference(painted.image, stamped.image).getbbox()

@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Any
 
 from PIL import Image, ImageChops, ImageMath
 
-from .. import kinds
 from ..ir.rings import ring_groups
 
 if TYPE_CHECKING:
@@ -107,24 +106,19 @@ def layers(resolved: "ResolvedFace", options: "PreviewOptions | None" = None, *,
             outline = ring.group.outline
             assert outline is not None
 
-            def ring_layer(r: "Renderer", ring: Any = ring, members: list[Any] = members,
-                           outline: Any = outline) -> None:
-                r.stamp_ring(r.silhouette(lambda: r.render_sequence(members, rings, ring)),
-                             r.aod_dimmed(ring.group, outline.color), outline.width)
+            def ring_layer(r: "Renderer", ring: Any = ring, members: list[Any] = members) -> None:
+                r.render_ring(ring, members)
 
             out.append(Layer(f"ring:{ring.group.id}", "ring", ring.group.span, paint(ring_layer)))
         def element_layer(r: "Renderer", placed: "Placed" = placed) -> None:
             r.render_element(placed)
 
         image = paint(element_layer)
-        ops: list[dict[str, Any]] | None = None
         fonts: dict[str, FontRef] = {}
-        if kinds.for_placed(placed).lowers:
-            renderer = preview.new_renderer(resolved, options, values, (0, 0, 0), used_faces)
-            if renderer.shows(placed):
-                ops, fonts = to_json(renderer, placed)
-            else:
-                ops = []
+        renderer = preview.new_renderer(resolved, options, values, (0, 0, 0), used_faces)
+        ops: list[dict[str, Any]] = []
+        if renderer.shows(placed):
+            ops, fonts = to_json(renderer, placed)
         out.append(Layer(placed.id, placed.kind, placed.element.span, image, ops, fonts))
     return out
 

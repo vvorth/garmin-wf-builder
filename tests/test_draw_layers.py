@@ -21,7 +21,7 @@ import pytest
 from PIL import Image, ImageChops
 
 from tests.helpers import resolved_example
-from wfb import kinds, preview
+from wfb import preview
 from wfb.draw.frames import frame_members, in_layout
 from wfb.draw.jsonform import rasterise, to_json
 from wfb.draw.layers import compose, layers
@@ -76,8 +76,6 @@ def test_the_json_alone_paints_what_the_evaluator_paints(db, path):
         for placed in preview.frame_items(resolved, options, entry):
             evaluated = preview.new_renderer(resolved, options, values, (0, 0, 0))
             if not evaluated.shows(placed):
-                continue
-            if not kinds.for_placed(placed).lowers:
                 continue
             evaluated.render_element(placed)
             ops, fonts = to_json(evaluated, placed)

@@ -19,12 +19,12 @@ from ..ir import disc_perimeter_offsets
 from . import barrel
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
-    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
+    AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv,
     FillPolygon, FloatLit, Font, FontDrop, FontHeight, For, Glyph, Grown, HandAngle, IsPulsing,
     Return, SlotIcon, SlotPull, SlotText, TextWidth, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
-    NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
+    NotSleeping, Str, StrLit, Text, Truthy, VisibleGuard, NullGuard, AntiAlias,
 )
 
 if TYPE_CHECKING:
@@ -46,8 +46,8 @@ class Pulled:
 
 
 class Stop(Exception):
-    """A `WrapperGuard` found a probe absent: the element draws nothing
-    more."""
+    """A guard (`VisibleGuard`, `NullGuard`) or a `Return` ended the
+    element: it draws nothing more."""
 
 
 class _Next(Exception):
@@ -350,8 +350,7 @@ class Evaluator:
             r.values = saved
 
     def run_program(self, ops: Iterable[Op]) -> None:
-        """`run` a whole element's program, which a `WrapperGuard` may end
-        early."""
+        """`run` a whole element's program, which a guard may end early."""
         try:
             self.run(ops)
         except Stop:
@@ -406,10 +405,14 @@ class Evaluator:
             self.locals["scale"] = op.scale
         elif isinstance(op, LetAutoScale):
             self.locals["scale"] = auto_scale(op, r.values)
-        elif isinstance(op, WrapperGuard):
-            if (any(read_value(probe, r.values) is None for probe in op.probes)
-                    or any(r.values.get(path) is None for path in op.sources)):
+        elif isinstance(op, VisibleGuard):
+            if not r.visible(op.expr):
                 raise Stop
+        elif isinstance(op, NullGuard):
+            if any(r.values.get(path) is None for path in op.sources):
+                raise Stop
+        elif isinstance(op, AntiAlias):
+            pass  # the host has no anti-alias switch
         elif isinstance(op, Text):
             self._text(op)
         elif isinstance(op, Glyph):
@@ -425,8 +428,6 @@ class Evaluator:
         elif isinstance(op, IfAwake):
             if not r.options.aod:
                 self.run(op.body)
-        elif isinstance(op, Disagreement):
-            self.run(op.preview)
         elif isinstance(op, (LoadFont, Comment, Blank)):
             pass
         else:  # pragma: no cover - every Op is handled above
@@ -568,10 +569,7 @@ def part_ops(op: Part, ev: Evaluator) -> list[Op]:
                 for dx, dy in offsets]
     else:
         x, y = at(part.x, part.y)
-        if part.filled and op.ring is not None and op.stamp:
-            body = [Primitive("fillCircle", ((Lit(x + dx), Lit(y + dy), Lit(part.radius)),))
-                    for dx, dy in offsets]
-        elif part.filled:
+        if part.filled:
             # A filled circle's ring is itself grown by the ring's width.
             grow = op.ring or 0
             body = [Primitive("fillCircle", ((Lit(x), Lit(y), Lit(part.radius + grow)),))]

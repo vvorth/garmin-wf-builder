@@ -26,29 +26,9 @@ from make_face import ROWS  # type: ignore  # noqa: E402
 from probe import resolve  # noqa: E402
 from wfb import preview  # noqa: E402
 from wfb.devices import DeviceDatabase  # noqa: E402
-from wfb.draw import evaluator  # noqa: E402
-from wfb.draw.program import Disagreement  # noqa: E402
 
 sys.path.insert(0, str(HERE))
 FACE = HERE / "face.yaml"
-
-
-def program_frame(resolved, options) -> Image.Image:
-    """The frame the generated code draws: the preview with every
-    `Disagreement` evaluated on the watch's side (the grown copy)."""
-    run = evaluator.Evaluator._run
-
-    def watch_side(self, op):
-        if isinstance(op, Disagreement):
-            self.run(op.watch)
-        else:
-            run(self, op)
-
-    evaluator.Evaluator._run = watch_side
-    try:
-        return preview.render(resolved, options)
-    finally:
-        evaluator.Evaluator._run = run
 
 
 def cell(image: Image.Image, center) -> Image.Image:
@@ -71,8 +51,7 @@ def main() -> None:
         k = shot.width // w
         shot = shot.resize((w, h), Image.Resampling.NEAREST) if k > 1 else shot
     options = preview.PreviewOptions(scale=1, quantise=False, mask_shape=False)
-    stamped = preview.render(resolved, options)
-    program = program_frame(resolved, options)
+    drawn = preview.render(resolved, options)
     out = [f"## simulator vs Pillow models, {FACE.name}"]
     # Each window centres on the element's own box (`inner_box`, without its
     # ring): a gauge's `center` is its anchor, not its box's middle.
@@ -84,9 +63,8 @@ def main() -> None:
             g, s = cell(shot, gb), cell(shot, sb)
             out.append(
                 f"{kind:<9} {width}px  simulator grown vs stamp: {diff(g, s):>4} px | "
-                f"grown cell vs program {diff(g, cell(program, gb)):>4}, "
-                f"vs preview {diff(g, cell(stamped, gb)):>4} | "
-                f"stamp cell vs preview {diff(s, cell(stamped, sb)):>4}")
+                f"grown cell vs preview {diff(g, cell(drawn, gb)):>4} | "
+                f"stamp cell vs preview {diff(s, cell(drawn, sb)):>4}")
     print("\n".join(out))
     HERE.joinpath("compare_results.txt").write_text("\n".join(out) + "\n", encoding="utf-8")
 

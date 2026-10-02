@@ -1,4 +1,4 @@
-"""`runtime-lib/WfbArc.mc`'s whole-degree rule, and its host twin `wfb.preview.arc_span`.
+"""`runtime-lib/WfbArc.mc`'s whole-degree rule, and its host twin `wfb.draw.barrel.draw_span`.
 
 The bug this pins, seen on a real fenix 8 Solar 47mm: `examples/dashboard`'s
 `arc_steps` (start 148deg, sweep -32deg) painted the **whole bezel ring** in the
@@ -25,7 +25,8 @@ import pytest
 from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import garmin_arc, resolve
-from wfb.preview import PreviewOptions, arc_span, render
+from wfb.draw import barrel
+from wfb.preview import PreviewOptions, render
 
 BARREL = Path(__file__).resolve().parent.parent / "runtime-lib" / "WfbArc.mc"
 
@@ -175,7 +176,8 @@ def _span_degrees(span: tuple[int, int] | None) -> set[int] | None:
 @pytest.mark.parametrize("sweep", [0.3, -0.3, 0.64, -0.64, 1.0, -28.0, 32.0, 359.6, -360.0])
 def test_the_preview_draws_what_the_device_draws(author_start, sweep):
     start, _ = garmin_arc(author_start, sweep)
-    assert _span_degrees(arc_span(author_start, sweep)) == _pillow_degrees(
+    call = barrel.draw_span(start, sweep)
+    assert _span_degrees(barrel.pillow_arc(call) if call is not None else None) == _pillow_degrees(
         device_draw_arc(start, sweep)
     )
 
