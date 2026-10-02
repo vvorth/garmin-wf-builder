@@ -8,8 +8,8 @@ YAML, in your own units and spelling, so the file you download is the
 same kind of design file you would write by hand, with your comments and
 layout kept.
 
-Nothing the editor does reaches the watch on its own: download the face
-and build it with `wfb build` as usual.
+**Build…** compiles the face for one watch and downloads its `.prg`, ready
+to copy to the watch; **Download** saves the face itself.
 
 ## Starting it
 
@@ -36,7 +36,7 @@ history in a volume ([the container guide](../container.md#the-editor)):
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-studio:/state garmin-wf-builder studio
+  -v wfb-studio:/state -v wfb-keys:/keys garmin-wf-builder studio
 ```
 
 ## Faces in and out
@@ -71,9 +71,20 @@ first.
 |---|---|---|
 | **Layers**: the element tree; **Face**: targets, colours, schemes, styles, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
 
-The bar above the centre picks the watch, the style, the time, asleep and
-always-on, and the zoom. The faces in the strip under it switch the watch
-on a click.
+The bar above the centre picks the watch, the style, the time, asleep,
+always-on and the skin, and the zoom. The faces in the strip under it
+switch the watch on a click.
+
+**Zoom** is a slider from 0.2× to 4× (screen pixels per watch pixel). **1:1**
+shows the watch at its real size: its screen's pixels over its pixels per
+inch, from its device files (a watch whose files give none has no 1:1).
+A browser cannot measure its screen, and takes 96 of its pixels as an
+inch, which is right on some screens and not others. **⚙** calibrates it:
+hold a bank card to the screen and drag until the box matches; the
+browser keeps the result. The editor remembers the zoom too.
+
+**Skin** draws the watch round its screen, as the simulator does, at the
+same zoom; some watches' files have no skin, and the box is then off.
 
 ### On the face
 
@@ -181,6 +192,20 @@ cursor selects the element it is in. If the face changed elsewhere while
 you were typing (another tab), your text is refused and the pane reloads
 the face as it is.
 
+## Build
+
+**Build…** opens a dialog listing the face's own watches, and any other
+installed one below them. Pick one and **Build and download**: the editor
+runs `wfb build` for that watch on the face as it is now, which takes a
+few seconds, and the browser downloads `<face>-<watch>.prg`. The dialog
+shows the memory it uses against the watch's limit, and the build's log;
+a failed build shows the log, with the reason. Copy the `.prg` to the
+watch's `GARMIN/APPS` folder ([getting started](getting-started.md)).
+
+A face that does not load is not built: mend its errors first. One build
+runs at a time. The build signs with the same developer key `wfb build`
+does; in the container, mount `/keys` for it.
+
 ## History
 
 Every change is recorded as you make it, so closing the tab or stopping
@@ -199,7 +224,7 @@ face from the home screen deletes its history.
 
 ## What it does not do
 
-- Build or sideload: download, then `wfb build`
+- Put the `.prg` on the watch: copy it yourself
   ([getting started](getting-started.md)).
 - Edit a polygon's points, or keys no control covers, except in the YAML
   tab.

@@ -283,10 +283,66 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             return JSONResponse(doc(request).inspect(
                 element, request.query_params.get("device") or None))
 
+    installed: list[dict[str, Any]] = []
+
     def vocabulary(request: Request, data: bytes) -> Response:
         from .inspect import devices, vocabulary as words
         with studio.lock:
-            return JSONResponse({**words(), "devices": devices(studio.db)})
+            if not installed:
+                installed.extend(devices(studio.db))
+            return JSONResponse({**words(), "devices": installed})
+
+    skins: dict[tuple[str, int], dict[str, Any]] = {}
+
+    def skin(request: Request, data: bytes) -> Response:
+        """A watch's simulator skin at a scale, and where its screen sits
+        in it: drawn over the face, transparent where the screen shows."""
+        from ..preview import _skin_for
+        from .document import _png
+
+        device_id = request.query_params.get("device", "")
+        scale = min(4, max(1, _int(request, "scale") if "scale" in request.query_params else 2))
+        key = (device_id, scale)
+        if key not in skins:
+            found = _skin_for(studio.db.get(device_id), scale)
+            if found is None:
+                return _error(404, f"{device_id}'s files have no skin")
+            image, (x, y) = found
+            skins[key] = {"device": device_id, "scale": scale, "image": _png(image),
+                          "width": image.width, "height": image.height, "x": x, "y": y}
+        return JSONResponse(skins[key])
+
+    def build(request: Request, data: bytes) -> Response:
+        from .builder import BuildBusy
+
+        device_id = request.query_params.get("device", "")
+        with studio.lock:
+            document = doc(request)
+            document._check(_int(request, "version"))
+            device = studio.db.get(device_id)
+            if not device.supports_watchface:
+                raise Refused(f"{device_id} cannot run a watch face")
+            if document.analysis().face is None:
+                raise Refused("the face does not load: mend the errors in Diagnostics first")
+            document.ensure_directory()
+            work = studio.builder.stage(document.directory)
+            version, stem = document.version, slug(document.name)
+        try:
+            done = studio.builder.run(work, device_id, version, stem)
+        except BuildBusy as exc:
+            return _error(409, str(exc))
+        return JSONResponse({
+            "ok": done.ok, "device": done.device, "version": done.version, "log": done.log,
+            "memory": done.memory, "seconds": round(done.seconds, 1),
+            "download": f"/api/builds/{done.id}" if done.ok else None,
+        })
+
+    async def download_build(request: Request) -> Response:
+        done = studio.builder.get(request.path_params["build_id"])
+        if done is None or done.prg is None or not done.prg.is_file():
+            return _error(404, "there is no such build; builds last until the editor stops")
+        return FileResponse(done.prg, media_type="application/octet-stream",
+                            filename=done.name, headers={"Cache-Control": "no-store"})
 
     def undo(request: Request, data: bytes) -> Response:
         with studio.lock:
@@ -369,6 +425,9 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
             Route("/api/vocabulary", _endpoint(vocabulary)),
             Route("/api/schema", face_schema),
+            Route("/api/skin", _endpoint(skin)),
+            Route("/api/builds/{build_id}", download_build),
+            Route("/api/documents/{doc_id}/build", _endpoint(build), methods=["POST"]),
             Route("/api/documents/{doc_id}/text", _endpoint(replace_text, body=True),
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/edit", _endpoint(edit, body=True), methods=["POST"]),

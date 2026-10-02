@@ -82,9 +82,10 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .controls label { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 12px; }
 .canvas-wrap { overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; }
 .canvas { position: relative; line-height: 0; }
-.canvas img { image-rendering: pixelated; display: block; }
-.canvas canvas { position: absolute; inset: 0; pointer-events: none; }
-.canvas .hit { position: absolute; inset: 0; cursor: crosshair; }
+.canvas img.frame { position: absolute; display: block; }
+.canvas img.skin { position: absolute; left: 0; top: 0; pointer-events: none; }
+.canvas canvas { position: absolute; pointer-events: none; }
+.canvas .hit { position: absolute; cursor: crosshair; }
 .busy { position: absolute; top: 8px; right: 12px; color: var(--dim); font-size: 12px; }
 .empty { color: var(--dim); text-align: center; padding: 40px; max-width: 420px; }
 
@@ -213,3 +214,17 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .yaml-host .cm-cursor { border-left-color: var(--text); }
 .yaml-host .cm-tooltip { background: var(--raised); border: 1px solid var(--line); color: var(--text); }
 .yaml-status { padding: 4px 12px; font-size: 12px; color: var(--warning); border-top: 1px solid var(--line); }
+
+/* -- zoom, the build dialog --------------------------------------------------- */
+
+.controls .zoom input[type="range"] { width: 140px; padding: 0; }
+.controls button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.modal-body { padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.modal .choices { list-style: none; margin: 0; padding: 0; }
+.modal .choices li { padding: 3px 0; }
+.modal pre.log { max-height: 260px; overflow: auto; font-size: 11px; background: var(--bg); padding: 8px; border-radius: 6px; white-space: pre-wrap; }
+.card-box { border: 2px solid var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--dim); }

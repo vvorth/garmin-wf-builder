@@ -126,8 +126,10 @@ or AOD-related has been observed on a watch or in the simulator.
   line's ends, snapping) written in the author's units to the key the
   viewed watch reads, every key in an inspector, targets, colours,
   schemes, styles and fonts, structure (add any type, reorder, static and
-  dynamic, groups), a YAML tab with the schema, and a history with undo
-  and snapshots that survives restarts. Every edit but typed text is a
+  dynamic, groups), a YAML tab with the schema, a history with undo and
+  snapshots that survives restarts, Build for one watch (`wfb build` as a
+  subprocess, the `.prg` downloaded), a continuous zoom with real size
+  from the device's ppi (calibrated in the browser), and the skin. Every edit but typed text is a
   patch of the text checked by the full load (`wfb/edit/`); the browser
   draws the compiler's layers and decides nothing. `docs/guide/studio.md`.
 
@@ -180,8 +182,9 @@ specifies each item.
    otherwise built (`api-gated`: modules, fields, complication types); the
    hook is read by `wfb.availability.source_unavailable` for a future
    source whose read needs an extra function.
-8. Building and sideloading from the editor (`wfb studio`): it opens,
-   edits and downloads a face; `wfb build` builds it.
+8. Sideloading from the editor (`wfb studio`): it builds and downloads a
+   watch's `.prg`; copying it to the watch is by hand (as `wfb install`,
+   item 10, is unbuilt).
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.

@@ -21,7 +21,8 @@ def run(script: str) -> object:
     source = (f"import * as hit from {json.dumps(HIT.as_uri())};\n"
               f"import * as values from {json.dumps((STATIC / 'values.js').as_uri())};\n"
               f"import * as snap from {json.dumps((STATIC / 'snap.js').as_uri())};\n"
-              f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n{script}")
+              f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n"
+              f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -236,3 +237,22 @@ def test_the_vendored_editor_bundle_exports_what_the_yaml_tab_imports():
       console.log(JSON.stringify({json.dumps(names)}.filter((n) => !(n in m))));
     """)
     assert names and result == []
+
+
+def test_zoom_scale_and_real_size():
+    result = run("""
+      console.log(JSON.stringify({
+        scales: [[0.3, 1], [1, 1], [1.01, 1], [2, 1], [0.5, 2], [1.5, 2], [3.9, 1], [5, 1]]
+          .map(([z, dpr]) => zoom.serverScale(z, dpr)),
+        clamp: [zoom.clampZoom(0.01), zoom.clampZoom(9), zoom.clampZoom(1.5)],
+        real: [zoom.realZoom(200), zoom.realZoom(326), zoom.realZoom(null), zoom.realZoom(200, 120)],
+        card: zoom.calibrate(323.53),
+        mm: [zoom.screenMm(260, 200), zoom.screenMm(260, null)],
+      }));
+    """)
+    assert result["scales"] == [1, 1, 2, 2, 1, 3, 4, 4]
+    assert result["clamp"] == [0.2, 4, 1.5]
+    real = result["real"]
+    assert real[0] == 0.48 and abs(real[1] - 96 / 326) < 1e-9 and real[2] is None and real[3] == 0.6
+    assert abs(result["card"] - 96) < 0.01          # 85.6 mm at 96 px per inch is 323.53 px
+    assert abs(result["mm"][0] - 33.02) < 0.01 and result["mm"][1] is None

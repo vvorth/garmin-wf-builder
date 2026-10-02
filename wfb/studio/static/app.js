@@ -8,6 +8,16 @@ import { elementAtLine, flatten } from "./hit.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
+import { BuildDialog, CalibrateDialog } from "./dialogs.js";
+import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
+
+// What this browser remembers between visits: the zoom, and how many CSS
+// pixels make a real inch on its screen.
+function stored(key, fallback) {
+  try { const v = Number(localStorage.getItem(key)); return v > 0 ? v : fallback; } catch (_) { return fallback; }
+}
+const storedZoom = () => clampZoom(stored("wfb-zoom", 2));
+const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
 import { FacePanel, Inspector } from "./panels.js";
 
 // -- the server --------------------------------------------------------------------
@@ -244,7 +254,15 @@ function Editor({ docId, onError }) {
   const [frame, setFrame] = useState(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [view, setView] = useState({ device: null, style: "", time: "", asleep: false, aod: false, scale: 2 });
+  const [view, setView] = useState({ device: null, style: "", time: "", asleep: false, aod: false, skin: false,
+                                     zoom: storedZoom() });
+  // the server draws at a whole scale; the browser shows it at the zoom
+  const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
+  const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
+  const [dialog, setDialog] = useState(null);           // "build" | "calibrate"
+  const [skin, setSkin] = useState(null);
+  const [vocab, setVocab] = useState({});
+  useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
 
   const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(setDoc, (e) => {
     onError(e);
@@ -263,7 +281,7 @@ function Editor({ docId, onError }) {
     if (!doc || !view.device || !doc.targets.includes(view.device)) { setFrame(null); return; }
     let live = true;
     setBusy(true);
-    const q = new URLSearchParams({ device: view.device, scale: view.scale });
+    const q = new URLSearchParams({ device: view.device, scale });
     if (view.style) q.set("style", view.style);
     if (view.time) q.set("time", view.time);
     if (view.asleep) q.set("asleep", "1");
@@ -277,7 +295,24 @@ function Editor({ docId, onError }) {
       }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
-  }, [doc && doc.version, doc && doc.targets.join(), view]);
+  }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, view.time,
+      view.asleep, view.aod, scale]);
+
+  // the watch's skin, at the frame's scale, when asked for and it has one
+  const deviceInfo = (vocab.devices || []).find((d) => d.id === view.device);
+  useEffect(() => {
+    if (!view.skin || !deviceInfo || !deviceInfo.skin) { setSkin(null); return; }
+    let live = true;
+    api(`/api/skin?device=${enc(view.device)}&scale=${scale}`).then((s) => { if (live) setSkin(s); }, onError);
+    return () => { live = false; };
+  }, [view.skin, view.device, scale, deviceInfo && deviceInfo.skin]);
+  const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
+  // the slider's steps are hundredths; real size is set exactly
+  const setZoom = (z, exact = false) => {
+    const zoom = clampZoom(exact ? z : Math.round(z * 100) / 100);
+    try { localStorage.setItem("wfb-zoom", String(zoom)); } catch (_) { /* private mode */ }
+    setView((v) => ({ ...v, zoom }));
+  };
 
   useEvents((name, data) => {
     if (!doc || data.id !== docId) return;
@@ -350,8 +385,6 @@ function Editor({ docId, onError }) {
     addEventListener("keydown", onDelete);
     return () => { removeEventListener("keydown", onKey); removeEventListener("keydown", onDelete); };
   }, [step, structure, element]);
-  const [vocab, setVocab] = useState({});
-  useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
 
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.
@@ -391,6 +424,8 @@ function Editor({ docId, onError }) {
         <button disabled=${!doc.history.can_redo} onClick=${() => step("redo")} title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         <span class="spacer"></span>
         ${counts.error ? html`<span class="error-text">${counts.error} error${counts.error > 1 ? "s" : ""}</span>` : null}
+        <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
+                onClick=${() => setDialog("build")}>Build…</button>
         <${DownloadMenu} doc=${doc} />
       </div>
       <${Missing} doc=${doc} onChanged=${setDoc} onError=${onError} />
@@ -424,10 +459,22 @@ function Editor({ docId, onError }) {
           <label>Time <input type="time" step="1" value=${view.time} onChange=${set("time")} /></label>
           <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
           <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
-          <label>Zoom
-            <select value=${view.scale} onChange=${(e) => setView({ ...view, scale: Number(e.target.value) })}>
-              ${[1, 2, 3, 4].map((n) => html`<option value=${n}>${n}×</option>`)}
-            </select></label>
+          <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
+            <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
+                   onChange=${set("skin")} /> skin</label>
+          <label class="zoom">Zoom
+            <input type="range" min=${MIN_ZOOM} max=${MAX_ZOOM} step="0.01" value=${view.zoom}
+                   list="zoom-notches" onInput=${(e) => setZoom(Number(e.target.value))} />
+            <datalist id="zoom-notches">
+              ${[1, 2, 3].map((n) => html`<option value=${n} />`)}
+              ${real ? html`<option value=${real} />` : null}
+            </datalist>
+            <span class="mono">${view.zoom.toFixed(view.zoom < 1 ? 3 : 2)}×</span></label>
+          <button class=${real && Math.abs(view.zoom - real) < 0.005 ? "on" : ""} disabled=${!real}
+                  title=${real ? `the watch's real size, ${screenMm(deviceInfo.width, deviceInfo.ppi).toFixed(1)} mm across, on this screen`
+                               : "this watch's files give no pixel density"}
+                  onClick=${() => setZoom(real, true)}>1:1</button>
+          <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
           ? html`<${YamlPane} doc=${doc} selected=${selected} onDoc=${setDoc} onError=${onError}
@@ -435,6 +482,7 @@ function Editor({ docId, onError }) {
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
+                                        zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
                                         onPick=${setSelected} onDrag=${onDrag} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
@@ -461,6 +509,13 @@ function Editor({ docId, onError }) {
                              onChanged=${(updated) => updated ? setDoc(updated) : loadDoc()} />`}
       </div>
     </div>
+    ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
+                                               onClose=${() => setDialog(null)} />` : null}
+    ${dialog === "calibrate" ? html`<${CalibrateDialog} current=${pxPerInch} onClose=${() => setDialog(null)}
+        onSave=${(v) => {
+          try { localStorage.setItem("wfb-css-px-per-inch", String(v)); } catch (_) { /* private mode */ }
+          setPxPerInch(v); setDialog(null);
+        }} />` : null}
   </div>`;
 }
 

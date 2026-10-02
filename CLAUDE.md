@@ -298,8 +298,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
-  - building or sideloading from the editor (`wfb studio`): download,
-    then `wfb build`;
+  - sideloading from the editor (`wfb studio`): its Build downloads the
+    `.prg`, copied to the watch by hand;
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;

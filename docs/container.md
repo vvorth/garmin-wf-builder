@@ -160,7 +160,7 @@ What each command needs mounted:
 | `validate` | ✔ | ✔ | | |
 | `devices`, `sources` | | ✔ | | |
 | `doctor` | | | optional | |
-| `studio` | | ✔ | optional | |
+| `studio` | | ✔ | optional | ✔ (for Build) |
 
 ### The editor
 
@@ -173,11 +173,13 @@ volume at `/state`:
 docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-studio:/state \
+  -v wfb-keys:/keys \
   garmin-wf-builder studio
 ```
 
 Then open <http://127.0.0.1:8765/> in a browser on the host. Faces go in by
-upload and come out by download, so the editor needs no `/work` mount.
+upload and come out by download, so the editor needs no `/work` mount. Its
+Build signs with the key at `/keys`, as `build` does.
 Without the `/state` volume every face's history ends with the container,
 and the entrypoint says so. The server writes files, so never publish the
 port beyond `127.0.0.1`.

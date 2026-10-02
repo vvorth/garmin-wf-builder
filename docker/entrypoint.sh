@@ -78,6 +78,8 @@ case "${1:-}" in
     studio)
         needs_devices=1
         wants_fonts=1
+        # the editor's Build runs `wfb build`, which signs with this key
+        needs_key=1
         # Inside the container the server must listen beyond its own
         # loopback for a published port to reach it; publish it to the
         # host's loopback only (docs/container.md, "The editor").

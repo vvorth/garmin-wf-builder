@@ -282,7 +282,15 @@ def devices(db: DeviceDatabase) -> list[dict[str, Any]]:
         if not device.supports_watchface or \
                 version_key(device.api_level) < version_key(BASE_API_LEVEL):
             continue
+        from ..preview import has_skin
+
+        ppi = device.simulator.get("ppi")
         out.append({"id": device.id, "name": device.compiler.get("displayName") or device.id,
                     "shape": device.shape, "size": f"{device.width}x{device.height}",
+                    "width": device.width, "height": device.height,
+                    # the screen's pixels per inch, when its files say: what
+                    # "real size" on the editor's screen is computed from
+                    "ppi": float(ppi) if isinstance(ppi, (int, float)) and ppi > 0 else None,
+                    "skin": has_skin(device), "display": device.display_type,
                     "fonts": list(device.system_fonts)})
     return sorted(out, key=lambda d: d["name"].lower())

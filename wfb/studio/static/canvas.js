@@ -62,13 +62,16 @@ function pick(frame, layers, x, y, scale) {
   return best ? best.id : null;
 }
 
-function drawHandle(ctx, x, y, s) {
+// `k`: canvas pixels per screen pixel, so a handle is the same size on the
+// screen at every zoom.
+function drawHandle(ctx, x, y, s, k) {
+  const r = HANDLE * k;
   ctx.setLineDash([]);
   ctx.fillStyle = "#fff";
   ctx.strokeStyle = ACCENT;
-  ctx.lineWidth = 1.5;
-  ctx.fillRect(x * s - HANDLE, y * s - HANDLE, HANDLE * 2, HANDLE * 2);
-  ctx.strokeRect(x * s - HANDLE, y * s - HANDLE, HANDLE * 2, HANDLE * 2);
+  ctx.lineWidth = 1.5 * k;
+  ctx.fillRect(x * s - r, y * s - r, r * 2, r * 2);
+  ctx.strokeRect(x * s - r, y * s - r, r * 2, r * 2);
 }
 
 function guides(ctx, g, frame, s) {
@@ -199,7 +202,10 @@ function changed(gesture) {
   return Math.abs(gesture.degrees - (gesture.key === "sweep" ? gesture.handle.sweep : gesture.handle.start)) >= 0.5;
 }
 
-export function Canvas({ frame, layers, selected, onPick, onDrag }) {
+// `zoom`: screen (CSS) pixels per watch pixel; the frame was drawn at
+// `frame.scale` and is shown at the zoom. `skin`: the watch drawn round the
+// screen, at the frame's scale, with where the screen sits in it.
+export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
   const [drag, setDragState] = useState(null);     // a press, maybe a gesture
   // The handlers read the press from a ref: two pointer events can arrive
@@ -225,14 +231,15 @@ export function Canvas({ frame, layers, selected, onPick, onDrag }) {
     if (!ctx) return;
     ctx.clearRect(0, 0, c.width, c.height);
     if (!item) return;
+    const k = s / zoom;
     if (shown) { drawPreview(ctx, frame, usable, item, shown, s); return; }
     const [x, y, w, h] = item.box;
-    ctx.setLineDash([6, 4]);
+    ctx.setLineDash([6 * k, 4 * k]);
     ctx.strokeStyle = ACCENT;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x * s - 1, y * s - 1, w * s + 2, h * s + 2);
-    for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s);
-  }, [frame, usable, selected, shown]);
+    ctx.lineWidth = 2 * k;
+    ctx.strokeRect(x * s - k, y * s - k, w * s + 2 * k, h * s + 2 * k);
+    for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s, k);
+  }, [frame, usable, selected, shown, zoom]);
 
   const point = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -244,7 +251,7 @@ export function Canvas({ frame, layers, selected, onPick, onDrag }) {
   const down = (e) => {
     if (e.button !== 0 || pending) return;
     const p = point(e);
-    const near = (h) => Math.abs((h.x - p.x) * frame.scale) <= HANDLE + 2 && Math.abs((h.y - p.y) * frame.scale) <= HANDLE + 2;
+    const near = (h) => Math.abs((h.x - p.x) * zoom) <= HANDLE + 2 && Math.abs((h.y - p.y) * zoom) <= HANDLE + 2;
     const handle = item ? item.handles.find(near) : null;
     let id = selected;
     if (!handle) {
@@ -283,11 +290,16 @@ export function Canvas({ frame, layers, selected, onPick, onDrag }) {
     return () => removeEventListener("keydown", onKey);
   }, []);
 
-  return html`<div class="canvas">
-    <img src=${frame.frame} width=${frame.width * frame.scale} height=${frame.height * frame.scale}
-         alt="the face on ${frame.device}" />
-    <canvas ref=${overlay}></canvas>
-    <div class=${"hit" + (drag && drag.gesture ? " dragging" : "")}
+  // the screen, and round it the skin when shown, all at the zoom
+  const w = frame.width * zoom, h = frame.height * zoom;
+  const at = skin ? [skin.x / skin.scale * zoom, skin.y / skin.scale * zoom] : [0, 0];
+  const box = skin ? [skin.width / skin.scale * zoom, skin.height / skin.scale * zoom] : [w, h];
+  const screen = `left:${at[0]}px;top:${at[1]}px;width:${w}px;height:${h}px`;
+  return html`<div class="canvas" style=${`width:${box[0]}px;height:${box[1]}px`}>
+    <img class="frame" src=${frame.frame} style=${screen} alt="the face on ${frame.device}" />
+    ${skin ? html`<img class="skin" src=${skin.image} style=${`width:${box[0]}px;height:${box[1]}px`} alt="" />` : null}
+    <canvas ref=${overlay} style=${screen}></canvas>
+    <div class=${"hit" + (drag && drag.gesture ? " dragging" : "")} style=${screen}
          onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${() => setDrag(null)}></div>
     ${pending ? html`<div class="saving">saving…</div>` : null}
   </div>`;

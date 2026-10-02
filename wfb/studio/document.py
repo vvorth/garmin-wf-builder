@@ -25,7 +25,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from ..build import resolve_all, select_devices
 from ..devices import DeviceDatabase
@@ -39,6 +39,8 @@ from ..ir import Face
 from ..layout import ResolvedFace
 from .inspect import GEOMETRY, globals_of, inspect
 from .bundle import FACE, Bundle, asset_path, inside, missing, references
+if TYPE_CHECKING:
+    from .builder import Builder
 from .store import REDO, UNDO, Change, Snapshot, Store, UnknownDocument
 
 
@@ -706,7 +708,8 @@ class Studio:
     snapshot taken by the timer), for the event stream."""
 
     def __init__(self, store: Store, db: DeviceDatabase, scratch: Path | None = None, *,
-                 snapshot_minutes: float = SNAPSHOT_MINUTES) -> None:
+                 snapshot_minutes: float = SNAPSHOT_MINUTES,
+                 builder: "Builder | None" = None) -> None:
         self.store = store
         self.db = db
         self.memo = BakeMemo()
@@ -718,11 +721,14 @@ class Studio:
         self.on_event: Callable[[str, dict[str, Any]], None] = lambda name, data: None
         self._stop = threading.Event()
         self._timer: threading.Thread | None = None
+        from .builder import Builder
+        self.builder = builder or Builder()
 
     def close(self) -> None:
         self._stop.set()
         if self._timer is not None:
             self._timer.join(timeout=5)
+        self.builder.close()
         if self._own_scratch:
             shutil.rmtree(self.scratch, ignore_errors=True)
 
