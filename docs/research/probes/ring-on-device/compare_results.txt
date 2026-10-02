@@ -1,0 +1,11 @@
+## simulator vs Pillow models, face.yaml
+circle    1px  simulator grown vs stamp:   16 px | grown cell vs program   90, vs preview   82 | stamp cell vs preview   98
+circle    2px  simulator grown vs stamp:   20 px | grown cell vs program   98, vs preview   82 | stamp cell vs preview  102
+rectangle 1px  simulator grown vs stamp:    4 px | grown cell vs program    4, vs preview    4 | stamp cell vs preview    0
+rectangle 2px  simulator grown vs stamp:    8 px | grown cell vs program    0, vs preview    8 | stamp cell vs preview    0
+rounded   1px  simulator grown vs stamp:    0 px | grown cell vs program   12, vs preview   12 | stamp cell vs preview   12
+rounded   2px  simulator grown vs stamp:    8 px | grown cell vs program   12, vs preview   24 | stamp cell vs preview   16
+bar       1px  simulator grown vs stamp:    4 px | grown cell vs program   24, vs preview   22 | stamp cell vs preview   18
+bar       2px  simulator grown vs stamp:   10 px | grown cell vs program   20, vs preview   26 | stamp cell vs preview   20
+part      1px  simulator grown vs stamp:   16 px | grown cell vs program   90, vs preview   82 | stamp cell vs preview   98
+part      2px  simulator grown vs stamp:   20 px | grown cell vs program   98, vs preview   82 | stamp cell vs preview  102
