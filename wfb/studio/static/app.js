@@ -4,7 +4,8 @@
 
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
-import { elementAtLine, elementOf, flatten, topmost } from "./hit.js";
+import { elementAtLine, flatten } from "./hit.js";
+import { Canvas, Strip } from "./canvas.js";
 import { FacePanel, Inspector } from "./panels.js";
 
 // -- the server --------------------------------------------------------------------
@@ -159,73 +160,6 @@ function Tree({ nodes, selected, drawn, onSelect }) {
   </ul>`;
 }
 
-// One layer's pixels, decoded once, for hit-testing by alpha. A layer's
-// image is cropped to its ink; `origin` is where it sits, in frame pixels.
-const pixelCache = new WeakMap();
-function layerPixels(layer) {
-  let entry = pixelCache.get(layer);
-  if (!entry) {
-    entry = { data: null };
-    pixelCache.set(layer, entry);
-    if (!layer.image) return entry;
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.width; c.height = img.height;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img, 0, 0);
-      entry.data = ctx.getImageData(0, 0, img.width, img.height);
-    };
-    img.src = layer.image;
-  }
-  return entry;
-}
-
-function Canvas({ frame, selected, onPick }) {
-  const overlay = useRef(null);
-
-  useEffect(() => { frame && frame.layers.forEach(layerPixels); }, [frame]);
-
-  useEffect(() => {
-    const c = overlay.current;
-    if (!c || !frame) return;
-    const s = frame.scale;
-    c.width = frame.width * s; c.height = frame.height * s;
-    const ctx = c.getContext("2d");
-    ctx.clearRect(0, 0, c.width, c.height);
-    for (const layer of frame.layers) {
-      if (elementOf(layer.id) !== selected || !layer.box) continue;
-      const [x, y, w, h] = layer.box;
-      ctx.strokeStyle = "#4f9cf9";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(x * s - 1, y * s - 1, w * s + 2, h * s + 2);
-    }
-  }, [frame, selected]);
-
-  if (!frame) return null;
-  const click = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const sx = (e.clientX - rect.left) * (frame.width * frame.scale) / rect.width;
-    const sy = (e.clientY - rect.top) * (frame.height * frame.scale) / rect.height;
-    const x = Math.floor(sx / frame.scale), y = Math.floor(sy / frame.scale);
-    const hit = topmost(frame.layers, x, y, (layer) => {
-      const px = layerPixels(layer).data;
-      if (!px) return 0;
-      const ix = Math.floor(sx) - layer.origin[0], iy = Math.floor(sy) - layer.origin[1];
-      if (ix < 0 || iy < 0 || ix >= px.width || iy >= px.height) return 0;
-      return px.data[(iy * px.width + ix) * 4 + 3];
-    });
-    onPick(hit ? elementOf(hit.id) : null);
-  };
-  return html`<div class="canvas">
-    <img src=${frame.frame} width=${frame.width * frame.scale} height=${frame.height * frame.scale}
-         alt="the face on ${frame.device}" />
-    <canvas ref=${overlay}></canvas>
-    <div class="hit" onClick=${click}></div>
-  </div>`;
-}
-
 function Diagnostics({ items, tree, onSelect }) {
   if (!items.length) return html`<div class="body dim">No diagnostics.</div>`;
   const order = { error: 0, warning: 1, note: 2 };
@@ -350,7 +284,12 @@ function Editor({ docId, onError }) {
     if (view.asleep) q.set("asleep", "1");
     if (view.aod) q.set("aod", "1");
     api(`/api/documents/${docId}/frame?${q}`)
-      .then((f) => { if (live) setFrame(f); }, onError)
+      .then((f) => {
+        if (!live) return;
+        setFrame(f);
+        // the layers follow: alpha hit-testing and a drag's moving image
+        return api(`/api/documents/${docId}/layers?${q}`).then((l) => { if (live) setLayers(l); });
+      }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
   }, [doc && doc.version, doc && doc.targets.join(), view]);
@@ -376,6 +315,22 @@ function Editor({ docId, onError }) {
     return () => removeEventListener("keydown", onKey);
   }, [step]);
   const [tab, setTab] = useState("diagnostics");
+  const [layers, setLayers] = useState(null);
+  // where an inspector edit or a drag writes geometry: "all" (a drag then
+  // writes where the viewed device reads it), the device, or its shape
+  const [scope, setScope] = useState("all");
+  const onDrag = useCallback(async (element, gesture) => {
+    if (!doc) return false;
+    try {
+      const updated = await api(`/api/documents/${docId}/drag?version=${doc.version}`, {
+        method: "POST",
+        body: JSON.stringify({ element, gesture, device: view.device, scope: scope === "all" ? "auto" : scope }),
+      });
+      setDoc(updated);
+      if (!updated.landed) onError(new Error(`${updated.what}: written as close as its units allow, not exactly on the pixel`));
+      return true;
+    } catch (e) { onError(e); if (e.status === 409) loadDoc(); return false; }
+  }, [doc, view.device, scope]);
   const [left, setLeft] = useState("layers");
   const [vocab, setVocab] = useState({});
   useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
@@ -398,12 +353,12 @@ function Editor({ docId, onError }) {
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
 
-  const drawn = useMemo(() => frame && new Set(frame.layers.map((l) => elementOf(l.id))), [frame]);
+  const drawn = useMemo(() => frame && new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)), [frame]);
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
                           [doc, selected]);
   const box = useMemo(() => {
-    const layer = frame && frame.layers.find((l) => l.id === selected);
-    return layer && layer.box;
+    const item = frame && frame.items.find((i) => i.id === selected);
+    return item && item.box;
   }, [frame, selected]);
 
   if (!doc) return html`<div class="home dim">Loading…</div>`;
@@ -457,10 +412,12 @@ function Editor({ docId, onError }) {
         </div>
         <div class="canvas-wrap">
           ${busy ? html`<div class="busy">rendering…</div>` : null}
-          ${frame ? html`<${Canvas} frame=${frame} selected=${selected} onPick=${setSelected} />`
+          ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
+                                    onPick=${setSelected} onDrag=${onDrag} />`
                   : html`<div class="empty">${doc.loads ? "No frame yet." :
                       "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
         </div>
+        <${Strip} doc=${doc} view=${view} onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
       <div class="panel right">
         <h3>Properties</h3>
@@ -470,7 +427,7 @@ function Editor({ docId, onError }) {
             ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
-                      onEdit=${edit} onError=${onError} />
+                      scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
             Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>

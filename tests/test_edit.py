@@ -14,7 +14,7 @@ from tests.helpers import example
 from wfb.edit import (
     Gate, Patch, Refused, SpanIndex, View, add_element, chain, delete_element,
     duplicate_element, load_text, move, move_element, parse, remove, rename_key,
-    rename_reference, resize, rewrite_scalars, set_value, target,
+    rename_reference, resize, rewrite_scalars, set_value, target, turn,
 )
 from wfb.edit.geometry import candidates, px_per_unit
 from wfb.edit.patch import DEFAULTS, face_color
@@ -520,3 +520,42 @@ def test_a_chain_checks_its_first_step():
     lying = Patch("a: 2\n", {"a": 1}, "lie")
     with pytest.raises(Refused, match="more than intended"):
         chain(lying, lambda i: set_value(i, ("a",), 3))
+
+
+@pytest.mark.parametrize("device", TARGETS)
+def test_a_lines_ends_move_apart_and_land(shapes_views, device):
+    view = shapes_views[device]
+    lines = [e.id for e in view.face.walk()
+             if getattr(e, "shape", None) == "line"]
+    assert lines, "the shapes face has a line"
+    for line in lines:
+        before = view.placed(line)
+        start = move(view, line, 4, -3, part="at")
+        assert start.landed
+        placed = view.placed(line, view.place(load_text(SHAPES, start.patch.text)))
+        assert placed.center == (before.center[0] + 4, before.center[1] - 3)
+        assert placed.end == before.end                  # the other end stays
+        end = move(view, line, -5, 2, part="to")
+        assert end.landed
+        placed = view.placed(line, view.place(load_text(SHAPES, end.patch.text)))
+        assert placed.end == (before.end[0] - 5, before.end[1] + 2)
+        assert placed.center == before.center
+    with pytest.raises(Refused, match="not a line"):
+        move(view, "card", 1, 1, part="to")
+
+
+@pytest.mark.parametrize("device", TARGETS)
+def test_an_arcs_angles_turn_in_the_authors_unit(shapes_views, device):
+    view = shapes_views[device]
+    before = view.placed("outer_arc")
+    turned = turn(view, "outer_arc", "sweep", float(before.sweep) - 23)
+    assert turned.landed
+    data = SpanIndex(turned.patch.text).data
+    assert data["elements"]["outer_arc"]["sweep"] == f"{before.sweep - 23:g}deg"
+    rotated = turn(view, "outer_arc", "start_angle", 33.3)
+    assert rotated.landed
+    assert SpanIndex(rotated.patch.text).data["elements"]["outer_arc"]["start_angle"] == "33deg"
+    with pytest.raises(Refused, match="no start_angle"):
+        turn(view, "card", "start_angle", 10)
+    with pytest.raises(Refused, match="not start_angle or sweep"):
+        turn(view, "outer_arc", "radius", 10)

@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path as FilePath
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from ..devices import Device
 from ..ir import Element, Face, Group
@@ -33,7 +33,10 @@ from ..layout import Placed, ResolvedFace, Resolver
 from ..units import Axis, Box, Length, UnitError
 from .gate import Loaded, load_text
 from .patch import Patch, number, set_value
-from .spans import Path, Refused, SpanIndex, dotted, is_element
+
+if TYPE_CHECKING:
+    from ..emit.resources import BakeMemo
+from .spans import Path, Refused, SpanIndex, dotted, index_for, is_element
 
 Scope = Literal["auto", "all", "device", "shape"]
 
@@ -54,11 +57,21 @@ _DEGREES_PER = {"deg": 1.0, "rad": 180.0 / math.pi, "turn": 360.0}
 #: The extent keys a resize may change, and what it measures on the
 #: placed element to check that it landed.
 EXTENTS: dict[tuple[str, ...], Callable[[Placed], int]] = {
-    ("size", "width"): lambda p: p.inner_box.width,
-    ("size", "height"): lambda p: p.inner_box.height,
+    ("size", "width"): lambda p: _sized(p, 0),
+    ("size", "height"): lambda p: _sized(p, 1),
     ("radius",): lambda p: int(getattr(p, "radius")),
     ("thickness",): lambda p: int(getattr(p, "thickness")),
 }
+
+
+def _sized(placed: Placed, axis: int) -> int:
+    """The extent `size:` gave: a gauge records it, since its ticks grow its
+    box past it; every other boxed kind's box is it."""
+    size = getattr(placed, "size", None)
+    if isinstance(size, tuple) and len(size) == 2:
+        return int(size[axis])
+    box = placed.inner_box
+    return box.width if axis == 0 else box.height
 
 
 # -- the override target ----------------------------------------------------------
@@ -154,26 +167,43 @@ class View:
     """One design's text placed on one device: the face, its baked fonts and
     its resolved layout, with the author index for the same text."""
 
-    def __init__(self, path: FilePath, text: str, device: Device) -> None:
+    def __init__(self, path: FilePath, text: str, device: Device, *,
+                 loaded: Loaded | None = None, resolved: ResolvedFace | None = None,
+                 memo: "BakeMemo | None" = None) -> None:
+        """``loaded`` and ``resolved`` are ``text`` already loaded and placed
+        on ``device``, when the caller has them (an editor's analysis);
+        ``memo`` reuses font sheets."""
         from ..emit.resources import bake_fonts
 
         self.path = path
         self.device = device
-        self.index = SpanIndex(text)
-        self.loaded = load_text(path, text)
+        self.memo = memo
+        self.tried: Loaded | None = None
+        self.index = index_for(text)
+        self.loaded = loaded if loaded is not None and loaded.text == text else load_text(
+            path, text)
         if self.loaded.face is None:
             raise Refused("the design does not load: "
                           + "; ".join(d.message for d in self.loaded.errors[:1]))
         self.face: Face = self.loaded.face
-        self.fonts = bake_fonts(self.face, device)
-        self.resolved = self.place(self.loaded)
+        if resolved is not None and resolved.face is self.face:
+            self.fonts = resolved.fonts
+            self.resolved = resolved
+        else:
+            self.fonts = (bake_fonts(self.face, device) if memo is None
+                          else bake_fonts(self.face, device, memo))
+            self.resolved = self.place(self.loaded)
 
     def place(self, loaded: Loaded, rebake: bool = False) -> ResolvedFace:
         from ..emit.resources import bake_fonts
         from ..layout import resolve
 
         assert loaded.face is not None
-        fonts = bake_fonts(loaded.face, self.device) if rebake else self.fonts
+        if rebake:
+            fonts = (bake_fonts(loaded.face, self.device) if self.memo is None
+                     else bake_fonts(loaded.face, self.device, self.memo))
+        else:
+            fonts = self.fonts
         return resolve(loaded.face, self.device, fonts)
 
     def placed(self, element_id: str, resolved: ResolvedFace | None = None) -> Placed:
@@ -212,6 +242,8 @@ class View:
 
     def try_patch(self, patch: Patch, element_id: str, rebake: bool = False) -> Placed | None:
         loaded = load_text(self.path, patch.text)
+        #: The last text placed, loaded: what a caller's gate can reuse.
+        self.tried = loaded
         if loaded.face is None:
             return None
         return self.placed(element_id, self.place(loaded, rebake))
@@ -255,7 +287,7 @@ def _apply(index: SpanIndex, keys: list[_Key], level: int) -> Patch:
     for key in keys:
         value = key.spelling.write(key.values[min(level, len(key.values) - 1)])
         patch = set_value(current, key.write, value)
-        current = SpanIndex(patch.text)
+        current = index_for(patch.text)
     assert patch is not None
     whats = ", ".join(dotted(k.write) for k in keys)
     return Patch(patch.text, patch.expected, f"set {whats}")
@@ -337,23 +369,64 @@ def _data(index: SpanIndex, path: Path) -> Any:
     return data
 
 
-def move(view: View, element_id: str, dx: int, dy: int, scope: Scope = "auto") -> Converted:
+Part = Literal["both", "at", "to"]
+
+
+def move(view: View, element_id: str, dx: int, dy: int, scope: Scope = "auto",
+         part: Part = "both") -> Converted:
     """Move ``element_id`` by ``(dx, dy)`` device pixels on the view's
-    device: its `at:` (and a line's `to:`) rewritten in the author's units."""
+    device: its `at:` (and a line's `to:`) rewritten in the author's units.
+    A line's ``part`` "at" or "to" moves that end alone."""
     element = view.author_path(element_id)
     effective = view.effective(element_id)
     if isinstance(effective, Shape) and effective.shape == "polygon":
         raise Refused(f"{element_id} is a polygon: move its points: in the text")
+    line = isinstance(effective, Shape) and effective.shape == "line"
+    if part != "both" and not line:
+        raise Refused(f"{element_id} is not a line: it has no ends to move apart")
     before = view.placed(element_id)
-    keys = _position_keys(view, element_id, element, "at", effective.at, dx, dy, scope)
-    goal = (before.center[0] + dx, before.center[1] + dy)
-    checks: list[Callable[[Placed], bool]] = [lambda p: p.center == goal]
-    if isinstance(effective, Shape) and effective.to is not None:
-        keys += _position_keys(view, element_id, element, "to", effective.to, dx, dy, scope)
+    keys: list[_Key] = []
+    checks: list[Callable[[Placed], bool]] = []
+    if part in ("both", "at"):
+        keys += _position_keys(view, element_id, element, "at", effective.at, dx, dy, scope)
+        goal = (before.center[0] + dx, before.center[1] + dy)
+        checks.append(lambda p: p.center == goal)
+    if line and part in ("both", "to"):
+        assert isinstance(effective, Shape)
+        to = effective.to or Position()
+        keys += _position_keys(view, element_id, element, "to", to, dx, dy, scope)
         end = getattr(before, "end")
         end_goal = (end[0] + dx, end[1] + dy)
         checks.append(lambda p: getattr(p, "end") == end_goal)
     return _settle(view, keys, element_id, lambda p: all(c(p) for c in checks))
+
+
+#: The angle keys `turn` writes, and what it reads back on the placed element.
+ANGLES = frozenset({"start_angle", "sweep"})
+
+
+def turn(view: View, element_id: str, key: str, degrees: float,
+         scope: Scope = "auto") -> Converted:
+    """Set an arc's ``key`` (`start_angle` or `sweep`) to ``degrees`` (12
+    o'clock = 0, clockwise) on the view's device, in the author's unit,
+    rounded to the coarsest step within half a degree."""
+    if key not in ANGLES:
+        raise Refused(f"{key} is not start_angle or sweep")
+    element = view.author_path(element_id)
+    effective = view.effective(element_id)
+    # every shape carries the angle fields; only an arc draws them
+    shape = getattr(effective, "shape", None)
+    if (shape is not None and shape != "arc") or not hasattr(effective, key) \
+            or not hasattr(view.placed(element_id), key):
+        raise Refused(f"{element_id} has no {key}")
+    entry = view.index.get(target(view.index, element, (key,), view.device))
+    spelling = (angle_spelling(_data(view.index, entry.path)) if entry is not None
+                else Spelling("deg"))
+    per = _DEGREES_PER[spelling.unit]
+    keys = [_Key(target(view.index, element, (key,), view.device, scope), spelling,
+                 candidates(degrees / per, ANGLE_STEPS[spelling.unit], per))]
+    return _settle(view, keys, element_id,
+                   lambda p: abs(float(getattr(p, key)) - degrees) < 0.5)
 
 
 def resize(view: View, element_id: str, key: tuple[str, ...], delta: int,

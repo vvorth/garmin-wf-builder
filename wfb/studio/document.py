@@ -25,13 +25,13 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from ..build import resolve_all, select_devices
 from ..devices import DeviceDatabase
 from ..diagnostics import Bag, Diagnostic
 from ..edit import Gate, Refused, SpanIndex, remove, rename_key, rename_reference, set_value
-from ..edit.geometry import target
+from ..edit.geometry import Part, Scope, target
 from ..edit.gate import Loaded, load_text
 from ..edit.spans import ELEMENT_BLOCKS, Entry, index_for, is_element
 from ..emit.resources import BakeMemo
@@ -87,7 +87,8 @@ class Document:
         self.text = store.text(doc_id, head)
         self.directory = studio.scratch / doc_id
         self._analysis: Analysis | None = None
-        self._frames: OrderedDict[FrameKey, dict[str, Any]] = OrderedDict()
+        #: Frames, layers and thumbnails of this version, by what and key.
+        self._frames: OrderedDict[tuple[str, FrameKey], Any] = OrderedDict()
         #: This version's load, with its own diagnostics only (`analysis`), and
         #: the gate's load of the text about to become the head.
         self._loaded: Loaded | None = None
@@ -388,48 +389,144 @@ class Document:
         except ValueError:
             return Path(path).name
 
-    def frame(self, key: FrameKey) -> dict[str, Any]:
-        """One frame: the composed image, and each layer with its box."""
-        from ..draw.layers import compose, layers
+    def _placed(self, key: FrameKey) -> tuple[ResolvedFace, Any]:
+        """This version on ``key.device``, and the preview options for ``key``."""
         from ..preview import PreviewOptions
 
-        cached = self._frames.get(key)
-        if cached is not None:
-            self._frames.move_to_end(key)
-            return cached
-        analysis = self.analysis()
-        resolved = analysis.resolved.get(key.device)
+        resolved = self.analysis().resolved.get(key.device)
         if resolved is None:
             raise Refused(f"{key.device} is not drawn: the face does not load, "
                           "or does not target it")
-        options = PreviewOptions(scale=key.scale, style=key.style, time=key.time,
-                                 asleep=key.asleep, aod=key.aod)
-        stack = layers(resolved, options)
-        boxes = {item.id: item.box for item in resolved.items}
-        out_layers = []
-        for layer in stack:
-            box = boxes.get(layer.id[len("ring:"):] if layer.kind == "ring" else layer.id)
-            # Only the layer's ink travels: a full-frame, mostly clear RGBA
-            # image per layer costs most of a frame's encoding time.
-            ink = layer.image.getchannel("A").getbbox()
-            out_layers.append({
-                "id": layer.id, "kind": layer.kind,
-                "line": layer.span.line if layer.span is not None else None,
-                "box": [box.x, box.y, box.width, box.height] if box is not None else None,
-                "origin": [ink[0], ink[1]] if ink else None,
-                "image": _png(layer.image.crop(ink)) if ink else None,
-            })
-        device = resolved.device
-        frame = {
-            "version": self.version, "device": device.id, "scale": key.scale,
-            "width": device.width, "height": device.height, "shape": device.shape,
-            "frame": _png(compose(stack, resolved, options)),
-            "layers": out_layers,
-        }
-        self._frames[key] = frame
-        while len(self._frames) > 24:
+        return resolved, PreviewOptions(scale=key.scale, style=key.style, time=key.time,
+                                        asleep=key.asleep, aod=key.aod)
+
+    def _cached(self, kind: str, key: FrameKey, make: Callable[[], Any]) -> Any:
+        slot = (kind, key)
+        if slot in self._frames:
+            self._frames.move_to_end(slot)
+            return self._frames[slot]
+        value = make()
+        self._frames[slot] = value
+        while len(self._frames) > 48:
             self._frames.popitem(last=False)
+        return value
+
+    def frame(self, key: FrameKey) -> dict[str, Any]:
+        """One frame, fast: the image `wfb.preview.render` draws, and every
+        element the frame shows (and every group in its layout) with its
+        box, centre and drag handles. The layer images are `layers`."""
+        from ..draw.frames import in_layout
+        from ..preview import _resolve_style_entry, frame_items, render
+        from .drag import handles
+
+        def make() -> dict[str, Any]:
+            resolved, options = self._placed(key)
+            entry = _resolve_style_entry(resolved.face, options.style)
+            drawn = {p.id for p in frame_items(resolved, options, entry)}
+            layout = entry.layout if entry is not None else None
+            # a group the author wrote; the `static:` block's and a layout's
+            # own groups are containers, not elements
+            authored = index_for(self.text).element_ids()
+            items = []
+            for placed in resolved.items:
+                if placed.id not in drawn and not (
+                        placed.kind == "group" and placed.id in authored
+                        and in_layout(placed, layout)):
+                    continue
+                box = placed.box
+                span = placed.element.span
+                items.append({
+                    "id": placed.id, "kind": placed.kind, "drawn": placed.id in drawn,
+                    "line": span.line if span is not None else None,
+                    "box": [box.x, box.y, box.width, box.height],
+                    "center": list(placed.center), "handles": handles(placed),
+                })
+            device = resolved.device
+            return {
+                "version": self.version, "device": device.id, "scale": key.scale,
+                "width": device.width, "height": device.height, "shape": device.shape,
+                "minor_radius": device.minor_radius,
+                "frame": _png(render(resolved, options)),
+                "items": items,
+            }
+        frame: dict[str, Any] = self._cached("frame", key, make)
         return frame
+
+    def layers(self, key: FrameKey) -> dict[str, Any]:
+        """The frame as layers (`wfb.draw.layers`), each cropped to its ink
+        with its origin in frame pixels: what hit-testing by alpha and a
+        drag's moving image read. Slower than `frame`: every element is
+        painted twice."""
+        from ..draw.layers import layers
+
+        def make() -> dict[str, Any]:
+            resolved, options = self._placed(key)
+            out = []
+            for layer in layers(resolved, options):
+                ink = layer.image.getchannel("A").getbbox()
+                out.append({
+                    "id": layer.id, "kind": layer.kind,
+                    "origin": [ink[0], ink[1]] if ink else None,
+                    "image": _png(layer.image.crop(ink)) if ink else None,
+                })
+            return {"version": self.version, "device": key.device, "scale": key.scale,
+                    "layers": out}
+        result: dict[str, Any] = self._cached("layers", key, make)
+        return result
+
+    def thumbnail(self, key: FrameKey) -> bytes:
+        """The frame as a PNG file, for the strip of targets."""
+        from ..preview import render
+
+        def make() -> bytes:
+            resolved, options = self._placed(key)
+            out = io.BytesIO()
+            render(resolved, options).save(out, format="PNG", compress_level=1)
+            return out.getvalue()
+        data: bytes = self._cached("thumb", key, make)
+        return data
+
+    def drag(self, element_id: str, gesture: dict[str, Any], device_id: str, scope: str,
+             expected: int) -> tuple[Change, bool]:
+        """One gesture on the canvas, on ``device_id``: written in the author's
+        units to the key that device reads ("auto"), or to the scope named,
+        through the gate. Returns the change and whether the element landed
+        on the dragged pixel."""
+        from ..edit import View, move, resize, turn
+        from .drag import describe
+
+        self._check(expected)
+        if scope not in ("auto", "all", "device", "shape"):
+            raise Refused(f"scope {scope!r} is not auto, all, device or shape")
+        device = self.studio.db.get(device_id)
+        analysis = self.analysis()
+        view = View(self.path, self.text, device, loaded=self._loaded,
+                    resolved=analysis.resolved.get(device_id), memo=self.studio.memo)
+        kind = gesture.get("kind")
+        where = cast(Scope, scope)
+        part = gesture.get("part", "both")
+        if part not in ("both", "at", "to"):
+            raise Refused(f"part {part!r} is not both, at or to")
+        try:
+            if kind == "move":
+                converted = move(view, element_id, int(gesture["dx"]), int(gesture["dy"]),
+                                 where, part=cast(Part, part))
+            elif kind == "resize":
+                converted = resize(view, element_id, tuple(gesture["key"]),
+                                   int(gesture["delta"]), where)
+            elif kind == "turn":
+                converted = turn(view, element_id, str(gesture["key"]),
+                                 float(gesture["degrees"]), where)
+            else:
+                raise Refused(f"unknown gesture {kind!r}")
+        except Refused:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise Refused(f"a {kind} gesture needs its values: {exc}") from None
+        after = self._gate().check(converted.patch, view.tried)
+        change = self.commit(converted.patch.text, dict(self.head.assets),
+                             describe(gesture, element_id, device_id), expected, after)
+        return change, converted.landed
 
     # -- what the editor shows ----------------------------------------------------------
 

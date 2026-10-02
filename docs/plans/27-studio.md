@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slices 0–3 done, 4–7 to go.** Building it was decided by the user on
+below); slices 0–4 done, 5–7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -492,9 +492,8 @@ duplicate, move to the top and delete the first three elements of each,
 
 Every version is a full copy of the text. That is cheap until slice 4,
 where each drag's release is a version: a thousand changes to the 35 KB
-showcase would store 35 MB (11 MB compressed). Whether to compress, or
-store versions as differences, is decided in slice 4 against measured
-use.
+showcase would store 35 MB (11 MB compressed). Slice 4 decided:
+compressed (below).
 
 Tests: `tests/test_studio.py` (replay, undo and redo, a change ending the
 redo line, a stale undo, an undone asset leaving the directory, the
@@ -597,27 +596,94 @@ the Face panel's data and MIP flags; each edit and each refusal; fonts
 added and replaced; one load per edit); `tests/test_studio_frontend.py`
 (`values.js`). Each guard was seen red.
 
-### Slice 4 — direct manipulation on the canvas
+### Slice 4 — direct manipulation on the canvas: done
 
-- Handles per kind:
-  - position for everything;
-  - size for boxed kinds;
-  - radius for circles and arcs;
-  - `start_angle`/`sweep` for arcs;
-  - the two ends of a line.
-- **During a gesture the layer's image shifts** (exact for a move).
-  Resize shows the box until release.
-- **On release**, one patch through `wfb/edit/` (unit and override
-  target), the re-render, and the new layers replace the old. A refused
-  patch snaps back and shows why.
-- **Snapping:** the screen centre, other elements' centres and edges, a
-  `%r` grid, and 6°/30° angles.
-- A small frame per target beside the canvas shows the edit's effect on
-  every target as it lands, so a `%r` drag's cross-device consequence is
-  visible (research 26 §4.4).
-- **Measured:** the drag-to-final-frame time, and whether shifting the
-  image feels direct. This is research 28 §8's first measurement, and
-  G6's trigger.
+Built as below:
+- **The frame is the render, fast.** `Document.frame` returns
+  `wfb.preview.render`'s image and every element the frame draws (and
+  every group the author wrote, in the frame's layout) with its box,
+  centre and handles: 24 ms on the showcase where the layered frame took
+  274. The layer images moved to `Document.layers`, fetched after the
+  frame, for hit-testing by alpha and a drag's moving image; until they
+  arrive a click picks the smallest drawn box. `Document.thumbnail` is the
+  strip's PNG.
+- **Handles** (`wfb/studio/drag.py`), from what the engine can write
+  back: a line's two ends; `size:` width and height on the edge that
+  moves for the element's alignment, with its gain (a centred box grows
+  both ways); `radius:`; an arc's `start_angle` and `sweep` at its two
+  ends. A polygon has none. A test drags every handle on five faces and
+  each lands, so a handle never offers a drag the engine refuses.
+- **New in `wfb/edit/geometry`:** `move(..., part="at"|"to")` moves one
+  end of a line; `turn` sets an arc's angle in the author's unit, landing
+  within half a degree (144/144 over the corpus, line ends 196/196); a
+  gauge's `size:` is measured from its declared size, since its ticks
+  grow its box; `View` reuses an analysis and the font memo, and keeps
+  its last placed load (`tried`) for the gate.
+- **`Document.drag`**: one gesture (`move`, `resize`, `turn`) on the
+  viewed device, through the engine, the gate and the history, labelled
+  "move clock by (+6, -3) px on fr955". The scope is the inspector's: "all
+  targets" makes a drag write where the viewed device reads the key
+  ("auto"), the device or shape its override. **One load per drag**: the
+  engine's load of the landing text is the gate's.
+- **The canvas** (`canvas.js`): press on an element or a handle, drag,
+  release. During a move the face is drawn from its layers with the
+  dragged one shifted, exact; a resize, a radius, an angle and a line's
+  end draw as outlines; guides show what it snapped to. On release the
+  gesture is sent and its preview stays until the new frame replaces it;
+  a refusal clears it and says why. Escape cancels; Alt turns snapping
+  off.
+- **Snapping** (`snap.js`): a guide (the screen centre, another element's
+  centre or edges) within 4 px wins; failing that, the centre goes to a
+  5%r grid about the screen centre; an axis the drag did not move along
+  does not snap. Lengths to the 5%r grid within 3 px; angles to 30° within
+  3°, else to 6°.
+- **The strip**: one small frame per target under the canvas; a click
+  views that device.
+- **The history is compressed**: a text version is stored as
+  `<sha256>.z` (zlib), still named by the raw content's hash; a store
+  written before reads as it was.
+
+**Checked in a DOM** (jsdom against a live server): a move landing
+exactly on the dragged pixels, a width handle growing a centred box by
+twice the drag, an arc's sweep snapped and turned, the strip, and the
+slice 3 script again. It found that two pointer events could arrive
+before the re-render the first scheduled, so the handlers read the press
+from a ref. Whether the shifted image feels direct is a browser
+question; it is still owed by hand.
+
+**Snapping, as first written, nudged the element on an axis it was not
+dragged along**, the grid every 6.5 px outbidding the real guides; the
+Node test that pinned the intended rule found it.
+
+Measured over HTTP (Starlette's client, in-process) on fr955 at 2×, best
+of four moves of each face's last element, idle machine:
+
+| Face | release → new frame | drag (engine, gate, record) and summary | frame | layers, fetched after |
+|---|---:|---:|---:|---:|
+| `features/progress` | 66 ms | 52 ms | 14 ms | 62 ms |
+| `showcase` | 464 ms | 442 ms | 22 ms | 292 ms |
+| `features/vector-text` | 241 ms | 78 ms | 163 ms | 405 ms |
+
+Before the fast frame and the shared load, the showcase took 690 ms from
+release to frame. What remains is one load of the patched face (schema
+and IR) and, for vector text, the render. **G6 stays A**: the image shift
+covers the gesture, the release is one round trip of at most half a
+second on the largest example, and nothing measured here needs the
+browser to patch text itself. Whether it *feels* slow is the browser
+check still owed; G6 B is the answer if it does.
+
+The slice 2 corpus edits (258 changes, 29 opens) now store 1.2 MB, the
+text versions 611 KB where they were 1.9 MB.
+
+Tests: `tests/test_edit.py` (a line's ends, an arc's angles, refusals);
+`tests/test_studio_drag.py` (each kind's handles; the edge a size handle
+sits on for three alignments; every handle on five faces landing; the
+frame, layers and thumbnail; a group as an item; a drag landing and
+undone; one device's override leaving the others; one load per drag;
+every refusal; the endpoints; compressed blobs and old ones);
+`tests/test_studio_frontend.py` (`snap.js`). Each guard was seen red; one
+that could not be (a `size:` on an arc gauge, which the compiler refuses)
+was removed.
 
 ### Slice 5 — structure
 

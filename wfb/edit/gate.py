@@ -60,11 +60,13 @@ class Gate:
         self.path = path
         self.before = before if before is not None and before.text == text else load_text(path, text)
 
-    def check(self, patch: Patch) -> Loaded:
-        """The patched text, loaded; or `Refused`, saying why."""
+    def check(self, patch: Patch, after: Loaded | None = None) -> Loaded:
+        """The patched text, loaded; or `Refused`, saying why. ``after`` is
+        that text already loaded, when the caller has it."""
         if ordered(index_for(patch.text).data) != ordered(patch.expected):
             raise Refused(f"{patch.what}: the edit would change more than intended")
-        after = load_text(self.path, patch.text)
+        if after is None or after.text != patch.text:
+            after = load_text(self.path, patch.text)
         new = _error_keys(after) - _error_keys(self.before)
         if new:
             first = next(d for d in after.errors if (d.code, d.message) in new)

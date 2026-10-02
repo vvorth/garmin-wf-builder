@@ -169,9 +169,9 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   </div>`;
 }
 
-export function Inspector({ doc, element, device, vocab, onEdit, onError }) {
+export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError }) {
   const [ins, setIns] = useState(null);
-  const [scope, setScope] = useState("all");
+  const setScope = onScope;
   useEffect(() => {
     if (!element) { setIns(null); return; }
     let live = true;
@@ -187,7 +187,7 @@ export function Inspector({ doc, element, device, vocab, onEdit, onError }) {
   return html`<div class="inspector">
     <div class="ins-head">
       <code>${ins.id}</code> <span class="dim">${ins.type}</span>
-      <div class="scope" title="Where at:, size:, radius: and align: edits are written">
+      <div class="scope" title="Where at:, size:, radius: and align: edits and drags are written; with all targets, a drag goes where the viewed device reads the key">
         ${[["all", "all targets"], ["device", ins.device], ["shape", ins.shape]].map(([s, label]) => html`
           <button class=${scope === s ? "on" : ""} onClick=${() => setScope(s)}>${label}</button>`)}
       </div>

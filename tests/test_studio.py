@@ -290,21 +290,23 @@ def test_the_tree_holds_blocks_layouts_and_groups(studio):
     assert nested[0]["type"] == "group"
 
 
-def test_a_frame_has_a_layer_per_drawn_element(studio):
+def test_a_frame_has_an_item_and_a_layer_per_drawn_element(studio):
     doc = studio.create(Bundle("T", minimal_text()), "new")
-    frame = doc.frame(FrameKey("fr955", scale=1))
+    key = FrameKey("fr955", scale=1)
+    frame = doc.frame(key)
     assert (frame["width"], frame["height"]) == (260, 260)
-    assert [layer["id"] for layer in frame["layers"]] == ["background", "clock", "seconds"]
-    assert all(layer["box"] and layer["image"].startswith("data:image/png;base64,")
-               for layer in frame["layers"])
-    # each layer carries its ink only, placed by its origin
+    assert [i["id"] for i in frame["items"]] == ["background", "clock", "seconds"]
+    layers = doc.layers(key)["layers"]
+    assert [layer["id"] for layer in layers] == ["background", "clock", "seconds"]
+    assert all(layer["image"].startswith("data:image/png;base64,") for layer in layers)
+    # each layer carries its ink only, placed by its origin, inside its box
     from PIL import Image
     import base64
-    clock = frame["layers"][1]
+    clock = layers[1]
     image = Image.open(io.BytesIO(base64.b64decode(clock["image"].split(",", 1)[1])))
     assert image.size[0] < 260 and image.size[1] < 260
     x, y = clock["origin"]
-    bx, by, bw, bh = clock["box"]
+    bx, by, bw, bh = frame["items"][1]["box"]
     assert bx - 2 <= x and x + image.size[0] <= bx + bw + 2
 
 
@@ -381,7 +383,7 @@ def test_frames_and_refusals_over_http(client):
     doc = client.post("/api/documents/new?template=minimal&name=F").json()
     url = f"/api/documents/{doc['id']}/frame"
     frame = client.get(f"{url}?device=fenix8solar47mm&scale=1&time=12:34").json()
-    assert frame["device"] == "fenix8solar47mm" and frame["layers"]
+    assert frame["device"] == "fenix8solar47mm" and frame["items"]
     assert client.get(f"{url}?device=vivoactive4").status_code == 400
     assert client.get(f"{url}?device=fr955&time=25:00").status_code == 400
     assert client.get(f"{url}?device=fr955&scale=big").status_code == 400

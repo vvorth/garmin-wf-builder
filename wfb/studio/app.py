@@ -125,6 +125,20 @@ def _time(raw: str | None) -> tuple[int, int, int] | None:
     return int(m[1]), int(m[2]), int(m[3] or 0)
 
 
+def _frame_key(request: Request, scale: int | None = None) -> FrameKey:
+    """A frame's device and switches, from the query."""
+    if scale is None:
+        scale = _int(request, "scale") if "scale" in request.query_params else 2
+    return FrameKey(
+        device=request.query_params.get("device", ""),
+        style=request.query_params.get("style") or None,
+        time=_time(request.query_params.get("time")),
+        asleep=_flag(request, "asleep"),
+        aod=_flag(request, "aod"),
+        scale=min(4, max(1, scale)),
+    )
+
+
 def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
     """The app over ``studio``.  ``initial`` is a document id the home
     screen opens straight away (`wfb studio face.yaml`)."""
@@ -172,21 +186,40 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
         return JSONResponse({"deleted": request.path_params["doc_id"]})
 
     def frame(request: Request, data: bytes) -> Response:
-        key = FrameKey(
-            device=request.query_params.get("device", ""),
-            style=request.query_params.get("style") or None,
-            time=_time(request.query_params.get("time")),
-            asleep=_flag(request, "asleep"),
-            aod=_flag(request, "aod"),
-            scale=min(4, max(1, _int(request, "scale") if "scale" in request.query_params
-                             else 2)),
-        )
+        key = _frame_key(request)
         with studio.lock:
             document = doc(request)
             shown = document.frame(key)
             events.publish("rendered", {"id": document.id, "version": document.version,
                                         "device": key.device})
             return JSONResponse(shown)
+
+    def layers(request: Request, data: bytes) -> Response:
+        key = _frame_key(request)
+        with studio.lock:
+            return JSONResponse(doc(request).layers(key))
+
+    def thumbnail(request: Request, data: bytes) -> Response:
+        key = _frame_key(request, scale=1)
+        with studio.lock:
+            png = doc(request).thumbnail(key)
+        return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+    def drag(request: Request, data: bytes) -> Response:
+        try:
+            body = json.loads(data or b"{}")
+        except ValueError:
+            raise Refused("the gesture is not JSON") from None
+        if not isinstance(body, dict) or not isinstance(body.get("gesture"), dict):
+            raise Refused("a drag is {element, gesture, device, scope}")
+        with studio.lock:
+            document = doc(request)
+            change, landed = document.drag(str(body.get("element", "")), body["gesture"],
+                                           str(body.get("device", "")),
+                                           str(body.get("scope", "auto")),
+                                           _int(request, "version"))
+            changed(document)
+            return JSONResponse({**document.summary(), "landed": landed, "what": change.label})
 
     def add_asset(request: Request, data: bytes) -> Response:
         filename = request.query_params.get("filename", "")
@@ -300,6 +333,9 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}", _endpoint(summary)),
             Route("/api/documents/{doc_id}", _endpoint(delete), methods=["DELETE"]),
             Route("/api/documents/{doc_id}/frame", _endpoint(frame)),
+            Route("/api/documents/{doc_id}/layers", _endpoint(layers)),
+            Route("/api/documents/{doc_id}/thumbnail", _endpoint(thumbnail)),
+            Route("/api/documents/{doc_id}/drag", _endpoint(drag, body=True), methods=["POST"]),
             Route("/api/documents/{doc_id}/assets", _endpoint(add_asset, body=True),
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
