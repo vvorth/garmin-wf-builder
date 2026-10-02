@@ -20,7 +20,8 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 def run(script: str) -> object:
     source = (f"import * as hit from {json.dumps(HIT.as_uri())};\n"
               f"import * as values from {json.dumps((STATIC / 'values.js').as_uri())};\n"
-              f"import * as snap from {json.dumps((STATIC / 'snap.js').as_uri())};\n{script}")
+              f"import * as snap from {json.dumps((STATIC / 'snap.js').as_uri())};\n"
+              f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -67,9 +68,11 @@ def test_element_at_line_is_the_deepest_holding_it():
             {kind: "element", id: "g2", line: 20, children: []},
           ]},
         ]},
+        {kind: "block", line: null, children: []},
         {kind: "block", line: 30, children: [
           {kind: "element", id: "z", line: 31, children: []},
         ]},
+        {kind: "block", line: null, children: []},
       ];
       const at = (n) => (hit.elementAtLine(tree, n) || {id: null}).id;
       console.log(JSON.stringify({
@@ -188,3 +191,36 @@ def test_angles_lengths_and_resizes_snap():
     # the 5%r grid of a 130 px radius is 6.5 px: 25 -> 26, 29.5 -> 32.5 -> 33
     assert result["lengths"] == [26, 33, 30]
     assert result["resize"] == [10, -9]
+
+
+def test_the_tree_offers_its_blocks_siblings_and_drop_zones():
+    result = run("""
+      const t = [
+        {kind: "block", label: "static", path: ["static"], children: []},
+        {kind: "block", label: "elements", path: ["elements"], children: [
+          {kind: "element", id: "a", type: "text", path: ["elements", "a"], children: []},
+          {kind: "element", id: "g", type: "group", path: ["elements", "g"], children: [
+            {kind: "element", id: "c", type: "circle", path: ["elements", "g", "children", "c"], children: []},
+          ]},
+        ]},
+      ];
+      const b = treeMod.blocksOf(t);
+      const g = b.nodes.find((n) => n.id === "g");
+      const a = b.nodes.find((n) => n.id === "a");
+      console.log(JSON.stringify({
+        nodes: b.nodes.map((n) => n.id),
+        destinations: b.destinations.map((d) => d.path.join(".")),
+        siblings: [treeMod.siblingsOf(t, ["elements", "g"]), treeMod.siblingsOf(t, ["elements", "g", "children", "c"])],
+        drops: [treeMod.dropTarget(a, 0.2, "g"), treeMod.dropTarget(a, 0.8, "g"), treeMod.dropTarget(g, 0.5, null),
+                treeMod.dropTarget(g, 0.9, null)],
+      }));
+    """)
+    assert result["nodes"] == ["a", "g", "c"]
+    assert result["destinations"] == ["static", "elements", "elements.g.children"]
+    assert result["siblings"] == [["a", "g"], ["c"]]
+    assert result["drops"] == [
+        {"where": "before", "target": {"block": ["elements"], "before": "a"}},
+        {"where": "after", "target": {"block": ["elements"], "before": "g"}},
+        {"where": "into", "target": {"block": ["elements", "g", "children"], "before": None}},
+        {"where": "after", "target": {"block": ["elements"], "before": None}},
+    ]

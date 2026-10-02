@@ -16,6 +16,7 @@ from wfb.edit import (
     duplicate_element, load_text, move, move_element, parse, remove, rename_key,
     rename_reference, resize, rewrite_scalars, set_value, target, turn,
 )
+from wfb.edit.structure import add, element_types, group, move_to_block, ungroup
 from wfb.edit.geometry import candidates, px_per_unit
 from wfb.edit.patch import DEFAULTS, face_color
 from wfb.edit.spans import ordered
@@ -559,3 +560,97 @@ def test_an_arcs_angles_turn_in_the_authors_unit(shapes_views, device):
         turn(view, "card", "start_angle", 10)
     with pytest.raises(Refused, match="not start_angle or sweep"):
         turn(view, "outer_arc", "radius", 10)
+
+
+# -- structure: blocks, groups, every type ------------------------------------------------
+
+def _blocks(index):
+    out = {}
+    for e in index.elements():
+        out.setdefault(e.path[:-1], []).append(e)
+    return out
+
+
+def _placements(path, text, device):
+    from wfb.build import resolve_all
+    from wfb.diagnostics import Bag
+
+    loaded = load_text(path, text)
+    resolved, _ = resolve_all(loaded.face, [device], Bag())
+    return {p.id: (p.box, p.center) for p in resolved[device.id].items}
+
+
+@pytest.mark.parametrize("path", FACES, ids=lambda p: str(p.relative_to(ROOT / "examples")))
+def test_grouping_moves_nothing_and_ungrouping_gives_the_text_back(path, db):
+    text = path.read_text()
+    index = SpanIndex(text)
+    gate = Gate(path, text)
+    device = db.get("fr955")
+    before = None
+    for block, entries in _blocks(index).items():
+        if len(entries) < 2 or entries[0].is_flow or entries[1].is_flow:
+            continue
+        try:
+            patch = group(index, [entries[0].path, entries[1].path])
+            gate.check(patch)
+        except Refused as exc:
+            assert "subscreen" in str(exc)          # only a top-level element may use it
+            continue
+        before = before or _placements(path, text, device)
+        after = _placements(path, patch.text, device)
+        assert all(after[k] == v for k, v in before.items() if k in after), block
+        made = SpanIndex(patch.text)
+        new = next(e for e in made.elements() if e.name not in index.element_ids())
+        assert ungroup(made, new.path).text == text
+
+
+def test_an_element_moves_between_blocks_creating_and_emptying_them():
+    text = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n"
+                   "  # b's own comment travels with it\n"
+                   "  b:\n    type: circle\n    radius: 6%r\n    color: color.fg\n")
+    index = SpanIndex(text)
+    moved = move_to_block(index, ("elements", "b"), ("static",))
+    data = parse(moved.text)
+    assert list(data["static"]) == ["b"] and list(data["elements"]) == ["a"]
+    assert "  # b's own comment travels with it\n  b:\n" in moved.text
+    back = move_to_block(SpanIndex(moved.text), ("static", "b"), ("elements",))
+    assert parse(back.text)["elements"] == parse(text)["elements"]
+    assert "static" not in parse(back.text)          # the emptied block went
+    # into a group's children, before one of them, re-indented
+    grouped = group(SpanIndex(text), [("elements", "a")], "g")
+    into = move_to_block(SpanIndex(grouped.text), ("elements", "b"), ("elements", "g", "children"),
+                         before="a")
+    assert list(parse(into.text)["elements"]["g"]["children"]) == ["b", "a"]
+    assert "      b:\n        type: circle\n" in into.text
+
+
+def test_structure_refuses_what_it_cannot_do():
+    text = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n"
+                   "  g:\n    type: group\n    at: { anchor: center, dy: 5%r }\n"
+                   "    children:\n      c:\n        type: circle\n        radius: 2%r\n"
+                   "        color: color.fg\n")
+    index = SpanIndex(text)
+    with pytest.raises(Refused, match="already in"):
+        move_to_block(index, ("elements", "a"), ("elements",))
+    with pytest.raises(Refused, match="into itself"):
+        move_to_block(index, ("elements", "g"), ("elements", "g", "children"))
+    with pytest.raises(Refused, match="not an element block"):
+        move_to_block(index, ("elements", "a"), ("resources",))
+    with pytest.raises(Refused, match="not a group"):
+        move_to_block(index, ("elements", "g", "children", "c"), ("elements", "a", "children"))
+    with pytest.raises(Refused, match="side by side in one block"):
+        group(index, [("elements", "a"), ("elements", "g", "children", "c")])
+    with pytest.raises(Refused, match="has at"):
+        ungroup(index, ("elements", "g"))
+    with pytest.raises(Refused, match="needs its series"):
+        add(index, "graph")
+    with pytest.raises(Refused, match="no element type"):
+        add(index, "teapot")
+
+
+@pytest.mark.parametrize("type_", sorted(set(element_types()) - {"data", "hands"}))
+def test_every_type_can_be_added(type_):
+    text = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n")
+    patch = add(SpanIndex(text), type_, choice="steps" if type_ == "graph" else None)
+    Gate(SHAPES, text).check(patch)
+    assert parse(patch.text)["elements"][f"new_{type_}"]["type"] == type_

@@ -319,6 +319,66 @@ class Document:
         after = self._gate().check(patch)
         return self.commit(patch.text, dict(self.head.assets), label, expected, after)
 
+    def structure(self, op: dict[str, Any], expected: int) -> tuple[Change, str | None]:
+        """One structural edit from the layer tree or the canvas, gated and
+        recorded; also the id to select after it (a new element, a copy, a
+        new group):
+
+        - `{"op": "add", "type": t, "block": [...], "before": id, "choice": c}`;
+        - `{"op": "delete" | "duplicate" | "ungroup", "path": [...]}`;
+        - `{"op": "move", "path": [...], "block": [...], "before": id}`: within
+          its own block a reorder, else into the other block;
+        - `{"op": "group", "paths": [[...], ...]}`."""
+        from ..edit import (
+            add, delete_element, duplicate_element, group, move_element, move_to_block,
+            ungroup,
+        )
+
+        self._check(expected)
+        index = index_for(self.text)
+        kind = op.get("op")
+        select: str | None = None
+        if kind == "add":
+            block = _path(op.get("block") or ["elements"])
+            before = op.get("before") or None
+            patch = add(index, str(op.get("type")), block, before, choice=op.get("choice"))
+            select = next(iter(set(index_for(patch.text).element_ids())
+                               - index.element_ids()), None)
+        elif kind in ("delete", "duplicate", "ungroup"):
+            path = _path(op.get("path"))
+            patch = {"delete": delete_element, "duplicate": duplicate_element,
+                     "ungroup": ungroup}[kind](index, path)
+            if kind == "duplicate":
+                select = next(iter(set(index_for(patch.text).element_ids())
+                                   - index.element_ids()), None)
+        elif kind == "move":
+            path = _path(op.get("path"))
+            block = _path(op.get("block") or list(path[:-1]))
+            before = op.get("before") or None
+            if block == path[:-1]:
+                siblings = [e.name for e in index.entries()
+                            if e.path[:-1] == block and is_element(index, e)]
+                if path[-1] not in siblings or (before is not None and before not in siblings):
+                    raise Refused(f"{before} is not in {'.'.join(map(str, block))}")
+                order = [n for n in siblings if n != path[-1]]
+                to = order.index(before) if before is not None else len(order)
+                patch = move_element(index, path, to)
+            else:
+                patch = move_to_block(index, path, block, before)
+            select = str(path[-1])
+        elif kind == "group":
+            paths = op.get("paths")
+            if not isinstance(paths, list):
+                raise Refused("a group is made of a list of paths")
+            patch = group(index, [_path(p) for p in paths])
+            select = next(iter(set(index_for(patch.text).element_ids())
+                               - index.element_ids()), None)
+        else:
+            raise Refused(f"unknown structural edit {kind!r}")
+        after = self._gate().check(patch)
+        change = self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
+        return change, select
+
     def repoint(self, text: str, moved: dict[str, str]) -> str:
         """``text`` with every font `source:` written as a key of ``moved``
         rewritten to its value, each patch through the gate."""
@@ -533,7 +593,8 @@ class Document:
     def tree(self) -> list[dict[str, Any]]:
         """The face's element blocks in draw order, each element with its
         children: shared `static:` then `elements:`, then each layout's own
-        two."""
+        two. A block the face does not have yet is listed empty (`line`
+        null), as somewhere an element can be moved or added."""
         try:
             index = index_for(self.text)
         except Refused:
@@ -541,11 +602,9 @@ class Document:
         blocks: list[dict[str, Any]] = []
         for path, label in _block_paths(index):
             entry = index.get(path)
-            if entry is None:
-                continue
             blocks.append({"kind": "block", "label": label, "path": list(path),
-                           "line": entry.key.start_mark.line + 1,
-                           "children": _children(index, entry)})
+                           "line": entry.key.start_mark.line + 1 if entry else None,
+                           "children": _children(index, entry) if entry else []})
         return blocks
 
     def summary(self) -> dict[str, Any]:

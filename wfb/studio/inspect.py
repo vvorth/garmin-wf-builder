@@ -245,6 +245,9 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
                                for n, e in (style.get("choices") or {}).items()]},
         "layouts": list((data.get("layouts") or {})),
         "fonts": fonts,
+        # what a new data element or hands element names
+        "slots": list(((data.get("config") or {}).get("slots") or {})),
+        "hand_sets": list((resources.get("hand_sets") or {})),
         "targets": targets,
     }
 
@@ -253,10 +256,15 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
 def vocabulary() -> dict[str, Any]:
     """What the pickers offer: data sources by namespace, icon names and
     complication types. Device-independent."""
+    from .. import series
+    from ..edit import element_types
+
     return {
         "sources": catalog.namespaces(),
         "icons": sorted(icon_catalog.CATALOG),
         "complications": ["auto"] + complications.names(),
+        "series": series.names(),
+        "types": element_types(),
     }
 
 

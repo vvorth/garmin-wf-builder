@@ -25,10 +25,12 @@ export function topmost(layers, x, y, alphaAt) {
 
 // The element whose own lines hold `line`: the deepest tree element
 // starting at or before it, whose next sibling (or its block's next
-// entry) starts after it.
+// entry) starts after it. A block not in the text yet (`line` null) holds
+// no line and ends none.
 export function elementAtLine(blocks, line) {
   let best = null;
-  const walk = (nodes, end) => {
+  const walk = (all, end) => {
+    const nodes = all.filter((n) => n.line != null);
     nodes.forEach((node, i) => {
       const next = i + 1 < nodes.length ? nodes[i + 1].line : end;
       if (node.line <= line && line < next) {

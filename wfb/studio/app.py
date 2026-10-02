@@ -246,6 +246,19 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             changed(document)
             return JSONResponse(document.summary())
 
+    def structure(request: Request, data: bytes) -> Response:
+        try:
+            op = json.loads(data or b"{}")
+        except ValueError:
+            raise Refused("the edit is not JSON") from None
+        if not isinstance(op, dict):
+            raise Refused("the edit is a JSON object")
+        with studio.lock:
+            document = doc(request)
+            _, select = document.structure(op, _int(request, "version"))
+            changed(document)
+            return JSONResponse({**document.summary(), "select": select})
+
     def inspector(request: Request, data: bytes) -> Response:
         try:
             element = json.loads(request.query_params.get("element", "null"))
@@ -342,6 +355,8 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/vocabulary", _endpoint(vocabulary)),
             Route("/api/documents/{doc_id}/edit", _endpoint(edit, body=True), methods=["POST"]),
             Route("/api/documents/{doc_id}/inspect", _endpoint(inspector)),
+            Route("/api/documents/{doc_id}/structure", _endpoint(structure, body=True),
+                  methods=["POST"]),
             Route("/api/documents/{doc_id}/undo", _endpoint(undo), methods=["POST"]),
             Route("/api/documents/{doc_id}/redo", _endpoint(redo), methods=["POST"]),
             Route("/api/documents/{doc_id}/snapshots", _endpoint(snapshot), methods=["POST"]),

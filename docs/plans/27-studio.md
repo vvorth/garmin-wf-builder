@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slices 0–4 done, 5–7 to go.** Building it was decided by the user on
+below); slices 0–5 done, 6–7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -685,16 +685,62 @@ every refusal; the endpoints; compressed blobs and old ones);
 that could not be (a `size:` on an arc gauge, which the compiler refuses)
 was removed.
 
-### Slice 5 — structure
+### Slice 5 — structure: done
 
-- **Add an element** by type from a palette of types (slice 0's add,
-  extended to every type the schema has; a type that needs a choice, such
-  as a `graph`'s series, asks for it first).
-- Delete and duplicate, from the tree and the canvas.
-- Reorder by drag in the tree; into and out of a group; **static and
-  dynamic**, and across layouts (new in `wfb/edit/`: moving an entry
-  between blocks).
-- Group and ungroup a selection.
+Built as below:
+- **`wfb/edit/structure.py`:**
+  - `move_to_block`: an element cut with its leading comments and pasted
+    into another block, re-indented: static and dynamic, a layout's own
+    blocks, a group's `children:`, before a given sibling or at the end. A
+    block that does not exist yet is created; an emptied one goes with
+    its key. Refused: the block it is in, into itself, a non-block, a
+    non-group's children.
+  - `group`: sibling elements wrapped in a new group with only `type:` and
+    `children:`, where the first was; side-by-side members keep the blank
+    lines between them. `ungroup` lifts the children back and is refused
+    for a group with any other key (`at:`, `visible:`, ...), whose children
+    take something from it.
+  - `add` for every type: shapes and text as before; `icon`, `gauge`
+    (a battery bar), `pattern` (twelve ticks), an empty `group`; `graph`,
+    `data` and `hands` take their series, slot or set, a graph with a
+    range its series can show.
+- **`Document.structure`**: add, delete, duplicate, reorder (within a
+  block), move (between blocks), group, ungroup, gated and recorded, and
+  the id to select after (the new element, the copy, the group). The tree
+  lists every block an element can go to, empty ones included.
+- **UI** (`layers.js`, `tree.js`): an add bar (with the series, slot or
+  set a type needs, or what to declare first when there is none), and for
+  the selection ↑ ↓, Duplicate (Ctrl+D), Delete (Del), Group (Ctrl/Cmd/
+  Shift-click selects more), Ungroup, and "move to" any block or group.
+  Rows drag: onto a row's upper half before it, lower half after it, a
+  group's middle third into it, a block's label to its end.
+
+Measured over the 29 example faces:
+
+| Measure | Result |
+|---|---|
+| group the first two siblings of each block, through the gate | **69/69** (one more refused: `anchor: subscreen` is top-level only) |
+| every placed box and centre unchanged by the grouping, on fr955 | **69/69** |
+| ungroup the new group: the text byte-identical to the original | **69/69** (23/69 before side-by-side members kept their blank lines) |
+| move each top-level element between `elements:` and `static:` | **161** accepted, **91** refused by the gate, each for a reason the compiler gives (a live reading in `static:`, a `data` element) |
+| add each type (but `data`, `hands`) to each face | **348/348** |
+
+**Checked in a DOM** (jsdom against a live server): add a circle after
+the selection, a graph only once its series is picked, duplicate, move
+up, a refused move to `static:` with its reason, group by Ctrl-click and
+ungroup, delete. Drag-and-drop in the tree is HTML5 drag events, which
+jsdom does not dispatch; its drop rule is `tree.dropTarget`, tested in
+Node, and the drag itself is owed to a browser.
+
+**Found on the way:** an empty block in the tree (`line` null) ended the
+line range of the block before it, so a diagnostic below one would not
+select its element (`hit.elementAtLine`).
+
+Tests: `tests/test_edit.py` (grouping over the corpus: placement and the
+round trip; moves creating and emptying blocks and into a group;
+refusals; every type added); `tests/test_studio_structure.py`;
+`tests/test_studio_frontend.py` (`tree.js`, and `elementAtLine` past
+empty blocks). Each guard was seen red.
 
 ### Slice 6 — the YAML tab
 

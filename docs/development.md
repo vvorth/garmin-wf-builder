@@ -172,7 +172,8 @@ wfb/                  the compiler
   draw/                 an element's drawing as one program: ops, the Monkey C printer,
                         the host evaluator, the barrel's arithmetic transcribed
   edit/                 the editor's patch engine: the span index, text patches, the
-                        gate, and pixel drags written in the author's units
+                        gate, pixel drags written in the author's units, and
+                        structure (blocks, groups, new elements)
   studio/               `wfb studio`: bundles in and out, the history store, open
                         documents, the HTTP endpoints, and static/ (the front end,
                         vendored by tools/vendor-studio-frontend.sh)

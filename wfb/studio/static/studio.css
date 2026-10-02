@@ -185,3 +185,14 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .strip button.on { border-color: var(--accent); }
 .strip img { width: 84px; height: auto; display: block; }
 .strip span { font-size: 10px; color: var(--dim); }
+
+/* -- the Layers panel's structure ---------------------------------------------- */
+
+.layers .add-bar, .layers .actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 4px; }
+.layers .actions { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.layers .actions button, .layers .actions select { padding: 2px 8px; font-size: 12px; }
+.layers .add-bar select { flex: 1; min-width: 0; }
+.tree .item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.tree .item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.tree .item.drop-into, .tree .block.drop-into { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.tree .empty-block { color: var(--dim); font-size: 11px; padding: 2px 24px; font-style: italic; }

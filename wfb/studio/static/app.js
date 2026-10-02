@@ -6,6 +6,7 @@ import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
 import { elementAtLine, flatten } from "./hit.js";
 import { Canvas, Strip } from "./canvas.js";
+import { Layers } from "./layers.js";
 import { FacePanel, Inspector } from "./panels.js";
 
 // -- the server --------------------------------------------------------------------
@@ -142,23 +143,6 @@ function Home({ onError }) {
 }
 
 // -- the editor ----------------------------------------------------------------------
-
-function Tree({ nodes, selected, drawn, onSelect }) {
-  return html`<ul class="tree">
-    ${nodes.map((n) => n.kind === "block"
-      ? html`<li><div class="block">${n.label}</div>
-               <${Tree} nodes=${n.children} selected=${selected} drawn=${drawn} onSelect=${onSelect} /></li>`
-      : html`<li>
-          <div class=${"item" + (n.id === selected ? " selected" : "") +
-                       (drawn && n.type !== "group" && !drawn.has(n.id) ? " undrawn" : "")}
-               onClick=${() => onSelect(n.id)} title=${`line ${n.line}`}>
-            <span>${n.id}</span><span class="type">${n.type}</span>
-          </div>
-          ${n.children.length ? html`<${Tree} nodes=${n.children} selected=${selected}
-                                             drawn=${drawn} onSelect=${onSelect} />` : null}
-        </li>`)}
-  </ul>`;
-}
 
 function Diagnostics({ items, tree, onSelect }) {
   if (!items.length) return html`<div class="body dim">No diagnostics.</div>`;
@@ -299,21 +283,13 @@ function Editor({ docId, onError }) {
     if ((name === "changed" && data.version !== doc.version) || name === "snapshot") loadDoc();
   });
 
+  const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
+                          [doc, selected]);
   const step = useCallback(async (which) => {
     if (!doc) return;
     try { setDoc(await api(`/api/documents/${docId}/${which}?version=${doc.version}`, { method: "POST" })); }
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
-  useEffect(() => {
-    const onKey = (e) => {
-      if (!(e.ctrlKey || e.metaKey) || e.target.closest("input, textarea, select, .cm-editor")) return;
-      const key = e.key.toLowerCase();
-      if (key === "z" && !e.shiftKey) { e.preventDefault(); step("undo"); }
-      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); step("redo"); }
-    };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, [step]);
   const [tab, setTab] = useState("diagnostics");
   const [layers, setLayers] = useState(null);
   // where an inspector edit or a drag writes geometry: "all" (a drag then
@@ -332,6 +308,46 @@ function Editor({ docId, onError }) {
     } catch (e) { onError(e); if (e.status === 409) loadDoc(); return false; }
   }, [doc, view.device, scope]);
   const [left, setLeft] = useState("layers");
+  // more elements selected with Ctrl/Cmd/Shift, for grouping
+  const [extra, setExtra] = useState([]);
+  const select = useCallback((id, additive) => {
+    if (additive && selected && id !== selected) {
+      setExtra((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+    } else { setSelected(id); setExtra([]); }
+  }, [selected]);
+  // One structural edit from the Layers panel: the server patches the text,
+  // checks it and answers with the face and what to select.
+  const structure = useCallback(async (op) => {
+    if (!doc) return;
+    try {
+      const updated = await api(`/api/documents/${docId}/structure?version=${doc.version}`,
+                                { method: "POST", body: JSON.stringify(op) });
+      setDoc(updated);
+      if (op.op === "delete") setSelected(null);
+      else if (updated.select) setSelected(updated.select);
+      setExtra([]);
+    } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
+  }, [doc]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.target.closest("input, textarea, select, .cm-editor")) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) { e.preventDefault(); step("undo"); }
+      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); step("redo"); }
+      else if (key === "d" && element) { e.preventDefault(); structure({ op: "duplicate", path: element.path }); }
+    };
+    addEventListener("keydown", onKey);
+    // Delete: no modifier, and not while typing
+    const onDelete = (e) => {
+      if ((e.key === "Delete" || e.key === "Backspace") && !e.ctrlKey && !e.metaKey && element &&
+          !e.target.closest("input, textarea, select, .cm-editor")) {
+        e.preventDefault();
+        structure({ op: "delete", path: element.path });
+      }
+    };
+    addEventListener("keydown", onDelete);
+    return () => { removeEventListener("keydown", onKey); removeEventListener("keydown", onDelete); };
+  }, [step, structure, element]);
   const [vocab, setVocab] = useState({});
   useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
 
@@ -354,8 +370,6 @@ function Editor({ docId, onError }) {
   }, [doc]);
 
   const drawn = useMemo(() => frame && new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)), [frame]);
-  const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
-                          [doc, selected]);
   const box = useMemo(() => {
     const item = frame && frame.items.find((i) => i.id === selected);
     return item && item.box;
@@ -386,9 +400,8 @@ function Editor({ docId, onError }) {
           <button class=${left === "face" ? "on" : ""} onClick=${() => setLeft("face")}>Face</button>
         </div>
         ${left === "layers"
-          ? html`<div class="tree root">
-              <${Tree} nodes=${doc.tree} selected=${selected} drawn=${drawn} onSelect=${setSelected} />
-            </div>`
+          ? html`<${Layers} doc=${doc} vocab=${vocab} selected=${selected} extra=${extra} drawn=${drawn}
+                            onSelect=${select} onStructure=${structure} />`
           : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload} />`}
       </div>
       <div class="stage">
