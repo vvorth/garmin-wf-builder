@@ -535,8 +535,9 @@ These cost real time to discover; do not rediscover them.
   the base font's under `TEXT_JUSTIFY_VCENTER` -- they share
   `lineHeight`/`base`, which is all the `.fnt` gives it: VERIFIED in the
   Connect IQ simulator (the user's host, 2026-09-29, the profile face),
-  not yet on a watch.  The preview keeps stamping, which paints the same
-  pixels.
+  not yet on a watch.  The preview draws the same ring font (`text` and
+  `icon` are lowered); for an icon that paints exactly what stamping the
+  glyph would (`tests/test_draw_icon.py`).
 
 - **`wfb build --profile` (`wfb.emit.monkeyc.profile`) instruments only the
   active frame.** Every call site becomes `if (_profNext == k) { var t0 =

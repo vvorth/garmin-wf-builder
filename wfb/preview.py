@@ -92,6 +92,11 @@ SAMPLE: dict[str, object] = {
     "activity.active_minutes_week": 96,
     "activity.active_minutes_week_goal": 150,
     "heart_rate.current": 72,
+    # `Weather.CONDITION_RAIN`: a dynamic weather icon draws the glyph its
+    # box is measured with (`wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH`).
+    "weather.condition": 3,
+    "weather.condition_today": 3,
+    "weather.condition_tomorrow": 3,
 }
 
 
@@ -1128,7 +1133,7 @@ class Renderer:
 def baked_glyph(font: BakedFont | None, char: str | None) -> GlyphBox | None:
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
-    be drawn" check `wfb.kinds.icon.IconKind.draw_preview` and
+    be drawn" check `wfb.draw.evaluator.paste_glyph` and
     `wfb.kinds.complication_slot.ComplicationSlotKind.draw_preview` share."""
     if font is None or font.sheet is None or char is None:
         return None

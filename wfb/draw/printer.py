@@ -14,10 +14,11 @@ from .. import formatting
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, plus
 from ..emit.writer import Writer
+from ..ir import local_name
 from .program import (
     AodDimmed, AodPaint, AodPick, AodRestyled, AodStr, ArcSpan, Blank, Color, Comment, Concat,
-    Const, Disagreement, FillPolygon, IfAod, IfAwake, IfNotNull, LetText, Lit, LoadFont, Num, Op,
-    Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    Const, Disagreement, FillPolygon, Glyph, IconChoice, IfAod, IfAwake, IfNotNull, LetText, Lit,
+    LoadFont, Num, Op, Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
 )
 
 
@@ -44,6 +45,8 @@ def str_code(s: Str, aod: AodStyle = NO_AOD) -> str:
                                unit_code=s.unit.code if s.unit is not None else None)
     if isinstance(s, Concat):
         return " + ".join(str_code(part, aod) for part in s.parts)
+    if isinstance(s, IconChoice):
+        return f"IconGlyphs.glyph(WfbWeather.chooseIcon({local_name(s.value.sources[0])}))"
     return s.name
 
 
@@ -90,6 +93,8 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
                 w.line(f"return;  // {op.note}")
     elif isinstance(op, Text):
         _print_text(w, op, aod)
+    elif isinstance(op, Glyph):
+        _print_upright(w, op.x, op.y, op.font.code, op.glyph, op.justify, op.valign, aod)
     elif isinstance(op, LetText):
         w.line(f"var {op.name} = {str_code(op.initial, aod)};")
         available = " && ".join(f"{guard} != null" for guard in op.guards)
@@ -135,5 +140,14 @@ def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
                                      f"{justify}, {num_code(op.angle, aod)}, {radius}",
                                      f"Graphics.{direction}"])
     else:
-        w.call("dc.drawText", [f"{x}, {glyph_y_expr(y, op.valign, font)}, {font}",
-                               value, justify])
+        _print_upright(w, op.x, op.y, font, op.text, op.justify, op.valign, aod)
+
+
+def _print_upright(w: Writer, x: Num, y: Num, font: str, text: Str, justify: tuple[str, ...],
+                   valign: str, aod: AodStyle) -> None:
+    """An upright `dc.drawText`: `vertical_align: bottom` moves `y` up by the
+    font's height (`glyph_y_expr`), which no justify flag can."""
+    flags = " | ".join(f"Graphics.{flag}" for flag in justify)
+    w.call("dc.drawText", [
+        f"{num_code(x, aod)}, {glyph_y_expr(num_code(y, aod), valign, font)}, {font}",
+        str_code(text, aod), flags])

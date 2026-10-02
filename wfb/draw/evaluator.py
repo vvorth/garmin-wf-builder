@@ -12,13 +12,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from .. import expr, formatting
+from .. import expr, formatting, icons
 from ..catalog import Type
 from . import barrel
 from .program import (
     AodDimmed, AodPaint, AodPick, AodRestyled, AodStr, ArcSpan, Blank, Color, Comment, Concat,
-    Const, Disagreement, FillPolygon, Grown, IfAod, IfAwake, IfNotNull, LetText, Lit, LoadFont,
-    Num, Op, Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    Const, Disagreement, FillPolygon, Glyph, Grown, IconChoice, IfAod, IfAwake, IfNotNull, LetText,
+    Lit, LoadFont, Num, Op, Paint, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit,
+    Text,
 )
 
 if TYPE_CHECKING:
@@ -64,6 +65,9 @@ def str_value(s: Str, values: dict[str, object], env: dict[str, str | None],
         if any(part is None for part in parts):
             return None
         return "".join(part for part in parts if part is not None)
+    if isinstance(s, IconChoice):
+        reading = expr.evaluate(s.value.ast, values) if s.value.ast else None
+        return icons.CATALOG[icons.choose_weather_icon(reading)].codepoint
     return env[s.name]
 
 
@@ -121,6 +125,8 @@ class Evaluator:
             self._arc(op)
         elif isinstance(op, Text):
             self._text(op)
+        elif isinstance(op, Glyph):
+            self._glyph(op)
         elif isinstance(op, LetText):
             value = self.string(op.value)
             self.locals[op.name] = value if value is not None else self.string(op.initial)
@@ -201,6 +207,30 @@ class Evaluator:
             return
         font = r.resolved.fonts.get(face.baked) if face.baked is not None else None
         r.draw_text(font, text, anchor, align, op.valign, face.metric, self.color, box=op.box)
+
+
+    def _glyph(self, op: Glyph) -> None:
+        r = self.renderer
+        text = self.string(op.glyph)
+        if text is None or op.font.baked is None:
+            return
+        paste_glyph(r, op.font.baked, text, op.box.x + self.num(op.x) - op.origin[0],
+                    op.box.y + self.num(op.y) - op.origin[1], self.color)
+
+
+def paste_glyph(renderer: "Renderer", font_key: str, char: str, x: float, y: float,
+                color: RGB) -> None:
+    """``char``'s tile from the baked sheet ``font_key``, its box's top-left
+    at device ``(x, y)``; nothing when the font failed to bake or lacks the
+    glyph."""
+    from ..preview import baked_glyph
+
+    font = renderer.resolved.fonts.get(font_key)
+    glyph = baked_glyph(font, char)
+    if glyph is None or font is None or font.sheet is None:
+        return
+    s = renderer.scale
+    renderer.paste_glyph(font.sheet, glyph, x * s, y * s, color)
 
 
 def evaluate(ops: Iterable[Op], renderer: "Renderer") -> None:

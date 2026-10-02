@@ -359,7 +359,7 @@ def test_renamed_to_helper():
 #: guessed -- each name's origin:
 #:   - "dc": `_emit_element_method`'s own signature, every element method.
 #:   - "font": `wfb.kinds.text.TextKind.lower` (a custom text font) and
-#:     `wfb.kinds.icon.IconKind.emit_draw` (the icon's baked font) -- never both in
+#:     `wfb.kinds.icon.IconKind.lower` (the icon's baked font) -- never both in
 #:     one element, but both are this same kind of scope.
 #:   - "text": `wfb.kinds.text.TextKind.lower`'s `when_absent: placeholder`/`fallback`
 #:     branches.

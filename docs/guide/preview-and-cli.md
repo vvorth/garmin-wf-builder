@@ -174,9 +174,11 @@ Glyphs and data are not:
   value.** It shows as absent. For example, the showcase's Body Battery
   readout shows `--` right next to a slot showing `62`, and
   [`examples/features/sun`](../../examples/features/sun/face.yaml) renders as a blank screen.
-- **An `icon: {for:}` weather icon always draws.** Weather has no sample value,
-  so the readout beside it shows `--°`. On the watch, the icon is hidden when
-  there is no weather data.
+- **An `icon: {for:}` weather icon draws rain.** The preview's sample
+  condition is rain, the glyph the icon's size is measured with. The rest of
+  weather has no sample value, so the readout beside it shows `--°`. On the
+  watch, the icon follows the forecast and is hidden when there is no
+  weather data.
 - **Graphs always draw a synthetic curve**, even for a series whose other
   readings are absent (the forecast).
 

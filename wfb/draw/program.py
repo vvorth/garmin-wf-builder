@@ -117,7 +117,16 @@ class AodStr:
     awake: "Str"
 
 
-Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local, AodStr]
+@dataclass(frozen=True)
+class IconChoice:
+    """A dynamic icon's glyph: `WfbWeather.chooseIcon` turns the reading
+    into a catalogue name (here `wfb.icons.choose_weather_icon`) and
+    `IconGlyphs.glyph` that name into the character (`wfb.icons.CATALOG`)."""
+
+    value: "Expression"
+
+
+Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local, AodStr, IconChoice]
 
 
 # -- colours and fonts ----------------------------------------------------------
@@ -274,6 +283,23 @@ class Text:
 
 
 @dataclass(frozen=True)
+class Glyph:
+    """An icon's glyph: on the watch an upright `dc.drawText` at ``x``/``y``,
+    printed as `Text` prints one; on the host, the glyph's tile pasted at
+    the top-left of the icon's measured box, ``box``, moved as far as
+    ``x``/``y`` are from ``origin`` (an `outline:` stamp)."""
+
+    x: Num
+    y: Num
+    font: Font
+    glyph: Str
+    justify: tuple[str, ...]
+    valign: str
+    box: "IntBox"
+    origin: tuple[int, int]
+
+
+@dataclass(frozen=True)
 class LetText:
     """``var text = <initial>; if (<guards> != null) { text = <value>; }``:
     a `placeholder:`/`fallback:` substitution.  The evaluator takes
@@ -337,7 +363,7 @@ class Blank:
 
 
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, LoadFont, Text,
-                        LetText, IfNotNull, IfAod, IfAwake, Disagreement, Comment, Blank]
+                        Glyph, LetText, IfNotNull, IfAod, IfAwake, Disagreement, Comment, Blank]
 
 
 # -- what lowering is given ------------------------------------------------------

@@ -443,6 +443,15 @@ WEATHER_GLYPH_SET: str = "".join(sorted({
     CATALOG[name].codepoint for name in GARMIN_WEATHER_CONDITION_ICON.values()
 }))
 
+def choose_weather_icon(condition: object) -> str:
+    """The catalogue name `WfbWeather.chooseIcon` returns for ``condition``:
+    its `GARMIN_WEATHER_CONDITION_ICON` entry, or `weather_unknown` for a
+    null or out-of-range value, as the barrel does."""
+    if isinstance(condition, bool) or not isinstance(condition, (int, float)):
+        return "weather_unknown"
+    return GARMIN_WEATHER_CONDITION_ICON.get(int(condition), "weather_unknown")
+
+
 #: Which glyph `bake_size` is measured against for a dynamic weather icon's
 #: one shared nominal font size. The font's 29 weather glyphs are not drawn
 #: at a consistent fraction of their em-square -- checked directly, ink height

@@ -6,27 +6,24 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 from .. import catalog, expr, icons, units
-from ..ir import local_name
+from ..ir import disc_perimeter_offsets
 from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import Element, IconElement
 from ..layout import Placed, PlacedIcon, alignment_shift
-from ..preview import baked_glyph
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, RingPass, const_prefix, font_field, own_ring,
+from ..emit.monkeyc.common import const_prefix, font_field
+from ..draw.program import (
+    AodDimmed, AodRestyled, Blank, Comment, Const, DrawContext, Font, Glyph, IconChoice,
+    IfNotNull, LoadFont, Op, Paint, RingColor, SetColor, Shifted, Str, StrLit,
 )
-from ..emit.monkeyc.shapes import emit_outline, emit_plain_text_call
-from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
 from .text import baked_ring, baked_ring_local
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..ir.model import Face
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver
 
 
 def _build_glyph_icon(b: Builder, node: dict[str, Any], common: dict[str, Any], placement: dict[str, Any]) -> Element:
@@ -149,7 +146,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         # The lint box only -- like `wfb.kinds.text.TextKind.resolve`, the runtime `drawText`
         # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
         # device-side justify, not a build-time box move (see
-        # `wfb.kinds.icon.IconKind.emit_draw`).
+        # `wfb.kinds.icon.IconKind.lower`).
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         box = Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
         return PlacedIcon(
@@ -179,85 +176,71 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
             icon=IconFont(element.size, glyphs, reference, element.resolved_antialias),
             glyph_table=table)]
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedIcon) -> None:
-        """One glyph from the baked icon font -- the same mechanism a
-        custom-font text element uses to draw, not a hand-drawn shape.  See
-        ``wfb.icons``: this is what makes preview and device agree on an icon's
-        appearance without a second, hand-maintained drawing implementation."""
-        font = renderer.resolved.fonts.get(placed.font_key)
-        glyph = baked_glyph(font, placed.codepoint)
-        if glyph is None or font is None or font.sheet is None:
-            return  # the font failed to bake, or the glyph is missing from it
-        s = renderer.scale
-        color = renderer.aod_color(placed.element, "color", placed.element.color)
-        renderer.paste_glyph(font.sheet, glyph, placed.inner_box.x * s, placed.inner_box.y * s, color)
+    def lower(self, ctx: DrawContext, placed: PlacedIcon) -> list[Op]:
+        """A `drawText` of the icon's glyph in its baked icon font -- see
+        `wfb.icons`: an icon is a one-character string drawn with a bitmap
+        font, the same mechanism any other bound text uses, not a hand-drawn
+        shape.
 
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedIcon,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
-        an icon is a one-character string drawn with a bitmap font, the same
-        mechanism any other bound text uses, not a hand-drawn shape.
+        A *dynamic* icon (`icon: {for: ...}`) draws the same way, except the
+        glyph is resolved in two steps at runtime instead of being a literal
+        baked in at build time: `WfbWeather.chooseIcon` picks a catalogue
+        *name* from the bound value, and `IconGlyphs.glyph` (generated per
+        project, directly from `wfb.icon_catalog.CATALOG`) turns that name
+        into the character -- the same table any static icon's build-time
+        lookup uses, not a second, weather-only one. The font has every
+        glyph that call could return, baked ahead of time
+        (`wfb.emit.resources.icon_font_specs`).
 
-        A *dynamic* icon (`icon_for:`) draws the same way, except the glyph
-        string is resolved in two steps at runtime instead of being a literal
-        baked in at build time: `WfbWeather.chooseIcon` picks a catalogue *name*
-        from the bound value, and `IconGlyphs.glyph` (generated per project,
-        directly from `wfb.icon_catalog.CATALOG`) turns that name into the actual
-        character -- the same table any static icon's build-time lookup uses, not
-        a second, weather-only one. The font still has every glyph that call
-        could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
+        `align`/`vertical_align` place the glyph the way a `text` element's
+        are placed: `placed.justify` (`Resolver.justify`) picks the
+        `TEXT_JUSTIFY_*` flags, and `bottom`, which has no flag, subtracts the
+        icon font's own `dc.getFontHeight` (`glyph_y_expr`). The anchor
+        (`Layout.<P>_CX/_CY`) never moves.
 
-        `align`/`vertical_align` place the glyph the same way a `text` element
-        does: `placed.justify` (`Resolver.justify`) picks the `TEXT_JUSTIFY_*`
-        flags, and `glyph_y_expr` handles `bottom`'s missing platform flag by
-        subtracting the *icon* font's own `dc.getFontHeight` -- the anchor
-        itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
-        literal flags whether or not `align`/`vertical_align` are given.
-
-        `outline:` draws the glyph once more in its baked ring font -- the
-        same glyph dilated by 1px (`wfb.fonts.bmfont.dilate`)
-        -- ahead of the glyph itself: an opening inside the icon wider than
-        2px keeps a ring of its own.
-        """
+        `outline:` draws the glyph once more ahead of it: one `drawText` in
+        its baked ring font (the glyph dilated, `wfb.fonts.bmfont.dilate`)
+        where the build has one, else a stamp. An opening inside the icon
+        wider than 2px keeps a ring of its own. With `ctx.ring`, only an
+        outlined group's ring is drawn."""
         element = placed.element
         prefix = const_prefix(placed.id)
-        w.line(f"var font = _{font_field(placed.font_key)};")
-        with w.block("if (font == null)"):
-            w.line("return;  // the icon font resource failed to load")
-        w.blank()
+        font = Font("font", baked=placed.font_key)
+        ops: list[Op] = [
+            LoadFont("font", f"_{font_field(placed.font_key)}",
+                     note="the icon font resource failed to load"),
+            Blank(),
+        ]
+        glyph: Str
         if element.value_for is not None:
-            condition_local = local_name(element.value_for.sources[0])
-            w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
-            glyph_expr = f"IconGlyphs.glyph(WfbWeather.chooseIcon({condition_local}))"
+            ops.append(Comment(f"{element.value_for.text!r} -> a name (WfbWeather) "
+                               "-> a glyph (IconGlyphs)"))
+            glyph = IconChoice(element.value_for)
         else:
-            w.comment(f"{element.icon!r}")
-            glyph_expr = f'"{element.codepoint}"'
-        justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-        x, y = f"Layout.{prefix}_CX", f"Layout.{prefix}_CY"
+            ops.append(Comment(f"{element.icon!r}"))
+            glyph = StrLit(element.codepoint)
+        x, y = Const(f"{prefix}_CX", placed.center[0]), Const(f"{prefix}_CY", placed.center[1])
 
-        def glyph(x_expr: str, y_expr: str) -> None:
-            emit_plain_text_call(w, x_expr, y_expr, "font", glyph_expr, justify,
-                                 element.vertical_align)
+        def draw(face: Font, dx: int = 0, dy: int = 0) -> Glyph:
+            return Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, tuple(placed.justify),
+                         element.vertical_align, placed.inner_box, placed.center)
 
-        stamp = ring or own_ring(element, aod)
-        baked = baked_ring(element, resolved.face, stamp.width) if stamp is not None else None
-        if stamp is not None and baked is not None:
-            # One `drawText` in the dilated glyphs.
-            local = baked_ring_local(stamp.width)
-            w.line(f"var {local} = _{font_field(baked)};")
-            with w.block(f"if ({local} != null)"):
-                w.line(f"dc.setColor({stamp.color}, Graphics.COLOR_TRANSPARENT);")
-                emit_plain_text_call(w, x, y, local, glyph_expr, justify,
-                                     element.vertical_align)
-            if ring is None:
-                w.blank()
-        elif stamp is not None:
-            emit_outline(w, stamp.color, stamp.width, x, y, glyph, blank_after=ring is None)
-        if ring is not None:
-            return
-        w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-        glyph(x, y)
+        def ring_ops(paint: Paint, width: int) -> list[Op]:
+            """One ring: the baked ring font's single `drawText`, or a stamp."""
+            baked = baked_ring(element, ctx.resolved.face, width)
+            if baked is None:
+                return [SetColor(paint), *(draw(font, dx, dy)
+                                           for dx, dy in disc_perimeter_offsets(width))]
+            local = baked_ring_local(width)
+            return [LoadFont(local, f"_{font_field(baked)}", on_null="none"),
+                    IfNotNull(local, (SetColor(paint), draw(Font(local, baked=baked))))]
+
+        if ctx.ring is not None:
+            return ops + ring_ops(RingColor(), ctx.ring.width)
+        if element.outline is not None:
+            ops += [*ring_ops(AodDimmed(element, element.outline.color), element.outline.width),
+                    Blank()]
+        return ops + [SetColor(AodRestyled(element, "color")), draw(font)]
 
     def describe(self, placed: PlacedIcon) -> str:
         element = placed.element
@@ -267,7 +250,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
 
     def layout_constants(self, prefix: str, placed: PlacedIcon) -> "layout_constants_mod.Constants":
         # A glyph kind's anchor never itself moves for `align`/`vertical_
-        # align` -- only the device-side justify flags and `emit_draw`'s
+        # align` -- only the device-side justify flags and `lower`'s
         # `bottom` subtraction do -- so the constant names and values stay
         # `_CX`/`_CY` even when aligned; the comment says so only then.
         default = placed.element.align == "center" and placed.element.vertical_align == "center"

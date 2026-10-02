@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01), not started. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–4 done, 5–10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -361,7 +361,47 @@ Tests:
   the anti-aliased rounding research 27 §5.4 measured. Both are tests.
 - After this slice the GUI plan can start (research 27 S3).
 
-### Slices 4–9 — the remaining kinds
+### Slice 4 — `icon`: done
+
+Built as below. `IconKind.lower` replaces `emit_draw` and `draw_preview`.
+The program gained:
+- `Glyph`: an icon's glyph, printed as an upright `drawText` (the text
+  printer's own upright path, now shared) and painted as its baked tile at
+  the icon's measured box, moved as far as a stamp moves `x`/`y`. That is
+  exactly where today's preview pasted it; a `drawText` placement would
+  have moved odd-width glyphs by the box's rounding.
+- `IconChoice`: a dynamic icon's glyph. It prints
+  `IconGlyphs.glyph(WfbWeather.chooseIcon(<reading>))` and evaluates
+  through `wfb.icons.choose_weather_icon`, the twin of `chooseIcon`
+  (`weather_unknown` for a null or out-of-range condition, as the barrel
+  does), over the existing drift-tested table.
+- `evaluator.paste_glyph`, shared by the evaluator and the JSON form's
+  `glyph` op.
+
+The preview's sample readings gained the three weather conditions, all
+`Weather.CONDITION_RAIN`, the glyph a dynamic icon's box is measured with.
+So a default preview draws what it drew before, and a different sample
+condition now draws its own glyph.
+
+Proven before the old methods were deleted, on every icon in `examples/`
+and `tests/fixtures/`, on each face's targets:
+- printed code byte-identical to `emit_draw`: **1 422/1 422** (no `aod:`,
+  `aod:` on, `aod:` with `dim:`; own ring, and 1 px and 2 px ring passes);
+- whole-frame renders identical with the program and with the old
+  methods: **144/144** (1×, 2×, asleep, AOD).
+
+`tools/snapshot.py`: 551 unchanged against the slice's starting snapshot,
+the sample conditions included. Real builds of `features/rings` (an
+outlined icon) and `generated_by_skill/trail-utility` (a dynamic icon) are
+warning-free on all three targets.
+
+Tests (`tests/test_draw_icon.py`): the printed glyph and chooser, a ring
+pass drawing only the ring, the ring font painting exactly the stamp of the
+glyph, the glyph each sample condition chooses (with a contrast between
+two), the barrel's fallback, and the JSON naming the `_CX` constant. The
+chooser was seen red against a constant glyph.
+
+### Slices 5–9 — the remaining kinds
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:

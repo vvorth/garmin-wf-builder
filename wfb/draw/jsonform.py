@@ -22,9 +22,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Union
 
 from . import barrel
-from .evaluator import Evaluator
+from .evaluator import Evaluator, paste_glyph
 from .program import (
-    AodPick, ArcSpan, Blank, Comment, Const, Disagreement, FillPolygon, Font, IfAod,
+    AodPick, ArcSpan, Blank, Comment, Const, Disagreement, FillPolygon, Font, Glyph, IfAod,
     IfAwake, IfNotNull, LetText, Lit, LoadFont, Num, Op, Primitive, SetColor, SetPen, Shifted,
     Text,
 )
@@ -135,6 +135,18 @@ class _JsonWriter:
                 "box": ([op.box.x, op.box.y, op.box.width, op.box.height]
                         if op.box is not None else None),
             })
+        elif isinstance(op, Glyph):
+            glyph = ev.string(op.glyph)
+            if glyph is None:
+                return
+            self.out.append({
+                "op": "glyph", "x": self.num(op.x), "y": self.num(op.y), "text": glyph,
+                "font": self.font(op.font), "justify": list(op.justify), "valign": op.valign,
+                # The tile's place: the icon's measured box, moved with x/y
+                # from where they stand unmoved.
+                "box": [op.box.x, op.box.y, op.box.width, op.box.height],
+                "origin": list(op.origin),
+            })
         elif isinstance(op, LetText):
             ev.run([op])
         elif isinstance(op, IfNotNull):
@@ -191,6 +203,12 @@ def rasterise(ops: list[dict[str, Any]], fonts: dict[str, FontRef],
             draw.arc([cx - rr, cy - rr, cx + rr, cy + rr],
                      *barrel.pillow_arc((start, end, clockwise)), fill=color,
                      width=max(1, int(_value(op["pen"])) * s))
+        elif name == "glyph":
+            ref = fonts[op["font"]]
+            if ref.baked is not None:
+                paste_glyph(renderer, ref.baked, op["text"],
+                            op["box"][0] + _value(op["x"]) - op["origin"][0],
+                            op["box"][1] + _value(op["y"]) - op["origin"][1], color)
         elif name == "text":
             ref = fonts[op["font"]]
             anchor = (int(_value(op["x"])), int(_value(op["y"])))
