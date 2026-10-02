@@ -1,8 +1,9 @@
 # 27 — `wfb studio`: the visual editor
 
-**Status: proposed (2026-10-02). Building it was decided by the user on
-2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). G4 was decided
-on 2026-10-02; G1–G3, G5 and G6 in §1 are open.** Delete this file once every slice has shipped
+**Status: accepted (2026-10-02), not started. Building it was decided by
+the user on 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). On
+2026-10-02 the user decided G4 (a working copy, saved on approval) and
+accepted G1–G3, G5 and G6 as recommended.** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research:
@@ -62,6 +63,17 @@ In short:
   editor.
 - **E4 (research 27, 2026-10-01):** the editor starts after plan 26 slice
   3 (done), while plan 26 ports the remaining kinds.
+- **G1, G2, G3, G5, G6 accepted as recommended (2026-10-02).**
+  - G1: the patch engine in `wfb/edit/`, the server in `wfb/studio/`.
+  - G2: `starlette` and `uvicorn` in `requirements.txt`, `httpx` in
+    `requirements-dev.txt`.
+  - G3: HTTP requests plus server-sent events.
+  - G5: CodeMirror vendored as one prebuilt bundle by a maintainer
+    script.
+  - G6: server-applied edits only for now; the linear geometry model is
+    reconsidered only if slice 3 shows the release round trip feels slow.
+
+  The options as they were weighed are kept under "Open" below.
 - **G4: edits go to a working copy; the design is written only on an
   approved save (user, 2026-10-02).** This replaces the proposal to write
   every accepted patch at once. How it works is in "The working copy",
@@ -71,7 +83,7 @@ In short:
   `dependentRequired`, so `wfb`'s own diagnostics, shown in the same
   gutter, cover that.
 
-### Open
+### Open (now decided; the options as weighed)
 
 - **G1: where the code lives.**
   - **A (recommended):**
@@ -197,7 +209,7 @@ previewed on its own would need all of it:
 - **What the rest of the tooling sees.** `git diff`, the CLI and Claude
   see only the design, and so only saved work. That is the intent of G4.
 
-### Open: G6, a browser-side preview of geometry edits
+### G6, a browser-side preview of geometry edits (decided: A)
 
 There is a middle way that needs none of the Python above in the
 browser. Every unit is linear in pixels (`wfb.units.Length.resolve`,
