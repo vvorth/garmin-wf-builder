@@ -15,7 +15,7 @@ import pytest
 
 from wfb.build import load
 from wfb import lint
-from wfb.cli import TEMPLATE_DIR
+from wfb.starters import TEMPLATE_DIR
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 

@@ -6,7 +6,8 @@ A patched text is accepted only when
    so a patch that touched anything else fails loudly; and
 2. it loads through the whole front end (`wfb.build.load`: parse, schema,
    lowering, desugaring, the IR) with no error the text before it did not
-   already have.
+   already have, and still loads if it loaded before.  A text that did not
+   load (a font file not yet added, say) may be patched towards loading.
 
 The text is loaded under the design's own path, so relative font paths
 resolve as they do for the design and every diagnostic names the design.
@@ -79,6 +80,6 @@ class Gate:
             first = next(d for d in after.errors if (d.code, d.message) in new)
             where = f" (line {first.span.line})" if first.span is not None else ""
             raise Refused(f"{patch.what}: {first.message}{where}")
-        if after.face is None:
+        if after.face is None and self.before.face is not None:
             raise Refused(f"{patch.what}: the design no longer loads")
         return after

@@ -357,6 +357,21 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("--list", action="store_true", dest="list_templates",
                      help="list the available templates and exit")
 
+    studio = _command(sub, "studio", _studio)
+    studio.add_argument("design", type=Path, nargs="?",
+                        help="a .yaml or .zip to open first (optional; it is copied in, "
+                             "never written back)")
+    studio.add_argument("--host", default="127.0.0.1",
+                        help="the address to listen on (default: 127.0.0.1, loopback only)")
+    studio.add_argument("-p", "--port", type=int, default=8765,
+                        help="the port to listen on (default: 8765)")
+    studio.add_argument("--state-dir", type=Path,
+                        help="where the history of every face is kept (default: "
+                             "$XDG_STATE_HOME/wfb/studio, or ~/.local/state/wfb/studio)")
+    studio.add_argument("--devices-dir")
+    studio.add_argument("--fonts", dest="fonts_dir",
+                        help="Garmin ConnectIQ Fonts directory, as for `wfb preview`")
+
     devices = _command(sub, "devices", _devices)
     devices.add_argument("--devices-dir")
 
@@ -839,19 +854,45 @@ def _simulate(args: argparse.Namespace) -> int:
     return 0
 
 
-TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+def _studio(args: argparse.Namespace) -> int:
+    """edit faces in the browser: a local web app
 
-TEMPLATE_BLURB = {
-    "minimal": "a background and the time -- the smallest face worth building",
-    "dashboard": "time, a goal ring, two data clusters and a battery bar",
-    "analog": "a three-hand dial with ticks, numerals and a date window",
-    "sport": "time, a heart-rate graph and four readouts, distance in the wearer's units",
-    "gauge": "a battery needle gauge over the top half, the time below it",
-    "calendar": "the time over a Monday-first month of dots, today lit",
-    "themed": "light/dark schemes, accent colours and two complication slots set on the watch",
-    "amoled": "adds an AMOLED target, with a sparse always-on sleep frame",
-    "palette": "all 64 MIP colours as named swatches, with a colour scheme and colour axes",
-}
+    Serves the visual editor on http://127.0.0.1:8765/ until Ctrl-C. Open
+    that address in a browser to create a face from a template or open one
+    (a .zip with face.yaml and assets/, or a plain .yaml), edit it, and
+    download it to save. In the container, publish the port to the host's
+    loopback (`docs/container.md`).
+
+    Every face's history is kept under `--state-dir`, outside the
+    temporary directories the editor builds faces in, so closing the tab
+    or stopping the server loses nothing.
+
+    `wfb studio face.yaml` opens that face first. It is copied in, with the
+    font files it names: the editor never writes to it. `--host` other than
+    loopback warns, since the server writes files.
+    """
+    from .edit import Refused
+    from .studio import serve
+    from .studio.bundle import BundleError
+    from .studio.store import StoreError, default_root
+
+    if args.design is not None and not args.design.is_file():
+        _error(f"{args.design} does not exist")
+        return 1
+    try:
+        db = DeviceDatabase.discover(args.devices_dir, fonts_root=args.fonts_dir)
+    except DeviceError as exc:
+        _error(str(exc))
+        return 1
+    try:
+        serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
+              db=db, design=args.design)
+    except (BundleError, Refused, StoreError) as exc:
+        _error(str(exc))
+        return 1
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def _new(args: argparse.Namespace) -> int:
@@ -863,12 +904,12 @@ def _new(args: argparse.Namespace) -> int:
     -- installing the second replaces the first -- so every call mints its
     own.
     """
-    import uuid
+    from . import starters
 
-    templates = sorted(p.stem for p in TEMPLATE_DIR.glob("*.yaml"))
+    templates = starters.names()
     if args.list_templates:
         for name in templates:
-            print(f"  {name:<12} {TEMPLATE_BLURB.get(name, '')}")
+            print(f"  {name:<12} {starters.TEMPLATE_BLURB.get(name, '')}")
         return 0
 
     if not args.name:
@@ -877,9 +918,6 @@ def _new(args: argparse.Namespace) -> int:
               file=sys.stderr)
         return 1
 
-    # A template *name*, never a path: joined unchecked, `../x` or an
-    # absolute path would read any .yaml on disk.
-    source = TEMPLATE_DIR / f"{args.template}.yaml"
     if args.template not in templates:
         _error(f"no template {args.template!r}")
         print(f"       available: {', '.join(templates)}", file=sys.stderr)
@@ -890,12 +928,7 @@ def _new(args: argparse.Namespace) -> int:
         _error(f"{destination} already exists")
         return 1
 
-    # A fresh UUID every call -- see the docstring for why.
-    text = (
-        source.read_text(encoding="utf-8")
-        .replace("__UUID__", str(uuid.uuid4()))
-        .replace("__NAME__", args.name)
-    )
+    text = starters.instantiate(args.template, args.name)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
 

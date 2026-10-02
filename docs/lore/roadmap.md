@@ -180,7 +180,11 @@ specifies each item.
    a YAML tab. Undo, redo and snapshots persist in a history store. The
    browser draws per-element layers from the single draw program and makes
    no drawing decisions (research 27 §5); the program is built. Building
-   from the editor is not planned yet.
+   from the editor is not planned yet. **Built so far:** the server, the
+   bundle format, the history store's journal, new/open/download, a missing
+   font added in place, and a read-only viewer (layer tree, frames per
+   device and style, selection, diagnostics). Not yet: any edit of the
+   face itself, undo and snapshots, the inspector, the YAML tab.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -204,8 +208,10 @@ specifies each item.
 - **The visual editor** (decided 2026-10-01, re-scoped 2026-10-02): a
   client-driven web app that opens and saves faces by upload and download
   and edits every property, reverting no shipped feature and drawing
-  per-element layers from the draw program. Its patch engine is built (`wfb/edit/`: text patches, the gate,
-  drags in the author's units); the server and the UI are not.
+  per-element layers from the draw program. Its patch engine is built
+  (`wfb/edit/`: text patches, the gate, drags in the author's units), and
+  so are the server and a read-only viewer (`wfb/studio/`); editing in the
+  UI is not.
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

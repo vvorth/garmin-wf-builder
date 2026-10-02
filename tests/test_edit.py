@@ -257,11 +257,15 @@ def test_the_gate_ignores_errors_the_text_already_had(tmp_path):
     path = tmp_path / "face.yaml"
     gate = Gate(path, broken)
     assert gate.before.errors
+    # A text that did not load may be patched while it adds no error: the
+    # editor fixes a face one step at a time (a missing font, then the next).
     patch = set_value(SpanIndex(broken), ("elements", "b", "radius"), "6%r")
-    # still no face, so still refused -- but for not loading, not for the
-    # old error
-    with pytest.raises(Refused, match="no longer loads"):
-        gate.check(patch)
+    after = gate.check(patch)
+    assert after.face is None and after.errors
+    # ...and a patch that adds an error is still refused, for that error.
+    worse = set_value(SpanIndex(broken), ("elements", "b", "color"), "color.nope")
+    with pytest.raises(Refused, match="nope"):
+        gate.check(worse)
 
 
 def test_invalid_yaml_is_refused_not_raised():

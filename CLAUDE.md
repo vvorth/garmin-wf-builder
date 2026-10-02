@@ -297,9 +297,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
-  - the GUI: decided as a local web app over the YAML text (ADR 0002
-    amendment); its patch engine (`wfb/edit/`) and the draw program it
-    builds on are built (`docs/lore/roadmap.md`);
+  - editing in the GUI (`wfb studio`, a local web app over the YAML text,
+    ADR 0002 amendments): its patch engine (`wfb/edit/`), server, bundles
+    and a read-only viewer (`wfb/studio/`) are built; edits from the UI are
+    not (`docs/lore/roadmap.md`);
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;

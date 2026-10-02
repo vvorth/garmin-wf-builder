@@ -13,8 +13,10 @@ Two things here are worth more than they look:
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 from xml.sax.saxutils import escape
 
 from PIL import Image, ImageDraw
@@ -127,9 +129,59 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     }
 
 
-def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
+class BakeMemo:
+    """Baked sheets kept between loads of one design, for a process that
+    re-runs the pipeline on every edit (`wfb studio`).
+
+    A bake is keyed by its arguments plus the source file's size and
+    modification time, so replacing the file re-bakes it; a dilated ring
+    font by its base sheet (by identity: the base came from this memo) and
+    its own arguments.  An edit changes none of a bake's inputs unless it
+    touches the font, which is what makes the memo pay: on the showcase it
+    takes a re-run from 893 to 250 ms with identical pixels (research 28
+    §4).  The oldest entries are dropped past ``size``."""
+
+    def __init__(self, size: int = 256) -> None:
+        self.size = size
+        self._bakes: OrderedDict[tuple[Any, ...], tuple[BakedFont, Image.Image]] = OrderedDict()
+        self._dilated: OrderedDict[tuple[Any, ...],
+                                   tuple[BakedFont, tuple[BakedFont, Image.Image]]] = OrderedDict()
+
+    def _keep(self, table: "OrderedDict[tuple[Any, ...], Any]", key: tuple[Any, ...],
+              value: Any) -> None:
+        table[key] = value
+        while len(table) > self.size:
+            table.popitem(last=False)
+
+    def bake(self, source: Path, **kwargs: Any) -> tuple[BakedFont, Image.Image]:
+        stat = Path(source).stat()
+        key = (str(source), stat.st_mtime_ns, stat.st_size, tuple(sorted(kwargs.items())))
+        hit = self._bakes.get(key)
+        if hit is None:
+            hit = bake(source, **kwargs)
+            self._keep(self._bakes, key, hit)
+        else:
+            self._bakes.move_to_end(key)
+        return hit
+
+    def dilate(self, base: BakedFont, **kwargs: Any) -> tuple[BakedFont, Image.Image]:
+        key = (id(base), tuple(sorted(kwargs.items())))
+        hit = self._dilated.get(key)
+        # The base is held beside the result, so its id cannot be reused by
+        # another font while the entry lives; the identity check is the guard.
+        if hit is None or hit[0] is not base:
+            result = dilate(base, **kwargs)
+            self._keep(self._dilated, key, (base, result))
+            return result
+        self._dilated.move_to_end(key)
+        return hit[1]
+
+
+def bake_fonts(face: Face, device: Device, memo: BakeMemo | None = None) -> dict[str, BakedFont]:
     """Rasterise every declared font, plus every icon font this design needs,
-    at this device's size."""
+    at this device's size.  ``memo`` reuses sheets an earlier call baked."""
+    bake_one = memo.bake if memo is not None else bake
+    dilate_one = memo.dilate if memo is not None else dilate
     sets = glyph_set(face)
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
@@ -140,7 +192,7 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
         # `size:` goes through `wfb.units.pixel_size`, the same resolver the
         # synthetic icon fonts below use, so `12px` means one thing on both.
         assert spec.source is not None  # a baked font names its file (FontSpec.is_baked)
-        baked[name], _ = bake(
+        baked[name], _ = bake_one(
             spec.source,
             name=name,
             size=spec.pixel_size(device.minor_radius),
@@ -152,7 +204,7 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
 
     for name, spec in icon_font_specs(face, device).items():
         assert spec.source is not None and spec.glyphs is not None  # set by icon_font_specs
-        baked[name], _ = bake(
+        baked[name], _ = bake_one(
             spec.source, name=name, size=spec.pixel_size(device.minor_radius),
             glyphs=spec.glyphs, antialias=spec.antialias,
         )
@@ -160,7 +212,7 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
     # Last: each ring font is dilated from its base's own sheet, glyph for
     # glyph, so it has to exist first.
     for name, (base, glyphs, width) in kinds.ring_fonts(face).items():
-        baked[name], _ = dilate(baked[base], name=name, glyphs="".join(sorted(glyphs)),
+        baked[name], _ = dilate_one(baked[base], name=name, glyphs="".join(sorted(glyphs)),
                                 width=width)
     return baked
 

@@ -36,6 +36,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 | `preview` | render the design to a PNG on the host, with no simulator |
 | `simulate` | launch the Connect IQ simulator and push a built face to it |
 | `new` | start a design from a known-good template |
+| `studio` | edit faces in the browser: a local web app |
 | `devices` | list installed device definitions |
 | `fonts` | list fonts available per device, or a detailed font breakdown for one or more |
 | `doctor` | check the environment and say what is missing |
@@ -47,6 +48,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 
 ```sh
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
+wfb studio    [design.yaml|face.zip] [-p PORT]  # the editor, on http://127.0.0.1:8765/
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile] [--profile [REPS]]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator

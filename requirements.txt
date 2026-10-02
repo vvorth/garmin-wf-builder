@@ -4,3 +4,5 @@ ruamel.yaml>=0.18     # round-trip YAML with source spans (ADR 0002)
 jsonschema>=4.20      # the published JSON Schema
 pillow>=10            # font rasterisation, launcher icons, the preview renderer
 fonttools>=4.50       # font face names and, later, glyph-set validation
+starlette>=1.0       # wfb studio: the editor's HTTP server
+uvicorn>=0.30        # wfb studio: runs it

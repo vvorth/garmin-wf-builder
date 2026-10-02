@@ -173,6 +173,10 @@ wfb/                  the compiler
                         the host evaluator, the barrel's arithmetic transcribed
   edit/                 the editor's patch engine: the span index, text patches, the
                         gate, and pixel drags written in the author's units
+  studio/               `wfb studio`: bundles in and out, the history store, open
+                        documents, the HTTP endpoints, and static/ (the front end,
+                        vendored by tools/vendor-studio-frontend.sh)
+  starters.py           the face templates in templates/, for `wfb new` and the editor
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`

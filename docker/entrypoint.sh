@@ -75,6 +75,28 @@ case "${1:-}" in
         needs_devices=1
         wants_fonts=1
         ;;
+    studio)
+        needs_devices=1
+        wants_fonts=1
+        # Inside the container the server must listen beyond its own
+        # loopback for a published port to reach it; publish it to the
+        # host's loopback only (docs/container.md, "The editor").
+        has_host=0
+        for arg in "$@"; do
+            case "$arg" in --host|--host=*) has_host=1 ;; esac
+        done
+        if [ "$has_host" = 0 ]; then
+            set -- "$@" --host 0.0.0.0
+        fi
+        # Every face's history lives in the state directory: a volume at
+        # /state keeps it across runs; without one it ends with the container.
+        if [ -d /state ] && [ -w /state ]; then
+            export XDG_STATE_HOME=/state
+        else
+            echo "wfb: no writable volume at /state, so the editor's history ends with" >&2
+            echo "     this container; mount one to keep it: -v wfb-studio:/state" >&2
+        fi
+        ;;
     devices)
         needs_devices=1
         ;;

@@ -27,6 +27,7 @@ from .emit import GeneratedProject, generate
 from .emit import strhash
 from .emit.manifest import BASE_API_LEVEL
 from .emit.project import write as write_project
+from .emit.resources import BakeMemo
 from .fonts import BakedFont
 from .ir import Face, build as build_ir
 from .layout import ResolvedFace
@@ -184,9 +185,10 @@ def select_devices(face: Face, db: DeviceDatabase, bag: Bag,
     return devices
 
 
-def resolve_all(face: Face, devices: list[Device], bag: Bag,
+def resolve_all(face: Face, devices: list[Device], bag: Bag, memo: BakeMemo | None = None,
                 ) -> tuple[dict[str, ResolvedFace], dict[str, dict[str, BakedFont]]]:
-    """Resolve and lint the design once per target device."""
+    """Resolve and lint the design once per target device.  ``memo`` reuses
+    font sheets an earlier call baked (`wfb.emit.resources.BakeMemo`)."""
     from .emit.resources import bake_fonts
     from .layout import resolve
 
@@ -196,7 +198,7 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     baked: dict[str, dict[str, BakedFont]] = {}
     for device in devices:
         try:
-            fonts = bake_fonts(face, device)
+            fonts = bake_fonts(face, device) if memo is None else bake_fonts(face, device, memo)
         except (OSError, ValueError) as exc:
             bag.error("font", f"{device.id}: {exc}")
             continue

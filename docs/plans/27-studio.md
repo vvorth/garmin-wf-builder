@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slice 0 done, 1–7 to go.** Building it was decided by the user on
+below); slices 0 and 1 done, 2–7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -371,36 +371,81 @@ Tests:
 - a conversion lands on the dragged pixel on all three verification
   devices.
 
-### Slice 1 — the service, documents and a read-only viewer
+### Slice 1 — the service, documents and a read-only viewer: done
 
-- `wfb studio [face.yaml|bundle.zip] [--port N] [--host 127.0.0.1]
-  [--state-dir DIR]`: Starlette, run by uvicorn. A `--host` other than
-  loopback prints a warning, because the server writes files and, later,
-  runs `monkeyc` (research 26 §4.8).
-- **Documents:** new from a template (with `wfb new`'s minting moved to
-  one shared function), open by upload, the bundle rules and refusals,
-  missing assets listed, download as `.zip` or `.yaml`. The temporary
-  directory materialised from the store; text, assets and the version
-  recorded there from the first change (the journal itself, without undo,
-  so no document is ever held only in memory).
-- **The pipeline per document:** one resolve per change across the
-  targets; font baking memoised (research 28 §4: showcase 893 → 250 ms).
-- **Endpoints (G3):**
-  - the home screen's data: templates, recent documents;
-  - a document: text, version, display name, missing assets;
-  - the frame and its layers (a PNG per layer, boxes, ids, spans, the
-    layer tree);
-  - the diagnostics;
-  - the devices and styles;
-  - upload, download;
-  - an event stream: rendered, error.
-- **Front end:** the home screen (new, open, recent), the canvas from
-  layers, the layer tree, selection by click (the topmost layer whose
-  alpha is opaque under the pointer) and in the tree, boxes, the device
-  and style switches, the diagnostics list.
-- **Measured:** time from an upload to a drawn canvas, and from a change
-  to an updated canvas, on `features/progress`, `showcase` and
-  `vector-text`.
+Built as below, in `wfb/studio/`:
+- `bundle`: upload (`.yaml`, or a `.zip` with one face at its root or in
+  one wrapping folder; desktop litter skipped) and every refusal: `..`,
+  absolute paths, links, no face, two faces without a `face.yaml`, the
+  size and entry limits checked before unpacking, non-UTF-8 text. A face
+  is named by its own `face: name:`. `from_path` reads a design on disk
+  for `wfb studio face.yaml`, gathering a font outside its directory
+  under `assets/`; the reference is patched as the document's second
+  recorded change. `to_zip` writes `face.yaml` plus the files.
+- `store`: one directory per document: `meta.json`, content-addressed
+  `blobs/`, and `journal.jsonl`, appended and fsynced before a change is
+  acknowledged. A line cut short by a crash is not the head.
+- `document`: a document's temporary directory, synced to the head file
+  by file (an untouched font keeps its mtime, which keys the bake memo;
+  rewriting it re-baked every font on every change: showcase 1369 ms per
+  change instead of 255); the pipeline once per version
+  (`load_text`, `select_devices`, `resolve_all` with a shared
+  `wfb.emit.resources.BakeMemo`); frames per device, style, time,
+  asleep, AOD and zoom, cached per version; the layer tree from the
+  author's text; diagnostics with the temporary directory taken out of
+  every path they quote. A version check refuses a change against an old
+  version (409).
+- `app`: the endpoints (home, new, upload, document, delete, frame, add a
+  missing font, download as `.zip`/`.yaml`/auto) and the event stream
+  (`changed`, `rendered`). Every endpoint's work runs in the thread pool
+  under one lock; an upload is the raw body with its name in the query.
+- `static/`: the home screen (new from a template, open by upload or
+  drop, recent faces with delete), and the editor: the layer tree, the
+  canvas with selection by alpha (`hit.js`), the device and style
+  switches, time, asleep, AOD and zoom, the selected element's id, type,
+  block, line and box, the diagnostics (a click selects the element at
+  that line), the missing-font banner, and download. Preact and `htm`
+  are vendored by `tools/vendor-studio-frontend.sh`.
+- `wfb studio [design] [--host] [--port] [--state-dir]`; the container
+  entrypoint adds `--host 0.0.0.0` and uses a `/state` volume.
+
+Two changes outside `wfb/studio/`:
+- `wfb new` and New share `wfb.starters.instantiate`.
+- **The gate accepts a patch to a text that did not load**, as long as it
+  adds no error. Adding the first of two missing fonts leaves the face
+  still not loading, and was refused as "no longer loads".
+  `tests/test_edit.py` holds the new contrast.
+
+Added beyond the plan's list: a missing font added in place (it was
+listed for slice 1 but its upload was not), and deleting a document.
+
+Measured, in-process on fr955 at 2×, best of three changes with a warm
+font memo:
+
+| Face | open → first frame (cold bake) | change → frame | of which: commit + pipeline, frame | frame JSON |
+|---|---:|---:|---|---:|
+| `features/progress` | 459 ms | 136 ms | 39 ms, 98 ms | 41 KB |
+| `showcase` | 2 352 ms | 523 ms | 249 ms, 274 ms | 58 KB |
+| `features/vector-text` | 673 ms | 442 ms | 42 ms, 400 ms | 110 KB |
+
+The frame is now the larger half: `wfb.draw.layers` paints each element
+twice (on black and on white), and vector text is slow to draw. Each
+layer travels as a PNG cropped to its ink, with its origin: full-frame,
+mostly clear layers took the showcase's 28 encodings to 192–347 ms. Slice
+4's release round trip pays the frame once per drop. The UI was checked
+only as far as the page being served and its modules parsing
+(`node --check`); there is no browser in the container.
+
+`tools/snapshot.py`: 547 of 551 cases unchanged; `wfb --help` lists
+`studio` (and `wfb help studio` is two new cases); `wfb doctor`'s python
+path differs only because the baseline ran from a worktree whose `.venv`
+was a link.
+
+Tests: `tests/test_studio.py` (bundles and every refusal, the store across
+a new server, the directory sync, versions, never writing to an opened
+design, diagnostics naming `face.yaml`, the tree, frames, every endpoint,
+events) and `tests/test_studio_frontend.py` (`hit.js` in Node). Each
+guard was seen red.
 
 ### Slice 2 — history: undo, redo, snapshots, restore
 
