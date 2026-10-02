@@ -188,9 +188,9 @@ specifies each item.
    (every key of an element, geometry per device or shape), the Face
    panel (targets, colours renamed everywhere, schemes, styles, fonts),
    the canvas's drags (move, resize, radius, an arc's angles, a line's
-   ends, with snapping) written in the author's units, and structure (add
-   any type, delete, duplicate, reorder, static and dynamic, across
-   layouts, group and ungroup). Not yet: the YAML tab.
+   ends, with snapping) written in the author's units, structure (add any
+   type, delete, duplicate, reorder, static and dynamic, across layouts,
+   group and ungroup), and the YAML tab (CodeMirror with the schema).
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -217,8 +217,7 @@ specifies each item.
   per-element layers from the draw program. Its patch engine is built
   (`wfb/edit/`: text patches, the gate, drags in the author's units), and
   so are the server, the viewer, the inspector, the Face panel, the
-  canvas's drags and structural edits (`wfb/studio/`); the YAML tab is
-  not.
+  canvas's drags, structural edits and the YAML tab (`wfb/studio/`).
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

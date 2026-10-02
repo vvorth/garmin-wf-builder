@@ -8,5 +8,7 @@ docs/research/probes/
 docs/research/data/
 .cache/
 vendor/
+wfb/studio/static/vendor/
+tools/studio-frontend/package-lock.json
 build/
 examples/**/assets/

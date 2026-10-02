@@ -259,6 +259,21 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             changed(document)
             return JSONResponse({**document.summary(), "select": select})
 
+    def replace_text(request: Request, data: bytes) -> Response:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise Refused("the text is not UTF-8") from None
+        with studio.lock:
+            document = doc(request)
+            document.replace_text(text, _int(request, "version"))
+            changed(document)
+            return JSONResponse(document.summary())
+
+    async def face_schema(request: Request) -> Response:
+        from .inspect import SCHEMA
+        return FileResponse(SCHEMA, media_type="application/schema+json")
+
     def inspector(request: Request, data: bytes) -> Response:
         try:
             element = json.loads(request.query_params.get("element", "null"))
@@ -353,6 +368,9 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
             Route("/api/vocabulary", _endpoint(vocabulary)),
+            Route("/api/schema", face_schema),
+            Route("/api/documents/{doc_id}/text", _endpoint(replace_text, body=True),
+                  methods=["POST"]),
             Route("/api/documents/{doc_id}/edit", _endpoint(edit, body=True), methods=["POST"]),
             Route("/api/documents/{doc_id}/inspect", _endpoint(inspector)),
             Route("/api/documents/{doc_id}/structure", _endpoint(structure, body=True),

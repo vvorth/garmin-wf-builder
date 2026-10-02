@@ -254,3 +254,6 @@ wfb/assets/system-fonts/*
 # above; listed so the reason is visible): the SDK device reference,
 # extracted from the installed SDK by tools/extract-device-reference.py.
 .cache/device-reference/
+
+# tools/vendor-studio-frontend.sh builds in a temporary directory; never here
+node_modules/

@@ -319,6 +319,20 @@ class Document:
         after = self._gate().check(patch)
         return self.commit(patch.text, dict(self.head.assets), label, expected, after)
 
+    def replace_text(self, text: str, expected: int) -> Change:
+        """The whole text as the author typed it in the YAML tab, against
+        version ``expected``. Unlike a patch from the canvas, inspector or
+        tree, it is not refused for an error the load reports: someone
+        typing passes through broken states, and the YAML tab is where they
+        are mended, with the diagnostics beside the text. Text that is not
+        YAML at all is refused, not recorded, so the author keeps typing."""
+        self._check(expected)
+        if text == self.text:
+            return self.head
+        index_for(text)          # Refused when it is not YAML
+        loaded = load_text(self.path, text)
+        return self.commit(text, dict(self.head.assets), "edit the text", expected, loaded)
+
     def structure(self, op: dict[str, Any], expected: int) -> tuple[Change, str | None]:
         """One structural edit from the layer tree or the canvas, gated and
         recorded; also the id to select after it (a new element, a copy, a
@@ -667,7 +681,10 @@ def _children(index: SpanIndex, block: Entry) -> list[dict[str, Any]]:
             data = data[step]
         node: dict[str, Any] = {"kind": "element", "id": entry.name, "type": data.get("type"),
                                 "path": list(entry.path),
-                                "line": entry.key.start_mark.line + 1, "children": []}
+                                "line": entry.key.start_mark.line + 1,
+                                # its last line: the text range the YAML tab selects
+                                "end": index.text.count("\n", 0, index.value_end(entry)),
+                                "children": []}
         for sub in ELEMENT_BLOCKS:
             child_block = index.get(entry.path + (sub,))
             if child_block is not None:

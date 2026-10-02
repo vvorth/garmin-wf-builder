@@ -299,9 +299,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     check 2 is otherwise built: `api-gated`);
   - editing in the GUI (`wfb studio`, a local web app over the YAML text,
     ADR 0002 amendments): its patch engine (`wfb/edit/`), server, bundles,
-    history, viewer, inspector, Face panel, canvas drags and structural
-    edits (`wfb/studio/`) are built; the YAML tab is not
-    (`docs/lore/roadmap.md`);
+    history, viewer, inspector, Face panel, canvas drags, structural
+    edits and YAML tab (`wfb/studio/`) are built; slice 7's close-out
+    docs are not (`docs/lore/roadmap.md`);
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;

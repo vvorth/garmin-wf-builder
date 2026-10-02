@@ -172,6 +172,12 @@ Every edit is still a text patch checked by the full load, so the file
 the author downloads keeps their comments, order and formatting, and
 "nothing only through the GUI" still holds: the text is the design.
 
+**Note (2026-10-02, in building it, plan 27 slice 6):** "every edit" means
+every edit from the canvas, the inspector and the layer tree. Text typed
+in the YAML tab is the author's own and is recorded as typed once it is
+YAML; the compiler's errors on it are shown beside it, not refused, since
+typing passes through broken states.
+
 ## Open
 
 None.

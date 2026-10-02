@@ -7,6 +7,7 @@ import { html, render, useState, useEffect, useRef, useCallback, useMemo }
 import { elementAtLine, flatten } from "./hit.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
+import { YamlPane } from "./yaml.js";
 import { FacePanel, Inspector } from "./panels.js";
 
 // -- the server --------------------------------------------------------------------
@@ -308,6 +309,7 @@ function Editor({ docId, onError }) {
     } catch (e) { onError(e); if (e.status === 409) loadDoc(); return false; }
   }, [doc, view.device, scope]);
   const [left, setLeft] = useState("layers");
+  const [pane, setPane] = useState("face");
   // more elements selected with Ctrl/Cmd/Shift, for grouping
   const [extra, setExtra] = useState([]);
   const select = useCallback((id, additive) => {
@@ -406,6 +408,10 @@ function Editor({ docId, onError }) {
       </div>
       <div class="stage">
         <div class="controls">
+          <span class="seg" title="The face drawn, or its text">
+            <button class=${pane === "face" ? "on" : ""} onClick=${() => setPane("face")}>Face</button>
+            <button class=${pane === "yaml" ? "on" : ""} onClick=${() => setPane("yaml")}>YAML</button>
+          </span>
           <label>Device
             <select value=${view.device || ""} onChange=${set("device")}>
               ${doc.targets.map((t) => html`<option value=${t}>${t}</option>`)}
@@ -423,13 +429,16 @@ function Editor({ docId, onError }) {
               ${[1, 2, 3, 4].map((n) => html`<option value=${n}>${n}×</option>`)}
             </select></label>
         </div>
-        <div class="canvas-wrap">
-          ${busy ? html`<div class="busy">rendering…</div>` : null}
-          ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
-                                    onPick=${setSelected} onDrag=${onDrag} />`
-                  : html`<div class="empty">${doc.loads ? "No frame yet." :
-                      "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
-        </div>
+        ${pane === "yaml"
+          ? html`<${YamlPane} doc=${doc} selected=${selected} onDoc=${setDoc} onError=${onError}
+                              onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
+          : html`<div class="canvas-wrap">
+              ${busy ? html`<div class="busy">rendering…</div>` : null}
+              ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
+                                        onPick=${setSelected} onDrag=${onDrag} />`
+                      : html`<div class="empty">${doc.loads ? "No frame yet." :
+                          "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
+            </div>`}
         <${Strip} doc=${doc} view=${view} onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
       <div class="panel right">

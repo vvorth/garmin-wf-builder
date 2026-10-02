@@ -1,7 +1,7 @@
 # 27 — `wfb studio`: the visual editor
 
 **Status: accepted (2026-10-02), re-scoped by the user the same day (S1–S7
-below); slices 0–5 done, 6–7 to go.** Building it was decided by the user on
+below); slices 0–6 done, 7 to go.** Building it was decided by the user on
 2026-10-01 (research 26 §8 D1–D3, research 27 §8 E1–E4). Delete this file
 once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -142,7 +142,7 @@ removes between the preview and the watch.
 | Release, or a value set in the inspector: an intent such as "move `clock` by (+6, −3) px on fenix8solar47mm", or "set `radius` of `ring` to 44%r for all targets" | browser → server |
 | Unit conversion, override target, text patch, gate, history record, re-render | server (`wfb/edit/`, `wfb/studio/`, the pipeline) |
 | New text, version and layers | server → browser |
-| Typing in the YAML tab | browser (CodeMirror), sent as the whole text against its version; the server gates it the same way |
+| Typing in the YAML tab | browser (CodeMirror), sent as the whole text against its version; the server records it when it is YAML (slice 6: a load error is shown, not refused) |
 | Undo and redo | server: the document's history |
 
 The cost is one round trip per release. On loopback that is about the
@@ -742,16 +742,48 @@ refusals; every type added); `tests/test_studio_structure.py`;
 `tests/test_studio_frontend.py` (`tree.js`, and `elementAtLine` past
 empty blocks). Each guard was seen red.
 
-### Slice 6 — the YAML tab
+### Slice 6 — the YAML tab: done
 
-- CodeMirror 6 with the face schema (G5's bundle). `wfb` diagnostics in
-  the gutter.
-- A typed edit is sent, debounced at about 300 ms, as a whole-text
-  replace against the version it started from, recorded as one change. A
-  stale version is refused and the pane reloads.
-- **Selection both ways:** a selected element selects its text range
-  (`Element.span` to the composed node), and the cursor in the text
-  selects the element on the canvas and in the tree.
+Built as below:
+- **G5's bundle**: `tools/studio-frontend/` (pinned `package.json` and
+  `package-lock.json`, `entry.js`, `build.mjs`) is built by
+  `tools/vendor-studio-frontend.sh` (`npm ci`, esbuild) into
+  `vendor/codemirror.module.js`: CodeMirror 6, its YAML mode and
+  `codemirror-json-schema`'s YAML schema support (lint, completion,
+  hover). Its markdown renderer pulled in markdown-it and Shiki for
+  highlighted hovers, 400 KB of the 1.1 MB; a stub renders descriptions as
+  text with `code` spans instead, so the bundle is 700 KB. Every bundled
+  package's licence and version is in `vendor/LICENSES-codemirror`.
+- **`Document.replace_text`** and `POST .../text`: the whole text against
+  the version it started from, recorded as one change ("edit the text"),
+  loaded once (the analysis reuses it); the same text is no change.
+- **A decision made in building it** (recorded here, the plan's "gated the
+  same way" amended): typed text is refused only when it is not YAML, and
+  then not recorded, so the author keeps typing. A text the compiler
+  reports errors on is recorded, with the errors in the gutter: someone
+  typing passes through broken states, and the YAML tab is where they are
+  mended. The canvas, inspector and tree keep the full gate, so they
+  cannot add an error to it.
+- **UI** (`yaml.js`): a Face | YAML switch above the canvas. Typing is sent
+  300 ms after it stops; "not YAML yet" shows under the text; a stale
+  version reloads the pane with a message; a change made elsewhere
+  reaches the pane when nothing typed is unsent. `wfb` diagnostics join
+  the schema's in the gutter. A selection in the tree or on the canvas
+  selects the element's lines (the tree gives each element its last
+  line, `end`); the cursor selects the element it is in.
+
+**Checked in a DOM** (jsdom against a live server, with the layout calls
+CodeMirror makes stubbed): the pane shows the text; a typed change is
+recorded; not-YAML is not recorded and its message clears when mended
+(a bug found here: the message stayed when the text returned to the last
+recorded one); a tree selection selects the element's lines; a stale
+send reloads the pane. Typing, completion and hovers in a real browser
+are owed by hand.
+
+Tests: `tests/test_studio_text.py` (one change, no change, not YAML,
+errors recorded, stale, one load, each node's last line, the endpoints);
+`tests/test_studio_frontend.py` (the bundle exports what `yaml.js`
+imports). Each guard was seen red.
 
 ### Slice 7 — close-out
 

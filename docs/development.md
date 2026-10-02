@@ -175,8 +175,9 @@ wfb/                  the compiler
                         gate, pixel drags written in the author's units, and
                         structure (blocks, groups, new elements)
   studio/               `wfb studio`: bundles in and out, the history store, open
-                        documents, the HTTP endpoints, and static/ (the front end,
-                        vendored by tools/vendor-studio-frontend.sh)
+                        documents, the HTTP endpoints, and static/ (the front end;
+                        its vendor/ files built by tools/vendor-studio-frontend.sh,
+                        CodeMirror from tools/studio-frontend/)
   starters.py           the face templates in templates/, for `wfb new` and the editor
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR

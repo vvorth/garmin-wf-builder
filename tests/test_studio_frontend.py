@@ -224,3 +224,15 @@ def test_the_tree_offers_its_blocks_siblings_and_drop_zones():
         {"where": "into", "target": {"block": ["elements", "g", "children"], "before": None}},
         {"where": "after", "target": {"block": ["elements"], "before": None}},
     ]
+
+
+def test_the_vendored_editor_bundle_exports_what_the_yaml_tab_imports():
+    source = (STATIC / "yaml.js").read_text()
+    start = source.index("import {", source.index("preact-htm"))
+    imported = source[start + len("import {"):source.index("}", start)]
+    names = sorted(n.strip() for n in imported.split(",") if n.strip())
+    result = run(f"""
+      const m = await import({json.dumps((STATIC / 'vendor/codemirror.module.js').as_uri())});
+      console.log(JSON.stringify({json.dumps(names)}.filter((n) => !(n in m))));
+    """)
+    assert names and result == []
