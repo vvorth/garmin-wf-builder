@@ -40,6 +40,11 @@ Loaded automatically when working under `tests/`.
   `wfb.py` itself), and the session-cached examples (`example`,
   `resolved_example`, read-only). Reach for these before writing a new
   private copy.
+- **The editor** (`wfb studio`): `test_edit.py` runs the patch engine over
+  the example corpus; `test_studio*.py` test the server through
+  Starlette's client; `test_studio_frontend.py` runs the front end's pure
+  modules in Node (skipped without `node`). Nothing here drives a browser:
+  the pages are checked by hand.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture
   fails rather than skips, because a skip once silently turned the goldens off.

@@ -120,6 +120,16 @@ or AOD-related has been observed on a watch or in the simulator.
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
   screen with one warning. `docs/guide/preview-and-cli.md`.
+- **The editor** (`wfb studio`) — a local web app: new from a template,
+  open and download a bundle (`.zip` with `face.yaml` and `assets/`, or a
+  plain `.yaml`), the canvas's drags (move, resize, an arc's angles, a
+  line's ends, snapping) written in the author's units to the key the
+  viewed watch reads, every key in an inspector, targets, colours,
+  schemes, styles and fonts, structure (add any type, reorder, static and
+  dynamic, groups), a YAML tab with the schema, and a history with undo
+  and snapshots that survives restarts. Every edit but typed text is a
+  patch of the text checked by the full load (`wfb/edit/`); the browser
+  draws the compiler's layers and decides nothing. `docs/guide/studio.md`.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
@@ -170,27 +180,8 @@ specifies each item.
    otherwise built (`api-gated`: modules, fields, complication types); the
    hook is read by `wfb.availability.source_unavailable` for a future
    source whose read needs an extra function.
-8. **The GUI** (ADR 0002 amendment, 2026-10-01): decided, not built.
-   `wfb studio` will be a local web app on Starlette and uvicorn, with a
-   no-build-step front end, started with no face: the author creates one
-   from a template or uploads one (a `.zip` with `face.yaml` and
-   `assets/`, or a plain `.yaml`), and downloads it to save. It edits the
-   file's text by span patches, never by re-dumping (research 26 §3), over
-   every property: a layer tree, the colours and styles, an inspector, and
-   a YAML tab. Undo, redo and snapshots persist in a history store. The
-   browser draws per-element layers from the single draw program and makes
-   no drawing decisions (research 27 §5); the program is built. Building
-   from the editor is not planned yet. **Built so far:** the server, the
-   bundle format, new/open/download, a missing font added in place, the
-   history (undo and redo across restarts, snapshots on a timer and on
-   download, restore, open a copy, pruning), the viewer (layer tree,
-   frames per device and style, selection, diagnostics), the inspector
-   (every key of an element, geometry per device or shape), the Face
-   panel (targets, colours renamed everywhere, schemes, styles, fonts),
-   the canvas's drags (move, resize, radius, an arc's angles, a line's
-   ends, with snapping) written in the author's units, structure (add any
-   type, delete, duplicate, reorder, static and dynamic, across layouts,
-   group and ungroup), and the YAML tab (CodeMirror with the schema).
+8. Building and sideloading from the editor (`wfb studio`): it opens,
+   edits and downloads a face; `wfb build` builds it.
 9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
    its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
    its baseline (`tests/mypy-baseline.txt`) is empty.
@@ -209,15 +200,6 @@ specifies each item.
     places an element in the Instinct window; `overrides:` patches an
     element's geometry per device id or shape.
 
-## Architecture work decided, not built
-
-- **The visual editor** (decided 2026-10-01, re-scoped 2026-10-02): a
-  client-driven web app that opens and saves faces by upload and download
-  and edits every property, reverting no shipped feature and drawing
-  per-element layers from the draw program. Its patch engine is built
-  (`wfb/edit/`: text patches, the gate, drags in the author's units), and
-  so are the server, the viewer, the inspector, the Face panel, the
-  canvas's drags, structural edits and the YAML tab (`wfb/studio/`).
 13. **Reserved by format 2** (plan 22 §5), each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`

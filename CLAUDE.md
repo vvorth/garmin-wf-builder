@@ -53,7 +53,8 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
-`docs/guide/` is the format reference, `docs/limitations.md` records the
+`wfb/studio/` is the editor (`wfb studio`), over the patch engine in
+`wfb/edit/`. `docs/guide/` is the format reference, `docs/limitations.md` records the
 platform and linter limits, and `docs/container.md` covers the Docker image.
 `README.md` is the short landing page with a feature gallery, and
 `docs/README.md` is the documentation hub indexing the `docs/guide/`
@@ -297,11 +298,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
-  - editing in the GUI (`wfb studio`, a local web app over the YAML text,
-    ADR 0002 amendments): its patch engine (`wfb/edit/`), server, bundles,
-    history, viewer, inspector, Face panel, canvas drags, structural
-    edits and YAML tab (`wfb/studio/`) are built; slice 7's close-out
-    docs are not (`docs/lore/roadmap.md`);
+  - building or sideloading from the editor (`wfb studio`): download,
+    then `wfb build`;
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`;
@@ -319,8 +317,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   on a slot (`slot:`) and `max: auto`, scaled per metric; `pattern:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
   and the burn-in lint; the `config:` settings menu on a watch without the
-  native editor. One line each, with the guide chapter, in
-  `docs/lore/roadmap.md`.
+  native editor; the editor, `wfb studio` (`wfb/edit/` patches the text,
+  `wfb/studio/` serves it, `docs/guide/studio.md`). One line each, with the
+  guide chapter, in `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

@@ -30,7 +30,14 @@ alias wfb="$PWD/wfb.py"
 wfb new "My Face"                 # a working face from a template
 wfb preview my-face.yaml --watch  # a PNG that redraws every time you save
 wfb build my-face.yaml            # one signed .prg per watch
+wfb studio my-face.yaml           # or edit it in the browser: http://127.0.0.1:8765/
 ```
+
+`wfb studio` is a visual editor: drag and resize elements on the watch's
+screen, edit their keys and the face's colours, styles and fonts, arrange
+layers, or edit the YAML itself, with undo and snapshots. It writes your
+own YAML back in your units, comments kept
+([the editor](docs/guide/studio.md)).
 
 A complete face (a clock) is under 20 lines:
 

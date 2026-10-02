@@ -8,9 +8,7 @@ back here.
 
 ## Open
 
-| Plan | Status |
-|---|---|
-| [27 `wfb studio`, the visual editor](27-studio.md) | accepted 2026-10-02, re-scoped the same day (client-driven, upload/download bundles, persistent history, every property editable; build postponed); slices 0–6 done, 7 to go |
+None.
 
 ## Built and deleted
 
@@ -40,3 +38,4 @@ as built:
 | 23 `outline:` everywhere | `git show 96462ed:docs/plans/23-outline-everything.md` (§1 is D1–D5, §3 the slices: slice 1 `badb527` (shapes, icons), slice 2 `fde32fa` (hands), slice 3 `88f79ae` (groups), slice 4 `96462ed` (patterns, gauges), slice 5 the example/screenshot/doc-sweep commit that deleted it; research 19 is the measurement record) |
 | 20 screen shapes | `git show fb290f9:docs/plans/20-screen-shapes.md` (§2 is the slices: 1 rectangles exercised, 2 the skin mask, 3 two-colour panels, 5 `anchor: subscreen`; slice 4, `overrides:` with D1 as recommended, is the commit that deleted it; research 16 is the evidence) |
 | 26 the single draw program | `git show 270c595:docs/plans/26-draw-program.md` (§1 is P1–P4; §3 records every slice with its proof: slice 0 `0a699f0` (the core), slice 1 `acf16ad`/`9770f65` (`shape`), slice 2 `27b3a3e` (`text`), slice 3 `dd1d280` (layers and the JSON form), slice 4 `a08431a` (`icon`), slice 5 `84a3e7c` (gauges), slice 6 `b311526` (`pattern`), slice 7 `8819a45` (`hands`), slice 8 `93cc476` (`graph`), slice 9 `d84987a` (`data`), slice 10 `270c595` (the guards, Q1's grown ring, the close-out), and the commit that deleted it; research 27 is the case, research 28 §7 Q1's answer) |
+| 27 `wfb studio`, the editor | `git show cf4b310:docs/plans/27-studio.md` (§1 is D1–D3, E2/E4, G1–G6 and the user's re-scope S1–S7, which superseded G4's working copy and E2's geometry-only editor; §3 records every slice with its measurements: slice 0 `4cf31ce` (the patch engine), the re-scope `b29de9d`, slice 1 `86bf2d0` (server, bundles, viewer), slice 2 `f7503e4` (history), slice 3 `dcfc17d` (inspector, Face panel), slice 4 `7adc83c` (canvas drags), slice 5 `3934629` (structure), slice 6 `cf4b310` (YAML tab), slice 7 the close-out that deleted it) |
