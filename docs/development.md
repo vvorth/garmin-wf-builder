@@ -217,7 +217,8 @@ prints that list as the body of `draw<Id>` (`wfb.draw.printer`) and the
 preview paints it (`wfb.draw.evaluator`), so the two cannot disagree. A kind
 that lowers needs neither `emit_draw` nor `draw_preview`. One that does not
 keeps both, and `wfb.draw.emit_body` and `paint` route each element to
-whichever its kind has. The evaluator computes a barrel call with its
+whichever its kind has. `shape` lowers; the other kinds still have
+both methods. The evaluator computes a barrel call with its
 Python transcription (`wfb.draw.barrel`). Each transcription is checked
 against the `.mc` source and swept against a model of the pixels the watch
 draws (`tests/test_draw_barrel.py`).

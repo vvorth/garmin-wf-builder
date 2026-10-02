@@ -12,22 +12,26 @@ from collections.abc import Iterable
 
 from .. import formatting
 from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import glyph_y_expr, mc_color, plus
+from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, plus
 from ..emit.writer import Writer
 from .program import (
-    ArcSpan, Blank, Color, Comment, Concat, Const, FillPolygon, IfAod, IfNotNull, LetText, Lit,
-    LoadFont, Num, Op, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Color, Comment, Concat, Const, Disagreement,
+    FillPolygon, IfAod, IfNotNull, LetText, Lit, LoadFont, Num, Op, Paint, Primitive, Reading,
+    SetColor, SetPen, Shifted, Str, StrLit, Text,
 )
 
 
-def num_code(n: Num) -> str:
+def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
     if isinstance(n, Const):
         return f"Layout.{n.name}"
     if isinstance(n, Lit):
         return str(int(n.value)) if float(n.value).is_integer() else repr(n.value)
     if isinstance(n, Shifted):
-        return shapes.shifted(num_code(n.base), n.by)
-    return plus(num_code(n.base), str(n.by), n.times)
+        return shapes.shifted(num_code(n.base, aod), n.by)
+    if isinstance(n, AodPick):
+        asleep = num_code(n.asleep, aod) if n.asleep is not None else None
+        return aod.value(asleep, num_code(n.awake, aod))
+    return plus(num_code(n.base, aod), str(n.by), n.times)
 
 
 def str_code(s: Str) -> str:
@@ -41,29 +45,39 @@ def str_code(s: Str) -> str:
     return s.name
 
 
-def color_code(c: Color) -> str:
-    return mc_color(c.expr)
+def color_code(c: Paint, aod: AodStyle = NO_AOD) -> str:
+    if isinstance(c, Color):
+        return mc_color(c.expr)
+    if isinstance(c, AodRestyled):
+        return aod.color(c.element, c.key)
+    if isinstance(c, AodDimmed):
+        return aod.dimmed(c.element, c.expr)
+    return "ringColor"
 
 
-def print_ops(w: Writer, ops: Iterable[Op]) -> None:
-    """Write ``ops`` into ``w``, in order."""
+def print_ops(w: Writer, ops: Iterable[Op], aod: AodStyle = NO_AOD) -> None:
+    """Write ``ops`` into ``w``, in order, spelling every always-on choice
+    the way this build's ``aod`` does (none at all in an all-MIP build)."""
     for op in ops:
-        _print(w, op)
+        _print(w, op, aod)
 
 
-def _print(w: Writer, op: Op) -> None:
+def _print(w: Writer, op: Op, aod: AodStyle) -> None:
+    def n(value: Num) -> str:
+        return num_code(value, aod)
+
     if isinstance(op, SetColor):
-        w.line(f"dc.setColor({color_code(op.color)}, Graphics.COLOR_TRANSPARENT);")
+        w.line(f"dc.setColor({color_code(op.color, aod)}, Graphics.COLOR_TRANSPARENT);")
     elif isinstance(op, SetPen):
-        w.line(f"dc.setPenWidth({num_code(op.width) if op.width is not None else '1'});")
+        w.line(f"dc.setPenWidth({n(op.width) if op.width is not None else '1'});")
     elif isinstance(op, Primitive):
-        w.call(f"dc.{op.name}", [", ".join(num_code(n) for n in group) for group in op.args])
+        w.call(f"dc.{op.name}", [", ".join(n(v) for v in group) for group in op.args])
     elif isinstance(op, FillPolygon):
         w.line(f"dc.fillPolygon(Layout.{op.const});")
     elif isinstance(op, ArcSpan):
         w.call("WfbArc.drawSpan", [
-            f"dc, {num_code(op.cx)}, {num_code(op.cy)}, {num_code(op.radius)}",
-            f"{num_code(op.pen)}, {num_code(op.start)}, {num_code(op.sweep)}",
+            f"dc, {n(op.cx)}, {n(op.cy)}, {n(op.radius)}",
+            f"{n(op.pen)}, {n(op.start)}, {n(op.sweep)}",
         ])
     elif isinstance(op, LoadFont):
         w.line(f"var {op.local} = _{op.field};")
@@ -71,7 +85,7 @@ def _print(w: Writer, op: Op) -> None:
             with w.block(f"if ({op.local} == null)"):
                 w.line("return;  // the font resource failed to load")
     elif isinstance(op, Text):
-        _print_text(w, op)
+        _print_text(w, op, aod)
     elif isinstance(op, LetText):
         w.line(f"var {op.name} = {str_code(op.initial)};")
         available = " && ".join(f"{guard} != null" for guard in op.guards)
@@ -79,13 +93,15 @@ def _print(w: Writer, op: Op) -> None:
             w.line(f"{op.name} = {str_code(op.value)};")
     elif isinstance(op, IfNotNull):
         with w.block(f"if ({op.local} != null)"):
-            print_ops(w, op.body)
+            print_ops(w, op.body, aod)
     elif isinstance(op, IfAod):
         with w.block("if (_aod)"):
-            print_ops(w, op.then)
+            print_ops(w, op.then, aod)
         if op.otherwise:
             with w.block("else"):
-                print_ops(w, op.otherwise)
+                print_ops(w, op.otherwise, aod)
+    elif isinstance(op, Disagreement):
+        print_ops(w, op.watch, aod)
     elif isinstance(op, Comment):
         w.comment(op.text)
     elif isinstance(op, Blank):
@@ -94,21 +110,22 @@ def _print(w: Writer, op: Op) -> None:
         raise TypeError(f"not an op: {op!r}")
 
 
-def _print_text(w: Writer, op: Text) -> None:
-    x, y = num_code(op.x), num_code(op.y)
+def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
+    x, y = num_code(op.x, aod), num_code(op.y, aod)
     justify = " | ".join(f"Graphics.{flag}" for flag in op.justify)
     value = str_code(op.text)
     font = op.font.code
     if op.style == "angled":
         assert op.angle is not None
         w.call("dc.drawAngledText", [f"{x}, {y}, {font}, {value}",
-                                     f"{justify}, {num_code(op.angle)}"])
+                                     f"{justify}, {num_code(op.angle, aod)}"])
     elif op.style == "radial":
         assert op.angle is not None and op.radius is not None
         direction = shapes.RADIAL_DIRECTION[op.direction or "clockwise"]
-        radius = shapes.radial_radius_expr(num_code(op.radius), op.valign, op.direction, font)
+        radius = shapes.radial_radius_expr(num_code(op.radius, aod), op.valign, op.direction,
+                                           font)
         w.call("dc.drawRadialText", [f"{x}, {y}, {font}, {value}",
-                                     f"{justify}, {num_code(op.angle)}, {radius}",
+                                     f"{justify}, {num_code(op.angle, aod)}, {radius}",
                                      f"Graphics.{direction}"])
     else:
         w.call("dc.drawText", [f"{x}, {glyph_y_expr(y, op.valign, font)}, {font}",

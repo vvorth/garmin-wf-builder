@@ -16,8 +16,9 @@ from .. import expr, formatting
 from ..catalog import Type
 from . import barrel
 from .program import (
-    ArcSpan, Blank, Comment, Concat, Const, FillPolygon, Grown, IfAod, IfNotNull, LetText, Lit,
-    LoadFont, Num, Op, Primitive, Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
+    AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Color, Comment, Concat, Const, Disagreement,
+    FillPolygon, Grown, IfAod, IfNotNull, LetText, Lit, LoadFont, Num, Op, Paint, Primitive,
+    Reading, SetColor, SetPen, Shifted, Str, StrLit, Text,
 )
 
 if TYPE_CHECKING:
@@ -28,13 +29,16 @@ RGB = tuple[int, int, int]
 _JUSTIFY_ALIGN = {"TEXT_JUSTIFY_LEFT": "left", "TEXT_JUSTIFY_RIGHT": "right"}
 
 
-def num_value(n: Num) -> float:
+def num_value(n: Num, aod: bool = False) -> float:
+    """``n`` on this device, in the always-on frame when ``aod``."""
     if isinstance(n, (Const, Lit)):
         return n.value
     if isinstance(n, Shifted):
-        return num_value(n.base) + n.by
+        return num_value(n.base, aod) + n.by
+    if isinstance(n, AodPick):
+        return num_value(n.asleep if aod and n.asleep is not None else n.awake, aod)
     assert isinstance(n, Grown)
-    return num_value(n.base) + n.by * n.times
+    return num_value(n.base, aod) + n.by * n.times
 
 
 def str_value(s: Str, values: dict[str, object], env: dict[str, str | None]) -> str | None:
@@ -64,11 +68,29 @@ class Evaluator:
     """Paints one element's program into a `Renderer`, keeping the `Dc`
     state (colour, pen width) and the program's locals between ops."""
 
-    def __init__(self, renderer: "Renderer") -> None:
+    def __init__(self, renderer: "Renderer", ring_color: RGB | None = None) -> None:
         self.renderer = renderer
+        #: What `RingColor` paints: an outlined group's colour, for a ring
+        #: pass.
+        self.ring_color = ring_color
         self.color: RGB = (255, 255, 255)
         self.pen = 1
         self.locals: dict[str, str | None] = {}
+
+    def num(self, n: Num) -> float:
+        return num_value(n, self.renderer.options.aod)
+
+    def paint(self, c: Paint) -> RGB:
+        r = self.renderer
+        if isinstance(c, Color):
+            return r.color(c.expr)
+        if isinstance(c, AodRestyled):
+            return r.aod_color(c.element, c.key, getattr(c.element, c.key))
+        if isinstance(c, AodDimmed):
+            return r.aod_dimmed(c.element, c.expr)
+        if self.ring_color is None:
+            raise ValueError("a ring pass painted without its group's colour")
+        return self.ring_color
 
     def run(self, ops: Iterable[Op]) -> None:
         for op in ops:
@@ -77,9 +99,9 @@ class Evaluator:
     def _run(self, op: Op) -> None:
         r = self.renderer
         if isinstance(op, SetColor):
-            self.color = r.color(op.color.expr)
+            self.color = self.paint(op.color)
         elif isinstance(op, SetPen):
-            self.pen = int(num_value(op.width)) if op.width is not None else 1
+            self.pen = int(self.num(op.width)) if op.width is not None else 1
         elif isinstance(op, Primitive):
             self._primitive(op)
         elif isinstance(op, FillPolygon):
@@ -99,6 +121,8 @@ class Evaluator:
             self.run(op.body)
         elif isinstance(op, IfAod):
             self.run(op.then if r.options.aod else op.otherwise)
+        elif isinstance(op, Disagreement):
+            self.run(op.preview)
         elif isinstance(op, (LoadFont, Comment, Blank)):
             pass
         else:  # pragma: no cover - every Op is handled above
@@ -107,7 +131,7 @@ class Evaluator:
     def _primitive(self, op: Primitive) -> None:
         r = self.renderer
         s = r.scale
-        v = [num_value(n) for group in op.args for n in group]
+        v = [self.num(n) for group in op.args for n in group]
         fill = op.name.startswith("fill")
         shape = op.name[4:]
         width = max(1, self.pen * s)
@@ -139,21 +163,21 @@ class Evaluator:
 
     def _arc(self, op: ArcSpan) -> None:
         r = self.renderer
-        radius = num_value(op.radius)
-        call = barrel.draw_span(num_value(op.start), num_value(op.sweep))
+        radius = self.num(op.radius)
+        call = barrel.draw_span(self.num(op.start), self.num(op.sweep))
         if radius <= 0 or call is None:
             return
         s = r.scale
-        cx, cy, rr = num_value(op.cx) * s, num_value(op.cy) * s, radius * s
+        cx, cy, rr = self.num(op.cx) * s, self.num(op.cy) * s, radius * s
         r.draw.arc([cx - rr, cy - rr, cx + rr, cy + rr], *barrel.pillow_arc(call),
-                   fill=self.color, width=max(1, int(num_value(op.pen)) * s))
+                   fill=self.color, width=max(1, int(self.num(op.pen)) * s))
 
     def _text(self, op: Text) -> None:
         r = self.renderer
         text = str_value(op.text, r.values, self.locals)
         if text is None:
             return
-        anchor = (int(num_value(op.x)), int(num_value(op.y)))
+        anchor = (int(self.num(op.x)), int(self.num(op.y)))
         align = next((_JUSTIFY_ALIGN[f] for f in op.justify if f in _JUSTIFY_ALIGN), "center")
         if op.font.vector:
             r.draw_vector_text(

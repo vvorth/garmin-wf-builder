@@ -166,16 +166,36 @@ dc.drawRadialText(Layout.A_X, Layout.A_Y, font, "R",
 
 
 @pytest.mark.parametrize("scale", [1, 2])
-def test_the_evaluator_paints_each_primitive_as_the_preview_does(db, scale):
+def test_the_evaluator_paints_each_filled_primitive_over_its_resolved_geometry(db, scale):
+    """Every filled rectangle, circle, ellipse and polygon in the shapes
+    example, from its hand-built program, covers exactly the box its
+    resolved geometry gives at the preview's scale: the `Dc` emulation's
+    own convention, checked against layout rather than against itself."""
     resolved = resolved_example(SHAPES, db, DEVICE)
-    shapes = _plain_shapes(resolved)
-    assert {p.element.shape for p in shapes} >= {
-        "rectangle", "circle", "ellipse", "line", "arc", "polygon"}
-    for placed in shapes:
-        today, program = _renderer(resolved, scale), _renderer(resolved, scale)
-        kinds.for_placed(placed).draw_preview(today, placed)
-        evaluator.evaluate(_shape_program(placed), program)
-        assert _differing(today.image, program.image) == 0, placed.id
+    checked = set()
+    for placed in _plain_shapes(resolved):
+        e = placed.element
+        if not e.filled or e.shape not in ("rectangle", "circle", "ellipse", "polygon"):
+            continue
+        renderer = _renderer(resolved, scale)
+        program = _shape_program(placed)
+        program[0] = SetColor(Color(None))  # white, whatever the design's colour
+        evaluator.evaluate(program, renderer)
+        s = scale
+        if e.shape == "rectangle":
+            box = placed.rect or placed.inner_box
+            expected = (box.x * s, box.y * s, box.right * s, box.bottom * s)
+        elif e.shape == "polygon":
+            xs, ys = [x for x, _ in placed.points], [y for _, y in placed.points]
+            expected = (min(xs) * s, min(ys) * s, max(xs) * s + 1, max(ys) * s + 1)
+        else:
+            rx, ry = ((placed.radius, placed.radius) if e.shape == "circle"
+                      else (placed.rx, placed.ry))
+            cx, cy = placed.center
+            expected = ((cx - rx) * s, (cy - ry) * s, (cx + rx) * s + 1, (cy + ry) * s + 1)
+        assert renderer.image.getbbox() == expected, (placed.id, scale)
+        checked.add(e.shape)
+    assert checked == {"rectangle", "circle", "ellipse", "polygon"}
 
 
 def test_the_evaluator_paints_text_as_the_preview_does(db):
@@ -258,12 +278,6 @@ def test_a_lowered_kind_is_printed_and_painted_and_its_old_methods_never_run(db,
         through.render_element(placed)
         evaluator.evaluate(programs[placed.id], direct)
         assert _differing(through.image, direct.image) == 0, placed.id
-
-
-def test_an_unported_kind_keeps_its_own_methods(db):
-    resolved = resolved_example(SHAPES, db, DEVICE)
-    placed = find(resolved, _plain_shapes(resolved)[0].id)
-    assert kinds.for_placed(placed).lower(DrawContext(resolved, NO_AOD), placed) is None
 
 
 def test_lowers_sees_an_override_and_only_an_override(monkeypatch):

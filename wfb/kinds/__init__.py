@@ -240,9 +240,10 @@ P = TypeVar("P", bound="Placed")
 
 class ElementKind(Generic[E, P]):
     """One element kind's behaviour.  A kind module subclasses this, sets the
-    three class attributes that name it, overrides `build`/`resolve`/
-    `draw_preview`/`emit_draw`, and assigns an instance to its module-level
-    `KIND`.
+    three class attributes that name it, overrides `build`/`resolve` and
+    either `lower` (its drawing as one program, `wfb.draw`) or both
+    `draw_preview` and `emit_draw`, and assigns an instance to its
+    module-level `KIND`.
 
     Every other method and attribute has a default meaning "nothing to do
     here", so a kind overrides only where it actually differs.  `group` is

@@ -47,7 +47,7 @@ def emit_body(w: "Writer", resolved: "ResolvedFace", placed: "Placed",
         else:
             kind.emit_draw(w, resolved, placed, value_guards, plan, aod, ring=ring)
         return
-    print_ops(w, ops)
+    print_ops(w, ops, aod)
 
 
 def paint(renderer: "Renderer", placed: "Placed") -> bool:

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from ..devices import FontMetric
     from ..emit.monkeyc.common import AodStyle, RingPass
-    from ..ir.model import Expression
+    from ..ir.model import Element, Expression
     from ..layout import ResolvedFace
     from ..units import IntBox
 
@@ -60,7 +60,18 @@ class Grown:
     times: int = 1
 
 
-Num: "TypeAlias" = Union[Const, Lit, Shifted, Grown]
+@dataclass(frozen=True)
+class AodPick:
+    """``awake``, or ``asleep`` in the always-on frame: an `aod:` override
+    of a length (`thickness:`), ``(_aod ? <asleep> : <awake>)`` in a build
+    with AOD code (`AodStyle.value`).  ``asleep`` is `None` when the
+    element has no override, which prints and evaluates as ``awake``."""
+
+    awake: "Num"
+    asleep: "Num | None"
+
+
+Num: "TypeAlias" = Union[Const, Lit, Shifted, Grown, AodPick]
 
 
 # -- strings --------------------------------------------------------------------
@@ -106,9 +117,40 @@ Str: "TypeAlias" = Union[StrLit, Reading, Concat, Local]
 @dataclass(frozen=True)
 class Color:
     """A colour expression; `None` is `Graphics.COLOR_WHITE`
-    (`wfb.emit.monkeyc.common.mc_color`)."""
+    (`wfb.emit.monkeyc.common.mc_color`).  The same in every frame."""
 
     expr: "Expression | None"
+
+
+@dataclass(frozen=True)
+class AodRestyled:
+    """``element``'s own ``key`` colour (`color`, `track_color`,
+    `icon_color`) as the always-on frame restyles it: its `aod:` override,
+    else dimmed by `aod: {dim: ...}`, else unchanged.  One decision,
+    `wfb.ir.aod_color_choice`, which `AodStyle.color` prints and
+    `Renderer.aod_color` evaluates."""
+
+    element: "Element"
+    key: str
+
+
+@dataclass(frozen=True)
+class AodDimmed:
+    """``expr`` dimmed in the always-on frame and unchanged otherwise: a
+    colour no `aod:` key reaches, such as an `outline:` ring carried over
+    from the awake design (`AodStyle.dimmed`, `Renderer.aod_dimmed`)."""
+
+    element: "Element"
+    expr: "Expression | None"
+
+
+@dataclass(frozen=True)
+class RingColor:
+    """The `ringColor` parameter of a `ring<Id>` method: an outlined
+    group's colour, which the group's ring pass hands its members."""
+
+
+Paint: "TypeAlias" = Union[Color, AodRestyled, AodDimmed, RingColor]
 
 
 @dataclass(frozen=True)
@@ -131,7 +173,7 @@ class Font:
 class SetColor:
     """`dc.setColor(<color>, Graphics.COLOR_TRANSPARENT)`."""
 
-    color: Color
+    color: "Paint"
 
 
 @dataclass(frozen=True)
@@ -237,6 +279,18 @@ class IfAod:
 
 
 @dataclass(frozen=True)
+class Disagreement:
+    """A known difference between what the watch is sent (``watch``, which
+    the printer writes) and what the host draws (``preview``, which the
+    evaluator paints), kept explicit until it is resolved.  ``why`` names
+    it.  Every use is meant to go once the difference is settled."""
+
+    watch: tuple["Op", ...]
+    preview: tuple["Op", ...]
+    why: str
+
+
+@dataclass(frozen=True)
 class Comment:
     """A `//` line, for the printer only."""
 
@@ -249,7 +303,7 @@ class Blank:
 
 
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, LoadFont, Text,
-                        LetText, IfNotNull, IfAod, Comment, Blank]
+                        LetText, IfNotNull, IfAod, Disagreement, Comment, Blank]
 
 
 # -- what lowering is given ------------------------------------------------------

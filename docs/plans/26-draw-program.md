@@ -230,7 +230,36 @@ preview.
   kind calls.
 - Nothing is ported. Snapshot: no change.
 
-### Slice 1 — `shape`, with AOD and group ring passes
+### Slice 1 — `shape`, with AOD and group ring passes: done
+
+Built as below. `ShapeKind.lower` replaces `emit_draw`, `draw_preview` and
+their private helpers. The program gained four things for it:
+- `AodPick`: a length's `aod:` override, `(_aod ? a : b)`;
+- three paints: `AodRestyled` (`AodStyle.color` / `Renderer.aod_color`),
+  `AodDimmed` (`.dimmed` / `.aod_dimmed`) and `RingColor` (a group's
+  `ringColor`);
+- `Disagreement`, which prints one side and paints the other.
+
+The printer takes the build's `AodStyle`; the preview lowers with
+`on=True` and picks by frame.
+
+`tools/snapshot.py`: 537 unchanged, the 2 `wfb doctor` path lines as
+before. That is every generated file and every preview variant (awake,
+asleep, all styles, AOD, the masked minutes, the heat map). Real builds of
+`features/shapes` and `features/profile` are warning-free on all three
+targets.
+
+How the two expected diffs actually landed:
+1. **The half-degree arc start** is fixed by the port itself. A shape's arc
+   is now painted from `WfbArc.drawSpan`'s transcription fed the Garmin
+   start, so no shim kept the old rounding. No example or fixture has a
+   half-degree start, which is why the snapshot is unchanged. The
+   follow-up commit adds the test that shows it. A gauge's arc keeps
+   `preview.arc_span` until slice 5.
+2. **The grown ring** is a `Disagreement` op until Q1: the watch is sent
+   the grown copy, as before, and the preview paints the stamp, as before.
+   Resolving Q1 removes the op, one way or the other.
+
 
 - `ShapeKind.lower()` covers:
   - every primitive;
