@@ -20,7 +20,8 @@ from . import barrel
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
-    FillPolygon, FloatLit, FontDrop, For, Glyph, Grown, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    FillPolygon, FloatLit, Font, FontDrop, FontHeight, For, Glyph, Grown, HandAngle, IsPulsing,
+    Return, SlotIcon, SlotPull, SlotText, TextWidth, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, NotPulsing, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
     NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
@@ -89,16 +90,57 @@ def _arith(a: Any, op: str, b: Any) -> Any:
     return float(a) % float(b)  # pragma: no cover - no program takes a Float's %
 
 
+class Measure:
+    """The host's `dc.getTextWidthInPixels`/`dc.getFontHeight`: a baked
+    sheet's own metrics, else the device face's (`wfb.fonts.fallback`, from
+    the renderer's `fonts_root`)."""
+
+    def __init__(self, renderer: "Renderer") -> None:
+        self.renderer = renderer
+
+    def text_width(self, text: str, font: Font) -> int:
+        from ..fonts import fallback
+
+        r = self.renderer
+        baked = r.resolved.fonts.get(font.baked) if font.baked is not None else None
+        if baked is not None:
+            return baked.measure(text)[0]
+        if font.metric is not None:
+            return fallback.measure(text, font.metric, fonts_root=r.options.fonts_root)[0]
+        return 0
+
+    def font_height(self, font: Font) -> int:
+        from ..fonts import fallback
+
+        r = self.renderer
+        baked = r.resolved.fonts.get(font.baked) if font.baked is not None else None
+        if baked is not None:
+            return int(baked.line_height)
+        if font.metric is not None:
+            return int(fallback.line_height(font.metric, fonts_root=r.options.fonts_root))
+        return font.px
+
+
 def num_value(n: Num, aod: bool = False, env: Mapping[str, Any] | None = None,
-              values: Mapping[str, object] | None = None) -> Any:
+              values: Mapping[str, object] | None = None,
+              measure: Measure | None = None) -> Any:
     """``n`` on this device, in the always-on frame when ``aod``, with the
-    program's locals ``env`` and the sample readings ``values``: a number,
-    or `None` when a reading in it is absent."""
+    program's locals ``env``, the sample readings ``values`` and, for a
+    text measurement, ``measure``: a number, or `None` when a reading in it
+    is absent."""
     env = {} if env is None else env
     values = {} if values is None else values
 
     def value(m: Num) -> Any:
-        return num_value(m, aod, env, values)
+        return num_value(m, aod, env, values, measure)
+
+    if isinstance(n, (TextWidth, FontHeight)):
+        if measure is None:
+            raise ValueError("a text measurement evaluated without a renderer")
+        if isinstance(n, FontHeight):
+            return measure.font_height(n.font)
+        text = str_value(n.text, dict(values), env, aod)
+        return measure.text_width(text, n.font) if text is not None else None
 
     if isinstance(n, (Const, Lit)):
         return n.value
@@ -197,6 +239,8 @@ def cond_value(c: Cond, aod: bool = False, env: Mapping[str, Any] | None = None,
         return bool(expr.evaluate(e.ast, dict(values)))
     if isinstance(c, NotSleeping):
         return not (asleep or aod)
+    if isinstance(c, IsPulsing):
+        return False
     assert isinstance(c, NotPulsing)
     return True
 
@@ -251,7 +295,7 @@ class Evaluator:
 
     def num(self, n: Num) -> Any:
         r = self.renderer
-        return num_value(n, r.options.aod, self.locals, r.values)
+        return num_value(n, r.options.aod, self.locals, r.values, Measure(r))
 
     def cond(self, c: Cond) -> bool:
         r = self.renderer
@@ -265,6 +309,11 @@ class Evaluator:
         r = self.renderer
         if isinstance(c, Color):
             return r.color(c.expr)
+        if isinstance(c, AodRestyled) and c.awake is not None:
+            override = getattr(c.element.aod, c.key, None) if c.element.aod is not None else None
+            if r.options.aod and override is not None:
+                return r.color(override)
+            return self.paint(c.awake)
         if isinstance(c, AodRestyled):
             return r.aod_color(c.element, c.key, getattr(c.element, c.key))
         if isinstance(c, AodDimmed):
@@ -343,6 +392,15 @@ class Evaluator:
             self.loop(op, self.run)
         elif isinstance(op, Continue):
             raise _Next
+        elif isinstance(op, Return):
+            raise Stop
+        elif isinstance(op, SlotPull):
+            self.locals["pulled"] = Pulled(op.sample)
+        elif isinstance(op, SlotIcon):
+            self.locals["iconFont"] = op.key if r.resolved.fonts.get(op.key) else None
+            self.locals["iconGlyph"] = op.glyph
+        elif isinstance(op, SlotText):
+            self.locals["text"] = slot_text(op, r.values)
         elif isinstance(op, LetSlotPick):
             self.locals["pulled"] = Pulled(op.sample)
             self.locals["scale"] = op.scale
@@ -545,6 +603,26 @@ def series_ops(op: SeriesDraw, ev: Evaluator) -> list[Op]:
     bar = int(ev.num(op.width))
     return [Primitive("fillRectangle", ((Lit(bx), Lit(by), Lit(bw), Lit(bh)),))
             for bx, by, bw, bh in barrel.series_bars(x, y, w, h, bar, values, lo, hi)]
+
+
+def slot_text(op: SlotText, values: Mapping[str, object]) -> str:
+    """A data element's reading on the host: the sample formatted by the
+    type's own rule at the preview's sample settings (`wfb preview --units
+    statute` flips the units), behind the illustrative label."""
+    from .. import complications
+
+    statute = {key: values.get(f"device.{key}_units") == 1
+               for key in ("distance", "elevation", "temperature", "pace")}
+    settings = complications.ReadingSettings(
+        is_24_hour=bool(values.get("device.is_24_hour", True)),
+        statute_distance=statute["distance"], statute_elevation=statute["elevation"],
+        statute_temperature=statute["temperature"], statute_pace=statute["pace"],
+    )
+    reading = complications.format_reading(op.type_name, op.sample, unit=op.unit,
+                                           short=op.short, settings=settings)
+    if reading is None:
+        return op.placeholder or "" if op.when_absent == "placeholder" else ""
+    return op.label_sample + reading
 
 
 def auto_scale(op: LetAutoScale, values: Mapping[str, object]) -> tuple[float, float] | None:

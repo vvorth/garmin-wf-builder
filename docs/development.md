@@ -219,9 +219,9 @@ prints that list as the body of `draw<Id>` (`wfb.draw.printer`) and the
 preview paints it (`wfb.draw.evaluator`), so the two cannot disagree. A kind
 that lowers needs neither `emit_draw` nor `draw_preview`. One that does not
 keeps both, and `wfb.draw.emit_body` and `paint` route each element to
-whichever its kind has. `shape`, `text`, `icon`, `progress`, `pattern`,
-`hands` and `graph` lower; the other kinds still have both methods. `wfb.draw.drawn_text` gives the string a lowered
-element draws at given readings, without painting it.
+whichever its kind has. Every kind that draws lowers; `group` draws
+nothing itself. `wfb.draw.drawn_text` gives the string a lowered element
+draws at given readings, without painting it.
 
 **A frame as layers (`wfb.draw.layers`).** `layers(resolved, options)`
 returns each element `wfb.preview.render` draws as its own transparent RGBA

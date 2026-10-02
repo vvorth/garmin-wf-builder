@@ -163,8 +163,26 @@ class HandAngle:
     hand: str
 
 
+@dataclass(frozen=True)
+class TextWidth:
+    """``dc.getTextWidthInPixels(<text>, <font>)``: on the host, the baked
+    sheet's advance width, else the device face's (`fallback.measure`)."""
+
+    text: "Str"
+    font: "Font"
+
+
+@dataclass(frozen=True)
+class FontHeight:
+    """``dc.getFontHeight(<font>)``: on the host, the baked sheet's line
+    height, else the device face's (`fallback.line_height`), else the
+    font's nominal pixel size."""
+
+    font: "Font"
+
+
 Num: "TypeAlias" = Union[Const, Lit, Shifted, Grown, AodPick, FloatLit, NumLocal, Read, Bin,
-                         Paren, Call, Conv, NumPick, FontDrop, HandAngle]
+                         Paren, Call, Conv, NumPick, FontDrop, HandAngle, TextWidth, FontHeight]
 
 
 # -- conditions -----------------------------------------------------------------
@@ -226,7 +244,16 @@ class NotSleeping:
     always-on frame."""
 
 
-Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing, AnyOf, Truthy, NotSleeping]
+@dataclass(frozen=True)
+class IsPulsing:
+    """``_pulsing == <unique>``: the native editor is animating config slot
+    ``unique``.  Never the case on the host."""
+
+    unique: int
+
+
+Cond: "TypeAlias" = Union[Present, LocalsSet, Cmp, NotPulsing, AnyOf, Truthy, NotSleeping,
+                          IsPulsing]
 
 
 # -- strings --------------------------------------------------------------------
@@ -312,10 +339,13 @@ class AodRestyled:
     `icon_color`) as the always-on frame restyles it: its `aod:` override,
     else dimmed by `aod: {dim: ...}`, else unchanged.  One decision,
     `wfb.ir.aod_color_choice`, which `AodStyle.color` prints and
-    `Renderer.aod_color` evaluates."""
+    `Renderer.aod_color` evaluates.  ``awake`` stands in for an element
+    that never wrote ``key`` (a slot's icon in its text's colour), so only
+    an override replaces it."""
 
     element: "Element"
     key: str
+    awake: "Paint | None" = None
 
 
 @dataclass(frozen=True)
@@ -380,6 +410,9 @@ class Font:
     #: The font drawn in the always-on frame instead, from an `aod: {font:
     #: ...}` override; ``code`` already names the choice between the two.
     asleep: "Font | None" = None
+    #: The nominal pixel size, the host's height for a font it cannot
+    #: measure.
+    px: int = 0
 
 
 # -- ops ------------------------------------------------------------------------
@@ -548,6 +581,9 @@ class Text:
     shift_y: bool = True
     #: The call's `x` on a line of its own, as a pattern's text part prints it.
     split_x: bool = False
+    #: ``x, y, font, text`` on the first line and the justify flags on the
+    #: second, as a data element prints it.
+    joined: bool = False
 
 
 @dataclass(frozen=True)
@@ -686,6 +722,58 @@ class LetAutoScale:
 
 
 @dataclass(frozen=True)
+class Return:
+    """``return;``.  On the host, the element draws nothing more."""
+
+
+@dataclass(frozen=True)
+class SlotPull:
+    """``var chosenId = <field>; var pulled = WfbComplications.valueOf(chosenId);``
+    (null-safe where `Complications` may be absent, ``guarded``): the
+    wearer's pick on a config slot, pulled fresh.  On the host a
+    complication whose value is ``sample``, the slot's `default:` reading."""
+
+    field: str
+    guarded: bool
+    sample: object
+
+
+@dataclass(frozen=True)
+class SlotIcon:
+    """``iconFont``, ``iconName`` (``<method>(chosenId.getType(), pulled)``)
+    and ``iconGlyph`` (`IconGlyphs.glyph`): a data element's icon, chosen
+    from the picked type.  On the host the icon font ``font`` (when it
+    baked) and the default pick's glyph, ``glyph``.  ``font`` is the
+    view's field, ``key`` the icon font's `ResolvedFace.fonts` key."""
+
+    font: str
+    key: str
+    method: str
+    guarded: bool
+    glyph: str | None
+
+
+@dataclass(frozen=True)
+class SlotText:
+    """``text``: a data element's reading (`<module>.reading(...)`), its
+    label in front, or under `absent:` its placeholder or nothing.  On the
+    host the reading is `wfb.complications.format_reading` of ``sample`` for
+    ``type_name`` at the preview's sample settings, behind ``label_sample``
+    (an illustrative label: the real one comes from the device)."""
+
+    module: str
+    guarded: bool
+    unit: bool
+    short: bool
+    label: str | None
+    when_absent: str | None
+    placeholder: str | None
+    type_name: str
+    sample: object
+    label_sample: str
+
+
+@dataclass(frozen=True)
 class WrapperGuard:
     """The view's own guard around a `draw<Id>` body (`view.
     _emit_element_method`), which the view prints and the printer
@@ -724,7 +812,8 @@ class Blank:
 Op: "TypeAlias" = Union[SetColor, SetPen, Primitive, FillPolygon, ArcSpan, ArcProgress, Part,
                         SeriesRebuild, SeriesDraw,
                         LoadFont, Text, Glyph, LetText, IfNotNull, IfAod, IfAwake, Let, Assign,
-                        If, For, Continue, LetSlotPick, LetAutoScale, WrapperGuard, Disagreement, Comment,
+                        If, For, Continue, Return, SlotPull, SlotIcon, SlotText, LetSlotPick,
+                        LetAutoScale, WrapperGuard, Disagreement, Comment,
                         Blank]
 
 

@@ -487,10 +487,9 @@ Tests:
 - **A large face's re-render on release** (showcase, 250 ms memoised)
   could feel slow. The image shift hides it during the gesture, and the
   drop is one render.
-- **Unported kinds** (`icon`, gauges, `pattern`, `hands`, `graph`,
-  complication slots until plan 26's slices 4–9) get only the image shift
-  during a gesture. Correctness is the same, because the server renders
-  every release.
+- **Every drawing kind lowers** (plan 26 slices 1–9), so every layer
+  carries its JSON op list and slice 4's live redraw reaches all of them.
+  Correctness never depended on it: the server renders every release.
 - **CodeMirror bundle upkeep (G5):** one script with pinned versions,
   rerun deliberately.
 - **A forgotten working copy.** Unsaved work sits in a hidden file beside

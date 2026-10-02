@@ -4,11 +4,11 @@ at."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 from .. import complications, icons, units, vocab
 from ..diagnostics import Span
-from ..fonts import BakedFont, fallback
 from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import HOLD_AUTO, ComplicationSlot, ConfigDataSlot, Element, Expression
 from ..ir.naming import complication_slot_hold_method, complication_slot_icon_method
@@ -16,21 +16,23 @@ from ..layout import (
     COMPLICATION_SLOT_ICON_GAP, Placed, PlacedComplicationSlot,
     alignment_shift, complication_slot_pair_geometry, longer,
 )
-from ..preview import baked_glyph
 from ..units import Box, IntBox
 from ..emit.monkeyc import complication_slot as complication_slot_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, RingPass
 from ..emit.resources import COMPLICATION_TEXT_ALPHABET
-from ..emit.writer import Writer
+from ..draw.program import (
+    AodRestyled, Assign, Bin, Blank, Cmp, Comment, Cond, Const, DrawContext, Font, FontHeight, If,
+    IsPulsing, Let, Lit, LoadFont, Local, LocalsSet, Num, NumLocal, NumPick, Op, Paint, Return,
+    SetColor, SlotIcon, SlotPull, SlotText, Str, Text, TextWidth,
+)
+from ..emit.monkeyc.common import const_prefix, font_field
+from ..ir.naming import config_data_ids, config_field
 from . import ElementKind, IconFont, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..ir.model import Face
-    from ..emit.monkeyc.readplan import ReadPlan
-    from ..layout import ResolvedFace, Resolver
-    from ..preview import Renderer
+    from ..layout import Resolver
 
 #: Illustrative raw readings for a `complication_slot` preview, keyed by
 #: `wfb.complications.TYPES` name, in the units the SDK documents -- not
@@ -193,35 +195,6 @@ def highlight_box(box: IntBox, anchor_x: int, align: str, screen_width: int) -> 
     return IntBox(left, box.y, right - left, box.height).union(box)
 
 
-def _preview_settings(renderer: Renderer) -> complications.ReadingSettings:
-    """The preview's own `device.*` sample settings, as a reading follows
-    them (`wfb preview --units statute` flips the units)."""
-    values = renderer.values
-    statute = {key: values.get(f"device.{key}_units") == 1
-               for key in ("distance", "elevation", "temperature", "pace")}
-    return complications.ReadingSettings(
-        is_24_hour=bool(values.get("device.is_24_hour", True)),
-        statute_distance=statute["distance"], statute_elevation=statute["elevation"],
-        statute_temperature=statute["temperature"], statute_pace=statute["pace"],
-    )
-
-
-def _complication_slot_text(element: ComplicationSlot, ctype: complications.ComplicationType,
-                            settings: complications.ReadingSettings) -> str:
-    """An illustrative reading for `ctype`, drawn the way
-    `wfb.emit.monkeyc.complication_slot.emit_complication_slot` draws one:
-    an optional label prefix, then the reading by the type's own rule --
-    approximate only in that the label comes from the device at runtime."""
-    value = COMPLICATION_SLOT_SAMPLE.get(
-        ctype.name, 12 if ctype.value_type != "string" else "--")
-    reading = complications.format_reading(
-        ctype.name, value, unit=element.unit, short=element.short, settings=settings)
-    if reading is None:
-        return element.placeholder or "" if element.when_absent == "placeholder" else ""
-    prefix = {"short": "Now ", "long": "Current "}.get(element.label, "")
-    return prefix + reading
-
-
 def _text_glyphs(element: ComplicationSlot, face: Face) -> set[str]:
     """Every character the slot's reading could render.  The wearer can
     point this slot at any of its choices, each with its own rule, so the
@@ -277,6 +250,116 @@ def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
                       element.resolved_antialias),
         glyph_table=table)
 
+def _general_pair(element: ComplicationSlot, placed: PlacedComplicationSlot, prefix: str,
+                  font: Font, icon_font: Font | None, icon_shown: Cond | None, text_paint: Paint,
+                  icon_paint: Paint | None, draw: Callable[..., Op]) -> list[Op]:
+    """Any `icon_position:` other than the default `left`, an authored
+    `icon_gap:`/`icon_color:` on `left` itself, or a non-default
+    `align:`/`vertical_align:`: the pair's alignment is computed on the watch,
+    from `Dc.getTextWidthInPixels`/`Dc.getFontHeight`, since neither the
+    real text nor the real icon is known until the value is pulled.  Every
+    offset is chosen here from `align`/`vertical_align` alone, never a
+    runtime branch; `center` reproduces the fast path's expression.
+
+    One axis table serves both layouts: the pair lies along a row (`left`/
+    `right`) or a column (`top`/`bottom`).  Along it, the `lead` position
+    draws the icon first and `main_align` shifts where the pair starts;
+    across it, the other key shifts the shared axis.  Each local is declared
+    only when something reads it afterwards: an unused local warns under
+    `-l 3` (`tests/test_align_glyph_kinds.py` checks every combination)."""
+    cx = Const(f"{prefix}_CX", placed.anchor_point[0])
+    cy = Const(f"{prefix}_CY", placed.anchor_point[1])
+    gap_value: Num = (Const(f"{prefix}_ICON_GAP", placed.icon_gap_px)
+                      if element.icon_gap is not None else Lit(COMPLICATION_SLOT_ICON_GAP))
+    has_icon = icon_shown is not None
+    text, glyph = Local("text"), Local("iconGlyph")
+    ops: list[Op] = [SetColor(text_paint)]
+    row = placed.icon_position in ("left", "right")
+    if row:
+        lead, trail, main_align, cross_align = "left", "right", element.align, element.vertical_align
+        size, icon_local, start, center = "Width", "iconGlyphWidth", "startX", cx
+        text_size: Num = TextWidth(text, font)
+        icon_size: Num | None = TextWidth(glyph, icon_font) if icon_font is not None else None
+        justify: tuple[str, ...] = ("TEXT_JUSTIFY_LEFT", "TEXT_JUSTIFY_VCENTER")
+    else:
+        lead, trail, main_align, cross_align = "top", "bottom", element.vertical_align, element.align
+        size, icon_local, start, center = "Height", "iconHeight", "startY", cy
+        text_size = FontHeight(font)
+        icon_size = FontHeight(icon_font) if icon_font is not None else None
+        justify = ("TEXT_JUSTIFY_CENTER",)
+    text_local, total = f"text{size}", f"total{size}"
+    position = placed.icon_position
+    if (position == trail and has_icon) or main_align != lead:
+        ops.append(Let(text_local, text_size))
+    if position == lead or main_align != lead:
+        ops.append(Let(icon_local, Lit(0)))
+        if icon_shown is not None and icon_size is not None:
+            ops.append(If(icon_shown, (Assign(icon_local, icon_size),)))
+    if position == lead or (position == trail and has_icon) or main_align != lead:
+        ops.append(Let("gap", NumPick(icon_shown, gap_value, Lit(0)) if icon_shown is not None
+                       else Lit(0)))
+    pieces = Bin("+", Bin("+", NumLocal(icon_local), NumLocal("gap")), NumLocal(text_local))
+    if main_align == lead:
+        ops.append(Let(start, center))
+    elif main_align == trail:
+        ops += [Let(total, pieces), Let(start, Bin("-", center, NumLocal(total)))]
+    else:
+        ops += [Let(total, pieces),
+                Let(start, Bin("-", center, Bin("/", NumLocal(total), Lit(2))))]
+
+    cross: Num
+    if row:
+        if cross_align == "center":
+            cross = cy
+        else:
+            ops.append(Let("rowHeight", FontHeight(font)))
+            if icon_shown is not None and icon_font is not None:
+                ops.append(If(icon_shown, (
+                    Let("iconRowHeight", FontHeight(icon_font)),
+                    If(Cmp(">", NumLocal("iconRowHeight"), NumLocal("rowHeight")),
+                       (Assign("rowHeight", NumLocal("iconRowHeight")),)))))
+            sign = "+" if cross_align == "top" else "-"
+            ops.append(Let("rowY", Bin(sign, cy, Bin("/", NumLocal("rowHeight"), Lit(2)))))
+            cross = NumLocal("rowY")
+    else:
+        if cross_align == "center":
+            cross = cx
+        else:
+            ops += [Let("textWidth", TextWidth(text, font)), Let("iconGlyphWidth", Lit(0))]
+            if icon_shown is not None and icon_font is not None:
+                ops.append(If(icon_shown, (Assign("iconGlyphWidth", TextWidth(glyph, icon_font)),)))
+            ops.append(Let("pairWidth", NumPick(
+                Cmp(">", NumLocal("iconGlyphWidth"), NumLocal("textWidth")),
+                NumLocal("iconGlyphWidth"), NumLocal("textWidth"))))
+            sign = "+" if cross_align == "left" else "-"
+            ops.append(Let("pairX", Bin(sign, cx, Bin("/", NumLocal("pairWidth"), Lit(2)))))
+            cross = NumLocal("pairX")
+
+    def at(offset: str | None) -> tuple[Num, Num]:
+        """``x, y`` for a piece ``offset`` along the pair from its start."""
+        along: Num = NumLocal(start)
+        if offset is not None:
+            along = Bin("+", Bin("+", along, NumLocal(offset)), NumLocal("gap"))
+        return (along, cross) if row else (cross, along)
+
+    def set_icon_color() -> list[Op]:
+        return [SetColor(icon_paint)] if icon_paint is not None else []
+
+    if position == lead:
+        if icon_shown is not None and icon_font is not None:
+            ops.append(If(icon_shown, (*set_icon_color(), draw(*at(None), icon_font, glyph,
+                                                               justify))))
+        if icon_paint is not None and icon_font is not None:
+            ops.append(SetColor(text_paint))
+        ops.append(draw(*at(icon_local), font, text, justify))
+    else:
+        ops.append(draw(*at(None), font, text, justify))
+        if icon_shown is not None and icon_font is not None:
+            ops.append(If(icon_shown, (*set_icon_color(), draw(*at(text_local), icon_font,
+                                                               glyph, justify))))
+    return ops
+
+
 class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]):
     name = "complication_slot"
     ir_class = ComplicationSlot
@@ -299,7 +382,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         this validates the *slot reference* and the authoring keys that do
         not depend on the choice (`icon_size:`, `format:`), and leaves
         everything about the pulled value itself to
-        `wfb.emit.monkeyc.complication_slot.emit_complication_slot`, which reads it fresh
+        `ComplicationSlotKind.lower`, which reads it fresh
         every frame the same way any other `complication.*` source does.
         """
         slot_raw = node["slot"]
@@ -387,7 +470,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         )
         font_ok = b.resolve_font(node, element)
         if font_ok and b.is_vector_font(element.font, element.font_is_custom):
-            # `emit_complication_slot` has no vector-font draw path.
+            # `ComplicationSlotKind.lower` has no vector-font draw path.
             b.bag.error(
                 "complication-slot",
                 f"{element.id}: 'font: font.{element.font}' is a 'face:' "
@@ -526,109 +609,126 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             runs.append(icon_run)
         return runs
 
-    def draw_preview(self, renderer: Renderer, placed: PlacedComplicationSlot) -> None:
-        """A `complication_slot`, previewed at its slot's *default* choice.
+    def lower(self, ctx: DrawContext, placed: PlacedComplicationSlot) -> list[Op]:
+        """A native Data-axis slot: pull the wearer's chosen complication,
+        choose an icon from its *type* alone, then draw the two as one pair.
 
-        There is no on-device editor to ask which type the wearer actually
-        picked -- the same reason `config:`'s colour axes preview at their
-        own `default:` above -- and the default is what a device without the
-        native editor (fr955) always shows anyway.  The reading itself is an
-        illustrative sample (`COMPLICATION_SLOT_SAMPLE`), not real data:
-        there is no live `Complications` subscription on the host.
-        """
+        Everything here is a plain per-frame pull (`WfbComplications.valueOf`),
+        like an ordinary `complication.<name>` source: the compiled field holds
+        a `Complications.Id` the *wearer* can repoint (complications are pulled,
+        not cached; docs/research/probes/complication-pull/).
+
+        The icon is chosen from `chosenId.getType()`, not from the pulled
+        value, so it still shows on a frame the reading could not be pulled
+        (docs/research/probes/config-axes/ProbeView.mc's `iconFor`).  The pair
+        is placed on the element's own anchor with `Dc.getTextWidthInPixels`:
+        the text is not known until the value is pulled, so unlike every other
+        element this cannot be precomputed (ADR 0004's one deliberate
+        exception).  `align`/`vertical_align` move the pair off the anchor
+        with the same per-`icon_position:` arithmetic; `center`/`center` with
+        the icon on the left, its default gap and the text's colour is the
+        fast path.
+
+        Every slot starts with a `_pulsing` guard: the native editor can
+        animate *any* slot's highlight (`getComplicationDrawable`), and the
+        SDK sample's own comment makes skipping the normal draw mandatory
+        while it does -- "This prevents the complication from being drawn on
+        the watch face while it is pulsing."
+
+        Where `Complications` may be absent (`ctx.complications_guarded`),
+        `chosenId` may be null, so both places that dereference it go through
+        a null-safe ternary; a null `chosenId` then reads like an unsupported
+        type: the icon and the pulled value both come back null.
+
+        On the host the pick is the slot's `default:` and the reading an
+        illustrative sample (`COMPLICATION_SLOT_SAMPLE`): there is no
+        on-device editor to ask, and no live subscription."""
         element = placed.element
-        slot = renderer.resolved.face.config_data.get(element.slot)
-        if slot is None:
-            return
+        aod = ctx.aod
+        prefix = const_prefix(placed.id)
+        face = ctx.resolved.face
+        slot = face.config_data[element.slot]
         ctype = complications.TYPES[slot.default]
-        color = renderer.aod_color(element, "color", element.color)
-        if element.icon_color is not None:
-            icon_color = renderer.aod_color(element, "icon_color", element.icon_color)
-        else:
-            # No awake `icon_color:` at all falls back to whatever colour
-            # `color` (above) already resolved to -- matches codegen's own
-            # "icon draws in the text's colour by default" rule exactly
-            # (`wfb.emit.monkeyc.complication_slot.emit_complication_slot`).
-            icon_aod = (
-                element.aod.icon_color if (renderer.options.aod and element.aod is not None) else None
-            )
-            icon_color = renderer.color(icon_aod) if icon_aod is not None else color
-        s = renderer.scale
+        sample = COMPLICATION_SLOT_SAMPLE.get(
+            ctype.name, 12 if ctype.value_type != "string" else "--")
+        guarded = ctx.complications_guarded
+        ops: list[Op] = [
+            Comment("the editor is animating this exact slot right now -- skip it, or the"),
+            Comment("system draws it twice while it pulses (SDK sample's own comment);"),
+            Comment("drawSlot lifts this for the editor's own drawable"),
+            If(IsPulsing(config_data_ids(face)[element.slot]), (Return(),)),
+            Blank(),
+            Comment(f"slot: config.data.{element.slot}"),
+            SlotPull(config_field(f"data_{element.slot}"), guarded,
+                     COMPLICATION_SLOT_SAMPLE.get(slot.default)),
+        ]
 
-        icon_font: BakedFont | None = None
-        icon_glyph = None
+        icon_font: Font | None = None
         if placed.icon_font_key is not None:
             icon = slot.icons.get(slot.default)
+            glyph = None
             if icon is not None:
-                icon_font = renderer.resolved.fonts.get(placed.icon_font_key)
-                icon_glyph = icon.codepoint
-                sample = COMPLICATION_SLOT_SAMPLE.get(slot.default)
+                glyph = icon.codepoint
                 if slot.default in slot.condition_icons and isinstance(sample, int):
-                    icon_glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
+                    glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
                         sample, "weather_unknown")].codepoint
+            ops.append(SlotIcon(font_field(placed.icon_font_key), placed.icon_font_key,
+                                complication_slot_icon_method(element.id), guarded, glyph))
+            icon_font = Font("iconFont", baked=placed.icon_font_key)
 
-        text = _complication_slot_text(element, ctype, _preview_settings(renderer))
-        text_font = (renderer.resolved.fonts.get(placed.font.reference)
-                     if placed.font.is_custom else None)
-        if text_font is not None:
-            text_width, text_height = text_font.measure(text)
-        elif placed.font.metric is not None:
-            # `fallback.measure`'s second return is whether real metrics were
-            # used, not a height -- `resolve` uses `fallback.line_height` for
-            # exactly this case, and
-            # this mirrors it. `fonts_root` matches `_system_face` below (the
-            # same `PreviewOptions.fonts_root` every other measurement this
-            # renderer makes goes through), so a slot's box is sized from the
-            # same file it is then drawn with.
-            text_width, _ = fallback.measure(text, placed.font.metric,
-                                             fonts_root=renderer.options.fonts_root)
-            text_height = fallback.line_height(placed.font.metric,
-                                               fonts_root=renderer.options.fonts_root)
+        if placed.font.is_custom:
+            ops.append(LoadFont("textFont", f"_{font_field(placed.font.reference)}"))
+            code = "textFont"
         else:
-            text_width, text_height = 0, placed.font.px
+            code = f"Graphics.{placed.font.reference}"
+        font = Font(code, baked=placed.font.reference if placed.font.is_custom else None,
+                    metric=placed.font.metric, px=placed.font.px)
+        ops += [
+            Blank(),
+            SlotText(complication_slot_mod.SLOT_TEXT_MODULE, guarded, element.unit, element.short, element.label,
+                     element.when_absent, element.placeholder, ctype.name, sample,
+                     {"short": "Now ", "long": "Current "}.get(element.label or "", "")),
+        ]
+        text_paint = AodRestyled(element, "color")
+        # `None` when the icon draws in the text's colour, `dc`'s state
+        # already: no `icon_color:` and no `aod: {icon_color: ...}` either.
+        has_override = aod.on and element.aod is not None and element.aod.icon_color is not None
+        icon_paint: Paint | None
+        if element.icon_color is None and not has_override:
+            icon_paint = None
+        elif element.icon_color is not None:
+            icon_paint = AodRestyled(element, "icon_color")
+        else:
+            icon_paint = AodRestyled(element, "icon_color", awake=text_paint)
+        text, glyph_text = Local("text"), Local("iconGlyph")
+        cx, cy = Const(f"{prefix}_CX", placed.anchor_point[0]), Const(f"{prefix}_CY",
+                                                                      placed.anchor_point[1])
+        icon_shown = LocalsSet(("iconGlyph", "iconFont")) if icon_font is not None else None
 
-        glyph_obj = baked_glyph(icon_font, icon_glyph)
-        icon_width, icon_height = (icon_font.measure(icon_glyph)
-                                   if glyph_obj is not None and icon_font is not None
-                                   and icon_glyph is not None else (0, 0))
+        def draw(x: Num, y: Num, face_: Font, string: Str, justify: tuple[str, ...]) -> Text:
+            valign = "center" if "TEXT_JUSTIFY_VCENTER" in justify else "top"
+            return Text(x, y, face_, string, justify, valign, joined=True)
 
-        # One shared geometry function for every position --
-        # `wfb.layout.complication_slot_pair_geometry`, the same one
-        # `resolve` uses to size the estimated
-        # box, called here with the *actual* measured extents this preview
-        # already has (unlike layout, which only has an estimate).
-        geometry = complication_slot_pair_geometry(
-            placed.icon_position, icon_width, icon_height, text_width, text_height,
-            placed.icon_gap_px,
-        )
-        ax, ay = placed.anchor_point
-        # `align`/`vertical_align` move the pair off the anchor -- the same
-        # `wfb.layout.alignment_shift` rule every other kind's preview
-        # uses, mirroring the arithmetic
-        # `wfb.emit.monkeyc.complication_slot.emit_complication_slot` computes at runtime
-        # from its own (real, pulled) measurements. center/center adds
-        # exactly `0.0`.
-        dx, dy = alignment_shift(geometry.width, geometry.height, element.align,
-                                 element.vertical_align)
-        origin_x = ax + dx - geometry.width / 2
-        origin_y = ay + dy - geometry.height / 2
-
-        if glyph_obj is not None and icon_font is not None and icon_font.sheet is not None:
-            renderer.paste_glyph(icon_font.sheet, glyph_obj,
-                              (origin_x + geometry.icon_x) * s,
-                              (origin_y + geometry.icon_y) * s, icon_color)
-
-        # `geometry.text_y` is the text's own line-box top, sized from the same
-        # measurement as `resolve`'s box; the glyph source draws from there.
-        source = renderer.glyph_source(text_font, placed.font.metric)
-        if source is not None:
-            source.draw(renderer, (origin_x + geometry.text_x) * s,
-                        (origin_y + geometry.text_y) * s, text, color)
-
-    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
-                  value_guards: list[str] | None, plan: ReadPlan,
-                  aod: AodStyle = NO_AOD, *, ring: RingPass | None = None) -> None:
-        complication_slot_mod.emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
+        fast = (placed.icon_position == "left" and element.icon_gap is None
+                and icon_paint is None and element.align == "center"
+                and element.vertical_align == "center")
+        if fast:
+            row = ("TEXT_JUSTIFY_LEFT", "TEXT_JUSTIFY_VCENTER")
+            ops += [SetColor(text_paint), Let("textWidth", TextWidth(text, font)),
+                    Let("iconWidth", Lit(0))]
+            if icon_font is not None and icon_shown is not None:
+                ops.append(If(icon_shown, (Assign("iconWidth", Bin(
+                    "+", TextWidth(glyph_text, icon_font), Lit(COMPLICATION_SLOT_ICON_GAP))),)))
+            ops += [Let("totalWidth", Bin("+", NumLocal("iconWidth"), NumLocal("textWidth"))),
+                    Let("startX", Bin("-", cx, Bin("/", NumLocal("totalWidth"), Lit(2))))]
+            if icon_font is not None and icon_shown is not None:
+                ops.append(If(icon_shown, (draw(NumLocal("startX"), cy, icon_font, glyph_text,
+                                                row),)))
+            ops.append(draw(Bin("+", NumLocal("startX"), NumLocal("iconWidth")), cy, font, text,
+                            row))
+            return ops
+        return ops + _general_pair(element, placed, prefix, font, icon_font, icon_shown,
+                                   text_paint, icon_paint, draw)
 
     def describe(self, placed: PlacedComplicationSlot) -> str:
         return f"a native Data-axis slot (config.data.{placed.element.slot})"

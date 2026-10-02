@@ -1,6 +1,6 @@
 # 26 — The single draw program
 
-**Status: accepted (2026-10-01); slices 0–8 done, 9–10 to go. Building it was decided by
+**Status: accepted (2026-10-01); slices 0–9 done, 10 to go. Building it was decided by
 the user on 2026-10-01 (research 27 §8, E1–E4), and P1–P4 (§1) were
 accepted as recommended the same day. Q1 (§7) waits on a simulator capture,
 needed only partway through slice 1.** Delete this file once every slice has
@@ -575,7 +575,53 @@ size-against-box contrast asserted), bars in whole-pixel slots at least
 1 px tall, and the truncating centring of a bar wider than its slot. Seen
 red: a fractional point, a fractional slot, and the unrounded size.
 
-### Slice 9 — the remaining kind
+### Slice 9 — `complication_slot` (the `data` element): done
+
+Built as below. `ComplicationSlotKind.lower` replaces `emit_draw`,
+`draw_preview` and two private helpers, and
+`wfb.emit.monkeyc.complication_slot.emit_complication_slot` is gone (the
+editor plumbing, icon and hold methods stay there). The pair's placement is
+the generated code's own arithmetic, now evaluated. The program gained:
+- `TextWidth` and `FontHeight` (`dc.getTextWidthInPixels`,
+  `dc.getFontHeight`), measured on the host by `evaluator.Measure` from the
+  baked sheet or the device face, the same metrics layout uses;
+- `SlotPull`, `SlotIcon` and `SlotText`: the pick, its icon (the default
+  pick's glyph, a weather type's following the sample condition) and its
+  reading (`format_reading` of the sample at the preview's settings, behind
+  an illustrative label);
+- `Return`, the condition `IsPulsing`, `Text.joined`, `Font.px`, and
+  `AodRestyled.awake`, a colour an element never wrote (a slot's icon in
+  its text's colour), which only an `aod:` override replaces.
+
+Proven before the old methods were deleted:
+- printed code byte-identical: **112/112** on every data element in
+  `examples/` and `tests/fixtures/`, and **2 448/2 448** over every `icon:
+  {position:}` × `align:` × with and without an icon, `icon: {color:}`,
+  `gap:` and an `aod:` icon colour, on fenix8solar47mm and fenix847mm, with
+  `Complications` guarded or not, with and without AOD code;
+- renders: one named cause. **The pair sits where the watch's whole-pixel
+  halves put it**: `CX - totalWidth / 2`, `CY ± rowHeight / 2` and the
+  column's `CY - totalHeight / 2` are divisions of two `Number`s, which the
+  old preview took as exact halves. Measured piece by piece (each piece's
+  ink box, old against new), nothing moves more than one preview pixel, half
+  a device pixel, in the examples, and at most one device pixel, vertically,
+  in the generated set, where only fenix847mm's odd line heights (53 px)
+  move anything; on fenix8solar47mm all 612 generated renders are identical.
+  Affected: `features/slots`, `features/slot-gauge`, `showcase`.
+
+`tools/snapshot.py` against slice 5's starting snapshot: 500 unchanged, 51
+changed: slice 8's 45 and six more previews (`features/slots` and
+`features/slot-gauge`, default, asleep and time; `showcase`'s were already
+changed). No generated file changed. Real builds of `features/slots`,
+`features/slot-gauge` and `showcase` are warning-free on all three targets.
+
+Tests (`tests/test_draw_slot.py`): the pair's start at `CX - total / 2`, a
+top-aligned row on a whole-pixel axis over an odd line height, the pulsing
+guard before the pull, and an `aod:` icon colour in the always-on frame
+only. Seen red: `/` as an exact half (with an odd total and an odd line
+height as the contrast), and an override colour in the awake frame.
+
+### The kinds, in order
 
 One kind per slice, in this order. Each deletes its `emit_draw` and
 `draw_preview` and is proven by the snapshot:
@@ -587,7 +633,7 @@ One kind per slice, in this order. Each deletes its `emit_draw` and
 | 6 (done) | `pattern` | `For` over copies, rotated parts (`WfbGeom.fillRotated` and the rest), pattern text | the largest kind (about 1 170 lines) |
 | 7 (done) | `hands` | `WfbHands.*Angle`, rotated parts, the second hand's low-power path | `onPartialUpdate`'s clip stays in `view.py` (P3) |
 | 8 (done) | `graph` | `WfbSeries.*` | series sampling stays host-side as now |
-| 9 | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |
+| 9 (done) | `complication_slot` | `WfbComplications.valueOf`/`count`, the slot's icon and text, the editor-highlight box | about 700 emitter lines today |
 
 Each kind's JSON op list joins the editor's layers as it lands.
 

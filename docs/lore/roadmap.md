@@ -188,9 +188,9 @@ specifies each item.
 
 ## Architecture work decided, not built
 
-- **A single draw program** (decided 2026-10-01; `shape`, `text`, `icon`,
-  `progress`, `pattern`, `hands` and `graph` are ported, with per-element layers and the JSON
-  form): each
+- **A single draw program** (decided 2026-10-01; every drawing kind is
+  ported, with per-element layers and the JSON form; the per-element
+  wrapper's guards and the close-out remain): each
   element is lowered once into a program of drawing steps over `Layout`
   constants and readings. A Monkey C printer, a Python evaluator (the
   preview) and a partly evaluated op list for a browser editor all consume

@@ -18,7 +18,8 @@ from ..ir import local_name
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv, Disagreement,
-    FillPolygon, FloatLit, FontDrop, For, Glyph, HandAngle, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
+    FillPolygon, FloatLit, FontDrop, FontHeight, For, Glyph, HandAngle, IsPulsing, Return,
+    SlotIcon, SlotPull, SlotText, TextWidth, IconChoice, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale,
     LetSlotPick, LetText, Lit, LoadFont, LocalsSet, Num, NumLocal, NumPick, Op, Paint,
     PaintPick, Paren, Part, PerCopy, SeriesDraw, SeriesRebuild, Present, Primitive, Read, Reading, SetColor, SetPen, Shifted,
     NotSleeping, Str, StrLit, Text, Truthy, WrapperGuard,
@@ -56,6 +57,10 @@ def num_code(n: Num, aod: AodStyle = NO_AOD) -> str:
         return glyph_y_expr(num_code(n.base, aod), n.valign, n.font)
     if isinstance(n, HandAngle):
         return f"WfbHands.{n.function}(clock)"
+    if isinstance(n, TextWidth):
+        return f"dc.getTextWidthInPixels({str_code(n.text, aod)}, {n.font.code})"
+    if isinstance(n, FontHeight):
+        return f"dc.getFontHeight({n.font.code})"
     return plus(num_code(n.base, aod), str(n.by), n.times)
 
 
@@ -71,6 +76,8 @@ def cond_code(c: Cond, aod: AodStyle = NO_AOD) -> str:
         return c.expr.code
     if isinstance(c, NotSleeping):
         return "!_sleeping"
+    if isinstance(c, IsPulsing):
+        return f"_pulsing == {c.unique}"
     return f"_pulsing != {c.unique}"
 
 
@@ -95,7 +102,8 @@ def color_code(c: Paint, aod: AodStyle = NO_AOD) -> str:
     if isinstance(c, Color):
         return mc_color(c.expr)
     if isinstance(c, AodRestyled):
-        return aod.color(c.element, c.key)
+        return aod.color(c.element, c.key,
+                         color_code(c.awake, aod) if c.awake is not None else None)
     if isinstance(c, AodDimmed):
         return aod.dimmed(c.element, c.expr)
     if isinstance(c, AodPaint):
@@ -180,6 +188,28 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
             print_ops(w, op.body, aod)
     elif isinstance(op, Continue):
         w.line("continue;")
+    elif isinstance(op, Return):
+        w.line("return;")
+    elif isinstance(op, SlotPull):
+        w.line(f"var chosenId = {op.field};")
+        if op.guarded:
+            w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
+        else:
+            w.line("var pulled = WfbComplications.valueOf(chosenId);")
+    elif isinstance(op, SlotIcon):
+        w.line(f"var iconFont = _{op.font};")
+        w.comment("the icon is chosen from the wearer's picked *type*, so it still shows")
+        w.comment("even on a frame the reading itself could not be pulled -- a name,")
+        w.comment("then IconGlyphs.glyph turns it into the actual character")
+        if op.guarded:
+            w.line(f"var iconName = (chosenId != null) ? {op.method}(chosenId.getType(), pulled) "
+                   ": null;")
+        else:
+            w.line(f"var iconName = {op.method}(chosenId.getType(), pulled);")
+        w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;")
+        w.blank()
+    elif isinstance(op, SlotText):
+        _print_slot_text(w, op)
     elif isinstance(op, LetSlotPick):
         w.line(f"var chosenId = {op.field};")
         if op.guarded:
@@ -233,6 +263,34 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
         raise TypeError(f"not an op: {op!r}")
 
 
+def _print_slot_text(w: Writer, op: SlotText) -> None:
+    def absent() -> None:
+        if op.when_absent == "placeholder":
+            w.comment("when_absent: placeholder")
+            w.line(f'text = "{op.placeholder}";')
+        else:
+            w.comment("when_absent: hide -- the reading blanks, the icon (if any) stays")
+
+    w.line('var text = "";')
+    unit = "true" if op.unit else "false"
+    short = "true" if op.short else "false"
+    with w.block("if (pulled == null || chosenId == null)" if op.guarded
+                 else "if (pulled == null)"):
+        absent()
+    with w.block("else"):
+        w.line(f"var reading = {op.module}.reading(chosenId.getType(), pulled, {unit}, {short});")
+        with w.block("if (reading == null)"):
+            absent()
+        with w.block("else"):
+            if op.label in ("short", "long"):
+                attr = "shortLabel" if op.label == "short" else "longLabel"
+                w.line(f"var label = pulled.{attr};")
+                with w.block("if (label != null)"):
+                    w.line('text = label + " ";')
+            w.line("text += reading;")
+    w.blank()
+
+
 def _note(note: str) -> str:
     return f"  // {note}" if note else ""
 
@@ -242,7 +300,9 @@ def _print_text(w: Writer, op: Text, aod: AodStyle) -> None:
     justify = " | ".join(f"Graphics.{flag}" for flag in op.justify)
     value = str_code(op.text, aod)
     font = op.font.code
-    if op.split_x:
+    if op.joined:
+        w.call("dc.drawText", [f"{x}, {y}, {font}, {value}", justify])
+    elif op.split_x:
         _print_split(w, op, x, y, font, value, justify, aod)
     elif op.style == "angled":
         assert op.angle is not None

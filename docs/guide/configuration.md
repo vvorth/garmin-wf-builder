@@ -395,9 +395,10 @@ Instead:
   for exactly that reason); the geometry lints below size its box from the
   value alone (see "What this compiler cannot tell you"). The pair's
   geometry -- for every icon `position:` -- is computed by one pure function,
-  `wfb.layout.complication_slot_pair_geometry`, shared by the layout
-  resolver (the estimated box) and `wfb preview`, and mirrored (not called
-  -- the real text is not known at build time) by the generated Monkey C.
+  `wfb.layout.complication_slot_pair_geometry`, which sizes the estimated
+  box the lints read, and mirrored (not called -- the real text is not
+  known at build time) by the generated Monkey C, whose own arithmetic
+  `wfb preview` evaluates.
   **`align:`** follows the one placement rule every accepting
   kind shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) --
   but because the pair is measured on the device, its alignment arithmetic

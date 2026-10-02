@@ -26,7 +26,8 @@ from .evaluator import Evaluator, Stop, part_ops, paste_glyph, series_ops
 from .program import (
     AodPick, ArcProgress, ArcSpan, Assign, Bin, Blank, Comment, Const, Disagreement, FillPolygon,
     Continue, Font, For, Glyph, Grown, If, IfAod, IfAwake, IfNotNull, Let, LetAutoScale, LetSlotPick,
-    LetText, Lit, LoadFont, Num, Op, Part, Primitive, SeriesDraw, SeriesRebuild, SetColor, SetPen, Shifted, Text,
+    LetText, Lit, LoadFont, Num, Op, Part, Primitive, Return, SeriesDraw, SeriesRebuild,
+    SlotIcon, SlotPull, SlotText, SetColor, SetPen, Shifted, Text,
     WrapperGuard,
 )
 
@@ -144,7 +145,8 @@ class _JsonWriter:
             ev.run([op])
         elif isinstance(op, SeriesDraw):
             self.walk(series_ops(op, ev))
-        elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard)):
+        elif isinstance(op, (Let, Assign, LetSlotPick, LetAutoScale, WrapperGuard, Return,
+                             SlotPull, SlotIcon, SlotText)):
             ev.run([op])
         elif isinstance(op, If):
             self.walk(op.then if ev.cond(op.cond) else op.otherwise)
