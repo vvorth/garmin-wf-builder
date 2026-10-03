@@ -46,7 +46,8 @@ stood then. What was built differs in these ways:
   gesture (§5.3) was postponed. The shipped editor shifts the dragged
   layer's image and redraws on release instead (research 28 §8). So
   "rule-free backends" today means two backends (printer and evaluator),
-  plus a JSON form that nothing consumes yet.
+  plus a JSON form that nothing consumes yet. Research 29 studies the
+  browser side.
 - **§7's questions** are all settled; research 28 has each outcome. The
   editor is `wfb studio` (`docs/guide/studio.md`).
 

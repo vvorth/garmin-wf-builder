@@ -1,0 +1,116 @@
+# Research 29 probe results
+
+## A. Op vocabulary and payload, per face (fr955, 2x)
+
+| face | layers | ops | text (baked/system/vector) | glyph | JSON KB | layer PNGs KB | layers ms | of which to_json ms |
+|---|---:|---:|---|---:|---:|---:|---:|---:|
+| analog-custom | 21 | 153 | 12/2/0 | 0 | 16.6 | 85.9 | 357 | 12 |
+| enduro | 16 | 60 | 0/3/0 | 1 | 6.9 | 26.6 | 156 | 6 |
+| features/align | 21 | 94 | 1/15/0 | 2 | 12.1 | 38.3 | 149 | 9 |
+| features/analog | 10 | 49 | 0/0/0 | 0 | 4.3 | 29.6 | 81 | 3 |
+| features/aod | 6 | 18 | 0/2/0 | 0 | 2.4 | 39.0 | 42 | 2 |
+| features/complications | 10 | 20 | 0/5/0 | 4 | 3.6 | 15.6 | 94 | 3 |
+| features/config | 5 | 11 | 0/3/0 | 0 | 1.8 | 32.4 | 37 | 2 |
+| features/gauge | 6 | 29 | 0/2/0 | 0 | 2.9 | 19.5 | 50 | 2 |
+| features/graph | 5 | 46 | 0/1/0 | 0 | 2.8 | 17.5 | 35 | 2 |
+| features/grid | 4 | 74 | 0/8/0 | 0 | 4.4 | 18.3 | 37 | 2 |
+| features/instinct | 8 | 16 | 0/4/0 | 2 | 2.7 | 20.5 | 57 | 3 |
+| features/outline | 8 | 88 | 6/0/56 | 0 | 16.5 | 26.8 | 336 | 4 |
+| features/patterns | 11 | 178 | 19/1/0 | 0 | 18.3 | 49.3 | 87 | 7 |
+| features/profile | 18 | 58 | 1/2/0 | 2 | 7.0 | 16.2 | 164 | 11 |
+| features/progress | 5 | 54 | 0/0/0 | 0 | 8.1 | 24.3 | 37 | 2 |
+| features/rings | 10 | 156 | 0/1/0 | 3 | 20.1 | 41.1 | 74 | 4 |
+| features/shapes | 11 | 32 | 0/1/0 | 0 | 3.5 | 29.3 | 77 | 3 |
+| features/slot-gauge | 9 | 34 | 2/4/0 | 0 | 4.5 | 30.1 | 64 | 3 |
+| features/slots | 4 | 11 | 2/3/0 | 0 | 1.9 | 24.1 | 30 | 1 |
+| features/styles | 5 | 11 | 0/3/0 | 0 | 1.8 | 31.1 | 37 | 2 |
+| features/sun | 2 | 5 | 0/0/0 | 0 | 0.7 | 20.1 | 17 | 1 |
+| features/units | 6 | 12 | 0/5/0 | 0 | 2.2 | 15.2 | 46 | 2 |
+| features/vector-text | 9 | 31 | 1/1/16 | 0 | 5.5 | 81.3 | 371 | 4 |
+| generated_by_skill/navy-classic | 22 | 277 | 0/2/3 | 0 | 28.1 | 78.9 | 165 | 12 |
+| generated_by_skill/trail-utility | 40 | 124 | 2/1/9 | 6 | 13.4 | 31.6 | 392 | 23 |
+| showcase | 28 | 73 | 4/8/0 | 8 | 11.6 | 34.1 | 243 | 20 |
+| system-fonts/numbers | 8 | 24 | 0/3/0 | 0 | 2.8 | 23.5 | 54 | 3 |
+| system-fonts/numbers-large | 6 | 18 | 0/2/0 | 0 | 2.0 | 15.9 | 43 | 2 |
+| system-fonts/text | 16 | 48 | 0/7/0 | 0 | 5.7 | 40.8 | 132 | 5 |
+
+Totals: 1804 ops; text baked 50, system 89, vector 84; glyph 28; JSON 214 KB against layer PNGs 957 KB.
+
+Op kinds over the corpus:
+
+- `color`: 512
+- `drawLine`: 375
+- `text`: 223
+- `pen`: 210
+- `fillPolygon`: 164
+- `fillCircle`: 103
+- `fillRectangle`: 102
+- `arc`: 60
+- `glyph`: 28
+- `drawCircle`: 15
+- `fillRoundedRectangle`: 6
+- `fillEllipse`: 3
+- `drawRoundedRectangle`: 1
+- `drawRectangle`: 1
+- `drawEllipse`: 1
+
+## B. A release's time, split (in-process, warm, best of 3)
+
+| face | drag total | of which load (parse, schema, IR) | of which resolve | commit + rest | frame | layers |
+|---|---:|---:|---:|---:|---:|---:|
+| features/progress (fenix8solar47mm) | 27 | 25 | 0 | 2 | 11 | 57 |
+| showcase (fenix8solar47mm) | 235 | 228 | 3 | 4 | 34 | 294 |
+| features/vector-text (fenix8solar47mm) | 40 | 36 | 1 | 3 | 156 | 394 |
+
+## C. A handle drag redrawn from the JSON alone
+
+| handle: result | count |
+|---|---:|
+| angle start_angle: literal values change (computed from the constant) | 17 |
+| angle sweep: literal values change (computed from the constant) | 17 |
+| size radius: exact from the named constant | 38 |
+| size radius: other constants change | 5 |
+| size size.height: exact from the named constant + the alignment shift | 61 |
+| size size.height: literal values change (computed from the constant) | 6 |
+| size size.height: other constants change | 5 |
+| size size.width: exact from the named constant | 2 |
+| size size.width: exact from the named constant + the alignment shift | 53 |
+| size size.width: literal values change (computed from the constant) | 12 |
+| size size.width: other constants change | 5 |
+
+Not predictable from the named constant alone (first 25):
+
+- enduro `arc_l` start_angle: literal values change (computed from the constant)
+- enduro `arc_l` sweep: literal values change (computed from the constant)
+- enduro `arc_r` start_angle: literal values change (computed from the constant)
+- enduro `arc_r` sweep: literal values change (computed from the constant)
+- align `se_card` size.width: other constants change: SE_CARD_CX, SE_CARD_RX
+- align `se_card` size.height: other constants change: SE_CARD_CY, SE_CARD_RY
+- align `top_accent` radius: other constants change: TOP_ACCENT_CX, TOP_ACCENT_CY
+- align `top_accent` start_angle: literal values change (computed from the constant)
+- align `top_accent` sweep: literal values change (computed from the constant)
+- align `crown_dot` radius: other constants change: CROWN_DOT_CX, CROWN_DOT_CY
+- align `steps_graph` size.width: literal values change (computed from the constant)
+- align `steps_graph` size.height: literal values change (computed from the constant)
+- align `steps_bar` size.width: literal values change (computed from the constant)
+- align `battery_arc` radius: other constants change: BATTERY_ARC_CX, BATTERY_ARC_CY
+- align `battery_arc` start_angle: literal values change (computed from the constant)
+- align `battery_arc` sweep: literal values change (computed from the constant)
+- aod `battery_ring` start_angle: literal values change (computed from the constant)
+- aod `battery_ring` sweep: literal values change (computed from the constant)
+- graph `hr_graph` size.width: literal values change (computed from the constant)
+- graph `hr_graph` size.height: literal values change (computed from the constant)
+- graph `steps_graph` size.width: literal values change (computed from the constant)
+- graph `steps_graph` size.height: literal values change (computed from the constant)
+- graph `temp_graph` size.width: literal values change (computed from the constant)
+- graph `temp_graph` size.height: literal values change (computed from the constant)
+- profile `egg_plain` size.width: other constants change: EGG_PLAIN_RX
+
+## D. The load a release pays, by stage (warm, best of 5, ms)
+
+| face | parse | schema | lower + desugar | IR | total |
+|---|---:|---:|---:|---:|---:|
+| features/progress | 10 | 12 | 0 | 1 | 23 |
+| showcase | 100 | 114 | 4 | 8 | 227 |
+| features/vector-text | 16 | 16 | 1 | 2 | 35 |
+

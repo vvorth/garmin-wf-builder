@@ -301,6 +301,7 @@ Each item says what was asked here, then how it turned out.
 
     `wfb.draw.jsonform` exists and is tested in Python against its
     reference rasteriser, but nothing in `wfb/studio/` uses it yet.
+    Research 29 studies building the browser side.
     Whether the shipped drag feels direct is checked by hand in a
     browser. No measurement is recorded.
 - **Primitive twins (27 §7).**
