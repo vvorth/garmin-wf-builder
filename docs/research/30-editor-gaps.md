@@ -13,9 +13,10 @@
    A custom colour should open a colour picker and get a name filled in
    automatically, like `cRRGGBB`, that can be edited at any time.
 
-**Status (2026-10-03): every decision is taken; planned as plan 30
-(`docs/plans/30-editor-gaps.md`), not yet built. No compiler or editor
-code changed.** §7 lists the decisions. **Decided by
+**Status (2026-10-03): built as plan 30**
+(`git show 07446be:docs/plans/30-editor-gaps.md`). What the editor does
+now is in `docs/guide/studio.md`; the departures from this document are
+listed in `docs/plans/README.md`'s row for plan 30. §7 lists the decisions. **Decided by
 the user, 2026-10-03:** L1, L3, S1, S2, H1, H2, C1 and K1–K5 as
 recommended. L2 without the "widest" option. S3 goes with the sessions
 work, not ahead of it. C2 is option B, keep every style entry (§4.4). K2
