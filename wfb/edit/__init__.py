@@ -13,6 +13,8 @@ rewrites some characters of that text and leaves every other byte alone:
   editor's own swatches renamed with their value and removed when unused;
 - `schemes`: colour-scheme edits, each changing every scheme, style
   entry and `color.<role>` it must as one patch;
+- `hands`: hand sets added from a preset, duplicated, renamed with every
+  `set:` and deleted while unused;
 - `gate`: what a patch must pass to be accepted -- it parses to exactly
   the intended data and loads with no new error;
 - `geometry`: a pixel drag on one device, written in the author's units to

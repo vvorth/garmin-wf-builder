@@ -169,6 +169,12 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
     case "icon": return html`<${Commit} value=${value} list="wfb-icons" onCommit=${onCommit} />`;
     case "complication": return enumSelect(ctx.vocab.complications || []);
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
+    case "handset": {
+      const set = (ctx.globals.hands || []).find((h) => h.name === value);
+      return html`<span class="handset">${enumSelect(ctx.globals.hand_sets || [])}
+        ${set && ctx.onReveal ? html`<a href="#" title="its hands' parts, in the YAML tab"
+          onClick=${(e) => { e.preventDefault(); ctx.onReveal(set.line, set.end); }}>edit the set</a>` : null}</span>`;
+    }
     case "enum": return enumSelect(field.enum.map(String));
     case "bool": return html`<select value=${value == null ? "" : String(value)}
         onChange=${(e) => e.target.value !== "" && onCommit(e.target.value === "true")}>
@@ -213,7 +219,7 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   </div>`;
 }
 
-export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError }) {
+export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal }) {
   const [ins, setIns] = useState(null);
   const setScope = onScope;
   useEffect(() => {
@@ -227,7 +233,7 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
-  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [] };
+  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal };
   return html`<div class="inspector">
     <div class="ins-head">
       <code>${ins.id}</code> <span class="dim">${ins.type}</span>
@@ -422,7 +428,53 @@ function AxisRow({ axis, entry, palette, onEdit }) {
   </div>`;
 }
 
-export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure }) {
+// `resources: hand_sets:`: each set drawn alone, its hands' colours, what
+// places it, and its parts in the YAML; new ones from a preset.
+function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
+  const sets = ctx.globals.hands || [];
+  const presets = ctx.vocab.hand_presets || [];
+  const [preset, setPreset] = useState("");
+  const device = (doc.targets || [])[0] || "";
+  const add = () => {
+    const taken = new Set(sets.map((s) => s.name));
+    const name = askName("Hand set", taken.has(preset) ? `${preset}_2` : preset);
+    if (name) onEdit({ op: "add_hand_set", name, preset });
+    setPreset("");
+  };
+  return html`${sets.length ? html`<ul class="rows">${sets.map((s) => html`<li class="hand-set">
+      <img class="hand-thumb" alt=${s.name} title="drawn alone at 10:09:42"
+        src=${`/api/documents/${doc.id}/handset?${new URLSearchParams({ name: s.name, device, scale: 1, v: doc.version })}`} />
+      <div class="hand-body">
+        <div class="slot-head">
+          <span class="name" title="rename (every set: naming it follows)" onClick=${() => {
+            const n = askName("Hand set", s.name); if (n && n !== s.name) onEdit({ op: "rename_hand_set", name: s.name, to: n }); }}>${s.name}</span>
+          <button title="a copy, to change without touching this one" onClick=${() => onEdit({ op: "duplicate_hand_set", name: s.name })}>Duplicate</button>
+          <button class="reset" title="delete (refused while an element places it)" onClick=${() => onEdit({ op: "delete_hand_set", name: s.name })}>×</button>
+        </div>
+        ${Object.entries(s.hands).map(([hand, h]) => html`<div class="slot-line">
+          <span class="dim">${hand}</span>
+          <${ColorPop} value=${h.color} ctx=${ctx} title=${`the ${hand} hand's colour (a part may set its own)`}
+            onPick=${(v) => onEdit({ op: "use_color", path: ["resources", "hand_sets", s.name, hand, "color"], value: v })} />
+          <span class="dim">${h.parts} part${h.parts === 1 ? "" : "s"}</span></div>`)}
+        <div class="slot-line"><span class="dim">placed by</span>
+          ${s.placed_by.length ? s.placed_by.map((id) => html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(id); }}>${id}</a>`)
+                               : html`<span class="dim">nothing</span>`}</div>
+        <div class="slot-line"><a href="#" title="a hand's parts are edited in the YAML" onClick=${(e) => { e.preventDefault(); onReveal(s.line, s.end); }}>Edit in YAML</a></div>
+      </div>
+    </li>`)}</ul>`
+    : html`<div class="dim note">A hand set is the shape of an analog dial's hands, drawn pointing at 12;
+        a <code>hands</code> element places it on the face and turns it with the time. Its parts are
+        edited in the YAML.</div>`}
+    <div class="row">
+      <select value=${preset} onChange=${(e) => setPreset(e.target.value)}>
+        <option value="">from a preset…</option>
+        ${presets.map((p) => html`<option value=${p}>${p}</option>`)}
+      </select>
+      <button disabled=${!preset} title=${sets.some((s) => s.placed_by.length) ? "" : "also places it at the centre"} onClick=${add}>+ Hand set</button>
+    </div>`;
+}
+
+export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure, onReveal }) {
   const g = doc.globals || {};
   const palette = g.palette || [];
   const schemes = g.schemes || { names: [], roles: [], colors: {} };
@@ -506,6 +558,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure 
           : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
       }}>+ Style</button>` : null}
       ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
+    </${Section}>
+
+    <${Section} title=${`Hand sets (${(g.hands || []).length})`}>
+      <${HandSets} doc=${doc} ctx=${ctx} onEdit=${onEdit} onSelect=${onSelect} onReveal=${onReveal || (() => {})} />
     </${Section}>
 
     <${Section} title=${`Slots (${(g.slots || []).length})`}>

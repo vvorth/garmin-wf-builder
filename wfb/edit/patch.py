@@ -240,7 +240,9 @@ def _set_value(index: SpanIndex, path: Path, value: Any, block: bool = False) ->
 
 def _block(value: Any, indent: int) -> str:
     """``value`` as block lines at ``indent``: a mapping's keys one per line,
-    a list's items as `- item`, anything nested in a list in flow style."""
+    a list's items as `- item`, anything nested in a list in flow style --
+    except a mapping item holding a list of mappings (a polygon part's
+    `points:`), which is a block under its dash, one point a line."""
     pad = " " * indent
     lines = []
     if isinstance(value, dict):
@@ -251,7 +253,11 @@ def _block(value: Any, indent: int) -> str:
                 lines.append(f"{pad}{key_text(str(k))}: {flow(v)}\n")
     else:
         for item in value:
-            lines.append(f"{pad}- {flow(item)}\n")
+            if isinstance(item, dict) and any(
+                    isinstance(v, list) and v and isinstance(v[0], dict) for v in item.values()):
+                lines.append(f"{pad}- " + _block(item, indent + 2)[indent + 2:])
+            else:
+                lines.append(f"{pad}- {flow(item)}\n")
     return "".join(lines)
 
 

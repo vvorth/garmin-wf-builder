@@ -200,6 +200,13 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             png = doc(request).thumbnail(key)
         return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
+    def hand_set(request: Request, data: bytes) -> Response:
+        scale = _int(request, "scale") if "scale" in request.query_params else 1
+        with studio.lock:
+            png = doc(request).hand_set_image(request.query_params.get("name", ""),
+                                             request.query_params.get("device", ""), scale)
+        return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
+
     def drag(request: Request, data: bytes) -> Response:
         try:
             body = json.loads(data or b"{}")
@@ -429,6 +436,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}", _endpoint(delete), methods=["DELETE"]),
             Route("/api/documents/{doc_id}/frame", _endpoint(frame)),
             Route("/api/documents/{doc_id}/thumbnail", _endpoint(thumbnail)),
+            Route("/api/documents/{doc_id}/handset", _endpoint(hand_set)),
             Route("/api/documents/{doc_id}/drag", _endpoint(drag, body=True), methods=["POST"]),
             Route("/api/documents/{doc_id}/assets", _endpoint(add_asset, body=True),
                   methods=["POST"]),

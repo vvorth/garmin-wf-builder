@@ -34,7 +34,7 @@ function lintFrom(view, items) {
   });
 }
 
-export function YamlPane({ doc, selected, onDoc, onSelect, onError }) {
+export function YamlPane({ doc, selected, reveal, onDoc, onSelect, onError }) {
   const host = useRef(null);
   const view = useRef(null);
   const state = useRef({ doc, acked: doc.text, timer: null, sending: false, selectTimer: null });
@@ -145,6 +145,17 @@ export function YamlPane({ doc, selected, onDoc, onSelect, onError }) {
     v.dispatch({ selection: EditorSelection.range(from, to), annotations: remote.of(true),
                  effects: EditorView.scrollIntoView(from, { y: "start", yMargin: 40 }) });
   }, [selected, doc.version]);
+
+  // lines asked for from elsewhere (a hand set's "Edit in YAML")
+  useEffect(() => {
+    const v = view.current;
+    if (!v || !reveal || reveal.line > v.state.doc.lines) return;
+    const from = v.state.doc.line(reveal.line).from;
+    const to = v.state.doc.line(Math.min(reveal.end || reveal.line, v.state.doc.lines)).to;
+    v.dispatch({ selection: EditorSelection.range(from, to), annotations: remote.of(true),
+                 effects: EditorView.scrollIntoView(from, { y: "start", yMargin: 40 }) });
+    v.focus();
+  }, [reveal && reveal.at]);
 
   return html`<div class="yaml-pane">
     <div class="yaml-host" ref=${host}></div>

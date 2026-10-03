@@ -256,3 +256,9 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .face-panel .axis-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .face-panel .axis-choices { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0 5em; font-size: 12px; }
 .face-panel .axis-choices label { display: inline-flex; gap: 4px; align-items: center; }
+/* hand sets */
+.face-panel li.hand-set { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+.hand-thumb { width: 64px; height: 64px; object-fit: contain; background: #000; border-radius: 8px; flex: none; }
+.hand-body { flex: 1; min-width: 0; }
+.handset { display: inline-flex; gap: 8px; align-items: center; }
+.handset a, .face-panel li.hand-set a { color: var(--accent); }

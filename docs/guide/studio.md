@@ -136,7 +136,8 @@ in `pt` cannot be dragged (a `pt` has no size outside its font).
 The selection's keys, every one the format offers for its type, each with
 a control: a number and its unit, an angle, the 3×3 alignment picker, a
 colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a
-reading, a font, an icon, a touch-and-hold target, a slot, a list of choices, on
+reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
+**edit the set**, its lines in the YAML tab), a list of choices, on
 or off. **×** removes a key, back to its default. A key no control covers,
 such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
 
@@ -226,6 +227,16 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
     names each copy, for you to delete or change.
 - **Styles**: the default, each style's layout and scheme, add (shaped like
   the others), delete ([styles and layouts](styles-and-layouts.md)).
+- **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
+  as at 10:09:42, on the face's first watch; each hand's colour through
+  the picker, and how many parts it has; the elements placing it (click
+  one to select it). Click a name to rename it: every `set:` naming it
+  follows. **Duplicate** copies it; **×** deletes it, refused while an
+  element places it. **Edit in YAML** opens the YAML tab with the set's
+  lines selected: a hand's parts are edited there. **+ Hand set** adds one
+  of four presets, `classic`, `baton`, `dauphine` and `subdial` (a small
+  seconds hand), in the face's own colours; on a face with no hands yet it
+  also places it at the centre.
 - **Slots**: the complication slots the wearer points at a reading on the
   watch ([the Data axis](configuration.md#the-data-axis)). **+ Slot** adds
   one, showing any complication. Click a slot's name to rename it (every
@@ -319,8 +330,8 @@ face from the home screen deletes its history.
 
 - Put the `.prg` on the watch: copy it yourself
   ([getting started](getting-started.md)).
-- Edit a polygon's points, or keys no control covers, except in the YAML
-  tab.
+- Edit a polygon's points, a hand's parts, or keys no control covers,
+  except in the YAML tab.
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
 

@@ -130,7 +130,9 @@ or AOD-related has been observed on a watch or in the simulator.
   ones, each picked colour a named swatch, `wfb/edit/colors.py`), the
   accent and data colour settings as explicit lists, schemes (made,
   added, renamed and removed with their roles and styles as one patch
-  each, `wfb/edit/schemes.py`), styles and fonts, structure (add any type, reorder, static and
+  each, `wfb/edit/schemes.py`), hand sets (from four presets, drawn
+  alone, renamed with every `set:`, `wfb/edit/hands.py`; parts in the
+  YAML), styles and fonts, structure (add any type, reorder, static and
   dynamic, groups), a YAML tab with the schema, a history with undo and
   snapshots that survives restarts, Build for one watch (`wfb build` as a
   subprocess, the `.prg` downloaded), a continuous zoom with real size

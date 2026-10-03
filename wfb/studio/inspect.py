@@ -23,7 +23,7 @@ from typing import Any
 
 from .. import catalog, complications, icon_catalog
 from ..devices import Device, DeviceDatabase
-from ..edit import colors
+from ..edit import colors, hands
 from ..edit.geometry import selector_paths
 from ..edit.spans import Path, SpanIndex, index_for
 from ..palette import MIP64_NAMED, Color, ColorError
@@ -109,6 +109,8 @@ def _widget(key: str, type_: str, node: dict[str, Any]) -> tuple[str, dict[str, 
         return "template", resolved
     if key == "slot":
         return "slot", resolved
+    if key == "set" and type_ == "hands":
+        return "handset", resolved
     if key == "font":
         return "font", resolved
     if key == "icon":
@@ -304,6 +306,7 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
         "axes": _axes(data),
         "displays": sorted({d.display_colors for d in devices if d.display_colors}),
         "hand_sets": list((resources.get("hand_sets") or {})),
+        "hands": hands.summary(index),
         "targets": targets,
     }
 
@@ -322,6 +325,7 @@ def vocabulary() -> dict[str, Any]:
         "series": series.names(),
         "types": element_types(),
         "mip": [{"name": n, "value": v, "label": label} for n, v, label in MIP64_NAMED],
+        "hand_presets": list(hands.presets()),
     }
 
 

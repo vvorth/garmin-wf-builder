@@ -34,7 +34,7 @@ from ..edit import (
     Gate, Refused, SpanIndex, remove, remove_slot, rename_key, rename_reference, rename_slot,
     set_value,
 )
-from ..edit import schemes
+from ..edit import hands, schemes
 from ..edit.colors import add_swatch, remove_unused, set_swatch, use_color
 from ..edit.patch import Patch
 from ..edit.geometry import Part, Scope, target
@@ -97,6 +97,8 @@ class Document:
         self._analysis: Analysis | None = None
         #: Frames, layers and thumbnails of this version, by what and key.
         self._frames: OrderedDict[tuple[str, FrameKey], Any] = OrderedDict()
+        #: Hand-set images, by version, set, device and scale.
+        self._hand_sets: dict[tuple[int, str, str, int], bytes] = {}
         #: This version's load, with its own diagnostics only (`analysis`), and
         #: the gate's load of the text about to become the head.
         self._loaded: Loaded | None = None
@@ -295,7 +297,10 @@ class Document:
           `like`), `rename_scheme` and `rename_role` (`name`, `to`),
           `delete_scheme` and `delete_role` (`name`), `remove_theme`
           (`keep`) and `add_role` (`name`, `value`: one colour, or one per
-          scheme).
+          scheme);
+        - the hand-set edits of `wfb.edit.hands`: `add_hand_set` (`name`,
+          `preset`), `duplicate_hand_set` and `delete_hand_set` (`name`),
+          `rename_hand_set` (`name`, `to`).
 
         A geometry key of an element (`element` and a `path` relative to it,
         such as `["at", "dy"]`) is written to the source ``scope`` names on
@@ -304,11 +309,11 @@ class Document:
         self._check(expected)
         kind = op.get("op")
         if kind not in ("set", "remove", "rename", "use_color", "add_swatch", "set_swatch",
-                        "remove_unused") and kind not in _SCHEME_EDITS:
+                        "remove_unused") and kind not in _COMPOUND_EDITS:
             raise Refused(f"unknown edit {kind!r}")
         index = index_for(self.text)
-        if kind in _SCHEME_EDITS:
-            patch = _SCHEME_EDITS[kind](index, op)
+        if kind in _COMPOUND_EDITS:
+            patch = _COMPOUND_EDITS[kind](index, op)
             after = self._gate().check(patch)
             return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
         if kind in ("add_swatch", "set_swatch", "remove_unused"):
@@ -591,6 +596,49 @@ class Document:
         frame: dict[str, Any] = self._cached("frame", key, make)
         return frame
 
+    def hand_set_image(self, name: str, device_id: str, scale: int = 1) -> bytes:
+        """The hand set ``name`` drawn alone on ``device_id``, at the
+        preview's sample time and centred, cropped to its ink: a throwaway
+        `hands` element placing it is loaded beside the face (so the set's
+        colours resolve as they do in the face) and its layer is cut out."""
+        from ..draw.layers import layers
+        from ..preview import PreviewOptions
+
+        slot = (self.version, name, device_id, scale)
+        cached = self._hand_sets.get(slot)
+        if cached is not None:
+            return cached
+        index = index_for(self.text)
+        if name not in hands.summary_names(index):
+            raise Refused(f"there is no hand set called {name}")
+        element = "wfb_hand_set_preview"
+        patch = set_value(index, ("elements", element),
+                          {"type": "hands", "set": name, "at": {"anchor": "center"}})
+        self.ensure_directory()
+        path = self.directory / ".hand-set.yaml"
+        path.write_text(patch.text, encoding="utf-8")
+        try:
+            loaded = load_text(path, patch.text)
+        finally:
+            path.unlink(missing_ok=True)
+        if loaded.face is None:
+            raise Refused("the face does not load: mend the errors in Diagnostics first")
+        device = self.studio.db.get(device_id)
+        resolved, _ = resolve_all(loaded.face, [device], Bag(), self.studio.memo)
+        options = PreviewOptions(scale=min(4, max(1, scale)))
+        image = next((layer.image for layer in layers(resolved[device.id], options)
+                      if layer.id == element), None)
+        ink = image.getchannel("A").getbbox() if image is not None else None
+        if image is None or ink is None:
+            raise Refused(f"the hand set {name} draws nothing on {device_id}")
+        buffer = io.BytesIO()
+        image.crop(ink).save(buffer, format="PNG", compress_level=1)
+        out = buffer.getvalue()
+        self._hand_sets[slot] = out
+        while len(self._hand_sets) > 32:
+            self._hand_sets.pop(next(iter(self._hand_sets)))
+        return out
+
     def thumbnail(self, key: FrameKey) -> bytes:
         """The frame as a PNG file, for the strip of targets."""
         from ..preview import render
@@ -745,8 +793,9 @@ def _text(op: dict[str, Any], key: str) -> str:
     return str(op.get(key) or "").strip()
 
 
-#: The scheme edits (`wfb.edit.schemes`), each from its op's fields.
-_SCHEME_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
+#: The compound edits (`wfb.edit.schemes`, `wfb.edit.hands`), each from
+#: its op's fields.
+_COMPOUND_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
     "make_switchable": lambda i, op: schemes.make_switchable(
         i, [str(n) for n in op.get("names") or []], _text(op, "scheme")),
     "add_scheme": lambda i, op: schemes.add_scheme(i, _text(op, "name"),
@@ -757,6 +806,10 @@ _SCHEME_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
     "add_role": lambda i, op: schemes.add_role(i, _text(op, "name"), op.get("value")),
     "rename_role": lambda i, op: schemes.rename_role(i, _text(op, "name"), _text(op, "to")),
     "delete_role": lambda i, op: schemes.delete_role(i, _text(op, "name")),
+    "add_hand_set": lambda i, op: hands.add_hand_set(i, _text(op, "name"), _text(op, "preset")),
+    "duplicate_hand_set": lambda i, op: hands.duplicate_hand_set(i, _text(op, "name")),
+    "rename_hand_set": lambda i, op: hands.rename_hand_set(i, _text(op, "name"), _text(op, "to")),
+    "delete_hand_set": lambda i, op: hands.delete_hand_set(i, _text(op, "name")),
 }
 
 

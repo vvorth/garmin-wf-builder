@@ -48,7 +48,8 @@ def render(summary: dict, body: str) -> list:
       const root = document.createElement("div");
       render(html`<${{FacePanel}} doc=${{{json.dumps(summary)}}} vocab=${{{json.dumps({**vocabulary(), "devices": []})}}}
         onEdit=${{(op) => edits.push(op)}} onSelect=${{(id) => edits.push({{select: id}})}}
-        onUpload=${{() => {{}}}} onStructure=${{() => {{}}}} />`, root);
+        onUpload=${{() => {{}}}} onStructure=${{() => {{}}}}
+        onReveal=${{(line, end) => edits.push({{reveal: [line, end]}})}} />`, root);
       const cls = (e) => e.attributes.class || "";
       const find = (pred) => root.all(pred);
       const within = (e, c) => {{ for (let p = e.parentNode; p; p = p.parentNode) if (cls(p) === c) return true; return false; }};
@@ -184,3 +185,25 @@ def test_the_schemes_table_adds_renames_and_removes(summary):
     ]
     assert printed[1] == ("Every role becomes a palette colour with dark's value.\n"
                           "2 styles naming only a scheme will go.")
+
+
+def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
+    text = summary(starters.instantiate("analog", "T"))
+    printed = render(text, """
+      globalThis.prompt = (q, d) => d;
+      const thumb = find((e) => e.localName === "img" && cls(e) === "hand-thumb")[0];
+      out(thumb.attributes.src.split("?")[1].split("&").slice(0, 2));
+      out(root.textContent.includes("placed by"));
+      await click(find((e) => e.localName === "a" && e.textContent === "Edit in YAML")[0]);
+      const select = find((e) => e.localName === "select" && e.textContent.startsWith("from a preset"))[0];
+      select.value = "baton"; select.dispatch("change", { target: select }); await settle();
+      await click(find((e) => e.localName === "button" && e.textContent === "+ Hand set")[0]);
+      await click(find((e) => e.localName === "button" && e.textContent === "Duplicate")[0]);
+      out(edits);
+    """)
+    assert printed[0] == ["name=classic", "device=fenix8solar47mm"]
+    assert printed[1] is True
+    reveal, *rest = printed[2]
+    assert reveal["reveal"][0] < reveal["reveal"][1]
+    assert rest == [{"op": "add_hand_set", "name": "baton", "preset": "baton"},
+                    {"op": "duplicate_hand_set", "name": "classic"}]

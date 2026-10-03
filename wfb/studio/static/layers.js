@@ -96,7 +96,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
         ${options.map((o) => html`<option value=${o}>${o}</option>`)}
       </select>` : null}
       ${type ? html`<button class="primary" disabled=${needs && !choice} onClick=${add}>Add</button>` : null}
-      ${needs && !options.length ? html`<div class="note">${needs[1] === "slots" ? "Add a slot in the Face tab first." : needs[1] === "hand_sets" ? "Declare a hand set under resources: hand_sets: first." : ""}</div>` : null}
+      ${needs && !options.length ? html`<div class="note">${needs[1] === "slots" ? "Add a slot in the Face tab first." : needs[1] === "hand_sets" ? "Add a hand set in the Face tab first (or write one under resources: hand_sets:)." : ""}</div>` : null}
     </div>
     ${selectedNode ? html`<div class="actions">
       <button title="Move up" onClick=${() => step(-1)}>↑</button>

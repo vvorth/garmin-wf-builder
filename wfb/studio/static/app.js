@@ -341,6 +341,9 @@ function Editor({ docId, onError }) {
   }, [doc, view.device, scope]);
   const [left, setLeft] = useState("layers");
   const [pane, setPane] = useState("face");
+  // lines the YAML tab is asked to select, from a link elsewhere
+  const [reveal, setReveal] = useState(null);
+  const showLines = useCallback((line, end) => { setReveal({ line, end, at: Date.now() }); setPane("yaml"); }, []);
   // more elements selected with Ctrl/Cmd/Shift, for grouping
   const [extra, setExtra] = useState([]);
   const select = useCallback((id, additive) => {
@@ -436,7 +439,7 @@ function Editor({ docId, onError }) {
           ? html`<${Layers} doc=${doc} vocab=${vocab} selected=${selected} extra=${extra} drawn=${drawn}
                             onSelect=${select} onStructure=${structure} />`
           : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload}
-                               onSelect=${select} onStructure=${structure} />`}
+                               onSelect=${select} onStructure=${structure} onReveal=${showLines} />`}
       </div>
       <div class="stage">
         <div class="controls">
@@ -474,7 +477,7 @@ function Editor({ docId, onError }) {
           <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
-          ? html`<${YamlPane} doc=${doc} selected=${selected} onDoc=${setDoc} onError=${onError}
+          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} onDoc=${setDoc} onError=${onError}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
@@ -495,7 +498,8 @@ function Editor({ docId, onError }) {
             ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
-                      scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError} />
+                      scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError}
+                      onReveal=${showLines} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
             Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>
