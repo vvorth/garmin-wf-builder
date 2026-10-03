@@ -43,8 +43,10 @@ Loaded automatically when working under `tests/`.
 - **The editor** (`wfb studio`): `test_edit.py` runs the patch engine over
   the example corpus; `test_studio*.py` test the server through
   Starlette's client; `test_studio_frontend.py` runs the front end's pure
-  modules in Node (skipped without `node`). Nothing here drives a browser:
-  the pages are checked by hand.
+  modules in Node (skipped without `node`). `test_studio_raster.py` holds
+  the browser's rasteriser (`raster.js`) to Pillow byte for byte, and
+  **fails** without Node, being that rasteriser's only guard. Nothing here
+  drives a browser: the pages are checked by hand.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture
   fails rather than skips, because a skip once silently turned the goldens off.

@@ -1,7 +1,7 @@
 # 28 — A browser renderer for `wfb studio`
 
 **Status: accepted (2026-10-03); B1–B5 decided as recommended the same
-day; slice 0 in progress. Building it was decided by the user on
+day; slice 0 done, 1 next. Building it was decided by the user on
 2026-10-03 (research 29 §7, R1–R4 as recommended).** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -134,34 +134,70 @@ Each slice ships with:
 
 Every new guard is driven red.
 
-### Slice 0 — Pillow's primitives in JavaScript
+### Slice 0 — Pillow's primitives in JavaScript: done
 
-The first measurement research 29 left open (§4): how much of Pillow
-12.3.0's drawing code the 14 ops need, and whether it can be followed
-pixel for pixel.
+Built as below. `wfb/studio/static/raster.js` (550 lines) follows Pillow
+12.3.0's `ImageDraw.py` and `src/libImaging/Draw.c`, which was fetched
+from the release's tag (`raw.githubusercontent.com`, reachable from the
+container), with the argument conversion of `src/_imaging.c`. Pillow's
+licence is `vendor/LICENSES-pillow` (B5).
 
-- Read Pillow 12.3.0's `ImageDraw.py` (in `.venv`) and its C drawing
-  code (`src/libImaging/Draw.c`, from the release's source; access from
-  the container is UNVERIFIED). Record, per op, the routine and its
-  length.
-- `raster.js` ops, simplest first, each with its Node test:
-  1. `fillRectangle`/`drawRectangle`, `drawLine` at width 1;
-  2. `fillPolygon`;
-  3. `fillCircle`/`fillEllipse`, then their outlines with a width;
-  4. `arc` with a width;
-  5. `drawLine` wider than 1;
-  6. the rounded rectangle, which Pillow composes in Python from the
-     others.
-- **The test sweeps each op against Pillow itself**, called from Python on
-  the same canvas: sizes, radii, odd and even widths, half-pixel centres,
-  scales 1–3. Equal means byte-equal. An op that is not equal after a
-  reasonable attempt stays out of `BROWSER_OPS`, with the reason recorded
-  here.
-- **Measured and recorded:**
-  - lines ported per op;
-  - ops exact;
-  - the time to rasterise the showcase's and `navy-classic`'s layers in
-    Node at 2× (target: under 16 ms for one dragged layer).
+| Op (`ImageDraw`) | Pillow routines | `raster.js` |
+|---|---|---|
+| `rectangle` fill / outline | `ImagingDrawRectangle`, `hline32`, `line32` | bindings + 25 lines |
+| `line`, width 1 / wider | `line32` + `ImagingDrawPoint` / `ImagingDrawWideLine` into `polygon_generic` | 40 + 15 |
+| `polygon` fill | `ImagingDrawPolygon`, `add_edge`, `polygon_generic` (the scanline, with its corner fix) | 90 |
+| `ellipse` fill / outline | `quarter_*`, `ellipse_*` (integer Bresenham on a step-2 grid), `ellipseNew` | 70 |
+| `arc` | `normalize_angles`, `arc_init`, the clip tree, `clipEllipseNew` | 140 |
+| `rounded_rectangle` | Python composition of filled pies (`pie_init`), arcs and rectangles | 65 |
+
+What a faithful port has to keep, each found in the C and each mattering:
+- `(int)` truncates toward zero;
+- the scanline's and the angles' C `float`s round to 32 bits after
+  every operation;
+- `ROUND_UP`/`ROUND_DOWN` and `lround` round half away from zero, while
+  Python's `round()` in `rounded_rectangle` rounds half to even;
+- the binding hands arc angles over as `float`.
+
+The integer ellipse's 64-bit products stay exact in a double while the
+axes are under 2^13 (a 454 px screen at 3× is 2 724 on the step-2 grid).
+
+**Measured:**
+- **Every op is exact.** `tests/test_studio_raster.py` draws each op with
+  Pillow and with `raster.js` on the same canvas and compares the RGB
+  bytes:
+  - a seeded sweep of 2 400 cases: sizes, widths 1–8, whole, half,
+    fractional and off-canvas coordinates, every kind of angle;
+  - every ellipse up to 31 × 31 filled and ringed, and 600 arcs at
+    fractional angles;
+  - 90 large shapes on a 1 362 px canvas (a 454 px screen at 3×).
+
+  All equal. `BROWSER_OPS` therefore starts with every shape op; only
+  `text` and `glyph` wait for slice 1.
+- **The sweep catches a broken port.** Ten deliberate bugs were planted
+  one at a time. Seven were caught:
+  - `(int)` as floor: 313 cases;
+  - Python's `round()` taken as half up: 63;
+  - the polygon corner fix skipped: 32;
+  - the scanline in doubles: 19;
+  - its slope in doubles: 5;
+  - the ellipse's tie-break: 14;
+  - arc angles in doubles: 1.
+
+  The three that changed no pixel replace `ROUND_UP` or `lround` with
+  `Math.round`, or round the wide line's length to 32 bits. They differ
+  only at exact negative halves (left of the canvas for the polygon, an
+  exact half from a sine for the arc's clip), so they are drawn the same
+  in practice.
+- **On the corpus:** `docs/research/probes/browser-renderer/raster_speed.py`
+  (results beside it) draws every shape-only layer of every example face
+  on fr955 at 2× through `jsonform.rasterise`'s op mapping. **190 of 190
+  equal `rasterise` byte for byte.** Node takes **1–10 ms a face** for all
+  of them, and **at most 6.6 ms for one layer** (`features/progress`),
+  inside the 16 ms target.
+
+Node is checked by `tools/setup-env.sh`, and the test fails without it
+(B4).
 
 ### Slice 1 — glyph tiles and placed text
 

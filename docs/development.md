@@ -563,6 +563,12 @@ file. `tools/typecheck.py` alone prints the same report. The result depends
 on the versions of mypy and of the libraries' type information; the
 baseline records them, and a failure names any that differ.
 
+**Node is needed for the editor's front-end tests.** They run its pure
+modules in Node; `tests/test_studio_raster.py` holds the browser's
+rasteriser (`wfb/studio/static/raster.js`) to Pillow byte for byte and
+fails rather than skips without it. `tools/setup-env.sh` says whether
+Node was found.
+
 Golden-file tests over the generated Monkey C are the primary compiler test, and
 they run with **no Garmin toolchain** — which matters, because the device files
 are the scarce resource. Regenerate them after an intentional change with

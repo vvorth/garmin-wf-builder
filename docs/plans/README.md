@@ -10,7 +10,7 @@ back here.
 
 | Plan | What | Status |
 |---|---|---|
-| [28](28-browser-renderer.md) | a browser renderer for `wfb studio`: layers drawn from the JSON form, live resize and angle handles (research 29) | accepted; slice 0 in progress |
+| [28](28-browser-renderer.md) | a browser renderer for `wfb studio`: layers drawn from the JSON form, live resize and angle handles (research 29) | accepted; slice 0 done, 1 next |
 
 ## Built and deleted
 

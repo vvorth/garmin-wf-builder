@@ -1,0 +1,33 @@
+| face | shape-only layers | equal to `rasterise` | ops | Node ms, all of them | slowest layer ms |
+|---|---:|---:|---:|---:|---:|
+| analog-custom | 18 | 18 | 124 | 8.0 | 2.16 |
+| enduro | 12 | 12 | 52 | 7.9 | 4.54 |
+| features/align | 15 | 15 | 69 | 4.4 | 1.61 |
+| features/analog | 10 | 10 | 49 | 4.4 | 1.61 |
+| features/aod | 4 | 4 | 14 | 5.9 | 3.16 |
+| features/complications | 1 | 1 | 2 | 1.1 | 1.14 |
+| features/config | 2 | 2 | 5 | 2.9 | 1.78 |
+| features/gauge | 4 | 4 | 25 | 3.2 | 1.17 |
+| features/graph | 4 | 4 | 44 | 3.1 | 1.61 |
+| features/grid | 2 | 2 | 64 | 3.0 | 1.82 |
+| features/instinct | 2 | 2 | 4 | 1.3 | 1.17 |
+| features/outline | 1 | 1 | 2 | 1.3 | 1.26 |
+| features/patterns | 8 | 8 | 155 | 9.1 | 4.51 |
+| features/profile | 13 | 13 | 48 | 4.3 | 1.17 |
+| features/progress | 5 | 5 | 54 | 10.0 | 6.58 |
+| features/rings | 6 | 6 | 148 | 10.0 | 4.31 |
+| features/shapes | 10 | 10 | 30 | 7.5 | 3.70 |
+| features/slot-gauge | 4 | 4 | 20 | 6.0 | 4.66 |
+| features/slots | 1 | 1 | 2 | 1.1 | 1.08 |
+| features/styles | 2 | 2 | 5 | 2.7 | 1.62 |
+| features/sun | 2 | 2 | 5 | 5.9 | 4.74 |
+| features/units | 1 | 1 | 2 | 1.2 | 1.16 |
+| features/vector-text | 2 | 2 | 6 | 3.3 | 2.14 |
+| generated_by_skill/navy-classic | 16 | 16 | 267 | 7.9 | 2.02 |
+| generated_by_skill/trail-utility | 18 | 18 | 88 | 5.9 | 2.90 |
+| showcase | 9 | 9 | 31 | 7.3 | 3.05 |
+| system-fonts/numbers | 5 | 5 | 18 | 2.5 | 1.22 |
+| system-fonts/numbers-large | 4 | 4 | 14 | 2.3 | 1.17 |
+| system-fonts/text | 9 | 9 | 34 | 2.8 | 1.38 |
+
+Total: 190 of 190 shape-only layers equal to `rasterise`.

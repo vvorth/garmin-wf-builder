@@ -384,6 +384,12 @@ say "verify"
 echo "devices: $(ls "${DEVICES_DEST}" | tr '\n' ' ')"
 
 "${VENV}/bin/python" -c "import ruamel.yaml, jsonschema, PIL, fontTools; print('host deps ok')"
+if command -v node >/dev/null 2>&1; then
+    echo "node $(node --version): the editor's front-end tests can run"
+else
+    echo "WARNING: node is not installed. The editor's rasteriser test" >&2
+    echo "  (tests/test_studio_raster.py) fails without it; install Node 18 or newer." >&2
+fi
 
 cat <<EOF
 
