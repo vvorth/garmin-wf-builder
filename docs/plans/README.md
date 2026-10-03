@@ -8,7 +8,9 @@ back here.
 
 ## Open
 
-None.
+| Plan | What | Status |
+|---|---|---|
+| [29](29-live-centred-boxes-and-gauges.md) | live handles for plain arc gauges (a `drawProgress` twin, decided) and centred boxes (how is open: a server table, the rule in the browser, approximate, or the outline) | proposed; A–D and C1–C4 open |
 
 ## Built and deleted
 
