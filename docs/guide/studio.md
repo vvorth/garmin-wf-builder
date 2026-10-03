@@ -100,7 +100,17 @@ it. Its handles resize it:
 
 A polygon has no handles; its `points:` are edited in the YAML.
 
-While you drag, the moved element is drawn where it will go; a resize or
+**Moving several at once.** Ctrl-, Cmd- or Shift-click more elements, on
+the face or in the layers. A group, or a selection of several, shows a
+**move handle** on the middle of its top edge (a disc with four arrows): drag it, or any
+selected element, and they all move together, as one change that one
+**Undo** takes back. A group moves with everything in it. Pressing an
+element that is not selected, such as a member of a selected group, selects
+it and drags it alone. A click on a selected element without a drag selects
+just that one. Size and angle handles act on one element, so a selection of
+several shows none.
+
+While you drag, the moved elements are drawn where they will go; a resize or
 an angle shows its outline. When you let go, the change is written and the
 watch's own rendering replaces the preview. A change the face cannot take
 snaps back, with the reason.
@@ -161,7 +171,10 @@ go.
   it is refused for a group with other keys (`at:`, `visible:`, ...),
   whose children take something from it.
 
-A move the compiler refuses, such as a live reading into `static:`, is
+A delete that would leave something dangling is refused the same way:
+the only element of a layout a style names (the layout would go with it),
+or a group's only child (a group needs children; delete the group). A move
+the compiler refuses, such as a live reading into `static:`, is
 refused with its reason ([static content](elements.md#static--draw-it-once-then-blit-it)).
 
 ### The Face tab

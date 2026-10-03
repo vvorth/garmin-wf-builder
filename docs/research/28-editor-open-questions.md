@@ -95,9 +95,20 @@ belong in the patch engine, not in a later fix:
   faces with `elements:`.
 
 **No delete or duplicate was refused for a dangling reference** in the
-corpus. A delete of an element that `on_hold:` or a slot names would be
-refused by the compiler, and the re-parse gate turns that into "cannot
-delete: X refers to it". UNVERIFIED (no example has such a reference).
+corpus. As first written, this paragraph supposed that `on_hold:` or a slot
+could name an element. Neither does: `on_hold:` names a complication, and
+`slot:` names a `config: slots:` entry. Nothing in the format names an
+element by id. A later sweep (2026-10-03) deleted every element of every
+example face through the editor's gate, nested ones included. **413 of 415
+were accepted.** The two refusals are the real dangling cases:
+- `features/analog`'s `sport_hands` is the only element of the `sport`
+  layout. Deleting it removes the emptied layout, which a style still
+  names: "unknown layout 'sport'".
+- `features/aod`'s `date_text` is the only child of group `info`, which
+  would be left with no children: "missing required key 'children'".
+
+Both are refused with the face untouched. VERIFIED
+(`tests/test_studio_structure.py`).
 
 ## 3. A drag under `overrides:`
 

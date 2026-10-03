@@ -331,12 +331,14 @@ function Editor({ docId, onError }) {
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
-  const onDrag = useCallback(async (element, gesture) => {
+  // `ids`: the elements one gesture drags; several only for a move
+  const onDrag = useCallback(async (ids, gesture) => {
     if (!doc) return false;
+    const which = ids.length > 1 ? { elements: ids } : { element: ids[0] };
     try {
       const updated = await api(`/api/documents/${docId}/drag?version=${doc.version}`, {
         method: "POST",
-        body: JSON.stringify({ element, gesture, device: view.device, scope: scope === "all" ? "auto" : scope }),
+        body: JSON.stringify({ ...which, gesture, device: view.device, scope: scope === "all" ? "auto" : scope }),
       });
       setDoc(updated);
       if (!updated.landed) onError(new Error(`${updated.what}: written as close as its units allow, not exactly on the pixel`));
@@ -483,8 +485,9 @@ function Editor({ docId, onError }) {
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
+                                        extra=${extra} tree=${doc.tree}
                                         zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
-                                        onPick=${setSelected} onDrag=${onDrag} />`
+                                        onPick=${select} onDrag=${onDrag} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}

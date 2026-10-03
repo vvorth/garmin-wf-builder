@@ -175,6 +175,53 @@ def test_a_move_snaps_to_centres_edges_and_the_grid():
     assert result["targets"] == [4, 6.5]
 
 
+def test_a_selection_moves_together():
+    result = run("""
+      const tree = [{kind: "block", children: [
+        {kind: "element", id: "g", children: [
+          {kind: "element", id: "a", children: []},
+          {kind: "element", id: "inner", children: [{kind: "element", id: "b", children: []}]},
+        ]},
+        {kind: "element", id: "c", children: []},
+        {kind: "element", id: "d", children: []},
+      ]}];
+      const items = [
+        {id: "g", kind: "group", box: [10, 10, 40, 40], center: [30, 30]},
+        {id: "a", box: [10, 10, 10, 10], center: [15, 15]},
+        {id: "c", box: [100, 100, 20, 20], center: [110, 110]},
+        {id: "d", box: [200, 0, 10, 10], center: [205, 5]},
+      ];
+      const moving = hit.movedBy(tree, ["g", "c"]);
+      const t = snap.moveTargets(items, moving, 260, 260, 130, 0);
+      console.log(JSON.stringify({
+        // a group carries every element inside it, however deep
+        moving: [...moving].sort(),
+        alone: [...hit.movedBy(tree, ["a"])],
+        // the move handle: on the top edge of a group or of several, never
+        // on one plain element, which is pressed on itself; kept on the
+        // screen for a selection reaching its top
+        gripSeveral: hit.moveHandle(items, ["g", "c"]),
+        gripGroup: hit.moveHandle(items, ["g"]),
+        gripTop: hit.moveHandle(items, ["g", "d"], 6),
+        gripOne: hit.moveHandle(items, ["c"]),
+        gripNone: hit.moveHandle(items, []),
+        // the selection snaps as one box
+        together: hit.together(items, ["g", "c"]),
+        // nothing that moves is a snapping target; d is
+        xs: t.xs,
+      }));
+    """)
+    assert result["moving"] == ["a", "b", "c", "g", "inner"]
+    assert result["alone"] == ["a"]
+    assert result["gripSeveral"] == {"x": 65, "y": 10}
+    assert result["gripGroup"] == {"x": 30, "y": 10}
+    assert result["gripTop"] == {"x": 110, "y": 6}
+    assert result["gripOne"] is None and result["gripNone"] is None
+    assert result["together"] == {"id": "g", "box": [10, 10, 110, 110], "center": [65, 65],
+                                  "handles": []}
+    assert result["xs"] == [130, 200, 210, 205]
+
+
 def test_angles_lengths_and_resizes_snap():
     result = run("""
       console.log(JSON.stringify({

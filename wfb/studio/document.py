@@ -614,6 +614,58 @@ class Document:
                              describe(gesture, element_id, device_id), expected, after)
         return change, converted.landed
 
+    def move_all(self, element_ids: list[str], dx: int, dy: int, device_id: str, scope: str,
+                 expected: int) -> tuple[Change, bool]:
+        """Several elements moved by one drag, as one change: each written as
+        `drag` writes one, in turn on the text the last left. An element
+        inside a group that is also moved is left to the group, or it would
+        move twice. Returns the change and whether every element landed."""
+        from ..edit import View, move
+        from ..edit.spans import ordered
+        from ..ir import Group
+        from .drag import describe
+
+        self._check(expected)
+        if scope not in ("auto", "all", "device", "shape"):
+            raise Refused(f"scope {scope!r} is not auto, all, device or shape")
+        ids = list(dict.fromkeys(element_ids))
+        if not ids:
+            raise Refused("a move needs at least one element")
+        device = self.studio.db.get(device_id)
+        analysis = self.analysis()
+        face = self._loaded.face if self._loaded is not None else None
+        if face is not None:
+            inside: set[str] = set()
+
+            def walk(elements: list[Any], moved_above: bool) -> None:
+                for element in elements:
+                    if moved_above:
+                        inside.add(element.id)
+                    if isinstance(element, Group):
+                        walk(element.items, moved_above or element.id in ids)
+            walk(face.elements, False)
+            ids = [i for i in ids if i not in inside]
+        text, loaded = self.text, self._loaded
+        resolved = analysis.resolved.get(device_id)
+        landed = True
+        patch = None
+        view = None
+        for element_id in ids:
+            view = View(self.path, text, device, loaded=loaded, resolved=resolved,
+                        memo=self.studio.memo)
+            converted = move(view, element_id, dx, dy, cast(Scope, scope))
+            patch = converted.patch
+            # the next move builds on this text, so check it now, as `chain` does
+            if ordered(index_for(patch.text).data) != ordered(patch.expected):
+                raise Refused(f"{patch.what}: the edit would change more than intended")
+            landed = landed and converted.landed
+            text, loaded, resolved = patch.text, view.tried, None
+        assert patch is not None and view is not None
+        after = self._gate().check(patch, view.tried)
+        label = describe({"kind": "move", "dx": dx, "dy": dy}, ", ".join(ids), device_id)
+        change = self.commit(patch.text, dict(self.head.assets), label, expected, after)
+        return change, landed
+
     # -- what the editor shows ----------------------------------------------------------
 
     def tree(self) -> list[dict[str, Any]]:

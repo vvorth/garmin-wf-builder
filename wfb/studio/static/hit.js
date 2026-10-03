@@ -53,3 +53,38 @@ export function flatten(blocks) {
   walk(blocks);
   return out;
 }
+
+// The elements a drag of `ids` moves: each of them, and everything inside a
+// group among them, since a group carries its children.
+export function movedBy(blocks, ids) {
+  const out = new Set(ids);
+  const walk = (nodes, inside) => nodes.forEach((n) => {
+    const moved = inside || (n.kind === "element" && out.has(n.id));
+    if (moved && n.kind === "element") out.add(n.id);
+    walk(n.children || [], moved);
+  });
+  walk(blocks, false);
+  return out;
+}
+
+// The selected items as one, for snapping a drag of several: the box round
+// them all and its centre.
+export function together(items, ids) {
+  const boxes = items.filter((i) => ids.includes(i.id) && i.box).map((i) => i.box);
+  if (!boxes.length) return null;
+  const x0 = Math.min(...boxes.map((b) => b[0])), y0 = Math.min(...boxes.map((b) => b[1]));
+  const x1 = Math.max(...boxes.map((b) => b[0] + b[2])), y1 = Math.max(...boxes.map((b) => b[1] + b[3]));
+  return { id: ids[0], box: [x0, y0, x1 - x0, y1 - y0], center: [(x0 + x1) / 2, (y0 + y1) / 2], handles: [] };
+}
+
+// Where the move handle sits, or null: on the top edge of the selection,
+// at its middle, when it is a group (which draws nothing of its own to press
+// on) or several elements. `inset`: how far down from the screen's top it
+// must sit to be wholly on the screen, for a selection reaching the top.
+// A press there drags them all.
+export function moveHandle(items, ids, inset = 0) {
+  const chosen = items.filter((i) => ids.includes(i.id) && i.box);
+  if (!chosen.length || (chosen.length === 1 && chosen[0].kind !== "group")) return null;
+  const t = together(items, ids);
+  return { x: t.center[0], y: Math.max(t.box[1], inset) };
+}

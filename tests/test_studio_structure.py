@@ -118,6 +118,34 @@ def test_refusals_leave_the_face_alone(studio):
     assert (doc.text, doc.version) == before
 
 
+def node(doc, element_id):
+    def walk(nodes):
+        for n in nodes:
+            if n["kind"] == "element" and n["id"] == element_id:
+                return n
+            found = walk(n.get("children", []))
+            if found:
+                return found
+        return None
+    return walk(doc.tree())
+
+
+@pytest.mark.parametrize("face, element, reason", [
+    # the layout's only element: the emptied layout goes with it, and a
+    # style still names it
+    ("analog", "sport_hands", "unknown layout 'sport'"),
+    # a group's only child: a group with no children is not a group
+    ("aod", "date_text", "missing required key 'children'"),
+])
+def test_a_delete_that_would_leave_a_dangling_name_is_refused(studio, face, element, reason):
+    doc = studio.create(read_upload(
+        "face.yaml", (ROOT / f"examples/features/{face}/face.yaml").read_bytes()), "open")
+    before = (doc.text, doc.version)
+    with pytest.raises(Refused, match=reason):
+        doc.structure({"op": "delete", "path": node(doc, element)["path"]}, doc.version)
+    assert (doc.text, doc.version) == before
+
+
 def test_structure_over_http(tmp_path, studio):
     client = TestClient(create_app(studio))
     doc = client.post("/api/documents/new?template=minimal&name=S").json()

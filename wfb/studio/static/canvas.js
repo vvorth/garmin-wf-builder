@@ -6,7 +6,7 @@
 // replaces the preview. Nothing here decides where anything lands.
 
 import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
-import { elementOf, topmost } from "./hit.js";
+import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
 import {
   angleAt, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.js";
@@ -15,6 +15,7 @@ const ACCENT = "#4f9cf9";
 const GUIDE = "#f5c04a";
 const GRID_PERCENT = 5;     // the %r grid a move and a length snap to
 const HANDLE = 5;           // a handle's half size, screen pixels
+const GRIP = 11;            // the move handle's radius, screen pixels
 const START = 3;            // screen pixels before a press becomes a drag
 
 // One layer's image and pixels, decoded once.
@@ -74,6 +75,24 @@ function drawHandle(ctx, x, y, s, k) {
   ctx.strokeRect(x * s - r, y * s - r, r * 2, r * 2);
 }
 
+// The move handle: a disc with four arrows, the same size at every zoom.
+function drawGrip(ctx, x, y, s, k) {
+  const cx = x * s, cy = y * s, r = GRIP * k, a = 3 * k, reach = r - 3 * k;
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 1.5 * k;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const tx = cx + ux * reach, ty = cy + uy * reach;
+    ctx.moveTo(cx, cy); ctx.lineTo(tx, ty);
+    ctx.moveTo(tx - ux * a + uy * a, ty - uy * a + ux * a); ctx.lineTo(tx, ty);
+    ctx.lineTo(tx - ux * a - uy * a, ty - uy * a - ux * a);
+  }
+  ctx.stroke();
+}
+
 function guides(ctx, g, frame, s) {
   ctx.setLineDash([3, 3]);
   ctx.strokeStyle = GUIDE;
@@ -96,26 +115,29 @@ function resizedBox(box, handle, delta) {
 }
 
 // The preview of a gesture in progress, or of one sent and not yet drawn.
-function drawPreview(ctx, frame, layers, item, g, s) {
+// `moving`: every element the gesture moves (a group's children included).
+function drawPreview(ctx, frame, layers, item, moving, g, s) {
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2;
   if (g.kind === "move" && g.part === "both") {
-    const own = layers && layers.filter((l) => elementOf(l.id) === item.id && layerImage(l).img);
-    if (own && own.length && item.kind !== "group") {
-      // the face as layers, the dragged one shifted: exact for a move
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, frame.width * s, frame.height * s);
+    const own = layers && layers.filter((l) => moving.has(elementOf(l.id)) && layerImage(l).img);
+    if (own && own.length) {
+      // the face as layers, the dragged ones shifted: exact for a move. The
+      // screen is cleared to black inside its own shape only, so the skin
+      // round a round screen stays visible.
       ctx.save();
       if (frame.shape === "round") {
         ctx.beginPath();
         ctx.arc(frame.width * s / 2, frame.height * s / 2, Math.min(frame.width, frame.height) * s / 2, 0, Math.PI * 2);
         ctx.clip();
       }
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, frame.width * s, frame.height * s);
       for (const l of layers) {
         const im = layerImage(l).img;
         if (!im || !l.origin) continue;
-        const moved = elementOf(l.id) === item.id;
+        const moved = moving.has(elementOf(l.id));
         ctx.drawImage(im, l.origin[0] + (moved ? g.dx * s : 0), l.origin[1] + (moved ? g.dy * s : 0));
       }
       ctx.restore();
@@ -158,10 +180,10 @@ function drawPreview(ctx, frame, layers, item, g, s) {
 }
 
 // What a gesture in progress sends on release, and what its preview draws.
+// `g.moving`: every element it moves, none of which is a snapping target.
 function gestureAt(frame, item, g, x, y, free) {
-  const s = frame.scale;
   const dx = x - g.x, dy = y - g.y;
-  const targets = moveTargets(frame.items, item.id, frame.width, frame.height, frame.minor_radius,
+  const targets = moveTargets(frame.items, g.moving, frame.width, frame.height, frame.minor_radius,
                               free ? 0 : GRID_PERCENT);
   if (g.handle === null) {
     const snapped = free ? { dx: Math.round(dx), dy: Math.round(dy), guides: { x: [], y: [] } }
@@ -205,7 +227,11 @@ function changed(gesture) {
 // `zoom`: screen (CSS) pixels per watch pixel; the frame was drawn at
 // `frame.scale` and is shown at the zoom. `skin`: the watch drawn round the
 // screen, at the frame's scale, with where the screen sits in it.
-export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.scale, skin = null }) {
+// `selected` and `extra`: the selection, `extra` being the elements added
+// to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
+// carries. `onPick(id, additive)`; `onDrag(ids, gesture)`.
+export function Canvas({ frame, layers, selected, extra = [], tree = [], onPick, onDrag,
+                         zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
   const [drag, setDragState] = useState(null);     // a press, maybe a gesture
   // The handlers read the press from a ref: two pointer events can arrive
@@ -220,7 +246,8 @@ export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.s
   useEffect(() => { if (pending && frame.version !== pending.version) setPending(null); }, [frame.version]);
 
   const item = frame.items.find((i) => i.id === selected);
-  const shown = drag && drag.gesture ? drag.gesture : pending ? pending.gesture : null;
+  const others = frame.items.filter((i) => extra.includes(i.id));
+  const live = drag && drag.gesture ? drag : pending;
 
   useEffect(() => {
     const c = overlay.current;
@@ -230,16 +257,21 @@ export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.s
     const ctx = c.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, c.width, c.height);
+    if (live) { drawPreview(ctx, frame, usable, live.item, live.moving, live.gesture, s); return; }
     if (!item) return;
     const k = s / zoom;
-    if (shown) { drawPreview(ctx, frame, usable, item, shown, s); return; }
-    const [x, y, w, h] = item.box;
     ctx.setLineDash([6 * k, 4 * k]);
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 2 * k;
-    ctx.strokeRect(x * s - k, y * s - k, w * s + 2 * k, h * s + 2 * k);
-    for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s, k);
-  }, [frame, usable, selected, shown, zoom]);
+    for (const one of [item, ...others]) {
+      const [x, y, w, h] = one.box;
+      ctx.strokeRect(x * s - k, y * s - k, w * s + 2 * k, h * s + 2 * k);
+    }
+    // handles act on one element, so a selection of several shows none
+    if (!others.length) for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s, k);
+    const grip = moveHandle(frame.items, [selected, ...extra], (GRIP + 2) / zoom);
+    if (grip) drawGrip(ctx, grip.x, grip.y, s, k);
+  }, [frame, usable, selected, extra, live, zoom]);
 
   const point = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -248,29 +280,50 @@ export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.s
              sx: e.clientX, sy: e.clientY };
   };
 
+  // A press on a handle drags it; on the move handle, the whole selection
+  // (a group with its children); on an element that is itself selected,
+  // the whole selection too, and if it turns out to be a click, just that
+  // element. A press anywhere else, a selected group's member included,
+  // selects what is under it and drags that. Ctrl/Cmd/Shift adds to the
+  // selection.
   const down = (e) => {
     if (e.button !== 0 || pending) return;
     const p = point(e);
+    const chosen = [selected, ...extra].filter(Boolean);
+    const grip = moveHandle(frame.items, chosen, (GRIP + 2) / zoom);
+    const onGrip = grip && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
     const near = (h) => Math.abs((h.x - p.x) * zoom) <= HANDLE + 2 && Math.abs((h.y - p.y) * zoom) <= HANDLE + 2;
-    const handle = item ? item.handles.find(near) : null;
-    let id = selected;
-    if (!handle) {
-      id = pick(frame, usable, p.x, p.y, frame.scale);
-      if (id !== selected) onPick(id);
+    const handle = !onGrip && item && !extra.length ? item.handles.find(near) : null;
+    const under = handle || onGrip ? null : pick(frame, usable, p.x, p.y, frame.scale);
+    if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      if (under) onPick(under, true);
+      return;
     }
-    if (!id) return;
+    let ids, click = null;
+    if (handle) ids = [selected];
+    else if (onGrip) ids = chosen;
+    else if (under && chosen.includes(under)) {
+      ids = chosen;
+      click = under;
+    } else {
+      if (under !== selected || extra.length) onPick(under, false);
+      if (!under) return;
+      ids = [under];
+    }
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({ id, handle: handle || null, x: p.x, y: p.y, sx: p.sx, sy: p.sy, gesture: null });
+    setDrag({ ids, moving: movedBy(tree, ids), click, handle: handle || null,
+              x: p.x, y: p.y, sx: p.sx, sy: p.sy, gesture: null });
   };
 
   const move = (e) => {
     const drag = dragRef.current;
     if (!drag) return;
     if (!drag.gesture && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < START) return;
-    const target = frame.items.find((i) => i.id === drag.id);
+    const target = drag.ids.length > 1 ? together(frame.items, drag.ids)
+      : frame.items.find((i) => i.id === drag.ids[0]);
     if (!target) return;
     const p = point(e);
-    setDrag({ ...drag, gesture: gestureAt(frame, target, drag, p.x, p.y, e.altKey) });
+    setDrag({ ...drag, item: target, gesture: gestureAt(frame, target, drag, p.x, p.y, e.altKey) });
   };
 
   const up = () => {
@@ -278,10 +331,15 @@ export function Canvas({ frame, layers, selected, onPick, onDrag, zoom = frame.s
     if (!drag) return;
     const g = drag.gesture;
     setDrag(null);
-    if (!g || !changed(g)) return;
+    if (!g) {
+      // a click inside the selection: select what is under it
+      if (drag.click && (drag.click !== selected || extra.length)) onPick(drag.click, false);
+      return;
+    }
+    if (!changed(g)) return;
     const { handle, guides: _g, to: _t, ...send } = g;
-    setPending({ gesture: g, version: frame.version });
-    Promise.resolve(onDrag(drag.id, send)).then((ok) => { if (!ok) setPending(null); });
+    setPending({ gesture: g, item: drag.item, moving: drag.moving, version: frame.version });
+    Promise.resolve(onDrag(drag.ids, send)).then((ok) => { if (!ok) setPending(null); });
   };
 
   useEffect(() => {

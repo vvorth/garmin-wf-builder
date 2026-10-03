@@ -3,11 +3,13 @@
 
 // The lines a moved element may snap to: the screen's centre lines, every
 // other element's centre and edges, and a grid of `gridPercent` %r about
-// the screen centre.
-export function moveTargets(items, selectedId, width, height, minorRadius, gridPercent) {
+// the screen centre. `moving`: the id being moved, or a Set of the ids
+// moving together, none of which is a target.
+export function moveTargets(items, moving, width, height, minorRadius, gridPercent) {
   const xs = [width / 2], ys = [height / 2];
+  const skip = moving instanceof Set ? moving : new Set([moving]);
   for (const item of items) {
-    if (item.id === selectedId || !item.box) continue;
+    if (skip.has(item.id) || !item.box) continue;
     const [x, y, w, h] = item.box;
     xs.push(x, x + w, item.center[0]);
     ys.push(y, y + h, item.center[1]);

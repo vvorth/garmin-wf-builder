@@ -185,6 +185,39 @@ def test_refused_drags_leave_the_face_alone(studio):
     assert (doc.text, doc.version) == before
 
 
+def test_a_selection_moves_together_as_one_change(studio):
+    doc = shapes(studio)
+    before = items(doc.frame(FrameKey("fr955")))
+    version = doc.version
+    change, landed = doc.move_all(["dot", "card"], 5, -3, "fr955", "auto", doc.version)
+    assert landed and change.label == "move dot, card by (+5, -3) px on fr955"
+    assert doc.version == version + 1, "one change, so one undo"
+    after = items(doc.frame(FrameKey("fr955")))
+    for element in ("dot", "card"):
+        assert after[element]["center"] == [before[element]["center"][0] + 5,
+                                            before[element]["center"][1] - 3]
+    assert after["label"]["center"] == before["label"]["center"]
+    doc.undo(doc.version)
+    undone = items(doc.frame(FrameKey("fr955")))
+    assert undone["dot"]["center"] == before["dot"]["center"]
+    assert undone["card"]["center"] == before["card"]["center"]
+
+
+def test_a_group_and_its_member_selected_together_move_once(studio):
+    doc = shapes(studio)
+    block = next(b for b in doc.tree() if b["path"] == ["elements"])
+    paths = [n["path"] for n in block["children"] if n["id"] in ("dot", "card")]
+    _, group_id = doc.structure({"op": "group", "paths": paths}, doc.version)
+    assert group_id
+    before = items(doc.frame(FrameKey("fr955")))
+    _, landed = doc.move_all([group_id, "dot"], 4, 2, "fr955", "auto", doc.version)
+    after = items(doc.frame(FrameKey("fr955")))
+    assert landed
+    for element in ("dot", "card"):
+        assert after[element]["center"] == [before[element]["center"][0] + 4,
+                                            before[element]["center"][1] + 2], element
+
+
 def test_drags_over_http(client):
     doc = client.post("/api/documents/upload?filename=face.yaml",
                       content=SHAPES.read_bytes()).json()
@@ -204,8 +237,18 @@ def test_drags_over_http(client):
         "element": "chevron", "device": "fr955",
         "gesture": {"kind": "move", "dx": 1, "dy": 0}})).status_code == 400
     assert client.post(f"{url}/drag?version=2", content="[]").status_code == 400
+    r = client.post(f"{url}/drag?version=2", content=json.dumps({
+        "elements": ["dot", "card"], "device": "fr955",
+        "gesture": {"kind": "move", "dx": 2, "dy": 0}}))
+    assert r.status_code == 200, r.text
+    assert r.json()["what"] == "move dot, card by (+2, +0) px on fr955"
+    # handles act on one element: several cannot be resized together
+    r = client.post(f"{url}/drag?version=3", content=json.dumps({
+        "elements": ["dot", "card"], "device": "fr955",
+        "gesture": {"kind": "resize", "key": ["radius"], "delta": 2}}))
+    assert r.status_code == 400 and "only be moved together" in r.text
     layers = client.get(f"{url}/layers?device=fr955&scale=1").json()
-    assert layers["version"] == 2 and layers["layers"]
+    assert layers["version"] == 3 and layers["layers"]
     thumb = client.get(f"{url}/thumbnail?device=fr955")
     assert thumb.headers["content-type"] == "image/png"
 

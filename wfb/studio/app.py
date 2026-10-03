@@ -212,12 +212,28 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             raise Refused("the gesture is not JSON") from None
         if not isinstance(body, dict) or not isinstance(body.get("gesture"), dict):
             raise Refused("a drag is {element, gesture, device, scope}")
+        elements = body.get("elements")
+        gesture = body["gesture"]
+        if elements is not None and (not isinstance(elements, list)
+                                     or gesture.get("kind") != "move"
+                                     or gesture.get("part", "both") != "both"):
+            raise Refused("several elements can only be moved together")
         with studio.lock:
             document = doc(request)
-            change, landed = document.drag(str(body.get("element", "")), body["gesture"],
-                                           str(body.get("device", "")),
-                                           str(body.get("scope", "auto")),
-                                           _int(request, "version"))
+            if elements is not None:
+                try:
+                    dx, dy = int(gesture["dx"]), int(gesture["dy"])
+                except (KeyError, TypeError, ValueError):
+                    raise Refused("a move needs its dx and dy") from None
+                change, landed = document.move_all([str(e) for e in elements], dx, dy,
+                                                   str(body.get("device", "")),
+                                                   str(body.get("scope", "auto")),
+                                                   _int(request, "version"))
+            else:
+                change, landed = document.drag(str(body.get("element", "")), gesture,
+                                               str(body.get("device", "")),
+                                               str(body.get("scope", "auto")),
+                                               _int(request, "version"))
             changed(document)
             return JSONResponse({**document.summary(), "landed": landed, "what": change.label})
 
