@@ -17,7 +17,7 @@ The recommendation is a local web app served by `wfb` itself (`wfb studio`):
    re-runs the whole pipeline in **35–50 ms** for a typical face and about
    **1 s** for the 963-line showcase. Most of the showcase's second is font
    baking, which an editor session can cache (§3.1). VERIFIED (timing). The
-   cache saving is UNVERIFIED.
+   cache saving was later VERIFIED: 250 ms per edit (research 28 §4).
 3. **The browser never draws the face.** `wfb/preview.py` stays the only
    host renderer, which keeps ADR 0004's anti-drift guarantee. The browser
    draws only selection boxes, handles and guides, all taken from the
@@ -26,9 +26,31 @@ The recommendation is a local web app served by `wfb` itself (`wfb studio`):
 
 A drag must patch whichever geometry applies on the device being viewed,
 which may be an `overrides:` entry rather than the element's own key
-(§4.4). Five decisions are the user's (§8), one of them whether plan 19's
-"single draw program" comes before the layered canvas. Nothing is built
-yet.
+(§4.4). Five decisions were the user's (§8), one of them whether plan 19's
+"single draw program" comes before the layered canvas.
+
+**Status (2026-10-03): built, as `wfb studio`**
+(`docs/guide/studio.md`; the plan is
+`git show cf4b310:docs/plans/27-studio.md`). The three findings above hold.
+The body below is the design as proposed on 2026-10-01. These parts of it
+did not survive:
+
+| Here | What was built instead | Decided |
+|---|---|---|
+| D2: stdlib `http.server` (§4.2, §8) | Starlette and uvicorn | user, 2026-10-01 (ADR 0002 amendment) |
+| D4/D5: editor slices 1–3 first, A7 decided before layers (§6, §7) | A7 first, as plan 26 (the single draw program, `wfb/draw/`), then the editor | research 27 E4, 2026-10-01 |
+| one design file on disk, watched for external edits, saved in place (§4.1) | **client-driven**: `wfb studio` starts with no face. A face is opened by upload and saved by download, as a `.zip` (`face.yaml` + `assets/`) or a plain `.yaml`. Each open face lives in a throwaway temporary directory. `wfb studio face.yaml` opens a copy and never writes back | user re-scope, 2026-10-02 (ADR 0002 amendment) |
+| undo is the text pane's own history (§4.1) | a **persistent history store** on the server: a journal and content-addressed blobs, with undo, redo and timed snapshots that survive a restart | same re-scope |
+| "no persistence beyond the YAML file" (§4.8) | the history store under `--state-dir` (a volume in the container) | same re-scope |
+| the text pane as the main editor (§4.5, slice 2) | a secondary **YAML tab**. The canvas, layer tree, schema-generated inspector and Face panel edit every key | same re-scope |
+| slices 1–5 (§6) | plan 27's slices 0–7: patch engine, viewer, history, inspector, canvas drags, structure, YAML tab, close-out | — |
+| layers as option (b), written against today's `Renderer` (§4.3) | per-element layers from the draw program (`wfb.draw.layers`), stacked over the authoritative `preview.render` frame, hit-tested by alpha | research 27 §5.4 |
+| build button streaming a log (§4.7) | **Build** for one watch, added after the plan: `wfb build` as a subprocess, the `.prg` downloaded, memory shown against the limit. Sideloading stays by hand | `ef7562d` |
+
+The open questions in §7 are settled in research 28. Two UNVERIFIED claims
+below are now VERIFIED there:
+- the bake-cache saving: showcase 250 ms per edit (research 28 §4);
+- the structural patches: 404/404 (research 28 §2).
 
 ---
 
@@ -117,8 +139,8 @@ rasterisations). The ruamel parse takes about 0.25–0.4 s, and jsonschema
 validation about 0.4 s under the profiler. A drag changes none of the bake's
 inputs (font source, size, glyph set, device), so a server can memoise
 `bake_fonts` on those plus the font file's mtime. That should bring the
-showcase under 0.5 s per edit. That figure is UNVERIFIED; it is the first
-thing a prototype should measure. `vector-text` is dominated by drawing
+showcase under 0.5 s per edit. Research 28 §4 measured it: 893 → 250 ms,
+with identical pixels. VERIFIED. `vector-text` is dominated by drawing
 vector text, which caching does not help.
 
 **Consequence.** For typical faces the authoritative re-render is fast
@@ -178,10 +200,10 @@ lines:
 | Edit | Primitive | Status |
 |---|---|---|
 | change a value | scalar patch (above) | VERIFIED |
-| add a key that is absent (`dx` where only `dy` is written) | insert `, dx: 3%r` before a flow mapping's closing `}`, or a new line at the block mapping's indent after its last key | UNVERIFIED, mechanical |
-| remove a key | delete the key's span, including its separator or line | UNVERIFIED |
-| add an element | insert a generated block, written in the file's own form and indent, at the end of `elements:`, or after the selection | UNVERIFIED |
-| delete, duplicate, reorder an element | move, copy or delete the element's whole line range: leading comments, the key, and its body | UNVERIFIED |
+| add a key that is absent (`dx` where only `dy` is written) | insert `, dx: 3%r` before a flow mapping's closing `}`, or a new line at the block mapping's indent after its last key | VERIFIED, 79/79 (research 28 §2) |
+| remove a key | delete the key's span, including its separator or line | VERIFIED, 77/77 (research 28 §2) |
+| add an element | insert a generated block, written in the file's own form and indent, at the end of `elements:`, or after the selection | VERIFIED, 26/26 (research 28 §2) |
+| delete, duplicate, reorder an element | move, copy or delete the element's whole line range: leading comments, the key, and its body | VERIFIED, 86/86, 86/86, 50/50, under three rules (research 28 §2) |
 
 Each must be gated by re-parsing the result before it is accepted. A patch
 that fails to parse, or that changes the parsed data anywhere else, is
@@ -496,8 +518,9 @@ amendment):
 - D2: **Starlette and uvicorn**, not stdlib only.
 - D3: no build step, as recommended.
 
-If the user picks a GUI at all, it amends ADR 0002 ("Open: whether the GUI
-is a local web app … or native") with the chosen D1, and becomes a plan.
+D1 amended ADR 0002 ("Open: whether the GUI is a local web app … or
+native") and became plan 27, now built and deleted. The status at the top
+of this document lists where the build departed from it.
 
 ---
 

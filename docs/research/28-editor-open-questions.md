@@ -4,13 +4,21 @@
 research 26 (the editor) and research 27 (the single draw program), now,
 before planning.
 
-**Short answer.** Nine are closed: one by the user's decisions, eight by
-measurement. One is waiting on the user's simulator, with the probe built
-and the comparison scripted. One can only be answered by the GUI's first
-slice, and is made that slice's first measurement. Two are not questions
-but plan requirements, recorded as such.
+**Status (2026-10-03): every question is settled, and both plans that
+built on this are built and deleted.** The draw program is plan 26
+(`git show 270c595:docs/plans/26-draw-program.md`), and the editor,
+`wfb studio`, is plan 27 (`git show cf4b310:docs/plans/27-studio.md`).
+What they are now is in `docs/lore/roadmap.md` and `docs/guide/studio.md`.
+Each question's outcome is in the table's last column. §8 says how the
+three questions that could not be closed on paper turned out.
 
-| # | Question (where it was raised) | Status | Answer |
+**Short answer.** Ten are closed: one by the user's decisions, eight by
+measurement, and #10 by a capture from the user's simulator (§7). #12 and
+#13 were plan requirements, and plan 26 built both. #11 was never
+measured, because the feature it was about was postponed. The editor ships
+a simpler drag that needs no browser rasteriser (§8).
+
+| # | Question (where it was raised) | Status | Answer (and outcome) |
 |---|---|---|---|
 | 1 | Platform, server dependencies, front-end tooling (26 §8 D1–D3) | **decided** | local web app, Starlette + uvicorn, no front-end build step (ADR 0002 amendment) |
 | 2 | Does format 2 lowering rename a key the editor patches? (26 §7) | **closed** | only `align:` (split into `align`/`vertical_align`); the editor patches the author's one key (§1) |
@@ -21,10 +29,10 @@ but plan requirements, recorded as such.
 | 7 | `codemirror-json-schema` and JSON Schema 2020-12 (26 §4.5) | **closed** | usable: no false errors, but `dependentRequired` (3 sites) is not enforced; `wfb`'s diagnostics cover it (§5) |
 | 8 | Layer compositing fidelity (26 §4.3, 27 §5.4) | **closed** in 27 §5.4 | 28/29 faces stack pixel-identical; the 29th is off by 1 in one channel on anti-aliased edges |
 | 9 | Can the program express `text`? (27 §5.6, §7) | **closed** | printer 102/102 byte-identical to `emit_draw`, evaluator 102/102 pixel-identical, every font and value route (§6) |
-| 10 | Which ring is right on the watch, grown or stamped? (27 §2.5, §7) | **needs the user** | probe face, signed `.prg` and comparison script ready (§7) |
-| 11 | Does the live drag feel direct at 60 Hz? (27 §5.3, §7) | **the GUI's first measurement** | needs a running editor; cannot be answered on paper (§8) |
-| 12 | Primitive twins drift too (27 §7) | **plan requirement** | every evaluator op gets a sweep test against its barrel arithmetic (§8) |
-| 13 | AOD variants and group ring passes in the program (27 §2.5 scope) | **plan requirement** | the A7 plan's first slice; proven by `tools/snapshot.py` like the rest (§8) |
+| 10 | Which ring is right on the watch, grown or stamped? (27 §2.5, §7) | **closed** (simulator, 2026-10-02) | grown: the watch draws the grown copy it is sent, and it differs from the stamp by 4–20 px per shape. The preview now draws it grown (§7) |
+| 11 | Does the live drag feel direct at 60 Hz? (27 §5.3, §7) | **not measured; superseded** | the in-browser redraw from the JSON op list was postponed. The shipped drag shifts the element's own layer image and draws outlines for a resize or an angle (§8) |
+| 12 | Primitive twins drift too (27 §7) | **plan requirement, built** | each barrel function the evaluator transcribes is checked against the `.mc` source, and the arc is swept over every half-degree start (`tests/test_draw_barrel.py`, §8) |
+| 13 | AOD variants and group ring passes in the program (27 §2.5 scope) | **plan requirement, built** | AOD variants came with each kind's port. A group's ring is each member's own ring pass, as the watch draws it (§8) |
 
 Probes: `docs/research/probes/gui-editor/` (`structural.py`,
 `overrides.py`, `bake_cache.py`, `schema-dialect/`),
@@ -236,9 +244,12 @@ stamp on the simulator, 1 px / 2 px ring:
 | gauge bar | 4 | 10 | the corners, as for the rectangle |
 | filled circle part | 16 | 20 | as for the circle |
 
-So the preview was wrong to stamp, and the resolution is the first branch
-this section foresaw: the preview draws the grown copy the watch is sent,
-and the emitter keeps its one draw (4 or 8 fewer than a stamp).
+So the preview was wrong to stamp. The fix is the first branch this
+section foresaw: the preview draws the grown copy the watch is sent, and
+the emitter keeps its one draw (4 or 8 fewer than a stamp). Plan 26's
+slice 10 built it (`270c595`). Every grown ring in the preview now draws
+grown, including a gauge bar's ring and a filled circle part's, and the
+stamping code is deleted.
 
 **Found on the way: Pillow's primitives are not Garmin's.** The cells show
 the simulator's shapes themselves differ from the Pillow model, ring or no
@@ -258,21 +269,48 @@ arc's whole-degree rule was. `docs/limitations.md` records the gap.
 
 ## 8. Not closable on paper, or not a question
 
-- **Live-drag feel (27 §5.3).** Whether redrawing a layer's partly
-  evaluated op list in the browser feels direct at 60 Hz needs a running
-  editor and a person dragging. It is the GUI plan's **first measurement**,
-  compared against the fallback (shift the layer's PNG, re-render on the
-  server, throttled). Both are designed. Only the feel is unknown.
-- **Primitive twins (27 §7).** §2.5 of research 27 found the arc rounding
-  twin wrong. So every evaluator op (about 24 `Dc` calls and the barrel's
-  drawing functions) gets a property test that sweeps its inputs against
-  the barrel function's own arithmetic, transcribed from
-  `runtime-lib/*.mc`. This is an A7 plan requirement, not an open question.
-- **AOD variants and group ring passes (27 §2.5's scope).** The `_aod ?
-  … : …` ternaries, `if (_aod)` blocks and the `RingPass` mode are more
-  printer cases of the same ops. The A7 plan's first slice covers them for
-  `shape` and `text`, proven by `tools/snapshot.py` across the AOD
-  fixtures. That is a plan requirement too.
+Each item says what was asked here, then how it turned out.
+
+- **Live-drag feel (27 §5.3).**
+  - *Asked:* whether redrawing a layer's partly evaluated op list in the
+    browser feels direct at 60 Hz. That needs a running editor and a
+    person dragging, so it was to be the GUI plan's first measurement,
+    compared against the fallback: shift the layer's PNG and re-render on
+    the server, throttled.
+  - *Outcome:* never measured. The user's re-scope of the editor
+    (2026-10-02) postponed the in-browser redraw, and it is still
+    unbuilt. The editor ships the fallback:
+    - during a move, the element's own layer image is shifted, which is
+      exact;
+    - a resize, a radius, an angle or a line's end is drawn as an
+      outline;
+    - on release, one round trip patches the text, gates it and returns
+      the new frame. It takes 66 ms on `features/progress` and 464 ms on
+      the showcase, measured over HTTP in-process.
+
+    `wfb.draw.jsonform` exists and is tested in Python against its
+    reference rasteriser, but nothing in `wfb/studio/` uses it yet.
+    Whether the shipped drag feels direct is checked by hand in a
+    browser. No measurement is recorded.
+- **Primitive twins (27 §7).**
+  - *Asked:* §2.5 of research 27 found the arc rounding twin wrong, so
+    every evaluator op was to get a sweep test against the barrel
+    function's own arithmetic, transcribed from `runtime-lib/*.mc`. This
+    was a requirement for the A7 plan.
+  - *Outcome:* built across plan 26's slices. The evaluator's
+    transcriptions live in `wfb.draw.barrel`. `tests/test_draw_barrel.py`
+    looks up each transcribed statement in its `.mc` source (`WfbArc`,
+    `WfbGeom`, `WfbMath`, `WfbScale`, `WfbSeries`, `WfbRing`). It also
+    sweeps the arc over every half-degree start, which fixed the 1°
+    disagreement.
+- **AOD variants and group ring passes (27 §2.5's scope).**
+  - *Asked:* the `_aod ? … : …` ternaries, `if (_aod)` blocks and the
+    `RingPass` mode are more printer cases of the same ops. They were to
+    be covered by `shape` and `text` first, proven by `tools/snapshot.py`.
+  - *Outcome:* built. Each kind's port carried its AOD variants, proven
+    byte-identical with `aod:` off, on, and with `dim:`. An outlined
+    group's ring is now each member's own ring pass at its own width, as
+    the view draws it. It used to be a dilation of the members' union.
 
 ---
 

@@ -14,6 +14,42 @@
    mind, it would serve codegen, the live preview and the static preview
    alike.
 
+**Status (2026-10-03): decided and built.** The user chose E1–E4 as
+recommended (§8, 2026-10-01), and the body below is the reasoning as it
+stood then. What was built differs in these ways:
+
+- **A7 is built** as plan 26, the single draw program
+  (`git show 270c595:docs/plans/26-draw-program.md`), in `wfb/draw/`.
+  - Every kind is ported, in this document's §5.5 order. Each port was
+    proven by `tools/snapshot.py`.
+  - The guards in each element's wrapper and the frame membership are in
+    the program too.
+  - `emit_draw` and `draw_preview` are gone.
+  - The developer view is `docs/development.md`, "Element kinds".
+- **Both disagreements from §2.5 are resolved.**
+  - **The half-degree arc start:** the evaluator runs
+    `WfbArc.drawSpan`'s own rounding.
+  - **The grown ring:** a simulator capture showed the watch draws the
+    grown copy, so the preview now draws it grown (research 28 §7).
+  - Porting the remaining kinds found more preview twins that were wrong,
+    each fixed as a named preview diff:
+    - a gauge bar's fill was one pixel too wide;
+    - a series and a data element's pair were at fractional positions,
+      not whole pixels;
+    - a radial pattern copy's angle.
+- **E2 (a geometry-only first GUI) was superseded.** On 2026-10-02 the
+  user re-scoped the editor (plan 27, S5) to edit every key, through a
+  properties inspector generated from the schema.
+- **The third backend is half built.** The partial evaluator and its JSON
+  form (`wfb.draw.jsonform`, with a Python reference rasteriser) are built
+  and tested. The browser rasteriser that would consume them during a
+  gesture (§5.3) was postponed. The shipped editor shifts the dragged
+  layer's image and redraws on release instead (research 28 §8). So
+  "rule-free backends" today means two backends (printer and evaluator),
+  plus a JSON form that nothing consumes yet.
+- **§7's questions** are all settled; research 28 has each outcome. The
+  editor is `wfb studio` (`docs/guide/studio.md`).
+
 **Short answer.**
 
 1. **Narrow the GUI, not the compiler.** A geometry-only editor (place by
@@ -218,9 +254,10 @@ today.** For a filled circle or rectangle, the emitter draws the ring as
 *one grown copy* (`fillCircle(r + w)`, research 19 §3.2). The preview draws
 the *stamp*: the silhouette at the disc offsets. Those are different pixel
 sets. In the spike, the evaluator ran what the emitter emits, so it shows
-the grown copy. Which one matches the watch's rasteriser is UNVERIFIED (no
-simulator, root `CLAUDE.md` §3). Either way, today's preview and today's
-generated code describe different rings.
+the grown copy. When this was written, nobody knew which one the watch's
+rasteriser draws. Research 28 §7 later answered it with a simulator
+capture: **the grown copy**, VERIFIED in the simulator. Either way, the
+preview and the generated code of that time described different rings.
 
 **A second disagreement, in arithmetic.**
 - Today's `preview.arc_span` rounds the author's start angle (clockwise
@@ -490,7 +527,12 @@ GUI on top) without waiting for every kind, and without reverting anything.
 
 ## 7. Open questions and first measurements
 
-Research 28 closes or classifies every item below.
+Research 28 settles every item below. In brief:
+- the `text` port printed and painted 102/102 identically;
+- the primitive twins are tested against their `.mc` source;
+- the watch draws the grown ring;
+- the live-drag protocol was postponed, and a shifted layer image is used
+  instead.
 
 - **The `text` port.** This is the next spike: whether the program can
   express every font route and `curve:` while printing byte-identical code.
@@ -524,9 +566,11 @@ Research 26's D1–D3 were decided the same day: a local web app, Starlette
 and uvicorn, and no front-end build step (research 26 §8, ADR 0002
 amendment).
 
-Since E3 is yes, A7 becomes a plan (`docs/plans/`), and its first slice is the
-spike made real for `shape`, including AOD and group rings, proven by the
-snapshot. The deliberate preview fixes land as their own commits.
+Since E3 is yes, A7 became plan 26, and its first slice was the spike made
+real for `shape`, including AOD and group rings, proven by the snapshot.
+The deliberate preview fixes landed as their own named diffs. Plan 26 is
+built and deleted, and the status at the top of this document says what
+changed in the building.
 
 ---
 
