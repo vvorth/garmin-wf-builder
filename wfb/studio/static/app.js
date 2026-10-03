@@ -27,6 +27,16 @@ async function api(path, options = {}) {
   const response = await fetch(path, options);
   const type = response.headers.get("content-type") || "";
   const body = type.includes("json") ? await response.json() : null;
+  if (response.status === 401) {
+    // the session cookie is gone (cleared, or expired): the page starts a
+    // new one -- once, so a browser that refuses cookies does not loop
+    let last = 0;
+    try { last = Number(sessionStorage.getItem("wfb-reloaded")) || 0; } catch (_) { /* private mode */ }
+    if (Date.now() - last > 10000) {
+      try { sessionStorage.setItem("wfb-reloaded", String(Date.now())); } catch (_) { /* private mode */ }
+      location.reload();
+    }
+  }
   if (!response.ok) {
     const error = new Error((body && body.error) || `${response.status} ${response.statusText}`);
     error.status = response.status;
@@ -150,8 +160,28 @@ function Home({ onError }) {
                 </li>`)}
             </ul>`}
         <div class="dim" style="margin-top:10px;font-size:12px">History is kept in <code>${home.store}</code></div>
+        ${home.shared ? null : html`<${AnotherBrowser} />`}
       </div>
     </div>`;
+}
+
+// This browser's faces are its own; a one-time link opens them in another.
+function AnotherBrowser() {
+  const [link, setLink] = useState(null);
+  const [error, setError] = useState("");
+  const ask = async () => {
+    try {
+      const got = await api("/api/claims", { method: "POST" });
+      setLink({ url: new URL(got.url, location.href).href, minutes: Math.round(got.seconds / 60) });
+    } catch (e) { setError(e.message); }
+  };
+  return html`<div class="another">
+    <div class="dim">These faces belong to this browser. To open them in another browser too:</div>
+    ${link ? html`<div><code class="mono">${link.url}</code>
+        <div class="dim">Open it in the other browser within ${link.minutes} minutes. It works once.</div></div>`
+      : html`<button onClick=${ask}>Use my faces in another browser</button>`}
+    ${error ? html`<div class="error-text">${error}</div>` : null}
+  </div>`;
 }
 
 // -- the editor ----------------------------------------------------------------------

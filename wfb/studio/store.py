@@ -3,7 +3,9 @@ volatile directories the compiler reads.
 
 One directory per document under the store's root:
 
-- `meta.json`: the display name and when the document was created;
+- `meta.json`: the display name, when the document was created, and its
+  `owner`, the principal it belongs to (`wfb.studio.sessions`; a document
+  from before owners belongs to the owner principal);
 - `blobs/<sha256>`: every text version and every asset file, content
   addressed by the hash of the content, so a long history of a small face
   costs little and an asset is stored once. A text version is stored
@@ -42,6 +44,10 @@ import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+#: The principal a document belongs to when its `meta.json` names none: one
+#: made before documents had owners (`wfb.studio.sessions.OWNER`).
+OWNER = "owner"
 
 #: A document id: what `new_document` mints, and all a path may be built from.
 _ID = re.compile(r"^[0-9a-f]{32}$")
@@ -184,13 +190,14 @@ class Store:
 
     # -- documents ------------------------------------------------------------------
 
-    def new_document(self, name: str) -> str:
+    def new_document(self, name: str, owner: str = OWNER) -> str:
         doc_id = uuid.uuid4().hex
         path = self.root / doc_id
         try:
             (path / "blobs").mkdir(parents=True)
             _write_atomic(path / "meta.json",
-                          json.dumps({"name": name, "created": time.time()}).encode())
+                          json.dumps({"name": name, "created": time.time(),
+                                      "owner": owner}).encode())
         except OSError as exc:
             shutil.rmtree(path, ignore_errors=True)
             raise StoreError(f"cannot write to the history store: {exc}") from exc
@@ -200,8 +207,13 @@ class Store:
         data: dict[str, Any] = json.loads((self._dir(doc_id) / "meta.json").read_text())
         return data
 
-    def documents(self) -> list[dict[str, Any]]:
-        """Every document with a recorded change, most recently changed first."""
+    def owner(self, doc_id: str) -> str:
+        """The principal ``doc_id`` belongs to."""
+        return str(self.meta(doc_id).get("owner") or OWNER)
+
+    def documents(self, owner: str | None = None) -> list[dict[str, Any]]:
+        """Every document with a recorded change (``owner``'s only, when
+        given), most recently changed first."""
         out = []
         for path in self.root.iterdir():
             if not _ID.match(path.name):
@@ -212,7 +224,7 @@ class Store:
                 snapshots = len(self._snapshot_files(path.name))
             except (UnknownDocument, OSError, ValueError):
                 continue
-            if head is None:
+            if head is None or (owner is not None and (meta.get("owner") or OWNER) != owner):
                 continue
             out.append({"id": path.name, "name": meta["name"], "created": meta["created"],
                         "changed": head.time, "version": head.seq, "snapshots": snapshots})

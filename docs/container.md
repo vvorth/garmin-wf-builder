@@ -177,7 +177,9 @@ docker run --rm -it -p 127.0.0.1:8765:8765 \
   garmin-wf-builder studio
 ```
 
-Then open <http://127.0.0.1:8765/> in a browser on the host. Faces go in by
+Then open the address the container prints, `http://127.0.0.1:8765/?claim=…`,
+in a browser on the host: it gives that browser the faces kept in `/state`
+([whose faces](guide/studio.md#whose-faces)). Faces go in by
 upload and come out by download, so the editor needs no `/work` mount. Its
 Build signs with the key at `/keys`, as `build` does.
 Without the `/state` volume every face's history ends with the container,

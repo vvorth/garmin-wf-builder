@@ -30,7 +30,7 @@ alias wfb="$PWD/wfb.py"
 wfb new "My Face"                 # a working face from a template
 wfb preview my-face.yaml --watch  # a PNG that redraws every time you save
 wfb build my-face.yaml            # one signed .prg per watch
-wfb studio my-face.yaml           # or edit it in the browser: http://127.0.0.1:8765/
+wfb studio my-face.yaml           # or edit it in the browser, at the address it prints
 ```
 
 `wfb studio` is a visual editor: drag and resize elements on the watch's

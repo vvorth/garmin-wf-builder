@@ -374,6 +374,12 @@ def _parser() -> argparse.ArgumentParser:
                         help="on start, delete faces untouched this long (default: 30)")
     studio.add_argument("--keep-snapshots", type=int, default=50,
                         help="on start, keep each face's newest N snapshots (default: 50)")
+    studio.add_argument("--single-user", action="store_true",
+                        help="every browser sees and edits the same faces, as one person "
+                             "(default: each browser has its own)")
+    studio.add_argument("--allow-host", action="append", default=[], metavar="NAME",
+                        help="also answer requests addressed to NAME (a proxy's or a LAN "
+                             "name); repeatable. Loopback names are always answered")
     studio.add_argument("--devices-dir")
     studio.add_argument("--fonts", dest="fonts_dir",
                         help="Garmin ConnectIQ Fonts directory, as for `wfb preview`")
@@ -880,6 +886,14 @@ def _studio(args: argparse.Namespace) -> int:
     `wfb studio face.yaml` opens that face first. It is copied in, with the
     font files it names: the editor never writes to it. `--host` other than
     loopback warns, since the server writes files.
+
+    Each browser has its own faces, kept by a cookie. The address printed
+    on start carries a one-time claim: the browser that opens it gets the
+    face named here and every face made before faces had owners. Another
+    browser joins with a link from **Use my faces in another browser** on
+    the home screen. `--single-user` gives every browser the same faces.
+    Only requests addressed to a loopback name, `--host` or an
+    `--allow-host` name are answered.
     """
     from .edit import Refused
     from .studio import serve
@@ -901,7 +915,8 @@ def _studio(args: argparse.Namespace) -> int:
             return 1
         serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
               db=db, design=args.design, snapshot_minutes=args.snapshot_minutes,
-              keep_days=args.keep_days, keep_snapshots=args.keep_snapshots)
+              keep_days=args.keep_days, keep_snapshots=args.keep_snapshots,
+              single_user=args.single_user, allow_hosts=args.allow_host)
     except (BundleError, Refused, StoreError) as exc:
         _error(str(exc))
         return 1

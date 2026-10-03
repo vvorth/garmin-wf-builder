@@ -14,9 +14,12 @@ to copy to the watch; **Download** saves the face itself.
 ## Starting it
 
 ```sh
-wfb studio                      # then open http://127.0.0.1:8765/
+wfb studio                      # then open the address it prints
 wfb studio examples/showcase/face.yaml   # opens that face first
 ```
+
+The address it prints ends in `?claim=…`: open it once, in the browser you
+will use ([whose faces](#whose-faces)).
 
 | Flag | What it does |
 |---|---|
@@ -24,7 +27,9 @@ wfb studio examples/showcase/face.yaml   # opens that face first
 | `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since the editor writes files |
 | `--state-dir` | where every face's history is kept (default `~/.local/state/wfb/studio`, or `$XDG_STATE_HOME/wfb/studio`) |
 | `--snapshot-minutes` | how often a changed face is snapshotted (default 5) |
-| `--keep-days`, `--keep-snapshots` | on start, faces untouched this many days are deleted, and each keeps its newest snapshots (defaults 30 and 50) |
+| `--keep-days`, `--keep-snapshots` | on start, faces untouched this many days are deleted, and each keeps its newest snapshots (defaults 30 and 50); a browser unseen this long is forgotten too |
+| `--single-user` | every browser sees and edits the same faces, as one person ([whose faces](#whose-faces)) |
+| `--allow-host` | also answer requests addressed to this name, a proxy's or a LAN name (repeatable); see below |
 
 A face named on the command line is copied into the editor, with the font
 files it names. The editor never writes back to it: you save by
@@ -38,6 +43,26 @@ docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-studio:/state -v wfb-keys:/keys garmin-wf-builder studio
 ```
+
+## Whose faces
+
+Each browser has its own faces. The editor knows a browser by a cookie,
+kept as long as the faces are (`--keep-days`) and renewed on every visit;
+another browser, or one whose cookies were cleared, starts with none.
+
+- **The address `wfb studio` prints** carries a one-time claim. The browser
+  that opens it gets the face named on the command line, and every face
+  the editor kept from before faces belonged to a browser.
+- **Use my faces in another browser**, on the home screen, gives a link
+  for the other browser: it works once, within 10 minutes, and from then
+  on both see the same faces.
+- **`--single-user`** turns this off: every browser sees every face, as
+  before.
+
+The editor answers only requests addressed to `127.0.0.1`, `localhost`,
+`[::1]`, the `--host` it listens on, or an `--allow-host` name. A web page
+elsewhere cannot reach it by pointing its own name at this computer, and
+the cookie travels only with the editor's own requests.
 
 ## Faces in and out
 
@@ -344,6 +369,7 @@ face from the home screen deletes its history.
   except in the YAML tab.
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
+- Log in: a browser is who you are (above).
 
 The editor's checks and gestures are tested without a browser; the pages
 themselves are checked by hand ([limitations](../limitations.md)).

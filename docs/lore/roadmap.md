@@ -134,7 +134,10 @@ or AOD-related has been observed on a watch or in the simulator.
   alone, renamed with every `set:`, `wfb/edit/hands.py`; parts in the
   YAML), slots (one card in the Face tab and on the element drawing it,
   types labelled and grouped in `wfb.complications`, the face drawn
-  showing any one choice, `PreviewOptions.picks`), styles and fonts, structure (add any type, reorder, static and
+  showing any one choice, `PreviewOptions.picks`), styles and fonts,
+  faces per browser (a cookie bound to a principal that owns documents,
+  one-time claim links, `--single-user`, a `Host` allowlist;
+  `wfb/studio/sessions.py`), structure (add any type, reorder, static and
   dynamic, groups), a YAML tab with the schema, a history with undo and
   snapshots that survives restarts, Build for one watch (`wfb build` as a
   subprocess, the `.prg` downloaded), a continuous zoom with real size

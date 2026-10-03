@@ -21,7 +21,10 @@ from typing import Any, Callable
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import (
+    FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse,
+)
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -31,7 +34,8 @@ from ..devices import DeviceError
 from ..edit import Refused
 from .bundle import MAX_UPLOAD_BYTES, Bundle, BundleError, read_upload, to_zip
 from .document import Document, FrameKey, StaleVersion, Studio
-from .store import StoreError, UnknownDocument, UnknownSnapshot
+from .sessions import CLAIM_SECONDS, COOKIE, Sessions
+from .store import OWNER, StoreError, UnknownDocument, UnknownSnapshot
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -39,22 +43,28 @@ STATIC = Path(__file__).resolve().parent / "static"
 class Events:
     """Server-sent events to every open stream.  `publish` is called from
     the thread pool; each subscriber is an asyncio queue on the loop that
-    serves it."""
+    serves it.  A stream opened for a principal hears only of that
+    principal's documents (``owner_of`` says whose an event's `id` is); one
+    opened for nobody in particular hears everything."""
 
-    def __init__(self) -> None:
+    def __init__(self, owner_of: Callable[[str], str | None] = lambda doc_id: None) -> None:
         self._lock = threading.Lock()
-        self._subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue[str]]] = []
+        self._owner_of = owner_of
+        self._subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue[str],
+                                      str | None]] = []
 
     def publish(self, event: str, data: dict[str, Any]) -> None:
         message = f"event: {event}\ndata: {json.dumps(data)}\n\n"
         with self._lock:
             subscribers = list(self._subscribers)
-        for loop, queue in subscribers:
-            loop.call_soon_threadsafe(queue.put_nowait, message)
+        owner = self._owner_of(str(data["id"])) if "id" in data else None
+        for loop, queue, principal in subscribers:
+            if principal is None or owner is None or principal == owner:
+                loop.call_soon_threadsafe(queue.put_nowait, message)
 
-    async def stream(self) -> AsyncIterator[str]:
+    async def stream(self, principal: str | None = None) -> AsyncIterator[str]:
         queue: asyncio.Queue[str] = asyncio.Queue()
-        entry = (asyncio.get_running_loop(), queue)
+        entry = (asyncio.get_running_loop(), queue, principal)
         with self._lock:
             self._subscribers.append(entry)
         try:
@@ -70,6 +80,10 @@ def _error(status: int, message: str) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=status)
 
 
+class NoSession(Exception):
+    """The request carries no session: the editor's page gives one."""
+
+
 Handler = Callable[[Request, bytes], Response]
 
 
@@ -82,6 +96,8 @@ def _endpoint(handler: Handler, *, body: bool = False
         try:
             data = await _read_body(request) if body else b""
             return await run_in_threadpool(handler, request, data)
+        except NoSession:
+            return _error(401, "no session: open the editor's page to start one")
         except UnknownDocument:
             return _error(404, "there is no such face; it may have been deleted")
         except UnknownSnapshot:
@@ -151,41 +167,70 @@ def _picks(raw: str | None) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(out))
 
 
-def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
+def create_app(studio: Studio, *, initial: str | None = None,
+               sessions: Sessions | None = None,
+               allowed_hosts: list[str] | None = None) -> Starlette:
     """The app over ``studio``.  ``initial`` is a document id the home
-    screen opens straight away (`wfb studio face.yaml`)."""
-    events = Events()
+    screen opens straight away (`wfb studio face.yaml`).
+
+    With ``sessions``, each browser is a principal and sees only its own
+    faces (`wfb.studio.sessions`); without, everyone is the owner, as with
+    `--single-user`.  ``allowed_hosts`` are the only `Host` headers served:
+    a page elsewhere that points its own name at this address
+    (DNS rebinding) gets a 400, not the editor."""
+
+    def owner_of(doc_id: str) -> str | None:
+        try:
+            return studio.store.owner(doc_id)
+        except (UnknownDocument, OSError, ValueError):
+            return None
+
+    events = Events(owner_of)
     studio.on_event = events.publish
+    #: Each finished build's document owner, so only they download it.
+    build_owner: dict[str, str] = {}
+
+    def principal(request: Request) -> str:
+        if sessions is None:
+            return OWNER
+        found = sessions.principal_of(request.cookies.get(COOKIE))
+        if found is None:
+            raise NoSession()
+        return found
 
     def doc(request: Request) -> Document:
-        return studio.document(request.path_params["doc_id"])
+        return studio.document(request.path_params["doc_id"], principal(request))
 
     def changed(document: Document) -> None:
         events.publish("changed", {"id": document.id, "version": document.version})
 
     def home(request: Request, data: bytes) -> Response:
+        who = principal(request)
         with studio.lock:
             return JSONResponse({
                 "templates": [{"name": n, "blurb": starters.TEMPLATE_BLURB.get(n, "")}
                               for n in starters.names()],
-                "documents": studio.store.documents(),
+                "documents": studio.store.documents(owner=who),
                 "store": str(studio.store.root),
-                "initial": initial,
+                "initial": initial if initial is not None and owner_of(initial) == who else None,
+                "shared": sessions is None or sessions.single_user,
             })
 
     def new(request: Request, data: bytes) -> Response:
         template = request.query_params.get("template", "minimal")
         name = request.query_params.get("name", "").strip() or "My Face"
+        who = principal(request)
         with studio.lock:
             document = studio.create(Bundle(name, starters.instantiate(template, name)),
-                                     f"new from the {template} template")
+                                     f"new from the {template} template", owner=who)
             return JSONResponse(document.summary())
 
     def upload(request: Request, data: bytes) -> Response:
         filename = request.query_params.get("filename", "")
+        who = principal(request)
         bundle = read_upload(filename, data)
         with studio.lock:
-            document = studio.create(bundle, f"open {filename}")
+            document = studio.create(bundle, f"open {filename}", owner=who)
             return JSONResponse(document.summary())
 
     def summary(request: Request, data: bytes) -> Response:
@@ -194,6 +239,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
 
     def delete(request: Request, data: bytes) -> Response:
         with studio.lock:
+            doc(request)
             studio.delete(request.path_params["doc_id"])
         return JSONResponse({"deleted": request.path_params["doc_id"]})
 
@@ -355,6 +401,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
         device_id = request.query_params.get("device", "")
         with studio.lock:
             document = doc(request)
+            who = document.owner
             document._check(_int(request, "version"))
             device = studio.db.get(device_id)
             if not device.supports_watchface:
@@ -368,6 +415,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             done = studio.builder.run(work, device_id, version, stem)
         except BuildBusy as exc:
             return _error(409, str(exc))
+        build_owner[done.id] = who
         return JSONResponse({
             "ok": done.ok, "device": done.device, "version": done.version, "log": done.log,
             "memory": done.memory, "seconds": round(done.seconds, 1),
@@ -375,8 +423,14 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
         })
 
     async def download_build(request: Request) -> Response:
-        done = studio.builder.get(request.path_params["build_id"])
-        if done is None or done.prg is None or not done.prg.is_file():
+        try:
+            who = principal(request)
+        except NoSession:
+            return _error(401, "no session: open the editor's page to start one")
+        build_id = request.path_params["build_id"]
+        done = studio.builder.get(build_id)
+        if done is None or done.prg is None or not done.prg.is_file() \
+                or build_owner.get(build_id) != who:
             return _error(404, "there is no such build; builds last until the editor stops")
         return FileResponse(done.prg, media_type="application/octet-stream",
                             filename=done.name, headers={"Cache-Control": "no-store"})
@@ -412,6 +466,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
 
     def fork(request: Request, data: bytes) -> Response:
         with studio.lock:
+            doc(request)
             copy = studio.fork(request.path_params["doc_id"], request.path_params["name"])
             return JSONResponse(copy.summary())
 
@@ -439,11 +494,56 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
                         headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     async def stream(request: Request) -> Response:
-        return StreamingResponse(events.stream(), media_type="text/event-stream",
+        try:
+            who = principal(request)
+        except NoSession:
+            return _error(401, "no session: open the editor's page to start one")
+        return StreamingResponse(events.stream(who), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store"})
 
+    def with_session(request: Request, response: Response, token: str) -> Response:
+        """``response`` setting the session cookie: the browser keeps it as
+        long as the faces it reaches are kept, renewed on each visit, and
+        sends it only with this site's own requests."""
+        assert sessions is not None
+        response.set_cookie(COOKIE, token, max_age=int(sessions.keep_seconds), path="/",
+                            httponly=True, samesite="strict",
+                            secure=request.url.scheme == "https")
+        return response
+
     async def index(request: Request) -> Response:
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
+        page = FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
+        if sessions is None or sessions.single_user:
+            return page
+        code = request.query_params.get("claim")
+        if code:
+            return await claim(request)
+        token = request.cookies.get(COOKIE)
+        if sessions.principal_of(token) is None:
+            _, token = await run_in_threadpool(sessions.new_browser)
+        assert token is not None
+        return with_session(request, page, token)
+
+    async def claim(request: Request) -> Response:
+        """A claim link: this browser joins the link's principal and sees
+        its faces. A link works once."""
+        assert sessions is not None
+        code = request.path_params.get("code") or request.query_params.get("claim", "")
+        token = await run_in_threadpool(sessions.redeem, code)
+        if token is None:
+            return HTMLResponse(
+                "<!doctype html><meta charset=utf-8><title>wfb studio</title>"
+                "<p>This link has been used, or has expired. Ask for a new one from the "
+                "browser that has the faces: <b>Use my faces in another browser</b>.</p>",
+                status_code=410)
+        return with_session(request, RedirectResponse("/", status_code=303), token)
+
+    def new_claim(request: Request, data: bytes) -> Response:
+        who = principal(request)
+        if sessions is None or sessions.single_user:
+            raise Refused("every browser sees the same faces here: there is nothing to join")
+        code = sessions.claim_for(who)
+        return JSONResponse({"url": f"/claim/{code}", "seconds": int(CLAIM_SECONDS)})
 
     app = Starlette(
         routes=[
@@ -480,8 +580,12 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}/snapshots/{name}/copy", _endpoint(fork),
                   methods=["POST"]),
             Route("/api/events", stream),
+            Route("/api/claims", _endpoint(new_claim), methods=["POST"]),
+            Route("/claim/{code}", claim),
             Mount("/static", StaticFiles(directory=STATIC), name="static"),
         ],
     )
+    if allowed_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
     app.state.events = events
     return app

@@ -47,7 +47,7 @@ from .inspect import GEOMETRY, globals_of, inspect
 from .bundle import FACE, Bundle, asset_path, inside, missing, references
 if TYPE_CHECKING:
     from .builder import Builder
-from .store import REDO, UNDO, Change, Snapshot, Store, UnknownDocument
+from .store import OWNER, REDO, UNDO, Change, Snapshot, Store, UnknownDocument
 
 
 class StaleVersion(ValueError):
@@ -93,6 +93,8 @@ class Document:
         if head is None:
             raise UnknownDocument(doc_id)
         self.name: str = meta["name"]
+        #: The principal this document belongs to (`wfb.studio.sessions`).
+        self.owner: str = str(meta.get("owner") or OWNER)
         self.head: Change = head
         self.text = store.text(doc_id, head)
         self.directory = studio.scratch / doc_id
@@ -933,19 +935,24 @@ class Studio:
         self._timer = threading.Thread(target=run, name="wfb-studio-snapshots", daemon=True)
         self._timer.start()
 
-    def document(self, doc_id: str) -> Document:
+    def document(self, doc_id: str, principal: str | None = None) -> Document:
+        """The document ``doc_id``; with ``principal``, only when it is
+        theirs. Someone else's is as unknown as one that never existed, so
+        a request cannot learn that it does."""
         doc = self._open.get(doc_id)
         if doc is None:
             doc = Document(self, doc_id)
             self._open[doc_id] = doc
+        if principal is not None and doc.owner != principal:
+            raise UnknownDocument(doc_id)
         return doc
 
     def create(self, bundle: Bundle, label: str,
-               moved: dict[str, str] | None = None) -> Document:
+               moved: dict[str, str] | None = None, owner: str = OWNER) -> Document:
         """A new document from ``bundle``.  ``moved`` maps references to the
         paths their files were gathered to (`bundle.from_path`); each is
         patched as a second, recorded change."""
-        doc_id = self.store.new_document(bundle.name)
+        doc_id = self.store.new_document(bundle.name, owner)
         self.store.append(doc_id, label, bundle.text, dict(bundle.files))
         doc = self.document(doc_id)
         if moved:
@@ -961,7 +968,8 @@ class Studio:
         when = time.strftime("%Y-%m-%d %H:%M", time.localtime(snap.time))
         bundle = Bundle(f"{source.name} ({when})", store.text(doc_id, snap),
                         {rel: store.get(doc_id, sha) for rel, sha in snap.assets.items()})
-        return self.create(bundle, f"copy of {source.name}'s snapshot of {when}")
+        return self.create(bundle, f"copy of {source.name}'s snapshot of {when}",
+                           owner=source.owner)
 
     def delete(self, doc_id: str) -> None:
         self._open.pop(doc_id, None)
