@@ -253,7 +253,7 @@ needs its own evidence. None is proposed here.
 - R3: layers plus live handles; the frame stays the server's.
 - R4: the load is researched later.
 
-Being decided, this becomes a plan (`docs/plans/`), with §5's three slices.
+Being decided, this became plan 28 (`docs/plans/28-browser-renderer.md`), with §5's three slices after a first one that measures the Pillow port.
 
 ---
 

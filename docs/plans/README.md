@@ -8,7 +8,9 @@ back here.
 
 ## Open
 
-None.
+| Plan | What | Status |
+|---|---|---|
+| [28](28-browser-renderer.md) | a browser renderer for `wfb studio`: layers drawn from the JSON form, live resize and angle handles (research 29) | accepted; slice 0 in progress |
 
 ## Built and deleted
 
