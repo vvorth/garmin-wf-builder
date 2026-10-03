@@ -1,0 +1,33 @@
+ACCEPT  A1 promote bg,text,dim -> scheme 'dark' + style  (601 ms, loads=True)
+theme: { schemes: { dark: { colors: { bg: "#000000", text: "#FFFFFF", dim: "#AAAAAA" } } } }
+config: { style: { default: dark, choices: { dark: { scheme: dark } } } }
+
+ACCEPT  A2 duplicate scheme dark -> light, + style entry  (53 ms, loads=True)
+ACCEPT  A3 add a role to every scheme at once  (49 ms, loads=True)
+ACCEPT  A4 remove a scheme and the style entries naming it  (39 ms, loads=True)
+REFUSE  A5 a theme whose style is deleted (roles orphaned): remove config: color: unknown data source 'config.colors.bg' (line 31)
+B: 6 roles -> swatches; 7 style entries -> 3 (one per layout)
+ACCEPT  B1 flatten showcase theme, keeping 'dark'  (1818 ms, loads=True)
+
+  style:
+    default: digital_dark
+    choices:
+      analog_dark: { label: "Analog · Dark", layout: analog }
+      digital_dark: { label: "Digital · Dark", layout: digital }
+      roman_dark: { label: "Roman · Dark", layout: roman }
+  slots:
+    left_register:
+      default: steps
+      choices:
+        - steps
+        - heart_rate
+        - { type: calories, icon: none }
+    right_register:
+   
+['    bg: "#000000"', '    fg: "#FFFFFF"', '    notify: "#000000"']
+ACCEPT  C1 flatten showcase theme, keeping all 7 style entries  (1541 ms, loads=True)
+   design lints: 4 duplicate-style warnings (the gate does not run lints)
+   config.style.choices.analog_light: the same combination as 'analog_dark' -- indistinguishable on the wrist
+   config.style.choices.analog_crimson: the same combination as 'analog_dark' -- indistinguishable on the wrist
+   config.style.choices.digital_light: the same combination as 'digital_dark' -- indistinguishable on the wrist
+   config.style.choices.roman_crimson: the same combination as 'roman_dark' -- indistinguishable on the wrist

@@ -1,0 +1,16 @@
+ACCEPT  add theme with scheme 'dark' {fg: #FFFFFF}  (loads=True, n_errors=0)
+REFUSE  element uses color.fg with no style: set elements.clock.color: color: unknown data source 'config.colors.fg' (line 47)
+REFUSE  add scheme 'light' with only 'other' role (mismatch): set theme.schemes.light: theme.schemes.dark: missing role(s) other -- every scheme must declare the same roles (line 55)
+ACCEPT  add scheme 'light' {fg: #000000}  (loads=True, n_errors=0)
+REFUSE  add role 'bg2' to dark only (one scheme at a time): set theme.schemes.dark.colors.bg2: theme.schemes.light: missing role(s) bg2 -- every scheme must declare the same roles (line 55)
+REFUSE  role named like a swatch ('dim'): set theme.schemes.dark.colors.dim: 'color.dim' is both a palette swatch and a colour role (line 31)
+ACCEPT  add style choosing scheme dark  (loads=True, n_errors=0)
+REFUSE  remove scheme 'light' while a style names it: remove theme.schemes.light: unknown color scheme 'light' (line 56)
+REFUSE  remove whole theme while color.fg used: remove theme: unknown color scheme 'dark' (line 55)
+REFUSE  remove last role fg from dark: remove theme.schemes.dark.colors.fg: theme.schemes.dark.colors: {} should be non-empty (line 55)
+REFUSE  rename scheme light->day (plain key rename): rename theme.schemes.light to day: unknown color scheme 'light' (line 56)
+REFUSE  rename role fg->ink via color. prefix: rename theme.schemes.dark.colors.fg to ink; refer to color.ink: theme.schemes.dark: missing role(s) fg -- every scheme must declare the same roles (line 55)
+---- final text tail
+theme: { schemes: { dark: { colors: { fg: "#FFFFFF" } }, light: { colors: { fg: "#000000" } } } }
+config: { style: { default: d, choices: { d: { scheme: dark }, l: { scheme: light } } } }
+

@@ -1,0 +1,8 @@
+3 swatches: exit 0
+        note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory
+        confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead
+  note[memory]: fenix8solar47mm: 1,414 B of the 131,072 B watch-face limit (1.1%) -- 625 B data, 789 B code
+3 + 64 unused: exit 0
+        note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory
+        confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead
+  note[memory]: fenix8solar47mm: 1,414 B of the 131,072 B watch-face limit (1.1%) -- 625 B data, 789 B code

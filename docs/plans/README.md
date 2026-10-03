@@ -11,6 +11,7 @@ back here.
 | Plan | What | Status |
 |---|---|---|
 | [29](29-live-centred-boxes-and-gauges.md) | live handles for plain arc gauges (a `drawProgress` twin, decided) and centred boxes (how is open: a server table, the rule in the browser, approximate, or the outline) | proposed; A–D and C1–C4 open |
+| [30](30-editor-gaps.md) | the editor's gaps: one colour picker with the 64 named MIP colours and `cRRGGBB` swatches, the colour axes, compound scheme edits, a Hand sets section, a slot card with labelled types and a "showing" control, and per-browser sessions with a `Host` check | proposed; every decision taken |
 
 ## Built and deleted
 
