@@ -439,7 +439,8 @@ function Editor({ docId, onError }) {
         ${left === "layers"
           ? html`<${Layers} doc=${doc} vocab=${vocab} selected=${selected} extra=${extra} drawn=${drawn}
                             onSelect=${select} onStructure=${structure} />`
-          : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload} />`}
+          : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload}
+                               onSelect=${select} onStructure=${structure} />`}
       </div>
       <div class="stage">
         <div class="controls">

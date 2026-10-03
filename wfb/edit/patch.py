@@ -461,9 +461,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
 
 def face_color(index: SpanIndex) -> str:
     """A colour the face already uses: the palette colour most element
-    `color:` keys name (the first, on a tie), else the palette's first
+    `color:` keys name, else the palette's first
     colour, else white. The most used, not the first, because the first is
-    usually the background's."""
+    usually the background's; for the same reason a tie goes to the first
+    but that one."""
     counts: dict[str, int] = {}
     for entry in index.entries():
         if (entry.name == "color" and isinstance(entry.value, ScalarNode)
@@ -471,7 +472,9 @@ def face_color(index: SpanIndex) -> str:
             name = str(entry.value.value)
             counts[name] = counts.get(name, 0) + 1
     if counts:
-        return max(counts, key=lambda name: counts[name])
+        most = max(counts.values())
+        tied = [name for name, n in counts.items() if n == most]
+        return tied[1] if len(tied) > 1 and tied[0] == next(iter(counts)) else tied[0]
     palette = index.data.get("resources", {}).get("palette") if isinstance(index.data, dict) else None
     if isinstance(palette, dict) and palette:
         return f"color.{next(iter(palette))}"
@@ -586,6 +589,56 @@ def rename_reference(index: SpanIndex, path: Path, new: str, prefix: str) -> Pat
     pattern = re.compile(rf"(?<![A-Za-z0-9_.]){re.escape(prefix + old)}(?![A-Za-z0-9_])")
     return chain(rename_key(index, path, new), lambda i: rewrite_scalars(
         i, lambda s: pattern.sub(prefix + new, s), f"refer to {prefix}{new}"))
+
+
+def _repoint(index: SpanIndex, key: str, old: str, new: str) -> Patch:
+    text = index.text
+    expected = _with(index)
+    nodes = []
+    for element in index.elements():
+        entry = index.get(element.path + (key,))
+        if entry is not None and isinstance(entry.value, ScalarNode) \
+                and entry.value.value == old:
+            nodes.append(entry.value)
+            _data_at(expected, element.path)[key] = new
+    for node in sorted(nodes, key=lambda n: n.start_mark.index, reverse=True):
+        style = node.style if node.style in ("'", '"') else None
+        text = text[:node.start_mark.index] + scalar(new, style) + text[node.end_mark.index:]
+    return Patch(text, expected, f"point {key}: {old} at {new}")
+
+
+def rename_slot(index: SpanIndex, old: str, new: str) -> Patch:
+    """Rename the `config: slots:` entry ``old`` and every element's
+    `slot: <old>`, as one patch. Only `slot:` keys are rewritten: a slot
+    may share its name with a complication type (`steps`), which other
+    keys name in their own right."""
+    return chain(rename_key(index, ("config", "slots", old), new),
+                 lambda i: _ended_patch(i, _repoint, "slot", old, new))
+
+
+def slot_drawers(index: SpanIndex, name: str) -> list[str]:
+    """The ids of the elements drawing the `config: slots:` entry ``name``."""
+    return [e.name for e in index.elements()
+            if isinstance(e.value, MappingNode)
+            and (_data_at(index.data, e.path) or {}).get("slot") == name]
+
+
+def remove_slot(index: SpanIndex, name: str) -> Patch:
+    """Remove the `config: slots:` entry ``name``; with the last slot, the
+    `slots:` key too (and `config:`, left with nothing). Refused while an
+    element draws it."""
+    index[("config", "slots", name)]
+    drawers = slot_drawers(index, name)
+    if drawers:
+        raise Refused(f"{', '.join(drawers)} {'draws' if len(drawers) == 1 else 'draw'} "
+                      f"the slot {name}: delete {'it' if len(drawers) == 1 else 'them'} "
+                      "or point them at another slot first")
+    config = index.data["config"]
+    path: Path = ("config", "slots", name)
+    if len(config["slots"]) == 1:
+        path = ("config",) if len(config) == 1 else ("config", "slots")
+    patch = remove(index, path)
+    return Patch(patch.text, patch.expected, f"delete the slot {name}")
 
 
 def node_text(index: SpanIndex, node: Node) -> str:

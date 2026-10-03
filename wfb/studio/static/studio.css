@@ -168,6 +168,11 @@ code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color
 .face-panel .rows li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; }
 .face-panel .rows .name { cursor: pointer; min-width: 5em; }
 .face-panel .rows .name:hover { color: var(--accent); }
+.face-panel .rows li.slot { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.face-panel .slot-head, .face-panel .slot-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 0; }
+.face-panel .slot-line > .dim:first-child { min-width: 5em; }
+.face-panel .choices { list-style: none; margin: 0 0 0 5em; padding: 0; }
+.face-panel .choices li { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
 .face-panel .row { display: flex; gap: 6px; }
 .face-panel .row select { flex: 1; min-width: 0; }
 .face-panel li.font .dim { font-size: 11px; flex-basis: 100%; }

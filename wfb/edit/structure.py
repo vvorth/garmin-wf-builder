@@ -49,7 +49,7 @@ MORE_DEFAULTS: dict[str, dict[str, Any]] = {
 }
 
 #: Types drawn without a `color:` of their own.
-_NO_COLOR = frozenset({"group", "hands", "data"})
+_NO_COLOR = frozenset({"group", "hands"})
 
 
 def element_types() -> list[str]:

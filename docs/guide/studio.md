@@ -69,7 +69,7 @@ first.
 
 | Left | Centre | Right |
 |---|---|---|
-| **Layers**: the element tree; **Face**: targets, colours, schemes, styles, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
+| **Layers**: the element tree; **Face**: targets, colours, schemes, styles, slots, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
 
 The bar above the centre picks the watch, the style, the time, asleep,
 always-on and the skin, and the zoom. The faces in the strip under it
@@ -123,7 +123,7 @@ The selection's keys, every one the format offers for its type, each with
 a control: a number and its unit, an angle, the 3×3 alignment picker, a
 colour (a palette or role name, or your own, with a warning when a
 64-colour screen would dither it), a text with **+ data** to insert a
-reading, a font, an icon, a touch-and-hold target, a list of choices, on
+reading, a font, an icon, a touch-and-hold target, a slot, a list of choices, on
 or off. **×** removes a key, back to its default. A key no control covers,
 such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
 
@@ -149,7 +149,7 @@ go.
 
 - **+ add…** adds an element of any type after the selection (or at the
   end of `elements`). A graph asks for its series, a data element for its
-  slot and hands for their set.
+  slot (declared in the Face tab) and hands for their set.
 - With an element selected: **↑ ↓** reorder it, **Duplicate** (Ctrl+D),
   **Delete** (Del), **move to…** any block or group.
 - Drag a row onto another to put it before (upper half) or after (lower
@@ -174,6 +174,17 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
 - **Schemes**: each role's colour per scheme.
 - **Styles**: the default, each style's layout and scheme, add (shaped like
   the others), delete ([styles and layouts](styles-and-layouts.md)).
+- **Slots**: the complication slots the wearer points at a reading on the
+  watch ([the Data axis](configuration.md#the-data-axis)). **+ Slot** adds
+  one, showing any complication. Click a slot's name to rename it (every
+  `slot:` naming it follows); beside it is its title in the settings menu
+  of a watch without the native editor. **default** is what it shows until
+  the wearer picks, and what the editor draws; **choices** is **any** (the
+  watch's own picker) or **a list**, each type with its own icon (a name,
+  `U+XXXX` or `none`; empty keeps the type's own). The default cannot be
+  taken off the list. **drawn by** lists the elements drawing it (click
+  one to select it), or offers **+ data element** when nothing does yet.
+  A slot is deleted only while nothing draws it.
 - **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**,
   delete ([fonts](fonts.md)).
 

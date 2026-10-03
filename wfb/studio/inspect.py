@@ -24,7 +24,7 @@ from typing import Any
 from .. import catalog, complications, icon_catalog
 from ..devices import Device, DeviceDatabase
 from ..edit.geometry import selector_paths
-from ..edit.spans import Path, index_for
+from ..edit.spans import Path, SpanIndex, index_for
 from ..palette import Color, ColorError
 
 SCHEMA = FilePath(__file__).resolve().parents[2] / "schema" / "wfb-face-2.schema.json"
@@ -106,6 +106,8 @@ def _widget(key: str, type_: str, node: dict[str, Any]) -> tuple[str, dict[str, 
         return _WIDGET_BY_REF[ref], resolved
     if key == "text" and type_ == "text":
         return "template", resolved
+    if key == "slot":
+        return "slot", resolved
     if key == "font":
         return "font", resolved
     if key == "icon":
@@ -201,12 +203,35 @@ def _legal_on(value: Any, devices: list[Device]) -> list[str]:
     return [d.id for d in devices if not color.is_palette_legal(d.display_colors)]
 
 
+def _slots(index: SpanIndex) -> list[dict[str, Any]]:
+    """Each `config: slots:` entry: its label, default and choices (`any`,
+    or a list of `{type, icon}`), and the elements drawing it."""
+    from ..edit.patch import slot_drawers
+
+    data = index.data
+    out = []
+    for name, entry in (((data.get("config") or {}).get("slots")) or {}).items():
+        entry = entry if isinstance(entry, dict) else {}
+        raw = entry.get("choices")
+        choices: str | list[dict[str, Any]] | None
+        if isinstance(raw, list):
+            choices = [{"type": c.get("type"), "icon": c.get("icon")} if isinstance(c, dict)
+                       else {"type": c, "icon": None} for c in raw]
+        else:
+            choices = raw
+        out.append({"name": name, "label": entry.get("label"), "default": entry.get("default"),
+                    "choices": choices, "drawn_by": slot_drawers(index, str(name))})
+    return out
+
+
 def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
-    """The face's colours, schemes, styles, layouts, fonts and targets."""
+    """The face's colours, schemes, styles, layouts, fonts, slots and
+    targets."""
     try:
-        data = index_for(text).data
+        index = index_for(text)
     except ValueError:
         return {}
+    data = index.data
     if not isinstance(data, dict):
         return {}
     targets = list((data.get("build") or {}).get("targets") or [])
@@ -245,8 +270,7 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
                                for n, e in (style.get("choices") or {}).items()]},
         "layouts": list((data.get("layouts") or {})),
         "fonts": fonts,
-        # what a new data element or hands element names
-        "slots": list(((data.get("config") or {}).get("slots") or {})),
+        "slots": _slots(index),
         "hand_sets": list((resources.get("hand_sets") or {})),
         "targets": targets,
     }

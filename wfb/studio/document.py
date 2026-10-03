@@ -30,7 +30,10 @@ from typing import TYPE_CHECKING, Any, Callable, cast
 from ..build import resolve_all, select_devices
 from ..devices import DeviceDatabase
 from ..diagnostics import Bag, Diagnostic
-from ..edit import Gate, Refused, SpanIndex, remove, rename_key, rename_reference, set_value
+from ..edit import (
+    Gate, Refused, SpanIndex, remove, remove_slot, rename_key, rename_reference, rename_slot,
+    set_value,
+)
 from ..edit.geometry import Part, Scope, target
 from ..edit.gate import Loaded, load_text
 from ..edit.spans import ELEMENT_BLOCKS, Entry, index_for, is_element
@@ -276,7 +279,9 @@ class Document:
         - `{"op": "set", "path": [...], "value": v}`;
         - `{"op": "remove", "path": [...]}`;
         - `{"op": "rename", "path": [...], "to": name, "prefix": "color."}`:
-          a declared name and every reference to it.
+          a declared name and every reference to it; a `config: slots:`
+          entry's references are the `slot:` keys naming it, and need no
+          prefix; one is removed only while nothing draws it.
 
         A geometry key of an element (`element` and a `path` relative to it,
         such as `["at", "dy"]`) is written to the source ``scope`` names on
@@ -307,7 +312,8 @@ class Document:
         elif kind == "remove":
             if index.get(path) is None:
                 raise Refused(f"{shown} is not set")
-            patch = remove(index, path)
+            patch = (remove_slot(index, str(path[2]))
+                     if len(path) == 3 and path[:2] == ("config", "slots") else remove(index, path))
             label = f"remove {shown}"
         else:
             to = str(op.get("to", "")).strip()
@@ -315,8 +321,12 @@ class Document:
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", to):
                 raise Refused(f"{to!r} is not a name: letters, digits and _, "
                               "not starting with a digit")
-            patch = (rename_reference(index, path, to, prefix) if prefix
-                     else rename_key(index, path, to))
+            if len(path) == 3 and path[:2] == ("config", "slots"):
+                patch = rename_slot(index, str(path[2]), to)
+            elif prefix:
+                patch = rename_reference(index, path, to, prefix)
+            else:
+                patch = rename_key(index, path, to)
             label = f"rename {shown} to {to}"
         after = self._gate().check(patch)
         return self.commit(patch.text, dict(self.head.assets), label, expected, after)

@@ -190,6 +190,10 @@ def test_a_new_element_takes_a_colour_the_face_uses():
     assert face_color(SpanIndex(minimal("elements: {}\n"))) == "color.fg"
     # the most named, not the first (the background's `color.bg`)
     assert face_color(SpanIndex(SHAPES.read_text(encoding="utf-8"))) == "color.dim"
+    # each named once: a tie goes past the first, the background's
+    tied = minimal("static:\n  bg:\n    type: rectangle\n    color: color.bg\n"
+                   "elements:\n  a:\n    type: circle\n    color: color.fg\n")
+    assert face_color(SpanIndex(tied)) == "color.fg"
 
 
 def test_flow_and_block_keys_are_added_in_their_own_style():
@@ -654,3 +658,11 @@ def test_every_type_can_be_added(type_):
     patch = add(SpanIndex(text), type_, choice="steps" if type_ == "graph" else None)
     Gate(SHAPES, text).check(patch)
     assert parse(patch.text)["elements"][f"new_{type_}"]["type"] == type_
+
+
+def test_a_data_element_can_be_added_on_a_declared_slot():
+    text = minimal("config:\n  slots:\n    top: { default: steps, choices: any }\n"
+                   "elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n")
+    patch = add(SpanIndex(text), "data", choice="top")
+    Gate(SHAPES, text).check(patch)
+    assert parse(patch.text)["elements"]["new_data"]["slot"] == "top"

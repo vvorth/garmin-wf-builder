@@ -51,7 +51,9 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
   const blocks = blocksOf(doc.tree);
   const selectedNode = selected && blocks.nodes.find((n) => n.id === selected);
   const needs = NEEDS[type];
-  const options = needs ? (needs[1] === "series" ? vocab.series || [] : (doc.globals || {})[needs[1]] || []) : [];
+  const globals = doc.globals || {};
+  const options = !needs ? [] : needs[1] === "series" ? vocab.series || []
+    : needs[1] === "slots" ? (globals.slots || []).map((s) => s.name) : globals[needs[1]] || [];
 
   const add = () => {
     const block = selectedNode ? selectedNode.path.slice(0, -1) : ["elements"];
@@ -94,7 +96,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
         ${options.map((o) => html`<option value=${o}>${o}</option>`)}
       </select>` : null}
       ${type ? html`<button class="primary" disabled=${needs && !choice} onClick=${add}>Add</button>` : null}
-      ${needs && !options.length ? html`<div class="note">${needs[1] === "slots" ? "Declare a slot under config: slots: first." : needs[1] === "hand_sets" ? "Declare a hand set under resources: hand_sets: first." : ""}</div>` : null}
+      ${needs && !options.length ? html`<div class="note">${needs[1] === "slots" ? "Add a slot in the Face tab first." : needs[1] === "hand_sets" ? "Declare a hand set under resources: hand_sets: first." : ""}</div>` : null}
     </div>
     ${selectedNode ? html`<div class="actions">
       <button title="Move up" onClick=${() => step(-1)}>↑</button>

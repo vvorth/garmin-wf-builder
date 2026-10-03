@@ -1,5 +1,5 @@
 // The inspector (the selected element's keys) and the Face panel (targets,
-// colours, schemes, styles, fonts). Every change is one edit sent to the
+// colours, schemes, styles, slots, fonts). Every change is one edit sent to the
 // server, which patches the text, checks it and answers with the face;
 // a refused edit leaves the face as it was and says why.
 
@@ -126,6 +126,7 @@ function Widget({ field, value, ctx, onCommit, like }) {
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
     case "icon": return html`<${Commit} value=${value} list="wfb-icons" onCommit=${onCommit} />`;
     case "complication": return enumSelect(ctx.vocab.complications || []);
+    case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
     case "enum": return enumSelect(field.enum.map(String));
     case "bool": return html`<select value=${value == null ? "" : String(value)}
         onChange=${(e) => e.target.value !== "" && onCommit(e.target.value === "true")}>
@@ -215,12 +216,77 @@ function askName(what, current) {
   return name.trim();
 }
 
-export function FacePanel({ doc, vocab, onEdit, onUpload }) {
+// One `config: slots:` entry: its menu label, its default, and the
+// wearer's choices -- the editor's whole picker (`any`) or a list, each
+// type with its own icon -- and the elements that draw it.
+function SlotRow({ slot, types, onEdit, onSelect, onStructure }) {
+  const path = ["config", "slots", slot.name];
+  const list = Array.isArray(slot.choices) ? slot.choices : null;
+  const [adding, setAdding] = useState("");
+  // a choice is written bare unless it carries an icon
+  const written = (c) => (c.icon ? { type: c.type, icon: c.icon } : c.type);
+  const setChoices = (choices) => onEdit({ op: "set", path: [...path, "choices"], value: choices.map(written) });
+  const defaults = list ? list.map((c) => c.type) : types;
+  return html`<li class="slot">
+    <div class="slot-head">
+      <span class="name" title="rename (every slot: naming it follows)" onClick=${() => {
+        const n = askName("Slot", slot.name);
+        if (n && n !== slot.name) onEdit({ op: "rename", path, to: n });
+      }}>${slot.name}</span>
+      <${Commit} value=${slot.label || ""} placeholder="menu label" width="9em"
+        onCommit=${(v) => onEdit(v.trim() ? { op: "set", path: [...path, "label"], value: v.trim() }
+                                           : { op: "remove", path: [...path, "label"] })} />
+      <button class="reset" title="delete (refused while an element draws it)"
+        onClick=${() => onEdit({ op: "remove", path })}>×</button>
+    </div>
+    <div class="slot-line">
+      <span class="dim">default</span>
+      <select value=${slot.default || ""} title="what the slot shows until the wearer picks"
+        onChange=${(e) => onEdit({ op: "set", path: [...path, "default"], value: e.target.value })}>
+        ${defaults.map((t) => html`<option value=${t}>${t}</option>`)}
+      </select>
+    </div>
+    <div class="slot-line">
+      <span class="dim">choices</span>
+      <label title="the watch's own picker: every complication"><input type="radio" checked=${!list}
+        onChange=${() => onEdit({ op: "set", path: [...path, "choices"], value: "any" })} /> any</label>
+      <label title="only the types listed here"><input type="radio" checked=${!!list}
+        onChange=${() => onEdit({ op: "set", path: [...path, "choices"], value: [slot.default || types[0]] })} /> a list</label>
+    </div>
+    ${list ? html`<ul class="choices">
+      ${list.map((c, i) => html`<li>
+        <code>${c.type}</code>
+        <${Commit} value=${c.icon || ""} placeholder="its icon" list="wfb-slot-icons" width="8em"
+          onCommit=${(v) => setChoices(list.map((x, j) => (j === i ? { ...x, icon: v.trim() || null } : x)))} />
+        <button class="reset" disabled=${c.type === slot.default}
+          title=${c.type === slot.default ? "the default; pick another default first" : "remove this choice"}
+          onClick=${() => setChoices(list.filter((_, j) => j !== i))}>×</button>
+      </li>`)}
+      <li><select value=${adding} onChange=${(e) => setAdding(e.target.value)}>
+          <option value="">add a type…</option>
+          ${types.filter((t) => !list.some((c) => c.type === t)).map((t) => html`<option value=${t}>${t}</option>`)}
+        </select>
+        <button disabled=${!adding} onClick=${() => { setChoices([...list, { type: adding, icon: null }]); setAdding(""); }}>Add</button></li>
+    </ul>` : null}
+    <div class="slot-line">
+      <span class="dim">drawn by</span>
+      ${slot.drawn_by.length
+        ? slot.drawn_by.map((id) => html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(id); }}>${id}</a>`)
+        : html`<span class="dim">nothing</span>
+               <button title="add a data element drawing this slot, at the end of elements:"
+                 onClick=${() => onStructure({ op: "add", type: "data", block: ["elements"], before: null, choice: slot.name })}>+ data element</button>`}
+    </div>
+  </li>`;
+}
+
+export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure }) {
   const g = doc.globals || {};
   const palette = g.palette || [];
   const schemes = g.schemes || { names: [], roles: [], colors: {} };
   const styles = g.styles || { entries: [] };
   const devices = vocab.devices || [];
+  // what a slot may show: every complication type (`auto` is on_hold:'s own)
+  const slotTypes = (vocab.complications || []).filter((t) => t !== "auto");
   const [adding, setAdding] = useState("");
   const fontFile = useRef(null);
   const replaceFor = useRef(null);
@@ -294,6 +360,19 @@ export function FacePanel({ doc, vocab, onEdit, onUpload }) {
           : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
       }}>+ Style</button>` : null}
       ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
+    </${Section}>
+
+    <${Section} title=${`Slots (${(g.slots || []).length})`}>
+      ${(g.slots || []).length ? html`<ul class="rows">${g.slots.map((s) => html`<${SlotRow} slot=${s}
+          types=${slotTypes} onEdit=${onEdit} onSelect=${onSelect} onStructure=${onStructure} />`)}</ul>`
+        : html`<div class="dim">A slot shows whichever complication the wearer picks on the watch.</div>`}
+      <button onClick=${() => {
+        const n = askName("New slot"); if (!n) return;
+        const taken = new Set((g.slots || []).map((s) => s.default));
+        const value = { default: slotTypes.find((t) => !taken.has(t)) || slotTypes[0], choices: "any" };
+        onEdit({ op: "set", path: ["config", "slots", n], value });
+      }}>+ Slot</button>
+      <datalist id="wfb-slot-icons"><option value="none" />${(vocab.icons || []).map((i) => html`<option value=${i} />`)}</datalist>
     </${Section}>
 
     <${Section} title=${`Fonts (${(g.fonts || []).length})`}>

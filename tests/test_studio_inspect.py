@@ -287,3 +287,74 @@ def test_an_edit_reuses_the_gates_load_and_sees_what_a_fresh_load_sees(studio, t
     fresh = Studio(Store(studio.store.root), db, scratch=tmp_path / "fresh").document(doc.id)
     assert sorted((d["code"], d["message"]) for d in fresh.diagnostics()) == seeded
     assert any("123456" in message for _, message in seeded)
+
+
+# -- slots -------------------------------------------------------------------------------
+
+def slots(doc):
+    return {s["name"]: s for s in doc.summary()["globals"]["slots"]}
+
+
+def test_a_slot_is_declared_drawn_and_its_choices_edited_from_the_panel(studio):
+    doc = new(studio)
+    doc.edit({"op": "set", "path": ["config", "slots", "top"],
+              "value": {"default": "steps", "choices": "any"}}, doc.version)
+    assert slots(doc)["top"] == {"name": "top", "label": None, "default": "steps",
+                                 "choices": "any", "drawn_by": []}
+    doc.structure({"op": "add", "type": "data", "block": ["elements"], "choice": "top"},
+                  doc.version)
+    drawer = slots(doc)["top"]["drawn_by"]
+    assert len(drawer) == 1
+    assert fields(doc.inspect(list(element_path(doc, drawer[0])), None))["slot"]["widget"] == "slot"
+    doc.edit({"op": "set", "path": ["config", "slots", "top", "choices"],
+              "value": ["steps", {"type": "heart_rate", "icon": "none"}]}, doc.version)
+    doc.edit({"op": "set", "path": ["config", "slots", "top", "label"], "value": "Top"},
+             doc.version)
+    top = slots(doc)["top"]
+    assert top["label"] == "Top"
+    assert top["choices"] == [{"type": "steps", "icon": None},
+                              {"type": "heart_rate", "icon": "none"}]
+    assert doc.analysis().face is not None
+
+
+def test_a_slot_rename_repoints_its_elements_and_nothing_else(studio):
+    doc = new(studio)
+    # a slot named like a complication type: `default: steps` is not a reference
+    doc.edit({"op": "set", "path": ["config", "slots", "steps"],
+              "value": {"default": "steps", "choices": ["steps", "calories"]}}, doc.version)
+    doc.structure({"op": "add", "type": "data", "block": ["elements"], "choice": "steps"},
+                  doc.version)
+    doc.edit({"op": "rename", "path": ["config", "slots", "steps"], "to": "left"},
+             doc.version)
+    left = slots(doc)["left"]
+    assert left["default"] == "steps" and len(left["drawn_by"]) == 1
+    assert "slot: steps" not in doc.text and "slot: left" in doc.text
+    assert doc.analysis().face is not None
+
+
+def test_a_slot_edit_the_face_cannot_take_is_refused(studio):
+    doc = new(studio)
+    doc.edit({"op": "set", "path": ["config", "slots", "top"],
+              "value": {"default": "steps", "choices": ["steps"]}}, doc.version)
+    doc.structure({"op": "add", "type": "data", "block": ["elements"], "choice": "top"},
+                  doc.version)
+    before = doc.text
+    drawer = slots(doc)["top"]["drawn_by"][0]
+    with pytest.raises(Refused, match=f"{drawer} draws the slot top"):
+        doc.edit({"op": "remove", "path": ["config", "slots", "top"]}, doc.version)
+    with pytest.raises(Refused):      # the default left out of the list
+        doc.edit({"op": "set", "path": ["config", "slots", "top", "choices"],
+                  "value": ["calories"]}, doc.version)
+    assert doc.text == before
+
+
+def test_the_last_slot_deleted_takes_its_config_block_with_it(studio):
+    doc = new(studio)
+    doc.edit({"op": "set", "path": ["config", "slots", "top"],
+              "value": {"default": "steps", "choices": "any"}}, doc.version)
+    doc.edit({"op": "set", "path": ["config", "slots", "bottom"],
+              "value": {"default": "calories", "choices": "any"}}, doc.version)
+    doc.edit({"op": "remove", "path": ["config", "slots", "top"]}, doc.version)
+    assert list(slots(doc)) == ["bottom"]
+    doc.edit({"op": "remove", "path": ["config", "slots", "bottom"]}, doc.version)
+    assert "config" not in SpanIndex(doc.text).data and doc.analysis().face is not None
