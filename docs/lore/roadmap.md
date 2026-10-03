@@ -125,8 +125,11 @@ or AOD-related has been observed on a watch or in the simulator.
   open and download a bundle (`.zip` with `face.yaml` and `assets/`, or a
   plain `.yaml`), the canvas's drags (move, resize, an arc's angles, a
   line's ends, snapping) written in the author's units to the key the
-  viewed watch reads, every key in an inspector, targets, colours,
-  schemes, styles and fonts, structure (add any type, reorder, static and
+  viewed watch reads, every key in an inspector, targets, colours (a
+  picker over the face's colours, the 64 named MIP colours and custom
+  ones, each picked colour a named swatch, `wfb/edit/colors.py`), the
+  accent and data colour settings as explicit lists, schemes, styles and
+  fonts, structure (add any type, reorder, static and
   dynamic, groups), a YAML tab with the schema, a history with undo and
   snapshots that survives restarts, Build for one watch (`wfb build` as a
   subprocess, the `.prg` downloaded), a continuous zoom with real size

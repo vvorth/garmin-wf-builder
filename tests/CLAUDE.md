@@ -43,7 +43,9 @@ Loaded automatically when working under `tests/`.
 - **The editor** (`wfb studio`): `test_edit.py` runs the patch engine over
   the example corpus; `test_studio*.py` test the server through
   Starlette's client; `test_studio_frontend.py` runs the front end's pure
-  modules in Node (skipped without `node`). `test_studio_raster.py` holds
+  modules in Node (skipped without `node`), and `test_studio_panels.py`
+  renders the panels with preact over a minimal DOM (`studio_dom.mjs`) and
+  clicks their controls, checking the edits they send. `test_studio_raster.py` holds
   the browser's rasteriser (`raster.js`) to Pillow byte for byte, and
   **fails** without Node, being that rasteriser's only guard. Nothing here
   drives a browser: the pages are checked by hand.

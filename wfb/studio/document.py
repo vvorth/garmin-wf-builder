@@ -34,6 +34,7 @@ from ..edit import (
     Gate, Refused, SpanIndex, remove, remove_slot, rename_key, rename_reference, rename_slot,
     set_value,
 )
+from ..edit.colors import add_swatch, remove_unused, set_swatch, use_color
 from ..edit.geometry import Part, Scope, target
 from ..edit.gate import Loaded, load_text
 from ..edit.spans import ELEMENT_BLOCKS, Entry, index_for, is_element
@@ -281,7 +282,12 @@ class Document:
         - `{"op": "rename", "path": [...], "to": name, "prefix": "color."}`:
           a declared name and every reference to it; a `config: slots:`
           entry's references are the `slot:` keys naming it, and need no
-          prefix; one is removed only while nothing draws it.
+          prefix; one is removed only while nothing draws it;
+        - `{"op": "use_color", "path": [...], "value": v}`: the key at
+          ``path`` names the swatch holding ``v`` (`wfb.edit.colors`);
+        - `{"op": "add_swatch", "value": hex}`,
+          `{"op": "set_swatch", "name": n, "value": hex}` and
+          `{"op": "remove_unused"}`: the palette itself.
 
         A geometry key of an element (`element` and a `path` relative to it,
         such as `["at", "dy"]`) is written to the source ``scope`` names on
@@ -289,9 +295,19 @@ class Document:
         override, created when missing)."""
         self._check(expected)
         kind = op.get("op")
-        if kind not in ("set", "remove", "rename"):
+        if kind not in ("set", "remove", "rename", "use_color", "add_swatch", "set_swatch",
+                        "remove_unused"):
             raise Refused(f"unknown edit {kind!r}")
         index = index_for(self.text)
+        if kind in ("add_swatch", "set_swatch", "remove_unused"):
+            if kind == "add_swatch":
+                patch, _ = add_swatch(index, str(op.get("value", "")))
+            elif kind == "set_swatch":
+                patch = set_swatch(index, str(op.get("name", "")), str(op.get("value", "")))
+            else:
+                patch = remove_unused(index)
+            after = self._gate().check(patch)
+            return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
         path = _path(op.get("path"))
         if op.get("element") is not None:
             element = _path(op["element"])
@@ -309,6 +325,9 @@ class Document:
             value = op.get("value")
             patch = set_value(index, path, value)
             label = f"set {shown} to {_shown_value(value)}"
+        elif kind == "use_color":
+            patch = use_color(index, path, str(op.get("value", "")))
+            label = patch.what
         elif kind == "remove":
             if index.get(path) is None:
                 raise Refused(f"{shown} is not set")

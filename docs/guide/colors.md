@@ -90,7 +90,8 @@ resources:
 
 Elements reference `color.orange`, never a raw hex value. [The 64 MIP
 colours, named](mip-palette.md) lists every colour the panel shows exactly,
-as palette entries ready to paste. A literal colour is
+as palette entries ready to paste; the editor's colour picker offers the
+same 64 and adds the one you pick ([the editor](studio.md#the-colour-picker)). A literal colour is
 accepted but produces a note, because a palette is what makes a colour change
 one edit and a lint one rule.
 

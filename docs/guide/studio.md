@@ -135,8 +135,7 @@ in `pt` cannot be dragged (a `pt` has no size outside its font).
 
 The selection's keys, every one the format offers for its type, each with
 a control: a number and its unit, an angle, the 3×3 alignment picker, a
-colour (a palette or role name, or your own, with a warning when a
-64-colour screen would dither it), a text with **+ data** to insert a
+colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a
 reading, a font, an icon, a touch-and-hold target, a slot, a list of choices, on
 or off. **×** removes a key, back to its default. A key no control covers,
 such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
@@ -184,11 +183,27 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
 ### The Face tab
 
 - **Targets**: add any installed watch that can run a face, or remove one.
-- **Colours**: click a name to rename it (every `color.<name>` in the face
-  follows), set a value, add, delete (refused while something uses it). A
-  ⚠ marks a colour a target's 64-colour screen would dither
-  ([colours](colors.md)).
-- **Schemes**: each role's colour per scheme.
+- **Colours**: each colour with what uses it (click an element to select
+  it). Click a name to rename it: every `color.<name>` in the face
+  follows. Its chip opens the picker, and a new colour reaches **every**
+  user listed. **+ Colour** adds one; **×** deletes one, refused while
+  something uses it; **Remove unused** deletes every colour nothing
+  uses, except `bg`, `accent`, `text` and `fg`, which the launcher icon
+  reads. A ⚠ marks a colour a target's screen would dither
+  ([colours](colors.md)). A colour tagged **auto** is one the editor
+  named after its value (below).
+- **Colour settings**: the accent and data colours the wearer picks on the
+  watch ([configuration](configuration.md)). **+ Accent colour** adds the
+  setting; then its default, the role it binds (`accent` unless you name
+  another), and which of the face's colours the wearer may pick, ticked.
+  The editor always writes that list, so adding a colour to the palette
+  never changes what the wearer is offered. A setting written
+  `choices: any` is shown, not edited: on a fēnix 8 it opens the watch's
+  own colour picker, and on a watch without one (fr955) it lists every
+  colour in the palette. **Make it a list** replaces it with the face's
+  colours that no target dithers.
+- **Schemes**: each role's colour per scheme, each through the picker,
+  without roles (a scheme's colour must be known when the face is built).
 - **Styles**: the default, each style's layout and scheme, add (shaped like
   the others), delete ([styles and layouts](styles-and-layouts.md)).
 - **Slots**: the complication slots the wearer points at a reading on the
@@ -204,6 +219,36 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
   A slot is deleted only while nothing draws it.
 - **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**,
   delete ([fonts](fonts.md)).
+
+### The colour picker
+
+A colour's chip opens three groups:
+
+- **This face**: its colours, then its roles where the key takes one (a
+  role follows the wearer's style or pick).
+- **MIP 64**: [the 64 colours](mip-palette.md) a MIP screen shows exactly,
+  by name. A ringed one is already in the face.
+- **Custom**: the browser's colour picker and a hex field. Under them, the
+  name it will have, and a ⚠ with the nearest safe colour when one of the
+  face's screens would dither it (a 64-colour screen, or black and white
+  on a 2-colour one).
+
+Whatever you pick, the element names a colour of the face, never a bare
+hex value. A colour the face already has is reused, whatever its name.
+One of the 64 is added under its name, with its label (`color.red`); any
+other colour as `c` and its hex (`color.cFF8000`). A name already taken,
+by another colour or a role, gets `_2`. The name is yours to change at
+any time.
+
+A picker on an element changes only that element: it points the key at a
+colour and never changes the colour itself, so nothing else moves. To
+change a colour everywhere it is used, change it in **Colours**.
+
+The editor's own colours are those named after their value. When you
+change one's value in **Colours** it is renamed to match (`cFF8000`
+becomes `cFF5500`, `red` becomes `bright_red`), and when the last element
+using one picks another colour, it is removed. A colour you named yourself
+is never renamed or removed for you.
 
 ### The YAML tab
 

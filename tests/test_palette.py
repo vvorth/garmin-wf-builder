@@ -166,3 +166,23 @@ def test_a_long_form_entry_is_a_literal(write_design, bag):
     assert "palette.bg.value" in errors[0].message
     assert "bg: { value: color.accent }" in text.splitlines()[errors[0].span.line - 1]
     assert "a palette swatch's own value is always a literal" in " ".join(errors[0].notes)
+
+
+def test_the_named_mip_table_is_the_64_and_the_template_and_guide_list_it():
+    import re
+    from pathlib import Path
+
+    from wfb.edit import SpanIndex
+    from wfb.palette import MIP64_NAMED, mip64_name
+
+    root = Path(__file__).resolve().parent.parent
+    assert len(MIP64_NAMED) == 64
+    assert len({v for _, v, _ in MIP64_NAMED}) == 64 == len({n for n, _, _ in MIP64_NAMED})
+    assert all(Color.parse(v).is_palette_legal(64) for _, v, _ in MIP64_NAMED)
+    table = [(n, v, label) for n, v, label in MIP64_NAMED]
+    template = SpanIndex((root / "wfb/templates/palette.yaml").read_text()).data
+    assert [(n, e["value"], e["label"]) for n, e in template["resources"]["palette"].items()] == table
+    guide = (root / "docs/guide/mip-palette.md").read_text()
+    rows = re.findall(r'^ {4}(\w+):\s+\{ value: "(#[0-9A-F]{6})", label: "([^"]+)" \}$', guide, re.M)
+    assert rows == table
+    assert mip64_name("#ff5500") == "international_orange" and mip64_name("#FF8000") is None

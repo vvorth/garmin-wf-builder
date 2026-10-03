@@ -10,7 +10,11 @@ in that page's order. It calls both `#00FF00` and `#005500` *Green*, so
 the darker one is `dark_green` here.
 
 To start a face with the whole palette already in it, run
-`wfb new -t palette` ([Getting started](getting-started.md)).
+`wfb new -t palette` ([Getting started](getting-started.md)). The editor's
+colour picker offers the same 64 by name, and adds the one you pick to the
+face ([the editor](studio.md#the-colour-picker)). The table itself is
+`MIP64_NAMED` in `wfb/palette.py`; this page and the template are checked
+against it.
 
 ## Copy into a face
 

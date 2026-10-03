@@ -9,6 +9,8 @@ rewrites some characters of that text and leaves every other byte alone:
 - `patch`: scalar and structural patches (set a value, block or flow; add,
   remove or rename a key; rewrite references to a renamed name; delete,
   duplicate, move or add an element);
+- `colors`: a picked colour as the palette swatch holding it, the
+  editor's own swatches renamed with their value and removed when unused;
 - `gate`: what a patch must pass to be accepted -- it parses to exactly
   the intended data and loads with no new error;
 - `geometry`: a pixel drag on one device, written in the author's units to

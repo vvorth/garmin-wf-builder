@@ -5,8 +5,8 @@
 
 import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
 import {
-  ANGLE_UNITS, LENGTH_UNITS, at, colorName, formatQuantity, isIdentifier, mipLegal,
-  mipNearest, newStyleEntry, parseHex, parseQuantity, toHex,
+  ANGLE_UNITS, LENGTH_UNITS, at, colorName, formatQuantity, isIdentifier,
+  newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.js";
 
 const ALIGN = [["top_left", "top", "top_right"], ["left", "center", "right"],
@@ -59,30 +59,69 @@ function AlignPicker({ value, onCommit }) {
   </span>`;
 }
 
-function ColorPicker({ value, palette, roles, onCommit }) {
-  const names = [...palette.map((p) => p.name), ...roles.filter((r) => !palette.some((p) => p.name === r))];
+// The colour picker: a chip that opens three groups, the face's own colours
+// (its swatches, then its roles where a role is allowed), the 64 named MIP
+// colours, and a custom colour. A swatch or role is picked as
+// `color.<name>`; one of the 64 or a custom colour as its hex, which the
+// server turns into the swatch holding it (`wfb.edit.colors`).
+export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const box = useRef(null);
+  const palette = ctx.globals.palette || [];
+  const mip = ctx.vocab.mip || [];
+  const displays = ctx.globals.displays || [];
   const ref = colorName(value);
-  const literal = parseHex(value);
-  const swatch = (name) => {
-    const entry = palette.find((p) => p.name === name);
-    return entry ? parseHex(entry.value) : null;
-  };
-  const shown = literal || (ref && swatch(ref));
-  if (value != null && !ref && !literal) {
-    // an expression choosing a colour: edited as text
-    return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
-  }
-  return html`<span class="color">
-    <span class="chip" style=${shown ? `background:${toHex(shown)}` : ""}></span>
-    <select value=${ref ? `color.${ref}` : literal ? "#" : ""}
-      onChange=${(e) => { const v = e.target.value; if (v && v !== "#") onCommit(v); }}>
-      <option value="">—</option>
-      ${names.map((n) => html`<option value=${`color.${n}`}>${n}</option>`)}
-      <option value="#">custom</option>
-    </select>
-    ${literal || !ref ? html`<input type="color" value=${shown ? toHex(shown) : "#000000"}
-        onChange=${(e) => onCommit(toHex(parseHex(e.target.value)))} />` : null}
-    ${literal && !mipLegal(literal) ? html`<span class="warn" title=${`dithers on a 64-colour MIP panel; nearest: ${toHex(mipNearest(literal))}`}>⚠</span>` : null}
+  const swatch = ref && palette.find((p) => p.name === ref);
+  const shown = parseHex(value) || (swatch && parseHex(swatch.value));
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    addEventListener("mousedown", away);
+    addEventListener("keydown", esc);
+    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); };
+  }, [open]);
+  const pick = (v) => { setOpen(false); setCustom(""); onPick(v); };
+  const customRgb = parseHex(custom) || shown || [255, 255, 255];
+  const target = swatchFor(customRgb, palette, mip);
+  const safe = safeOn(customRgb, displays);
+  const warn = shown && !safeOn(shown, displays).ok;
+  return html`<span class="color pop-anchor" ref=${box}>
+    <button class="chip-button" title=${title || "pick a colour"} onClick=${() => setOpen(!open)}>
+      ${label ? null : html`<span class="chip" style=${shown ? `background:${toHex(shown)}` : ""}></span>`}
+      <span class=${ref || label ? "" : "dim"}>${label || ref || (shown ? toHex(shown) : "—")}</span>
+    </button>
+    ${warn ? html`<span class="warn" title=${`dithers on this face's ${displays.join("/")}-colour screens`}>⚠</span>` : null}
+    ${open ? html`<div class="pop">
+      ${faceGroup ? html`<div class="pop-group">
+        <div class="pop-title">This face</div>
+        <div class="pop-swatches">${palette.map((p) => { const v = parseHex(p.value); return html`
+          <button class=${"swatch" + (ref === p.name ? " on" : "")} title=${`${p.name} ${p.value}`}
+            style=${v ? `background:${toHex(v)}` : ""} onClick=${() => pick(`color.${p.name}`)}></button>`; })}</div>
+        ${roles && (ctx.globals.roles || []).length ? html`<div class="pop-roles">${ctx.globals.roles.map((r) => html`
+          <button class=${ref === r ? "on" : ""} title="a role: follows the wearer's style or pick" onClick=${() => pick(`color.${r}`)}>${r}</button>`)}</div>` : null}
+      </div>` : null}
+      <div class="pop-group">
+        <div class="pop-title">MIP 64</div>
+        <div class="pop-grid">${mip.map((m) => {
+          const held = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
+          return html`<button class=${"swatch" + (held ? " held" : "")} style=${`background:${m.value}`}
+            title=${`${m.label} ${m.value}${held ? ` (this face: ${held.name})` : ""}`} onClick=${() => pick(m.value)}></button>`; })}</div>
+      </div>
+      <div class="pop-group">
+        <div class="pop-title">Custom</div>
+        <div class="pop-custom">
+          <input type="color" value=${toHex(customRgb)} onInput=${(e) => setCustom(e.target.value.toUpperCase())} />
+          <input type="text" class="mono" value=${custom || toHex(customRgb)} style="width:6.5em"
+            onInput=${(e) => setCustom(e.target.value)}
+            onKeyDown=${(e) => { if (e.key === "Enter" && parseHex(custom)) pick(toHex(parseHex(custom))); }} />
+          <button class="primary" disabled=${!parseHex(custom)} onClick=${() => pick(toHex(customRgb))}>Use</button>
+        </div>
+        ${parseHex(custom) ? html`<div class="note">${target.adds ? `adds ${target.name}` : `uses ${target.name}`}
+          ${!safe.ok ? html` · <span class="warn">⚠ dithers</span> <a href="#" onClick=${(e) => { e.preventDefault(); setCustom(toHex(safe.nearest)); }}>nearest ${toHex(safe.nearest)}</a>` : null}</div>` : null}
+      </div>
+    </div>` : null}
   </span>`;
 }
 
@@ -109,7 +148,7 @@ function Template({ value, sources, onCommit }) {
   </span>`;
 }
 
-function Widget({ field, value, ctx, onCommit, like }) {
+function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
   const enumSelect = (options, extra) => html`<select value=${value ?? ""} onChange=${(e) => e.target.value !== "" && onCommit(e.target.value)}>
     <option value="">${field.default != null ? `default (${field.default})` : "—"}</option>
     ${(extra || []).map((o) => html`<option value=${o}>${o}</option>`)}
@@ -120,8 +159,11 @@ function Widget({ field, value, ctx, onCommit, like }) {
     case "length": return html`<${Quantity} value=${value} like=${like} units=${LENGTH_UNITS} bareUnit="px" onCommit=${onCommit} />`;
     case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
     case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
-    case "color": return html`<${ColorPicker} value=${value} palette=${ctx.globals.palette || []}
-      roles=${(ctx.globals.schemes || {}).roles || []} onCommit=${onCommit} />`;
+    case "color":
+      // an expression choosing a colour is edited as text
+      return value != null && !colorName(value) && !parseHex(value)
+        ? html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`
+        : html`<${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />`;
     case "template": return html`<${Template} value=${value} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
     case "icon": return html`<${Commit} value=${value} list="wfb-icons" onCommit=${onCommit} />`;
@@ -160,7 +202,8 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
     <div class="name" title=${field.description}>${field.key}${field.required ? html`<span class="req">*</span>` : null}</div>
     <div class="value">
       <${Widget} field=${field} value=${value} ctx=${ctx} like=${overridden ? field.value : undefined}
-        onCommit=${(v) => onEdit({ op: "set", ...base, value: v })} />
+        onCommit=${(v) => onEdit({ op: "set", ...base, value: v })}
+        onPickColor=${(v) => onEdit({ op: "use_color", ...base, scope: "all", value: v })} />
       ${value != null && !field.required && field.widget !== "readonly"
         ? html`<button class="reset" title=${overridden ? "remove the override" : "remove the key (back to the default)"}
             onClick=${() => onEdit({ op: "remove", ...base })}>×</button>` : null}
@@ -279,6 +322,52 @@ function SlotRow({ slot, types, onEdit, onSelect, onStructure }) {
   </li>`;
 }
 
+const AXES = {
+  accent_color: { title: "Accent colour", role: "accent" },
+  data_color: { title: "Data colour", role: "data" },
+};
+
+// One `config:` colour axis: what the wearer may pick, always written as an
+// explicit list of the face's swatches, so adding a colour to the palette
+// never changes what the wearer is offered. `choices: any` is shown, not
+// edited.
+function AxisRow({ axis, entry, palette, onEdit }) {
+  const meta = AXES[axis];
+  const path = ["config", axis];
+  const legal = palette.filter((p) => !p.dithers_on.length);
+  if (!entry) {
+    return html`<div class="axis"><span class="dim">${meta.title}: none</span>
+      <button disabled=${!legal.length} title=${`the wearer picks color.${meta.role} from a list you choose`}
+        onClick=${() => onEdit({ op: "set", path, value: { default: `color.${legal[0].name}`, choices: [`color.${legal[0].name}`] } })}>+ ${meta.title}</button></div>`;
+  }
+  const list = Array.isArray(entry.raw) ? entry.raw : null;
+  const listed = (name) => list && list.includes(`color.${name}`);
+  const toggle = (name) => onEdit({ op: "set", path: [...path, "choices"],
+    value: listed(name) ? list.filter((c) => c !== `color.${name}`) : [...list, `color.${name}`] });
+  const other = list ? list.filter((c) => typeof c !== "string" || !colorName(c)) : [];
+  return html`<div class="axis">
+    <div class="axis-head"><b>${meta.title}</b> <span class="dim">binds</span>
+      <${Commit} value=${entry.role} width="7em" placeholder=${meta.role}
+        onCommit=${(v) => onEdit(v.trim() && v.trim() !== meta.role ? { op: "set", path: [...path, "role"], value: v.trim() }
+                                                                   : { op: "remove", path: [...path, "role"] })} />
+      <button class="reset" title="remove this setting" onClick=${() => onEdit({ op: "remove", path })}>×</button></div>
+    <div class="slot-line"><span class="dim">default</span>
+      <select value=${entry.default || ""} onChange=${(e) => onEdit({ op: "set", path: [...path, "default"], value: e.target.value })}>
+        ${(list ? list.filter((c) => typeof c === "string") : palette.map((p) => `color.${p.name}`)).map((c) => html`<option value=${c}>${colorName(c) || c}</option>`)}
+      </select></div>
+    ${list ? html`<div class="axis-choices">${palette.map((p) => { const v = parseHex(p.value); return html`
+        <label title=${p.dithers_on.length ? `dithers on ${p.dithers_on.join(", ")}` : p.value}>
+          <input type="checkbox" checked=${listed(p.name)} disabled=${entry.default === `color.${p.name}`}
+            onChange=${() => toggle(p.name)} />
+          <span class="chip" style=${v ? `background:${toHex(v)}` : ""}></span>${p.name}${p.dithers_on.length ? html`<span class="warn">⚠</span>` : null}
+        </label>`; })}
+        ${other.length ? html`<div class="note">and ${other.length} written in the YAML</div>` : null}</div>`
+      : html`<div class="note">choices: any. On a fēnix 8 the watch's own colour picker; on a watch
+          without it (fr955), every colour in the palette, which grows as colours are added.
+          <button onClick=${() => onEdit({ op: "set", path: [...path, "choices"], value: [...new Set([entry.default, ...legal.map((p) => `color.${p.name}`)])] })}>Make it a list</button></div>`}
+  </div>`;
+}
+
 export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure }) {
   const g = doc.globals || {};
   const palette = g.palette || [];
@@ -292,12 +381,11 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure 
   const replaceFor = useRef(null);
   const replaceFile = useRef(null);
 
-  const hexInput = (value, path) => html`<span class="color">
-    <span class="chip" style=${parseHex(value) ? `background:${toHex(parseHex(value))}` : ""}></span>
-    <${Commit} value=${value} mono width="6.5em" onCommit=${(v) => onEdit({ op: "set", path, value: v })} />
-    <input type="color" value=${parseHex(value) ? toHex(parseHex(value)) : "#000000"}
-      onChange=${(e) => onEdit({ op: "set", path, value: toHex(parseHex(e.target.value)) })} />
-  </span>`;
+  const ctx = { globals: g, vocab };
+  const unused = palette.filter((p) => !p.used_by.length && !p.launcher);
+  // who uses a colour: an element id selects it, anything else is a path
+  const users = (list) => list.map((u, i) => html`${i ? ", " : ""}${u.includes(".") ? html`<code>${u}</code>`
+    : html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(u); }}>${u}</a>`}`);
 
   return html`<div class="face-panel">
     <${Section} title=${`Targets (${(g.targets || []).length})`}>
@@ -315,26 +403,34 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure 
     </${Section}>
 
     <${Section} title=${`Colours (${palette.length})`}>
-      <ul class="rows">${palette.map((p) => {
-        const path = ["resources", "palette", p.name, ...(p.long ? ["value"] : [])];
-        return html`<li>
-          <span class="name" title="rename" onClick=${() => { const n = askName("Colour", p.name); if (n && n !== p.name) onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." }); }}>${p.name}</span>
-          ${hexInput(p.value, path)}
+      <ul class="rows">${palette.map((p) => html`<li class="swatch-row">
+          <span class="name" title="rename (every color.${p.name} follows)" onClick=${() => { const n = askName("Colour", p.name); if (n && n !== p.name) onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." }); }}>${p.name}</span>
+          <${ColorPop} value=${p.value} ctx=${ctx} faceGroup=${false}
+            title=${p.used_by.length ? `changes ${p.used_by.length} use${p.used_by.length > 1 ? "s" : ""}: ${p.used_by.join(", ")}` : "not used yet"}
+            onPick=${(v) => onEdit({ op: "set_swatch", name: p.name, value: v })} />
           ${p.dithers_on.length ? html`<span class="warn" title=${`dithers on ${p.dithers_on.join(", ")}`}>⚠</span>` : null}
+          ${p.automatic ? html`<span class="tag" title="named after its colour: renamed when its colour changes, removed when nothing uses it">auto</span>` : null}
           <button class="reset" title="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
-        </li>`; })}</ul>
-      <button onClick=${() => { const n = askName("New colour"); if (n) onEdit({ op: "set", path: ["resources", "palette", n], value: "#FFFFFF" }); }}>+ Colour</button>
+          <div class="note">${p.used_by.length ? html`used by ${users(p.used_by)}`
+            : p.launcher ? "the launcher icon reads it" : "not used"}</div>
+        </li>`)}</ul>
+      <div class="row">
+        <${ColorPop} ctx=${ctx} faceGroup=${false} label="+ Colour" title="add one of the 64, or your own" onPick=${(v) => onEdit({ op: "add_swatch", value: v })} />
+        <button disabled=${!unused.length} title=${unused.length ? `remove ${unused.map((p) => p.name).join(", ")}` : "every colour is in use"}
+          onClick=${() => { if (confirm(`Remove ${unused.map((p) => p.name).join(", ")}?`)) onEdit({ op: "remove_unused" }); }}>Remove unused</button>
+      </div>
+    </${Section}>
+
+    <${Section} title="Colour settings">
+      ${["accent_color", "data_color"].map((axis) => html`<${AxisRow} axis=${axis} entry=${(g.axes || {})[axis]}
+        palette=${palette} onEdit=${onEdit} />`)}
     </${Section}>
 
     ${schemes.names.length ? html`<${Section} title="Schemes">
       <table class="schemes"><tr><th></th>${schemes.names.map((s) => html`<th>${s}</th>`)}</tr>
-        ${schemes.roles.map((r) => html`<tr><td>${r}</td>${schemes.names.map((s) => {
-          const v = (schemes.colors[s] || {})[r];
-          const path = ["theme", "schemes", s, "colors", r];
-          return html`<td>${colorName(v)
-            ? html`<select value=${v} onChange=${(e) => onEdit({ op: "set", path, value: e.target.value })}>
-                ${palette.map((p) => html`<option value=${`color.${p.name}`}>${p.name}</option>`)}</select>`
-            : hexInput(v, path)}</td>`; })}</tr>`)}
+        ${schemes.roles.map((r) => html`<tr><td>${r}</td>${schemes.names.map((s) => html`<td>
+          <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
+            onPick=${(v) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
       </table>
     </${Section}>` : null}
 

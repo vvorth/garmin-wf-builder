@@ -40,6 +40,88 @@ MIP64_SNAP = bytes(min(MIP64_LEVELS, key=lambda level: abs(level - value))
 LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
 
 
+#: The 64 colours a MIP panel shows, named: ``(name, "#RRGGBB", label)``.
+#: The names are apps.bliemel.net/colors' (both of its "Green"s are kept,
+#: the darker as `dark_green`), in that page's order: white to black, one
+#: channel stepping at a time.  `wfb new -t palette` and
+#: `docs/guide/mip-palette.md` list the same rows (`tests/test_palette.py`),
+#: and the editor offers them by name (`wfb.studio.inspect.vocabulary`).
+MIP64_NAMED: tuple[tuple[str, str, str], ...] = (
+    ("white", "#FFFFFF", "White"),
+    ("shalimar", "#FFFFAA", "Shalimar"),
+    ("laser_lemon", "#FFFF55", "Laser Lemon"),
+    ("yellow", "#FFFF00", "Yellow"),
+    ("lavender_rose", "#FFAAFF", "Lavender Rose"),
+    ("sundown", "#FFAAAA", "Sundown"),
+    ("texas_rose", "#FFAA55", "Texas Rose"),
+    ("web_orange", "#FFAA00", "Web Orange"),
+    ("pink_flamingo", "#FF55FF", "Pink Flamingo"),
+    ("brilliant_rose", "#FF55AA", "Brilliant Rose"),
+    ("sunset_orange", "#FF5555", "Sunset Orange"),
+    ("international_orange", "#FF5500", "International Orange"),
+    ("magenta_fuchsia", "#FF00FF", "Magenta Fuchsia"),
+    ("hollywood_cerise", "#FF00AA", "Hollywood Cerise"),
+    ("razzmatazz", "#FF0055", "Razzmatazz"),
+    ("red", "#FF0000", "Red"),
+    ("pale_turquoise", "#AAFFFF", "Pale Turquoise"),
+    ("mint_green", "#AAFFAA", "Mint Green"),
+    ("conifer", "#AAFF55", "Conifer"),
+    ("spring_bud", "#AAFF00", "Spring Bud"),
+    ("perano", "#AAAAFF", "Perano"),
+    ("silver_chalice", "#AAAAAA", "Silver Chalice"),
+    ("olive_green", "#AAAA55", "Olive Green"),
+    ("citrus", "#AAAA00", "Citrus"),
+    ("medium_purple", "#AA55FF", "Medium Purple"),
+    ("violet_blue", "#AA55AA", "Violet Blue"),
+    ("apple_blossom", "#AA5555", "Apple Blossom"),
+    ("rust", "#AA5500", "Rust"),
+    ("electric_violet", "#AA00FF", "Electric Violet"),
+    ("dark_magenta", "#AA00AA", "Dark Magenta"),
+    ("jazzberry_jam", "#AA0055", "Jazzberry Jam"),
+    ("bright_red", "#AA0000", "Bright Red"),
+    ("baby_blue", "#55FFFF", "Baby Blue"),
+    ("medium_aquamarine", "#55FFAA", "Medium Aquamarine"),
+    ("screamin_green", "#55FF55", "Screamin' Green"),
+    ("bright_green", "#55FF00", "Bright Green"),
+    ("cornflower_blue", "#55AAFF", "Cornflower Blue"),
+    ("cadet_blue", "#55AAAA", "Cadet Blue"),
+    ("fruit_salad", "#55AA55", "Fruit Salad"),
+    ("kelly_green", "#55AA00", "Kelly Green"),
+    ("neon_blue", "#5555FF", "Neon Blue"),
+    ("rich_blue", "#5555AA", "Rich Blue"),
+    ("emperor", "#555555", "Emperor"),
+    ("verdun_green", "#555500", "Verdun Green"),
+    ("electric_indigo", "#5500FF", "Electric Indigo"),
+    ("indigo", "#5500AA", "Indigo"),
+    ("tyrian_purple", "#550055", "Tyrian Purple"),
+    ("maroon", "#550000", "Maroon"),
+    ("aqua", "#00FFFF", "Aqua"),
+    ("medium_green", "#00FFAA", "Medium Green"),
+    ("malachite", "#00FF55", "Malachite"),
+    ("green", "#00FF00", "Green"),
+    ("azure_radiance", "#00AAFF", "Azure Radiance"),
+    ("persian_green", "#00AAAA", "Persian Green"),
+    ("pigment_green", "#00AA55", "Pigment Green"),
+    ("japanese_laurel", "#00AA00", "Japanese Laurel"),
+    ("navy_blue", "#0055FF", "Navy Blue"),
+    ("cobalt", "#0055AA", "Cobalt"),
+    ("mosque", "#005555", "Mosque"),
+    ("dark_green", "#005500", "Dark Green"),
+    ("blue", "#0000FF", "Blue"),
+    ("midnight_blue", "#0000AA", "Midnight Blue"),
+    ("navy", "#000055", "Navy"),
+    ("black", "#000000", "Black"),
+)
+
+
+def mip64_name(value: str) -> str | None:
+    """The MIP name of a ``#RRGGBB`` value, or ``None`` when the colour is
+    not one of the 64."""
+    return _MIP64_BY_VALUE.get(value.upper())
+
+
+_MIP64_BY_VALUE = {hex_: name for name, hex_, _ in MIP64_NAMED}
+
 class ColorError(ValueError):
     pass
 

@@ -23,9 +23,10 @@ from typing import Any
 
 from .. import catalog, complications, icon_catalog
 from ..devices import Device, DeviceDatabase
+from ..edit import colors
 from ..edit.geometry import selector_paths
 from ..edit.spans import Path, SpanIndex, index_for
-from ..palette import Color, ColorError
+from ..palette import MIP64_NAMED, Color, ColorError
 
 SCHEMA = FilePath(__file__).resolve().parents[2] / "schema" / "wfb-face-2.schema.json"
 
@@ -224,6 +225,31 @@ def _slots(index: SpanIndex) -> list[dict[str, Any]]:
     return out
 
 
+def _automatic(name: str, value: Any) -> bool:
+    try:
+        return colors.is_automatic(name, value)
+    except Exception:
+        return False
+
+
+def _axes(data: dict[str, Any]) -> dict[str, Any]:
+    """`config: accent_color:` and `data_color:`: each one's default,
+    choices (`any`, or the listed colours) and the role it binds."""
+    config = data.get("config") or {}
+    out: dict[str, Any] = {}
+    for axis, role in (("accent_color", "accent"), ("data_color", "data")):
+        entry = config.get(axis)
+        if not isinstance(entry, dict):
+            out[axis] = None
+            continue
+        raw = entry.get("choices")
+        choices = raw if isinstance(raw, str) else [
+            c.get("color") if isinstance(c, dict) else c for c in (raw or [])]
+        out[axis] = {"default": entry.get("default"), "choices": choices,
+                     "raw": raw, "role": entry.get("role") or role, "own_role": "role" in entry}
+    return out
+
+
 def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
     """The face's colours, schemes, styles, layouts, fonts, slots and
     targets."""
@@ -247,7 +273,10 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
         value = entry.get("value") if isinstance(entry, dict) else entry
         palette.append({"name": name, "value": value,
                         "label": entry.get("label") if isinstance(entry, dict) else None,
-                        "long": isinstance(entry, dict), "dithers_on": _legal_on(value, devices)})
+                        "long": isinstance(entry, dict), "dithers_on": _legal_on(value, devices),
+                        "used_by": colors.user_names(index, str(name)),
+                        "automatic": _automatic(str(name), value),
+                        "launcher": name in colors.LAUNCHER})
     schemes = (data.get("theme") or {}).get("schemes") or {}
     roles: list[str] = []
     for scheme in schemes.values():
@@ -271,6 +300,9 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
         "layouts": list((data.get("layouts") or {})),
         "fonts": fonts,
         "slots": _slots(index),
+        "roles": colors.roles(index),
+        "axes": _axes(data),
+        "displays": sorted({d.display_colors for d in devices if d.display_colors}),
         "hand_sets": list((resources.get("hand_sets") or {})),
         "targets": targets,
     }
@@ -289,6 +321,7 @@ def vocabulary() -> dict[str, Any]:
         "complications": ["auto"] + complications.names(),
         "series": series.names(),
         "types": element_types(),
+        "mip": [{"name": n, "value": v, "label": label} for n, v, label in MIP64_NAMED],
     }
 
 

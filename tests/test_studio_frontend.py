@@ -303,3 +303,32 @@ def test_zoom_scale_and_real_size():
     assert real[0] == 0.48 and abs(real[1] - 96 / 326) < 1e-9 and real[2] is None and real[3] == 0.6
     assert abs(result["card"] - 96) < 0.01          # 85.6 mm at 96 px per inch is 323.53 px
     assert abs(result["mm"][0] - 33.02) < 0.01 and result["mm"][1] is None
+
+
+def test_a_picked_colour_is_named_and_snapped_as_the_compiler_does():
+    from wfb.edit.colors import automatic_name
+    from wfb.palette import MIP64_NAMED, Color
+
+    mip = [{"name": n, "value": v, "label": label} for n, v, label in MIP64_NAMED]
+    samples = ["#FF8000", "#FF5500", "#000000", "#123456", "#2E3A2E", "#2F4F4F", "#7A7A7A",
+               "#767676", "#AAAAAA", "#FFFFFF", "#0F0F80", "#808000"]
+    palette = [{"name": "bg", "value": "#000"}, {"name": "odd", "value": "nope"}]
+    result = run(f"""
+      const mip = {json.dumps(mip)};
+      const samples = {json.dumps(samples)};
+      console.log(JSON.stringify({{
+        names: samples.map((s) => values.automaticName(values.parseHex(s), mip)),
+        mono: samples.map((s) => values.toHex(values.safeOn(values.parseHex(s), [2]).nearest)),
+        mip64: samples.map((s) => values.toHex(values.safeOn(values.parseHex(s), [64]).nearest)),
+        ok: [values.safeOn([0x55, 0xaa, 0xff], [64, 65536]).ok, values.safeOn([1, 2, 3], [65536]).ok,
+             values.safeOn([0x55, 0x55, 0x55], [2]).ok],
+        held: values.swatchFor([0, 0, 0], {json.dumps(palette)}, mip),
+        adds: values.swatchFor([255, 0, 0], {json.dumps(palette)}, mip),
+      }}));
+    """)
+    assert result["names"] == [automatic_name(s) for s in samples]
+    assert result["mono"] == [str(Color.parse(s).nearest_legal(2)) for s in samples]
+    assert result["mip64"] == [str(Color.parse(s).nearest_legal(64)) for s in samples]
+    assert result["ok"] == [True, True, False]
+    assert result["held"] == {"name": "bg", "adds": False}
+    assert result["adds"] == {"name": "red", "adds": True}
