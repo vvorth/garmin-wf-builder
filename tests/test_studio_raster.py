@@ -539,6 +539,27 @@ def test_the_browsers_draw_span_is_the_barrels():
     assert got == want
 
 
+def test_the_browsers_draw_progress_is_the_barrels():
+    """`raster.drawProgress` against `wfb.draw.barrel.draw_progress`: every
+    fraction from below nothing to past full, over starts and sweeps
+    either way."""
+    from wfb.draw import barrel
+
+    fractions = [-0.5, 0, 0.001, 0.1, 1 / 3, 0.5, 0.999, 1, 1.5]
+    cases = [[a, b, f] for a in range(-360, 361, 37) for b in (-300, -90.5, 45, 270, 359.5)
+             for f in fractions]
+    source = (f"import * as raster from {json.dumps(RASTER.as_uri())};\n"
+              "import { readFileSync } from 'node:fs';\n"
+              "const cases = JSON.parse(readFileSync(0, 'utf8'));\n"
+              "console.log(JSON.stringify(cases.map(([a, b, f]) => raster.drawProgress(a, b, f))));")
+    got = json.loads(subprocess.run([node(), "--input-type=module", "-e", source],
+                                    input=json.dumps(cases), capture_output=True, text=True,
+                                    check=True).stdout)
+    want = [list(c) if (c := barrel.draw_progress(a, b, f)) is not None else None
+            for a, b, f in cases]
+    assert got == want
+
+
 LIVE_RUNNER = """
 import * as raster from %s;
 import { createHash } from "node:crypto";

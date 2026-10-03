@@ -12,7 +12,8 @@ in §7. Where the build departed from this document:
 - a move redraws the whole face from the layers' ops rather than shifting
   per-layer images;
 - live handles cover 63 of 304, not 188 of 226 (the note under table C).
-  Centred boxes and gauge arcs are plan 29.
+  Plan 29 added plain arc gauges (107 of 304); centred boxes keep the
+  outline, by the user's choice (2026-10-03).
 
 **Short answer.** Yes, for two of the three waits the author feels, and
 only partly for the third.

@@ -792,6 +792,26 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
     def describe(self, placed: PlacedProgress) -> str:
         return article(f"{placed.element.style} progress indicator")
 
+    def live_handle(self, placed: PlacedProgress, handle: dict[str, Any]) -> dict[str, Any] | None:
+        """A plain arc gauge (`style: arc`) draws its track and its fill from
+        `_RADIUS`, `_START` and `_SWEEP` alone, the fill as a fraction of
+        the sweep (`WfbArc.drawProgress`): centred, its radius moves nothing
+        else, and a turn sets one angle.  Segments and a scale work their
+        cells and bands out from the sweep, and stay drawn as an outline."""
+        element = placed.element
+        if element.style != "arc":
+            return None
+        prefix = const_prefix(placed.id)
+        raw = handle.get("key")
+        key = tuple(raw) if isinstance(raw, list) else (raw,)
+        if handle["kind"] == "angle":
+            return {"angle": f"{prefix}_START" if key == ("start_angle",) else f"{prefix}_SWEEP"}
+        centred = (getattr(element, "align", "center") == "center"
+                   and getattr(element, "vertical_align", "center") == "center")
+        if handle["kind"] == "size" and key == ("radius",) and centred:
+            return {"consts": {f"{prefix}_RADIUS": 1}}
+        return None
+
     def layout_constants(self, prefix: str,
                          placed: PlacedProgress) -> "layout_constants_mod.Constants":
         out: "layout_constants_mod.Constants" = [

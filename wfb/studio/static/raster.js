@@ -774,6 +774,14 @@ export function drawSpan(startDegrees, sweepDegrees) {
   return [start, end, sweep > 0];
 }
 
+// `WfbArc.drawProgress` (`wfb.draw.barrel.draw_progress`): `fraction` of
+// the sweep through `drawSpan`, nothing at or below zero, the whole sweep
+// above one.
+export function drawProgress(startDegrees, sweepDegrees, fraction) {
+  if (fraction <= 0) return null;
+  return drawSpan(startDegrees, sweepDegrees * (fraction > 1 ? 1 : fraction));
+}
+
 // `ops` as they will be once a live handle (`live`, from the server's
 // `handles`) has been dragged: `delta` device pixels of extent for a size
 // handle, `degrees` (12 o'clock, clockwise) for an angle. An arc whose
@@ -793,7 +801,9 @@ export function liveOps(ops, live, { delta = 0, degrees = 0 } = {}) {
   return ops.map((op) => {
     const out = walk(op);
     if (op.op === "arc" && (out.start !== op.start || out.sweep !== op.sweep)) {
-      out.call = drawSpan(num(out.start), num(out.sweep));
+      // a gauge's fill is its fraction of the sweep (`drawProgress`)
+      out.call = "fraction" in op ? drawProgress(num(out.start), num(out.sweep), op.fraction)
+                                  : drawSpan(num(out.start), num(out.sweep));
     }
     return out;
   });

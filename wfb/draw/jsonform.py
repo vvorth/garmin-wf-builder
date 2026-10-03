@@ -218,6 +218,9 @@ class _JsonWriter:
                 "op": "arc", "cx": self.num(op.cx), "cy": self.num(op.cy),
                 "radius": self.num(op.radius), "pen": self.num(op.pen),
                 "start": self.num(op.start), "sweep": self.num(op.sweep),
+                # The fill fraction this frame's reading gives: a live
+                # handle's new start or sweep goes through it again.
+                "fraction": float(ev.num(op.fraction)),
                 # What `WfbArc.drawProgress` hands `dc.drawArc`.
                 "call": list(call) if call is not None else None,
             })

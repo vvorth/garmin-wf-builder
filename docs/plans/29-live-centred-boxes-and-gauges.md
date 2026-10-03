@@ -1,8 +1,12 @@
 # 29 — Live handles for centred boxes and gauge arcs
 
-**Status: proposed (2026-10-03). E (plain arc gauges) was decided by the
-user on 2026-10-03. How centred boxes become live (options A–D, §1) is
-open, and so are C1–C4, which apply only if A is chosen.** Delete
+**Status: built (2026-10-03): E, plain arc gauges, and D for centred
+boxes: they keep the outline for now. C1–C4 do not arise. Slice 1 is
+dropped. Slices 0 (its gauge checks), 2 and 3 are one commit: the corpus
+test checks 107 live handles of 304 (from 63), 204 edits, each drawn by
+the browser exactly as the server lands it; ignoring the fill fraction
+fails it. Slice 3's jsdom check was not run: there is no jsdom or browser
+in the sandbox, and the canvas applies a declared handle generically.** Delete
 this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Records this builds on:
@@ -56,8 +60,10 @@ every centred box shape; **105 of 304** under D (E alone).
 
 - **E (user, 2026-10-03):** a `drawProgress` twin for plain arc gauges,
   in a plan of its own after plan 28 closed.
+- **D (user, 2026-10-03):** centred boxes keep the outline for now. A, B
+  and C stay below as the options considered, for a later plan.
 
-### Open: how centred boxes become live
+### Considered: how centred boxes become live
 
 | Option | How it works | Exact? | Cost and risk |
 |---|---|---|---|
@@ -75,7 +81,7 @@ snaps to one the release really lands.
 single-sourced in Python, which is what the draw program set out to
 achieve (research 27). Slice 0's measurement serves A and B alike.
 
-### Open, if A is chosen
+### Had A been chosen
 
 - **C1: where the table is worked out.**
   - **A (recommended):** each kind, beside `live_handle`:
