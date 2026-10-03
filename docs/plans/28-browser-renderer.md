@@ -1,7 +1,7 @@
 # 28 — A browser renderer for `wfb studio`
 
 **Status: accepted (2026-10-03); B1–B5 decided as recommended the same
-day; slice 0 done, 1 next. Building it was decided by the user on
+day; slices 0 and 1 done, 2 next. Building it was decided by the user on
 2026-10-03 (research 29 §7, R1–R4 as recommended).** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -103,20 +103,19 @@ In short:
 
 - `wfb/studio/static/raster.js`: pure functions on
   `{width, height, data: Uint8ClampedArray}`, with no DOM, for Node:
-  - `rasterise(ops, tiles, scale, ground)`, one function per op;
+  - `drawOps(im, ops, tiles, scale)`, one branch per op;
   - `drawSpan` twin;
   - Pillow's mask paste, with its integer rounding.
 - `wfb/draw/jsonform.py`:
-  - `text` ops gain `run` (B1);
-  - a rotated or curved vector text becomes an `image` op: the server's
-    RGBA of the run and its offset from the anchor;
-  - `rasterise` (the Python reference) reads `run` and `image`, so the
-    contract covers what the browser reads;
+  - `text` and `glyph` ops gain `run` (B1); a rotated or curved vector
+    run is one RGBA tile in it;
+  - `rasterise` (the Python reference) pastes runs, so the contract
+    covers what the browser reads;
   - `BROWSER_OPS`, the proven set (B2).
 - `wfb/studio/document.py`:
   - the frame response carries each layer as JSON or as a PNG
-    (fallback), plus the URL of the frame's **tile atlas**: one PNG of
-    every glyph tile the layers use, with its index, cached per version,
+    (fallback), plus the URL of the frame's **packed tiles**
+    (`Tiles.pack`: raw RGBA, zlib, with an index), cached per version,
     device, scale and frame switches;
   - `Document.layers` keeps serving fallback PNGs only.
 - `wfb/kinds/*`: per handle key, the constant coefficients (B3).
@@ -199,31 +198,73 @@ axes are under 2^13 (a 454 px screen at 3× is 2 724 on the step-2 grid).
 Node is checked by `tools/setup-env.sh`, and the test fails without it
 (B4).
 
-### Slice 1 — glyph tiles and placed text
+### Slice 1 — glyph tiles and placed text: done
 
-- `to_json`'s `text` op gains `run` (B1), and a rotated or curved vector
-  run becomes an `image` op.
-- **The tile atlas**, one PNG per frame:
-  - a baked glyph's tile is its sheet crop, scaled as `paste_glyph`
-    scales it;
-  - a system glyph's tile is the mask Pillow draws for it at the face's
-    size;
-  - a `.cft` glyph's tile is its cell.
-- `jsonform.rasterise` reads `run` and `image`.
-  `tests/test_draw_layers.py`'s contract (every lowered element equal to
-  the evaluator) then proves the server's placement once.
-- The Node contract test, part 1: for every lowered element of every
-  example on two devices at 2×, `raster.js` over black and over white
-  equals `jsonform.rasterise` on each ground, byte for byte. This covers
-  every element whose ops are in `BROWSER_OPS`, and the list of the rest
-  is printed.
-- **Measured:** tile atlas size and build time per face; how many layers
-  travel as JSON.
+Built as below:
+- **The renderer records instead of painting** while `Renderer.stamps` is
+  a list (`wfb.preview.Stamp`). Every place text or an icon reaches the
+  canvas records what it would paste:
+  - `paste_glyph`: a baked glyph's sheet crop, scaled as it is pasted;
+  - `_draw_system_line`: per character, `ImageDraw.text`'s own steps
+    (`getmask2` for the pen's fraction, placed at its integer part plus
+    the mask's offset);
+  - `_draw_bitmap_line`: a `.cft` cell;
+  - `_paste_rotated_run`: an angled or radial vector run's RGBA image;
+  - `_mark_extent`: the outline of text with no glyphs, as a `box`.
+
+  With `stamps` unset, nothing paints differently.
+- **`to_json`'s `text` and `glyph` ops carry a `run`** (B1): the stamps,
+  each a tile id at a whole-pixel offset from the op's anchor,
+  `(floor(x * scale), floor(y * scale))`, so a moved text is a moved
+  anchor. They are recorded by drawing the op exactly as `rasterise` used
+  to. A rotated vector run is a tile like any other, so no separate
+  `image` op was needed.
+- **`jsonform.Tiles`**: one store per frame (`wfb.draw.layers` shares it
+  across the layers), each tile kept once.
+- **A decision made in building it** (amending §2's "one PNG"): `pack()`
+  writes the tiles as raw RGBA bytes, zlib-compressed, with an index, not
+  as a PNG. A browser canvas premultiplies alpha, which would change a
+  translucent RGBA tile's colour; the raw bytes inflate with the
+  browser's own `DecompressionStream`.
+- **`jsonform.rasterise(ops, tiles, renderer)`** pastes runs and lays out
+  nothing. `BROWSER_OPS` lists every op.
+- **`raster.js`** gains `paste` (Pillow's mask blend, `DIV255` and all),
+  `unpackTiles`, and `drawOps`, the `rasterise` mapping. Its `OPS` must
+  equal `BROWSER_OPS`.
+
+Proven:
+- **Nothing else moved:** `tools/snapshot.py` against a baseline saved
+  from the slice's starting commit: 553 of 553 cases unchanged. The fast
+  suite and `mypy --strict` are green.
+- **The server's placement:** `tests/test_draw_layers.py`'s contract,
+  run over every example face (awake and AOD), still holds with
+  `rasterise` pasting runs: 72/72. Shifting every tile one pixel fails 26
+  faces.
+- **The browser equals the reference:** `tests/test_studio_raster.py`.
+  For every lowered element of every example face on fenix8solar47mm and
+  fr955, awake and AOD, over black and over white, `drawOps` equals
+  `rasterise` byte for byte: 655 elements in the awake frames alone, with
+  984 mask and 351 RGBA stamps. Every op the corpus emits is in
+  `BROWSER_OPS`. A blend without its rounding term fails 26 faces.
+- **What the corpus never shows**, in a synthetic run: tiles straddling
+  every edge and corner, translucent RGBA tiles, and a `box`. Each of the
+  four clip edges, moved one pixel, fails it; a first version without the
+  edge tiles missed exactly that, by chance of its seed.
+
+**Measured** (`docs/research/probes/browser-renderer/tiles.py`, results
+beside it; fr955 at 2×):
+- **329 of 330 layers travel as JSON.** The one that does not is
+  `features/rings`' outlined group ring, which has no ops.
+- **Tiles per face:** 0–64 distinct, 0–41 KB packed (base64), packed in
+  under 15 ms. The largest is `features/vector-text`: 55 tiles, mostly
+  rotated runs.
+- **Payload:** the corpus's ops plus tiles come to 417 KB (ops 225 KB,
+  tiles 192 KB) against 957 KB of the layer PNGs the editor fetches today.
 
 ### Slice 2 — layers from JSON in the canvas
 
 - The frame response carries each layer as JSON or a PNG (B2), and the
-  atlas URL. The canvas rasterises the JSON layers on arrival, keeping one
+  URL of the frame's packed tiles. The canvas rasterises the JSON layers on arrival, keeping one
   image per layer.
 - Hit-testing by alpha and a move's moving image read them. The separate
   layers request goes, except for fallback PNGs.

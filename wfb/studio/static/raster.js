@@ -1,11 +1,13 @@
 // Pillow's drawing primitives, in JavaScript, pixel for pixel: the shapes
-// the editor's draw program uses (`wfb.draw.jsonform.rasterise`), so a
-// layer can be drawn in the browser exactly as the preview draws it.
+// the editor's draw program uses, and the pasting of its text's and icons'
+// tiles, so a layer's JSON (`wfb.draw.jsonform`) can be drawn in the
+// browser exactly as `jsonform.rasterise`, and so the preview, draws it.
 //
 // Follows Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc,
-// line, polygon, rounded_rectangle) and `src/libImaging/Draw.c` (the
+// line, polygon, rounded_rectangle), `src/libImaging/Draw.c` (the
 // scanline polygon, Bresenham lines, the integer ellipse and its clipped
-// arcs and pies), with the argument conversion of `src/_imaging.c`.
+// arcs and pies) and `Paste.c` (a paste through a mask), with the argument
+// conversion of `src/_imaging.c`.
 // Pillow is under the MIT-CMU licence: `vendor/LICENSES-pillow`.
 //
 // An image is `{width, height, data}`, `data` RGBA bytes (alpha always
@@ -547,4 +549,122 @@ export function roundedRectangle(im, xy, radius, { fill = null, outline = null, 
 
 function sameInk(a, b) {
   return !!a && !!b && a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+
+// -- Paste.c: tiles through a mask ---------------------------------------------------------
+
+// `BLEND` with `DIV255`: out * (255 - m) + in * m, divided by 255 rounded.
+function blend(m, out, inp) {
+  const t = out * (255 - m) + inp * m + 128;
+  return ((t >> 8) + t) >> 8;
+}
+
+// One tile at canvas pixel (x, y), as `Image.paste` puts it on an "RGB"
+// image: a "mask" tile tinted `color` through its coverage, an "rgba" tile
+// in its own colours through its own alpha. Clipped to the canvas.
+export function paste(im, tile, x, y, color) {
+  const mask = tile.kind === "mask";
+  const x0 = Math.max(0, x), y0 = Math.max(0, y);
+  const x1 = Math.min(im.width, x + tile.width), y1 = Math.min(im.height, y + tile.height);
+  for (let py = y0; py < y1; py++) {
+    let o = (py * im.width + x0) * 4;
+    let t = ((py - y) * tile.width + (x0 - x)) * 4;
+    for (let px = x0; px < x1; px++, o += 4, t += 4) {
+      const m = tile.data[t + 3];
+      if (m === 0) continue;
+      const r = mask ? color[0] : tile.data[t], g = mask ? color[1] : tile.data[t + 1];
+      const b = mask ? color[2] : tile.data[t + 2];
+      im.data[o] = blend(m, im.data[o], r);
+      im.data[o + 1] = blend(m, im.data[o + 1], g);
+      im.data[o + 2] = blend(m, im.data[o + 2], b);
+    }
+  }
+}
+
+// The tile store `wfb.draw.jsonform.Tiles.pack` sends, once inflated: the
+// RGBA bytes of every tile one after another, and their index
+// `{id: [offset, width, height, kind]}`.
+export function unpackTiles(bytes, index) {
+  const tiles = {};
+  for (const [id, [offset, width, height, kind]] of Object.entries(index)) {
+    tiles[id] = { width, height, kind, data: bytes.subarray(offset, offset + width * height * 4) };
+  }
+  return tiles;
+}
+
+// -- the JSON form: `wfb.draw.jsonform.rasterise` ------------------------------------------
+
+// Every op `drawOps` draws: `wfb.draw.jsonform.BROWSER_OPS`, checked equal.
+export const OPS = Object.freeze([
+  "color", "pen", "fillPolygon", "arc", "text", "glyph",
+  "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",
+  "fillCircle", "drawCircle", "fillEllipse", "drawEllipse", "drawLine",
+]);
+
+const num = (n) => (typeof n === "object" ? n.value + n.add : n);
+
+// `wfb.draw.barrel.pillow_arc`: `dc.drawArc`'s Garmin (start, end,
+// clockwise) as Pillow's (start, end), clockwise from 3 o'clock.
+function pillowArc([start, end, clockwise]) {
+  if (start === end) return [-start, -start + 360];
+  let [a, b] = clockwise ? [-start, -end] : [-end, -start];
+  while (b <= a) b += 360;
+  return [a, b];
+}
+
+// A run's tiles from the op's anchor: `floor(x * scale), floor(y * scale)`.
+function pasteRun(im, op, tiles, scale, color) {
+  const ax = Math.floor(num(op.x) * scale), ay = Math.floor(num(op.y) * scale);
+  for (const item of op.run) {
+    if (item.box) {
+      const [x, y, w, h] = item.box;
+      rectangle(im, [ax + x, ay + y, ax + x + w, ay + y + h], { outline: item.rgb, width: 1 });
+    } else {
+      paste(im, tiles[item.tile], ax + item.x, ay + item.y, color);
+    }
+  }
+}
+
+// One element's ops painted at `scale`, as `jsonform.rasterise` paints them.
+export function drawOps(im, ops, tiles, scale) {
+  const s = scale;
+  let color = [255, 255, 255], pen = 1;
+  for (const op of ops) {
+    const name = op.op;
+    if (name === "color") color = op.rgb;
+    else if (name === "pen") pen = Math.trunc(num(op.width));
+    else if (name === "fillPolygon") {
+      if (op.points.length >= 3) polygon(im, op.points.map(([x, y]) => [x * s, y * s]), color);
+    } else if (name === "arc") {
+      const radius = num(op.radius);
+      if (op.call === null || radius <= 0) continue;
+      const cx = num(op.cx) * s, cy = num(op.cy) * s, rr = radius * s;
+      const [start, end] = pillowArc(op.call);
+      arc(im, [cx - rr, cy - rr, cx + rr, cy + rr], start, end, color,
+          Math.max(1, Math.trunc(num(op.pen)) * s));
+    } else if (name === "glyph" || name === "text") {
+      pasteRun(im, op, tiles, s, color);
+    } else {
+      const v = op.args.map(num);
+      const width = Math.max(1, pen * s);
+      const fill = name.startsWith("fill");
+      const shape = name.slice(4);
+      const style = fill ? { fill: color } : { outline: color, width };
+      if (shape === "Rectangle" || shape === "RoundedRectangle") {
+        const [x, y, w, h] = v;
+        if (w <= 0 || h <= 0) continue;
+        const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
+        if (shape === "Rectangle") rectangle(im, rect, style);
+        else roundedRectangle(im, rect, v[4] * s, style);
+      } else if (shape === "Circle" || shape === "Ellipse") {
+        const [cx, cy] = v;
+        const [rx, ry] = shape === "Circle" ? [v[2], v[2]] : [v[2], v[3]];
+        ellipse(im, [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s], style);
+      } else if (name === "drawLine") {
+        line(im, [v[0] * s, v[1] * s, v[2] * s, v[3] * s], color, width);
+      } else {
+        throw new Error(`no rasterisation for ${name}`);
+      }
+    }
+  }
 }

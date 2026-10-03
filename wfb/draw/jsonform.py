@@ -10,14 +10,26 @@ design, the expression language or the barrel: an arc carries the
 `dc.drawArc` call its `WfbArc.drawSpan` makes, and a text call names its
 font by an id the layer's ``fonts`` table resolves.
 
+Text and icons are laid out here, not by the reader: every `text` and
+`glyph` op carries its `run`, the tiles the renderer would paste
+(`preview.Stamp`), each at a whole-pixel offset from the op's anchor at the
+frame's scale, ``(floor(x * scale), floor(y * scale))``.  The tiles live
+once each in a `Tiles` store, so moving a text is moving its anchor, and a
+reader needs no font, alignment or layout rule.
+
 `rasterise` is the reference reader: it paints JSON ops onto a `Renderer`'s
-canvas with plain Pillow calls and the renderer's glyph placement, and
-nothing else.  It is the contract a browser canvas implements: for every
-lowered element, its pixels equal the evaluator's (`tests/test_draw_layers.py`).
+canvas with plain Pillow calls, and pastes runs, and nothing else.  It is
+the contract a browser canvas implements: for every lowered element, its
+pixels equal the evaluator's (`tests/test_draw_layers.py`), and the
+browser's `wfb/studio/static/raster.js` equals it byte for byte
+(`tests/test_studio_raster.py`).
 """
 
 from __future__ import annotations
 
+import hashlib
+import math
+import zlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Union
 
@@ -34,12 +46,62 @@ from .program import (
 if TYPE_CHECKING:
     from typing import TypeAlias
 
+    from PIL import Image
+
     from ..devices import FontMetric
     from ..layout import Placed
     from ..preview import Renderer
 
 #: A number in the JSON: a plain value, or a `Layout` constant plus an offset.
 JsonNum: "TypeAlias" = Union[float, dict[str, Any]]
+
+#: Every op `to_json` emits, all of which `raster.js` draws exactly.  A new
+#: op joins this list only once the browser draws it too.
+BROWSER_OPS = frozenset({
+    "color", "pen", "fillPolygon", "arc", "text", "glyph",
+    "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",
+    "fillCircle", "drawCircle", "fillEllipse", "drawEllipse", "drawLine",
+})
+
+
+class Tiles:
+    """The tiles a frame's runs paste, each stored once: an "L" mask (to be
+    tinted) or an RGBA image (pasted through its own alpha)."""
+
+    def __init__(self) -> None:
+        self.images: dict[str, "Image.Image"] = {}
+        self._ids: dict[tuple[str, int, int, str], str] = {}
+
+    def add(self, image: "Image.Image") -> str:
+        key = (image.mode, image.width, image.height,
+               hashlib.sha1(image.tobytes()).hexdigest())
+        found = self._ids.get(key)
+        if found is None:
+            found = self._ids[key] = f"t{len(self._ids)}"
+            self.images[found] = image
+        return found
+
+    def pack(self) -> tuple[bytes, dict[str, list[Any]]]:
+        """Every tile as RGBA bytes, one after another, zlib-compressed, and
+        their index ``{id: [offset, width, height, kind]}``.  A mask is its
+        coverage in alpha over white.  Raw bytes, not a PNG: a browser
+        canvas premultiplies alpha, which would lose a translucent RGBA
+        tile's colour."""
+        from PIL import Image
+
+        out = bytearray()
+        index: dict[str, list[Any]] = {}
+        for tid, image in self.images.items():
+            if image.mode == "L":
+                rgba = Image.new("RGBA", image.size, (255, 255, 255, 0))
+                rgba.putalpha(image)
+                kind = "mask"
+            else:
+                rgba = image.convert("RGBA")
+                kind = "rgba"
+            index[tid] = [len(out), image.width, image.height, kind]
+            out += rgba.tobytes()
+        return zlib.compress(bytes(out), 6), index
 
 
 @dataclass(frozen=True)
@@ -52,15 +114,16 @@ class FontRef:
     vector: bool = False
 
 
-def to_json(renderer: "Renderer", placed: "Placed") -> tuple[list[dict[str, Any]],
-                                                            dict[str, FontRef]]:
+def to_json(renderer: "Renderer", placed: "Placed", tiles: Tiles | None = None
+            ) -> tuple[list[dict[str, Any]], dict[str, FontRef]]:
     """``placed``'s program for the frame ``renderer`` paints (`--aod` or
-    not, its sample readings), as JSON ops and the fonts they name.  The
-    element must lower, and must show (`Renderer.shows`)."""
+    not, its sample readings), as JSON ops and the fonts they name, the
+    runs' tiles added to ``tiles``.  The element must lower, and must show
+    (`Renderer.shows`)."""
     from . import _context, program
 
     ops = program(_context(renderer, placed), placed, renderer.read_plan)
-    writer = _JsonWriter(renderer)
+    writer = _JsonWriter(renderer, tiles if tiles is not None else Tiles())
     try:
         writer.walk(ops)
     except Stop:
@@ -69,11 +132,34 @@ def to_json(renderer: "Renderer", placed: "Placed") -> tuple[list[dict[str, Any]
 
 
 class _JsonWriter:
-    def __init__(self, renderer: "Renderer") -> None:
+    def __init__(self, renderer: "Renderer", tiles: Tiles) -> None:
         self.aod = renderer.options.aod
+        self.renderer = renderer
         self.eval = Evaluator(renderer)
+        self.tiles = tiles
         self.out: list[dict[str, Any]] = []
         self.fonts: dict[str, FontRef] = {}
+
+    def run(self, op: dict[str, Any], draw: Any) -> list[dict[str, Any]]:
+        """What ``draw(renderer)`` would paint for ``op``, as tiles placed
+        relative to the op's anchor (`anchor_of`)."""
+        r = self.renderer
+        r.stamps = []
+        try:
+            draw(r)
+            stamps = r.stamps
+        finally:
+            r.stamps = None
+        ax, ay = anchor_of(op, r.scale)
+        out: list[dict[str, Any]] = []
+        for st in stamps:
+            if st.kind == "box":
+                out.append({"box": [st.x - ax, st.y - ay, st.size[0], st.size[1]],
+                            "rgb": list(st.color)})
+            else:
+                assert st.image is not None
+                out.append({"tile": self.tiles.add(st.image), "x": st.x - ax, "y": st.y - ay})
+        return out
 
     def num(self, n: Num) -> JsonNum:
         """A `Layout` constant, or one moved by a whole amount, stays named;
@@ -167,7 +253,7 @@ class _JsonWriter:
             text = ev.string(op.text)
             if text is None:
                 return
-            self.out.append({
+            out: dict[str, Any] = {
                 "op": "text", "x": self.num(op.x), "y": self.num(op.y), "text": text,
                 "font": self.font(op.font), "justify": list(op.justify),
                 "align": op.align, "valign": op.valign, "style": op.style,
@@ -176,19 +262,26 @@ class _JsonWriter:
                 "direction": op.direction,
                 "box": ([op.box.x, op.box.y, op.box.width, op.box.height]
                         if op.box is not None else None),
-            })
+            }
+            fonts = self.fonts
+            out["run"] = self.run(out, lambda r: _draw_text(out, fonts, r, ev.color))
+            self.out.append(out)
         elif isinstance(op, Glyph):
             glyph = ev.string(op.glyph)
             if glyph is None:
                 return
-            self.out.append({
+            glyph_op: dict[str, Any] = {
                 "op": "glyph", "x": self.num(op.x), "y": self.num(op.y), "text": glyph,
                 "font": self.font(op.font), "justify": list(op.justify), "valign": op.valign,
                 # The tile's place: the icon's measured box, moved with x/y
                 # from where they stand unmoved.
                 "box": [op.box.x, op.box.y, op.box.width, op.box.height],
                 "origin": list(op.origin),
-            })
+            }
+            fonts = self.fonts
+            glyph_op["run"] = self.run(glyph_op,
+                                       lambda r: _draw_glyph(glyph_op, fonts, r, ev.color))
+            self.out.append(glyph_op)
         elif isinstance(op, LetText):
             ev.run([op])
         elif isinstance(op, IfNotNull):
@@ -212,16 +305,71 @@ def _value(n: JsonNum) -> float:
     return float(n["value"] + n["add"]) if isinstance(n, dict) else float(n)
 
 
+def anchor_of(op: dict[str, Any], scale: int) -> tuple[int, int]:
+    """The canvas pixel a `text` or `glyph` op's run is placed from."""
+    return math.floor(_value(op["x"]) * scale), math.floor(_value(op["y"]) * scale)
+
+
+def _draw_glyph(op: dict[str, Any], fonts: dict[str, FontRef], renderer: "Renderer",
+                color: tuple[int, int, int]) -> None:
+    """A `glyph` op as the evaluator draws it: the run's source."""
+    ref = fonts[op["font"]]
+    if ref.baked is not None:
+        paste_glyph(renderer, ref.baked, op["text"],
+                    op["box"][0] + _value(op["x"]) - op["origin"][0],
+                    op["box"][1] + _value(op["y"]) - op["origin"][1], color)
+
+
+def _draw_text(op: dict[str, Any], fonts: dict[str, FontRef], renderer: "Renderer",
+               color: tuple[int, int, int]) -> None:
+    """A `text` op as the evaluator draws it: the run's source."""
+    from ..units import IntBox
+
+    ref = fonts[op["font"]]
+    anchor = (int(_value(op["x"])), int(_value(op["y"])))
+    align = op["align"] or next(
+        (_ALIGN[f] for f in op["justify"] if f in _ALIGN), "center")
+    box = IntBox(*op["box"]) if op["box"] is not None else None
+    if ref.vector:
+        renderer.draw_vector_text(
+            op["text"], anchor, align, op["valign"], ref.metric, color, op["style"],
+            op["angle"] if op["angle"] is not None else 0.0,
+            int(op["radius"]) if op["radius"] is not None else 0,
+            op["direction"], box=box)
+    else:
+        font = renderer.resolved.fonts.get(ref.baked) if ref.baked is not None else None
+        renderer.draw_text(font, op["text"], anchor, align, op["valign"], ref.metric,
+                           color, box=box)
+
+
+def paste_run(run: list[dict[str, Any]], anchor: tuple[int, int], tiles: Tiles,
+              renderer: "Renderer", color: tuple[int, int, int]) -> None:
+    """A run's tiles pasted as Pillow pastes them: a mask tinted ``color``,
+    an RGBA image through its own alpha, a box as a 1 px outline."""
+    from PIL import Image
+
+    ax, ay = anchor
+    for item in run:
+        if "box" in item:
+            x, y, w, h = item["box"]
+            renderer.draw.rectangle([ax + x, ay + y, ax + x + w, ay + y + h],
+                                    outline=tuple(item["rgb"]), width=1)
+            continue
+        image = tiles.images[item["tile"]]
+        at = (ax + item["x"], ay + item["y"])
+        if image.mode == "L":
+            renderer.image.paste(Image.new("RGB", image.size, color), at, image)
+        else:
+            renderer.image.paste(image, at, image)
+
+
 _ALIGN = {"TEXT_JUSTIFY_LEFT": "left", "TEXT_JUSTIFY_RIGHT": "right"}
 
 
-def rasterise(ops: list[dict[str, Any]], fonts: dict[str, FontRef],
-              renderer: "Renderer") -> None:
+def rasterise(ops: list[dict[str, Any]], tiles: Tiles, renderer: "Renderer") -> None:
     """Paint JSON ops onto ``renderer``'s canvas: `Dc`'s calls as Pillow
-    draws them at the preview's scale, and text through the renderer's own
-    glyph placement."""
-    from ..units import IntBox
-
+    draws them at the preview's scale, and text and icons by pasting their
+    runs' tiles."""
     s = renderer.scale
     draw = renderer.draw
     color: tuple[int, int, int] = (255, 255, 255)
@@ -244,28 +392,8 @@ def rasterise(ops: list[dict[str, Any]], fonts: dict[str, FontRef],
             draw.arc([cx - rr, cy - rr, cx + rr, cy + rr],
                      *barrel.pillow_arc((start, end, clockwise)), fill=color,
                      width=max(1, int(_value(op["pen"])) * s))
-        elif name == "glyph":
-            ref = fonts[op["font"]]
-            if ref.baked is not None:
-                paste_glyph(renderer, ref.baked, op["text"],
-                            op["box"][0] + _value(op["x"]) - op["origin"][0],
-                            op["box"][1] + _value(op["y"]) - op["origin"][1], color)
-        elif name == "text":
-            ref = fonts[op["font"]]
-            anchor = (int(_value(op["x"])), int(_value(op["y"])))
-            align = op["align"] or next(
-                (_ALIGN[f] for f in op["justify"] if f in _ALIGN), "center")
-            box = IntBox(*op["box"]) if op["box"] is not None else None
-            if ref.vector:
-                renderer.draw_vector_text(
-                    op["text"], anchor, align, op["valign"], ref.metric, color, op["style"],
-                    op["angle"] if op["angle"] is not None else 0.0,
-                    int(op["radius"]) if op["radius"] is not None else 0,
-                    op["direction"], box=box)
-            else:
-                font = renderer.resolved.fonts.get(ref.baked) if ref.baked is not None else None
-                renderer.draw_text(font, op["text"], anchor, align, op["valign"], ref.metric,
-                                   color, box=box)
+        elif name in ("glyph", "text"):
+            paste_run(op["run"], anchor_of(op, s), tiles, renderer, color)
         else:
             v = [_value(n) for n in op["args"]]
             width = max(1, pen * s)

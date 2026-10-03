@@ -234,3 +234,142 @@ def test_a_broken_primitive_is_caught():
     wider = {**case, "args": {**case["args"], "xy": [10, 10, 41, 30]}}
     assert run_js([case])[0] == run_pillow(case)
     assert run_js([case])[0] != run_pillow(wider)
+
+
+# -- the JSON form: every element of the corpus -----------------------------------------
+
+DRAW_RUNNER = """
+import * as raster from %s;
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
+const job = JSON.parse(readFileSync(0, "utf8"));
+const tiles = raster.unpackTiles(new Uint8Array(inflateSync(Buffer.from(job.tiles, "base64"))),
+                                 job.index);
+const out = [];
+for (const el of job.elements) {
+  const hashes = [];
+  for (const ground of [[0, 0, 0], [255, 255, 255]]) {
+    const im = raster.image(job.width, job.height, ground);
+    raster.drawOps(im, el.ops, tiles, job.scale);
+    const rgb = Buffer.alloc(im.width * im.height * 3);
+    for (let i = 0, j = 0; i < im.data.length; i += 4, j += 3) {
+      rgb[j] = im.data[i]; rgb[j + 1] = im.data[i + 1]; rgb[j + 2] = im.data[i + 2];
+    }
+    hashes.push(createHash("md5").update(rgb).digest("hex"));
+  }
+  out.push(hashes);
+}
+console.log(JSON.stringify({ hashes: out, ops: raster.OPS }));
+"""
+
+CORPUS_DEVICES = ("fenix8solar47mm", "fr955")
+CORPUS = sorted(p for p in (Path(__file__).resolve().parent.parent / "examples").rglob("face.yaml")
+                if "dashboard" not in p.parts)
+
+
+def _frames(resolved):
+    from wfb import preview
+
+    out = [preview.PreviewOptions(scale=2, quantise=False, mask_shape=False)]
+    if any(p.element.aod is not None for p in resolved.items):
+        out.append(preview.PreviewOptions(scale=2, quantise=False, mask_shape=False,
+                                          aod=True, aod_mask=False))
+    return out
+
+
+@pytest.mark.parametrize("path", CORPUS, ids=lambda p: str(p.parent.name))
+def test_the_browser_paints_every_element_as_rasterise_does(db, path):
+    """Every lowered element of the face on two devices, awake and always-on,
+    over black and over white: `raster.drawOps` equals
+    `jsonform.rasterise` byte for byte, text and icons included."""
+    import base64
+
+    from tests.helpers import resolved_example
+    from wfb import preview
+    from wfb.draw.jsonform import BROWSER_OPS, Tiles, rasterise, to_json
+
+    checked = 0
+    for device in CORPUS_DEVICES:
+        resolved = resolved_example(path, db, device)
+        for options in _frames(resolved):
+            entry = preview._resolve_style_entry(resolved.face, options.style)
+            values = preview.sample_values(resolved, options, entry)
+            tiles = Tiles()
+            elements, want = [], []
+            for placed in preview.frame_items(resolved, options, entry):
+                probe = preview.new_renderer(resolved, options, values, (0, 0, 0))
+                if not probe.shows(placed):
+                    continue
+                ops, _ = to_json(probe, placed, tiles)
+                assert {op["op"] for op in ops} <= BROWSER_OPS, (placed.id, ops)
+                hashes = []
+                for ground in ((0, 0, 0), (255, 255, 255)):
+                    r = preview.new_renderer(resolved, options, values, ground)
+                    rasterise(ops, tiles, r)
+                    hashes.append(hashlib.md5(r.image.tobytes()).hexdigest())
+                elements.append({"id": placed.id, "ops": ops})
+                want.append(hashes)
+            packed, index = tiles.pack()
+            job = {"width": probe.image.width, "height": probe.image.height, "scale": 2,
+                   "tiles": base64.b64encode(packed).decode(), "index": index,
+                   "elements": [{"ops": e["ops"]} for e in elements]}
+            source = DRAW_RUNNER % json.dumps(RASTER.as_uri())
+            out = subprocess.run([node(), "--input-type=module", "-e", source],
+                                 input=json.dumps(job), capture_output=True, text=True,
+                                 check=True)
+            result = json.loads(out.stdout)
+            assert set(result["ops"]) == BROWSER_OPS
+            for element, got, expected in zip(elements, result["hashes"], want):
+                assert got == expected, (path.parent.name, device, options.aod, element["id"])
+                checked += 1
+    assert checked, path
+
+
+def test_runs_paste_as_pillow_pastes(db):
+    """What the corpus never shows: tiles hanging off every edge, a
+    translucent RGBA tile, and a box (text with no glyphs to draw)."""
+    import base64
+
+    from tests.helpers import resolved_example
+    from wfb import preview
+    from wfb.draw.jsonform import Tiles, rasterise
+
+    resolved = resolved_example(CORPUS[0], db, "fr955")
+    options = preview.PreviewOptions(scale=2, quantise=False, mask_shape=False)
+    values = preview.sample_values(resolved, options, None)
+    rng = random.Random(31)
+    tiles = Tiles()
+    run = []
+    for i in range(60):
+        w, h = rng.randint(1, 30), rng.randint(1, 30)
+        if i % 3:
+            image = Image.frombytes("L", (w, h), bytes(rng.randrange(256) for _ in range(w * h)))
+        else:
+            image = Image.frombytes("RGBA", (w, h),
+                                    bytes(rng.randrange(256) for _ in range(w * h * 4)))
+        run.append({"tile": tiles.add(image), "x": rng.randint(-40, 560), "y": rng.randint(-40, 560)})
+    # and one straddling each edge and each corner, half on, half off
+    width, height = 520, 520                      # fr955 at 2x
+    ax, ay = 7, 2                                 # floor(3.75 * 2), floor(1 * 2)
+    edge = Image.frombytes("L", (10, 10), bytes(rng.randrange(1, 256) for _ in range(100)))
+    for x in (-5, (width - 10) // 2, width - 5):
+        for y in (-5, (height - 10) // 2, height - 5):
+            run.append({"tile": tiles.add(edge), "x": x - ax, "y": y - ay})
+    run.append({"box": [-5, 30, 600, 40], "rgb": [64, 64, 64]})
+    ops = [{"op": "color", "rgb": [200, 100, 50]},
+           {"op": "text", "x": {"const": "T_X", "value": 3.75, "add": 0}, "y": 1, "run": run}]
+    hashes = []
+    for ground in ((0, 0, 0), (255, 255, 255)):
+        r = preview.new_renderer(resolved, options, values, ground)
+        assert r.image.size == (width, height)
+        rasterise(ops, tiles, r)
+        hashes.append(hashlib.md5(r.image.tobytes()).hexdigest())
+    packed, index = tiles.pack()
+    job = {"width": r.image.width, "height": r.image.height, "scale": 2,
+           "tiles": base64.b64encode(packed).decode(), "index": index,
+           "elements": [{"ops": ops}]}
+    out = subprocess.run([node(), "--input-type=module", "-e",
+                          DRAW_RUNNER % json.dumps(RASTER.as_uri())],
+                         input=json.dumps(job), capture_output=True, text=True, check=True)
+    assert json.loads(out.stdout)["hashes"][0] == hashes

@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from ..fonts import fallback
     from ..layout import Placed, ResolvedFace
     from ..preview import PreviewOptions, Renderer
-    from .jsonform import FontRef
+    from .jsonform import FontRef, Tiles
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,8 @@ class Layer:
     ``image`` is RGBA at the preview's scale.  ``ops`` is the lowered
     element's program as JSON for this frame, `None` for a kind that does
     not lower and for a group ring; ``fonts`` resolves the font ids it
-    names."""
+    names, and ``tiles`` (one store for the whole frame) the tiles its runs
+    paste."""
 
     id: str
     kind: str
@@ -55,6 +56,7 @@ class Layer:
     image: Image.Image
     ops: list[dict[str, Any]] | None = None
     fonts: dict[str, "FontRef"] = field(default_factory=dict)
+    tiles: "Tiles | None" = None
 
 
 def matte(black: Image.Image, white: Image.Image) -> Image.Image:
@@ -81,13 +83,14 @@ def layers(resolved: "ResolvedFace", options: "PreviewOptions | None" = None, *,
     each outlined group's first member drawn here, that group's ring (the
     same order `Renderer.render_sequence` paints), then the element."""
     from .. import preview
-    from .jsonform import to_json
+    from .jsonform import Tiles, to_json
 
     options = options or preview.PreviewOptions()
     entry = preview._resolve_style_entry(resolved.face, options.style)
     values = preview.sample_values(resolved, options, entry)
     items = preview.frame_items(resolved, options, entry)
     rings = ring_groups(resolved.face.elements)
+    tiles = Tiles()
 
     def paint(draw: Callable[["Renderer"], None]) -> Image.Image:
         grounds = []
@@ -118,8 +121,8 @@ def layers(resolved: "ResolvedFace", options: "PreviewOptions | None" = None, *,
         renderer = preview.new_renderer(resolved, options, values, (0, 0, 0), used_faces)
         ops: list[dict[str, Any]] = []
         if renderer.shows(placed):
-            ops, fonts = to_json(renderer, placed)
-        out.append(Layer(placed.id, placed.kind, placed.element.span, image, ops, fonts))
+            ops, fonts = to_json(renderer, placed, tiles)
+        out.append(Layer(placed.id, placed.kind, placed.element.span, image, ops, fonts, tiles))
     return out
 
 

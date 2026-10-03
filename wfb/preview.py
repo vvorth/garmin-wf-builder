@@ -504,6 +504,24 @@ class _BakedGlyphs:
 
 
 @dataclass(frozen=True)
+class Stamp:
+    """What a text or a glyph paints, recorded instead of painted while
+    `Renderer.stamps` is a list: `kind` "mask" is an "L" mask tinted
+    `color`, "rgba" an RGBA image pasted through its own alpha (a rotated
+    vector run), each at the canvas's integer `(x, y)`; "box" is the outline
+    `_mark_extent` draws for text with no glyphs, `size` wide and high.
+    Pasting each the way Pillow does (`wfb.draw.jsonform.rasterise`) paints
+    exactly what the renderer would have."""
+
+    kind: str
+    image: Image.Image | None
+    x: int
+    y: int
+    color: RGB
+    size: tuple[int, int] = (0, 0)
+
+
+@dataclass(frozen=True)
 class _FaceGlyphs:
     """A text's glyphs from a device typeface (`fallback.SystemFace`, already
     at the preview's scale): a system or vector font's own file or its
@@ -560,6 +578,9 @@ class Renderer:
         #: `render`'s own `used_faces`, or `None` -- see `_system_face`.
         self.used_faces = used_faces
         self._read_plan: "ReadPlan | None" = None
+        #: While a list, text and glyphs land here as `Stamp`s instead of on
+        #: the canvas: what `wfb.draw.jsonform` hands a browser to paste.
+        self.stamps: list[Stamp] | None = None
 
     def _system_face(self, metric: FontMetric, *,
                      scale: float | None = None) -> "fallback.SystemFace | None":
@@ -742,8 +763,11 @@ class Renderer:
         tile = sheet.crop((glyph.x, glyph.y, glyph.x + glyph.width, glyph.y + glyph.height))
         if s != 1:
             tile = tile.resize((glyph.width * s, glyph.height * s), Image.Resampling.NEAREST)
-        tint = Image.new("RGB", tile.size, color)
         position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
+        if self.stamps is not None:
+            self.stamps.append(Stamp("mask", tile, position[0], position[1], color))
+            return
+        tint = Image.new("RGB", tile.size, color)
         self.image.paste(tint, position, tile)
 
     def _draw_system_line(self, face: "fallback.SystemFace", left: float, baseline_y: float,
@@ -757,21 +781,42 @@ class Renderer:
         (`_draw_bitmap_line`). `draw`/`image` default to the canvas;
         `_paste_rotated_run` passes a throwaway layer to rotate.
         """
-        draw = self.draw if draw is None else draw
-        image = self.image if image is None else image
         if face.bitmap is not None:
             self._draw_bitmap_line(face, left, baseline_y, text, color, image=image)
             return
+        recording = draw is None and self.stamps is not None
+        draw = self.draw if draw is None else draw
         pen = left
         for char, advance in zip(text, face.advances(text)):
-            draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
+            if recording:
+                self._stamp_char(face, pen, baseline_y, char, color)
+            else:
+                draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
             pen += advance
+
+    def _stamp_char(self, face: "fallback.SystemFace", pen: float, baseline_y: float,
+                    char: str, color: RGB) -> None:
+        """`ImageDraw.text`'s own steps for one character at `(pen,
+        baseline_y)`, anchored "ls", recorded: the mask `getmask2` makes for
+        the position's fraction, at its integer part plus the mask's offset
+        (Pillow 12's `ImageDraw.text`, `draw_text`)."""
+        assert self.stamps is not None and face.font is not None
+        ink = self.draw._getink(color)[0]
+        assert ink is not None
+        start = (math.modf(pen)[0], math.modf(baseline_y)[0])
+        core, offset = face.font.getmask2(char, self.draw.fontmode, None, None, None, 0,
+                                          "ls", ink, start, stroke_filled=True)
+        mask = Image.Image()._new(core)
+        if mask.width and mask.height:
+            self.stamps.append(Stamp("mask", mask, int(pen) + offset[0],
+                                     int(baseline_y) + offset[1], color))
 
     def _draw_bitmap_line(self, face: "fallback.SystemFace", left: float, baseline_y: float,
                           text: str, color: RGB, *, image: Image.Image | None = None) -> None:
         """The bitmap half of `_draw_system_line`: paste each glyph's own
         `.cft` cell (`_bitmap_glyph_mask`) with its top `face.baseline` above
         the shared baseline, tinted `color` through its ink levels."""
+        recording = image is None and self.stamps is not None
         image = self.image if image is None else image
         s = self.scale
         top = baseline_y - face.baseline
@@ -779,8 +824,13 @@ class Renderer:
         for char, advance in zip(text, face.advances(text)):
             mask = _bitmap_glyph_mask(face.path, char, s)
             if mask.size[0] and mask.size[1]:
-                tint = Image.new("RGB", mask.size, color)
-                image.paste(tint, (int(round(pen)), int(round(top))), mask)
+                at = (int(round(pen)), int(round(top)))
+                if recording:
+                    assert self.stamps is not None
+                    self.stamps.append(Stamp("mask", mask, at[0], at[1], color))
+                else:
+                    tint = Image.new("RGB", mask.size, color)
+                    image.paste(tint, at, mask)
             pen += advance
 
     # -- vector fonts / curve: ---------------------------------------------
@@ -964,6 +1014,9 @@ class Renderer:
         ax, ay = anchor_xy
         top_left = (int(round(ax + offset_x - rotated.width / 2.0)),
                    int(round(ay + offset_y - rotated.height / 2.0)))
+        if self.stamps is not None:
+            self.stamps.append(Stamp("rgba", rotated, top_left[0], top_left[1], color))
+            return
         self.image.paste(rotated, top_left, rotated)
 
     # -- shared -----------------------------------------------------------
@@ -979,6 +1032,10 @@ class Renderer:
         box into an inverted rectangle that Pillow rejects outright.
         """
         if box is None or box.width <= 0 or box.height <= 0:
+            return
+        if self.stamps is not None:
+            x0, y0, x1, y1 = (int(v) for v in self.rect(box))
+            self.stamps.append(Stamp("box", None, x0, y0, (64, 64, 64), (x1 - x0, y1 - y0)))
             return
         self.draw.rectangle(self.rect(box), outline=(64, 64, 64), width=1)
 

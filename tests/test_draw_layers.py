@@ -23,7 +23,7 @@ from PIL import Image, ImageChops
 from tests.helpers import resolved_example
 from wfb import preview
 from wfb.draw.frames import frame_members, in_layout
-from wfb.draw.jsonform import rasterise, to_json
+from wfb.draw.jsonform import Tiles, rasterise, to_json
 from wfb.draw.layers import compose, layers
 from wfb.ir.rings import ring_groups
 
@@ -78,9 +78,10 @@ def test_the_json_alone_paints_what_the_evaluator_paints(db, path):
             if not evaluated.shows(placed):
                 continue
             evaluated.render_element(placed)
-            ops, fonts = to_json(evaluated, placed)
+            tiles = Tiles()
+            ops, _ = to_json(evaluated, placed, tiles)
             read = preview.new_renderer(resolved, options, values, (0, 0, 0))
-            rasterise(ops, fonts, read)
+            rasterise(ops, tiles, read)
             assert ImageChops.difference(evaluated.image, read.image).getbbox() is None, (
                 path, placed.id, options.aod)
             checked += 1

@@ -241,10 +241,17 @@ palette snap to within one level per channel, and only anti-aliased edges
 round (`tests/test_draw_layers.py`). A lowered element's layer also carries
 its program as JSON for that frame (`wfb.draw.jsonform.to_json`). Readings,
 colours and always-on choices are folded, and `Layout` constants stay named
-beside their values. Text names its font by an id the layer's `fonts`
-resolves. `jsonform.rasterise` is the reference reader of that JSON and the
-contract a browser canvas implements: for every lowered element it paints
-exactly what the evaluator paints. Which elements a frame draws is one
+beside their values. Text and icons arrive laid out: each `text` or
+`glyph` op carries a `run`, the tiles the renderer would paste (a glyph's
+mask, or a rotated vector run's RGBA image), each at a whole-pixel offset
+from the op's anchor. The renderer records them instead of painting while
+its `stamps` is a list (`wfb.preview.Stamp`), and a frame's layers share one
+`jsonform.Tiles` store, which packs to raw RGBA bytes for a browser.
+`jsonform.rasterise` is the reference reader of that JSON: for every
+lowered element it paints exactly what the evaluator paints. The editor's
+browser reader, `wfb/studio/static/raster.js`, reproduces Pillow's
+primitives and its paste byte for byte, and equals `rasterise` on every
+element of the examples (`tests/test_studio_raster.py`, which needs Node). Which elements a frame draws is one
 function, `wfb.draw.frames.frame_members`, read by the view, its read plan
 and the preview. The evaluator computes a barrel call with its
 Python transcription (`wfb.draw.barrel`). Each transcription is checked
