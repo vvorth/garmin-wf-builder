@@ -100,16 +100,15 @@ def test_every_handle_offered_is_a_drag_that_lands(path, db):
 
 # -- frames, layers, thumbnails ------------------------------------------------------------
 
-def test_the_frame_is_the_render_with_items_and_the_layers_follow(studio):
+def test_the_frame_is_the_render_with_items_and_its_layers(studio):
     doc = shapes(studio)
     key = FrameKey("fr955", scale=2)
     frame = doc.frame(key)
-    assert "layers" not in frame and frame["minor_radius"] == 130
+    assert frame["minor_radius"] == 130
     assert all(set(i) >= {"id", "kind", "box", "center", "handles", "drawn", "line"}
                for i in frame["items"])
-    layers = doc.layers(key)
     drawn = {i["id"] for i in frame["items"] if i["drawn"]}
-    assert {l["id"] for l in layers["layers"] if not l["id"].startswith("ring:")} <= drawn
+    assert {l["id"] for l in frame["layers"] if not l["id"].startswith("ring:")} == drawn
     png = doc.thumbnail(FrameKey("fenix8solar51mm", scale=1))
     assert Image.open(io.BytesIO(png)).size == (280, 280)
 
@@ -247,8 +246,9 @@ def test_drags_over_http(client):
         "elements": ["dot", "card"], "device": "fr955",
         "gesture": {"kind": "resize", "key": ["radius"], "delta": 2}}))
     assert r.status_code == 400 and "only be moved together" in r.text
-    layers = client.get(f"{url}/layers?device=fr955&scale=1").json()
-    assert layers["version"] == 3 and layers["layers"]
+    shown = client.get(f"{url}/frame?device=fr955&scale=1").json()
+    assert shown["version"] == 3 and shown["layers"]
+    assert client.get(f"{url}/layers?device=fr955").status_code == 404
     thumb = client.get(f"{url}/thumbnail?device=fr955")
     assert thumb.headers["content-type"] == "image/png"
 

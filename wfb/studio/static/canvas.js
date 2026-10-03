@@ -1,12 +1,15 @@
 // The canvas: the face as the server drew it, selection, and the drag
-// gestures. During a gesture the dragged element is drawn here, from its
-// layer image shifted (a move) or as an outline (a resize, an angle, a
-// line's end); on release one gesture goes to the server, which writes it
-// in the author's units and answers with the new face, whose frame then
-// replaces the preview. Nothing here decides where anything lands.
+// gestures. The frame arrives with its layers as JSON ops (`raster.js`
+// draws them), so hit-testing reads where each layer leaves ink. During a
+// move the whole face is drawn here from the layers' ops, the dragged ones
+// translated; a resize, an angle or a line's end is drawn as an outline. On
+// release one gesture goes to the server, which writes it in the author's
+// units and answers with the new face, whose frame then replaces the
+// preview. Nothing here decides where anything lands.
 
 import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
 import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
+import * as raster from "./raster.js";
 import {
   angleAt, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.js";
@@ -18,40 +21,56 @@ const HANDLE = 5;           // a handle's half size, screen pixels
 const GRIP = 11;            // the move handle's radius, screen pixels
 const START = 3;            // screen pixels before a press becomes a drag
 
-// One layer's image and pixels, decoded once.
-const decoded = new WeakMap();
-function layerImage(layer) {
-  let entry = decoded.get(layer);
-  if (!entry) {
-    entry = { img: null, data: null };
-    decoded.set(layer, entry);
-    if (!layer.image) return entry;
-    const img = new Image();
-    img.onload = () => {
-      entry.img = img;
-      const c = document.createElement("canvas");
-      c.width = img.width; c.height = img.height;
-      const ctx = c.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0);
-      entry.data = ctx.getImageData(0, 0, img.width, img.height);
-    };
-    img.src = layer.image;
-  }
-  return entry;
+// A fallback layer's PNG as RGBA bytes.
+async function decodePng(src) {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, img.width, img.height);
+  return { width: data.width, height: data.height, data: data.data };
 }
 
-// What is under device pixel (x, y): by the layers' alpha when they are
-// here, else the smallest drawn box holding the point.
-function pick(frame, layers, x, y, scale) {
-  if (layers) {
-    const hit = topmost(layers, x, y, (layer) => {
-      const px = layerImage(layer).data;
-      if (!px || !layer.origin) return 0;
-      const ix = Math.floor(x * scale) - layer.origin[0], iy = Math.floor(y * scale) - layer.origin[1];
-      if (ix < 0 || iy < 0 || ix >= px.width || iy >= px.height) return 0;
-      return px.data[(iy * px.width + ix) * 4 + 3];
-    });
+// A frame's layers, ready to draw and hit-test: its tiles inflated, a
+// fallback layer's image decoded. A JSON layer's ink is worked out the
+// first time a press lands in its box (`inkAt`).
+async function prepare(frame) {
+  const tiles = await raster.inflateTiles(frame.tiles);
+  const boxes = new Map(frame.items.map((i) => [i.id, i.box]));
+  const layers = await Promise.all(frame.layers.map(async (l) => ({
+    id: l.id, kind: l.kind, ops: l.ops || null, origin: l.origin || null,
+    png: l.image ? await decodePng(l.image) : null,
+    box: boxes.get(l.id) || null, ink: undefined,
+  })));
+  return { version: frame.version, tiles, layers };
+}
+
+// The layer's ink at device pixel (x, y), 0 or more.
+function inkAt(frame, prepared, layer, x, y) {
+  const s = frame.scale, px = Math.floor(x * s), py = Math.floor(y * s);
+  if (layer.png) {
+    if (!layer.origin) return 0;
+    const ix = px - layer.origin[0], iy = py - layer.origin[1];
+    if (ix < 0 || iy < 0 || ix >= layer.png.width || iy >= layer.png.height) return 0;
+    return layer.png.data[(iy * layer.png.width + ix) * 4 + 3];
+  }
+  if (!layer.ops) return 0;
+  if (layer.ink === undefined) {
+    layer.ink = raster.inkOf(layer.ops, prepared.tiles, frame.width * s, frame.height * s, s);
+  }
+  const b = layer.ink.box;
+  if (!b || px < b[0] || py < b[1] || px >= b[2] || py >= b[3]) return 0;
+  return layer.ink.mask[(py - b[1]) * (b[2] - b[0]) + (px - b[0])] ? 255 : 0;
+}
+
+// What is under device pixel (x, y): by the layers' ink when they are
+// ready, else the smallest drawn box holding the point.
+function pick(frame, prepared, x, y) {
+  if (prepared) {
+    const hit = topmost(prepared.layers, x, y, (layer) => inkAt(frame, prepared, layer, x, y));
     if (hit) return elementOf(hit.id);
   }
   let best = null;
@@ -61,6 +80,33 @@ function pick(frame, layers, x, y, scale) {
     if (x >= bx && y >= by && x < bx + bw && y < by + bh && (!best || bw * bh <= best.box[2] * best.box[3])) best = item;
   }
   return best ? best.id : null;
+}
+
+// The face drawn from its layers with the elements in `moving` moved by
+// (dx, dy) device pixels: what the server will draw once the move lands.
+// Cleared to black inside the screen's own shape only, so the skin round a
+// round screen stays visible.
+function drawMoved(ctx, frame, prepared, moving, dx, dy, s) {
+  const width = frame.width * s, height = frame.height * s;
+  const im = raster.image(width, height, [0, 0, 0]);
+  for (const l of prepared.layers) {
+    const moved = moving.has(elementOf(l.id));
+    if (l.ops) raster.drawOps(im, moved ? raster.translateOps(l.ops, dx, dy) : l.ops, prepared.tiles, s);
+    else if (l.png && l.origin) {
+      raster.composite(im, l.png, l.origin[0] + (moved ? dx * s : 0), l.origin[1] + (moved ? dy * s : 0));
+    }
+  }
+  const scratch = document.createElement("canvas");
+  scratch.width = width; scratch.height = height;
+  scratch.getContext("2d").putImageData(new ImageData(im.data, width, height), 0, 0);
+  ctx.save();
+  if (frame.shape === "round") {
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, Math.PI * 2);
+    ctx.clip();
+  }
+  ctx.drawImage(scratch, 0, 0);
+  ctx.restore();
 }
 
 // `k`: canvas pixels per screen pixel, so a handle is the same size on the
@@ -116,32 +162,12 @@ function resizedBox(box, handle, delta) {
 
 // The preview of a gesture in progress, or of one sent and not yet drawn.
 // `moving`: every element the gesture moves (a group's children included).
-function drawPreview(ctx, frame, layers, item, moving, g, s) {
+function drawPreview(ctx, frame, prepared, item, moving, g, s) {
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2;
   if (g.kind === "move" && g.part === "both") {
-    const own = layers && layers.filter((l) => moving.has(elementOf(l.id)) && layerImage(l).img);
-    if (own && own.length) {
-      // the face as layers, the dragged ones shifted: exact for a move. The
-      // screen is cleared to black inside its own shape only, so the skin
-      // round a round screen stays visible.
-      ctx.save();
-      if (frame.shape === "round") {
-        ctx.beginPath();
-        ctx.arc(frame.width * s / 2, frame.height * s / 2, Math.min(frame.width, frame.height) * s / 2, 0, Math.PI * 2);
-        ctx.clip();
-      }
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, frame.width * s, frame.height * s);
-      for (const l of layers) {
-        const im = layerImage(l).img;
-        if (!im || !l.origin) continue;
-        const moved = moving.has(elementOf(l.id));
-        ctx.drawImage(im, l.origin[0] + (moved ? g.dx * s : 0), l.origin[1] + (moved ? g.dy * s : 0));
-      }
-      ctx.restore();
-    }
+    if (prepared) drawMoved(ctx, frame, prepared, moving, g.dx, g.dy, s);
     const [x, y, w, h] = item.box;
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = ACCENT;
@@ -230,7 +256,7 @@ function changed(gesture) {
 // `selected` and `extra`: the selection, `extra` being the elements added
 // to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
 // carries. `onPick(id, additive)`; `onDrag(ids, gesture)`.
-export function Canvas({ frame, layers, selected, extra = [], tree = [], onPick, onDrag,
+export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
                          zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
   const [drag, setDragState] = useState(null);     // a press, maybe a gesture
@@ -239,9 +265,14 @@ export function Canvas({ frame, layers, selected, extra = [], tree = [], onPick,
   const dragRef = useRef(null);
   const setDrag = (value) => { dragRef.current = value; setDragState(value); };
   const [pending, setPending] = useState(null);    // a gesture sent, not yet drawn
-  const usable = layers && layers.version === frame.version ? layers.layers : null;
+  const [prepared, setPrepared] = useState(null);  // the frame's layers, ready
+  const usable = prepared && prepared.version === frame.version ? prepared : null;
 
-  useEffect(() => { if (usable) usable.forEach(layerImage); }, [usable]);
+  useEffect(() => {
+    let live = true;
+    prepare(frame).then((p) => { if (live) setPrepared(p); }, () => {});
+    return () => { live = false; };
+  }, [frame]);
   // the new frame replaces a sent gesture's preview
   useEffect(() => { if (pending && frame.version !== pending.version) setPending(null); }, [frame.version]);
 
@@ -294,7 +325,7 @@ export function Canvas({ frame, layers, selected, extra = [], tree = [], onPick,
     const onGrip = grip && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
     const near = (h) => Math.abs((h.x - p.x) * zoom) <= HANDLE + 2 && Math.abs((h.y - p.y) * zoom) <= HANDLE + 2;
     const handle = !onGrip && item && !extra.length ? item.handles.find(near) : null;
-    const under = handle || onGrip ? null : pick(frame, usable, p.x, p.y, frame.scale);
+    const under = handle || onGrip ? null : pick(frame, usable, p.x, p.y);
     if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       if (under) onPick(under, true);
       return;

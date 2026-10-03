@@ -1,0 +1,7 @@
+| face | frame now ms | frame + layers before ms | KB now | KB before | browser: inflate ms | a move's frame ms | slowest ink ms | every ink ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| features/progress (fenix8solar47mm) | 17 | 78 | 28 | 43 | 26.7 | 5.2 | 7.4 | 27 |
+| features/shapes (fenix8solar47mm) | 12 | 89 | 27 | 51 | 18.4 | 3.9 | 7.5 | 49 |
+| showcase (fenix8solar47mm) | 40 | 261 | 52 | 61 | 23.9 | 3.6 | 6.9 | 111 |
+| features/vector-text (fenix8solar47mm) | 307 | 661 | 74 | 101 | 33.4 | 3.0 | 7.3 | 44 |
+| generated_by_skill/trail-utility (fenix8solar47mm) | 43 | 333 | 53 | 61 | 23.2 | 2.9 | 9.2 | 159 |

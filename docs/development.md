@@ -251,7 +251,13 @@ its `stamps` is a list (`wfb.preview.Stamp`), and a frame's layers share one
 lowered element it paints exactly what the evaluator paints. The editor's
 browser reader, `wfb/studio/static/raster.js`, reproduces Pillow's
 primitives and its paste byte for byte, and equals `rasterise` on every
-element of the examples (`tests/test_studio_raster.py`, which needs Node). Which elements a frame draws is one
+element of the examples (`tests/test_studio_raster.py`, which needs Node).
+The editor's frame (`wfb.studio.document.Document.frame`) carries its
+layers this way: `layers(..., paint_all=False)` paints only a layer with an
+op outside `BROWSER_OPS` (an outlined group's ring), and the browser draws
+the rest, works out where each leaves ink for hit-testing (`raster.inkOf`,
+equal to the matte's alpha), and redraws the face from them during a move
+(`raster.translateOps`). Which elements a frame draws is one
 function, `wfb.draw.frames.frame_members`, read by the view, its read plan
 and the preview. The evaluator computes a barrel call with its
 Python transcription (`wfb.draw.barrel`). Each transcription is checked

@@ -291,23 +291,41 @@ def test_the_tree_holds_blocks_layouts_and_groups(studio):
 
 
 def test_a_frame_has_an_item_and_a_layer_per_drawn_element(studio):
+    """Each layer travels as its JSON ops, the browser drawing it; the text's
+    run names tiles the frame's packed `tiles` holds."""
+    import base64
+    import zlib
+
     doc = studio.create(Bundle("T", minimal_text()), "new")
     key = FrameKey("fr955", scale=1)
     frame = doc.frame(key)
     assert (frame["width"], frame["height"]) == (260, 260)
     assert [i["id"] for i in frame["items"]] == ["background", "clock", "seconds"]
-    layers = doc.layers(key)["layers"]
+    layers = frame["layers"]
     assert [layer["id"] for layer in layers] == ["background", "clock", "seconds"]
-    assert all(layer["image"].startswith("data:image/png;base64,") for layer in layers)
-    # each layer carries its ink only, placed by its origin, inside its box
+    assert all("ops" in layer and "image" not in layer for layer in layers)
+    runs = [item for op in layers[1]["ops"] for item in op.get("run", [])]
+    assert runs, "the clock's text arrives as tiles"
+    packed = zlib.decompress(base64.b64decode(frame["tiles"]["data"]))
+    index = frame["tiles"]["index"]
+    for item in runs:
+        offset, width, height, kind = index[item["tile"]]
+        assert kind == "mask" and offset + width * height * 4 <= len(packed)
+
+
+def test_an_outlined_groups_ring_travels_as_its_image(studio):
+    """A layer with no ops the browser draws (a group ring) keeps its PNG,
+    cropped to its ink and placed by its origin."""
     from PIL import Image
     import base64
-    clock = layers[1]
-    image = Image.open(io.BytesIO(base64.b64decode(clock["image"].split(",", 1)[1])))
-    assert image.size[0] < 260 and image.size[1] < 260
-    x, y = clock["origin"]
-    bx, by, bw, bh = frame["items"][1]["box"]
-    assert bx - 2 <= x and x + image.size[0] <= bx + bw + 2
+
+    rings = ROOT / "examples/features/rings/face.yaml"
+    doc = studio.create(read_upload("face.yaml", rings.read_bytes()), "open")
+    frame = doc.frame(FrameKey("fr955", scale=1))
+    ring = next(layer for layer in frame["layers"] if layer["id"].startswith("ring:"))
+    image = Image.open(io.BytesIO(base64.b64decode(ring["image"].split(",", 1)[1])))
+    assert image.mode == "RGBA" and image.getbbox() is not None
+    assert "ops" not in ring and len(ring["origin"]) == 2
 
 
 # -- the endpoints ----------------------------------------------------------------------

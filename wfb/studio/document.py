@@ -498,10 +498,16 @@ class Document:
         return value
 
     def frame(self, key: FrameKey) -> dict[str, Any]:
-        """One frame, fast: the image `wfb.preview.render` draws, and every
-        element the frame shows (and every group in its layout) with its
-        box, centre and drag handles. The layer images are `layers`."""
+        """One frame: the image `wfb.preview.render` draws; every element
+        the frame shows (and every group in its layout) with its box,
+        centre and drag handles; and the frame as layers in draw order
+        (`wfb.draw.layers`), which the browser draws itself
+        (`static/raster.js`). A layer is its JSON ops, the tiles its text
+        and icons paste being the frame's `tiles`, or, for one with an op
+        the browser does not draw (an outlined group's ring), its image
+        cropped to its ink, with its origin in frame pixels."""
         from ..draw.frames import in_layout
+        from ..draw.layers import layers
         from ..preview import _resolve_style_entry, frame_items, render
         from .drag import handles
 
@@ -527,6 +533,20 @@ class Document:
                     "box": [box.x, box.y, box.width, box.height],
                     "center": list(placed.center), "handles": handles(placed),
                 })
+            stack: list[dict[str, Any]] = []
+            tiles = None
+            for layer in layers(resolved, options, paint_all=False):
+                tiles = layer.tiles or tiles
+                if layer.image is None:
+                    stack.append({"id": layer.id, "kind": layer.kind, "ops": layer.ops})
+                    continue
+                ink = layer.image.getchannel("A").getbbox()
+                stack.append({
+                    "id": layer.id, "kind": layer.kind,
+                    "origin": [ink[0], ink[1]] if ink else None,
+                    "image": _png(layer.image.crop(ink)) if ink else None,
+                })
+            packed, index = tiles.pack() if tiles is not None else (b"", {})
             device = resolved.device
             return {
                 "version": self.version, "device": device.id, "scale": key.scale,
@@ -534,31 +554,11 @@ class Document:
                 "minor_radius": device.minor_radius,
                 "frame": _png(render(resolved, options)),
                 "items": items,
+                "layers": stack,
+                "tiles": {"data": base64.b64encode(packed).decode("ascii"), "index": index},
             }
         frame: dict[str, Any] = self._cached("frame", key, make)
         return frame
-
-    def layers(self, key: FrameKey) -> dict[str, Any]:
-        """The frame as layers (`wfb.draw.layers`), each cropped to its ink
-        with its origin in frame pixels: what hit-testing by alpha and a
-        drag's moving image read. Slower than `frame`: every element is
-        painted twice."""
-        from ..draw.layers import layers
-
-        def make() -> dict[str, Any]:
-            resolved, options = self._placed(key)
-            out = []
-            for layer in layers(resolved, options):
-                ink = layer.image.getchannel("A").getbbox()
-                out.append({
-                    "id": layer.id, "kind": layer.kind,
-                    "origin": [ink[0], ink[1]] if ink else None,
-                    "image": _png(layer.image.crop(ink)) if ink else None,
-                })
-            return {"version": self.version, "device": key.device, "scale": key.scale,
-                    "layers": out}
-        result: dict[str, Any] = self._cached("layers", key, make)
-        return result
 
     def thumbnail(self, key: FrameKey) -> bytes:
         """The frame as a PNG file, for the strip of targets."""

@@ -194,11 +194,6 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
                                         "device": key.device})
             return JSONResponse(shown)
 
-    def layers(request: Request, data: bytes) -> Response:
-        key = _frame_key(request)
-        with studio.lock:
-            return JSONResponse(doc(request).layers(key))
-
     def thumbnail(request: Request, data: bytes) -> Response:
         key = _frame_key(request, scale=1)
         with studio.lock:
@@ -433,7 +428,6 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}", _endpoint(summary)),
             Route("/api/documents/{doc_id}", _endpoint(delete), methods=["DELETE"]),
             Route("/api/documents/{doc_id}/frame", _endpoint(frame)),
-            Route("/api/documents/{doc_id}/layers", _endpoint(layers)),
             Route("/api/documents/{doc_id}/thumbnail", _endpoint(thumbnail)),
             Route("/api/documents/{doc_id}/drag", _endpoint(drag, body=True), methods=["POST"]),
             Route("/api/documents/{doc_id}/assets", _endpoint(add_asset, body=True),

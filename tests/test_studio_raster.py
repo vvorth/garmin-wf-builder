@@ -373,3 +373,145 @@ def test_runs_paste_as_pillow_pastes(db):
                           DRAW_RUNNER % json.dumps(RASTER.as_uri())],
                          input=json.dumps(job), capture_output=True, text=True, check=True)
     assert json.loads(out.stdout)["hashes"][0] == hashes
+
+
+INK_RUNNER = """
+import * as raster from %s;
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+const job = JSON.parse(readFileSync(0, "utf8"));
+const tiles = await raster.inflateTiles(job.tiles);
+const out = job.layers.map((ops) => {
+  const ink = raster.inkOf(ops, tiles, job.width, job.height, job.scale);
+  return { box: ink.box, md5: createHash("md5").update(ink.mask).digest("hex") };
+});
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.parametrize("path", CORPUS, ids=lambda p: str(p.parent.name))
+def test_the_browsers_ink_is_the_servers_layer_alpha(db, path):
+    """Hit-testing reads where a layer has ink: `raster.inkOf`, from the
+    layer's JSON drawn on two grounds, equals the server's own layer image
+    (`wfb.draw.layers`, matted from two grounds) wherever its alpha is not
+    zero, pixel for pixel."""
+    import base64
+
+    from tests.helpers import resolved_example
+    from wfb import preview
+    from wfb.draw.layers import layers
+
+    resolved = resolved_example(path, db, "fr955")
+    options = preview.PreviewOptions(scale=2)
+    stack = [l for l in layers(resolved, options) if l.ops is not None]
+    tiles = stack[0].tiles if stack else None
+    want = []
+    for layer in stack:
+        assert layer.image is not None
+        alpha = layer.image.getchannel("A").point(lambda v: 1 if v else 0)
+        box = alpha.getbbox()
+        want.append({"box": list(box) if box else None,
+                     "md5": hashlib.md5(alpha.crop(box).tobytes() if box else b"").hexdigest()})
+    packed, index = tiles.pack() if tiles is not None else (b"", {})
+    job = {"width": 520, "height": 520, "scale": 2, "layers": [l.ops for l in stack],
+           "tiles": {"data": base64.b64encode(packed).decode(), "index": index}}
+    out = subprocess.run([node(), "--input-type=module", "-e",
+                          INK_RUNNER % json.dumps(RASTER.as_uri())],
+                         input=json.dumps(job), capture_output=True, text=True, check=True)
+    got = json.loads(out.stdout)
+    for layer, g, w in zip(stack, got, want):
+        assert g == w, (path.parent.name, layer.id)
+
+
+MOVE_RUNNER = """
+import * as raster from %s;
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+const job = JSON.parse(readFileSync(0, "utf8"));
+const numbers = (x, out = []) => {
+  if (Array.isArray(x)) x.forEach((v) => numbers(v, out));
+  else if (x && typeof x === "object") {
+    if ("const" in x && "value" in x) out.push(x.value + x.add);
+    // a text's or icon's layout box and origin are not drawn: its run is
+    else for (const [k, v] of Object.entries(x)) {
+      if (k !== "tile" && k !== "box" && k !== "origin") numbers(v, out);
+    }
+  } else if (typeof x === "number") out.push(x);
+  return out;
+};
+const out = [];
+for (const pair of job.pairs) {
+  const tiles = await raster.inflateTiles(pair.tiles);
+  const draw = (ops) => {
+    const im = raster.image(job.width, job.height, [0, 0, 0]);
+    raster.drawOps(im, ops, tiles, job.scale);
+    return createHash("md5").update(im.data).digest("hex");
+  };
+  const moved = raster.translateOps(pair.before, job.dx, job.dy);
+  const a = numbers(moved), b = numbers(pair.after);
+  // a run's offsets are frame pixels, everything else device pixels
+  const worst = a.length === b.length ? Math.max(0, ...a.map((v, i) => Math.abs(v - b[i]))) : Infinity;
+  out.push({ same: draw(moved) === draw(pair.after), worst });
+}
+console.log(JSON.stringify(out));
+"""
+
+MOVED_FACES = [Path(__file__).resolve().parent.parent / f"examples/{name}/face.yaml" for name in (
+    "features/shapes", "features/align", "features/rings", "features/progress",
+    "features/slots", "features/patterns", "features/analog", "features/graph",
+    "features/vector-text", "showcase")]
+
+
+def test_a_move_drawn_in_the_browser_is_the_servers_move(db):
+    """During a move the canvas draws each moved element's ops translated
+    (`raster.translateOps`). Against the server's own JSON after the real
+    edit (`wfb.edit.move`, landed): every number within one device pixel
+    (a `%` box re-rounds its edges where it lands; a run's offsets, in frame
+    pixels, at most 2), and most elements drawn identically."""
+    import base64
+
+    from wfb import preview
+    from wfb.draw.jsonform import Tiles, to_json
+    from wfb.edit import Refused, View, move
+    from wfb.edit.gate import load_text
+
+    device = db.get("fr955")
+
+    def ops_of(resolved, element_id, tiles):
+        options = preview.PreviewOptions(scale=2)
+        values = preview.sample_values(resolved, options, None)
+        for placed in preview.frame_items(resolved, options, None):
+            if placed.id == element_id:
+                r = preview.new_renderer(resolved, options, values, (0, 0, 0))
+                return to_json(r, placed, tiles)[0] if r.shows(placed) else None
+        return None
+
+    pairs, labels = [], []
+    for path in MOVED_FACES:
+        view = View(path, path.read_text(), device)
+        for placed in view.resolved.items:
+            if placed.kind == "group":
+                continue
+            tiles = Tiles()
+            before = ops_of(view.resolved, placed.id, tiles)
+            if not before:
+                continue
+            try:
+                converted = move(view, placed.id, 5, -3)
+            except Refused:
+                continue
+            if not converted.landed:
+                continue
+            after = ops_of(view.place(load_text(path, converted.patch.text)), placed.id, tiles)
+            packed, index = tiles.pack()
+            pairs.append({"before": before, "after": after,
+                          "tiles": {"data": base64.b64encode(packed).decode(), "index": index}})
+            labels.append(f"{path.parent.name}/{placed.id}")
+    job = {"width": 520, "height": 520, "scale": 2, "dx": 5, "dy": -3, "pairs": pairs}
+    out = json.loads(subprocess.run(
+        [node(), "--input-type=module", "-e", MOVE_RUNNER % json.dumps(RASTER.as_uri())],
+        input=json.dumps(job), capture_output=True, text=True, check=True).stdout)
+    far = [(label, r["worst"]) for label, r in zip(labels, out) if r["worst"] > 2]
+    assert not far, far
+    same = sum(r["same"] for r in out)
+    assert same >= 0.85 * len(out), f"{same} of {len(out)} drawn identically"

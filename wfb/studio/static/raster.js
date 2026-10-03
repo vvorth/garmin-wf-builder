@@ -668,3 +668,87 @@ export function drawOps(im, ops, tiles, scale) {
     }
   }
 }
+
+// -- what the canvas reads ---------------------------------------------------------------
+
+// The frame's packed tiles (`{data: base64, index}`), inflated with the
+// platform's own `DecompressionStream` (zlib is its "deflate").
+export async function inflateTiles(packed) {
+  const raw = Uint8Array.from(atob(packed.data), (c) => c.charCodeAt(0));
+  if (raw.length === 0) return {};
+  const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  return unpackTiles(bytes, packed.index);
+}
+
+// Which numbers of each op are x and which are y, by the `Dc` call's own
+// signature: what moving an element by (dx, dy) device pixels changes.
+const XY = {
+  fillRectangle: [0, 1], drawRectangle: [0, 1],
+  fillRoundedRectangle: [0, 1], drawRoundedRectangle: [0, 1],
+  fillCircle: [0, 1], drawCircle: [0, 1], fillEllipse: [0, 1], drawEllipse: [0, 1],
+};
+
+function shifted(n, d) {
+  return typeof n === "object" ? { ...n, add: n.add + d } : n + d;
+}
+
+// `ops` moved by whole device pixels: what the server draws once the
+// element's position has moved that far.
+export function translateOps(ops, dx, dy) {
+  return ops.map((op) => {
+    const name = op.op;
+    if (name === "fillPolygon") return { ...op, points: op.points.map(([x, y]) => [x + dx, y + dy]) };
+    if (name === "arc") return { ...op, cx: shifted(op.cx, dx), cy: shifted(op.cy, dy) };
+    if (name === "text" || name === "glyph") return { ...op, x: shifted(op.x, dx), y: shifted(op.y, dy) };
+    if (name === "drawLine") {
+      const a = op.args;
+      return { ...op, args: [shifted(a[0], dx), shifted(a[1], dy), shifted(a[2], dx), shifted(a[3], dy)] };
+    }
+    const xy = XY[name];
+    if (xy) {
+      const args = op.args.slice();
+      args[xy[0]] = shifted(args[xy[0]], dx);
+      args[xy[1]] = shifted(args[xy[1]], dy);
+      return { ...op, args };
+    }
+    return op;
+  });
+}
+
+// Where a layer's ops leave ink: drawn on black and on white, a pixel is
+// ink where the grounds' difference, as luma, falls short of 255 -- the
+// coverage `wfb.draw.layers.matte` takes (Pillow's "RGB" to "L":
+// (r * 19595 + g * 38470 + b * 7471 + 0x8000) >> 16).
+// `{box: [x0, y0, x1, y1] | null, mask}`: frame pixels, `mask` one byte a
+// pixel over the box (exclusive ends).
+export function inkOf(ops, tiles, width, height, scale) {
+  const black = image(width, height, [0, 0, 0]), white = image(width, height, [255, 255, 255]);
+  drawOps(black, ops, tiles, scale);
+  drawOps(white, ops, tiles, scale);
+  let x0 = width, y0 = height, x1 = -1, y1 = -1;
+  const full = new Uint8Array(width * height);
+  for (let i = 0, p = 0; p < full.length; i += 4, p++) {
+    const dr = Math.max(0, white.data[i] - black.data[i]);
+    const dg = Math.max(0, white.data[i + 1] - black.data[i + 1]);
+    const db = Math.max(0, white.data[i + 2] - black.data[i + 2]);
+    if (((dr * 19595 + dg * 38470 + db * 7471 + 0x8000) >> 16) < 255) {
+      full[p] = 1;
+      const x = p % width, y = (p - x) / width;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) return { box: null, mask: new Uint8Array(0) };
+  const w = x1 - x0 + 1, mask = new Uint8Array(w * (y1 - y0 + 1));
+  for (let y = y0; y <= y1; y++) mask.set(full.subarray(y * width + x0, y * width + x1 + 1), (y - y0) * w);
+  return { box: [x0, y0, x1 + 1, y1 + 1], mask };
+}
+
+// An RGBA image (`{width, height, data}`, straight alpha) over the canvas
+// at (x, y): a layer the browser does not draw itself.
+export function composite(im, rgba, x, y) {
+  paste(im, { ...rgba, kind: "rgba" }, x, y, null);
+}

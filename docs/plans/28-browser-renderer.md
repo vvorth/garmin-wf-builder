@@ -1,7 +1,7 @@
 # 28 — A browser renderer for `wfb studio`
 
 **Status: accepted (2026-10-03); B1–B5 decided as recommended the same
-day; slices 0 and 1 done, 2 next. Building it was decided by the user on
+day; slices 0–2 done, 3 next. Building it was decided by the user on
 2026-10-03 (research 29 §7, R1–R4 as recommended).** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -114,10 +114,10 @@ In short:
   - `BROWSER_OPS`, the proven set (B2).
 - `wfb/studio/document.py`:
   - the frame response carries each layer as JSON or as a PNG
-    (fallback), plus the URL of the frame's **packed tiles**
+    (fallback), plus the frame's **packed tiles** embedded
     (`Tiles.pack`: raw RGBA, zlib, with an index), cached per version,
     device, scale and frame switches;
-  - `Document.layers` keeps serving fallback PNGs only.
+  - `Document.layers` and its endpoint go.
 - `wfb/kinds/*`: per handle key, the constant coefficients (B3).
   `wfb/studio/drag.py` puts them on the handle with `live: true`.
 - `wfb/studio/static/canvas.js`: layers rasterised locally, hit-testing
@@ -261,21 +261,84 @@ beside it; fr955 at 2×):
 - **Payload:** the corpus's ops plus tiles come to 417 KB (ops 225 KB,
   tiles 192 KB) against 957 KB of the layer PNGs the editor fetches today.
 
-### Slice 2 — layers from JSON in the canvas
+### Slice 2 — layers from JSON in the canvas: done
 
-- The frame response carries each layer as JSON or a PNG (B2), and the
-  URL of the frame's packed tiles. The canvas rasterises the JSON layers on arrival, keeping one
-  image per layer.
-- Hit-testing by alpha and a move's moving image read them. The separate
-  layers request goes, except for fallback PNGs.
-- **Checked in a DOM** (jsdom against a live server, as before):
-  - a click selects by alpha right after a release;
-  - a move draws the shifted layers;
-  - a fallback layer still appears.
+Built as below:
+- **The frame carries its layers.** `Document.frame` adds every layer in
+  draw order: its JSON ops, or, for a layer with an op outside
+  `BROWSER_OPS` (today only an outlined group's ring), its PNG cropped to
+  its ink with its origin. The frame's packed tiles travel with it.
+  - `wfb.draw.layers(..., paint_all=False)` paints only those fallback
+    layers.
+  - `Document.layers` and its endpoint are gone.
+  - The tiles are embedded in the frame's JSON (base64) rather than
+    fetched from a URL, so a frame and its tiles can never belong to
+    different versions.
+- **`raster.js`** adds:
+  - `inflateTiles`, the platform's `DecompressionStream`, which Node has
+    too;
+  - `inkOf`: a layer drawn on black and on white, with ink where the
+    difference's luma falls short of 255, the matte's own coverage rule;
+  - `translateOps`, by the `Dc` call signatures;
+  - `composite`, for a fallback PNG.
+- **The canvas** prepares a frame's layers when it arrives: the tiles
+  inflated, a fallback PNG decoded.
+  - **Hit-testing reads ink.** A layer's ink is worked out the first time
+    a press lands in its box.
+  - **A move redraws the whole face** from the layers' ops, the moving
+    ones translated, instead of compositing per-layer images (a decision
+    made in building it, amending "one image per layer"). That draws the
+    moved geometry as the server will, where shifting finished pixels
+    only approximated it, and it needs no colour matte in the browser.
+  - `app.js` no longer fetches layers.
 
-  The browser itself is checked by hand.
-- **Measured:** the release → hit-testable time and the bytes per frame,
-  against today's frame + layers (research 29 tables A and B).
+Proven:
+- **Ink equals the server's layer alpha.** `inkOf` equals the alpha of
+  `wfb.draw.layers`' own matted image, pixel for pixel, for every JSON
+  layer of every example face. A threshold off by one fails 26 faces. A
+  per-channel rule fails none: the two agree in practice, and luma is the
+  matte's own rule.
+- **A move draws the server's move.** Across ten faces covering every
+  kind, each element's ops translated by (+5, −3) were checked against the
+  server's JSON after the real `wfb.edit.move`, landed. Every number is
+  within one device pixel (a run's offsets within two frame pixels), and
+  at least 85 % draw identically: over the whole corpus
+  (`docs/research/probes/browser-renderer/translate.py`), 293 of 319.
+  The rest are `%` and `%r` boxes the layout re-rounds where they land
+  (an edge 1 px off, a size 1 px larger). Only the layout engine knows
+  that rounding, and the release corrects it. Not shifting text, or
+  shifting a circle's radius, fails the test.
+- **Checked in a DOM** (jsdom against a live server, a fresh copy of the
+  face per run):
+  - on `features/shapes`, a point inside `outer_arc`'s box but outside
+    its circle, where a pick by box answers the arc, selects the
+    background;
+  - a press on the arc's rim selects the arc;
+  - a move redraws the 520 × 520 frame from ops while the pointer is
+    down;
+  - after the release, the same point again selects by ink;
+  - on `features/rings`, the ring layer arrives as a PNG and a move
+    composites it;
+  - no page errors.
+
+  With ink-picking switched off, the rim selects `accent_arc`. A first
+  version of the check reused one face across runs, and the moves it made
+  had taken the background away from the test point. The browser itself
+  is checked by hand.
+- The fast suite and `mypy --strict` are green.
+
+**Measured** (`docs/research/probes/browser-renderer/frame_cost.py`,
+results beside it; each face's first target at 2×):
+- **The server's frame**, now carrying its layers: 12–307 ms, against
+  78–661 ms for the frame plus the layers request before. The showcase
+  is 40 ms against 261, `trail-utility` 43 against 333.
+- **Bytes per frame:** 27–74 KB, against 43–101 KB before.
+- **In the browser (Node):**
+  - inflating the tiles: 18–33 ms, once per frame;
+  - **drawing the whole face for a move: 3–5 ms**, so a pointer move
+    redraws well inside a 60 Hz frame;
+  - one layer's ink: at most 9.2 ms, worked out only for the layers a
+    press lands in.
 
 ### Slice 3 — live handles
 

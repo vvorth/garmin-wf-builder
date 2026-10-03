@@ -44,7 +44,8 @@ if TYPE_CHECKING:
 class Layer:
     """One layer of a frame.  ``id`` is the element's, or `ring:<group id>`
     for an outlined group's ring; ``kind`` the element kind, or `ring`.
-    ``image`` is RGBA at the preview's scale.  ``ops`` is the lowered
+    ``image`` is RGBA at the preview's scale, or `None` for a layer
+    `layers(..., paint=False)` leaves to its JSON.  ``ops`` is the lowered
     element's program as JSON for this frame, `None` for a kind that does
     not lower and for a group ring; ``fonts`` resolves the font ids it
     names, and ``tiles`` (one store for the whole frame) the tiles its runs
@@ -53,7 +54,7 @@ class Layer:
     id: str
     kind: str
     span: "Span | None"
-    image: Image.Image
+    image: Image.Image | None
     ops: list[dict[str, Any]] | None = None
     fonts: dict[str, "FontRef"] = field(default_factory=dict)
     tiles: "Tiles | None" = None
@@ -78,12 +79,17 @@ def matte(black: Image.Image, white: Image.Image) -> Image.Image:
 
 
 def layers(resolved: "ResolvedFace", options: "PreviewOptions | None" = None, *,
-           used_faces: "dict[FontMetric, fallback.SystemFace] | None" = None) -> list[Layer]:
+           used_faces: "dict[FontMetric, fallback.SystemFace] | None" = None,
+           paint_all: bool = True) -> list[Layer]:
     """The frame `wfb.preview.render` draws, as layers in draw order: before
     each outlined group's first member drawn here, that group's ring (the
-    same order `Renderer.render_sequence` paints), then the element."""
+    same order `Renderer.render_sequence` paints), then the element.
+
+    With ``paint_all`` false, a layer whose JSON a browser draws itself
+    (every op in `jsonform.BROWSER_OPS`) is not painted: its ``image`` is
+    `None`, which spares painting every element twice."""
     from .. import preview
-    from .jsonform import Tiles, to_json
+    from .jsonform import BROWSER_OPS, Tiles, to_json
 
     options = options or preview.PreviewOptions()
     entry = preview._resolve_style_entry(resolved.face, options.style)
@@ -116,12 +122,13 @@ def layers(resolved: "ResolvedFace", options: "PreviewOptions | None" = None, *,
         def element_layer(r: "Renderer", placed: "Placed" = placed) -> None:
             r.render_element(placed)
 
-        image = paint(element_layer)
         fonts: dict[str, FontRef] = {}
         renderer = preview.new_renderer(resolved, options, values, (0, 0, 0), used_faces)
         ops: list[dict[str, Any]] = []
         if renderer.shows(placed):
             ops, fonts = to_json(renderer, placed, tiles)
+        drawn_by_browser = {op["op"] for op in ops} <= BROWSER_OPS
+        image = paint(element_layer) if paint_all or not drawn_by_browser else None
         out.append(Layer(placed.id, placed.kind, placed.element.span, image, ops, fonts, tiles))
     return out
 
@@ -140,5 +147,6 @@ def compose(stack: list[Layer], resolved: "ResolvedFace",
     scale = max(1, options.scale)
     frame = Image.new("RGBA", (device.width * scale, device.height * scale), (0, 0, 0, 255))
     for layer in stack:
+        assert layer.image is not None, "compose needs every layer painted"
         frame = Image.alpha_composite(frame, layer.image)
     return preview.finish_frame(frame.convert("RGB"), resolved, options, values)

@@ -287,12 +287,7 @@ function Editor({ docId, onError }) {
     if (view.asleep) q.set("asleep", "1");
     if (view.aod) q.set("aod", "1");
     api(`/api/documents/${docId}/frame?${q}`)
-      .then((f) => {
-        if (!live) return;
-        setFrame(f);
-        // the layers follow: alpha hit-testing and a drag's moving image
-        return api(`/api/documents/${docId}/layers?${q}`).then((l) => { if (live) setLayers(l); });
-      }, onError)
+      .then((f) => { if (live) setFrame(f); }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
   }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, view.time,
@@ -327,7 +322,6 @@ function Editor({ docId, onError }) {
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
   const [tab, setTab] = useState("diagnostics");
-  const [layers, setLayers] = useState(null);
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
@@ -484,7 +478,7 @@ function Editor({ docId, onError }) {
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
-              ${frame ? html`<${Canvas} frame=${frame} layers=${layers} selected=${selected}
+              ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
                                         extra=${extra} tree=${doc.tree}
                                         zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
                                         onPick=${select} onDrag=${onDrag} />`

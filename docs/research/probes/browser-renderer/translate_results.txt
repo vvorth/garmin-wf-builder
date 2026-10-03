@@ -1,0 +1,45 @@
+# A move by (+5, -3) px on fr955 at 2x, drawn in the browser
+
+- complication_slot: equal: 9
+- differ: 26
+- equal: 293
+- graph: differ: 3
+- graph: equal: 3
+- hands: equal: 7
+- icon: differ: 8
+- icon: equal: 19
+- pattern: equal: 25
+- progress: differ: 5
+- progress: equal: 18
+- refused by the engine: 3
+- shape: differ: 10
+- shape: equal: 124
+- text: equal: 88
+
+Differ:
+- analog-custom `data_l_shadow_dark` (shape)
+- analog-custom `data_l_shadow` (shape)
+- analog-custom `data_l_bg` (shape)
+- analog-custom `data_r_shadow` (shape)
+- features/align `nw_card` (shape)
+- features/align `steps_bar` (progress)
+- features/complications `body_battery_icon` (icon)
+- features/graph `hr_graph` (graph)
+- features/graph `steps_graph` (graph)
+- features/graph `temp_graph` (graph)
+- features/profile `steps_plain` (progress)
+- features/progress `battery_scale` (progress)
+- features/rings `alarm` (icon)
+- features/rings `steps_bar` (progress)
+- features/slot-gauge `left_cells` (progress)
+- generated_by_skill/navy-classic `b12_b` (shape)
+- generated_by_skill/navy-classic `b12_l` (shape)
+- generated_by_skill/trail-utility `sunrise_icon` (icon)
+- generated_by_skill/trail-utility `weather_icon` (icon)
+- showcase `left_card` (shape)
+- showcase `right_card` (shape)
+- showcase `hr_graph_icon` (icon)
+- showcase `center_card` (shape)
+- showcase `hr_icon` (icon)
+- showcase `steps_icon` (icon)
+- showcase `notification_badge` (icon)
