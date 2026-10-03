@@ -370,6 +370,19 @@ def test_a_move_keeps_the_authors_unit(shapes_views):
     assert "at: { anchor: center, dx: 5.5%r }" in patch.text
 
 
+def test_an_extent_cannot_shrink_below_one_pixel(db):
+    """`align`'s `ne_dot` is 1 px across on fr955: shrinking it by 4 once
+    landed at -3 px, a circle the watch cannot draw."""
+    path = ROOT / "examples/features/align/face.yaml"
+    view = View(path, path.read_text(encoding="utf-8"), db.get("fr955"))
+    assert view.placed("ne_dot").radius == 1
+    with pytest.raises(Refused, match="smaller than 1 px"):
+        resize(view, "ne_dot", ("radius",), -4)
+    with pytest.raises(Refused, match="smaller than 1 px"):
+        resize(view, "ne_dot", ("radius",), -1)
+    assert resize(view, "ne_dot", ("radius",), 2).landed
+
+
 def test_a_polygon_move_is_refused(shapes_views):
     with pytest.raises(Refused, match="polygon"):
         move(shapes_views["fenix8solar47mm"], "chevron", 1, 1)

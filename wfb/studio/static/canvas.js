@@ -82,18 +82,19 @@ function pick(frame, prepared, x, y) {
   return best ? best.id : null;
 }
 
-// The face drawn from its layers with the elements in `moving` moved by
-// (dx, dy) device pixels: what the server will draw once the move lands.
-// Cleared to black inside the screen's own shape only, so the skin round a
-// round screen stays visible.
-function drawMoved(ctx, frame, prepared, moving, dx, dy, s) {
+// The face drawn from its layers, each JSON layer's ops passed through
+// `change(layer)` and each fallback image shifted by `shift(layer)` frame
+// pixels: what the server will draw once a gesture lands. Cleared to black
+// inside the screen's own shape only, so the skin round a round screen
+// stays visible.
+function drawChanged(ctx, frame, prepared, change, shift, s) {
   const width = frame.width * s, height = frame.height * s;
   const im = raster.image(width, height, [0, 0, 0]);
   for (const l of prepared.layers) {
-    const moved = moving.has(elementOf(l.id));
-    if (l.ops) raster.drawOps(im, moved ? raster.translateOps(l.ops, dx, dy) : l.ops, prepared.tiles, s);
+    if (l.ops) raster.drawOps(im, change(l), prepared.tiles, s);
     else if (l.png && l.origin) {
-      raster.composite(im, l.png, l.origin[0] + (moved ? dx * s : 0), l.origin[1] + (moved ? dy * s : 0));
+      const [dx, dy] = shift(l);
+      raster.composite(im, l.png, l.origin[0] + dx, l.origin[1] + dy);
     }
   }
   const scratch = document.createElement("canvas");
@@ -160,13 +161,31 @@ function resizedBox(box, handle, delta) {
   return [x, y, w, h];
 }
 
+// The face with the elements in `moving` moved by (dx, dy) device pixels.
+function drawMoved(ctx, frame, prepared, moving, dx, dy, s) {
+  const moved = (l) => moving.has(elementOf(l.id));
+  drawChanged(ctx, frame, prepared, (l) => (moved(l) ? raster.translateOps(l.ops, dx, dy) : l.ops),
+              (l) => (moved(l) ? [dx * s, dy * s] : [0, 0]), s);
+}
+
+// The face with `item` drawn as a live handle (`handle.live`, which the
+// server declares only where it predicts the edit exactly) leaves it.
+function drawLive(ctx, frame, prepared, item, g, s) {
+  const change = g.kind === "turn" ? { degrees: g.degrees } : { delta: g.delta };
+  drawChanged(ctx, frame, prepared,
+              (l) => (l.id === item.id ? raster.liveOps(l.ops, g.handle.live, change) : l.ops),
+              () => [0, 0], s);
+}
+
 // The preview of a gesture in progress, or of one sent and not yet drawn.
 // `moving`: every element the gesture moves (a group's children included).
 function drawPreview(ctx, frame, prepared, item, moving, g, s) {
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2;
-  if (g.kind === "move" && g.part === "both") {
+  if (g.kind !== "move" && g.handle && g.handle.live && prepared) {
+    drawLive(ctx, frame, prepared, item, g, s);
+  } else if (g.kind === "move" && g.part === "both") {
     if (prepared) drawMoved(ctx, frame, prepared, moving, g.dx, g.dy, s);
     const [x, y, w, h] = item.box;
     ctx.setLineDash([6, 4]);

@@ -460,6 +460,33 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             return f"{noun}, outlined"
         return noun
 
+    def live_handle(self, placed: PlacedShape, handle: dict[str, Any]) -> dict[str, Any] | None:
+        """A box's size dragged at an edge that is not centred keeps the
+        other edge where it is: the extent grows by the drag and the near
+        edge (`X`/`Y`) moves with it when it is the one dragged.  A centred
+        circle's or arc's radius moves nothing else.  An arc's angles are
+        its `_START` (Garmin's convention) and `_SWEEP`."""
+        element = placed.element
+        prefix = const_prefix(placed.id)
+        raw = handle.get("key")
+        key = tuple(raw) if isinstance(raw, list) else (raw,)
+        if handle["kind"] == "angle" and element.shape == "arc":
+            return {"angle": f"{prefix}_START" if key == ("start_angle",) else f"{prefix}_SWEEP"}
+        if handle["kind"] != "size":
+            return None
+        if key == ("radius",):
+            centred = element.align == "center" and element.vertical_align == "center"
+            if element.shape in ("circle", "arc") and centred:
+                return {"consts": {f"{prefix}_RADIUS": 1}}
+            return None
+        if element.shape in ("rectangle", "rounded_rectangle") and handle["gain"] in (1, -1):
+            extent, edge = ("WIDTH", "X") if key == ("size", "width") else ("HEIGHT", "Y")
+            consts = {f"{prefix}_{extent}": 1}
+            if handle["gain"] == -1:
+                consts[f"{prefix}_{edge}"] = -1
+            return {"consts": consts}
+        return None
+
     def layout_constants(self, prefix: str,
                          placed: PlacedShape) -> "layout_constants_mod.Constants":
         element = placed.element

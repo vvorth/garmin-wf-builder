@@ -752,3 +752,49 @@ export function inkOf(ops, tiles, width, height, scale) {
 export function composite(im, rgba, x, y) {
   paste(im, { ...rgba, kind: "rgba" }, x, y, null);
 }
+
+// -- live handles ------------------------------------------------------------------------
+
+// `WfbArc.drawSpan` (`wfb.draw.barrel.draw_span`): the `dc.drawArc` call an
+// arc of `start` (Garmin degrees) and `sweep` (clockwise-positive) makes,
+// as [start, end, clockwise], or null for none. Monkey C's toNumber
+// truncates, its % keeps the dividend's sign.
+function roundAway(d) { return d < 0 ? Math.trunc(d - 0.5) : Math.trunc(d + 0.5); }
+function mcMod(a, b) { return a % b; }
+
+export function drawSpan(startDegrees, sweepDegrees) {
+  let sweep = roundAway(sweepDegrees);
+  if (sweep === 0) return null;
+  if (sweep > 360) sweep = 360;
+  if (sweep < -360) sweep = -360;
+  let start = mcMod(roundAway(startDegrees), 360);
+  if (start < 0) start += 360;
+  let end = mcMod(start - sweep, 360);
+  if (end < 0) end += 360;
+  return [start, end, sweep > 0];
+}
+
+// `ops` as they will be once a live handle (`live`, from the server's
+// `handles`) has been dragged: `delta` device pixels of extent for a size
+// handle, `degrees` (12 o'clock, clockwise) for an angle. An arc whose
+// angles moved has its `drawArc` call worked out again, as `drawSpan` does.
+export function liveOps(ops, live, { delta = 0, degrees = 0 } = {}) {
+  let set;
+  if (live.consts) {
+    set = (n) => (n !== null && typeof n === "object" && n.const in live.consts
+      ? { ...n, add: n.add + live.consts[n.const] * delta } : n);
+  } else {
+    const value = live.angle.endsWith("_START") ? (((90 - degrees) % 360) + 360) % 360 : degrees;
+    set = (n) => (n !== null && typeof n === "object" && n.const === live.angle ? { ...n, value, add: 0 } : n);
+  }
+  const walk = (x) => (Array.isArray(x) ? x.map(walk)
+    : x && typeof x === "object" && !("const" in x) ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, walk(v)]))
+    : set(x));
+  return ops.map((op) => {
+    const out = walk(op);
+    if (op.op === "arc" && (out.start !== op.start || out.sweep !== op.sweep)) {
+      out.call = drawSpan(num(out.start), num(out.sweep));
+    }
+    return out;
+  });
+}

@@ -18,11 +18,12 @@ only partly for the third.
      the next drag shows only a box, and a click picks by box.
 2. **A browser renderer removes the first and third waits outright.**
    - **During a gesture:** redrawing the dragged element from its JSON,
-     with only the handle's own `Layout` constant changed, reproduces what
-     the server places after the real edit for **154 of 226 handle drags**
-     in the corpus (§3). Porting one barrel function, `WfbArc.drawSpan`'s
-     rounding, adds the 34 arc-angle drags, bringing it to **188/226
-     (83 %)**. The rest fall back to today's outline.
+     with only the handle's own `Layout` constant changed, seemed to
+     reproduce the server's edit for 154 of 226 handle drags (§3), 188
+     with a `drawSpan` twin. **Building it found that figure optimistic**
+     (§3, the note under table C). Proven exact are 63 of the corpus's
+     304 size, radius and angle handles: every circle's and arc's, and a
+     box's edge that is not centred. The rest fall back to the outline.
    - **After the frame:** the JSON is **214 KB against 957 KB** of layer
      PNGs over the corpus. Building it costs 1–23 ms per face, against the
      layers request's two full paints of every element.
@@ -143,7 +144,18 @@ numbers that change are:
 | `sweep` | 0 | 17: the same |
 | **total** | **154 / 226** | 72 |
 
-VERIFIED. Two findings follow:
+**Corrected in building it (plan 28 slice 3).** This table counted a
+centred box as predictable whenever only its own size and its `_X`/`_Y`
+changed, without checking by how much `_X`/`_Y` moved. A box's edges are
+rounded one by one, half to even, about a centre that is usually
+fractional (`Box.rounded`). So a centred box's new `_X` depends on that
+fraction, which the JSON does not carry, and a drag by an odd number of
+pixels moves it unpredictably. A test that compares the drawn result,
+not the constants' names, proves 63 of 304 handles exact
+(`tests/test_studio_raster.py`). Declaring centred boxes live as well
+(183 handles) fails it on odd drags.
+
+VERIFIED, with that correction. Two findings follow:
 - **The arc misses are one function.** `barrel.draw_span` is already
   transcribed and sweep-tested in Python (`tests/test_draw_barrel.py`).
   A JavaScript twin held to the same sweep makes all 34 predictable:

@@ -515,3 +515,122 @@ def test_a_move_drawn_in_the_browser_is_the_servers_move(db):
     assert not far, far
     same = sum(r["same"] for r in out)
     assert same >= 0.85 * len(out), f"{same} of {len(out)} drawn identically"
+
+
+# -- live handles -------------------------------------------------------------------------
+
+def test_the_browsers_draw_span_is_the_barrels():
+    """`raster.drawSpan` against `wfb.draw.barrel.draw_span` (itself checked
+    against `WfbArc.mc`): every half-degree start, sweeps either way and
+    past a full turn."""
+    from wfb.draw import barrel
+
+    starts = [t / 2 for t in range(-1440, 1441)]
+    sweeps = [-400, -360, -359.5, -90.5, -1, -0.5, -0.4, 0, 0.4, 0.5, 1, 90.5, 359.5, 360, 400]
+    cases = [[a, b] for a in starts[::7] for b in sweeps] + [[a, 45] for a in starts]
+    source = (f"import * as raster from {json.dumps(RASTER.as_uri())};\n"
+              "import { readFileSync } from 'node:fs';\n"
+              "const cases = JSON.parse(readFileSync(0, 'utf8'));\n"
+              "console.log(JSON.stringify(cases.map(([a, b]) => raster.drawSpan(a, b))));")
+    got = json.loads(subprocess.run([node(), "--input-type=module", "-e", source],
+                                    input=json.dumps(cases), capture_output=True, text=True,
+                                    check=True).stdout)
+    want = [list(c) if (c := barrel.draw_span(a, b)) is not None else None for a, b in cases]
+    assert got == want
+
+
+LIVE_RUNNER = """
+import * as raster from %s;
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+const job = JSON.parse(readFileSync(0, "utf8"));
+const out = [];
+for (const c of job.cases) {
+  const tiles = await raster.inflateTiles(c.tiles);
+  const draw = (ops) => {
+    const im = raster.image(job.width, job.height, [0, 0, 0]);
+    raster.drawOps(im, ops, tiles, job.scale);
+    return createHash("md5").update(im.data).digest("hex");
+  };
+  try {
+    out.push(draw(raster.liveOps(c.before, c.live, c.change)) === draw(c.after));
+  } catch (e) {
+    out.push(e.message);
+  }
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def test_every_live_handle_predicts_the_servers_edit(db):
+    """Every handle a kind declares live, on every example face (fr955,
+    2x): the element's ops before, changed by `raster.liveOps`, draw
+    exactly what the server's own edit (`wfb.edit.resize`/`turn`, landed)
+    draws -- grown and shrunk, by even and odd amounts, and turned to
+    whole degrees either way."""
+    import base64
+
+    from wfb import preview
+    from wfb.draw.jsonform import Tiles, to_json
+    from wfb.edit import Refused, View, resize, turn
+    from wfb.edit.gate import load_text
+    from wfb.studio.drag import handles
+
+    device = db.get("fr955")
+
+    def ops_of(resolved, element_id, tiles):
+        options = preview.PreviewOptions(scale=2)
+        values = preview.sample_values(resolved, options, None)
+        for placed in preview.frame_items(resolved, options, None):
+            if placed.id == element_id:
+                r = preview.new_renderer(resolved, options, values, (0, 0, 0))
+                return to_json(r, placed, tiles)[0] if r.shows(placed) else None
+        return None
+
+    cases, labels = [], []
+    total = live = 0
+    for path in CORPUS:
+        view = View(path, path.read_text(), device)
+        for placed in view.resolved.items:
+            for h in handles(placed):
+                if h["kind"] == "end":
+                    continue
+                total += 1
+                if h["live"] is None:
+                    continue
+                live += 1
+                tiles = Tiles()
+                before = ops_of(view.resolved, placed.id, tiles)
+                if before is None:
+                    continue
+                if h["kind"] == "size":
+                    changes = [{"delta": d} for d in (6, -4, 3, -1)]
+                else:
+                    base = round(h["start"] if h["key"] == "start_angle" else h["sweep"])
+                    changes = [{"degrees": base + d} for d in (12, -30, 7)]
+                for change in changes:
+                    try:
+                        if h["kind"] == "size":
+                            converted = resize(view, placed.id, tuple(h["key"]), change["delta"])
+                        else:
+                            converted = turn(view, placed.id, h["key"], change["degrees"])
+                    except Refused:
+                        continue
+                    if not converted.landed:
+                        continue
+                    after = ops_of(view.place(load_text(path, converted.patch.text)), placed.id, tiles)
+                    packed, index = tiles.pack()
+                    cases.append({"before": before, "after": after, "live": h["live"],
+                                  "change": change,
+                                  "tiles": {"data": base64.b64encode(packed).decode(),
+                                            "index": index}})
+                    labels.append(f"{path.parent.name}/{placed.id} {h['key']} {change}")
+    proc = subprocess.run(
+        [node(), "--input-type=module", "-e", LIVE_RUNNER % json.dumps(RASTER.as_uri())],
+        input=json.dumps({"width": 520, "height": 520, "scale": 2, "cases": cases}),
+        capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    out = json.loads(proc.stdout)
+    wrong = [(label, ok) for label, ok in zip(labels, out) if ok is not True]
+    print(f"live handles: {live} of {total}; edits checked: {len(cases)}")
+    assert cases and not wrong, wrong[:10]

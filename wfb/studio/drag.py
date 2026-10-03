@@ -38,7 +38,19 @@ def _length(element: Any, *path: str) -> Length | None:
 
 
 def handles(placed: Placed) -> list[dict[str, Any]]:
-    """The handles of ``placed`` beyond moving it whole."""
+    """The handles of ``placed`` beyond moving it whole, each with what the
+    browser may redraw by itself while it is dragged (`live`, the kind's
+    `ElementKind.live_handle`, or `None`)."""
+    from .. import kinds
+
+    kind = kinds.for_placed(placed)
+    out = _handles(placed)
+    for handle in out:
+        handle["live"] = kind.live_handle(placed, handle)
+    return out
+
+
+def _handles(placed: Placed) -> list[dict[str, Any]]:
     element = placed.element
     out: list[dict[str, Any]] = []
     if getattr(element, "shape", None) == "line":

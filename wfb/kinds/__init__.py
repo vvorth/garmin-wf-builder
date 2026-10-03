@@ -360,6 +360,19 @@ class ElementKind(Generic[E, P]):
         """This element's per-device `Layout` constants."""
         return []
 
+    def live_handle(self, placed: P, handle: dict[str, Any]) -> dict[str, Any] | None:
+        """What an editor may redraw by itself while ``handle`` (one of
+        `wfb.studio.drag.handles`) is dragged, before the server has placed
+        the edit: ``{"consts": {name: per_px}}``, each `Layout` constant
+        moving by ``per_px`` device pixels for every pixel the extent
+        grows, or ``{"angle": name}``, the arc constant a turn sets.
+        `None`, the default, wherever the outcome depends on layout the
+        editor does not have (a centred box's edges re-round about a
+        fractional centre); the editor then draws an outline.  Every
+        declaration must predict the server's own edit exactly
+        (`tests/test_studio_raster.py`)."""
+        return None
+
     # -- lint (wfb.lint) --
 
     def contrast_subjects(self, placed: P) -> Iterator[ContrastSubject]:

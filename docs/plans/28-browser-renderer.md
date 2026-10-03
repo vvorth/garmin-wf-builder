@@ -1,7 +1,7 @@
 # 28 — A browser renderer for `wfb studio`
 
 **Status: accepted (2026-10-03); B1–B5 decided as recommended the same
-day; slices 0–2 done, 3 next. Building it was decided by the user on
+day; slices 0–3 done, 4 (close-out) next. Building it was decided by the user on
 2026-10-03 (research 29 §7, R1–R4 as recommended).** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research:
@@ -340,25 +340,76 @@ results beside it; each face's first target at 2×):
   - one layer's ink: at most 9.2 ms, worked out only for the layers a
     press lands in.
 
-### Slice 3 — live handles
+### Slice 3 — live handles: done
 
-- Kinds declare handle coefficients (B3). `drag.handles` adds `consts`
-  and `live`.
-- The `drawSpan` twin in `raster.js`, swept in Node over every
-  half-degree start against `barrel.draw_span`, the way
-  `tests/test_draw_barrel.py` sweeps the Python one.
-- **The corpus test** (research 29 table C, made a test). For every
-  handle in the examples:
-  - a live one's prediction must equal the server's JSON after the real
-    edit;
-  - the count of live handles is recorded.
+Built as below:
+- **Kinds declare** (B3). `ElementKind.live_handle(placed, handle)` is
+  `None` by default.
+  - `ShapeKind` declares `{"consts": {name: per_px}}` for:
+    - a rectangle's or rounded rectangle's size at an edge that is not
+      centred: the extent +1 per pixel, and the near edge −1 when it is
+      the one dragged;
+    - a centred circle's or arc's radius.
+  - It declares `{"angle": name}` for an arc's `_START` (Garmin's
+    convention, `(90 − degrees) mod 360`) and `_SWEEP`.
+  - `drag.handles` puts the declaration on each handle as `live`.
+- **`raster.js`** adds:
+  - `drawSpan`, the `WfbArc.drawSpan` twin;
+  - `liveOps(ops, live, {delta | degrees})`, which applies a declaration
+    and works out an arc's `drawArc` call again.
+- **The canvas**, during a live resize or turn, redraws the face with the
+  dragged element's ops passed through `liveOps`, and holds that picture
+  through the release until the frame comes. A handle that is not live
+  keeps the outline.
+- **A bug found on the way, fixed:** `wfb.edit.resize` let an extent
+  shrink below a pixel. `align`'s 1 px `ne_dot` shrunk by 4 "landed" at a
+  radius of −3. It now refuses any extent under 1 px
+  (`tests/test_edit.py`; seen red).
 
-  Target: at least research 29's 188/226.
-- The canvas redraws the dragged layer from its ops with the constants
-  moved during a live resize or turn, and keeps the prediction on screen
-  through the release. A handle that is not live keeps the outline.
-- **Checked in a DOM:** a width drag draws the box grown, and an arc's
-  sweep drag draws the arc turned. Both are held until the frame comes.
+**The target was not met, and why.** Research 29's table C counted a
+centred box as predictable whenever only its own size and `_X`/`_Y`
+changed, without checking by how much `_X`/`_Y` moved. A box's edges
+round one by one, half to even, about a centre that is usually
+fractional (`Box.rounded`). So a centred box's new `_X` depends on that
+fraction, which the JSON does not carry. Declaring centred boxes live
+(183 handles) fails the corpus test on odd drags. Research 29 records the
+correction.
+
+Measured over the example faces on fr955: **63 of the 304 size, radius
+and angle handles are live**:
+- 57 of the 59 circle and arc handles;
+- 6 edge-aligned rectangles.
+
+What is not live:
+- centred boxes: 174 (rectangles, rounded rectangles, ellipses, groups,
+  graphs, gauge bars);
+- gauge arcs: 51, which draw through `WfbArc.drawProgress` with a fill
+  fraction;
+- the other aligned boxes and a few edge-placed radii: 16.
+
+Each could be made live later:
+- **Centred boxes:** the handle would carry the box's fractional centre,
+  and the browser would round the two edges half to even as
+  `Box.rounded` does. That is a small rule, but a rule.
+- **Gauge arcs:** a `drawProgress` twin.
+
+Proven:
+- **`drawSpan` equals `barrel.draw_span`** at every half-degree start
+  over ±720°, for sweeps either way and past a full turn.
+- **Every live handle predicts the server's edit exactly.** For each,
+  `liveOps` on the JSON before draws, byte for byte, what the server's
+  own landed edit draws: sizes by +6, −4, +3 and −1 px, angles turned
+  +12°, −30° and +7°; 120 edits.
+  - Moving the dragged edge the wrong way fails it.
+  - So does declaring centred boxes live.
+- **Checked in a DOM** (jsdom against a live server, `features/align`):
+  - `ne_card`'s width (live) redraws the frame from ops while dragging;
+  - the centred background's width draws only its outline;
+  - `top_accent`'s sweep (live) redraws the frame;
+  - each lands, with no page errors.
+
+  With live drawing switched off, the live drags draw nothing.
+- The fast suite and `mypy --strict` are green.
 
 ### Slice 4 — close-out
 

@@ -110,9 +110,13 @@ it and drags it alone. A click on a selected element without a drag selects
 just that one. Size and angle handles act on one element, so a selection of
 several shows none.
 
-While you drag, the moved elements are drawn where they will go; a resize or
-an angle shows its outline. When you let go, the change is written and the
-watch's own rendering replaces the preview. A change the face cannot take
+While you drag, the moved elements are drawn where they will go. A resize
+or an angle draws the element itself where the editor can be sure of the
+result: a circle's or arc's radius when it is centred, an arc's angles,
+and a box's edge when the box is aligned to the other edge. Otherwise it
+shows the outline, since a centred box's edges round about its centre on
+the watch in a way only the compiler knows. When you let go, the change is
+written and the watch's own rendering replaces the preview. A change the face cannot take
 snaps back, with the reason.
 
 **Snapping.** A moved element's edges and centre snap to the screen's

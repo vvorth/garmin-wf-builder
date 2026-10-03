@@ -446,6 +446,8 @@ def resize(view: View, element_id: str, key: tuple[str, ...], delta: int,
     measure = EXTENTS[key]
     before = view.placed(element_id)
     goal = measure(before) + delta
+    if goal < 1:
+        raise Refused(f"{element_id}'s {dotted(key)} cannot be smaller than 1 px")
     entry = view.index.get(target(view.index, element, key, view.device))
     spelling = (length_spelling(_data(view.index, entry.path)) if entry is not None
                 else Spelling(length.unit))
