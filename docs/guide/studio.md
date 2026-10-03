@@ -202,8 +202,28 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
   own colour picker, and on a watch without one (fr955) it lists every
   colour in the palette. **Make it a list** replaces it with the face's
   colours that no target dithers.
-- **Schemes**: each role's colour per scheme, each through the picker,
-  without roles (a scheme's colour must be known when the face is built).
+- **Schemes** ([colour schemes](colors.md#colour-schemes)): colours that
+  follow the style the wearer picks. Each change below is one change, with
+  one **Undo**, because a scheme is written in several places at once.
+  - With none yet: tick the colours that should follow the style and
+    **Make switchable…**. They move into a first scheme as its roles,
+    keeping their names, so everything using them keeps working, and a
+    style picking the scheme is added (or every style picks it).
+  - The table: each role's colour per scheme, through the picker, without
+    roles (a scheme's colour must be known when the face is built). Click
+    a scheme's or a role's name to rename it: the styles naming the scheme,
+    or every `color.<role>`, follow. **×** deletes a scheme with the styles
+    that pick it (not the last scheme), or a role from every scheme
+    (refused while something uses it).
+  - **+ Scheme** adds a copy of the first scheme and a style picking it:
+    one per layout when the styles name layouts (`analog_dusk`,
+    `digital_dusk`). **+ Role** adds a role to every scheme, white until
+    you set it.
+  - **Remove schemes…** keeps one scheme's colours as palette colours of
+    the same names. Every style loses its scheme: a style that named only
+    a scheme goes, and one that names a layout stays, even when that
+    leaves two alike. The confirmation says how many; Diagnostics then
+    names each copy, for you to delete or change.
 - **Styles**: the default, each style's layout and scheme, add (shaped like
   the others), delete ([styles and layouts](styles-and-layouts.md)).
 - **Slots**: the complication slots the wearer points at a reading on the

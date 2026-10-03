@@ -115,3 +115,18 @@ export function safeOn(rgb, displays) {
   }
   return { ok: toHex(out) === toHex(rgb), nearest: out };
 }
+
+// What removing the schemes does to the style entries
+// (`wfb.edit.schemes.remove_theme`): an entry naming only a scheme goes, one
+// naming a layout stays, and a kept entry whose layout an earlier one has
+// already is a duplicate the author resolves.
+export function afterRemovingSchemes(entries) {
+  const seen = new Set();
+  let removed = 0, duplicates = 0;
+  for (const e of entries || []) {
+    if (!e.layout) { removed += 1; continue; }
+    if (seen.has(e.layout)) duplicates += 1;
+    seen.add(e.layout);
+  }
+  return { removed, duplicates };
+}

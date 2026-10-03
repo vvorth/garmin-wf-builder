@@ -34,7 +34,9 @@ from ..edit import (
     Gate, Refused, SpanIndex, remove, remove_slot, rename_key, rename_reference, rename_slot,
     set_value,
 )
+from ..edit import schemes
 from ..edit.colors import add_swatch, remove_unused, set_swatch, use_color
+from ..edit.patch import Patch
 from ..edit.geometry import Part, Scope, target
 from ..edit.gate import Loaded, load_text
 from ..edit.spans import ELEMENT_BLOCKS, Entry, index_for, is_element
@@ -287,7 +289,13 @@ class Document:
           ``path`` names the swatch holding ``v`` (`wfb.edit.colors`);
         - `{"op": "add_swatch", "value": hex}`,
           `{"op": "set_swatch", "name": n, "value": hex}` and
-          `{"op": "remove_unused"}`: the palette itself.
+          `{"op": "remove_unused"}`: the palette itself;
+        - the scheme edits of `wfb.edit.schemes`, each one patch:
+          `make_switchable` (`names`, `scheme`), `add_scheme` (`name`,
+          `like`), `rename_scheme` and `rename_role` (`name`, `to`),
+          `delete_scheme` and `delete_role` (`name`), `remove_theme`
+          (`keep`) and `add_role` (`name`, `value`: one colour, or one per
+          scheme).
 
         A geometry key of an element (`element` and a `path` relative to it,
         such as `["at", "dy"]`) is written to the source ``scope`` names on
@@ -296,9 +304,13 @@ class Document:
         self._check(expected)
         kind = op.get("op")
         if kind not in ("set", "remove", "rename", "use_color", "add_swatch", "set_swatch",
-                        "remove_unused"):
+                        "remove_unused") and kind not in _SCHEME_EDITS:
             raise Refused(f"unknown edit {kind!r}")
         index = index_for(self.text)
+        if kind in _SCHEME_EDITS:
+            patch = _SCHEME_EDITS[kind](index, op)
+            after = self._gate().check(patch)
+            return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
         if kind in ("add_swatch", "set_swatch", "remove_unused"):
             if kind == "add_swatch":
                 patch, _ = add_swatch(index, str(op.get("value", "")))
@@ -727,6 +739,25 @@ class Document:
     def inspect(self, element: Any, device_id: str | None) -> dict[str, Any]:
         device = self.studio.db.get(device_id) if device_id else None
         return inspect(self.text, _path(element), device)
+
+
+def _text(op: dict[str, Any], key: str) -> str:
+    return str(op.get(key) or "").strip()
+
+
+#: The scheme edits (`wfb.edit.schemes`), each from its op's fields.
+_SCHEME_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
+    "make_switchable": lambda i, op: schemes.make_switchable(
+        i, [str(n) for n in op.get("names") or []], _text(op, "scheme")),
+    "add_scheme": lambda i, op: schemes.add_scheme(i, _text(op, "name"),
+                                                   _text(op, "like") or None),
+    "rename_scheme": lambda i, op: schemes.rename_scheme(i, _text(op, "name"), _text(op, "to")),
+    "delete_scheme": lambda i, op: schemes.delete_scheme(i, _text(op, "name")),
+    "remove_theme": lambda i, op: schemes.remove_theme(i, _text(op, "keep")),
+    "add_role": lambda i, op: schemes.add_role(i, _text(op, "name"), op.get("value")),
+    "rename_role": lambda i, op: schemes.rename_role(i, _text(op, "name"), _text(op, "to")),
+    "delete_role": lambda i, op: schemes.delete_role(i, _text(op, "name")),
+}
 
 
 def _path(raw: Any) -> tuple[str | int, ...]:

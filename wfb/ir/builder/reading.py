@@ -103,17 +103,26 @@ reporting why) out."""
             # typo report: a bare `color: config.colors` (missing its role)
             # or a misspelled role deserves better than a "did you mean"
             # guess against an unrelated name.
-            if self._config_colors_roles is not None:
-                match = _CONFIG_COLORS_RE.match(message)
-                if match is not None:
-                    roles = ", ".join(f"config.colors.{r}" for r in self._config_colors_roles)
-                    code_ = "config"
-                    if match.group(1) == "":
-                        message = "config.colors is a colour scheme, not a colour"
-                        notes = [f"reference a role instead: {roles}"]
-                    else:
-                        message = f"config.colors has no role {match.group(1)[1:]!r}"
-                        notes = [f"declared roles: {roles}"]
+            match = _CONFIG_COLORS_RE.match(message)
+            declared = {r for scheme in self.color_scheme.values() for r in scheme.colors}
+            if match is not None and self._config_colors_roles is not None:
+                roles = ", ".join(f"color.{r}" for r in self._config_colors_roles)
+                code_ = "config"
+                if match.group(1) == "":
+                    message = "a colour scheme is not a colour"
+                    notes = [f"reference a role instead: {roles}"]
+                else:
+                    message = f"color.{match.group(1)[1:]} is not a role"
+                    notes = [f"declared roles: {roles}"]
+            elif match is not None and match.group(1)[1:] in declared:
+                # A scheme's role has a value only once a style picks the
+                # scheme: with no `config: style:` naming one, no role is
+                # bound at all.
+                code_ = "config"
+                message = (f"color.{match.group(1)[1:]} is a role of 'theme: schemes:', "
+                           "but no 'config: style:' entry picks a scheme")
+                notes = ["add a 'config: style:' entry with 'scheme:', or make it a "
+                         "palette colour"]
             if syntax_error and key == "value" and origin is None:
                 notes = list(notes) + [
                     "'value:' is an expression over data sources, not literal text -- "

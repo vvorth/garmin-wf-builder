@@ -170,10 +170,12 @@ def _mapping_at(index: SpanIndex, path: Path) -> MappingNode:
 
 
 def _insert_key(index: SpanIndex, mapping: MappingNode, key: str, value: Any,
-                after: Entry | None = None) -> str:
+                after: Entry | None = None, block: bool = False) -> str:
     """The text with ``key: value`` added to ``mapping``: before a flow
     mapping's closing brace, or on its own line at a block mapping's indent
-    after its last entry (or after ``after``)."""
+    after its last entry (or after ``after``). With ``block``, a mapping
+    value in a block mapping is written in block style, and a new top-level
+    key gets a blank line before it."""
     text = index.text
     if mapping.flow_style:
         close = mapping.end_mark.index - 1
@@ -187,13 +189,18 @@ def _insert_key(index: SpanIndex, mapping: MappingNode, key: str, value: Any,
         raise Refused("cannot add a key to an empty mapping")
     indent = _block_indent(index, mapping)
     end = index.value_end(after or _last_entry(index, mapping))
-    line = " " * indent + f"{key_text(key)}: {flow(value)}\n"
+    if block and isinstance(value, dict) and value:
+        line = " " * indent + f"{key_text(key)}:\n" + _block(value, indent + 2)
+        if mapping is index.root and not text[:end].endswith("\n\n"):
+            line = "\n" + line
+    else:
+        line = " " * indent + f"{key_text(key)}: {flow(value)}\n"
     return (text[:end] + line + text[end:])
 
 
 # -- scalar and key patches ------------------------------------------------------
 
-def _set_value(index: SpanIndex, path: Path, value: Any) -> Patch:
+def _set_value(index: SpanIndex, path: Path, value: Any, block: bool = False) -> Patch:
     path = tuple(path)
     expected = _with(index)
     entry = index.get(path)
@@ -227,7 +234,7 @@ def _set_value(index: SpanIndex, path: Path, value: Any) -> Patch:
     if not isinstance(holder, dict):
         raise Refused(f"{dotted(prefix)} is not a mapping")
     holder[rest[0]] = _nested(rest[1:], value)
-    text = _insert_key(index, mapping, str(rest[0]), _nested(rest[1:], value))
+    text = _insert_key(index, mapping, str(rest[0]), _nested(rest[1:], value), block=block)
     return Patch(text, expected, f"set {dotted(path)}")
 
 
@@ -528,11 +535,12 @@ def _ended_patch(index: SpanIndex, op: Any, *args: Any, **kw: Any) -> Patch:
     return Patch(_restore(patch.text, added), patch.expected, patch.what)
 
 
-def set_value(index: SpanIndex, path: Path, value: Any) -> Patch:
+def set_value(index: SpanIndex, path: Path, value: Any, *, block: bool = False) -> Patch:
     """Set the value at ``path``: rewrite an existing scalar in place in its
     own quoting, replace a flow value, or add the missing keys, as a nested
-    flow value under the deepest mapping that exists."""
-    return _ended_patch(index, _set_value, path, value)
+    flow value under the deepest mapping that exists (in block style, with
+    ``block``, when that mapping is a block mapping)."""
+    return _ended_patch(index, _set_value, path, value, block)
 
 
 def remove(index: SpanIndex, path: Path) -> Patch:

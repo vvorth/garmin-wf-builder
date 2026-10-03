@@ -51,6 +51,7 @@ def render(summary: dict, body: str) -> list:
         onUpload=${{() => {{}}}} onStructure=${{() => {{}}}} />`, root);
       const cls = (e) => e.attributes.class || "";
       const find = (pred) => root.all(pred);
+      const within = (e, c) => {{ for (let p = e.parentNode; p; p = p.parentNode) if (cls(p) === c) return true; return false; }};
       const settle = () => new Promise((r) => setTimeout(r, 5));
       const click = async (e) => {{ e.click(); await settle(); }};
       const out = (v) => console.log(JSON.stringify(v));
@@ -104,7 +105,7 @@ def test_an_axis_lists_the_palette_as_ticks_and_any_offers_a_list(summary):
     listed = summary(base + "\nconfig:\n  accent_color:\n    default: color.text\n"
                      "    choices: [color.text, color.dim]\n")
     printed = render(listed, """
-      const boxes = find((e) => e.localName === "input" && e.attributes.type === "checkbox");
+      const boxes = find((e) => e.localName === "input" && e.attributes.type === "checkbox" && within(e, "axis"));
       const on = (b, k) => b[k] === true || k in b.attributes;
       out(boxes.map((b) => on(b, "checked")));
       out(boxes.map((b) => on(b, "disabled")));
@@ -140,3 +141,46 @@ def test_a_scheme_cell_picks_through_use_color(summary):
     assert printed[0] == 0
     assert printed[1] == [{"op": "use_color", "path": ["theme", "schemes", "dark", "colors", "ink"],
                            "value": "color.dim"}]
+
+
+def test_colours_are_made_switchable_from_the_schemes_section(summary):
+    text = summary(starters.instantiate("minimal", "T"))
+    printed = render(text, """
+      globalThis.prompt = () => "night";
+      const boxes = find((e) => e.localName === "input" && e.attributes.type === "checkbox");
+      boxes[0].dispatch("change"); await settle();           // bg
+      boxes[1].dispatch("change"); await settle();           // text
+      await click(find((e) => e.localName === "button" && e.textContent === "Make switchable…")[0]);
+      out(edits);
+    """)
+    assert printed[0] == [{"op": "make_switchable", "names": ["bg", "text"], "scheme": "night"}]
+
+
+def test_the_schemes_table_adds_renames_and_removes(summary):
+    text = summary(starters.instantiate("minimal", "T") + (
+        "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n"
+        "    light:\n      colors: { ink: color.bg }\n"
+        "\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark }, l: { scheme: light } }\n"))
+    printed = render(text, """
+      const answers = ["dusk", "hot", "day", "pen"];
+      globalThis.prompt = () => answers.shift();
+      let asked = "";
+      globalThis.confirm = (m) => { asked = m; return true; };
+      const button = (label) => find((e) => e.localName === "button" && e.textContent === label)[0];
+      await click(button("+ Scheme"));
+      await click(button("+ Role"));
+      await click(find((e) => cls(e) === "name" && e.textContent === "light")[0]);
+      await click(find((e) => cls(e) === "name" && e.textContent === "ink")[0]);
+      await click(button("Remove schemes…"));
+      out(edits);
+      out(asked);
+    """)
+    assert printed[0] == [
+        {"op": "add_scheme", "name": "dusk"},
+        {"op": "add_role", "name": "hot", "value": "#FFFFFF"},
+        {"op": "rename_scheme", "name": "light", "to": "day"},
+        {"op": "rename_role", "name": "ink", "to": "pen"},
+        {"op": "remove_theme", "keep": "dark"},
+    ]
+    assert printed[1] == ("Every role becomes a palette colour with dark's value.\n"
+                          "2 styles naming only a scheme will go.")

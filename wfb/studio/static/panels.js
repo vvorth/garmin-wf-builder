@@ -5,7 +5,7 @@
 
 import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
 import {
-  ANGLE_UNITS, LENGTH_UNITS, at, colorName, formatQuantity, isIdentifier,
+  ANGLE_UNITS, LENGTH_UNITS, afterRemovingSchemes, at, colorName, formatQuantity, isIdentifier,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.js";
 
@@ -322,6 +322,60 @@ function SlotRow({ slot, types, onEdit, onSelect, onStructure }) {
   </li>`;
 }
 
+// `theme: schemes:`: with none, which colours should follow the wearer's
+// style; with some, the roles × schemes table. Every change is one of the
+// compound edits of `wfb.edit.schemes`, so it never leaves the schemes out
+// of step.
+function Schemes({ schemes, palette, styles, ctx, onEdit }) {
+  const [picked, setPicked] = useState([]);
+  const [keep, setKeep] = useState("");
+  if (!schemes.names.length) {
+    const toggle = (n) => setPicked(picked.includes(n) ? picked.filter((x) => x !== n) : [...picked, n]);
+    return html`<div class="dim note">Colours in a scheme follow the style the wearer picks. Tick the
+        colours that should change with it; they keep their names.</div>
+      <div class="axis-choices">${palette.map((p) => { const v = parseHex(p.value); return html`<label>
+        <input type="checkbox" checked=${picked.includes(p.name)} onChange=${() => toggle(p.name)} />
+        <span class="chip" style=${v ? `background:${toHex(v)}` : ""}></span>${p.name}</label>`; })}</div>
+      <button disabled=${!picked.length} onClick=${() => {
+        const n = askName("First scheme", "dark"); if (!n) return;
+        onEdit({ op: "make_switchable", names: picked, scheme: n }); setPicked([]);
+      }}>Make switchable…</button>`;
+  }
+  const keepName = keep || schemes.names[0];
+  const outcome = afterRemovingSchemes(styles.entries);
+  return html`<table class="schemes">
+      <tr><th></th>${schemes.names.map((s) => html`<th>
+        <span class="name" title="rename (every style naming it follows)" onClick=${() => {
+          const n = askName("Scheme", s); if (n && n !== s) onEdit({ op: "rename_scheme", name: s, to: n }); }}>${s}</span>
+        <button class="reset" title="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
+      </th>`)}</tr>
+      ${schemes.roles.map((r) => html`<tr><td>
+        <span class="name" title=${`rename (every color.${r} follows)`} onClick=${() => {
+          const n = askName("Role", r); if (n && n !== r) onEdit({ op: "rename_role", name: r, to: n }); }}>${r}</span>
+        <button class="reset" title="delete this role (refused while something uses it)" onClick=${() => onEdit({ op: "delete_role", name: r })}>×</button>
+      </td>${schemes.names.map((s) => html`<td>
+        <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
+          onPick=${(v) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
+    </table>
+    <div class="row">
+      <button title="a copy of the first scheme, and the styles that reach it" onClick=${() => {
+        const n = askName("New scheme"); if (n) onEdit({ op: "add_scheme", name: n }); }}>+ Scheme</button>
+      <button title="a role in every scheme, white until you set it" onClick=${() => {
+        const n = askName("New role"); if (n) onEdit({ op: "add_role", name: n, value: "#FFFFFF" }); }}>+ Role</button>
+    </div>
+    <div class="row">
+      <select value=${keepName} title="the scheme whose colours become palette colours" onChange=${(e) => setKeep(e.target.value)}>
+        ${schemes.names.map((s) => html`<option value=${s}>keep ${s}</option>`)}
+      </select>
+      <button onClick=${() => {
+        const parts = [`Every role becomes a palette colour with ${keepName}'s value.`];
+        if (outcome.removed) parts.push(`${outcome.removed} style${outcome.removed > 1 ? "s" : ""} naming only a scheme will go.`);
+        if (outcome.duplicates) parts.push(`${outcome.duplicates} style${outcome.duplicates > 1 ? "s" : ""} will look like another one; Diagnostics will name them.`);
+        if (confirm(parts.join("\n"))) onEdit({ op: "remove_theme", keep: keepName });
+      }}>Remove schemes…</button>
+    </div>`;
+}
+
 const AXES = {
   accent_color: { title: "Accent colour", role: "accent" },
   data_color: { title: "Data colour", role: "data" },
@@ -426,13 +480,9 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure 
         palette=${palette} onEdit=${onEdit} />`)}
     </${Section}>
 
-    ${schemes.names.length ? html`<${Section} title="Schemes">
-      <table class="schemes"><tr><th></th>${schemes.names.map((s) => html`<th>${s}</th>`)}</tr>
-        ${schemes.roles.map((r) => html`<tr><td>${r}</td>${schemes.names.map((s) => html`<td>
-          <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
-            onPick=${(v) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
-      </table>
-    </${Section}>` : null}
+    <${Section} title=${`Schemes (${schemes.names.length})`}>
+      <${Schemes} schemes=${schemes} palette=${palette} styles=${styles} ctx=${ctx} onEdit=${onEdit} />
+    </${Section}>
 
     <${Section} title=${`Styles (${styles.entries.length})`}>
       ${styles.entries.length ? html`<ul class="rows">${styles.entries.map((e) => html`<li class="style">
