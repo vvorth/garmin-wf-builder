@@ -111,8 +111,9 @@ or AOD-related has been observed on a watch or in the simulator.
   drawing steps over `Layout` constants and readings (`wfb/draw/`), its
   guards included: the view prints it, the preview evaluates it with the
   barrel's arithmetic transcribed, and a frame is per-element layers with
-  the program as JSON for a browser canvas (`wfb.draw.layers`,
-  `wfb.draw.jsonform`). A grown outline ring is drawn grown in the preview
+  the program as JSON (`wfb.draw.layers`, `wfb.draw.jsonform`): text and
+  icons as placed tiles, which the editor's browser draws itself
+  (`wfb/studio/static/raster.js`, Pillow's primitives byte for byte). A grown outline ring is drawn grown in the preview
   as on the watch (research 28 §7). Garmin's circle and rounded-corner
   rasterisation is not matched (`docs/limitations.md`).
   `docs/development.md`, "Element kinds".
@@ -130,8 +131,11 @@ or AOD-related has been observed on a watch or in the simulator.
   snapshots that survives restarts, Build for one watch (`wfb build` as a
   subprocess, the `.prg` downloaded), a continuous zoom with real size
   from the device's ppi (calibrated in the browser), and the skin. Every edit but typed text is a
-  patch of the text checked by the full load (`wfb/edit/`); the browser
-  draws the compiler's layers and decides nothing. `docs/guide/studio.md`.
+  patch of the text checked by the full load (`wfb/edit/`). The browser
+  draws the frame's layers from their JSON (`raster.js`), hit-tests by
+  their ink, redraws a move from them, and draws a resize or an angle
+  live where the kind declares the result exact
+  (`ElementKind.live_handle`); it decides nothing. `docs/guide/studio.md`.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 

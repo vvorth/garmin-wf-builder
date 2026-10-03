@@ -5,6 +5,15 @@ an outline until release, then waits for the server's frame. Can a
 renderer in the browser make it snappier? Research 27 §5.3 designed one
 and built only its server half, the JSON form (`wfb.draw.jsonform`).
 
+**Status (2026-10-03): built as plan 28**
+(`git show 2ab22c4:docs/plans/28-browser-renderer.md`). The decisions are
+in §7. Where the build departed from this document:
+- the tiles travel inside the frame, as raw RGBA, not as a PNG atlas;
+- a move redraws the whole face from the layers' ops rather than shifting
+  per-layer images;
+- live handles cover 63 of 304, not 188 of 226 (the note under table C).
+  Centred boxes and gauge arcs are plan 29.
+
 **Short answer.** Yes, for two of the three waits the author feels, and
 only partly for the third.
 

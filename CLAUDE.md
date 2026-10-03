@@ -318,7 +318,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
   and the burn-in lint; the `config:` settings menu on a watch without the
   native editor; the editor, `wfb studio` (`wfb/edit/` patches the text,
-  `wfb/studio/` serves it, `docs/guide/studio.md`). One line each, with the
+  `wfb/studio/` serves it, the browser draws the layers' JSON with
+  `static/raster.js`, `docs/guide/studio.md`). One line each, with the
   guide chapter, in `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
