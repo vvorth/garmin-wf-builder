@@ -82,7 +82,8 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .controls label { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 12px; }
 .canvas-wrap { overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; }
 .canvas { position: relative; line-height: 0; }
-.canvas img.frame { position: absolute; display: block; }
+/* the frame is the watch's own pixels enlarged: never smoothed */
+.canvas img.frame { position: absolute; display: block; image-rendering: pixelated; }
 .canvas img.skin { position: absolute; left: 0; top: 0; pointer-events: none; }
 .canvas canvas { position: absolute; pointer-events: none; }
 .canvas .hit { position: absolute; cursor: crosshair; }
@@ -258,7 +259,7 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .face-panel .axis-choices label { display: inline-flex; gap: 4px; align-items: center; }
 /* hand sets */
 .face-panel li.hand-set { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
-.hand-thumb { width: 64px; height: 64px; object-fit: contain; background: #000; border-radius: 8px; flex: none; }
+.hand-thumb { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; background: #000; border-radius: 8px; flex: none; }
 .hand-body { flex: 1; min-width: 0; }
 .handset { display: inline-flex; gap: 8px; align-items: center; }
 .handset a, .face-panel li.hand-set a { color: var(--accent); }

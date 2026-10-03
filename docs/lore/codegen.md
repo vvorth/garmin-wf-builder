@@ -242,7 +242,8 @@ These cost real time to discover; do not rediscover them.
   `line_height`/`baseline` are already in the same scaled pixel units as its
   `font` -- `wfb.layout` (measuring, always at `scale=1`, `fallback.measure`/
   `line_height`/`ascent` all taking the same `fonts_root`) and `wfb.preview`
-  (drawing, at the preview's own upscale) both go through this one function
+  (drawing, at the renderer's scale -- 1 for every preview frame, which
+  is enlarged block-wise afterwards) both go through this one function
   **with the same root** (`Device.fonts_root`, owned by `DeviceDatabase` and
   carried by every `Device` it builds -- plan 18 item 8), so a
   monkeypatched `em_px` moves both by

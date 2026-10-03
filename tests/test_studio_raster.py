@@ -207,8 +207,8 @@ def test_small_ellipses_and_fractional_arcs():
     assert not bad, f"{dict(bad)} of {dict(total)} differ; first: {misses[:2]}"
 
 
-def test_large_shapes_at_the_editors_scale():
-    """A 454 px screen at 3x: radii and polygons far past the small sweep."""
+def test_large_shapes():
+    """A 1362 px canvas: radii and polygons far past the small sweep."""
     rng = random.Random(29)
     big: list[dict[str, Any]] = []
     for _ in range(30):
@@ -271,9 +271,9 @@ CORPUS = sorted(p for p in (Path(__file__).resolve().parent.parent / "examples")
 def _frames(resolved):
     from wfb import preview
 
-    out = [preview.PreviewOptions(scale=2, quantise=False, mask_shape=False)]
+    out = [preview.PreviewOptions(quantise=False, mask_shape=False)]
     if any(p.element.aod is not None for p in resolved.items):
-        out.append(preview.PreviewOptions(scale=2, quantise=False, mask_shape=False,
+        out.append(preview.PreviewOptions(quantise=False, mask_shape=False,
                                           aod=True, aod_mask=False))
     return out
 
@@ -311,7 +311,7 @@ def test_the_browser_paints_every_element_as_rasterise_does(db, path):
                 elements.append({"id": placed.id, "ops": ops})
                 want.append(hashes)
             packed, index = tiles.pack()
-            job = {"width": probe.image.width, "height": probe.image.height, "scale": 2,
+            job = {"width": probe.image.width, "height": probe.image.height, "scale": 1,
                    "tiles": base64.b64encode(packed).decode(), "index": index,
                    "elements": [{"ops": e["ops"]} for e in elements]}
             source = DRAW_RUNNER % json.dumps(RASTER.as_uri())
@@ -336,7 +336,7 @@ def test_runs_paste_as_pillow_pastes(db):
     from wfb.draw.jsonform import Tiles, rasterise
 
     resolved = resolved_example(CORPUS[0], db, "fr955")
-    options = preview.PreviewOptions(scale=2, quantise=False, mask_shape=False)
+    options = preview.PreviewOptions(quantise=False, mask_shape=False)
     values = preview.sample_values(resolved, options, None)
     rng = random.Random(31)
     tiles = Tiles()
@@ -348,15 +348,15 @@ def test_runs_paste_as_pillow_pastes(db):
         else:
             image = Image.frombytes("RGBA", (w, h),
                                     bytes(rng.randrange(256) for _ in range(w * h * 4)))
-        run.append({"tile": tiles.add(image), "x": rng.randint(-40, 560), "y": rng.randint(-40, 560)})
+        run.append({"tile": tiles.add(image), "x": rng.randint(-40, 300), "y": rng.randint(-40, 300)})
     # and one straddling each edge and each corner, half on, half off
-    width, height = 520, 520                      # fr955 at 2x
-    ax, ay = 7, 2                                 # floor(3.75 * 2), floor(1 * 2)
+    width, height = 260, 260                      # fr955, native
+    ax, ay = 3, 1                                 # floor(3.75), floor(1)
     edge = Image.frombytes("L", (10, 10), bytes(rng.randrange(1, 256) for _ in range(100)))
     for x in (-5, (width - 10) // 2, width - 5):
         for y in (-5, (height - 10) // 2, height - 5):
             run.append({"tile": tiles.add(edge), "x": x - ax, "y": y - ay})
-    run.append({"box": [-5, 30, 600, 40], "rgb": [64, 64, 64]})
+    run.append({"box": [-5, 30, 300, 40], "rgb": [64, 64, 64]})
     ops = [{"op": "color", "rgb": [200, 100, 50]},
            {"op": "text", "x": {"const": "T_X", "value": 3.75, "add": 0}, "y": 1, "run": run}]
     hashes = []
@@ -366,7 +366,7 @@ def test_runs_paste_as_pillow_pastes(db):
         rasterise(ops, tiles, r)
         hashes.append(hashlib.md5(r.image.tobytes()).hexdigest())
     packed, index = tiles.pack()
-    job = {"width": r.image.width, "height": r.image.height, "scale": 2,
+    job = {"width": r.image.width, "height": r.image.height, "scale": 1,
            "tiles": base64.b64encode(packed).decode(), "index": index,
            "elements": [{"ops": ops}]}
     out = subprocess.run([node(), "--input-type=module", "-e",
@@ -402,7 +402,7 @@ def test_the_browsers_ink_is_the_servers_layer_alpha(db, path):
     from wfb.draw.layers import layers
 
     resolved = resolved_example(path, db, "fr955")
-    options = preview.PreviewOptions(scale=2)
+    options = preview.PreviewOptions()
     stack = [l for l in layers(resolved, options) if l.ops is not None]
     tiles = stack[0].tiles if stack else None
     want = []
@@ -413,7 +413,7 @@ def test_the_browsers_ink_is_the_servers_layer_alpha(db, path):
         want.append({"box": list(box) if box else None,
                      "md5": hashlib.md5(alpha.crop(box).tobytes() if box else b"").hexdigest()})
     packed, index = tiles.pack() if tiles is not None else (b"", {})
-    job = {"width": 520, "height": 520, "scale": 2, "layers": [l.ops for l in stack],
+    job = {"width": 260, "height": 260, "scale": 1, "layers": [l.ops for l in stack],
            "tiles": {"data": base64.b64encode(packed).decode(), "index": index}}
     out = subprocess.run([node(), "--input-type=module", "-e",
                           INK_RUNNER % json.dumps(RASTER.as_uri())],
@@ -478,7 +478,7 @@ def test_a_move_drawn_in_the_browser_is_the_servers_move(db):
     device = db.get("fr955")
 
     def ops_of(resolved, element_id, tiles):
-        options = preview.PreviewOptions(scale=2)
+        options = preview.PreviewOptions()
         values = preview.sample_values(resolved, options, None)
         for placed in preview.frame_items(resolved, options, None):
             if placed.id == element_id:
@@ -507,7 +507,7 @@ def test_a_move_drawn_in_the_browser_is_the_servers_move(db):
             pairs.append({"before": before, "after": after,
                           "tiles": {"data": base64.b64encode(packed).decode(), "index": index}})
             labels.append(f"{path.parent.name}/{placed.id}")
-    job = {"width": 520, "height": 520, "scale": 2, "dx": 5, "dy": -3, "pairs": pairs}
+    job = {"width": 260, "height": 260, "scale": 1, "dx": 5, "dy": -3, "pairs": pairs}
     out = json.loads(subprocess.run(
         [node(), "--input-type=module", "-e", MOVE_RUNNER % json.dumps(RASTER.as_uri())],
         input=json.dumps(job), capture_output=True, text=True, check=True).stdout)
@@ -585,7 +585,7 @@ console.log(JSON.stringify(out));
 
 def test_every_live_handle_predicts_the_servers_edit(db):
     """Every handle a kind declares live, on every example face (fr955,
-    2x): the element's ops before, changed by `raster.liveOps`, draw
+    native): the element's ops before, changed by `raster.liveOps`, draw
     exactly what the server's own edit (`wfb.edit.resize`/`turn`, landed)
     draws -- grown and shrunk, by even and odd amounts, and turned to
     whole degrees either way."""
@@ -600,7 +600,7 @@ def test_every_live_handle_predicts_the_servers_edit(db):
     device = db.get("fr955")
 
     def ops_of(resolved, element_id, tiles):
-        options = preview.PreviewOptions(scale=2)
+        options = preview.PreviewOptions()
         values = preview.sample_values(resolved, options, None)
         for placed in preview.frame_items(resolved, options, None):
             if placed.id == element_id:
@@ -648,7 +648,7 @@ def test_every_live_handle_predicts_the_servers_edit(db):
                     labels.append(f"{path.parent.name}/{placed.id} {h['key']} {change}")
     proc = subprocess.run(
         [node(), "--input-type=module", "-e", LIVE_RUNNER % json.dumps(RASTER.as_uri())],
-        input=json.dumps({"width": 520, "height": 520, "scale": 2, "cases": cases}),
+        input=json.dumps({"width": 260, "height": 260, "scale": 1, "cases": cases}),
         capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr[-2000:]
     out = json.loads(proc.stdout)

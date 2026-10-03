@@ -67,6 +67,11 @@ named. It accepts any installed device (`wfb devices`), not only a listed
 target; an unlisted one draws a `target` note, and the generated manifest
 lists exactly the devices asked for.
 
+`wfb preview` draws the face at the watch's own resolution, then enlarges
+it `--scale` times (default 2) with each watch pixel as a square block, so
+a jagged diagonal or a thin ring looks as it will on the panel, never
+smoother. Only the skin round the screen (`--skin`) is resized smoothly.
+
 `wfb preview -o -` (or `-o --`) writes **one** PNG — the device `-d` names, or
 the design's first target — to stdout instead of to files, and prints nothing
 else, so a face can go straight into a terminal image viewer:

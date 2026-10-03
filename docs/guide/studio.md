@@ -102,7 +102,10 @@ drawn showing its first type until you pick another of its choices there:
 the watch draws whatever the wearer picks, so check each choice fits. The faces in the strip under it
 switch the watch on a click.
 
-**Zoom** is a slider from 0.2× to 4× (screen pixels per watch pixel). **1:1**
+**Zoom** is a slider from 0.2× to 4× (screen pixels per watch pixel). The
+face is always drawn at the watch's own resolution and shown at the zoom
+without smoothing, so every watch pixel is a visible block, as it is
+while you drag. **1:1**
 shows the watch at its real size: its screen's pixels over its pixels per
 inch, from its device files (a watch whose files give none has no 1:1).
 A browser cannot measure its screen, and takes 96 of its pixels as an

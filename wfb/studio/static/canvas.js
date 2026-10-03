@@ -48,9 +48,10 @@ async function prepare(frame) {
   return { version: frame.version, tiles, layers };
 }
 
-// The layer's ink at device pixel (x, y), 0 or more.
+// The layer's ink at device pixel (x, y), 0 or more. Layers come at the
+// watch's native size.
 function inkAt(frame, prepared, layer, x, y) {
-  const s = frame.scale, px = Math.floor(x * s), py = Math.floor(y * s);
+  const px = Math.floor(x), py = Math.floor(y);
   if (layer.png) {
     if (!layer.origin) return 0;
     const ix = px - layer.origin[0], iy = py - layer.origin[1];
@@ -59,7 +60,7 @@ function inkAt(frame, prepared, layer, x, y) {
   }
   if (!layer.ops) return 0;
   if (layer.ink === undefined) {
-    layer.ink = raster.inkOf(layer.ops, prepared.tiles, frame.width * s, frame.height * s, s);
+    layer.ink = raster.inkOf(layer.ops, prepared.tiles, frame.width, frame.height, 1);
   }
   const b = layer.ink.box;
   if (!b || px < b[0] || py < b[1] || px >= b[2] || py >= b[3]) return 0;
@@ -84,14 +85,15 @@ function pick(frame, prepared, x, y) {
 
 // The face drawn from its layers, each JSON layer's ops passed through
 // `change(layer)` and each fallback image shifted by `shift(layer)` frame
-// pixels: what the server will draw once a gesture lands. Cleared to black
-// inside the screen's own shape only, so the skin round a round screen
-// stays visible.
+// pixels: what the server will draw once a gesture lands. Drawn at the
+// watch's native size and enlarged `s` times without smoothing, as the
+// server's frame is. Cleared to black inside the screen's own shape only,
+// so the skin round a round screen stays visible.
 function drawChanged(ctx, frame, prepared, change, shift, s) {
-  const width = frame.width * s, height = frame.height * s;
+  const width = frame.width, height = frame.height;
   const im = raster.image(width, height, [0, 0, 0]);
   for (const l of prepared.layers) {
-    if (l.ops) raster.drawOps(im, change(l), prepared.tiles, s);
+    if (l.ops) raster.drawOps(im, change(l), prepared.tiles, 1);
     else if (l.png && l.origin) {
       const [dx, dy] = shift(l);
       raster.composite(im, l.png, l.origin[0] + dx, l.origin[1] + dy);
@@ -103,10 +105,11 @@ function drawChanged(ctx, frame, prepared, change, shift, s) {
   ctx.save();
   if (frame.shape === "round") {
     ctx.beginPath();
-    ctx.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, Math.PI * 2);
+    ctx.arc(width * s / 2, height * s / 2, Math.min(width, height) * s / 2, 0, Math.PI * 2);
     ctx.clip();
   }
-  ctx.drawImage(scratch, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(scratch, 0, 0, width * s, height * s);
   ctx.restore();
 }
 
@@ -165,7 +168,7 @@ function resizedBox(box, handle, delta) {
 function drawMoved(ctx, frame, prepared, moving, dx, dy, s) {
   const moved = (l) => moving.has(elementOf(l.id));
   drawChanged(ctx, frame, prepared, (l) => (moved(l) ? raster.translateOps(l.ops, dx, dy) : l.ops),
-              (l) => (moved(l) ? [dx * s, dy * s] : [0, 0]), s);
+              (l) => (moved(l) ? [dx, dy] : [0, 0]), s);
 }
 
 // The face with `item` drawn as a live handle (`handle.live`, which the

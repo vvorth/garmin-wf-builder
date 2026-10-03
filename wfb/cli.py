@@ -289,7 +289,9 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("-q", "--quiet", action="store_true",
                          help="print nothing to stdout; errors and warnings still go to "
                               "stderr (implied by `-o -`)")
-    preview.add_argument("--scale", type=int, default=2)
+    preview.add_argument("--scale", type=int, default=2,
+                         help="enlarge the native-resolution frame this many times, each "
+                              "watch pixel a SCALE x SCALE block (default: 2)")
     preview.add_argument("--no-quantise", action="store_true",
                          help="skip snapping colours to the device palette")
     preview.add_argument("--style", help="render one 'config: style:' entry by name "

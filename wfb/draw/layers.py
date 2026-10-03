@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 class Layer:
     """One layer of a frame.  ``id`` is the element's, or `ring:<group id>`
     for an outlined group's ring; ``kind`` the element kind, or `ring`.
-    ``image`` is RGBA at the preview's scale, or `None` for a layer
+    ``image`` is RGBA at the device's native size, or `None` for a layer
     `layers(..., paint=False)` leaves to its JSON.  ``ops`` is the lowered
     element's program as JSON for this frame, `None` for a kind that does
     not lower and for a group ring; ``fonts`` resolves the font ids it
@@ -144,8 +144,7 @@ def compose(stack: list[Layer], resolved: "ResolvedFace",
     entry = preview._resolve_style_entry(resolved.face, options.style)
     values = preview.sample_values(resolved, options, entry)
     device = resolved.device
-    scale = max(1, options.scale)
-    frame = Image.new("RGBA", (device.width * scale, device.height * scale), (0, 0, 0, 255))
+    frame = Image.new("RGBA", (device.width, device.height), (0, 0, 0, 255))
     for layer in stack:
         assert layer.image is not None, "compose needs every layer painted"
         frame = Image.alpha_composite(frame, layer.image)

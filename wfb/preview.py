@@ -122,6 +122,12 @@ class UnknownStyleError(ValueError):
 
 @dataclass
 class PreviewOptions:
+    #: How many times larger than the watch's own screen the image is.  The
+    #: frame is always drawn at the device's native resolution and then
+    #: enlarged by whole-pixel replication, so every watch pixel shows as a
+    #: `scale` x `scale` block: the preview never draws detail the panel
+    #: cannot show.  The skin round the screen is a photograph and is
+    #: resized smoothly.
     scale: int = 2
     #: Snap every colour to the device's real palette, so a dithered colour
     #: looks wrong in the preview the way it will look wrong on the wrist.
@@ -319,12 +325,12 @@ def sample_values(resolved: ResolvedFace, options: PreviewOptions,
 def new_renderer(resolved: ResolvedFace, options: PreviewOptions, values: dict[str, object],
                  ground: RGB, used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None,
                  ) -> "Renderer":
-    """A `Renderer` over a fresh canvas of the device's size at the
-    preview's scale, filled with ``ground``."""
+    """A `Renderer` over a fresh canvas of the device's native size, filled
+    with ``ground``: what the panel can show. `finish_frame` enlarges it to
+    the preview's scale."""
     device = resolved.device
-    scale = max(1, options.scale)
-    image = Image.new("RGB", (device.width * scale, device.height * scale), ground)
-    return Renderer(resolved, ImageDraw.Draw(image), image, scale, values, options, used_faces)
+    image = Image.new("RGB", (device.width, device.height), ground)
+    return Renderer(resolved, ImageDraw.Draw(image), image, 1, values, options, used_faces)
 
 
 def frame_items(resolved: ResolvedFace, options: PreviewOptions,
@@ -342,21 +348,22 @@ def frame_items(resolved: ResolvedFace, options: PreviewOptions,
 
 def finish_frame(image: Image.Image, resolved: ResolvedFace, options: PreviewOptions,
                  values: dict[str, object]) -> Image.Image:
-    """What the whole frame goes through once its elements are drawn: the
-    AOD pixel mask, the panel's palette, the bezel and the skin."""
+    """What the whole frame (native size) goes through once its elements
+    are drawn: the AOD pixel mask, the panel's palette and the bezel, all
+    per device pixel; then the enlargement to the preview's scale, and the
+    skin."""
     device = resolved.device
     scale = max(1, options.scale)
     if options.aod and resolved.face.aod_mask and options.aod_mask:
         # The same moving 2x2 mask the device applies, at the frame's own
-        # minute. Before quantising/cropping: black is already an exact MIP
-        # colour, but masking after would let an anti-aliased bezel fringe
-        # leak back in as non-black.
-        image = aod_mask.apply(image, int(expr.as_number(values["time.minute"])), scale)
+        # minute. Before quantising: black is already an exact MIP colour.
+        image = aod_mask.apply(image, int(expr.as_number(values["time.minute"])))
 
     if options.quantise:
         image = _quantise(image, device.display_colors)
     if options.mask_shape:
-        image = _mask_shape(image, device, scale)
+        image = _mask_shape(image, device)
+    image = enlarge(image, scale)
     if options.skin:
         image = frame_in_skin(image, device, scale) or image
     return image
@@ -445,9 +452,9 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     device = resolved.device
     scale = max(1, base.scale)
     minute_list = list(range(MINUTES_PER_DAY) if minutes is None else minutes)
-    accum = Image.new("I", (device.width * scale, device.height * scale), 0)
+    accum = Image.new("I", (device.width, device.height), 0)
     for minute in minute_list:
-        frame = render(resolved, dataclass_replace(base, time=(minute // 60, minute % 60, 0)),
+        frame = render(resolved, dataclass_replace(base, scale=1, time=(minute // 60, minute % 60, 0)),
                        used_faces=used_faces)
         r, g, b = frame.split()
         lit = ImageChops.lighter(ImageChops.lighter(r, g), b).point(lambda v: 1 if v else 0)
@@ -456,7 +463,8 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     count = max(len(minute_list), 1)
     heat = accum.point(lambda v: v * (255.0 / count)).convert("L").convert("RGB")
     if options.mask_shape:
-        heat = _mask_shape(heat, device, scale)
+        heat = _mask_shape(heat, device)
+    heat = enlarge(heat, scale)
     if options.skin:
         heat = frame_in_skin(heat, device, scale) or heat
     peak = accum.getextrema()[1]
@@ -1148,10 +1156,19 @@ def mono_guess_warning(devices: Iterable[Device], quantise: bool) -> str | None:
             f"unverified (docs/limitations.md)")
 
 
-def _mask_shape(image: Image.Image, device: Device, scale: int) -> Image.Image:
-    """Grey out what the bezel hides: the inscribed circle on a round
-    screen, the simulator skin's own visible area on any other shape
-    (`wfb.visible_area`), or nothing when a non-round device has no skin."""
+def enlarge(image: Image.Image, scale: int) -> Image.Image:
+    """``image`` ``scale`` times larger, each pixel a ``scale`` x ``scale``
+    block (nearest neighbour: no smoothing, no detail the panel lacks)."""
+    if scale <= 1:
+        return image
+    return image.resize((image.width * scale, image.height * scale), Image.Resampling.NEAREST)
+
+
+def _mask_shape(image: Image.Image, device: Device) -> Image.Image:
+    """Grey out what the bezel hides, per device pixel of a native-size
+    ``image``: the inscribed circle on a round screen, the simulator skin's
+    own visible area on any other shape (`wfb.visible_area`), or nothing
+    when a non-round device has no skin."""
     if device.shape == "round":
         mask = Image.new("L", image.size, 0)
         ImageDraw.Draw(mask).ellipse([0, 0, image.width - 1, image.height - 1], fill=255)

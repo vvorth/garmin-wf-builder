@@ -33,6 +33,23 @@ def test_scale_multiplies_both_axes(resolved):
     assert image.size == (resolved.device.width * 3, resolved.device.height * 3)
 
 
+@pytest.mark.parametrize("aod", [False, True])
+def test_a_scaled_preview_is_the_native_frame_in_blocks(repo_root, db, aod):
+    """A scaled preview shows the watch's own pixels, each a block: never
+    detail the panel cannot draw. Diagonal hands, circles and the round
+    bezel are where drawing at the larger size would differ."""
+    from PIL import Image
+
+    from tests.helpers import resolved_example
+
+    analog = resolved_example(repo_root / "examples" / "features" / "analog" / "face.yaml",
+                              db, "fr955")
+    native = render(analog, PreviewOptions(scale=1, aod=aod))
+    big = render(analog, PreviewOptions(scale=3, aod=aod))
+    blocks = native.resize((native.width * 3, native.height * 3), Image.Resampling.NEAREST)
+    assert big.tobytes() == blocks.tobytes()
+
+
 def test_quantising_snaps_to_the_devices_own_palette(resolved):
     """A dithered colour should look wrong in the preview the way it will on the wrist."""
     image = render(resolved, PreviewOptions(scale=1, quantise=True, mask_shape=False))
