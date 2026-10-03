@@ -414,7 +414,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
 }
 
 // One small frame per target, the selected device marked; a click views it.
-export function Strip({ doc, view, onDevice }) {
+export function Strip({ doc, view, picks, onDevice }) {
   if (doc.targets.length < 2) return null;
   const q = (device) => {
     const p = new URLSearchParams({ device, v: doc.version });
@@ -422,6 +422,7 @@ export function Strip({ doc, view, onDevice }) {
     if (view.time) p.set("time", view.time);
     if (view.asleep) p.set("asleep", "1");
     if (view.aod) p.set("aod", "1");
+    if (picks) p.set("picks", picks);
     return `/api/documents/${doc.id}/thumbnail?${p}`;
   };
   return html`<div class="strip">

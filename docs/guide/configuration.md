@@ -259,7 +259,8 @@ elements:
 
 Each `slots:` entry is a **named slot** with its own `default:`/`choices:`,
 resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
-`wfb complications`) -- `default:` compiles into the view as the starting
+`wfb complications`, which lists each type with its name for people,
+grouped as the editor lists them) -- `default:` compiles into the view as the starting
 `Complications.Id`, and is the only type a device with no native editor
 (fr955) ever shows. `choices:` is either an explicit, orderable list (which
 `default:` must belong to) or the literal string `any`, handing the wearer the

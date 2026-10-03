@@ -136,7 +136,19 @@ def _frame_key(request: Request, scale: int | None = None) -> FrameKey:
         asleep=_flag(request, "asleep"),
         aod=_flag(request, "aod"),
         scale=min(4, max(1, scale)),
+        picks=_picks(request.query_params.get("picks")),
     )
+
+
+def _picks(raw: str | None) -> tuple[tuple[str, str], ...]:
+    """`picks=top:heart_rate,bottom:steps`: each slot and the type it is
+    drawn showing, sorted so one choice is one cache key."""
+    out = []
+    for item in (raw or "").split(","):
+        slot, _, type_ = item.partition(":")
+        if slot.strip() and type_.strip():
+            out.append((slot.strip(), type_.strip()))
+    return tuple(sorted(out))
 
 
 def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
@@ -287,6 +299,13 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             document.replace_text(text, _int(request, "version"))
             changed(document)
             return JSONResponse(document.summary())
+
+    async def icon_font(request: Request) -> Response:
+        """The icon font, so the browser draws a catalogue icon's glyph."""
+        from ..icons import FONT_PATH
+        if not FONT_PATH.is_file():
+            return _error(404, "the icon font is not installed: run ./tools/setup-env.sh")
+        return FileResponse(FONT_PATH, media_type="font/ttf")
 
     async def face_schema(request: Request) -> Response:
         from .inspect import SCHEMA
@@ -443,6 +462,7 @@ def create_app(studio: Studio, *, initial: str | None = None) -> Starlette:
             Route("/api/documents/{doc_id}/download", _endpoint(download)),
             Route("/api/vocabulary", _endpoint(vocabulary)),
             Route("/api/schema", face_schema),
+            Route("/api/icon-font", icon_font),
             Route("/api/skin", _endpoint(skin)),
             Route("/api/builds/{build_id}", download_build),
             Route("/api/documents/{doc_id}/build", _endpoint(build), methods=["POST"]),

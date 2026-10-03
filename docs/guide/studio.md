@@ -71,8 +71,10 @@ first.
 |---|---|---|
 | **Layers**: the element tree; **Face**: targets, colours, schemes, styles, slots, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
 
-The bar above the centre picks the watch, the style, the time, asleep,
-always-on and the skin, and the zoom. The faces in the strip under it
+The bar above the centre picks the watch, the style, what each slot
+shows, the time, asleep, always-on and the skin, and the zoom. A slot is
+drawn showing its first type until you pick another of its choices there:
+the watch draws whatever the wearer picks, so check each choice fits. The faces in the strip under it
 switch the watch on a click.
 
 **Zoom** is a slider from 0.2× to 4× (screen pixels per watch pixel). **1:1**
@@ -163,7 +165,7 @@ go.
 
 - **+ add…** adds an element of any type after the selection (or at the
   end of `elements`). A graph asks for its series, a data element for its
-  slot (declared in the Face tab) and hands for their set.
+  slot and hands for their set (both declared in the Face tab).
 - With an element selected: **↑ ↓** reorder it, **Duplicate** (Ctrl+D),
   **Delete** (Del), **move to…** any block or group.
 - Drag a row onto another to put it before (upper half) or after (lower
@@ -238,16 +240,24 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
   seconds hand), in the face's own colours; on a face with no hands yet it
   also places it at the centre.
 - **Slots**: the complication slots the wearer points at a reading on the
-  watch ([the Data axis](configuration.md#the-data-axis)). **+ Slot** adds
-  one, showing any complication. Click a slot's name to rename it (every
-  `slot:` naming it follows); beside it is its title in the settings menu
-  of a watch without the native editor. **default** is what it shows until
-  the wearer picks, and what the editor draws; **choices** is **any** (the
-  watch's own picker) or **a list**, each type with its own icon (a name,
-  `U+XXXX` or `none`; empty keeps the type's own). The default cannot be
-  taken off the list. **drawn by** lists the elements drawing it (click
-  one to select it), or offers **+ data element** when nothing does yet.
-  A slot is deleted only while nothing draws it.
+  watch ([the Data axis](configuration.md#the-data-axis)), one card each;
+  the same card shows above the keys of an element drawing the slot.
+  - Every complication type, by group (activity, health, performance,
+    weather, time, device), with its icon and the reading the editor
+    draws for it. Tick the types the wearer may pick; **★** marks what the
+    slot shows first, until the wearer picks (click another star to change
+    it; that type joins the list). **the wearer may pick any type** hands
+    the wearer the watch's own picker, Garmin's later types included;
+    unticking it brings your list back.
+  - A ticked type's icon button picks its icon for this slot: any
+    catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
+    the type's own.
+  - **Rename** (every `slot:` naming it follows), **×** deletes it (refused
+    while an element draws it), **menu title** is its title in the settings
+    menu of a watch without the native editor, and **drawn by** lists the
+    elements drawing it (click one to select it).
+  - **+ Slot** asks what the new slot shows first, then its name, and adds
+    a data element drawing it, as one change.
 - **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**,
   delete ([fonts](fonts.md)).
 

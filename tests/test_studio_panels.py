@@ -207,3 +207,43 @@ def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
     assert reveal["reveal"][0] < reveal["reveal"][1]
     assert rest == [{"op": "add_hand_set", "name": "baton", "preset": "baton"},
                     {"op": "duplicate_hand_set", "name": "classic"}]
+
+
+def test_a_slot_card_ticks_stars_and_opens_to_every_type(summary):
+    text = summary((Path(__file__).resolve().parent.parent
+                    / "examples/features/slot-gauge/face.yaml").read_text())
+    printed = render(text, """
+      const card = find((e) => cls(e) === "slot-card")[0];
+      const row = (label) => card.all((e) => ["slot-type", "slot-type off"].includes(cls(e))
+                                       && e.textContent.includes(label))[0];
+      const box = (label) => row(label).all((e) => e.localName === "input")[0];
+      out(["Steps", "Floors climbed", "Heart rate"].map((l) => "checked" in box(l).attributes || box(l).checked === true));
+      box("Floors climbed").dispatch("change"); await settle();
+      await click(row("Calories").all((e) => cls(e).startsWith("star"))[0]);
+      const anyBox = card.all((e) => e.localName === "input" && e.parentNode.localName === "label")[0];
+      anyBox.dispatch("change"); await settle();
+      out(edits);
+    """)
+    assert printed[0] == [True, True, False]
+    top = ["config", "slots", "top"]
+    assert printed[1] == [
+        {"op": "set", "path": top + ["choices"],
+         "value": ["steps", "intensity_minutes", "battery", "body_battery", "stress"]},
+        {"op": "set", "path": top + ["choices"],
+         "value": ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery",
+                   "stress", "calories"]},
+        {"op": "set", "path": top + ["default"], "value": "calories"},
+        {"op": "set", "path": top + ["choices"], "value": "any"},
+    ]
+
+
+def test_a_new_slot_asks_what_it_shows_first(summary):
+    text = summary(starters.instantiate("minimal", "T"))
+    printed = render(text, """
+      globalThis.prompt = (q, d) => d;
+      const select = find((e) => e.localName === "select" && e.textContent.startsWith("a new slot"))[0];
+      select.value = "heart_rate"; select.dispatch("change"); await settle();
+      await click(find((e) => e.localName === "button" && e.textContent === "+ Slot")[0]);
+      out(edits);
+    """)
+    assert printed[0] == [{"op": "add_slot", "name": "heart", "default": "heart_rate"}]

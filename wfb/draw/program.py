@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from ..devices import FontMetric
     from ..emit.monkeyc.common import AodStyle, RingPass
-    from ..ir.model import Element, Expression
+    from ..ir.model import ConfigDataSlot, Element, Expression
     from ..layout import ResolvedFace, RotatablePart
     from ..units import IntBox
 
@@ -845,3 +845,18 @@ class DrawContext:
     #: `Toybox.Complications` may be absent on some target, so a slot's
     #: `Complications.Id` field may be null (`Guards.complications`).
     complications_guarded: bool = False
+    #: On the host only, the type a slot is drawn showing (the editor's
+    #: "showing"), as `(slot, type)` pairs. A build never sets it: the watch
+    #: draws whatever the wearer picked, and the printed code is the same.
+    picks: tuple[tuple[str, str], ...] = ()
+
+    def shown(self, slot: "ConfigDataSlot") -> str:
+        """The type ``slot`` is drawn showing: its pick, when it has one the
+        slot may show, else its `default:`."""
+        from .. import complications
+
+        pick = dict(self.picks).get(slot.name)
+        if pick is not None and (pick in complications.TYPES if slot.allow_any
+                                 else pick in slot.choices):
+            return pick
+        return slot.default

@@ -332,3 +332,18 @@ def test_a_picked_colour_is_named_and_snapped_as_the_compiler_does():
     assert result["ok"] == [True, True, False]
     assert result["held"] == {"name": "bg", "adds": False}
     assert result["adds"] == {"name": "red", "adds": True}
+
+
+def test_the_showing_control_sends_only_what_differs_from_each_default():
+    result = run("""
+      const slots = [{name: "top", default: "steps"}, {name: "left", default: "vo2max_run"},
+                     {name: "right", default: "date"}];
+      console.log(JSON.stringify({
+        none: values.picksParam({}, slots),
+        some: values.picksParam({top: "steps", right: "battery", left: "heart_rate", gone: "x"}, slots),
+        label: [values.typeLabel({complication_types: [{name: "steps", label: "Steps"}]}, "steps"),
+                values.typeLabel({}, "steps")],
+      }));
+    """)
+    assert result == {"none": "", "some": "left:heart_rate,right:battery",
+                      "label": ["Steps", "steps"]}

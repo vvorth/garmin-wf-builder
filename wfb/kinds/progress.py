@@ -375,11 +375,12 @@ class _Lowering:
         assert element.slot is not None
         face = self.ctx.resolved.face
         slot = face.config_data.get(element.slot)
-        sample = COMPLICATION_SLOT_SAMPLE.get(slot.default) if slot is not None else None
+        shown = self.ctx.shown(slot) if slot is not None else None
+        sample = COMPLICATION_SLOT_SAMPLE.get(shown) if shown is not None else None
         scale = (complications.scale_for(
-            slot.default, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
+            shown, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
             sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=sample)
-            if slot is not None else None)
+            if shown is not None else None)
         reading = NumLocal("reading")
         has_reading = LocalsSet(("reading",))
         inner: list[Op] = [Let("reading", Call("WfbScale.fraction", (NumLocal("pulled"),

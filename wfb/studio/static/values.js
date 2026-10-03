@@ -130,3 +130,18 @@ export function afterRemovingSchemes(entries) {
   }
   return { removed, duplicates };
 }
+
+// The editor's "showing" as a query value (`picks=top:heart_rate,...`):
+// only slots shown with something other than their default, sorted, so one
+// choice is one cache key on the server.
+export function picksParam(picks, slots) {
+  return (slots || [])
+    .filter((s) => picks && picks[s.name] && picks[s.name] !== s.default)
+    .map((s) => `${s.name}:${picks[s.name]}`).sort().join(",");
+}
+
+// A complication type's name for people, from the vocabulary.
+export function typeLabel(vocab, name) {
+  const t = ((vocab && vocab.complication_types) || []).find((x) => x.name === name);
+  return t ? t.label : name;
+}

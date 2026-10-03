@@ -19,6 +19,7 @@ function stored(key, fallback) {
 const storedZoom = () => clampZoom(stored("wfb-zoom", 2));
 const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
 import { FacePanel, Inspector } from "./panels.js";
+import { picksParam, typeLabel } from "./values.js";
 
 // -- the server --------------------------------------------------------------------
 
@@ -262,6 +263,8 @@ function Editor({ docId, onError }) {
   const [dialog, setDialog] = useState(null);           // "build" | "calibrate"
   const [skin, setSkin] = useState(null);
   const [vocab, setVocab] = useState({});
+  // the face's slots, which the "showing" control picks a type for
+  const slots = (doc && doc.globals && doc.globals.slots) || [];
   useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
 
   const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(setDoc, (e) => {
@@ -286,12 +289,14 @@ function Editor({ docId, onError }) {
     if (view.time) q.set("time", view.time);
     if (view.asleep) q.set("asleep", "1");
     if (view.aod) q.set("aod", "1");
+    const picks = picksParam(view.picks, slots);
+    if (picks) q.set("picks", picks);
     api(`/api/documents/${docId}/frame?${q}`)
       .then((f) => { if (live) setFrame(f); }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
   }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, view.time,
-      view.asleep, view.aod, scale]);
+      view.asleep, view.aod, scale, picksParam(view.picks, slots)]);
 
   // the watch's skin, at the frame's scale, when asked for and it has one
   const deviceInfo = (vocab.devices || []).find((d) => d.id === view.device);
@@ -456,6 +461,12 @@ function Editor({ docId, onError }) {
               <option value="">default</option>
               ${doc.styles.map((s) => html`<option value=${s.name}>${s.label}</option>`)}
             </select></label>` : null}
+          ${slots.map((s) => html`<label title=${`what the slot ${s.name} is drawn showing; the wearer picks it on the watch`}>${s.name}
+            <select value=${(view.picks || {})[s.name] || s.default}
+                    onChange=${(e) => setView({ ...view, picks: { ...(view.picks || {}), [s.name]: e.target.value } })}>
+              ${(Array.isArray(s.choices) ? s.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
+                .map((t) => html`<option value=${t}>${t === s.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
+            </select></label>`)}
           <label>Time <input type="time" step="1" value=${view.time} onChange=${set("time")} /></label>
           <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
           <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
@@ -488,7 +499,8 @@ function Editor({ docId, onError }) {
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
-        <${Strip} doc=${doc} view=${view} onDevice=${(d) => setView({ ...view, device: d })} />
+        <${Strip} doc=${doc} view=${view} picks=${picksParam(view.picks, slots)}
+                  onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
       <div class="panel right">
         <h3>Properties</h3>
@@ -499,7 +511,7 @@ function Editor({ docId, onError }) {
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
                       scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError}
-                      onReveal=${showLines} />
+                      onReveal=${showLines} onSelect=${select} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
             Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>

@@ -166,7 +166,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
         : html`<${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />`;
     case "template": return html`<${Template} value=${value} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
-    case "icon": return html`<${Commit} value=${value} list="wfb-icons" onCommit=${onCommit} />`;
+    case "icon": return html`<${IconPop} value=${value} vocab=${ctx.vocab} onPick=${(v) => v && onCommit(v)} />`;
     case "complication": return enumSelect(ctx.vocab.complications || []);
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
     case "handset": {
@@ -219,7 +219,7 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   </div>`;
 }
 
-export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal }) {
+export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal, onSelect }) {
   const [ins, setIns] = useState(null);
   const setScope = onScope;
   useEffect(() => {
@@ -234,6 +234,9 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
   const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal };
+  // the slot this element draws, edited right here as in the Face tab
+  const slotField = ins.fields.find((f) => f.key === "slot");
+  const slotCard = slotField && (ctx.globals.slots || []).find((s) => s.name === slotField.value);
   return html`<div class="inspector">
     <div class="ins-head">
       <code>${ins.id}</code> <span class="dim">${ins.type}</span>
@@ -243,8 +246,8 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
       </div>
     </div>
     ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}
+    ${slotCard ? html`<${SlotCard} slot=${slotCard} vocab=${vocab} onEdit=${onEdit} onSelect=${onSelect} />` : null}
     ${ins.fields.map((f) => html`<${Field} field=${f} ins=${ins} scope=${scope} ctx=${ctx} onEdit=${onEdit} />`)}
-    <datalist id="wfb-icons">${(vocab.icons || []).map((i) => html`<option value=${i} />`)}</datalist>
   </div>`;
 }
 
@@ -265,67 +268,117 @@ function askName(what, current) {
   return name.trim();
 }
 
-// One `config: slots:` entry: its menu label, its default, and the
-// wearer's choices -- the editor's whole picker (`any`) or a list, each
-// type with its own icon -- and the elements that draw it.
-function SlotRow({ slot, types, onEdit, onSelect, onStructure }) {
+// A catalogue icon drawn with the icon font (`/api/icon-font`), or its
+// name when the catalogue has no such icon.
+export function Glyph({ name, vocab }) {
+  const cp = name && (vocab.icon_glyphs || {})[name];
+  return cp ? html`<span class="glyph" title=${name}>${String.fromCodePoint(cp)}</span>`
+            : html`<span class="glyph dim">${name === "none" ? "∅" : ""}</span>`;
+}
+
+// An icon picker: every catalogue icon as a glyph, `none` where the key
+// takes it, and a codepoint (`U+XXXX`) typed in.
+export function IconPop({ value, vocab, allowNone = false, placeholder, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const box = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    addEventListener("mousedown", away);
+    return () => removeEventListener("mousedown", away);
+  }, [open]);
+  const pick = (v) => { setOpen(false); setCode(""); onPick(v); };
+  const names = Object.keys(vocab.icon_glyphs || {}).sort();
+  return html`<span class="pop-anchor" ref=${box}>
+    <button class="chip-button" title=${value || placeholder || "pick an icon"} onClick=${() => setOpen(!open)}>
+      <${Glyph} name=${value || placeholder} vocab=${vocab} />
+      <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>
+    </button>
+    ${open ? html`<div class="pop">
+      <div class="pop-grid icons">${names.map((n) => html`<button class=${"swatch icon" + (n === value ? " on" : "")}
+        title=${n} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
+      <div class="pop-custom">
+        ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}
+        <input type="text" class="mono" placeholder="U+F0000" value=${code} style="width:7em"
+          onInput=${(e) => setCode(e.target.value)} />
+        <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick(code.trim().toUpperCase())}>Use</button>
+        ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
+      </div>
+    </div>` : null}
+  </span>`;
+}
+
+// One `config: slots:` entry, the same card in the Face tab and above a
+// selected element drawing it: what the slot shows until the wearer picks
+// (the star), what the wearer may pick (a checklist by group, or every
+// type), each pick's icon, its title in the settings menu, and what draws it.
+export function SlotCard({ slot, vocab, onEdit, onSelect }) {
   const path = ["config", "slots", slot.name];
-  const list = Array.isArray(slot.choices) ? slot.choices : null;
-  const [adding, setAdding] = useState("");
+  const types = vocab.complication_types || [];
+  const byName = Object.fromEntries(types.map((t) => [t.name, t]));
+  const any = !Array.isArray(slot.choices);
+  const list = any ? [] : slot.choices;
+  // the list a switch to "every type" leaves, so switching back restores it
+  const [kept, setKept] = useState(null);
+  const listed = (name) => any || list.some((c) => c.type === name);
   // a choice is written bare unless it carries an icon
   const written = (c) => (c.icon ? { type: c.type, icon: c.icon } : c.type);
   const setChoices = (choices) => onEdit({ op: "set", path: [...path, "choices"], value: choices.map(written) });
-  const defaults = list ? list.map((c) => c.type) : types;
-  return html`<li class="slot">
+  const toggle = (name) => setChoices(listed(name) ? list.filter((c) => c.type !== name)
+                                                   : [...list, { type: name, icon: null }]);
+  const setDefault = (name) => {
+    if (!listed(name)) setChoices([...list, { type: name, icon: null }]);
+    onEdit({ op: "set", path: [...path, "default"], value: name });
+  };
+  const setIcon = (name, icon) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
+  return html`<div class="slot-card">
     <div class="slot-head">
-      <span class="name" title="rename (every slot: naming it follows)" onClick=${() => {
+      <b>${slot.name}</b>
+      <button title="rename (every slot: naming it follows)" onClick=${() => {
         const n = askName("Slot", slot.name);
         if (n && n !== slot.name) onEdit({ op: "rename", path, to: n });
-      }}>${slot.name}</span>
-      <${Commit} value=${slot.label || ""} placeholder="menu label" width="9em"
-        onCommit=${(v) => onEdit(v.trim() ? { op: "set", path: [...path, "label"], value: v.trim() }
-                                           : { op: "remove", path: [...path, "label"] })} />
+      }}>Rename</button>
       <button class="reset" title="delete (refused while an element draws it)"
         onClick=${() => onEdit({ op: "remove", path })}>×</button>
     </div>
+    <div class="slot-line"><span class="dim">shows first</span>
+      <span>${byName[slot.default] ? byName[slot.default].label : slot.default}</span>
+      <span class="dim">until the wearer picks; click a ★ to change it</span></div>
+    <label class="slot-line" title="the watch's own picker, with every type it has, including ones Garmin adds later">
+      <input type="checkbox" checked=${any} onChange=${() => {
+        if (any) setChoices(kept && kept.length ? kept : [{ type: slot.default, icon: null }]);
+        else { setKept(list); onEdit({ op: "set", path: [...path, "choices"], value: "any" }); }
+      }} /> the wearer may pick any type, including types Garmin adds later</label>
+    <div class="slot-types">${(vocab.categories || []).map((group) => html`<div class="slot-group">
+      <div class="pop-title">${group}</div>
+      ${types.filter((t) => t.category === group).map((t) => {
+        const choice = list.find((c) => c.type === t.name);
+        const isDefault = slot.default === t.name;
+        return html`<div class=${"slot-type" + (listed(t.name) ? "" : " off")}>
+          <input type="checkbox" checked=${listed(t.name)} disabled=${any || isDefault}
+            title=${isDefault ? "what the slot shows first stays on the list" : ""} onChange=${() => toggle(t.name)} />
+          <button class=${"star" + (isDefault ? " on" : "")} title="show this first" onClick=${() => setDefault(t.name)}>${isDefault ? "★" : "☆"}</button>
+          ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
+              onPick=${(v) => setIcon(t.name, v)} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
+          <span class="label">${t.label}</span>
+          <span class="dim mono">${t.sample || ""}</span>
+        </div>`; })}
+    </div>`)}</div>
     <div class="slot-line">
-      <span class="dim">default</span>
-      <select value=${slot.default || ""} title="what the slot shows until the wearer picks"
-        onChange=${(e) => onEdit({ op: "set", path: [...path, "default"], value: e.target.value })}>
-        ${defaults.map((t) => html`<option value=${t}>${t}</option>`)}
-      </select>
+      <span class="dim">menu title</span>
+      <${Commit} value=${slot.label || ""} placeholder=${slot.name} width="10em"
+        onCommit=${(v) => onEdit(v.trim() ? { op: "set", path: [...path, "label"], value: v.trim() }
+                                           : { op: "remove", path: [...path, "label"] })} />
+      <span class="dim">in the settings menu of a watch without the native editor (fr955)</span>
     </div>
-    <div class="slot-line">
-      <span class="dim">choices</span>
-      <label title="the watch's own picker: every complication"><input type="radio" checked=${!list}
-        onChange=${() => onEdit({ op: "set", path: [...path, "choices"], value: "any" })} /> any</label>
-      <label title="only the types listed here"><input type="radio" checked=${!!list}
-        onChange=${() => onEdit({ op: "set", path: [...path, "choices"], value: [slot.default || types[0]] })} /> a list</label>
-    </div>
-    ${list ? html`<ul class="choices">
-      ${list.map((c, i) => html`<li>
-        <code>${c.type}</code>
-        <${Commit} value=${c.icon || ""} placeholder="its icon" list="wfb-slot-icons" width="8em"
-          onCommit=${(v) => setChoices(list.map((x, j) => (j === i ? { ...x, icon: v.trim() || null } : x)))} />
-        <button class="reset" disabled=${c.type === slot.default}
-          title=${c.type === slot.default ? "the default; pick another default first" : "remove this choice"}
-          onClick=${() => setChoices(list.filter((_, j) => j !== i))}>×</button>
-      </li>`)}
-      <li><select value=${adding} onChange=${(e) => setAdding(e.target.value)}>
-          <option value="">add a type…</option>
-          ${types.filter((t) => !list.some((c) => c.type === t)).map((t) => html`<option value=${t}>${t}</option>`)}
-        </select>
-        <button disabled=${!adding} onClick=${() => { setChoices([...list, { type: adding, icon: null }]); setAdding(""); }}>Add</button></li>
-    </ul>` : null}
     <div class="slot-line">
       <span class="dim">drawn by</span>
       ${slot.drawn_by.length
-        ? slot.drawn_by.map((id) => html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(id); }}>${id}</a>`)
-        : html`<span class="dim">nothing</span>
-               <button title="add a data element drawing this slot, at the end of elements:"
-                 onClick=${() => onStructure({ op: "add", type: "data", block: ["elements"], before: null, choice: slot.name })}>+ data element</button>`}
+        ? slot.drawn_by.map((id) => html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect && onSelect(id); }}>${id}</a>`)
+        : html`<span class="dim">nothing yet: add a data element in Layers</span>`}
     </div>
-  </li>`;
+  </div>`;
 }
 
 // `theme: schemes:`: with none, which colours should follow the wearer's
@@ -474,14 +527,33 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
     </div>`;
 }
 
+// A new slot: what it shows first, then its name; it is drawn by a new data
+// element, in the same change.
+function NewSlot({ vocab, taken, onEdit }) {
+  const [first, setFirst] = useState("");
+  const types = vocab.complication_types || [];
+  return html`<div class="row">
+    <select value=${first} onChange=${(e) => setFirst(e.target.value)} title="what the new slot shows first">
+      <option value="">a new slot, showing…</option>
+      ${(vocab.categories || []).map((group) => html`<optgroup label=${group}>
+        ${types.filter((t) => t.category === group).map((t) => html`<option value=${t.name}>${t.label}</option>`)}
+      </optgroup>`)}
+    </select>
+    <button disabled=${!first} onClick=${() => {
+      const base = first.split("_")[0];
+      const suggested = taken.includes(base) ? `${base}_2` : base;
+      const n = askName("Slot", suggested); if (!n) return;
+      onEdit({ op: "add_slot", name: n, default: first }); setFirst("");
+    }}>+ Slot</button>
+  </div>`;
+}
+
 export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure, onReveal }) {
   const g = doc.globals || {};
   const palette = g.palette || [];
   const schemes = g.schemes || { names: [], roles: [], colors: {} };
   const styles = g.styles || { entries: [] };
   const devices = vocab.devices || [];
-  // what a slot may show: every complication type (`auto` is on_hold:'s own)
-  const slotTypes = (vocab.complications || []).filter((t) => t !== "auto");
   const [adding, setAdding] = useState("");
   const fontFile = useRef(null);
   const replaceFor = useRef(null);
@@ -565,16 +637,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
     </${Section}>
 
     <${Section} title=${`Slots (${(g.slots || []).length})`}>
-      ${(g.slots || []).length ? html`<ul class="rows">${g.slots.map((s) => html`<${SlotRow} slot=${s}
-          types=${slotTypes} onEdit=${onEdit} onSelect=${onSelect} onStructure=${onStructure} />`)}</ul>`
-        : html`<div class="dim">A slot shows whichever complication the wearer picks on the watch.</div>`}
-      <button onClick=${() => {
-        const n = askName("New slot"); if (!n) return;
-        const taken = new Set((g.slots || []).map((s) => s.default));
-        const value = { default: slotTypes.find((t) => !taken.has(t)) || slotTypes[0], choices: "any" };
-        onEdit({ op: "set", path: ["config", "slots", n], value });
-      }}>+ Slot</button>
-      <datalist id="wfb-slot-icons"><option value="none" />${(vocab.icons || []).map((i) => html`<option value=${i} />`)}</datalist>
+      ${(g.slots || []).length ? (g.slots || []).map((s) => html`<${SlotCard} slot=${s} vocab=${vocab}
+          onEdit=${onEdit} onSelect=${onSelect} />`)
+        : html`<div class="dim note">A slot shows whichever complication the wearer picks on the watch.</div>`}
+      <${NewSlot} vocab=${vocab} taken=${(g.slots || []).map((s) => s.name)} onEdit=${onEdit} />
     </${Section}>
 
     <${Section} title=${`Fonts (${(g.fonts || []).length})`}>

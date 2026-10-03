@@ -34,7 +34,7 @@ from ..edit import (
     Gate, Refused, SpanIndex, remove, remove_slot, rename_key, rename_reference, rename_slot,
     set_value,
 )
-from ..edit import hands, schemes
+from ..edit import hands, schemes, slots
 from ..edit.colors import add_swatch, remove_unused, set_swatch, use_color
 from ..edit.patch import Patch
 from ..edit.geometry import Part, Scope, target
@@ -62,6 +62,8 @@ class FrameKey:
     asleep: bool = False
     aod: bool = False
     scale: int = 2
+    #: The type each slot is drawn showing, as `(slot, type)` pairs.
+    picks: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
@@ -300,7 +302,9 @@ class Document:
           scheme);
         - the hand-set edits of `wfb.edit.hands`: `add_hand_set` (`name`,
           `preset`), `duplicate_hand_set` and `delete_hand_set` (`name`),
-          `rename_hand_set` (`name`, `to`).
+          `rename_hand_set` (`name`, `to`);
+        - `add_slot` (`name`, `default`): a slot and a `data` element
+          drawing it (`wfb.edit.slots`).
 
         A geometry key of an element (`element` and a `path` relative to it,
         such as `["at", "dy"]`) is written to the source ``scope`` names on
@@ -520,7 +524,7 @@ class Document:
             raise Refused(f"{key.device} is not drawn: the face does not load, "
                           "or does not target it")
         return resolved, PreviewOptions(scale=key.scale, style=key.style, time=key.time,
-                                        asleep=key.asleep, aod=key.aod)
+                                        asleep=key.asleep, aod=key.aod, picks=key.picks)
 
     def _cached(self, kind: str, key: FrameKey, make: Callable[[], Any]) -> Any:
         slot = (kind, key)
@@ -806,6 +810,7 @@ _COMPOUND_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
     "add_role": lambda i, op: schemes.add_role(i, _text(op, "name"), op.get("value")),
     "rename_role": lambda i, op: schemes.rename_role(i, _text(op, "name"), _text(op, "to")),
     "delete_role": lambda i, op: schemes.delete_role(i, _text(op, "name")),
+    "add_slot": lambda i, op: slots.add_slot(i, _text(op, "name"), _text(op, "default")),
     "add_hand_set": lambda i, op: hands.add_hand_set(i, _text(op, "name"), _text(op, "preset")),
     "duplicate_hand_set": lambda i, op: hands.duplicate_hand_set(i, _text(op, "name")),
     "rename_hand_set": lambda i, op: hands.rename_hand_set(i, _text(op, "name"), _text(op, "to")),

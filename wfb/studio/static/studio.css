@@ -262,3 +262,22 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .hand-body { flex: 1; min-width: 0; }
 .handset { display: inline-flex; gap: 8px; align-items: center; }
 .handset a, .face-panel li.hand-set a { color: var(--accent); }
+/* icons, and a slot's card */
+@font-face { font-family: "wfb-icons"; src: url("/api/icon-font") format("truetype"); }
+.glyph { font-family: "wfb-icons"; font-size: 16px; line-height: 1; display: inline-block; min-width: 1em; text-align: center; }
+.pop-grid.icons { grid-template-columns: repeat(10, 1fr); }
+.pop .swatch.icon { background: var(--raised); color: var(--text); font-size: 14px; display: grid; place-items: center; }
+.slot-card { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.inspector .slot-card { padding: 6px 12px 10px; }
+.slot-card .slot-head, .slot-card .slot-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 0; }
+.slot-card .slot-line > .dim:first-child { min-width: 6em; }
+.slot-card a { color: var(--accent); }
+.slot-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; margin: 4px 0; }
+.slot-group .pop-title { margin-top: 4px; }
+.slot-type { display: flex; gap: 4px; align-items: center; font-size: 12px; padding: 1px 0; }
+.slot-type.off .label { color: var(--dim); }
+.slot-type .label { flex: 1; min-width: 0; }
+.slot-type .chip-button { padding: 0 4px; }
+.slot-type .chip-button > span:last-child { display: none; }
+button.star { padding: 0 3px; border: none; background: none; color: var(--dim); }
+button.star.on { color: var(--warning); }

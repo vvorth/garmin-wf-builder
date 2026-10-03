@@ -159,6 +159,10 @@ class PreviewOptions:
     #: `check_aod_burn_in` sets this `False` to render the frame once,
     #: unmasked, and apply each of the four phases itself (worst-of-four).
     aod_mask: bool = True
+    #: The type each `config: slots:` slot is drawn showing, as `(slot,
+    #: type)` pairs, instead of its `default:` -- the editor's "showing".
+    #: A pick the slot may not show is ignored.
+    picks: tuple[tuple[str, str], ...] = ()
     #: Set the panel into the device's simulator skin -- the watch drawn
     #: round it -- `wfb preview --skin` (:func:`frame_in_skin`). A device
     #: whose files lack the skin renders the bare panel, as without it.

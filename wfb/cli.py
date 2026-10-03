@@ -1519,51 +1519,53 @@ def _sources(args: argparse.Namespace) -> int:
 
 def _complications(args: argparse.Namespace) -> int:
     """list the complication type table: what `on_hold:` may launch, what
-    `complication.*` may read, and what `config: data:` may offer a slot
+    `complication.*` may read, and what a `config: slots:` slot may show
 
     A watch face cannot open an arbitrary app. The platform offers exactly
     one exit -- `Complications.exitTo`, "launches the app associated with
     the complication" -- so an interactive element names a complication
     type and the watch opens whichever glance or app owns it. The same 42
     types are also readable directly as `complication.<name>` data sources
-    (see `wfb sources`), and are what a `config: data:` slot's own
+    (see `wfb sources`), and are what a `config: slots:` slot's own
     `default:`/`choices:` name -- this is the one table all three draw from.
 
-    Printed for each: the name a design writes, the Monkey C constant it
-    compiles to, the API level that type was introduced at, and the
-    catalogue icon a `complication_slot`'s `icon_size:` draws for it by
-    default (`wfb.icons.COMPLICATION_ICON`, all 42 types --
-    a `choices:` mapping-form entry can override this per design). An API
-    level is not a promise the watch has it; a hold on a type the watch
-    does not know simply does nothing, which is why `wfb validate` also
-    checks each target's own symbol table (and, for a slot, each target's
-    own ConnectIQ ceiling -- see `api-gated` in docs/guide/configuration.md).
+    Printed for each, grouped as the editor lists them: the name a design
+    writes, its name for people, the catalogue icon a `data` element's
+    `icon:` draws for it by default (`wfb.icons.COMPLICATION_ICON`; a slot's
+    `choices:` mapping-form entry can override this per design), the Monkey C
+    constant it compiles to, and the API level, when it is later than the
+    others'. An API level is not a promise the watch has it; a hold on a
+    type the watch does not know simply does nothing, which is why `wfb
+    validate` also checks each target's own symbol table (and, for a slot,
+    each target's own ConnectIQ ceiling -- see `api-gated` in
+    docs/guide/configuration.md).
 
     Binding one of these -- as `on_hold:`, as `complication.<name>`, or via
     `on_hold: auto` -- adds the ComplicationSubscriber permission
     automatically, the same way a data binding derives its own
-    requirements. A `config: data:` slot does too, even though it reads no
-    catalogue source directly. `minApiLevel` itself no longer moves for any
-    of this (`manifest.xml` is one file shared by every target device, so a
-    per-feature bump broke any build that also targeted a lower-level
-    device): a target that lacks `Toybox.Complications` -- fenix6 and fr245,
-    this project's lowest-level installed devices, both do -- instead has
-    the generated code guard every use of it at runtime (`wfb.availability`,
-    `wfb/emit/monkeyc.py`), so the binding simply reads as absent there.
+    requirements. A `config: slots:` slot does too, even though it reads no
+    catalogue source directly. A target that lacks `Toybox.Complications`
+    (fenix6 and fr245, among the installed devices) has the generated code
+    guard every use of it at runtime (`wfb.availability`), so the binding
+    simply reads as absent there.
     """
-    width = max(len(name) for name in complications.names())
-    icon_width = max(len(icons.COMPLICATION_ICON.get(name, "")) for name in complications.names())
-    for name in complications.names():
-        entry = complications.TYPES[name]
-        since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
-        icon_name = icons.COMPLICATION_ICON.get(name, "")
-        print(f"  {name:<{width}}  Complications.{entry.constant}  "
-              f"icon: {icon_name:<{icon_width}}{since}")
+    names = complications.names()
+    width = max(len(name) for name in names)
+    label_width = max(len(complications.label(name)) for name in names)
+    icon_width = max(len(icons.COMPLICATION_ICON.get(name, "")) for name in names)
+    for group in complications.CATEGORIES:
+        print(f"{group}:")
+        for name in (n for n in names if complications.category(n) == group):
+            entry = complications.TYPES[name]
+            since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
+            icon_name = icons.COMPLICATION_ICON.get(name, "")
+            print(f"  {name:<{width}}  {complications.label(name):<{label_width}}  "
+                  f"icon: {icon_name:<{icon_width}}  Complications.{entry.constant}{since}")
     print(f"\n{len(complications.TYPES)} complication types. "
           f"Use one as `on_hold:` on any element:")
-    print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: heart_rate")
+    print("  hr:\n    type: icon\n    icon: heart\n    on_hold: heart_rate")
     print("\n...or let the compiler pick one from the element's own value binding:")
-    print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: auto")
+    print("  hr:\n    type: icon\n    icon: heart\n    on_hold: auto")
     return 0
 
 

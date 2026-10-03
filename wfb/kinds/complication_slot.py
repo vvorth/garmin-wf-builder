@@ -648,7 +648,8 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         prefix = const_prefix(placed.id)
         face = ctx.resolved.face
         slot = face.config_data[element.slot]
-        ctype = complications.TYPES[slot.default]
+        shown = ctx.shown(slot)
+        ctype = complications.TYPES[shown]
         sample = COMPLICATION_SLOT_SAMPLE.get(
             ctype.name, 12 if ctype.value_type != "string" else "--")
         guarded = ctx.complications_guarded
@@ -660,16 +661,16 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             Blank(),
             Comment(f"slot: config.data.{element.slot}"),
             SlotPull(config_field(f"data_{element.slot}"), guarded,
-                     COMPLICATION_SLOT_SAMPLE.get(slot.default)),
+                     COMPLICATION_SLOT_SAMPLE.get(shown)),
         ]
 
         icon_font: Font | None = None
         if placed.icon_font_key is not None:
-            icon = slot.icons.get(slot.default)
+            icon = slot.icons.get(shown)
             glyph = None
             if icon is not None:
                 glyph = icon.codepoint
-                if slot.default in slot.condition_icons and isinstance(sample, int):
+                if shown in slot.condition_icons and isinstance(sample, int):
                     glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
                         sample, "weather_unknown")].codepoint
             ops.append(SlotIcon(font_field(placed.icon_font_key), placed.icon_font_key,

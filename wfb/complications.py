@@ -268,6 +268,69 @@ def format_value(value: object) -> str:
     return text
 
 
+#: The groups the editor lists complication types under, in that order.
+CATEGORIES = ("activity", "health", "performance", "weather", "time", "device")
+
+#: Each type's name for people, and its group. The SDK's Type table gives
+#: each type a constant and a description but no display name, so the
+#: label is the constant's own words (`COMPLICATION_TYPE_FLOORS_CLIMBED` is
+#: "Floors climbed"), only spelled out where the constant abbreviates.
+PRESENTATION: dict[str, tuple[str, str]] = {
+    "steps": ("Steps", "activity"),
+    "calories": ("Calories", "activity"),
+    "floors_climbed": ("Floors climbed", "activity"),
+    "intensity_minutes": ("Intensity minutes", "activity"),
+    "wheelchair_pushes": ("Wheelchair pushes", "activity"),
+    "weekly_run_distance": ("Weekly run distance", "activity"),
+    "weekly_bike_distance": ("Weekly bike distance", "activity"),
+    "heart_rate": ("Heart rate", "health"),
+    "stress": ("Stress", "health"),
+    "body_battery": ("Body Battery", "health"),
+    "pulse_ox": ("Pulse Ox", "health"),
+    "respiration_rate": ("Respiration rate", "health"),
+    "sleep_score": ("Sleep score", "health"),
+    "vo2max_run": ("VO2 max, run", "performance"),
+    "vo2max_bike": ("VO2 max, bike", "performance"),
+    "training_status": ("Training status", "performance"),
+    "recovery_time": ("Recovery time", "performance"),
+    "race_predictor_5k": ("Race predictor, 5K", "performance"),
+    "race_predictor_10k": ("Race predictor, 10K", "performance"),
+    "race_predictor_half_marathon": ("Race predictor, half marathon", "performance"),
+    "race_predictor_marathon": ("Race predictor, marathon", "performance"),
+    "race_pace_predictor_5k": ("Race pace predictor, 5K", "performance"),
+    "race_pace_predictor_10k": ("Race pace predictor, 10K", "performance"),
+    "race_pace_predictor_half_marathon": ("Race pace predictor, half marathon", "performance"),
+    "race_pace_predictor_marathon": ("Race pace predictor, marathon", "performance"),
+    "last_golf_round_score": ("Last golf round score", "performance"),
+    "current_weather": ("Current weather", "weather"),
+    "forecast_weather_1day": ("Forecast weather, 1 day", "weather"),
+    "forecast_weather_2day": ("Forecast weather, 2 days", "weather"),
+    "forecast_weather_3day": ("Forecast weather, 3 days", "weather"),
+    "current_temperature": ("Current temperature", "weather"),
+    "high_low_temperature": ("High and low temperature", "weather"),
+    "altitude": ("Altitude", "weather"),
+    "sea_level_pressure": ("Sea level pressure", "weather"),
+    "date": ("Date", "time"),
+    "weekday_monthday": ("Weekday and day of the month", "time"),
+    "calendar_events": ("Calendar events", "time"),
+    "sunrise": ("Sunrise", "time"),
+    "sunset": ("Sunset", "time"),
+    "battery": ("Battery", "device"),
+    "solar_input": ("Solar input", "device"),
+    "notification_count": ("Notifications", "device"),
+}
+
+
+def label(name: str) -> str:
+    """The type's name for people (`PRESENTATION`)."""
+    return PRESENTATION[name][0]
+
+
+def category(name: str) -> str:
+    """The group the type is listed under (`CATEGORIES`)."""
+    return PRESENTATION[name][1]
+
+
 def get(name: str) -> ComplicationType | None:
     return TYPES.get(name)
 

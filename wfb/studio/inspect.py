@@ -101,7 +101,7 @@ def _widget(key: str, type_: str, node: dict[str, Any]) -> tuple[str, dict[str, 
     ref, resolved = _deref(node)
     if key == "type":
         return "readonly", resolved
-    if ref in _NESTED:
+    if ref in _NESTED or (key == "icon" and type_ == "data"):
         return "object", resolved
     if ref in _WIDGET_BY_REF:
         return _WIDGET_BY_REF[ref], resolved
@@ -181,7 +181,10 @@ def inspect(text: str, element: Path, device: Device | None) -> dict[str, Any]:
     order = [k for k in data if k in props] + [k for k in props if k not in data]
     fields = [
         _field(k, (k,), type_, props[k], data.get(k), k in required)
-        for k in order if k not in _SKIPPED and (k not in hidden or k in data)]
+        for k in order if k not in _SKIPPED and (k not in hidden or k in data)
+        # a key the schema lists only to refuse it with its reason (`format:`
+        # on a data element) is offered only when the author wrote it
+        and (k in data or not str(props[k].get("description", "")).startswith("Not accepted"))]
     unknown = [k for k in data if k not in props]
     overrides: dict[str, Any] = {}
     if device is not None:
@@ -311,6 +314,19 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
     }
 
 
+def _complication_type(name: str) -> dict[str, Any]:
+    """One complication type as a slot's checklist shows it: its label and
+    group, its catalogue icon, and the reading the preview draws for it."""
+    from ..icons import COMPLICATION_ICON
+    from ..kinds.complication_slot import COMPLICATION_SLOT_SAMPLE
+
+    sample = COMPLICATION_SLOT_SAMPLE.get(name)
+    reading = complications.format_reading(name, sample) if sample is not None else None
+    return {"name": name, "label": complications.label(name),
+            "category": complications.category(name),
+            "icon": COMPLICATION_ICON.get(name), "sample": reading}
+
+
 @functools.cache
 def vocabulary() -> dict[str, Any]:
     """What the pickers offer: data sources by namespace, icon names and
@@ -326,6 +342,9 @@ def vocabulary() -> dict[str, Any]:
         "types": element_types(),
         "mip": [{"name": n, "value": v, "label": label} for n, v, label in MIP64_NAMED],
         "hand_presets": list(hands.presets()),
+        "categories": list(complications.CATEGORIES),
+        "complication_types": [_complication_type(n) for n in complications.names()],
+        "icon_glyphs": {name: ord(icon.codepoint) for name, icon in icon_catalog.CATALOG.items()},
     }
 
 

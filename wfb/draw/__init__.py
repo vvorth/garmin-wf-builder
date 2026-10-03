@@ -130,7 +130,8 @@ def _context(renderer: "Renderer", placed: "Placed",
 
     dim = renderer.resolved.face.aod_dim
     aod = AodStyle(on=True, dim=dim_fraction(dim) if dim is not None else None)
-    return DrawContext(renderer.resolved, aod, tuple(renderer.value_guards(placed)), ring)
+    return DrawContext(renderer.resolved, aod, tuple(renderer.value_guards(placed)), ring,
+                       picks=renderer.options.picks)
 
 
 def drawn_text(resolved: "ResolvedFace", placed: "Placed", values: dict[str, object],
