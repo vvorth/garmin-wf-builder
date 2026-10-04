@@ -14,13 +14,13 @@ from wfb.process import run
 
 
 def _alive(pid: int) -> bool:
+    """Whether ``pid`` runs: neither gone nor a zombie. One read of its
+    state, so a process reaped between two looks is never taken for alive."""
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+        state = Path(f"/proc/{pid}/stat").read_text().split(") ", 1)[1][0]
+    except OSError:                     # gone, or going while read
         return False
-    # a zombie still answers until its parent reaps it
-    stat = Path(f"/proc/{pid}/stat")
-    return not (stat.is_file() and stat.read_text().split(") ", 1)[1].startswith("Z"))
+    return state != "Z"                 # a zombie waits only to be reaped
 
 
 def test_output_and_exit_code_come_back(tmp_path):
@@ -36,11 +36,15 @@ def test_a_timeout_kills_the_command_and_what_it_started(tmp_path):
     pid_file = tmp_path / "child.pid"
     script = f"sleep 30 >/dev/null 2>&1 & echo $! > {pid_file}; wait"
     started = time.monotonic()
+    # long enough for a loaded machine to start the child and write its pid
     with pytest.raises(subprocess.TimeoutExpired):
-        run(["sh", "-c", script], cwd=tmp_path, timeout=0.5)
-    assert time.monotonic() - started < 10
-    child = int(pid_file.read_text())
+        run(["sh", "-c", script], cwd=tmp_path, timeout=3)
+    assert time.monotonic() - started < 15
+    written = pid_file.read_text().strip() if pid_file.exists() else ""
+    assert written, "the script was stopped before it started its child"
+    child = int(written)
     deadline = time.monotonic() + 5
-    while _alive(child) and time.monotonic() < deadline:
+    while (alive := _alive(child)) and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert not _alive(child), "the command's own child outlived the timeout"
+    assert not alive, "the command's own child outlived the timeout"
+
