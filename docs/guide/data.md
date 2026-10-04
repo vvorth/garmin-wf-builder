@@ -323,6 +323,13 @@ and the preview draws values with the same rules:
 - `%` takes two whole numbers, and its sign follows the left side:
   `-7 % 3` is -1. A Float on either side is an error, because Monkey C has
   no Float remainder; wrap it in `floor()` or `round()`.
+- `/` and `%` by a reading that is 0 give 0, not a crash and not an absent
+  value: `100 / heart_rate.current` is 0 while the reading is 0. A divisor
+  that is always 0 (`steps % 0`, `x / (3 - 3)`) is an error.
+- A whole number is 32-bit, as on the watch: from -2147483648 to
+  2147483647. A constant past that (`2000000000 + 2000000000`) is an
+  error; write one side with a decimal point to work in Float. A reading
+  that overflows at run time wraps round, on the watch and in the preview.
 
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`

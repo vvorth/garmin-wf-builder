@@ -30,6 +30,22 @@ module WfbMath {
         return (value < 0) ? -value : value;
     }
 
+    //! `a / b` as a Float, or 0.0 when `b` is zero.
+    //!
+    //! An expression's `/` with a divisor read at run time: a reading can be
+    //! zero (a sensor at rest, an unset goal), and the face must not divide
+    //! by it. `monkeyc` refuses a literal zero divisor outright.
+    function div(a as Numeric, b as Numeric) as Float {
+        if (b == 0) { return 0.0; }
+        return a.toFloat() / b.toFloat();
+    }
+
+    //! `a % b`, or 0 when `b` is zero -- `div`'s guard, for the remainder.
+    function mod(a as Number, b as Number) as Number {
+        if (b == 0) { return 0; }
+        return a % b;
+    }
+
     //! `value` as a percentage of `goal`, clamped to 0..100.
     //!
     //! A zero or negative goal yields 0 rather than dividing by zero: a goal of

@@ -34,10 +34,30 @@ after `-O 3z`'s constant-folding pass.
    **UNVERIFIED: a negative exact half.** -2.5 "rounded up" is -2, and
    rounded away from zero it is -3. The doc does not say which.
 
+4. **A `Number` wraps at 32 bits.** VERIFIED against the compiler's own
+   constant folder (SDK 9.2.0, `fr955`, 2026-10-04): `2147483647 + 1`
+   folds to `-2147483648`, `-2147483647 - 2` to `2147483647`,
+   `100000 * 100000` to `1410065408` and `65536 * 65536` to `0`, two's
+   complement. A literal past the range is a compile error: `The literal
+   '4000000000' of type '$.Toybox.Lang.Number' is out of range.` Not
+   observed on a running VM.
+5. **A literal zero divisor is a compile error.** VERIFIED: `7 / 0`,
+   `7 % 0` and `7.0f / 0` each fail with `Cannot divide by zero`.
+   `(7).toFloat() / 0` compiles (the folder does not see through the call),
+   so a divisor that is zero only at run time is never caught. What the VM
+   does with one is not observed.
+
 ## What the compiler does with it
 
 - `%` is folded and evaluated with truncation (`wfb.expr._mod`), and a
   Float operand is an `ExprError` at `wfb validate` time.
+- An integer `+`, `-` or `*` whose constant result leaves the 32-bit range,
+  a whole-number literal past it, and a divisor that folds to zero are each
+  an `ExprError` at `wfb validate` time. The preview wraps a run-time
+  overflow at 32 bits (finding 4).
+- A divisor read at run time goes through `WfbMath.div`/`WfbMath.mod`,
+  which give 0 for a zero divisor; the preview does the same (finding 5
+  leaves the VM's own behaviour unknown, so the face never relies on it).
 - `round` uses half-up (`wfb.expr._round`). A negative exact half is never
   constant-folded (`_round_foldable`): the call stays in the generated code
   so the device decides. The preview uses half-up there too, a guess.

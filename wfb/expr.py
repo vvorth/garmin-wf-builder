@@ -19,7 +19,7 @@ import math
 import operator
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, TypeGuard
 
 from . import catalog
 from .catalog import Type
@@ -242,6 +242,23 @@ def _mod(a: object, b: object) -> object:
     return -remainder if a < 0 else remainder
 
 
+#: Monkey C's `Number` is a 32-bit signed integer.
+NUMBER_MIN = -(2 ** 31)
+NUMBER_MAX = 2 ** 31 - 1
+
+
+def wrap_number(value: int) -> int:
+    """``value`` wrapped to a 32-bit `Number`, two's complement: what
+    `monkeyc`'s own constant folder makes of an overflow (`2147483647 + 1`
+    folds to `-2147483648`, `100000 * 100000` to `1410065408`;
+    docs/research/probes/math-parity/)."""
+    return (value - NUMBER_MIN) % 2 ** 32 + NUMBER_MIN
+
+
+def _whole(value: object) -> TypeGuard[int]:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 FUNCTIONS: dict[str, Function] = {
     "min": Function(2, "smaller of two numbers", None, lambda a: min(a)),
     "max": Function(2, "larger of two numbers", None, lambda a: max(a)),
@@ -435,6 +452,7 @@ def reads_copy(node: Node | None) -> bool:
 
 
 _NUMERIC_OPS = {"+", "-", "*", "/", "%"}
+_DIVISION_OPS = {"/", "%"}
 _COMPARISON_OPS = {"<", "<=", ">", ">="}
 _EQUALITY_OPS = {"==", "!="}
 _BOOLEAN_OPS = {"and", "or"}
@@ -443,6 +461,12 @@ _BOOLEAN_OPS = {"and", "or"}
 def check(node: Node, scope: Scope) -> Value:
     """Infer the type of ``node``, raising :class:`ExprError` on a mismatch."""
     if isinstance(node, Literal):
+        if node.type is Type.NUMBER and _whole(node.value) and node.value > NUMBER_MAX:
+            raise ExprError(
+                f"{node.value} is too large for a whole number", node.offset,
+                [f"Monkey C's Number is 32-bit: at most {NUMBER_MAX}",
+                 "write it with a decimal point to make it a Float"],
+            )
         return Value(node.type)
 
     if isinstance(node, Ref):
@@ -611,6 +635,28 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
     if isinstance(node, Binary):
         left = fold(node.left, scope, fold_colors=fold_colors)
         right = fold(node.right, scope, fold_colors=fold_colors)
+        if node.op in _DIVISION_OPS and _is_zero(right):
+            raise ExprError(
+                "division by zero" if node.op == "/" else "remainder of a division by zero",
+                node.offset,
+                ["the divisor is always 0 here, and monkeyc refuses to compile that"],
+            )
+        if (
+            node.op in ("+", "-", "*")
+            and isinstance(left, Literal) and isinstance(right, Literal)
+            and _whole(left.value) and _whole(right.value)
+        ):
+            exact = int(as_number(_HOST_BINARY[node.op](left.value, right.value)))
+            if not NUMBER_MIN <= exact <= NUMBER_MAX:
+                raise ExprError(
+                    f"{left.value} {node.op} {right.value} is {exact}, too large for a "
+                    "whole number",
+                    node.offset,
+                    [f"Monkey C's Number is 32-bit ({NUMBER_MIN} to {NUMBER_MAX}), so the "
+                     f"watch would wrap it round to {wrap_number(exact)}",
+                     "make one side a Float (write it with a decimal point) to compute "
+                     "it in floating point"],
+                )
         if (
             isinstance(left, Literal)
             and isinstance(right, Literal)
@@ -653,7 +699,20 @@ def as_number(value: object) -> int | float:
 
 
 def _negate(value: object) -> int | float:
-    return -as_number(value)
+    negated = -as_number(value)
+    return wrap_number(negated) if _whole(negated) else negated
+
+
+def _is_literal(node: Node) -> bool:
+    """Is ``node`` a literal, or a negated one (as `parse` reads `-3`)?"""
+    return isinstance(node, Literal) or (
+        isinstance(node, Unary) and node.op == "-" and isinstance(node.operand, Literal))
+
+
+def _is_zero(node: Node) -> bool:
+    """Is ``node`` a numeric literal 0 (or 0.0)?"""
+    return (isinstance(node, Literal) and node.type.is_numeric()
+            and isinstance(node.value, (int, float)) and node.value == 0)
 
 
 #: Host implementations of the foldable binary operators.  Operands are
@@ -685,6 +744,8 @@ def _apply(op: str, a: object, b: object) -> tuple[object, Type] | None:
         return None
     if op in _COMPARISON_OPS or op in _EQUALITY_OPS or op in _BOOLEAN_OPS:
         return (bool(result), Type.BOOLEAN)
+    if _whole(result):
+        result = wrap_number(result)
     return (result, Type.FLOAT if op == "/" else _numeric_type(result))
 
 
@@ -715,6 +776,13 @@ def emit(node: Node, scope: Scope) -> str:
         op = _MONKEYC_BINARY.get(node.op, node.op)
         left_code = emit(node.left, scope)
         right_code = emit(node.right, scope)
+        if node.op in _DIVISION_OPS and not _is_literal(node.right):
+            # A divisor only known on the watch can be 0 there (a reading at
+            # rest, an unset goal): the guarded barrel call gives 0 rather
+            # than dividing by it, as `evaluate` does for the preview. A
+            # literal divisor is never 0 here -- `fold` refused that.
+            name = "div" if node.op == "/" else "mod"
+            return f"WfbMath.{name}({left_code}, {right_code})"
         if node.op == "/" and not _has_float_operand(node.left, node.right, scope):
             # `check()` always types `/` as Float (see `check` above), but Monkey
             # C's own `Number / Number` truncates -- unlike `+`/`-`/`*`, where an
@@ -774,6 +842,9 @@ def _emit_literal(node: Literal) -> str:
         return f"0x{int(as_number(node.value)):06X}"
     if node.type is Type.FLOAT:
         return f"{float(as_number(node.value))}f"
+    if node.value == NUMBER_MIN:
+        # `-2147483648` would read as minus a literal one past NUMBER_MAX
+        return f"({NUMBER_MIN + 1} - 1)"
     return str(int(as_number(node.value)))
 
 
@@ -843,6 +914,9 @@ def evaluate(node: Node, values: dict[str, object]) -> object | None:
             return bool(left) or bool(right) if None not in (left, right) else None
         if left is None or right is None:
             return None
+        if node.op in _DIVISION_OPS and right == 0:
+            # `WfbMath.div`/`WfbMath.mod`: a zero divisor gives 0
+            return 0.0 if node.op == "/" else 0
         folded = _apply(node.op, left, right)
         return folded[0] if folded else None
     if isinstance(node, Conditional):

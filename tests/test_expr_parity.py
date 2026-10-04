@@ -62,6 +62,7 @@ OPERATOR_CASES = [
     "3 < 2.5", "3 <= 3", "-1 > -2", "2 >= 2.5", "3 == 3", "3 != 3.0",
     "true and false", "true or false", "not true",
     "true ? 1 : 2", "false ? 1 : 2",
+    "2147483647 + 1", "-2147483647 - 2", "100000 * 100000", "65536 * 65536",
 ]
 
 
@@ -169,6 +170,38 @@ def test_every_function_compiles_with_number_and_float_arguments(
     source = "\n".join(["import Toybox.Lang;", "import Toybox.Math;", "",
                         "module ParityFunctions {", *bodies, "}"]) + "\n"
     (project / "source" / "ParityFunctions.mc").write_text(source, encoding="utf-8")
+    barrel = project / "runtime-lib"
+    barrel.mkdir(exist_ok=True)
+    (barrel / "WfbMath.mc").write_text((RUNTIME_LIB / "WfbMath.mc").read_text(encoding="utf-8"),
+                                       encoding="utf-8")
+
+    process = _compile(project, toolchain)
+    output = _strip_noise(process.stdout + process.stderr)
+    assert process.returncode == 0, output
+    assert "WARNING" not in output, output
+
+
+@pytest.mark.slow
+def test_a_guarded_division_compiles_with_number_and_float_operands(
+        write_design, db, tmp_path, toolchain):
+    """`/` and `%` over a divisor read at run time become `WfbMath.div` and
+    `WfbMath.mod` calls; each typechecks warning-free under `-l 3` with every
+    operand type the expression language lets through."""
+    project = _project(write_design, db, tmp_path, toolchain)
+    scope = expr.Scope()
+    scope.define("n", expr.Binding(expr.Value(expr.Type.NUMBER), "n"))
+    scope.define("m", expr.Binding(expr.Value(expr.Type.NUMBER), "m"))
+    scope.define("f", expr.Binding(expr.Value(expr.Type.FLOAT), "f"))
+    cases = {"div_nn": "n / m", "div_nf": "n / f", "div_fn": "f / n", "div_ff": "f / f",
+             "div_lit": "10 / n", "mod_nn": "n % m"}
+    bodies = []
+    for name, text in cases.items():
+        code = expr.compile_expression(text, scope)[0]
+        assert code.startswith("WfbMath."), code
+        bodies.append(f"    function {name}(n as Number, m as Number, f as Float) as Numeric "
+                      f"{{ return {code}; }}")
+    source = "\n".join(["import Toybox.Lang;", "", "module ParityGuards {", *bodies, "}"]) + "\n"
+    (project / "source" / "ParityGuards.mc").write_text(source, encoding="utf-8")
     barrel = project / "runtime-lib"
     barrel.mkdir(exist_ok=True)
     (barrel / "WfbMath.mc").write_text((RUNTIME_LIB / "WfbMath.mc").read_text(encoding="utf-8"),

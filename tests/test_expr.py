@@ -97,16 +97,65 @@ def test_constant_division_folds_before_coercion_would_apply(scope):
     assert ".toFloat()" not in code
 
 
-def test_integer_division_of_a_bare_literal_parenthesizes_before_tofloat(scope):
-    """`5.toFloat()` is not a method call in Monkey C -- the lexer reads `5.`
-    as the start of a malformed decimal literal -- so a bare numeric literal
-    operand must be parenthesized first: `(5).toFloat()`."""
-    code, _, _ = compile_expression("10 / activity.steps", scope)
-    assert code == "((10).toFloat() / activitySteps)"
+def test_a_divisor_read_on_the_watch_is_guarded(scope):
+    """A reading can be 0 on the watch, so a divisor that is not a literal
+    goes through `WfbMath.div`/`WfbMath.mod`, which give 0 for it."""
+    assert compile_expression("10 / activity.steps", scope)[0] == "WfbMath.div(10, activitySteps)"
+    assert (compile_expression("activity.steps % (activity.step_goal - 1)", scope)[0]
+            == "WfbMath.mod(activitySteps, (activityStepGoal - 1))")
 
 
-def test_modulo_is_not_affected_by_the_division_fix(scope):
+def test_modulo_by_a_literal_is_left_inline(scope):
     assert compile_expression("activity.steps % 7", scope)[0] == "(activitySteps % 7)"
+
+
+def test_a_zero_divisor_previews_as_zero_like_the_guard():
+    """`WfbMath.div` and `WfbMath.mod` give 0, not an absent value."""
+    assert evaluate(parse("100 / (x - 60)"), {"x": 60}) == 0.0
+    assert evaluate(parse("x % (x - 60)"), {"x": 60}) == 0
+
+
+@pytest.mark.parametrize("text", [
+    "activity.steps / 0", "activity.steps % 0", "10 / (3 - 3)", "activity.steps / 0.0",
+    "activity.steps % zero",
+])
+def test_a_divisor_that_is_always_zero_is_refused(scope, text):
+    """`monkeyc` refuses a literal zero divisor ("Cannot divide by zero"),
+    so it is an error on the author's own line, after folding."""
+    scope.define("zero", Binding(Value(Type.NUMBER), "ZERO", constant=0))
+    with pytest.raises(ExprError, match="by zero"):
+        compile_expression(text, scope)
+
+
+@pytest.mark.parametrize("text", [
+    "2000000000 + 2000000000", "65536 * 65536", "-2147483647 - 2", "2147483648",
+])
+def test_a_constant_past_32_bits_is_refused(scope, text):
+    """`monkeyc` refuses a literal out of a Number's range, and folds an
+    overflowing constant round to the other end; neither is what the
+    author meant."""
+    with pytest.raises(ExprError, match="too large for a whole number"):
+        compile_expression(text, scope)
+
+
+def test_a_float_constant_is_not_limited_to_32_bits(scope):
+    assert compile_expression("65536.0 * 65536", scope)[0] == "4294967296.0f"
+
+
+def test_the_smallest_number_is_emitted_as_monkeyc_can_read_it(scope):
+    assert compile_expression("-2147483647 - 1", scope)[0] == "(-2147483647 - 1)"
+
+
+@pytest.mark.parametrize("text,values,expected", [
+    ("x + 1", {"x": 2147483647}, -2147483648),
+    ("x * 100000", {"x": 100000}, 1410065408),
+    ("x * x", {"x": 65536}, 0),
+    ("-x", {"x": -2147483648}, -2147483648),
+])
+def test_the_preview_wraps_a_number_at_32_bits(text, values, expected):
+    """What `monkeyc`'s own folder makes of the same overflow
+    (docs/research/probes/math-parity/)."""
+    assert evaluate(parse(text), values) == expected
 
 
 def test_unknown_source_suggests_the_nearest_catalogue_entry(scope):
