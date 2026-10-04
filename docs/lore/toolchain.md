@@ -106,7 +106,10 @@ glitch.
   (`-Xms1g`) running after wfb reported it stopped; the editor, which runs
   `wfb build`, left `monkeyc` itself behind too. Both run their command
   through `wfb.process.run`, which starts it in its own process group and
-  kills the group on a timeout or an interrupt.
+  kills the group on a timeout or an interrupt. A process that left the
+  group (`setsid`) survives that kill and may hold the output pipes open,
+  so the wait for them after the kill is bounded (5 s) rather than
+  unbounded.
 - Compiling a `<watchface-config>` makes this SDK's JVM print a four-line
   `sun.misc.Unsafe` notice using `monkeyc`'s own bare `WARNING:` prefix.
   `wfb/build.py` strips exactly that line shape and nothing else — this is

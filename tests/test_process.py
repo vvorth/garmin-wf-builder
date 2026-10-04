@@ -48,3 +48,21 @@ def test_a_timeout_kills_the_command_and_what_it_started(tmp_path):
         time.sleep(0.05)
     assert not alive, "the command's own child outlived the timeout"
 
+
+def test_a_timeout_returns_though_an_escaped_child_holds_the_output(tmp_path):
+    """A child in its own session (`setsid`) survives the group kill and
+    keeps the output pipes open: the timeout still returns, rather than
+    waiting on pipes that never close."""
+    pid_file = tmp_path / "escaped.pid"
+    script = f"setsid sh -c 'echo $$ > {pid_file}; exec sleep 60' & wait"
+    started = time.monotonic()
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            run(["sh", "-c", script], cwd=tmp_path, timeout=1)
+        assert time.monotonic() - started < 20, "the timeout waited on the escaped child"
+    finally:
+        if pid_file.exists():
+            try:
+                os.kill(int(pid_file.read_text()), 9)
+            except (ProcessLookupError, ValueError):
+                pass

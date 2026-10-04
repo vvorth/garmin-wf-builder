@@ -29,9 +29,19 @@ def run(command: list[str], *, cwd: Path | str | None = None,
             stdout, stderr = process.communicate(timeout=timeout)
         except BaseException:
             _kill_group(process)
-            process.communicate()
+            try:
+                process.communicate(timeout=_DRAIN_SECONDS)
+            except subprocess.TimeoutExpired:
+                # something the command started left its process group
+                # and still holds the output pipes: the command itself is
+                # gone, so stop waiting for them to close
+                pass
             raise
     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+#: How long, after the kill, to wait for the output pipes to close.
+_DRAIN_SECONDS = 5.0
 
 
 def _kill_group(process: subprocess.Popen[str]) -> None:
