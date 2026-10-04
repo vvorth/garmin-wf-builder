@@ -34,7 +34,7 @@ of them can ever execute a symbol the device running it does not have.
   two views cannot drift apart.
 
 **Policy, not just mechanism:** a binding a target device lacks *reads as
-absent* on that device -- the same `when_absent` path every nullable source
+absent* on that device -- the same `absent` path every nullable source
 already has (every catalogue field is nullable, CLAUDE.md constraint 8) --
 not a build failure and not a silently wrong value. An `on_hold:` simply
 never fires there, and a `config: data:` slot keeps its compiled-in

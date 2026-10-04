@@ -48,7 +48,7 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
     computed fallback is clamped on device instead.
     """
     fallback = element.fallback
-    if element.when_absent != "fallback" or fallback is None or not fallback.is_constant:
+    if element.absent != "fallback" or fallback is None or not fallback.is_constant:
         return
     try:
         value = float(expr.as_number(fallback.constant))
@@ -60,7 +60,7 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
         "when-absent",
         f"{element.id}: a gauge's 'absent: {{value:}}' is a fill fraction, so it must "
         f"be between 0.0 and 1.0 -- got {fallback.shown}",
-        b.doc.span(node, "fallback"),
+        b.fallback_span(node),
         notes=[
             "unlike a text's 'absent: {value:}', which supplies the value and is "
             "then formatted, a gauge's supplies the filled proportion "
@@ -133,7 +133,7 @@ def keeps_track(element: Progress) -> bool:
     value, so it hides whole.  The one definition the program
     (`ProgressKind.lower`) and the view's guard (`draws_while_absent`) both
     read."""
-    return element.when_absent == "hide" and element.style != "needle"
+    return element.absent == "hide" and element.style != "needle"
 
 
 #: Keys a `style: needle` progress does not read: the needle's shape is its
@@ -282,7 +282,7 @@ def _fallback_num(element: Progress) -> Num:
     clamped on device.
     """
     fallback = element.fallback
-    assert fallback is not None, "only called for when_absent: fallback, which requires one"
+    assert fallback is not None, "only called for absent: fallback, which requires one"
     if fallback.is_constant:
         return FloatLit(float(expr.as_number(fallback.constant)), "f")
     return Conv(Call("WfbMath.clamp", (Read(fallback), FloatLit(0.0), FloatLit(1.0))),
@@ -350,7 +350,7 @@ class _Lowering:
         guards = self.ctx.value_guards
         present = (Present(guards, probes) if keeps_track(element) and guards else None)
         ops: list[Op] = []
-        if element.when_absent == "fallback" and guards:
+        if element.absent == "fallback" and guards:
             # The fill fraction falls back, not the raw value/max: either half
             # of the pair can be the absent reading, so the outcome is the
             # only well-defined thing to substitute (`_check_fallback_fraction`).
@@ -383,7 +383,7 @@ class _Lowering:
         has_reading = LocalsSet(("reading",))
         inner: list[Op] = [Let("reading", Call("WfbScale.fraction", (NumLocal("pulled"),
                                                                      NumLocal("scale"))))]
-        if element.when_absent == "fallback":
+        if element.absent == "fallback":
             inner += [Comment(vocab.absent(element)),
                       Let("fraction", NumPick(has_reading, reading, _fallback_num(element))),
                       *self.styles(NumLocal("fraction"), None)]
@@ -651,6 +651,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         value = b.expression(node, "value") if slot is None else None
         maximum = b.expression(node, "max") if slot is None and not auto else None
         align, vertical_align = b.alignment(node)
+        absence = b.absence(node)
         element = Progress(
             **common,
             style=node["style"],
@@ -665,8 +666,8 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             size=b.size(node.get("size")),
             color=b.color_expression(node, "color"),
             track_color=b.color_expression(node, "track_color"),
-            when_absent=node.get("when_absent"),
-            fallback=b.expression(node, "fallback") if "fallback" in node else None,
+            absent=absence["absent"],
+            fallback=absence["fallback"],
             align=align,
             vertical_align=vertical_align,
         )
@@ -684,7 +685,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             # type this watch does not have.
             reading = Expression(f"the reading of slot {slot.name}", "",
                                  expr.Value(Type.NUMBER, True), (), frozenset(), frozenset(), None)
-            b.check_absence(node, element, reading, element.when_absent, None, element.fallback,
+            b.check_absence(node, element, reading, element.absent, None, element.fallback,
                             key="slot")
             _check_fallback_fraction(b, node, element)
             if element.on_hold == HOLD_AUTO:
@@ -703,7 +704,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 bool((value and value.nullable) or (maximum and maximum.nullable)),
             )
             probe = Expression("value/max", "", combined, (), frozenset(), frozenset(), None)
-            b.check_absence(node, element, probe, element.when_absent, None, element.fallback,
+            b.check_absence(node, element, probe, element.absent, None, element.fallback,
                             key="value")
             _check_fallback_fraction(b, node, element)
         for key, owner in _STYLE_ONLY_KEYS.items():

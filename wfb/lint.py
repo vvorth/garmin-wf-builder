@@ -1939,7 +1939,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
 
     A target that lacks a module or field a binding reads gets a runtime
     `has`-guard in the one shared view (`wfb.availability.compute_guards`)
-    and the binding *reads as absent* there -- the `when_absent` contract
+    and the binding *reads as absent* there -- the `absent` contract
     every nullable source already has (constraint 8).  This check is the
     human-facing half: *which* binding degrades on *which* device, and why
     (`wfb/availability.py`, `docs/research/probes/api-gating/README.md`).

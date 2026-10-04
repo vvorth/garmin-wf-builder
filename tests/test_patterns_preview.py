@@ -371,7 +371,7 @@ def test_the_week_row_lights_todays_copy(write_design, db, bag, weekday, lit):
         assert pixel == (CYAN if index == lit else RED), (index, pixel)
 
 
-# -- `when_absent: hide` + per-copy part `visible:` (B7, 2026-09-15) -----------
+# -- `absent: hide` + per-copy part `visible:` (B7, 2026-09-15) -----------
 
 
 #: A 5-copy move-bar row: a blue "track" circle always drawn, an orange

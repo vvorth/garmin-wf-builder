@@ -29,36 +29,36 @@ def _template(spec: str, bound: Expression) -> str:
 
 
 class AbsenceChecks(Readers):
-    """`when_absent:` and `format:` checks for a bound value."""
+    """`absent:` and `format:` checks for a bound value."""
 
     # -- shared checks ----------------------------------------------------
 
     def check_absence(self, node: dict[str, Any], element: Element, bound: Expression,
-                      when_absent: str | None, placeholder: str | None,
+                      absent: str | None, placeholder: str | None,
                       fallback: Expression | None, key: str = "value") -> None:
         """ADR 0005 3: null handling is part of the binding, not an afterthought."""
         if not bound.nullable:
             # Only "no effect" if nothing *else* on the element is nullable
             # either: since `check_other_absence`, a nullable colour or max
-            # requires a policy too, so a `when_absent:` sitting next to a
+            # requires a policy too, so a `absent:` sitting next to a
             # non-nullable value can be doing real work.  Saying it has no
             # effect there would contradict the error the author just fixed.
             # Every *other* bound expression, `visible:` excluded -- it has
-            # its own "absent means hidden" rule with no `when_absent:` of
+            # its own "absent means hidden" rule with no `absent:` of
             # its own to speak of (read by role, not identity,
             # so this reads the same as the isinstance-free form below).
             others_nullable = any(
                 expression is not bound and role != ROLE_VISIBLE and expression.nullable
                 for role, expression in element.bound_expressions()
             )
-            if when_absent is not None and not others_nullable:
+            if absent is not None and not others_nullable:
                 self.bag.note(
                     "when-absent",
                     f"{element.id}: 'absent:' has no effect -- {bound.shown} is never absent",
-                    self.doc.span(node, "when_absent"),
+                    self.doc.span(node, "absent"),
                 )
             return
-        if when_absent is None:
+        if absent is None:
             self.bag.error(
                 "when-absent",
                 f"{element.id}: {bound.shown!r} can be absent, so 'absent:' is required",
@@ -69,21 +69,17 @@ class AbsenceChecks(Readers):
                 ],
             )
             return
-        if when_absent == "placeholder" and placeholder is None:
-            self.require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:' string")
-        if when_absent == "fallback" and fallback is None:
-            self.require(node, "fallback", "when_absent: fallback needs a 'fallback:' expression")
-        if when_absent == "fallback" and fallback is not None and fallback.nullable:
+        if absent == "fallback" and fallback is not None and fallback.nullable:
             self.bag.error(
                 "when-absent",
                 f"{element.id}: the 'absent: {{value:}}' expression can itself be absent",
-                self.doc.span(node, "fallback"),
+                self.fallback_span(node),
                 notes=["the value used instead of an absent reading must always exist"],
             )
 
     def check_other_absence(self, node: dict[str, Any], element: Element, key: str,
                             bound: Expression | None, span: Span | None = None) -> None:
-        """A nullable binding outside `value` still needs an explicit `when_absent:`.
+        """A nullable binding outside `value` still needs an explicit `absent:`.
 
         `check_absence` above only ever runs for `value` -- without this
         check, a nullable `color`/`track_color` would sail through
@@ -105,7 +101,7 @@ class AbsenceChecks(Readers):
         """
         if bound is None or not bound.nullable:
             return
-        if getattr(element, "when_absent", None) is not None:
+        if getattr(element, "absent", None) is not None:
             return
         self.bag.error(
             "when-absent",
@@ -146,7 +142,7 @@ class AbsenceChecks(Readers):
         label only grows when the element actually has a `visible:`, so no
         existing message moves.
         """
-        policy = getattr(element, "when_absent", None)
+        policy = getattr(element, "absent", None)
         if policy not in ("placeholder", "fallback"):
             return
         value_sources = self.nullable_sources(value_bindings)
@@ -166,7 +162,7 @@ class AbsenceChecks(Readers):
             "when-absent",
             f"{element.id}: the {substitute} can never be drawn -- {shared} is also read "
             f"by {shown}, which hides the element whenever it is absent",
-            self.doc.span(node, policy if policy == "fallback" else "placeholder")
+            (self.fallback_span(node) if policy == "fallback" else self.doc.span(node, "absent"))
             or self.doc.span(node, key),
             notes=[
                 f"a nullable {shown} always hides the element, and that guard runs before "

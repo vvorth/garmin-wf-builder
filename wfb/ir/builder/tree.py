@@ -416,7 +416,7 @@ class ElementTree(StaticPass):
 
         Deliberately not `element.VALUE_ROLES`, the set `ReadPlan.
         _value_expressions` reads instead: that answers a different
-        question (what a `when_absent:` policy governs -- it adds
+        question (what a `absent:` policy governs -- it adds
         `Progress.max`, and has none at all for `IconElement`), so the two
         read the *tag* the same expressions share, not the *kind-specific
         subset* the other one narrows to.

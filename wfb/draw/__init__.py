@@ -74,7 +74,7 @@ def program(ctx: DrawContext, placed: "Placed", plan: "ReadPlan",
             ops.append(NullGuard(tuple(names), tuple(paths[name] for name in names), note))
 
     substitutes = (bool(element.VALUE_ROLES)
-                   and getattr(element, "when_absent", None) in ("placeholder", "fallback"))
+                   and getattr(element, "absent", None) in ("placeholder", "fallback"))
     if substitutes or (kind.draws_while_absent(element) and plan.value_guards(placed)):
         guard(plan.other_guards(placed),
               "hide -- a nullable colour/track_color/max always hides the element, "

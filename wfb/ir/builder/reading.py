@@ -51,6 +51,25 @@ reporting why) out."""
             return value, "center"
         return value[len(vertical) + 1:] or "center", vertical
 
+    def absence(self, node: dict[str, Any]) -> dict[str, Any]:
+        """`absent:` as the IR's three fields: `absent` (the policy:
+        `"hide"`, `"placeholder"`, `"fallback"`, or `None` when unwritten),
+        `placeholder` (the text drawn instead) and `fallback` (the
+        expression read instead, `absent: {value: ...}`)."""
+        value = node.get("absent")
+        if value is None or value == "hide":
+            return {"absent": value, "placeholder": None, "fallback": None}
+        if isinstance(value, dict):
+            return {"absent": "fallback", "placeholder": None,
+                    "fallback": self.expression(value, "value")}
+        return {"absent": "placeholder", "placeholder": str(value), "fallback": None}
+
+    def fallback_span(self, node: dict[str, Any]) -> Span | None:
+        """Where `absent: {value: ...}`'s expression is written."""
+        absent = node.get("absent")
+        return ((self.doc.span(absent, "value") if isinstance(absent, dict) else None)
+                or self.doc.span(node, "absent"))
+
     def require(self, node: dict[str, Any], key: str, message: str) -> None:
         """Report `message` as an `element` error on `node[key]`'s line, or
         on the node's own when the key is absent -- for a key the schema

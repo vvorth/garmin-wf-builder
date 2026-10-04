@@ -436,11 +436,11 @@ def test_a_date_value_needs_a_format(write_design, bag):
 
 
 # --------------------------------------------------------------------------
-# Bug 1: when_absent: fallback actually renders, for text and progress alike
+# Bug 1: absent: fallback actually renders, for text and progress alike
 
 
 def test_text_fallback_is_emitted_not_dropped(write_design, bag, db):
-    """Before this fix, codegen routed every non-'placeholder' when_absent
+    """Before this fix, codegen routed every non-'placeholder' absent
     policy through the same 'return;' guard as 'hide', so 'fallback:' parsed
     and validated cleanly but never actually appeared in the generated code --
     preview (which does evaluate it) and the device silently disagreed."""
@@ -846,7 +846,7 @@ def test_a_substitute_still_reachable_through_another_source_is_not_reported(
 
 
 def test_when_absent_is_not_called_pointless_when_a_colour_needs_it(write_design, bag):
-    """`when_absent:` next to a non-nullable value is doing real work as soon
+    """`absent:` next to a non-nullable value is doing real work as soon
     as the colour is nullable -- it is what `check_other_absence` demands.
     Telling the author it "has no effect" would contradict the error they
     just fixed."""
@@ -1561,7 +1561,7 @@ def test_a_graph_cannot_be_static(write_design, bag):
 
 def test_a_nullable_color_still_hides_the_element_with_no_when_absent_required(
         write_design, bag):
-    """A graph has no `when_absent:` field at all -- unlike `text`/`progress`,
+    """A graph has no `absent:` field at all -- unlike `text`/`progress`,
     a nullable `color:` here needs no explicit policy, the same as `shape`
     and `icon` (`check_other_absence` is deliberately not called for it)."""
     face = load(write_design(design(_graph(
@@ -1698,12 +1698,9 @@ def test_an_empty_overrides_block_is_not_an_error(write_design, bag):
 
 
 def test_progress_cannot_ask_for_a_placeholder_it_has_no_key_for(write_design, bag):
-    """The enum used to offer a policy the schema made unsatisfiable.
-
-    `when_absent: placeholder` needed a `placeholder:` string, and
-    `progressElement` has no such property with `additionalProperties: false`
-    -- so the author was given an error with no legal way out.  There is no
-    substitute *text* for a fill fraction; `fallback:` is the real answer.
+    """A gauge's `absent:` takes no placeholder text: there is no
+    substitute *text* for a fill fraction, and `absent: {value: ...}` is the
+    real answer, so the schema refuses `absent: "--"` on a gauge.
     """
     load(write_design(design("""
   ring:
@@ -1717,8 +1714,8 @@ def test_progress_cannot_ask_for_a_placeholder_it_has_no_key_for(write_design, b
     max: 10000
     color: color.fg
     at: {anchor: center}
-    when_absent: placeholder
+    absent: "--"
 """)), bag)
     schema = [d for d in bag.errors if d.code == "schema"]
     assert schema, bag.render()
-    assert "placeholder" in bag.render()
+    assert "absent" in bag.render()

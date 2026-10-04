@@ -298,7 +298,7 @@ def _with_color(template: str, color: str, where: str) -> str:
 
 
 def _with_when_absent(template: str, value: str = "hide") -> str:
-    """`template` with `when_absent: <value>` added at the element level,
+    """`template` with `absent: <value>` added at the element level,
     just above `parts:` -- every RADIAL_RING-derived fixture has exactly one
     `parts:` line."""
     assert template.count("    parts:\n") == 1
@@ -337,7 +337,7 @@ def test_a_colour_reading_an_absent_able_source_builds_with_when_absent_hide(wri
     text = _with_when_absent(_with_color(RADIAL_RING, color, where))
     face = load(write_design(design(text)), bag)
     assert face is not None, bag.render()
-    assert face.elements[0].when_absent == "hide"
+    assert face.elements[0].absent == "hide"
 
 
 def test_a_colour_reading_a_complication_builds_clean_with_the_subscription(
@@ -368,7 +368,7 @@ def test_a_colour_reading_a_complication_builds_clean_with_the_subscription(
 @pytest.mark.parametrize("where", ["element", "part"])
 def test_a_colour_reading_a_never_absent_source_builds(write_design, bag, where):
     """The contrast: `date.weekday` is never absent, so a pattern may read it
-    with no 'when_absent:' at all -- until 2026-09-15 this was the same
+    with no 'absent:' at all -- until 2026-09-15 this was the same
     "cannot read data" error as a hand's colour still gets."""
     color = "date.weekday == 1 ? color.accent : color.fg"
     face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
@@ -390,7 +390,7 @@ def test_when_absent_hide_on_a_pattern_that_reads_nothing_nullable_is_a_note(wri
 
 
 def test_when_absent_placeholder_is_a_schema_error_on_a_pattern(write_design, bag):
-    """The schema restricts a pattern's 'when_absent:' to 'hide' only (no
+    """The schema restricts a pattern's 'absent:' to 'hide' only (no
     placeholder/fallback: a pattern has no single value to substitute one
     for) -- `progressElement`'s own restricted enum is the precedent."""
     text = _with_when_absent(RADIAL_RING, "placeholder")

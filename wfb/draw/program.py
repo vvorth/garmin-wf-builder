@@ -763,7 +763,7 @@ class SlotText:
     unit: bool
     short: bool
     label: str | None
-    when_absent: str | None
+    absent: str | None
     placeholder: str | None
     type_name: str
     sample: object

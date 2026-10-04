@@ -172,7 +172,7 @@ class HandParts(ConfigAxes):
 
     def _reject_hand_data_color(self, color: Expression, where: str, span: Span | None) -> bool:
         """A hand colour may not read a data source at all -- a hand is
-        about the time, with no `when_absent:` to fall back through if a
+        about the time, with no `absent:` to fall back through if a
         reading it named turned out absent.
 
         Hand-only: a pattern colour may read any source; the pattern-wide

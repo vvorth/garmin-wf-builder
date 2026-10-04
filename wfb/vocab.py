@@ -13,9 +13,6 @@ from typing import Iterable
 
 #: Internal key -> the key a format 2 author writes.
 KEYS = {
-    "when_absent": "absent",
-    "placeholder": "absent",
-    "fallback": "absent: {value:}",
     "icon_size": "icon: {size:}",
     "icon_position": "icon: {position:}",
     "icon_gap": "icon: {gap:}",
@@ -76,7 +73,7 @@ def absent(element: object) -> str:
     """An element's absence policy as the author writes it: ``absent:
     hide``, ``absent: "--"`` (a placeholder) or ``absent: {value: ...}``
     (a fallback reading).  Generated code comments quote this."""
-    policy = getattr(element, "when_absent", None) or "hide"
+    policy = getattr(element, "absent", None) or "hide"
     if policy == "placeholder":
         return f'absent: "{getattr(element, "placeholder", "")}"'
     if policy == "fallback":

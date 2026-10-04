@@ -135,7 +135,7 @@ def test_icon_bound_expressions_order(write_design, bag):
     roles = gauge.bound_expressions()
     assert [e for _, e in roles] == expected
     assert [r for r, _ in roles] == [ROLE_COLOR, ROLE_VALUE]
-    # an icon has no `when_absent:` at all -- nothing is a governed "value".
+    # an icon has no `absent:` at all -- nothing is a governed "value".
     assert IconElement.VALUE_ROLES == frozenset()
 
 

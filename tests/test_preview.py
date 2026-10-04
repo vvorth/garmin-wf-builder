@@ -142,7 +142,7 @@ def test_a_progress_fallback_renders_the_same_fraction_the_device_draws(
     """Preview and device must agree about an absent reading, not just a present
     one.
 
-    `when_absent: fallback` used to be honoured here and silently dropped by
+    `absent: fallback` used to be honoured here and silently dropped by
     codegen, so the two renderers disagreed in exactly the case the policy
     exists for. They now substitute the same fill fraction, so a half-full
     fallback ring is half full in both -- distinguishable here from the 0.0 an

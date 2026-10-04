@@ -73,9 +73,9 @@ def _widest_text(element: Text) -> str:
                                unit_widest=_widest_label(element))
     for value, more_spec in element.segments()[1:]:
         widest += formatting.widest(more_spec, _source(value), value.value.type, value.scale)
-    if element.when_absent == "placeholder" and element.placeholder:
+    if element.absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
-    if element.when_absent == "fallback" and element.fallback is not None:
+    if element.absent == "fallback" and element.fallback is not None:
         # 'fallback:' is drawn through the exact same format spec as the
         # real value (see `wfb.kinds.text.TextKind.lower`), so its widest
         # rendering has to be considered too -- otherwise a font baked
@@ -131,7 +131,7 @@ def _glyphs(element: Text) -> tuple[set[str], set[str]]:
         glyphs |= formatting.glyphs(more_spec, _source(value), value.value.type, value.scale)
     if element.placeholder:
         glyphs |= set(element.placeholder)
-    if element.when_absent == "fallback" and element.fallback is not None:
+    if element.absent == "fallback" and element.fallback is not None:
         # 'fallback:' is drawn through the same format spec as the real
         # value -- a literal string fallback renders exactly as written,
         # the same way 'placeholder:' is handled above; anything else goes
@@ -252,16 +252,17 @@ def _build_more(b: Builder, node: dict[str, Any], element: Text) -> tuple[TextSe
     entries = node.get("more_values") or []
     if not entries:
         return ()
-    for key, what in (("units", "'units:' converts the reading of a text with one placeholder"),
-                      ("fallback", "'absent: {value:}' substitutes the reading of a text "
-                                   "with one placeholder")):
-        if key in node:
-            b.bag.error("format", f"{element.id}: {what}, and this text has "
-                        f"{len(entries) + 1}", b.doc.span(node, key),
-                        notes=["write 'absent: hide' or a text to draw instead "
-                               "('absent: \"--\"'); the text is absent when any reading is"]
-                        if key == "fallback" else
-                        ["give the converted reading a text element of its own"])
+    if "units" in node:
+        b.bag.error("format", f"{element.id}: 'units:' converts the reading of a text with "
+                    f"one placeholder, and this text has {len(entries) + 1}",
+                    b.doc.span(node, "units"),
+                    notes=["give the converted reading a text element of its own"])
+    if isinstance(node.get("absent"), dict):
+        b.bag.error("format", f"{element.id}: 'absent: {{value:}}' substitutes the reading of "
+                    f"a text with one placeholder, and this text has {len(entries) + 1}",
+                    b.fallback_span(node),
+                    notes=["write 'absent: hide' or a text to draw instead "
+                           "('absent: \"--\"'); the text is absent when any reading is"])
     out = []
     for entry in entries:
         value = b.expression(entry, "value")
@@ -319,9 +320,7 @@ class TextKind(ElementKind[Text, PlacedText]):
             color=b.color_expression(node, "color"),
             align=align,
             vertical_align=vertical_align,
-            when_absent=node.get("when_absent"),
-            placeholder=node.get("placeholder"),
-            fallback=b.expression(node, "fallback") if "fallback" in node else None,
+            **b.absence(node),
         )
         if units is not None:
             _, element.units, element.unit_label, element.unit_labels, element.unit_digits = units
@@ -346,7 +345,7 @@ class TextKind(ElementKind[Text, PlacedText]):
                            if own_aod_format else None)
         if value is not None:
             nullable = next((v for v, _ in element.segments() if v.nullable), value)
-            b.check_absence(node, element, nullable, element.when_absent, element.placeholder,
+            b.check_absence(node, element, nullable, element.absent, element.placeholder,
                             element.fallback)
             b.check_format(node, value, element.format)
             if own_aod_format and element.aod_own is not None:
@@ -513,14 +512,14 @@ class TextKind(ElementKind[Text, PlacedText]):
             # strings are built up front and chosen per frame, inside any
             # placeholder or fallback substitution too.
             text = AodStr(Reading(element.aod.format, value, unit), text)
-        if element.when_absent in ("placeholder", "fallback") and ctx.value_guards:
+        if element.absent in ("placeholder", "fallback") and ctx.value_guards:
             # One string, not two draw calls: a placeholder is a different
             # value, and a fallback the same, through the same format.
-            if element.when_absent == "placeholder":
+            if element.absent == "placeholder":
                 ops.append(Comment(vocab.absent(element)))
                 initial: Str = StrLit(element.placeholder or "")
             else:
-                assert element.fallback is not None  # when_absent: fallback sets it
+                assert element.fallback is not None  # absent: fallback sets it
                 initial = Reading(element.format or "{}", element.fallback, unit)
                 ops.append(Comment(vocab.absent(element)))
             ops += [LetText(initial, text, ctx.value_guards), Blank()]

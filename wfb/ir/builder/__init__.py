@@ -9,7 +9,7 @@ which is what lets `mypy --strict` check each module on its own:
 
     state       shared state, `NamedRegistry`, `dedup_append`, `and_paths`
     reading     one key of a node: expressions, colours, lengths, fonts
-    absence     `when_absent:` and `format:`
+    absence     `absent:` and `format:`
     glyphs      icons, `outline:`, `curve:`, `unsupported:`
     visibility  `visible:` and the enclosing groups' conditions
     fonts       the `fonts:` block
@@ -66,7 +66,7 @@ class Builder(ElementTree):
       `position`, `size`, `alignment`, `baked_size_length`; `require`
       reports a key the schema cannot require by itself.
     - Absence and `format:`: `check_absence` (the value's own
-      `when_absent:`), `check_other_absence` (any other nullable binding),
+      `absent:`), `check_other_absence` (any other nullable binding),
       `check_reachable_substitute`, `nullable_sources`, `check_format`,
       `check_format_spec`, `check_format_not_on_literal`.
     - Fonts and icons: `resolve_font`, `is_vector_font`, `font_kind_note`,

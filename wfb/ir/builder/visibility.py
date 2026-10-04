@@ -23,7 +23,7 @@ class VisibilityHelpers(GlyphHelpers):
         truthiness rule invented on their behalf (Monkey C has no truthy
         Number, so `visible: activity.steps` would not even compile).
 
-        Deliberately no `when_absent:` companion.  `when_absent:` chooses a
+        Deliberately no `absent:` companion.  `absent:` chooses a
         substitute *value*; there is no substitute for existence, so a
         nullable source here means exactly one thing -- absent is hidden --
         and the emitter folds the null check into the same guard as the

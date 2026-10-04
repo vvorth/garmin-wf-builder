@@ -281,7 +281,7 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
 
 def _print_slot_text(w: Writer, op: SlotText) -> None:
     def absent() -> None:
-        if op.when_absent == "placeholder":
+        if op.absent == "placeholder":
             w.comment(f'absent: "{op.placeholder}"')
             w.line(f'text = "{op.placeholder}";')
         else:

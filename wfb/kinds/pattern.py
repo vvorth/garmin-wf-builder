@@ -256,7 +256,7 @@ def _render_pattern_texts(b: Builder, element_id: str, parts: list[AnyHandPart],
 
 
 def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternElement) -> None:
-    """One element-level `when_absent:` check for a pattern, in place of
+    """One element-level `absent:` check for a pattern, in place of
     a per-colour refusal: a pattern colour may read a source that can be
     absent, so the compiler needs a policy from the author instead of a
     blanket rejection.
@@ -274,7 +274,7 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
     binding that went missing -- the reading is taken once per frame,
     before the loop.
 
-    The mirror case -- `when_absent: hide` declared but nothing on the
+    The mirror case -- `absent: hide` declared but nothing on the
     pattern is ever absent -- reuses `check_absence`'s own "has no
     effect" wording, so both notes read the same across every element
     kind that has one.
@@ -292,7 +292,7 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
             nullable.append(expression)
 
     if nullable:
-        if element.when_absent is not None:
+        if element.absent is not None:
             return
         sources = tuple(sorted(b.nullable_sources(tuple(nullable))))
         first = nullable[0]
@@ -310,12 +310,12 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
             ],
         )
         return
-    if element.when_absent is not None:
+    if element.absent is not None:
         b.bag.note(
             "when-absent",
             f"{element.id}: 'absent:' has no effect -- nothing this "
             "pattern reads is ever absent",
-            b.doc.span(node, "when_absent"),
+            b.doc.span(node, "absent"),
         )
 
 
@@ -620,7 +620,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             parts=parts,
             color=element_color,
             colors=tuple(colors),
-            when_absent=node.get("when_absent"),
+            absent=node.get("absent"),
         )
         _check_pattern_absence(b, node, element)
         return element

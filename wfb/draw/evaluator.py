@@ -619,7 +619,7 @@ def slot_text(op: SlotText, values: Mapping[str, object]) -> str:
     reading = complications.format_reading(op.type_name, op.sample, unit=op.unit,
                                            short=op.short, settings=settings)
     if reading is None:
-        return op.placeholder or "" if op.when_absent == "placeholder" else ""
+        return op.placeholder or "" if op.absent == "placeholder" else ""
     return op.label_sample + reading
 
 

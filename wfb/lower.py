@@ -430,7 +430,7 @@ class _Lowering:
                 for child in children.values():
                     if isinstance(child, CommentedMap):
                         self.element(child)
-        self.absent(node, kind)
+        self.absent(node)
         self.aod(node)
 
     def common(self, node: CommentedMap, kind: Any) -> None:
@@ -618,21 +618,10 @@ class _Lowering:
                 self.doc.set_origin(node, f"icon_{key}", Origin(f"icon.{key}"))
             self.expr_key(node, "icon_color", author="icon.color")
 
-    def absent(self, node: CommentedMap, kind: Any) -> None:
-        if "absent" not in node:
-            return
-        value = node["absent"]
-        if value == "hide":
-            self.rekey(node, "absent", "when_absent", author="absent")
-        elif isinstance(value, CommentedMap) and "value" in value:
-            self.rekey(node, "absent", "when_absent", "fallback", author="absent")
-            self.add(node, "fallback", value["value"], "when_absent", author="absent.value",
-                     after="when_absent")
-            self.expr_key(node, "fallback", author="absent.value")
-        elif isinstance(value, str):
-            self.rekey(node, "absent", "when_absent", "placeholder", author="absent")
-            self.add(node, "placeholder", value, "when_absent", author="absent",
-                     after="when_absent")
+    def absent(self, node: CommentedMap) -> None:
+        value = node.get("absent")
+        if isinstance(value, CommentedMap):
+            self.expr_key(value, "value", author="absent.value")
 
     def aod(self, node: CommentedMap) -> None:
         aod = node.get("aod")

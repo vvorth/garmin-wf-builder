@@ -8,7 +8,7 @@ a human, so it must read as though someone wrote it.  Concretely --
 * every drawing block carries a comment naming the YAML element it came from;
 * layout constants are named in a per-device ``Layout`` module rather than
   inlined as bare numbers;
-* every nullable read is guarded, and the guard states the ``when_absent``
+* every nullable read is guarded, and the guard states the ``absent``
   policy that produced it.
 
 The code targets ``-l 3`` (strict typecheck) cleanly.  A generator has no excuse

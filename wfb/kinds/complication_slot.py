@@ -114,7 +114,7 @@ def _check_slot_color_absence(
     color: Expression | None, note: str,
 ) -> None:
     """A complication_slot's `color:`/`icon_color:` may not read
-    anything absent-able -- neither has a `when_absent:` of its own to
+    anything absent-able -- neither has a `absent:` of its own to
     fall back through, unlike the pulled reading itself (shared by both
     colours in `build`; `note` carries the one
     wording difference between them -- "colour ... its own" vs.
@@ -162,7 +162,7 @@ def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
         candidate = complications.widest_reading(name, element.unit, element.short)
         if not widest or font.width(candidate) > font.width(widest):
             widest = candidate
-    if element.when_absent == "placeholder" and element.placeholder:
+    if element.absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
     return widest
 
@@ -452,6 +452,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
 
         color = b.color_expression(node, "color")
         align, vertical_align = b.alignment(node)
+        absence = b.absence(node)
         element = ComplicationSlot(
             **common,
             slot=(slot.name if slot is not None else str(slot_raw)),
@@ -463,8 +464,8 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             label=node.get("label", "none"),
             unit=bool(node.get("unit", False)),
             short=bool(node.get("short", False)),
-            when_absent=node.get("when_absent", "hide"),
-            placeholder=node.get("placeholder"),
+            absent=absence["absent"] or "hide",
+            placeholder=absence["placeholder"],
             align=align,
             vertical_align=vertical_align,
         )
@@ -527,9 +528,6 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             "a data element's colours have no 'absent:' of their own -- "
             "'absent:' governs the pulled reading, not the element's appearance",
         )
-
-        if element.when_absent == "placeholder" and element.placeholder is None:
-            b.require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
 
         return element
 
@@ -687,7 +685,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         ops += [
             Blank(),
             SlotText(complication_slot_mod.SLOT_TEXT_MODULE, guarded, element.unit, element.short, element.label,
-                     element.when_absent, element.placeholder, ctype.name, sample,
+                     element.absent, element.placeholder, ctype.name, sample,
                      {"short": "Now ", "long": "Current "}.get(element.label or "", "")),
         ]
         text_paint = AodRestyled(element, "color")

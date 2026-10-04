@@ -264,7 +264,7 @@ class GraphKind(ElementKind[Graph, PlacedGraph]):
             vertical_align=vertical_align,
         )
         # No `check_other_absence`: like `shape` and `icon`, a graph has no
-        # `when_absent:`; a nullable `color:`/`min:`/`max:` still gets a
+        # `absent:`; a nullable `color:`/`min:`/`max:` still gets a
         # guard from `ReadPlan`, which hides the element when absent.
         return element
 

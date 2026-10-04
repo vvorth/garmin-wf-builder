@@ -361,9 +361,9 @@ def test_renamed_to_helper():
 #:   - "font": `wfb.kinds.text.TextKind.lower` (a custom text font) and
 #:     `wfb.kinds.icon.IconKind.lower` (the icon's baked font) -- never both in
 #:     one element, but both are this same kind of scope.
-#:   - "text": `wfb.kinds.text.TextKind.lower`'s `when_absent: placeholder`/`fallback`
+#:   - "text": `wfb.kinds.text.TextKind.lower`'s `absent: placeholder`/`fallback`
 #:     branches.
-#:   - "fraction": `wfb.kinds.progress.ProgressKind.lower`'s `when_absent: fallback` branch.
+#:   - "fraction": `wfb.kinds.progress.ProgressKind.lower`'s `absent: fallback` branch.
 #:   - "filled": `wfb.kinds.progress.ProgressKind.lower`'s rectangle-style fill width.
 #: A future catalogue entry landing on one of these would be exactly the
 #: same class of `Redefinition of variable` this test exists to catch,

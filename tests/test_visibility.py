@@ -4,7 +4,7 @@ Three things are being pinned down here, and they are worth naming because
 each was a real decision rather than an obvious consequence:
 
 1. **Absent means hidden.**  A nullable source read by `visible:` contributes a
-   `== null` to the *same* guard as the condition, and takes no `when_absent:`
+   `== null` to the *same* guard as the condition, and takes no `absent:`
    policy -- there is no substitute for existence.
 2. **A group's condition is pushed into its subtree by the IR**, not by the
    emitter.  A `group` emits no draw method and `wfb.layout` flattens the tree,
@@ -152,7 +152,7 @@ def test_a_comparison_is_accepted_and_typed_boolean(write_design, bag):
 
 
 def test_a_nullable_condition_needs_no_when_absent(write_design, bag):
-    """`when_absent:` chooses a substitute *value*; existence has none, so a
+    """`absent:` chooses a substitute *value*; existence has none, so a
     nullable `visible:` must not trip the "policy required" error the same
     source would trip in `value:`."""
     face = _face(write_design, bag, NULLABLE)
@@ -193,7 +193,7 @@ def test_a_visible_source_is_not_null_checked_twice(write_design, bag, db, tmp_p
 
 def test_a_placeholder_policy_does_not_re_guard_a_visible_source(
         write_design, bag, db, tmp_path):
-    """The `when_absent: placeholder` path guards colour bindings separately
+    """The `absent: placeholder` path guards colour bindings separately
     from the value's (a colour has no placeholder).  A source read by
     `visible:` must not pick up a guard there either: the visibility guard has
     already returned on null."""

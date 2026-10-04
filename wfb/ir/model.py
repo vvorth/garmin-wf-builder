@@ -72,13 +72,13 @@ GROUP_KEYS: dict[str, str] = {
 #:
 #: * `ROLE_VALUE` -- `Text.value`, `Progress.value`, `IconElement.value_for`.
 #:   `Element.VALUE_ROLES` (a per-kind subset of the roles below) is what a
-#:   `when_absent:` policy actually governs (`ReadPlan._value_expressions`);
+#:   `absent:` policy actually governs (`ReadPlan._value_expressions`);
 #:   `Builder._hold_auto_sources` reads every `ROLE_VALUE` expression
 #:   directly, regardless of `VALUE_ROLES` -- the two ask different
 #:   questions (root docs, `docs/lore/codegen.md`) and only happen to share
 #:   a tag for "the expression this element is about".
 #: * `ROLE_MAX`/`ROLE_MIN` -- `Progress.maximum`, `Graph.max`/`Graph.min`.
-#: * `ROLE_FALLBACK` -- a `when_absent: fallback` substitute.
+#: * `ROLE_FALLBACK` -- a `absent: fallback` substitute.
 #: * `ROLE_COLOR`/`ROLE_TRACK_COLOR`/`ROLE_ICON_COLOR` -- any element's own
 #:   `color:`/`track_color:`/`icon_color:`, and each colour folded into
 #:   `HandsElement.colors`/`PatternElement.colors` (tagged `ROLE_COLOR`).
@@ -734,10 +734,10 @@ class ConfigDataSlot:
 
 @dataclass
 class Element:
-    #: The `bound_expressions()` roles a `when_absent:` policy on this kind
+    #: The `bound_expressions()` roles a `absent:` policy on this kind
     #: governs -- `{ROLE_VALUE}` for `Text`, `{ROLE_VALUE,
     #: ROLE_MAX}` for `Progress`, empty for every other kind, which has no
-    #: `when_absent:` field at all.  `ReadPlan._value_expressions` reads
+    #: `absent:` field at all.  `ReadPlan._value_expressions` reads
     #: this directly; `Builder._hold_auto_sources` does not (see
     #: `ROLE_VALUE`'s own docstring for why the two differ).
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset()
@@ -779,7 +779,7 @@ class Element:
     #: `wfb.lint.check_override_selectors`.
     override_selectors: tuple[tuple[str, Span | None], ...] = ()
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
-    #: all.  **Absent means hidden** (no `when_absent:` applies).  A group's
+    #: all.  **Absent means hidden** (no `absent:` applies).  A group's
     #: is conjoined into every descendant's own (`Builder.push_visible`),
     #: since a group draws nothing itself; the copy left on the group is what
     #: the `dead-element` lint reports against.
@@ -1207,13 +1207,13 @@ class PatternElement(Element):
     #: Every effective colour (the element default, each part's own, and
     #: each part's `outline.color`), deduplicated in first-use order.
     colors: tuple[Expression, ...] = ()
-    #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
+    #: `absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
     #: the only value -- a pattern has no placeholder/fallback, see
     #: `wfb.kinds.pattern._check_pattern_absence`).  Required once any colour or part
     #: `visible:` reads a source that can be absent; absence then hides the
     #: whole pattern, every copy and every part, because the reading is
     #: taken once per frame, before the loop.
-    when_absent: str | None = None
+    absent: str | None = None
 
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
@@ -1291,7 +1291,7 @@ class Text(Element):
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     color: Expression | None = None
-    when_absent: str | None = None
+    absent: str | None = None
     placeholder: str | None = None
     fallback: Expression | None = None
     #: `curve:`, or `None` for upright text; needs a `face:` (vector) font.
@@ -1308,7 +1308,7 @@ class Text(Element):
     unit_labels: tuple[str, ...] = ()
     unit_digits: int | None = None
 
-    #: `when_absent:` governs `value:` alone -- the same substitutable
+    #: `absent:` governs `value:` alone -- the same substitutable
     #: binding `ROLE_VALUE` tags below.
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE})
 
@@ -1351,7 +1351,7 @@ class Progress(Element):
     size: Size = field(default_factory=Size)
     color: Expression | None = None
     track_color: Expression | None = None
-    when_absent: str | None = None
+    absent: str | None = None
     fallback: Expression | None = None
     #: `style: needle` only: the needle's parts, authored like an analog
     #: hand's (pointing at 12, the axis at the origin), each with its
@@ -1375,7 +1375,7 @@ class Progress(Element):
             return self.style
         return "arc" if self.radius is not None else "bar"
 
-    #: `when_absent:` governs the fraction `value:`/`maximum:` compute
+    #: `absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
     #: fraction's own point of view (`wfb.kinds.progress.ProgressKind.build`).
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
@@ -1464,7 +1464,7 @@ class ComplicationSlot(Element):
     #: authored gap becomes a per-device `Layout.<ID>_ICON_GAP` constant.
     icon_gap: Length | None = None
     #: The icon's own colour, or `None` to share `color:`.  Neither colour
-    #: may be nullable: `when_absent:` governs only the pulled reading.
+    #: may be nullable: `absent:` governs only the pulled reading.
     icon_color: Expression | None = None
     #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
     #: `.longLabel`, read alongside the value, never authored.
@@ -1480,7 +1480,7 @@ class ComplicationSlot(Element):
     short: bool = False
     #: `hide` (default) | `placeholder`.  "hide" blanks only the reading and
     #: keeps the icon, which still says what the slot is pointed at.
-    when_absent: str = "hide"
+    absent: str = "hide"
     placeholder: str | None = None
 
     def _own_roles(self) -> list[tuple[str, Expression]]:

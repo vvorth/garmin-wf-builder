@@ -432,7 +432,7 @@ def test_missing_color_is_an_error(write_design):
 
 
 def test_nullable_color_is_an_error(write_design):
-    """There is no `when_absent:` for the element's own appearance -- only
+    """There is no `absent:` for the element's own appearance -- only
     for the pulled reading."""
     text = HEAD + DATA_BLOCK + """elements:
   a:

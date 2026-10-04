@@ -602,7 +602,7 @@ These cost real time to discover; do not rediscover them.
   `graph`, `filled` as an `if (_aod) { <opposite draw> } else { <awake
   draw> } ` branch (`wfb.kinds.shape._emit_filled_toggle`), `format`
   as two fully-formatted value expressions ternaried against each other
-  (built before `when_absent:` substitution, so a placeholder/fallback
+  (built before `absent:` substitution, so a placeholder/fallback
   still sees the right one), and `hands`/`pattern` `color`/`thickness`
   applied uniformly to every part by ternarying the *existing* per-part/
   hoisted `dc.setColor`/`dc.setPenWidth` call sites against one element-

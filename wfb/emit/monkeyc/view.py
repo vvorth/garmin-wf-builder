@@ -1482,7 +1482,7 @@ def _method_doc(placed: Placed) -> str:
     if element.visible is not None:
         lines.append(f"Drawn only when `{element.visible.shown}` "
                      "(absent readings count as hidden).")
-    policy = getattr(element, "when_absent", None)
+    policy = getattr(element, "absent", None)
     if policy:
         keeps = policy == "hide" and kinds.for_placed(placed).draws_while_absent(element)
         lines.append(f"Absence policy: `{vocab.absent(element)}`"
@@ -1538,7 +1538,7 @@ def _emit_visible_guard(w: Writer, placed: Placed, plan: "ReadPlan") -> None:
 
     The shape is `if (x == null || !(cond)) { return; }`, one `== null` per
     nullable local the condition reads.  That is "absent means hidden" written
-    out: there is no `when_absent:` for existence, so an unavailable reading
+    out: there is no `absent:` for existence, so an unavailable reading
     and a false condition are the same outcome and belong in the same test.
     Verified that `monkeyc` narrows the local across the `||` -- the condition
     on the right dereferences it -- with a real warning-free `-w` build under

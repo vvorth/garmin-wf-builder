@@ -48,7 +48,7 @@ class ReadPlan:
         #: The subset of `_bound` reached through the element's *value*
         #: expression(s) specifically -- `Text.value`, or `Progress.value`
         #: and `Progress.maximum` together, since both feed one fraction.
-        #: This is what a `when_absent: placeholder`/`fallback` policy
+        #: This is what a `absent: placeholder`/`fallback` policy
         #: actually governs.
         self._value_bound: dict[str, list[str]] = {}
         #: The subset reached through every *other* expression (colour, track
@@ -56,7 +56,7 @@ class ReadPlan:
         #: `_value_bound`, not by subtracting it, because a source can be
         #: dereferenced at *both* sites (`value: heart_rate.current` and
         #: `color: "heart_rate.current > 100 ? ..."`) and each site needs its
-        #: own protection: the value's dereference is what `when_absent`
+        #: own protection: the value's dereference is what `absent`
         #: covers, but the colour's is a second, independent dereference of
         #: the same possibly-null local, which a placeholder for the *text*
         #: does nothing to protect.
@@ -307,7 +307,7 @@ class ReadPlan:
         These become the `x == null` halves of the visibility guard
         (`_emit_visible_guard`).  "Absent means hidden" is the whole rule:
         unlike a value, an unavailable reading has no substitute, so there is
-        no `when_absent:` to consult here.
+        no `absent:` to consult here.
         """
 
         return self._guarded_locals(self._visible_bound[placed.id])
@@ -325,20 +325,20 @@ class ReadPlan:
 
     @staticmethod
     def _value_expressions(element: Element) -> tuple[Expression, ...]:
-        """Which of an element's bound expressions its `when_absent:`
+        """Which of an element's bound expressions its `absent:`
         policy governs -- `element.VALUE_ROLES`: `{value}` for
         a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
         on both together -- one nullable reading is as absent as the other,
         from the fraction's own point of view, which is also why
         `wfb.kinds.progress.ProgressKind.build` checks their combined nullability as one
-        thing), empty for every other kind, which has no `when_absent:`
+        thing), empty for every other kind, which has no `absent:`
         field at all -- nothing here is "the value" for one of those, so
         every binding is an "other" one, guarded unconditionally.
 
         Deliberately not what `Builder._hold_auto_sources` reads off the
         same roles: that one wants every `value`-role expression regardless
         of kind (`IconElement.value_for` included), because `on_hold: auto`
-        asks "what is this element about", not "what does `when_absent:`
+        asks "what is this element about", not "what does `absent:`
         cover".
         """
         return tuple(e for role, e in element.bound_expressions() if role in element.VALUE_ROLES)
@@ -403,7 +403,7 @@ class ReadPlan:
                 # The reader itself can be absent -- Activity.getActivityInfo()
                 # returns null when there is no activity -- so the field cannot
                 # be dereferenced unconditionally.  Narrowing here keeps the
-                # element's own `when_absent` guard below unchanged: an absent
+                # element's own `absent` guard below unchanged: an absent
                 # reader and an absent field are the same thing to the design.
                 guard_parts.append(f"{reader.name} != null")
             if source.array_guard is not None:
