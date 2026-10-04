@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from wfb.build import load
 from wfb.ir import (
-    ComplicationSlot, Graph, HandsElement, IconElement, PatternElement, Progress, Shape, Text,
+    DataElement, Graph, HandsElement, IconElement, PatternElement, Gauge, Shape, Text,
     ROLE_COLOR, ROLE_FALLBACK, ROLE_ICON_COLOR, ROLE_MAX, ROLE_MIN, ROLE_OUTLINE_COLOR,
     ROLE_PART_TEXT, ROLE_PART_VISIBLE, ROLE_TRACK_COLOR, ROLE_VALUE, ROLE_VISIBLE,
 )
@@ -100,7 +100,7 @@ elements:
 def test_progress_bound_expressions_order(write_design, bag):
     face = _face(PROGRESS_DESIGN, write_design, bag)
     bar = _by_id(face, "bar")
-    assert isinstance(bar, Progress)
+    assert isinstance(bar, Gauge)
 
     expected = [e for e in (bar.value, bar.maximum, bar.color, bar.track_color, bar.fallback) if e]
     assert bar.expressions() == expected
@@ -110,7 +110,7 @@ def test_progress_bound_expressions_order(write_design, bag):
     assert [r for r, _ in roles] == [
         ROLE_VALUE, ROLE_MAX, ROLE_COLOR, ROLE_TRACK_COLOR, ROLE_FALLBACK,
     ]
-    assert Progress.VALUE_ROLES == frozenset({ROLE_VALUE, ROLE_MAX})
+    assert Gauge.VALUE_ROLES == frozenset({ROLE_VALUE, ROLE_MAX})
 
 
 ICON_DESIGN = """
@@ -184,15 +184,15 @@ elements:
 """
 
 
-def test_complication_slot_bound_expressions_order(write_design, bag):
+def test_data_bound_expressions_order(write_design, bag):
     face = _face(COMPLICATION_SLOT_DESIGN, write_design, bag)
     reading = _by_id(face, "reading")
-    assert isinstance(reading, ComplicationSlot)
+    assert isinstance(reading, DataElement)
 
     expected = [e for e in (reading.color, reading.icon_color) if e]
     assert reading.expressions() == expected
     assert [r for r, _ in reading.bound_expressions()] == [ROLE_COLOR, ROLE_ICON_COLOR]
-    assert ComplicationSlot.VALUE_ROLES == frozenset()
+    assert DataElement.VALUE_ROLES == frozenset()
 
 
 PATTERN_DESIGN = """
@@ -287,7 +287,7 @@ def test_progress_color_roles(write_design, bag):
     assert all(r.is_glyph for r in roles)
 
 
-def test_complication_slot_color_roles(write_design, bag):
+def test_data_color_roles(write_design, bag):
     face = _face(COMPLICATION_SLOT_DESIGN, write_design, bag)
     reading = _by_id(face, "reading")
     roles = reading.color_roles()

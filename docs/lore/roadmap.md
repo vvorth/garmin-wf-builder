@@ -75,7 +75,7 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Gauge styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
   to `start_angle + fraction × sweep`; `Builder.build_hand_part`),
   `segments` and `scale` (`wfb.lint.check_progress_segments`); `absent:
-  hide` keeps the track (`wfb.kinds.progress.keeps_track`).
+  hide` keeps the track (`wfb.kinds.gauge.keeps_track`).
   `docs/guide/progress-and-graphs.md`.
 - **Gauges on a slot, and `max: auto`** (research 24) — `slot:` on a gauge
   shows the wearer's pick against its own scale, and `max: auto` on a bare

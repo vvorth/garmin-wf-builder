@@ -104,8 +104,8 @@ def static_group_method(element_id: str) -> str:
     return "drawStatic" if suffix == "Static" else "drawStatic" + suffix
 
 
-def complication_slot_icon_method(element_id: str) -> str:
-    """The private method that resolves one `complication_slot`'s icon glyph
+def data_icon_method(element_id: str) -> str:
+    """The private method that resolves one `data`'s icon glyph
     from a `Complications.Type` (``iconForTopReading``).
 
     A generated method, not an inline mutable local, because Monkey C locals
@@ -123,8 +123,8 @@ def complication_slot_icon_method(element_id: str) -> str:
     return "iconFor" + _element_suffix(element_id)
 
 
-def complication_slot_hold_method(element_id: str) -> str:
-    """The public method `on_hold: auto` on a `complication_slot` compiles to
+def data_hold_method(element_id: str) -> str:
+    """The public method `on_hold: auto` on a `data` element compiles to
     (``holdTargetForTopReading``), returning this slot's own current
     `Complications.Id` so the delegate can hand it straight to
     `Complications.exitTo` without baking in a fixed type at build time.
@@ -135,7 +135,7 @@ def complication_slot_hold_method(element_id: str) -> str:
     modifier dropped).  Only emitted for a slot that actually declares
     `on_hold: auto`, but derived here regardless of that, for the same "an
     unrelated later edit must not introduce a collision" reasoning
-    `complication_slot_icon_method` already gives.
+    `data_icon_method` already gives.
     """
     return "holdTargetFor" + _element_suffix(element_id)
 

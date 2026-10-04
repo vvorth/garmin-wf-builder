@@ -17,7 +17,7 @@ from ...ir import (
     font_resource_id, local_name, static_group_method,
 )
 from ...ir.rings import RingGroup, ring_groups
-from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
+from ...layout import Placed, PlacedData, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
@@ -26,9 +26,9 @@ from .common import (
     _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
 )
-from .complication_slot import (
-    _emit_complication_slot_editor_methods, _emit_complication_slot_hold_method,
-    _emit_complication_slot_icon_method, _emit_pulsing_field, _emit_resources_loaded_field,
+from .data import (
+    _emit_data_editor_methods, _emit_data_hold_method,
+    _emit_data_icon_method, _emit_pulsing_field, _emit_resources_loaded_field,
     LOAD_RESOURCES_METHOD, RESOURCES_LOADED_FIELD,
 )
 from . import config_menu
@@ -338,12 +338,12 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None,
         for graph in graphs:
             _emit_graph_rebuild(w, graph, guards)
         for placed in resolved.items:
-            if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
-                _emit_complication_slot_icon_method(w, resolved, placed)
-            if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
-                _emit_complication_slot_hold_method(w, placed, guards)
+            if isinstance(placed, PlacedData) and placed.icon_font_key is not None:
+                _emit_data_icon_method(w, resolved, placed)
+            if isinstance(placed, PlacedData) and placed.element.on_hold == HOLD_AUTO:
+                _emit_data_hold_method(w, placed, guards)
         if slot_pairs:
-            _emit_complication_slot_editor_methods(w, resolved, plan, slot_pairs)
+            _emit_data_editor_methods(w, resolved, plan, slot_pairs)
         if static is not None:
             _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config,
                                  from_menu=guards.config_menu, plan=plan, rings=rings)
@@ -772,7 +772,7 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
     """The view's constructor.
 
     `editMode` is accepted, not stored, when the design has at least one
-    `complication_slot`: `getComplicationDrawable`/`onTap` are self-gating --
+    `data`: `getComplicationDrawable`/`onTap` are self-gating --
     the system simply never calls them outside the editor -- and this
     project pulls every complication fresh every frame rather than caching
     or subscribing the way the SDK sample's own `_editMode` flag skips a
@@ -991,7 +991,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
                     profile: "profile_mod.ProfilePlan | None" = None) -> None:
     """`onUpdate`.
 
-    With ``editor_slots`` (a `complication_slot` the native editor can
+    With ``editor_slots`` (a `data` element the native editor can
     animate), the frame ends by clearing `_pulsing`: the skip covers one
     redraw only.  Traced on a fenix8solar47mm: each move in the editor's
     Data step asks for the slot's drawable, draws it once and redraws the
@@ -1533,7 +1533,7 @@ def _negatable(code: str) -> str:
 def _emit_visible_guard(w: Writer, placed: Placed, plan: "ReadPlan") -> None:
     """`visible:` -- one guard covering both absence and the condition.
 
-    Emitted before every other guard, and before a complication_slot's own
+    Emitted before every other guard, and before a data element's own
     early return, because visibility gates the element as a whole.
 
     The shape is `if (x == null || !(cond)) { return; }`, one `== null` per

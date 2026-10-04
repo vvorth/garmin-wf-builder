@@ -48,7 +48,7 @@ class SlotIcon:
     `wfb.ir.ConfigDataSlot.icons` returns it.
 
     ``key`` is what the generated per-slot switch (`wfb.emit.monkeyc.
-    _emit_complication_slot_icon_method`) returns -- either a
+    _emit_data_icon_method`) returns -- either a
     :data:`CATALOG` name (the ordinary case, and every entry
     :data:`COMPLICATION_ICON` supplies) or the canonical ``"U+XXXX"``
     spelling (:func:`codepoint_key`) for a per-choice ``glyph:`` override --
@@ -127,7 +127,7 @@ def codepoint_key(character: str) -> str:
     """The canonical ``"U+XXXX"`` spelling for a character.
 
     Used wherever a glyph, not a catalogue name, has to serve as a stable
-    dict/switch key -- a `complication_slot` choice's ``glyph:`` override
+    dict/switch key -- a `data` element choice's ``glyph:`` override
     (`wfb.ir.ConfigDataSlot.icons`) is the first user: the
     per-slot icon switch returns this string, and `IconGlyphs.glyph()` gains
     a matching ``case`` for it, generated from the same
@@ -477,7 +477,7 @@ WEATHER_BAKE_REFERENCE_GLYPH: str = CATALOG["weather_rain"].codepoint
 # ============================================================================
 # Complication-type-to-icon aliases (docs/research/09-data-library-and-config-axes.md §4)
 #
-# A `type: complication_slot` element draws whichever complication the wearer
+# A `type: data element` element draws whichever complication the wearer
 # repointed the slot at, and `Complications.Id.getType()` is readable
 # on-device regardless of whether the pulled *value* is available -- so the
 # icon can be resolved from the type alone, the same "which name, then which

@@ -17,7 +17,7 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.manifest import permissions
 from wfb.emit.resources import bake_fonts
-from wfb.kinds import progress
+from wfb.kinds import gauge
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
@@ -196,9 +196,9 @@ def test_a_pick_with_no_scale_hides_the_whole_gauge(write_design, db):
 
 
 def test_a_scaled_pick_without_a_reading_keeps_its_track(write_design, db, monkeypatch):
-    sample = dict(progress.COMPLICATION_SLOT_SAMPLE)
+    sample = dict(gauge.DATA_SAMPLE)
     del sample["battery"]
-    monkeypatch.setattr(progress, "COMPLICATION_SLOT_SAMPLE", sample)
+    monkeypatch.setattr(gauge, "DATA_SAMPLE", sample)
     colors = _colors(_design(ARC, "battery"), write_design, db)
     assert TRACK in colors and FILL not in colors
 

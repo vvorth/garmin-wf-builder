@@ -8,8 +8,8 @@ from typing import Any, TYPE_CHECKING
 
 from .. import catalog, complications, expr, vocab
 from ..catalog import Type
-from ..ir.model import HOLD_AUTO, Element, Expression, Progress
-from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
+from ..ir.model import HOLD_AUTO, Element, Expression, Gauge
+from ..layout import Placed, PlacedGauge, arc_box, rotatable_parts, stroke_pad
 from ..preview import SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -25,7 +25,7 @@ from ..draw.program import (
     PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted,
 )
 from . import ElementKind
-from .complication_slot import COMPLICATION_SLOT_SAMPLE, resolve_slot_reference
+from .data import DATA_SAMPLE, resolve_slot_reference
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from ..ir.model import Face
     from ..layout import Resolver, RotatablePart
 
-def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress) -> None:
+def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Gauge) -> None:
     """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
 
     This is the one place `fallback:` means something other than "the
@@ -125,13 +125,13 @@ def _check_slot_keys(b: Builder, node: dict[str, Any], element_id: str) -> bool:
     return ok
 
 
-def keeps_track(element: Progress) -> bool:
+def keeps_track(element: Gauge) -> bool:
     """Whether `absent: hide` still draws this gauge's value-independent
     parts -- the arc or bar track, every segment unlit, a scale's track and
     bands -- and hides only what the value places: the fill, the lit
     segments, the pointer.  A needle has nothing that does not depend on the
     value, so it hides whole.  The one definition the program
-    (`ProgressKind.lower`) and the view's guard (`draws_while_absent`) both
+    (`GaugeKind.lower`) and the view's guard (`draws_while_absent`) both
     read."""
     return element.absent == "hide" and element.style != "needle"
 
@@ -148,7 +148,7 @@ _NEEDLE_UNREAD = {
 }
 
 
-def _build_needle(b: Builder, node: dict[str, Any], element: Progress) -> bool:
+def _build_needle(b: Builder, node: dict[str, Any], element: Gauge) -> bool:
     """`style: needle`'s parts, built exactly like an analog hand's
     (`Builder.build_hand_part`), with the element's own `color:` as every
     part's default.  False when anything was reported."""
@@ -178,7 +178,7 @@ _STYLE_ONLY_KEYS = {"needle": "needle", "count": "segments", "gap": "segments",
 _ARC_KEYS = ("radius", "thickness", "start_angle", "sweep")
 
 
-def _build_ticked(b: Builder, node: dict[str, Any], element: Progress) -> bool:
+def _build_ticked(b: Builder, node: dict[str, Any], element: Gauge) -> bool:
     """`style: segments`/`scale`: which track they draw on (an arc's four
     keys, or a bar's `size:` -- exactly one), then their own keys.  False
     when anything was reported."""
@@ -223,7 +223,7 @@ def _build_ticked(b: Builder, node: dict[str, Any], element: Progress) -> bool:
     return True
 
 
-def _resolve_ticked(r: Resolver, element: Progress, placed: PlacedProgress,
+def _resolve_ticked(r: Resolver, element: Gauge, placed: PlacedGauge,
                     parent: Box) -> None:
     """`segments`' cell and step, or `scale`'s pointer and band spans, on the
     track `placed` already has (degrees on an arc, pixels on a bar)."""
@@ -268,7 +268,7 @@ def _resolve_ticked(r: Resolver, element: Progress, placed: PlacedProgress,
                             bar.width + 2 * placed.pointer, bar.height + 2 * dy)
 
 
-def _fallback_num(element: Progress) -> Num:
+def _fallback_num(element: Gauge) -> Num:
     """The `progress` fallback, a Float in 0.0-1.0, as a program value.
 
     Two things have to be true of it, and neither is automatic.  It must be a
@@ -290,10 +290,10 @@ def _fallback_num(element: Progress) -> Num:
 
 
 class _Lowering:
-    """One gauge's program: `ProgressKind.lower`'s helpers, sharing the
+    """One gauge's program: `GaugeKind.lower`'s helpers, sharing the
     placed gauge, its `Layout` constants and its paints."""
 
-    def __init__(self, ctx: DrawContext, placed: PlacedProgress) -> None:
+    def __init__(self, ctx: DrawContext, placed: PlacedGauge) -> None:
         self.ctx = ctx
         self.placed = placed
         self.element = element = placed.element
@@ -374,7 +374,7 @@ class _Lowering:
         face = self.ctx.resolved.face
         slot = face.config_data.get(element.slot)
         shown = self.ctx.shown(slot) if slot is not None else None
-        sample = COMPLICATION_SLOT_SAMPLE.get(shown) if shown is not None else None
+        sample = DATA_SAMPLE.get(shown) if shown is not None else None
         scale = (complications.scale_for(
             shown, goals=SAMPLE_GOALS, heart_rate_zones=SAMPLE_HEART_RATE_ZONES,
             sex=SAMPLE_WEARER_SEX, age=SAMPLE_WEARER_AGE, value=sample)
@@ -625,17 +625,17 @@ def _wrap(cond: Cond | None, body: list[Op]) -> list[Op]:
     return [If(cond, tuple(body))] if cond is not None else body
 
 
-class ProgressKind(ElementKind[Progress, PlacedProgress]):
-    name = "progress"
-    ir_class = Progress
-    placed_class = PlacedProgress
+class GaugeKind(ElementKind[Gauge, PlacedGauge]):
+    name = "gauge"
+    ir_class = Gauge
+    placed_class = PlacedGauge
     antialiased = True
     ringed = True
 
-    def ring_draws(self, element: Progress, face: Face) -> int:
+    def ring_draws(self, element: Gauge, face: Face) -> int:
         return 1 if element.style == "bar" else super().ring_draws(element, face)
 
-    def ring_refusal(self, element: Progress) -> str | None:
+    def ring_refusal(self, element: Gauge) -> str | None:
         if element.style in ("segments", "scale"):
             return f"on a 'style: {element.style}' gauge is not implemented yet"
         return None
@@ -652,7 +652,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         maximum = b.expression(node, "max") if slot is None and not auto else None
         align, vertical_align = b.alignment(node)
         absence = b.absence(node)
-        element = Progress(
+        element = Gauge(
             **common,
             style=node["style"],
             value=value,
@@ -725,7 +725,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                                      (element.color, element.track_color))
         return element
 
-    def resolve(self, r: Resolver, element: Progress, parent: Box, depth: int) -> Placed:
+    def resolve(self, r: Resolver, element: Gauge, parent: Box, depth: int) -> Placed:
         cx, cy = r.point(element.at, parent)
         min_1px = element.resolved_min_1px
         if element.geometry == "arc":
@@ -740,7 +740,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                 radius, thickness, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
             aod_thickness = r.aod_extent(element, "thickness", parent, 1)
-            placed = PlacedProgress(
+            placed = PlacedGauge(
                 element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
                 start_angle=start, sweep=sweep,
@@ -757,20 +757,20 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             # `style: needle` requires both angles.
             assert element.start_angle is not None and element.sweep is not None
             disc = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-            return PlacedProgress(
+            return PlacedGauge(
                 element, disc.rounded(), (round(cx), round(cy)), depth,
                 start_angle=element.start_angle.degrees, sweep=element.sweep.degrees,
                 needle=rotatable_parts(parts, f"{element.id}.needle"), reach=reach,
                 aod_thickness=r.aod_extent(element, "thickness", parent, 1),
             )
         sized, cx, cy = r.sized_box(element, parent, cx, cy)
-        placed = PlacedProgress(element, sized.rounded(min_1px=min_1px), (round(cx), round(cy)),
+        placed = PlacedGauge(element, sized.rounded(min_1px=min_1px), (round(cx), round(cy)),
                                 depth, size=(round(sized.width), round(sized.height)))
         if element.style in ("segments", "scale"):
             _resolve_ticked(r, element, placed, parent)
         return placed
 
-    def circular_extent(self, placed: PlacedProgress) -> tuple[float, float, float] | None:
+    def circular_extent(self, placed: PlacedGauge) -> tuple[float, float, float] | None:
         if placed.element.geometry == "arc":
             reach = placed.radius + max(placed.thickness / 2.0, float(placed.pointer))
             return (placed.center[0], placed.center[1], reach)
@@ -778,20 +778,20 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             return (placed.center[0], placed.center[1], placed.reach)
         return None
 
-    def lower(self, ctx: DrawContext, placed: PlacedProgress) -> list[Op]:
+    def lower(self, ctx: DrawContext, placed: PlacedGauge) -> list[Op]:
         """The gauge: its value's fill fraction under `absent:`'s policy (a
         `slot:` pick or `max: auto` scaled first), then its style's drawing,
         after its `outline:` ring when it has one.  With `ctx.ring` (an
         outlined group's pass), only the ring is drawn, in its colour."""
         return _Lowering(ctx, placed).ops()
 
-    def draws_while_absent(self, element: Progress) -> bool:
+    def draws_while_absent(self, element: Gauge) -> bool:
         return keeps_track(element)
 
-    def describe(self, placed: PlacedProgress) -> str:
+    def describe(self, placed: PlacedGauge) -> str:
         return article(f"{placed.element.style} gauge")
 
-    def live_handle(self, placed: PlacedProgress, handle: dict[str, Any]) -> dict[str, Any] | None:
+    def live_handle(self, placed: PlacedGauge, handle: dict[str, Any]) -> dict[str, Any] | None:
         """A plain arc gauge (`style: arc`) draws its track and its fill from
         `_RADIUS`, `_START` and `_SWEEP` alone, the fill as a fraction of
         the sweep (`WfbArc.drawProgress`): centred, its radius moves nothing
@@ -812,7 +812,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         return None
 
     def layout_constants(self, prefix: str,
-                         placed: PlacedProgress) -> "layout_constants_mod.Constants":
+                         placed: PlacedGauge) -> "layout_constants_mod.Constants":
         out: "layout_constants_mod.Constants" = [
             (f"{prefix}_CX", placed.center[0], ""),
             (f"{prefix}_CY", placed.center[1], ""),
@@ -846,7 +846,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     out.append((f"{prefix}_BAND_{index}_X1", int(b), ""))
         return out
 
-    def contrast_subjects(self, placed: PlacedProgress) -> Iterator[ContrastSubject]:
+    def contrast_subjects(self, placed: PlacedGauge) -> Iterator[ContrastSubject]:
         """A needle yields each part's own effective colour, like a hand's
         (`wfb.kinds.hands.HandsKind.contrast_subjects`); the other styles
         judge the element's `color:`."""
@@ -858,4 +858,4 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             yield f"{placed.id}.needle[{index}]", part.color, ring, True
 
 
-KIND = ProgressKind()
+KIND = GaugeKind()

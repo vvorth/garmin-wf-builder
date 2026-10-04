@@ -1,5 +1,5 @@
-"""A data element (`type: data`, `complication_slot`) as a draw program
-(`wfb.kinds.complication_slot.ComplicationSlotKind.lower`): the pair placed
+"""A data element (`type: data`, `data`) as a draw program
+(`wfb.kinds.data.DataKind.lower`): the pair placed
 by the watch's own whole-pixel arithmetic over the host's measurements of
 the slot's default pick, the editor's pulsing guard, and the icon's colour
 in each frame."""
@@ -16,7 +16,7 @@ from wfb.draw.program import DrawContext
 from wfb.emit.monkeyc.common import NO_AOD
 from wfb.emit.writer import Writer
 from wfb.fonts import fallback
-from wfb.layout import COMPLICATION_SLOT_ICON_GAP
+from wfb.layout import DATA_ICON_GAP
 
 BASE = """
 format: 2
@@ -68,7 +68,7 @@ def test_the_pair_starts_at_the_watchs_whole_pixel(write_design, bag, db):
     icon_font = resolved.fonts[slot.icon_font_key]
     texts = [op for op in _json(resolved, slot) if op["op"] == "text"]
     icon, reading = texts
-    icon_width = icon_font.measure(icon["text"])[0] + COMPLICATION_SLOT_ICON_GAP
+    icon_width = icon_font.measure(icon["text"])[0] + DATA_ICON_GAP
     text_width = fallback.measure(reading["text"], slot.font.metric)[0]
     assert (icon_width + text_width) % 2 == 1  # the contrast this test needs
     start = slot.anchor_point[0] - (icon_width + text_width) // 2

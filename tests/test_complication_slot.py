@@ -12,7 +12,7 @@ import pytest
 
 from wfb import complications, icons
 from wfb.diagnostics import Bag
-from wfb.ir import ComplicationSlot, config_data_ids
+from wfb.ir import DataElement, config_data_ids
 from tests.helpers import (
     lint_text as _lint, load_errors as _errors, load_face as _face, resolve_text as _resolved,
 )
@@ -104,7 +104,7 @@ def test_slot_field_is_a_stable_derived_name(write_design, bag):
 def test_element_slot_resolves_to_the_bare_name(write_design, bag):
     face = _face(DESIGN, write_design, bag)
     top = next(e for e in face.walk() if e.id == "top_reading")
-    assert isinstance(top, ComplicationSlot)
+    assert isinstance(top, DataElement)
     assert top.slot == "top"
 
 
@@ -402,7 +402,7 @@ def test_on_hold_absent_is_fine(write_design, bag):
     """No `on_hold:` at all is a legitimate choice -- holding does nothing."""
     face = _face(DESIGN, write_design, bag)
     for element in face.walk():
-        if isinstance(element, ComplicationSlot):
+        if isinstance(element, DataElement):
             assert element.on_hold is None
 
 
@@ -670,19 +670,19 @@ def test_icon_lookup_is_a_generated_method_not_an_inline_local(write_design, bag
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
-    from wfb.ir import complication_slot_icon_method
+    from wfb.ir import data_icon_method
 
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
-    method = complication_slot_icon_method("top_reading")
+    method = data_icon_method("top_reading")
     assert f"private function {method}(t as Complications.Type,\n" in view
     assert "pulled as Complications.Complication?) as String? {" in view
     assert "as String? = null" not in view
     assert "IconGlyphs.glyph(" in view
     # `bottom_reading` has no icon (`choices: any`) -- no lookup method for it.
-    assert complication_slot_icon_method("bottom_reading") not in view
+    assert data_icon_method("bottom_reading") not in view
 
 
 def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
@@ -694,7 +694,7 @@ def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
-    from wfb.ir import complication_slot_hold_method
+    from wfb.ir import data_hold_method
 
     text = DESIGN.replace(
         "    label: short",
@@ -704,12 +704,12 @@ def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
-    method = complication_slot_hold_method("top_reading")
+    method = data_hold_method("top_reading")
     assert f"function {method}() as Complications.Id" in view
     assert f"private function {method}" not in view
     assert f"return {face.config_data['top'].field};" in view
     # `bottom_reading` declares no `on_hold:` -- no getter for it.
-    assert complication_slot_hold_method("bottom_reading") not in view
+    assert data_hold_method("bottom_reading") not in view
 
 
 def _method_body(source: str, signature: str) -> list[str]:
@@ -774,7 +774,7 @@ def test_the_highlight_box_spans_every_column_the_pair_can_reach(anchor_x, align
     leaves out the label and unit ("STEPS 5068" drew as "TEPS 506" on a
     fenix8solar47mm), so the drawable's box spans the screen columns the pair
     can reach from its anchor, keeping the estimated rows."""
-    from wfb.kinds.complication_slot import highlight_box
+    from wfb.kinds.data import highlight_box
     from wfb.units import IntBox
 
     # the estimate sits where `align:` puts the pair: on the anchor's own side
@@ -789,7 +789,7 @@ def test_the_highlight_box_keeps_an_estimate_that_overhangs_the_edge():
     """An anchor at the very edge leaves a centred span of nothing; the
     estimated box is kept inside it rather than handing the editor a
     zero-width drawable."""
-    from wfb.kinds.complication_slot import highlight_box
+    from wfb.kinds.data import highlight_box
     from wfb.units import IntBox
 
     box = IntBox(-10, 41, 40, 32)
@@ -908,12 +908,12 @@ def test_the_slot_skip_covers_one_redraw(write_design, bag, db):
         assert any(f"{method}(dc" in line for line in body[:-1]), method
 
 
-def test_complication_slot_hold_method_symbol_is_reserved_against_collision(write_design):
-    """`complication_slot_hold_method` must be checked the same way
-    `complication_slot_icon_method` already is -- a later id that folds to
+def test_data_hold_method_symbol_is_reserved_against_collision(write_design):
+    """`data_hold_method` must be checked the same way
+    `data_icon_method` already is -- a later id that folds to
     the same Monkey C symbol should be caught here, not four `Redefinition
     of ...` errors deep pointing at a generated line number."""
-    from wfb.ir import complication_slot_hold_method
+    from wfb.ir import data_hold_method
 
     # `top_reading` and `topReading` fold to the same element_method_name
     # ("drawTopReading") regardless of this feature -- reuse that existing,
@@ -921,7 +921,7 @@ def test_complication_slot_hold_method_symbol_is_reserved_against_collision(writ
     # hold-method name itself is what a real `on_hold: auto` slot would use,
     # so this test would catch a second id colliding on *only* the hold
     # method if the two id spellings ever stopped folding together first.
-    assert complication_slot_hold_method("top_reading") == complication_slot_hold_method("topReading")
+    assert data_hold_method("top_reading") == data_hold_method("topReading")
     text = HEAD + DATA_BLOCK + """elements:
   top_reading:
     type: data
@@ -1217,7 +1217,7 @@ def test_preview_renders_without_crashing(write_design, bag, db):
 
 def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, db):
     """The negative control every additive feature in this repo needs: a
-    design with no `config: data:` and no `complication_slot` element must
+    design with no `config: data:` and no `data` element must
     come out byte-identical to before -- `has_config` stays false, no
     Complications import, no barrel, and none of this session's editor-only
     machinery (onTap/getComplicationDrawable/onStart/_pulsing/SlotDrawable)
@@ -1237,7 +1237,7 @@ def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, 
     face = _face(text, write_design, bag)
     assert not face.config_data
     assert not face.has_config
-    assert monkeyc.complication_slots(face) == []
+    assert monkeyc.data_elements(face) == []
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
@@ -1363,7 +1363,7 @@ elements:
 @pytest.mark.slow
 def test_slot_with_on_hold_auto_compiles_warning_free_on_every_target(
         write_design, tmp_path, db, toolchain):  # noqa: F811
-    """A `complication_slot` with `on_hold: auto` -- Complications.exitTo on
+    """A `data` with `on_hold: auto` -- Complications.exitTo on
     whatever the wearer currently has the slot pointed at -- plus the
     editor-only machinery (`AppBase.onStart`, `WatchFaceDelegate.onTap`/
     `getComplicationDrawable`, the generated SlotDrawable) every
@@ -1424,7 +1424,7 @@ def test_slot_with_on_hold_auto_compiles_warning_free_on_every_target(
 @pytest.mark.slow
 def test_slot_without_on_hold_still_gets_editor_machinery_warning_free(
         write_design, tmp_path, db, toolchain):  # noqa: F811
-    """The other half of the same coin: a `complication_slot` design with no
+    """The other half of the same coin: a `data` element design with no
     `on_hold:` anywhere still gets the editor's onTap/getComplicationDrawable
     machinery (the editor can animate any slot, not only ones that also
     launch something on a live face) -- and still builds warning-free."""
@@ -1451,7 +1451,7 @@ def test_a_design_with_no_slots_at_all_still_builds_warning_free(
         write_design, tmp_path, db, toolchain):  # noqa: F811
     """The real-toolchain twin of
     `test_a_design_with_no_slots_is_untouched_by_this_feature`: a design with
-    no `complication_slot` anywhere must still build, warning-free, on every
+    no `data` anywhere must still build, warning-free, on every
     target -- proof that none of this session's editor-only machinery leaks
     into, or breaks, an unrelated face."""
     from wfb.build import build as run_build

@@ -1,4 +1,4 @@
-"""`type: complication_slot` -- the element half of the native Data axis:
+"""`type: data element` -- the element half of the native Data axis:
 draws whichever complication the wearer currently has this `slot:` pointed
 at."""
 
@@ -10,14 +10,14 @@ from typing import Any, TYPE_CHECKING
 from .. import complications, icons, units
 from ..diagnostics import Span
 from ..ir.builder import ICON_SIZE_NOTE
-from ..ir.model import HOLD_AUTO, ComplicationSlot, ConfigDataSlot, Element, Expression
-from ..ir.naming import complication_slot_hold_method, complication_slot_icon_method
+from ..ir.model import HOLD_AUTO, DataElement, ConfigDataSlot, Element, Expression
+from ..ir.naming import data_hold_method, data_icon_method
 from ..layout import (
-    COMPLICATION_SLOT_ICON_GAP, Placed, PlacedComplicationSlot,
-    alignment_shift, complication_slot_pair_geometry, longer,
+    DATA_ICON_GAP, Placed, PlacedData,
+    alignment_shift, data_pair_geometry, longer,
 )
 from ..units import Box, IntBox
-from ..emit.monkeyc import complication_slot as complication_slot_mod
+from ..emit.monkeyc import data as data_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.resources import COMPLICATION_TEXT_ALPHABET
 from ..draw.program import (
@@ -34,13 +34,13 @@ if TYPE_CHECKING:
     from ..ir.model import Face
     from ..layout import Resolver
 
-#: Illustrative raw readings for a `complication_slot` preview, keyed by
+#: Illustrative raw readings for a `data` element preview, keyed by
 #: `wfb.complications.TYPES` name, in the units the SDK documents -- not
 #: real data (there is no live `Complications` subscription on the host),
 #: just something plausible, formatted by the same rules the watch uses
 #: (`wfb.complications.format_reading`).  Falls back to 12 / "--" for a
 #: type not listed here.
-COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
+DATA_SAMPLE: dict[str, object] = {
     "steps": 8432,
     "heart_rate": 72,
     "calories": 1840,
@@ -110,10 +110,10 @@ def resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDat
 
 
 def _check_slot_color_absence(
-    b: Builder, node: dict[str, Any], element: "ComplicationSlot", key: str,
+    b: Builder, node: dict[str, Any], element: "DataElement", key: str,
     color: Expression | None, note: str, label: str | None = None,
 ) -> None:
-    """A complication_slot's `color:`/`icon_color:` may not read
+    """A data element's `color:`/`icon_color:` may not read
     anything absent-able -- neither has a `absent:` of its own to
     fall back through, unlike the pulled reading itself (shared by both
     colours in `build`; `note` carries the one
@@ -135,7 +135,7 @@ def _check_slot_color_absence(
     )
 
 
-def _slot_choices(face: Face, element: ComplicationSlot) -> tuple[str, ...]:
+def _slot_choices(face: Face, element: DataElement) -> tuple[str, ...]:
     """The types this slot can show that the build knows a rule for: its
     declared choices, or, for `choices: any`, every native type."""
     slot = face.config_data.get(element.slot)
@@ -146,8 +146,8 @@ def _slot_choices(face: Face, element: ComplicationSlot) -> tuple[str, ...]:
     return tuple(name for name in slot.choices if name in complications.TYPES)
 
 
-def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
-    """The widest plausible reading a `complication_slot` can draw: the
+def _data_widest(r: Resolver, element: DataElement) -> str:
+    """The widest plausible reading a `data` element can draw: the
     widest of its choices' readings under its `unit:`/`short:`
     (`wfb.complications.widest_reading`), and the placeholder.
 
@@ -195,7 +195,7 @@ def highlight_box(box: IntBox, anchor_x: int, align: str, screen_width: int) -> 
     return IntBox(left, box.y, right - left, box.height).union(box)
 
 
-def _text_glyphs(element: ComplicationSlot, face: Face) -> set[str]:
+def _text_glyphs(element: DataElement, face: Face) -> set[str]:
     """Every character the slot's reading could render.  The wearer can
     point this slot at any of its choices, each with its own rule, so the
     font must carry everything *any* choice could render."""
@@ -213,7 +213,7 @@ def _text_glyphs(element: ComplicationSlot, face: Face) -> set[str]:
     return glyphs
 
 
-def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
+def _icon_run(element: DataElement, face: Face) -> TextRun | None:
     """The slot's multi-glyph icon font (with `icon_size:`), keyed by the
     slot's name, or `None` when none of its choices has a catalogue icon --
     it simply draws none, which is a documented, legitimate outcome
@@ -250,7 +250,7 @@ def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
                       element.resolved_antialias),
         glyph_table=table)
 
-def _general_pair(element: ComplicationSlot, placed: PlacedComplicationSlot, prefix: str,
+def _general_pair(element: DataElement, placed: PlacedData, prefix: str,
                   font: Font, icon_font: Font | None, icon_shown: Cond | None, text_paint: Paint,
                   icon_paint: Paint | None, draw: Callable[..., Op]) -> list[Op]:
     """Any `icon_position:` other than the default `left`, an authored
@@ -270,7 +270,7 @@ def _general_pair(element: ComplicationSlot, placed: PlacedComplicationSlot, pre
     cx = Const(f"{prefix}_CX", placed.anchor_point[0])
     cy = Const(f"{prefix}_CY", placed.anchor_point[1])
     gap_value: Num = (Const(f"{prefix}_ICON_GAP", placed.icon_gap_px)
-                      if element.icon_gap is not None else Lit(COMPLICATION_SLOT_ICON_GAP))
+                      if element.icon_gap is not None else Lit(DATA_ICON_GAP))
     has_icon = icon_shown is not None
     text, glyph = Local("text"), Local("iconGlyph")
     ops: list[Op] = [SetColor(text_paint)]
@@ -360,11 +360,11 @@ def _general_pair(element: ComplicationSlot, placed: PlacedComplicationSlot, pre
     return ops
 
 
-class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]):
-    name = "complication_slot"
-    ir_class = ComplicationSlot
-    placed_class = PlacedComplicationSlot
-    extra_symbols = (complication_slot_icon_method, complication_slot_hold_method)
+class DataKind(ElementKind[DataElement, PlacedData]):
+    name = "data"
+    ir_class = DataElement
+    placed_class = PlacedData
+    extra_symbols = (data_icon_method, data_hold_method)
     static_forbidden = (
         "a data element",
         "its reading is pulled fresh every frame, and the wearer can "
@@ -373,7 +373,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
     )
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
-        """`type: complication_slot` -- the element half of the native Data
+        """`type: data element` -- the element half of the native Data
         axis (docs/research/09-data-library-and-config-axes.md §4).
 
         Most of what makes every other element kind checkable at build time
@@ -382,7 +382,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         this validates the *slot reference* and the authoring keys that do
         not depend on the choice (`icon_size:`, `format:`), and leaves
         everything about the pulled value itself to
-        `ComplicationSlotKind.lower`, which reads it fresh
+        `DataKind.lower`, which reads it fresh
         every frame the same way any other `complication.*` source does.
         """
         slot_raw = node["slot"]
@@ -432,7 +432,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         color = b.color_expression(node, "color")
         align, vertical_align = b.alignment(node)
         absence = b.absence(node)
-        element = ComplicationSlot(
+        element = DataElement(
             **common,
             slot=(slot.name if slot is not None else str(slot_raw)),
             icon_size=icon_size,
@@ -450,7 +450,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         )
         font_ok = b.resolve_font(node, element)
         if font_ok and b.is_vector_font(element.font, element.font_is_custom):
-            # `ComplicationSlotKind.lower` has no vector-font draw path.
+            # `DataKind.lower` has no vector-font draw path.
             b.bag.error(
                 "complication-slot",
                 f"{element.id}: 'font: font.{element.font}' is a 'face:' "
@@ -511,18 +511,18 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
 
         return element
 
-    def resolve(self, r: Resolver, element: ComplicationSlot, parent: Box, depth: int) -> Placed:
-        """A `complication_slot`: an estimated box, plus the icon and text
+    def resolve(self, r: Resolver, element: DataElement, parent: Box, depth: int) -> Placed:
+        """A `data`: an estimated box, plus the icon and text
         fonts the emitter needs.  What is drawn is the wearer's runtime pick,
-        so this sizes the text by `_complication_slot_widest` and, with
+        so this sizes the text by `_data_widest` and, with
         `icon_size:`, one multi-glyph icon font keyed by the slot's name
         (so two slots never share one), measured by a reference glyph.  The
-        pair's extent comes from `complication_slot_pair_geometry`, with the
+        pair's extent comes from `data_pair_geometry`, with the
         *declared* icon size as the icon's height.
         """
         cx, cy = r.point(element.at, parent)
         font = r.font_for_ref(element.font, element.font_is_custom)
-        widest = _complication_slot_widest(r, element)
+        widest = _data_widest(r, element)
         text_width, line_height = font.width(widest), font.line_height
 
         icon_font_key: str | None = None
@@ -547,9 +547,9 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                               else icon_px)
 
         gap_px = (units.pixel_size(element.icon_gap, r.device.minor_radius)
-                 if element.icon_gap is not None else COMPLICATION_SLOT_ICON_GAP)
+                 if element.icon_gap is not None else DATA_ICON_GAP)
         # `icon_width`/`icon_px` stay 0 when no icon font resolved.
-        geometry = complication_slot_pair_geometry(
+        geometry = data_pair_geometry(
             element.icon_position, icon_width, icon_px, text_width, line_height, gap_px)
         height = max(geometry.height, 1)
         # The lint box only: the device centres the real pair on the
@@ -557,7 +557,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
         box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
         rounded = box.rounded()
-        return PlacedComplicationSlot(
+        return PlacedData(
             element, rounded, (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
             font=font.resolved(),
@@ -577,7 +577,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             )
         return None
 
-    def text_runs(self, element: ComplicationSlot, face: Face) -> list[TextRun]:
+    def text_runs(self, element: DataElement, face: Face) -> list[TextRun]:
         runs = []
         if element.font_is_custom:
             runs.append(TextRun(element.id, element.font,
@@ -587,7 +587,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             runs.append(icon_run)
         return runs
 
-    def lower(self, ctx: DrawContext, placed: PlacedComplicationSlot) -> list[Op]:
+    def lower(self, ctx: DrawContext, placed: PlacedData) -> list[Op]:
         """A native Data-axis slot: pull the wearer's chosen complication,
         choose an icon from its *type* alone, then draw the two as one pair.
 
@@ -619,7 +619,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         type: the icon and the pulled value both come back null.
 
         On the host the pick is the slot's `default:` and the reading an
-        illustrative sample (`COMPLICATION_SLOT_SAMPLE`): there is no
+        illustrative sample (`DATA_SAMPLE`): there is no
         on-device editor to ask, and no live subscription."""
         element = placed.element
         aod = ctx.aod
@@ -628,7 +628,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         slot = face.config_data[element.slot]
         shown = ctx.shown(slot)
         ctype = complications.TYPES[shown]
-        sample = COMPLICATION_SLOT_SAMPLE.get(
+        sample = DATA_SAMPLE.get(
             ctype.name, 12 if ctype.value_type != "string" else "--")
         guarded = ctx.complications_guarded
         ops: list[Op] = [
@@ -639,7 +639,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             Blank(),
             Comment(f"slot: {element.slot}"),
             SlotPull(config_field(f"data_{element.slot}"), guarded,
-                     COMPLICATION_SLOT_SAMPLE.get(shown)),
+                     DATA_SAMPLE.get(shown)),
         ]
 
         icon_font: Font | None = None
@@ -652,7 +652,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                     glyph = icons.CATALOG[icons.GARMIN_WEATHER_CONDITION_ICON.get(
                         sample, "weather_unknown")].codepoint
             ops.append(SlotIcon(font_field(placed.icon_font_key), placed.icon_font_key,
-                                complication_slot_icon_method(element.id), guarded, glyph))
+                                data_icon_method(element.id), guarded, glyph))
             icon_font = Font("iconFont", baked=placed.icon_font_key)
 
         if placed.font.is_custom:
@@ -664,7 +664,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                     metric=placed.font.metric, px=placed.font.px)
         ops += [
             Blank(),
-            SlotText(complication_slot_mod.SLOT_TEXT_MODULE, guarded, element.unit, element.short, element.label,
+            SlotText(data_mod.SLOT_TEXT_MODULE, guarded, element.unit, element.short, element.label,
                      element.absent, element.placeholder, ctype.name, sample,
                      {"short": "Now ", "long": "Current "}.get(element.label or "", "")),
         ]
@@ -697,7 +697,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                     Let("iconWidth", Lit(0))]
             if icon_font is not None and icon_shown is not None:
                 ops.append(If(icon_shown, (Assign("iconWidth", Bin(
-                    "+", TextWidth(glyph_text, icon_font), Lit(COMPLICATION_SLOT_ICON_GAP))),)))
+                    "+", TextWidth(glyph_text, icon_font), Lit(DATA_ICON_GAP))),)))
             ops += [Let("totalWidth", Bin("+", NumLocal("iconWidth"), NumLocal("textWidth"))),
                     Let("startX", Bin("-", cx, Bin("/", NumLocal("totalWidth"), Lit(2))))]
             if icon_font is not None and icon_shown is not None:
@@ -709,11 +709,11 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         return ops + _general_pair(element, placed, prefix, font, icon_font, icon_shown,
                                    text_paint, icon_paint, draw)
 
-    def describe(self, placed: PlacedComplicationSlot) -> str:
+    def describe(self, placed: PlacedData) -> str:
         return f"a native Data-axis slot (`slot: {placed.element.slot}`)"
 
     def layout_constants(self, prefix: str,
-                         placed: PlacedComplicationSlot) -> "layout_constants_mod.Constants":
+                         placed: PlacedData) -> "layout_constants_mod.Constants":
         out: "layout_constants_mod.Constants" = [
             (f"{prefix}_CX", placed.anchor_point[0],
              "the icon+reading pair is centred here at runtime"),
@@ -723,11 +723,11 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         # element drawing it together (`layout_constants.slot_box_constants`).
         if placed.element.icon_gap is not None:
             # Only when the author wrote 'icon_gap:' -- otherwise the view keeps
-            # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'
+            # the literal DATA_ICON_GAP. Resolved per device ('%r'
             # is a different pixel count per screen).
             out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
                         "icon: {gap:} resolved for this device"))
         return out
 
 
-KIND = ComplicationSlotKind()
+KIND = DataKind()

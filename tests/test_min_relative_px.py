@@ -588,7 +588,7 @@ resources:
 # §5 test 7: every out-of-scope key of §2.1 is *not* clamped even when
 # `min_1px` is on -- a position is not an extent, `corner_radius:` is not a
 # size, `px`/`pt` lengths and an exact `0` are already exactly what the
-# author wrote, and a font size (icon/complication_slot) floors on its own
+# author wrote, and a font size (icon/data element) floors on its own
 # separate path with no switch and no lint.
 # ============================================================================
 
@@ -774,7 +774,7 @@ def test_a_pattern_rectangle_part_at_or_above_1px_is_unchanged(resolved_for):
 
 
 def test_icon_size_floors_on_its_own_path_with_no_switch_and_no_lint(resolved_for):
-    """`icon`/`complication_slot`/`text` accept no `min_1px:` at all (schema:
+    """`icon`/`data`/`text` accept no `min_1px:` at all (schema:
     see `test_min_1px_is_rejected_on_icon_as_an_unknown_key` below) because a
     font size already floors at 1px on `wfb.units.pixel_size`'s own path --
     checked here with a hairline `size:` and no `min_1px:` anywhere."""

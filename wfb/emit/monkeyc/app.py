@@ -136,7 +136,7 @@ def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> Sour
 
     Scoped to the keys a dynamic icon can actually produce in this design --
     every entry `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` can select, plus,
-    for every `complication_slot` with `icon_size:`, every key
+    for every `data` with `icon_size:`, every key
     `wfb.ir.ConfigDataSlot.icons` can resolve to for that slot -- so a
     design using only one of the two dynamic-icon features does not bake a
     lookup table for the other's keys too.

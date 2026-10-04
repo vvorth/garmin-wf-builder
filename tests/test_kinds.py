@@ -26,8 +26,7 @@ def test_names_match_the_schema_and_validate():
     from one, and a diagnostic names each kind by an author type."""
     schema_order = _schema_element_types()
     assert schema_order == validate.ELEMENT_TYPES
-    lowered = {"gauge": "progress", "data": "complication_slot"}
-    built = {lowered.get(name, kinds.kind_of({"type": name})) for name in schema_order}
+    built = {kinds.kind_of({"type": name}) for name in schema_order}
     assert built == set(kinds.names())
     for name in kinds.names():
         if name != "shape":

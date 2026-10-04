@@ -1,4 +1,4 @@
-"""A `complication_slot`'s reading, formatted per complication type
+"""A `data`'s reading, formatted per complication type
 (`wfb.complications.READING`): the Python twin the preview draws with, the
 generated `SlotText.mc` the watch runs, and the icon, glyph and width
 consequences of both.
@@ -308,12 +308,12 @@ def test_a_design_with_no_slots_has_no_slot_text(write_design, db, tmp_path):
 
 def test_a_weather_choice_icon_follows_the_pulled_condition(write_design, db):
     from wfb.emit import monkeyc
-    from wfb.ir import complication_slot_icon_method
+    from wfb.ir import data_icon_method
 
     _, resolved = _resolved(_design("[steps, current_weather]"),
                             write_design, Bag(), db)
     view = monkeyc.emit_view(resolved).text
-    method = complication_slot_icon_method("top_reading")
+    method = data_icon_method("top_reading")
     assert f"var iconName = {method}(chosenId.getType(), pulled);" in view
     assert ("COMPLICATION_TYPE_CURRENT_WEATHER: return (value instanceof Lang.Number)"
             ' ? WfbWeather.chooseIcon(value) : "weather";') in view
@@ -343,7 +343,7 @@ def test_an_authored_weather_icon_stays_as_written(write_design, db):
 
 
 def test_a_baked_font_gets_every_character_the_readings_draw(write_design):
-    from wfb.kinds.complication_slot import _text_glyphs
+    from wfb.kinds.data import _text_glyphs
 
     face = _face(_design("[steps, sunrise, "
                          "recovery_time, current_temperature]"),

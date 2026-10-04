@@ -14,7 +14,7 @@ from ...palette import Color, ColorError
 from ...units import Angle, Length, UnitError
 from ...yamlsrc import Origin
 
-from ..model import ComplicationSlot, Expression, Position, SYSTEM_FONTS, Size, Text
+from ..model import DataElement, Expression, Position, SYSTEM_FONTS, Size, Text
 from .state import BuilderState
 
 #: Matches `expr.check`'s "unknown data source" message for exactly
@@ -233,7 +233,7 @@ reporting why) out."""
     def _font_reference(self, name: str, span: Span | None) -> tuple[str, bool] | None:
         """Resolve a `font:`/`value_font:` name to ``(reference, is_custom)``.
 
-        Shared by every element's `font:` (`text`, `complication_slot`), so
+        Shared by every element's `font:` (`text`, `data`), so
         they cannot disagree about what a font name means.
 
         Returns ``None`` when the name does not resolve.  The one subtlety is
@@ -262,7 +262,7 @@ reporting why) out."""
         )
         return (key, True) if spec is not None else None
 
-    def resolve_font(self, node: dict[str, Any], element: Text | ComplicationSlot) -> bool:
+    def resolve_font(self, node: dict[str, Any], element: Text | DataElement) -> bool:
         """Set `.font`/`.font_is_custom` from `node["font"]`.
 
         Returns whether the reference is trustworthy: `True` when no
@@ -349,9 +349,9 @@ reporting why) out."""
     ) -> Length | None:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
         size baked before layout runs: an icon's own `size:`
-        (`wfb.kinds.icon.IconKind.build`), and a complication_slot's
+        (`wfb.kinds.icon.IconKind.build`), and a data element's
         `icon_size:`/`icon_gap:`
-        (`wfb.kinds.complication_slot.ComplicationSlotKind.build`).  `label`
+        (`wfb.kinds.data.DataKind.build`).  `label`
         is the quantity name the message leads with (``'icon size'``/
         ``'icon_size'``/``'icon_gap'``); `note` is the one explanatory note, worded enough
         differently between the three ("its size" vs. "the gap that sits

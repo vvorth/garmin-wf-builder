@@ -391,7 +391,6 @@ class _Lowering:
         if kind == "text":
             self.text(node, several=True)
         elif kind == "gauge":
-            node["type"] = "progress"
             if isinstance(node.get("slot"), str):
                 node["slot"] = f"config.data.{node['slot']}"
                 self.doc.set_origin(node, "slot", Origin("slot"))
@@ -582,7 +581,6 @@ class _Lowering:
             self.expr_key(icon, "for", author="icon.for")
 
     def data(self, node: CommentedMap) -> None:
-        node["type"] = "complication_slot"
         if isinstance(node.get("slot"), str):
             node["slot"] = f"config.data.{node['slot']}"
             self.doc.set_origin(node, "slot", Origin("slot"))

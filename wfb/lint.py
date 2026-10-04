@@ -25,7 +25,7 @@ from .ir import (
     PatternElement, StyleEntry, authored_draw_order, never_together, slot_of, walk_elements,
 )
 from .layout import (
-    BEZEL_MARGIN, HIDDEN_BY_FONT, Placed, PlacedPattern, PlacedProgress, PlacedText,
+    BEZEL_MARGIN, HIDDEN_BY_FONT, Placed, PlacedPattern, PlacedGauge, PlacedText,
     ResolvedFace, inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
@@ -894,7 +894,7 @@ def check_progress_segments(resolved: ResolvedFace, bag: Bag) -> None:
     cells on this device draws nothing at all -- an error, never a silent
     empty element (the gap is a length, so it depends on the screen)."""
     for placed in resolved.items:
-        if not isinstance(placed, PlacedProgress):
+        if not isinstance(placed, PlacedGauge):
             continue
         element = placed.element
         if element.style != "segments" or placed.cell * placed.step > 0:
@@ -1958,7 +1958,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
        guarded `Complications.exitTo` is a silent no-op.  Skipped when the
        device also lacks `onPress` (checked directly, not assumed):
        `hold-unsupported` already says the hold never fires.
-    4. **A `complication_slot` on a device with no `Toybox.Complications`**
+    4. **A `data` on a device with no `Toybox.Complications`**
        -- it shows its absent state forever, `default:` included (read
        through `WfbComplications.valueOf`).  Deliberately *not* deduped
        against `config-unsupported`: that one's "keeps its declared default"

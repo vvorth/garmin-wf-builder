@@ -25,7 +25,7 @@ BARREL_FILES = {
     "WfbArc.mc": "arcs -- a `progress` ring, a plain `shape: arc` and a pattern arc part alike",
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription and pull",
-    "WfbReading.mc": "a `complication_slot`'s reading, formatted per complication type",
+    "WfbReading.mc": "a `data` element's reading, formatted per complication type",
     "WfbSeries.mc": "graph time-series acquisition, binning and drawing",
     "WfbHands.mc": "analog hands -- the three clock-to-angle functions",
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
@@ -158,7 +158,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         # (docs/research/07-carousel-interaction.md), so a design drawing no
         # slot emits none of it.
         project.sources.append(monkeyc.emit_slot_drawable(face))
-    if monkeyc.complication_slots(face):
+    if monkeyc.data_elements(face):
         project.sources.append(monkeyc.emit_slot_text(face))
     if slot_scale.slot_gauges(face) or slot_scale.auto_scale_gauges(face):
         names, apps = slot_scale.slot_scale_types(face)

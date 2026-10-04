@@ -118,7 +118,7 @@ def test_an_arc_resolves_per_device(resolved_for):
 
 def test_an_arcs_extent_is_circular_not_its_bounding_box(resolved_for):
     """A full-width arc must not report as cropped on a round screen -- the
-    same reason `PlacedProgress` is special-cased in `circular_extent`."""
+    same reason `PlacedGauge` is special-cased in `circular_extent`."""
     from wfb.layout import circular_extent
 
     ring = find(resolved_for(design(ARC.replace("radius: 50%r", "radius: 92%r"))), "ring")

@@ -1,4 +1,4 @@
-"""`type: gauge` as a draw program (`wfb.kinds.progress.ProgressKind.lower`):
+"""`type: gauge` as a draw program (`wfb.kinds.gauge.GaugeKind.lower`):
 the fill fraction computed as the watch computes it, a bar filled exactly as
 far as `dc.fillRectangle` fills it, segments lit by the fraction, a slot's
 pick and `max: auto` scaled by their twins, and a needle's ring through the

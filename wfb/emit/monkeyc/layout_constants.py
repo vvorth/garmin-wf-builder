@@ -7,7 +7,7 @@ from ...availability import Guards, vector_font_face
 from ...ir import Element, disc_perimeter_offsets, slot_of
 from ...ir.rings import ring_groups
 from ...layout import (
-    HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress,
+    HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedGauge,
     PlacedShape, ResolvedFace, ResolvedHandPart,
 )
 from ...units import IntBox
@@ -86,7 +86,7 @@ def slot_box_constants(resolved: ResolvedFace, slot: EditorSlot) -> Constants:
     separate targets.  `_HIGHLIGHT` is what the drawable is built on, since
     the editor clips it to that box: the union again, with a reading's box
     widened to every column its pick could reach
-    (`wfb.kinds.complication_slot.highlight_box`).  Emitted for every slot
+    (`wfb.kinds.data.highlight_box`).  Emitted for every slot
     regardless of `on_hold:`: the editor can animate any slot.
     """
     members = [placed for placed in resolved.items if slot_of(placed.element) == slot.name]
@@ -113,7 +113,7 @@ def _transforms_at_runtime(element: Element) -> bool:
     gauge needle, a pattern copy -- through `WfbRing`?  Every other ring is
     unrolled with literal offsets and reads no table."""
     return (element.kind in ("hands", "pattern")
-            or (element.kind == "progress" and getattr(element, "style", None) == "needle"))
+            or (element.kind == "gauge" and getattr(element, "style", None) == "needle"))
 
 
 def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
@@ -313,7 +313,7 @@ def _hold_constants(resolved: ResolvedFace, placed: Placed) -> Constants:
 
 def box_constants(prefix: str, box: IntBox, note: str = "") -> list[tuple[str, float, str]]:
     """The `_X/_Y/_WIDTH/_HEIGHT` quartet for one resolved box -- shared by a
-    rectangular shape, a bar-style progress, a graph and a complication_slot's
+    rectangular shape, a bar-style progress, a graph and a data element's
     editor highlight box (``prefix`` already carries that last one's own
     `_BOX` suffix).  ``note`` documents the `_X` constant only, the same
     "first constant of the block carries the note" convention every other
@@ -328,7 +328,7 @@ def box_constants(prefix: str, box: IntBox, note: str = "") -> list[tuple[str, f
 
 
 def arc_constants(prefix: str,
-                  placed: PlacedShape | PlacedProgress) -> list[tuple[str, float, str]]:
+                  placed: PlacedShape | PlacedGauge) -> list[tuple[str, float, str]]:
     """The `_RADIUS/_THICKNESS/_START/_SWEEP` quartet for one resolved arc --
     shared by a `shape: arc` and a `progress` arc, which both resolve
     `placed.radius`/`.thickness`/`.garmin_start`/`.start_angle`/`.sweep`
@@ -345,7 +345,7 @@ def arc_constants(prefix: str,
 
 
 def aod_thickness_constant(prefix: str,
-                           placed: PlacedShape | PlacedProgress | PlacedGraph | PlacedHands
+                           placed: PlacedShape | PlacedGauge | PlacedGraph | PlacedHands
                            | PlacedPattern,
                            note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`

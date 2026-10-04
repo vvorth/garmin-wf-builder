@@ -22,8 +22,8 @@ from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .ir import (
-    ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    AnyHandPart, HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
+    DataElement, Curve, Element, Expression, Face, FontSpec, Graph, Group,
+    AnyHandPart, HandPart, HandsElement, IconElement, PatternElement, Position, Gauge, Shape,
     Text, TextPart, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
@@ -547,7 +547,7 @@ class PlacedShape(Placed):
     #: `shape: polygon` only: the resolved vertices, in author order.
     points: tuple[tuple[int, int], ...] = ()
     #: `shape: arc` only.  Author degrees (12 o'clock = 0, clockwise), kept for
-    #: the preview renderer, then the same pair `PlacedProgress` carries in
+    #: the preview renderer, then the same pair `PlacedGauge` carries in
     #: Garmin's own convention, ready for `WfbArc.drawSpan`.
     start_angle: float = 0.0
     sweep: float = 360.0
@@ -634,8 +634,8 @@ class PlacedText(Placed):
 
 
 @dataclass
-class PlacedProgress(Placed):
-    element: Progress
+class PlacedGauge(Placed):
+    element: Gauge
     radius: int = 0
     thickness: int = 1
     #: Author degrees (12 o'clock = 0, clockwise).  Kept for the preview renderer.
@@ -933,7 +933,7 @@ def is_antialiased_primitive(placed: "Placed") -> bool:
     """Does this placed element's own drawing `antialias:` reach as a
     runtime `Dc.setAntiAlias` -- true for a primitive-drawing kind
     (`shape`/`progress`/`graph`/`hands`/`pattern`), never for a glyph kind
-    (`text`/`icon`/`complication_slot`, which anti-alias in their baked
+    (`text`/`icon`/`data`, which anti-alias in their baked
     font instead) or a `group`.  Read by the emitter's "is the feature used"
     gate, its per-element toggle, and the `antialias-dither` lint: three
     private copies once drifted, so a hands-only anti-aliased face emitted
@@ -941,16 +941,16 @@ def is_antialiased_primitive(placed: "Placed") -> bool:
     return kinds.for_placed(placed).antialiased
 
 
-#: The pixel gap between a complication_slot's icon and its reading when
+#: The pixel gap between a data element's icon and its reading when
 #: `icon_gap:` is not authored -- a fixed literal the generated view inlines.
-COMPLICATION_SLOT_ICON_GAP = 4
+DATA_ICON_GAP = 4
 
 
 @dataclass(frozen=True)
 class SlotPairGeometry:
     """The icon+reading pair's combined extent, and each piece's offset from
     the pair's own top-left corner -- shared by
-    `wfb.kinds.complication_slot.ComplicationSlotKind.resolve` (the estimated lint box) and
+    `wfb.kinds.data.DataKind.resolve` (the estimated lint box) and
     `wfb.preview` (the drawn pixels).  The generated Monkey C mirrors the
     arithmetic rather than receiving these numbers: the real text is only
     known once the value is pulled at runtime (ADR 0004's one exception).
@@ -964,7 +964,7 @@ class SlotPairGeometry:
     text_y: int
 
 
-def complication_slot_pair_geometry(
+def data_pair_geometry(
     position: str, icon_w: int, icon_h: int, text_w: int, text_h: int, gap: int,
 ) -> SlotPairGeometry:
     """The icon+reading pair's combined box, and each piece's offset within
@@ -1005,8 +1005,8 @@ def complication_slot_pair_geometry(
 
 
 @dataclass
-class PlacedComplicationSlot(Placed):
-    """A `complication_slot`, resolved: an estimated box for the geometry
+class PlacedData(Placed):
+    """A `data`, resolved: an estimated box for the geometry
     lints, plus what the emitter needs to draw the icon and reading.
 
     `box`/`widest` are an *estimate*: the drawn extent depends on the
@@ -1015,24 +1015,24 @@ class PlacedComplicationSlot(Placed):
     for the safe-area/off-screen checks only.
     """
 
-    element: ComplicationSlot
+    element: DataElement
 
     anchor_point: tuple[int, int] = (0, 0)
     #: The slot's own reading text; never a vector font (the builder
     #: rejects one).
     font: ResolvedFont = ResolvedFont()
     #: The widest plausible reading
-    #: (`wfb.kinds.complication_slot._complication_slot_widest`).
+    #: (`wfb.kinds.data._data_widest`).
     widest: str = ""
     #: The synthetic multi-glyph icon font (`wfb.icons.font_key`), or `None`
     #: when the slot draws no icon (no `icon_size:`, or no choice has one).
     icon_font_key: str | None = None
     icon_px: int = 0
     icon_position: str = "left"
-    #: `icon_gap:` resolved for this device, else `COMPLICATION_SLOT_ICON_GAP`.
-    icon_gap_px: int = COMPLICATION_SLOT_ICON_GAP
+    #: `icon_gap:` resolved for this device, else `DATA_ICON_GAP`.
+    icon_gap_px: int = DATA_ICON_GAP
     #: The box handed to the native editor with the slot's drawable
-    #: (`wfb.kinds.complication_slot.highlight_box`): every on-screen column
+    #: (`wfb.kinds.data.highlight_box`): every on-screen column
     #: the pair could reach, since the editor clips the drawable to it.
     #: `None` only for a hand-built instance; the emitter falls back to `box`.
     highlight: IntBox | None = None
@@ -1331,7 +1331,7 @@ class Resolver:
     # -- per-kind ---------------------------------------------------------
 
     def sized_box(
-        self, element: Group | Shape | Progress | Graph, parent: Box, cx: float, cy: float,
+        self, element: Group | Shape | Gauge | Graph, parent: Box, cx: float, cy: float,
     ) -> tuple[Box, float, float]:
         """The "size, then align" box every `size:`-placed kind shares, and
         its shifted centre.  Width then height go through `extent` in that
@@ -1689,7 +1689,7 @@ def longer(current: str, candidate: str) -> str:
     """`candidate` if it is strictly longer than `current`, else `current`
     unchanged -- "a placeholder/estimate longer than the widest-so-far
     wins," the one rule `wfb.kinds.text._widest_text` (placeholder, fallback)
-    and `wfb.kinds.complication_slot._complication_slot_widest` (per-choice
+    and `wfb.kinds.data._data_widest` (per-choice
     estimate, placeholder) each repeated as their own
     ``if len(x) > len(y): y = x``.
     """
@@ -1838,8 +1838,8 @@ def safe_area(device: Device) -> Box | None:
 
 
 __all__ = [
-    "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
-    "PlacedGraph", "PlacedComplicationSlot", "PlacedHands", "PlacedPattern",
+    "Placed", "PlacedShape", "PlacedText", "PlacedGauge", "PlacedIcon",
+    "PlacedGraph", "PlacedData", "PlacedHands", "PlacedPattern",
     "ResolvedHand",
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",

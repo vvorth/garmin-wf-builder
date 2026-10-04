@@ -211,7 +211,7 @@ TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
 #: `Complications.Unit` (`Toybox/Complications.html`'s own "Unit" constant
 #: table, API 4.2.0) mapped to a short display suffix, transcribed from that
 #: table's own description column ("value is in meters", "meters/second",
-#: "degrees Celsius", "grams"). Used only by a `complication_slot` element's
+#: "degrees Celsius", "grams"). Used only by a `data` element element's
 #: `unit: true` -- `Complications.Complication.unit` comes back typed
 #: `Complications.Unit or Lang.String or Null`, i.e. either this enum or a
 #: literal string a *user* complication supplied directly (see
@@ -340,14 +340,14 @@ def names() -> list[str]:
 
 
 # ============================================================================
-# How a `complication_slot` draws each type's reading
+# How a `data` element draws each type's reading
 # ============================================================================
 
 #: The longest reading `short: true` aims for, in characters.
 SHORT_LENGTH = 7
 
 #: Each type's rule for turning its raw value into the text a
-#: `complication_slot` draws.  The generated `SlotText.reading` switches on
+#: `data` draws.  The generated `SlotText.reading` switches on
 #: the wearer's pick and calls the matching `runtime-lib/WfbReading.mc`
 #: helper; :func:`format_reading` is the Python twin the preview draws with.
 #:
@@ -573,7 +573,7 @@ def condition_text(condition: int, short: bool) -> str:
 def format_reading(name: str, value: object, device_unit: object = None, *,
                    unit: bool = False, short: bool = False,
                    settings: ReadingSettings = ReadingSettings()) -> str | None:
-    """The text a `complication_slot` draws for type `name` reading `value`,
+    """The text a `data` element draws for type `name` reading `value`,
     or `None` when the reading counts as absent.
 
     The Python twin of the generated `SlotText.reading` and the

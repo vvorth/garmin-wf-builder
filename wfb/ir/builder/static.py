@@ -81,7 +81,7 @@ class StaticPass(AodPass):
 
     def _check_static_subtrees(self, roots: list[Element]) -> None:
         """A kind whose own `static_forbidden` attribute is set (`graph`,
-        `complication_slot`, `hands`) reads its picture from something that
+        `data`, `hands`) reads its picture from something that
         is not an `Expression` at all -- a series, a wearer's runtime pick,
         the clock -- so the generic "nothing here may read a data source"
         sweep below would never catch any of them on its own."""

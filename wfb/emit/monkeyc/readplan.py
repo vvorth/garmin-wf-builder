@@ -46,8 +46,8 @@ class ReadPlan:
         #: named local.  Format specs read their reader directly instead.
         self._bound: dict[str, list[str]] = {}
         #: The subset of `_bound` reached through the element's *value*
-        #: expression(s) specifically -- `Text.value`, or `Progress.value`
-        #: and `Progress.maximum` together, since both feed one fraction.
+        #: expression(s) specifically -- `Text.value`, or `Gauge.value`
+        #: and `Gauge.maximum` together, since both feed one fraction.
         #: This is what a `absent: placeholder`/`fallback` policy
         #: actually governs.
         self._value_bound: dict[str, list[str]] = {}
@@ -327,10 +327,10 @@ class ReadPlan:
     def _value_expressions(element: Element) -> tuple[Expression, ...]:
         """Which of an element's bound expressions its `absent:`
         policy governs -- `element.VALUE_ROLES`: `{value}` for
-        a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
+        a `Text`, `{value, max}` for a `Gauge` (its fill fraction depends
         on both together -- one nullable reading is as absent as the other,
         from the fraction's own point of view, which is also why
-        `wfb.kinds.progress.ProgressKind.build` checks their combined nullability as one
+        `wfb.kinds.gauge.GaugeKind.build` checks their combined nullability as one
         thing), empty for every other kind, which has no `absent:`
         field at all -- nothing here is "the value" for one of those, so
         every binding is an "other" one, guarded unconditionally.

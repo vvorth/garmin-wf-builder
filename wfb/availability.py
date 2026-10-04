@@ -261,7 +261,7 @@ def uses_complications(face: Face) -> bool:
        `complication.*` catalogue path at all -- the type is not known
        until runtime;
     3. any `on_hold:` anywhere in the design (a fixed complication type, or
-       a `complication_slot`'s `on_hold: auto`), which compiles to
+       a `data` element's `on_hold: auto`), which compiles to
        `Complications.exitTo`.
     """
     return (

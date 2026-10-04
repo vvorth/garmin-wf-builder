@@ -1,7 +1,7 @@
 """Registry of per-element-kind behaviour.
 
 Every element kind (`group`, `shape`, `text`, `progress`, `icon`, `graph`,
-`complication_slot`, `hands`, `pattern`) is one :class:`ElementKind`
+`data`, `hands`, `pattern`) is one :class:`ElementKind`
 subclass: the methods a stage (the builder, layout, preview, emit, lint)
 calls instead of switching on `isinstance`/`kind ==`.  A new kind is an IR
 class (`wfb.ir.model`), a `Placed` class (`wfb.layout`), one module here and
@@ -44,8 +44,8 @@ if TYPE_CHECKING:
 #: imports the nine kind modules in.  `tests/test_kinds.py` pins this
 #: against the schema's own element discriminators.
 _NAMES: tuple[str, ...] = (
-    "group", "shape", "text", "progress", "icon", "graph",
-    "complication_slot", "hands", "pattern",
+    "group", "shape", "text", "gauge", "icon", "graph",
+    "data", "hands", "pattern",
 )
 
 

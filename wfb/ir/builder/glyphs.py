@@ -279,7 +279,7 @@ class GlyphHelpers(AbsenceChecks):
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
         The shared "unknown icon" diagnostic: used by `wfb.kinds.icon.IconKind.build`'s
-        own inline check and by a `complication_slot` choice's `icon:` override
+        own inline check and by a `data` element choice's `icon:` override
         (`_resolve_choice_icon_override`), so both report the exact same
         message rather than a second, slightly-different one for what is
         the same mistake either place it is made.

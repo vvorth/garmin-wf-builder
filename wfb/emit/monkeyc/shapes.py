@@ -10,7 +10,7 @@ from ...ir import disc_perimeter_offsets
 from ..writer import Writer
 
 if TYPE_CHECKING:
-    from ...layout import PlacedProgress, PlacedShape
+    from ...layout import PlacedGauge, PlacedShape
 
 
 def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
@@ -36,7 +36,7 @@ def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
     ])
 
 
-def thickness_expr(prefix: str, placed: PlacedShape | PlacedProgress, aod: AodStyle) -> str:
+def thickness_expr(prefix: str, placed: PlacedShape | PlacedGauge, aod: AodStyle) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
     element's resolved `aod:` overrides `thickness:`."""
     return aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None)

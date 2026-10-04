@@ -38,7 +38,7 @@ def program(ctx: DrawContext, placed: "Placed", plan: "ReadPlan",
 
     - `visible:` first, before every other guard: it gates the element as a
       whole (`VisibleGuard`).
-    - A data element (`complication_slot`) has no other guard: its reading
+    - A data element (`data`) has no other guard: its reading
       is a fresh per-frame pull, not an element-level binding.
     - `placeholder`/`fallback` govern the *value*: a substitute takes over
       instead of the element not drawing.  They say nothing about a nullable
@@ -65,7 +65,7 @@ def program(ctx: DrawContext, placed: "Placed", plan: "ReadPlan",
         always = visible.constant is not None and bool(visible.constant)
         ops.append(VisibleGuard(visible, tuple(plan.visible_guards(placed)),
                                 "" if always else _negated(visible)))
-    if kind.name == "complication_slot":
+    if kind.name == "data":
         return ops + lowered(ctx, placed)
     paths = {local_name(path): path for path in catalog.CATALOG}
 
@@ -97,7 +97,7 @@ def emit_body(w: "Writer", resolved: "ResolvedFace", placed: "Placed", plan: "Re
     """The printed `draw<Id>` body (or a `ring<Id>` pass), after its reads."""
     from .printer import print_ops
 
-    guards = () if kinds.for_placed(placed).name == "complication_slot" else tuple(
+    guards = () if kinds.for_placed(placed).name == "data" else tuple(
         plan.value_guards(placed))
     ctx = DrawContext(resolved, aod, guards, ring,
                       complications_guarded=plan.device_guards.complications)

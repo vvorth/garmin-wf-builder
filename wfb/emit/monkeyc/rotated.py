@@ -9,12 +9,12 @@ from ..writer import Writer
 
 if TYPE_CHECKING:
     from ...layout import (
-        PlacedHands, PlacedPattern, PlacedProgress, ResolvedCirclePart, ResolvedLinePart,
+        PlacedHands, PlacedPattern, PlacedGauge, ResolvedCirclePart, ResolvedLinePart,
         ResolvedPolygonPart,
     )
 
 
-def aod_thickness_override(placed: PlacedHands | PlacedPattern | PlacedProgress,
+def aod_thickness_override(placed: PlacedHands | PlacedPattern | PlacedGauge,
                            prefix: str) -> str | None:
     """The element-level `aod: {thickness: ...}` constant a hands/pattern
     element applies uniformly to every part's pen width, or

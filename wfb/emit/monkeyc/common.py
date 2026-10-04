@@ -9,7 +9,7 @@ from typing import Iterable
 
 from ... import __version__, kinds
 from ...availability import Guards
-from ...ir import ComplicationSlot, Element, Expression, Face, aod_color_choice, config_data_ids, \
+from ...ir import DataElement, Element, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name, slot_of
 from ...layout import Placed, PlacedText, ResolvedFace
 from ...palette import Color
@@ -92,17 +92,17 @@ def hold_targets(face: Face) -> list[Element]:
     return [e for e in face.walk() if e.on_hold is not None]
 
 
-def complication_slots(face: Face) -> list[ComplicationSlot]:
-    """Every `complication_slot` element, in draw order.
+def data_elements(face: Face) -> list[DataElement]:
+    """Every `data` element, in draw order.
 
     Drives the editor-only machinery (`AppBase.onStart`'s edit-mode flag,
     `WatchFaceDelegate.onTap`/`getComplicationDrawable`, the generated
     `SlotDrawable`) -- all of it gated on this being non-empty, never on
     `face.config_data` alone, since a declared `config: data:` slot with no
-    `complication_slot` element drawing it would otherwise pull in a whole
+    `data` element drawing it would otherwise pull in a whole
     editor-highlight seam for nothing on screen to highlight.
     """
-    return [e for e in face.walk() if isinstance(e, ComplicationSlot)]
+    return [e for e in face.walk() if isinstance(e, DataElement)]
 
 
 def needs_delegate(face: Face) -> bool:
@@ -412,7 +412,7 @@ def mc_float(value: float) -> str:
 def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     """Every **bitmap** font resource this view loads once in `onLayout`
     through `WatchUi.loadResource`, in first-appearance draw order: an
-    author's baked text fonts (a `text` element's, a `complication_slot`'s,
+    author's baked text fonts (a `text` element's, a `data` element's,
     a pattern `shape: text` part's) and the synthetic per-size icon fonts
     (`wfb.icons.font_key`) alike, and each one's ring font
     (`wfb.kinds.ring_fonts`) when ringed text or an icon draws with it.
@@ -446,7 +446,7 @@ def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
     Excludes an override that names the *same* resource the element already
     draws with while awake (nothing to load a second time -- the awake
     field already covers it). A `face:` (vector) font override, a
-    `complication_slot`'s own `font:` override and a pattern's own `font:`
+    `data`'s own `font:` override and a pattern's own `font:`
     override are all rejected outright as friendly build errors
     (`Builder._build_aod_authored`, `docs/limitations.md` §2), so none of
     them can ever reach this function -- only `PlacedText` is consulted.

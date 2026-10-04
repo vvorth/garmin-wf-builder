@@ -345,7 +345,7 @@ def test_delegate_holds_the_view_only_when_config_needs_it(
     """`_view` is declared only when something reads it.
 
     The delegate is handed the view unconditionally, but a plain `on_hold:`
-    design never calls back into it -- only `config:`/a `complication_slot`
+    design never calls back into it -- only `config:`/a `data` element
     does.  Declaring the field regardless made `monkeyc -w` report `Member
     variable '_view' is not used.` on every design that used `on_hold:`
     alone -- a whole documented feature building with guaranteed warning

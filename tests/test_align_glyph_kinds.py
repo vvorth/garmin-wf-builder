@@ -1,6 +1,6 @@
 """`align:`/`vertical_align:` on `icon` (mechanism (b), a
 glyph kind -- the same device-side justify a `text` element already uses)
-and `complication_slot` (mechanism (c), ADR 0004's runtime-measured
+and `data` (mechanism (c), ADR 0004's runtime-measured
 exception -- the arithmetic lives on the device).
 
 Covers: an icon's lint box (static and dynamic `icon_for:`) moved by
@@ -8,7 +8,7 @@ Covers: an icon's lint box (static and dynamic `icon_for:`) moved by
 (`Layout.<P>_CX/_CY`) stays put; the generated `TEXT_JUSTIFY_*` flags and the
 `dc.getFontHeight` subtraction for `bottom`; that the exact default draw call
 is unchanged; icon preview ink on the correct side of the anchor; a
-`complication_slot`'s per-`icon_position:` runtime arithmetic for a
+`data`'s per-`icon_position:` runtime arithmetic for a
 non-default `align:`/`vertical_align:` (the pieces §3.2(c) specifies,
 asserted literally); that its default codegen (every `icon_position:`,
 fast path included) is still byte-identical to a design that never writes
@@ -232,7 +232,7 @@ def test_icon_preview_bottom_ink_lies_above_the_anchor_row(write_design, bag, db
 
 
 # =============================================================================
-# complication_slot
+# data element
 # =============================================================================
 
 CS_BASE = """

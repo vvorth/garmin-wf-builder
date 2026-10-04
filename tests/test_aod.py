@@ -117,7 +117,7 @@ elements:
     assert "pattern" in hits[0].message and "not implemented" in hits[0].message
 
 
-def test_complication_slot_font_override_is_a_friendly_error(write_design, bag):
+def test_data_font_override_is_a_friendly_error(write_design, bag):
     text = BASE + """
 config:
   slots:

@@ -19,8 +19,6 @@ KEYS = {
 
 #: Internal element kind (or shape) -> the `type:` a format 2 author writes.
 KINDS = {
-    "progress": "gauge",
-    "complication_slot": "data",
     "rounded_rectangle": "rectangle",
 }
 

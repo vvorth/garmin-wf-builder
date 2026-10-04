@@ -22,8 +22,8 @@ from __future__ import annotations
 
 from .naming import (
     local_name, config_field, config_data_ids, element_const_prefix,
-    element_method_name, element_ring_method, static_group_method, complication_slot_icon_method,
-    complication_slot_hold_method, graph_series_field, graph_min_field,
+    element_method_name, element_ring_method, static_group_method, data_icon_method,
+    data_hold_method, graph_series_field, graph_min_field,
     graph_max_field, graph_built_field, graph_rebuild_method,
     font_resource_id, config_label_id, config_style_label_id,
 )
@@ -38,7 +38,7 @@ from .model import (
     CONFIG_AXES, ConfigColor, ColorScheme, LayoutDecl, StyleEntry, ConfigStyle,
     ConfigDataSlot, Element, Group, Shape, HandPart, AnyHandPart, PolygonPart, RectanglePart, LinePart, CirclePart,
     ArcPart, TextPart, Hand, HandSet, HandsElement,
-    PatternElement, Text, TextSegment, Progress, IconElement, ComplicationSlot, Graph, Face,
+    PatternElement, Text, TextSegment, Gauge, IconElement, DataElement, Graph, Face,
     walk_elements, slot_of, authored_draw_order, draw_sort_key, draw_order, never_together,
 )
 from .builder import (
@@ -49,8 +49,8 @@ from .builder import (
 
 __all__ = [
     "local_name", "config_field", "config_data_ids", "element_const_prefix",
-    "element_method_name", "element_ring_method", "static_group_method", "complication_slot_icon_method",
-    "complication_slot_hold_method", "graph_series_field", "graph_min_field",
+    "element_method_name", "element_ring_method", "static_group_method", "data_icon_method",
+    "data_hold_method", "graph_series_field", "graph_min_field",
     "graph_max_field", "graph_built_field", "graph_rebuild_method",
     "font_resource_id", "config_label_id", "config_style_label_id",
     "MODES", "HOLD_AUTO", "PATTERN_LOOP_INDEX", "GRAPH_AREA_MAX_SAMPLES", "SYSTEM_FONTS",
@@ -64,7 +64,7 @@ __all__ = [
     "CONFIG_AXES", "ConfigColor", "ColorScheme", "LayoutDecl", "StyleEntry", "ConfigStyle",
     "ConfigDataSlot", "Element", "Group", "Shape", "HandPart", "AnyHandPart", "PolygonPart", "RectanglePart", "LinePart", "CirclePart",
     "ArcPart", "TextPart", "Hand", "HandSet", "HandsElement",
-    "PatternElement", "Text", "TextSegment", "Progress", "IconElement", "ComplicationSlot", "Graph", "Face",
+    "PatternElement", "Text", "TextSegment", "Gauge", "IconElement", "DataElement", "Graph", "Face",
     "walk_elements", "slot_of", "authored_draw_order", "draw_sort_key", "draw_order", "never_together",
     "HAND_PART_GEOMETRY_KEYS", "HAND_PART_FILLED_SHAPES",
     "HAND_PART_NO_UNFILLED", "HAND_PART_REJECTED_SHAPES", "PATTERN_PART_GEOMETRY_KEYS",

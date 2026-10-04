@@ -182,7 +182,7 @@ These cost real time to discover; do not rediscover them.
   every module-gated reader pull in `ReadPlan.emit_reads` (one
   `has<Module>` local per module per frame, not per reader), a forecast
   graph's acquisition (`wfb.emit.monkeyc.graph`), `on_hold:`'s
-  `Complications.exitTo` (both the fixed-type and `complication_slot`
+  `Complications.exitTo` (both the fixed-type and `data`
   `auto` forms), and a `config: data:` slot's `Complications.Id` field. Two
   gotchas the implementation ran into: (1) a **field initialiser** runs
   before any guard could matter (`docs/lore/monkeyc.md`), so a guarded
@@ -267,7 +267,7 @@ These cost real time to discover; do not rediscover them.
   depend on the user's licensed fonts. None of this reaches
   `monkeyc`'s input: a `Placed*`'s `font.metric` only feeds `wfb.layout`'s
   own lint boxes and `wfb.preview`'s ink, never a baked pixel position --
-  the runtime anchor a `text`/`complication_slot` draws at was already
+  the runtime anchor a `text`/`data` element draws at was already
   unshifted before this (this file, finding 7's sibling reasoning: a glyph
   kind's alignment is a device-side justify, not a build-time box move), so
   the *only* generated-code effect observed is a `_WIDTH` layout constant's
@@ -598,7 +598,7 @@ These cost real time to discover; do not rediscover them.
   what is measured here is purely the bookkeeping around it.
 
   **Scope actually shipped in slice 2, and what is deliberately deferred:**
-  ternaries for every allowlisted key on `shape`/`text`/`progress`/`icon`/
+  ternaries for every allowlisted key on `shape`/`text`/`gauge`/`icon`/
   `graph`, `filled` as an `if (_aod) { <opposite draw> } else { <awake
   draw> } ` branch (`wfb.kinds.shape._emit_filled_toggle`), `format`
   as two fully-formatted value expressions ternaried against each other
@@ -612,7 +612,7 @@ These cost real time to discover; do not rediscover them.
   a silent no-op**: a
   `pattern`'s own `font:` override (allowlisted, plan 14 §2.3, but a
   pattern's per-copy text font loading has no second-resource slot yet), a
-  `complication_slot`'s `font:` override (same reason), any `font:`
+  `data` element's `font:` override (same reason), any `font:`
   override that names a `face:` (vector) font rather than a baked one (gate
   1-4's own machinery has no AOD-override-aware second face/size constant
   yet), and `aod: {filled: ...}` on `shape: polygon` (there is no outline

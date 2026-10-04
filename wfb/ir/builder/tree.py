@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 from ... import catalog, complications, kinds, vocab
 from ...diagnostics import Span
 
-from ..model import ComplicationSlot, Element, HOLD_AUTO, ROLE_VALUE, Position
+from ..model import DataElement, Element, HOLD_AUTO, ROLE_VALUE, Position
 from ..naming import element_const_prefix, element_method_name
 from ..rings import ring_groups
 from .state import _lint_suppression
@@ -22,7 +22,7 @@ _OVERRIDE_FIELDS = ("at", "size", "radius", "align")
 
 #: Kinds whose `align:` is a `TEXT_JUSTIFY_*` flag in the shared view
 #: rather than a per-device box shift, so no override may change it.
-_GLYPH_KINDS = frozenset({"text", "icon", "complication_slot"})
+_GLYPH_KINDS = frozenset({"text", "icon", "data"})
 
 
 def _merged(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -50,7 +50,7 @@ def _takes_align(element: Element) -> bool:
     if element.kind == "shape":
         from ...kinds.shape import SHAPE_GEOMETRY_KEYS  # the kind imports the IR
         return "align" in SHAPE_GEOMETRY_KEYS.get(getattr(element, "shape", ""), frozenset())
-    return element.kind in ("group", "progress", "graph")
+    return element.kind in ("group", "gauge", "graph")
 
 
 class ElementTree(StaticPass):
@@ -392,9 +392,9 @@ class ElementTree(StaticPass):
         has no value binding yet to resolve `auto` from.
 
         Afterwards `element.on_hold` is a real `wfb.complications.TYPES`
-        key or `None` -- never `HOLD_AUTO`, except on a `complication_slot`.
+        key or `None` -- never `HOLD_AUTO`, except on a `data` element.
         """
-        if isinstance(element, ComplicationSlot):
+        if isinstance(element, DataElement):
             # A slot's `auto` stays `HOLD_AUTO`: the wearer can repoint the
             # slot at any moment, so the delegate reads the launch target
             # from the slot's own field on the device (`emit_delegate`).
@@ -417,7 +417,7 @@ class ElementTree(StaticPass):
         Deliberately not `element.VALUE_ROLES`, the set `ReadPlan.
         _value_expressions` reads instead: that answers a different
         question (what a `absent:` policy governs -- it adds
-        `Progress.max`, and has none at all for `IconElement`), so the two
+        `Gauge.max`, and has none at all for `IconElement`), so the two
         read the *tag* the same expressions share, not the *kind-specific
         subset* the other one narrows to.
         """

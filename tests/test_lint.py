@@ -105,7 +105,7 @@ def test_a_dithered_colour_can_be_suppressed_on_the_element_that_uses_it(check):
 
 
 def test_a_dithered_track_color_can_also_be_suppressed(check):
-    """`track_color:` (Progress) is the other field check_palette must honour,
+    """`track_color:` (Gauge) is the other field check_palette must honour,
     not just `color:` -- both are named in the warning's own note."""
     bag = check(
         """

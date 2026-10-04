@@ -5,7 +5,7 @@ track, a `segments` gauge every cell unlit, and a `scale` gauge its track
 and bands; only what the value places -- the fill, the lit cells, the
 pointer -- is left out. A needle has nothing that does not depend on the
 value, so it hides whole, and a nullable colour still hides everything.
-`wfb.kinds.progress.keeps_track` is the one definition both the generated
+`wfb.kinds.gauge.keeps_track` is the one definition both the generated
 code and the preview read.
 """
 
@@ -18,7 +18,7 @@ from wfb.build import build as real_build
 from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
-from wfb.kinds import progress
+from wfb.kinds import gauge
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
@@ -213,8 +213,8 @@ def test_codegen_and_preview_read_one_definition(write_design, db):
     the preview's through `keeps_track`: the two must agree for every style."""
     for style, text in STYLES.items():
         element = _face(HEAD + text, write_design, Bag()).elements[0]
-        assert progress.KIND.draws_while_absent(element) == progress.keeps_track(element)
-        assert progress.keeps_track(element) == (style != "needle"), style
+        assert gauge.KIND.draws_while_absent(element) == gauge.keeps_track(element)
+        assert gauge.keeps_track(element) == (style != "needle"), style
 
 
 # -- the real compiler -------------------------------------------------------------

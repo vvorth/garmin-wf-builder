@@ -1,5 +1,5 @@
-"""A data element's (`complication_slot`'s) on-device config-editor plumbing;
-its drawing is `wfb.kinds.complication_slot.ComplicationSlotKind.lower`."""
+"""A data element's (`data`'s) on-device config-editor plumbing;
+its drawing is `wfb.kinds.data.DataKind.lower`."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING
 from ... import complications
 from ...availability import Guards
 from ...ir import (
-    Face, complication_slot_hold_method, complication_slot_icon_method, config_field,
+    Face, data_hold_method, data_icon_method, config_field,
     element_method_name,
 )
-from ...layout import PlacedComplicationSlot, ResolvedFace
-from .common import EditorSlot, SourceFile, _NO_GUARDS, complication_slots, header
+from ...layout import PlacedData, ResolvedFace
+from .common import EditorSlot, SourceFile, _NO_GUARDS, data_elements, header
 from ..writer import Writer
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 #: The view method holding `onLayout`'s font loading and first config read,
-#: on a design with a `complication_slot`, and the flag saying it has run.
+#: on a design with a `data` element, and the flag saying it has run.
 LOAD_RESOURCES_METHOD = "loadResources"
 RESOURCES_LOADED_FIELD = "_resourcesLoaded"
 
@@ -69,7 +69,7 @@ def _emit_pulsing_field(w: Writer) -> None:
     w.blank()
 
 
-def _emit_complication_slot_editor_methods(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+def _emit_data_editor_methods(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                                            slots: list[EditorSlot]) -> None:
     """`setPulsing`/`drawSlot`/`drawableFor`, and one `drawSlot<Name>` per
     slot -- the view's half of the native editor's animated highlight
@@ -171,7 +171,7 @@ def _emit_complication_slot_editor_methods(w: Writer, resolved: ResolvedFace, pl
 
 def emit_slot_drawable(face: Face) -> SourceFile:
     """`source/<Face>SlotDrawable.mc` -- the generated stand-in for one
-    `complication_slot`, handed to the native editor so it can animate
+    `data`, handed to the native editor so it can animate
     ("pulse") the slot the wearer is about to change.
 
     Delegates straight back to the view's own `drawSlot`, so there is exactly
@@ -224,16 +224,16 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     return SourceFile(f"source/{face.entry}SlotDrawable.mc", w.render())
 
 
-#: The generated module a `complication_slot`'s reading is formatted by.
+#: The generated module a `data` element's reading is formatted by.
 SLOT_TEXT_MODULE = "SlotText"
 
 
 def slot_reading_types(face: Face) -> list[str]:
-    """Every `wfb.complications.TYPES` name a drawn `complication_slot` can
+    """Every `wfb.complications.TYPES` name a drawn `data` can
     show, across every slot: the ones `SlotText.reading` needs a case for.
     `choices: any` can show every type."""
     names: set[str] = set()
-    for element in complication_slots(face):
+    for element in data_elements(face):
         slot = face.config_data.get(element.slot)
         if slot is None:
             continue
@@ -245,7 +245,7 @@ def _worded_variants(face: Face, kind: str) -> set[bool]:
     """The `short:` values of the drawn slots that can show a `kind` reading
     -- which of its long and short name tables the program needs."""
     variants: set[bool] = set()
-    for element in complication_slots(face):
+    for element in data_elements(face):
         slot = face.config_data.get(element.slot)
         if slot is None:
             continue
@@ -315,7 +315,7 @@ def _emit_condition_table(w: Writer, method: str, short: bool) -> None:
 
 
 def emit_slot_text(face: Face) -> SourceFile:
-    """`source/SlotText.mc` -- a `complication_slot`'s reading as the text
+    """`source/SlotText.mc` -- a `data` element's reading as the text
     it draws, one rule per complication type (`wfb.complications.READING`).
 
     Generated, rather than a barrel file, so a program carries a case only
@@ -404,18 +404,18 @@ def emit_slot_text(face: Face) -> SourceFile:
     return SourceFile(f"source/{SLOT_TEXT_MODULE}.mc", w.render())
 
 
-def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlot,
+def _emit_data_hold_method(w: Writer, placed: PlacedData,
                                         guards: "Guards" = _NO_GUARDS) -> None:
     """`holdTargetFor<Id>()` -- the public getter `on_hold: auto` on a
-    `complication_slot` compiles to, returning this slot's own current
+    `data` compiles to, returning this slot's own current
     `Complications.Id` field directly.
 
     Public, unlike every draw method: the delegate is a different class and
     Monkey C's `private` genuinely blocks a cross-class call (verified by
     building both ways).  Only emitted for a slot that actually declares
-    `on_hold: auto` -- `wfb.kinds.complication_slot.ComplicationSlotKind.build` restricts a slot to
+    `on_hold: auto` -- `wfb.kinds.data.DataKind.build` restricts a slot to
     exactly that or nothing, so there is no fixed `wfb.complications.TYPES`
-    name to resolve here the way a `Text`/`Progress`/`IconElement`'s `auto`
+    name to resolve here the way a `Text`/`Gauge`/`IconElement`'s `auto`
     resolves one; the delegate reads this id and hands it straight to
     `Complications.exitTo`.
 
@@ -433,12 +433,12 @@ def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlo
     w.doc(f"`{element.id}`'s current pick, for the delegate's 'on_hold: auto' ->\n"
           "Complications.exitTo.  Whatever the wearer has this slot pointed at right\n"
           "now, read fresh -- never a fixed type baked in at build time.")
-    with w.block(f"function {complication_slot_hold_method(element.id)}() as {return_type}"):
+    with w.block(f"function {data_hold_method(element.id)}() as {return_type}"):
         w.line(f"return {field};")
 
 
-def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
-                                        placed: PlacedComplicationSlot) -> None:
+def _emit_data_icon_method(w: Writer, resolved: ResolvedFace,
+                                        placed: PlacedData) -> None:
     """`iconFor<Id>(t)` -- one slot's `Complications.Type` -> catalogue name
     (via `IconGlyphs.glyph`) -> drawn glyph lookup.
 
@@ -466,7 +466,7 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type -- not from\n"
           "the reading, so it still shows on a frame the reading could not be pulled.\n"
           "A weather type's icon follows the pulled condition when there is one.")
-    method = complication_slot_icon_method(element.id)
+    method = data_icon_method(element.id)
     with w.block(f"private function {method}(t as Complications.Type,\n"
                  "            pulled as Complications.Complication?) as String?"):
         if follows:

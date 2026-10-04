@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from ... import complications
-from ...ir import Face, Progress
+from ...ir import Face, Gauge
 from ..writer import Writer
 from .common import SourceFile, header
 
@@ -100,15 +100,15 @@ def emit_slot_scale(face: Face, names: Iterable[str], apps: bool) -> SourceFile:
                       slot_scale_text(names, apps, header(face)))
 
 
-def slot_gauges(face: Face) -> list[Progress]:
+def slot_gauges(face: Face) -> list[Gauge]:
     """Every gauge drawing a declared `config: slots:` slot, in draw order."""
     return [e for e in face.walk()
-            if isinstance(e, Progress) and e.slot is not None and e.slot in face.config_data]
+            if isinstance(e, Gauge) and e.slot is not None and e.slot in face.config_data]
 
 
-def auto_scale_gauges(face: Face) -> list[Progress]:
+def auto_scale_gauges(face: Face) -> list[Gauge]:
     """Every gauge with `max: auto` on a bare `complication.<type>`."""
-    return [e for e in face.walk() if isinstance(e, Progress) and e.auto_scale is not None]
+    return [e for e in face.walk() if isinstance(e, Gauge) and e.auto_scale is not None]
 
 
 def slot_scale_types(face: Face) -> tuple[list[str], bool]:

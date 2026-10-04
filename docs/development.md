@@ -200,11 +200,10 @@ docs/                 README.md (hub), guide/ (format reference), limitations, A
 
 ## Element kinds
 
-Each element kind (`group`, `shape`, `text`, `progress`, `icon`, `graph`,
-`complication_slot`, `hands`, `pattern`) is one module in `wfb/kinds/`. These
-are the internal names: format 2's six primitive types lower to `shape`,
-`gauge` to `progress` and `data` to `complication_slot` (`wfb/lower.py`,
-`wfb/vocab.py` for the way back in messages). Each module holds one subclass of `wfb.kinds.ElementKind` (`TextKind`, `PatternKind`,
+Each element kind (`group`, `shape`, `text`, `gauge`, `icon`, `graph`,
+`data`, `hands`, `pattern`) is one module in `wfb/kinds/`, named as the
+author writes its `type:`, except that the six primitive types (`rectangle`,
+`circle`, ...) are all the `shape` kind's (`wfb.kinds.kind_of`). Each module holds one subclass of `wfb.kinds.ElementKind` (`TextKind`, `PatternKind`,
 ...) and an instance of it as the module's `KIND`. A stage never switches on
 kind: it asks the registry (`kinds.for_element`, `kinds.for_placed`) and
 calls a method. The base class is the interface: every method's signature
@@ -284,8 +283,8 @@ Where code goes:
   becomes a method whose default is the ladder's fall-through. A site about
   one kind's own feature stays at its call site as an `isinstance` check,
   when no second kind would plausibly need it: collecting every
-  `complication_slot`, a `graph`'s series barrel, a curved `text`
-  element's rotated ink (`layout._shape_ink`), a `complication_slot`
+  `data` element, a `graph`'s series barrel, a curved `text`
+  element's rotated ink (`layout._shape_ink`), a `data` element
   emitting its own guards (`view._emit_element_method`). A friendly
   pre-schema message for one kind's common mistake is a `_check_*`
   function in `wfb/validate.py`, beside the others.

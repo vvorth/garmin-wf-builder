@@ -70,14 +70,14 @@ GROUP_KEYS: dict[str, str] = {
 #: downstream logic named on it, so a role is added here once, not
 #: re-derived per reader:
 #:
-#: * `ROLE_VALUE` -- `Text.value`, `Progress.value`, `IconElement.value_for`.
+#: * `ROLE_VALUE` -- `Text.value`, `Gauge.value`, `IconElement.value_for`.
 #:   `Element.VALUE_ROLES` (a per-kind subset of the roles below) is what a
 #:   `absent:` policy actually governs (`ReadPlan._value_expressions`);
 #:   `Builder._hold_auto_sources` reads every `ROLE_VALUE` expression
 #:   directly, regardless of `VALUE_ROLES` -- the two ask different
 #:   questions (root docs, `docs/lore/codegen.md`) and only happen to share
 #:   a tag for "the expression this element is about".
-#: * `ROLE_MAX`/`ROLE_MIN` -- `Progress.maximum`, `Graph.max`/`Graph.min`.
+#: * `ROLE_MAX`/`ROLE_MIN` -- `Gauge.maximum`, `Graph.max`/`Graph.min`.
 #: * `ROLE_FALLBACK` -- a `absent: fallback` substitute.
 #: * `ROLE_COLOR`/`ROLE_TRACK_COLOR`/`ROLE_ICON_COLOR` -- any element's own
 #:   `color:`/`track_color:`/`icon_color:`, and each colour folded into
@@ -736,7 +736,7 @@ class ConfigDataSlot:
 class Element:
     #: The `bound_expressions()` roles a `absent:` policy on this kind
     #: governs -- `{ROLE_VALUE}` for `Text`, `{ROLE_VALUE,
-    #: ROLE_MAX}` for `Progress`, empty for every other kind, which has no
+    #: ROLE_MAX}` for `Gauge`, empty for every other kind, which has no
     #: `absent:` field at all.  `ReadPlan._value_expressions` reads
     #: this directly; `Builder._hold_auto_sources` does not (see
     #: `ROLE_VALUE`'s own docstring for why the two differ).
@@ -827,7 +827,7 @@ class Element:
     #: The placement box's edge (or centre) that sits at `at:`.  The schema
     #: decides which kinds accept it; `wfb.layout` applies it through
     #: `alignment_shift` (box-drawn kinds) or `Resolver.justify` (glyph-drawn
-    #: kinds), and a `complication_slot` mirrors it at runtime.
+    #: kinds), and a `data` element mirrors it at runtime.
     align: str = "center"
     vertical_align: str = "center"
     #: `aod:` as written on this element alone (`Builder._build_aod_authored`):
@@ -905,7 +905,7 @@ class Element:
         three separate answers to that question before this).
 
         Generic over every kind whose colours are plain fields
-        (`Shape`/`Text`/`Progress`/`IconElement`/`ComplicationSlot`/`Graph`,
+        (`Shape`/`Text`/`Gauge`/`IconElement`/`DataElement`/`Graph`,
         and `Group`, which has none): `getattr` covers the gap between
         kinds rather than an `isinstance` ladder.  `HandsElement`/
         `PatternElement` override this outright -- neither has a plain
@@ -1332,7 +1332,7 @@ class Text(Element):
 
 
 @dataclass
-class Progress(Element):
+class Gauge(Element):
     style: str = "arc"
     value: Expression | None = None
     maximum: Expression | None = None
@@ -1377,7 +1377,7 @@ class Progress(Element):
 
     #: `absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
-    #: fraction's own point of view (`wfb.kinds.progress.ProgressKind.build`).
+    #: fraction's own point of view (`wfb.kinds.gauge.GaugeKind.build`).
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
 
     def _own_roles(self) -> list[tuple[str, Expression]]:
@@ -1433,8 +1433,8 @@ class IconElement(Element):
 
 
 @dataclass
-class ComplicationSlot(Element):
-    """`type: complication_slot` -- the element half of the native Data axis
+class DataElement(Element):
+    """`type: data element` -- the element half of the native Data axis
     (docs/research/09-data-library-and-config-axes.md §4): draws whichever
     complication the wearer currently has this `slot:` pointed at.
 
@@ -1442,12 +1442,12 @@ class ComplicationSlot(Element):
     complication type is showing is the wearer's runtime choice, so there
     is no fixed source to bind at build time.  Everything drawn comes from a
     fresh `WfbComplications.valueOf(<slot field>)` pull every frame.  No
-    `format:` (`wfb.kinds.complication_slot.ComplicationSlotKind.build` says why).
+    `format:` (`wfb.kinds.data.DataKind.build` says why).
     """
 
     #: The declared `config: data:` slot name this element shows (the part
     #: after `config.data.`), resolved and validated by
-    #: `wfb.kinds.complication_slot._resolve_slot_reference`.
+    #: `wfb.kinds.data._resolve_slot_reference`.
     slot: str = ""
     font: str = "FONT_SMALL"
     font_is_custom: bool = False
@@ -1460,7 +1460,7 @@ class ComplicationSlot(Element):
     #: `icon_size:`.
     icon_position: str = "left"
     #: Pixel/`%r` gap between icon and reading, or `None` for the fixed
-    #: `wfb.layout.COMPLICATION_SLOT_ICON_GAP` -- kept `None` so only an
+    #: `wfb.layout.DATA_ICON_GAP` -- kept `None` so only an
     #: authored gap becomes a per-device `Layout.<ID>_ICON_GAP` constant.
     icon_gap: Length | None = None
     #: The icon's own colour, or `None` to share `color:`.  Neither colour
@@ -1493,8 +1493,8 @@ class ComplicationSlot(Element):
 class Graph(Element):
     """`type: graph` -- a time series drawn as a line, a filled area or bars.
 
-    Modelled on `Progress`: one element with a `style:` discriminator, because
-    the *drawing* is what varies, not the acquisition. Unlike `Progress`,
+    Modelled on `Gauge`: one element with a `style:` discriminator, because
+    the *drawing* is what varies, not the acquisition. Unlike `Gauge`,
     there is no single bound `value:`/`max:` pair -- `series:` names an entry
     in the :mod:`wfb.series` catalogue, and the actual samples are acquired
     and cached on-device (`runtime-lib/WfbSeries.mc`, rebuilt once a minute),
@@ -1687,9 +1687,9 @@ def drawn_copies(
 def slot_of(element: Element) -> str | None:
     """The `config: slots:` slot ``element`` draws, if any: a `data` element's,
     or a gauge's `slot:`."""
-    if isinstance(element, ComplicationSlot):
+    if isinstance(element, DataElement):
         return element.slot
-    if isinstance(element, Progress):
+    if isinstance(element, Gauge):
         return element.slot
     return None
 

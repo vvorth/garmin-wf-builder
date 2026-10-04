@@ -12,7 +12,7 @@ from ...desugar import layout_ids
 from ...diagnostics import Span
 from ...palette import Color, ColorError
 
-from ..model import ColorScheme, ComplicationSlot, Element, LayoutDecl, slot_of, walk_elements
+from ..model import ColorScheme, DataElement, Element, LayoutDecl, slot_of, walk_elements
 from ..naming import config_field, local_name
 from .state import _lint_suppression
 from .fonts import FontBlock
@@ -70,7 +70,7 @@ against."""
 
         for element in walk_elements(elements):
             if slot_of(element) is not None and element.layout is not None:
-                what = ("a 'type: data' element" if isinstance(element, ComplicationSlot)
+                what = ("a 'type: data' element" if isinstance(element, DataElement)
                         else "a gauge with 'slot:'")
                 self.bag.error(
                     "layouts",

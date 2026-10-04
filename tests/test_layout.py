@@ -6,7 +6,7 @@ from tests.helpers import find, with_resources
 from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import (
-    PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, inside_screen,
+    PlacedGraph, PlacedIcon, PlacedGauge, PlacedShape, PlacedText, inside_screen,
     inside_visible_area_for, is_full_bleed, resolve,
 )
 
@@ -473,17 +473,17 @@ def test_a_bars_graph_resolves_its_own_bar_width(resolved_for):
     assert placed.bar_width == 4
 
 
-# -- complication_slot_pair_geometry -----------------------------------------
+# -- data_pair_geometry -----------------------------------------
 
 
-from wfb.layout import complication_slot_pair_geometry  # noqa: E402
+from wfb.layout import data_pair_geometry  # noqa: E402
 
 
 def test_geometry_left_matches_todays_layout():
     """`left`, the default: icon at the origin, text after it plus the gap --
-    exactly the box `wfb.kinds.complication_slot.ComplicationSlotKind.lower`'s fast path
+    exactly the box `wfb.kinds.data.DataKind.lower`'s fast path
     has always drawn."""
-    g = complication_slot_pair_geometry("left", 10, 12, 30, 14, 4)
+    g = data_pair_geometry("left", 10, 12, 30, 14, 4)
     assert (g.width, g.height) == (10 + 4 + 30, max(12, 14))
     assert (g.icon_x, g.text_x) == (0, 10 + 4)
     assert g.icon_y == (14 - 12) // 2  # centred on the taller piece (text)
@@ -491,13 +491,13 @@ def test_geometry_left_matches_todays_layout():
 
 
 def test_geometry_right_mirrors_left():
-    g = complication_slot_pair_geometry("right", 10, 12, 30, 14, 4)
+    g = data_pair_geometry("right", 10, 12, 30, 14, 4)
     assert (g.width, g.height) == (30 + 4 + 10, max(12, 14))
     assert (g.text_x, g.icon_x) == (0, 30 + 4)
 
 
 def test_geometry_top_stacks_vertically_and_centres_horizontally():
-    g = complication_slot_pair_geometry("top", 10, 12, 30, 14, 4)
+    g = data_pair_geometry("top", 10, 12, 30, 14, 4)
     assert (g.width, g.height) == (30, 12 + 4 + 14)
     assert g.icon_y == 0
     assert g.text_y == 12 + 4
@@ -506,7 +506,7 @@ def test_geometry_top_stacks_vertically_and_centres_horizontally():
 
 
 def test_geometry_bottom_is_top_upside_down():
-    g = complication_slot_pair_geometry("bottom", 10, 12, 30, 14, 4)
+    g = data_pair_geometry("bottom", 10, 12, 30, 14, 4)
     assert (g.width, g.height) == (30, 12 + 4 + 14)
     assert g.text_y == 0
     assert g.icon_y == 14 + 4
@@ -516,7 +516,7 @@ def test_geometry_bottom_is_top_upside_down():
 def test_geometry_drops_the_gap_when_there_is_no_icon(position):
     """`icon_w`/`icon_h` both zero means no icon at all -- the gap drops in
     every position, and the text ends up as if drawn alone."""
-    g = complication_slot_pair_geometry(position, 0, 0, 30, 14, 4)
+    g = data_pair_geometry(position, 0, 0, 30, 14, 4)
     if position in ("left", "right"):
         assert g.width == 30
     else:

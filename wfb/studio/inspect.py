@@ -318,9 +318,9 @@ def _complication_type(name: str) -> dict[str, Any]:
     """One complication type as a slot's checklist shows it: its label and
     group, its catalogue icon, and the reading the preview draws for it."""
     from ..icons import COMPLICATION_ICON
-    from ..kinds.complication_slot import COMPLICATION_SLOT_SAMPLE
+    from ..kinds.data import DATA_SAMPLE
 
-    sample = COMPLICATION_SLOT_SAMPLE.get(name)
+    sample = DATA_SAMPLE.get(name)
     reading = complications.format_reading(name, sample) if sample is not None else None
     return {"name": name, "label": complications.label(name),
             "category": complications.category(name),

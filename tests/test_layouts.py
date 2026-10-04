@@ -464,7 +464,7 @@ def test_slot_in_layout_static_gives_exactly_one_error(write_design):
     """The static-subtree check (`_apply_static`) never runs once
     `_assign_layouts` has already put an error in the bag -- so this must
     give exactly the layout error, not also `static`'s own "a
-    complication_slot cannot be static"."""
+    data element cannot be static"."""
     text = HEAD + """layouts:
   digital:
     static:

@@ -112,7 +112,7 @@ class Builder(ElementTree):
         self._resolve_group_keys(elements)
         if not self.bag.ok():
             return None
-        # Before `_apply_static`: a `complication_slot` inside a layout's own
+        # Before `_apply_static`: a `data` element inside a layout's own
         # `static:` must get the layout error alone, not also the
         # static-subtree one, so `Element.layout` has to be assigned -- and
         # the slot rule applied -- while the tree is still whole.

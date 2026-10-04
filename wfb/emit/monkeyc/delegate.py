@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ... import complications
 from ...availability import Guards
-from ...ir import ComplicationSlot, complication_slot_hold_method
+from ...ir import DataElement, data_hold_method
 from ...layout import ResolvedFace
 from .common import (
     CONFIG_LAYOUT_METHOD, EditorSlot, SourceFile, _NO_GUARDS, const_prefix, editor_slots,
@@ -28,7 +28,7 @@ def _emit_on_watchface_config_edited(w: Writer, has_slots: bool = False) -> None
     guard is needed here the way `onLayout`'s first read needs one -- unlike
     that first read, this one only runs *because* the editor just fired it.
 
-    With ``has_slots`` (the design has a `complication_slot`), an edit whose
+    With ``has_slots`` (the design has a `data` element), an edit whose
     `:type` is not `WATCH_FACE_CONFIG_TYPE_COMPLICATION` also clears the
     view's `_pulsing`: `Toybox/WatchUi/WatchFaceDelegate.html` documents a
     null `:type` as "the end of previous editing", and a style or colour
@@ -64,7 +64,7 @@ def _emit_on_watchface_config_edited(w: Writer, has_slots: bool = False) -> None
 
 def _emit_exit_to(w: Writer, exit_arg: str, guard: str | None = None) -> None:
     """`Complications.exitTo(<exit_arg>); return true;`, optionally wrapped in
-    a runtime guard -- both hold-target shapes below (a `complication_slot`'s
+    a runtime guard -- both hold-target shapes below (a `data` element's
     `on_hold: auto` and a fixed `on_hold:` target) reach exactly this pair of
     lines, guarded or not, and only differ in what `exit_arg` and ``guard``
     are.
@@ -99,7 +99,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     face cannot launch an arbitrary app, only the one that owns a
     complication type.
 
-    A `complication_slot` on `on_hold: auto` is a second shape: unlike
+    A `data` on `on_hold: auto` is a second shape: unlike
     every other target, the type this opens is not known at build time -- the
     wearer can repoint the slot at any moment -- so this reads it back
     through `Complications.exitTo(_view.<holdMethod>())` rather than indexing
@@ -107,7 +107,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     own docstring explains why a slot's `auto` is never resolved to one).
 
     **`onTap`/`getComplicationDrawable` are the one exception to "no onTap",
-    and only when the design has at least one `complication_slot`.**  Both
+    and only when the design has at least one `data`.**  Both
     are documented "Only available in WatchFace config mode" -- they never
     fire on a face merely being looked at, on any device (research 07 §1) --
     so they exist here purely to serve the native editor's own animated
@@ -199,7 +199,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                     if element.layout is not None else ""
                 )
                 condition = _hit_test(f"{prefix}_HOLD", layout_test)
-                if isinstance(element, ComplicationSlot):
+                if isinstance(element, DataElement):
                     w.comment(f"`{element.id}` -> whatever the wearer picked for "
                               f"slot {element.slot}")
                     with w.block(condition):
@@ -213,10 +213,10 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                             # every complication hold already has for an
                             # unsupported *type* (wfb.complications module
                             # docstring).
-                            w.line(f"var id = _view.{complication_slot_hold_method(element.id)}();")
+                            w.line(f"var id = _view.{data_hold_method(element.id)}();")
                             _emit_exit_to(w, "id", guard="id != null")
                         else:
-                            _emit_exit_to(w, f"_view.{complication_slot_hold_method(element.id)}()")
+                            _emit_exit_to(w, f"_view.{data_hold_method(element.id)}()")
                     continue
                 launch = complications.TYPES[element.on_hold]
                 w.comment(f"`{element.id}` -> {element.on_hold}")
