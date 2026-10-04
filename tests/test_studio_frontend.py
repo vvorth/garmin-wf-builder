@@ -484,11 +484,12 @@ def test_the_yaml_tab_holds_text_the_server_did_not_take():
       const typedOn = textsync.plan(s, "a: [1").kind;
       s = textsync.failed(s, "a: [1]");
       const afterFailure = textsync.plan(s, "a: [1]").kind;
+      const retried = textsync.plan(textsync.retry(s), "a: [1]").kind;
       s = textsync.answered(s, "a: [1]\\n", 200, 2);
-      console.log(JSON.stringify({first, again, typedOn, afterFailure, held: s.held}));
+      console.log(JSON.stringify({first, again, typedOn, afterFailure, retried, held: s.held}));
     """)
     assert result == {"first": "send", "again": "held", "typedOn": "send",
-                      "afterFailure": "held", "held": None}
+                      "afterFailure": "held", "retried": "send", "held": None}
 
 
 def test_only_a_layer_rows_own_drag_reads_as_a_path():

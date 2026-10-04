@@ -34,6 +34,11 @@ export function answered(state, text, status, version = null) {
   return { ...state, held: text };
 }
 
+// The state once the author asks to send the held text again.
+export function retry(state) {
+  return { ...state, held: null };
+}
+
 // The state after a send of `text` failed on its way (no answer).
 export function failed(state, text) {
   return { ...state, held: text };

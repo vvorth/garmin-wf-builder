@@ -350,7 +350,9 @@ is never renamed or removed for you.
 explanations from the format's schema and the compiler's diagnostics in
 the gutter. What you type is saved a moment (300 ms) after you stop. Text that
 is not YAML for a moment (an open bracket) is not saved, and says so under
-the text, until it is YAML again. Text the compiler reports errors on is
+the text, until it is YAML again. A save that fails (the editor stopped,
+say) says **Not saved** under the text, with **Retry**, until one gets
+through; typing on tries again too. Text the compiler reports errors on is
 saved, with the errors beside it: the face is not drawn until they are
 mended, and the canvas waits for that.
 

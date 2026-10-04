@@ -65,7 +65,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   const host = useRef(null);
   const view = useRef(null);
   const state = useRef({ doc, sync: sync.initial(doc), timer: null, sending: false, selectTimer: null });
-  const [status, setStatus] = useState("");
+  // why the pane's text is not saved: `{kind: "invalid" | "failed", message}`,
+  // kept until a send succeeds; a failed one offers to send again
+  const [status, setStatus] = useState(null);
   const [conflict, setConflict] = useState(false);
   state.current.doc = doc;
   state.current.onSelect = onSelect;
@@ -76,30 +78,33 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     const v = view.current;
     if (!v || s.sending) return;
     const step = sync.plan(s.sync, v.state.doc.toString());
-    if (step.kind !== "send") { if (step.kind === "idle") setStatus(""); return; }
+    if (step.kind !== "send") { if (step.kind === "idle") setStatus(null); return; }
     s.sending = true;
     let answered = false;
     try {
       const response = await fetch(`/api/documents/${s.doc.id}/text?version=${step.version}`,
                                    { method: "POST", body: step.text });
-      const body = await response.json();
+      // an error page from something between (a proxy) may not be JSON
+      const body = await response.json().catch(() => ({}));
       s.sync = sync.answered(s.sync, step.text, response.status, body.version);
       answered = true;
       if (response.ok) {
-        setStatus("");
+        setStatus(null);
         onDoc(body);
       } else if (response.status === 409) {
         // changed elsewhere since the pane's text was typed over: the
         // text stays, and the author chooses (`choose`)
         setConflict(true);
         onDoc(await (await fetch(`/api/documents/${s.doc.id}`)).json());
-      } else {
+      } else if (response.status === 400) {
         // not YAML yet: keep typing; nothing was recorded
-        setStatus(body.error || `${response.status}`);
+        setStatus({ kind: "invalid", message: body.error || "the text is not YAML" });
+      } else {
+        setStatus({ kind: "failed", message: body.error || `${response.status} ${response.statusText}` });
       }
     } catch (e) {
       if (!answered) s.sync = sync.failed(s.sync, step.text);
-      onError(e);
+      setStatus({ kind: "failed", message: e.message || String(e) });
     } finally {
       s.sending = false;
       if (view.current && sync.plan(s.sync, view.current.state.doc.toString()).kind === "send"
@@ -111,12 +116,18 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
 
   // The author's choice after a refused send: "mine" sends the pane's
   // text over the newer face, "theirs" shows the newer face.
+  // Send the held text again, after a failure the author has seen.
+  const retry = () => {
+    state.current.sync = sync.retry(state.current.sync);
+    send();
+  };
+
   const choose = (choice) => {
     const s = state.current;
     const settled = sync.resolve(s.sync, s.doc, choice);
     s.sync = settled.state;
     setConflict(false);
-    setStatus("");
+    setStatus(null);
     if (settled.replace !== null) replace(settled.replace);
     else send();
   };
@@ -217,6 +228,10 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       <button onClick=${() => choose("theirs")} title="Discard your typing and show the face as it now is">Take the face as it is</button>
     </div>` : null}
     <div class="yaml-host" ref=${host}></div>
-    ${status ? html`<div class="yaml-status">${status} — not recorded until it is YAML again</div>` : null}
+    ${status && status.kind === "invalid"
+      ? html`<div class="yaml-status">${status.message} — not saved until it is YAML again</div>` : null}
+    ${status && status.kind === "failed"
+      ? html`<div class="yaml-status failed" role="alert">Not saved: ${status.message}
+          <button onClick=${retry}>Retry</button></div>` : null}
   </div>`;
 }
