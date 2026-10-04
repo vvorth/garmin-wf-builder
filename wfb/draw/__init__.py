@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .. import kinds
+from .. import kinds, vocab
 from .program import DrawContext, Op
 
 if TYPE_CHECKING:
@@ -78,10 +78,9 @@ def program(ctx: DrawContext, placed: "Placed", plan: "ReadPlan",
     if substitutes or (kind.draws_while_absent(element) and plan.value_guards(placed)):
         guard(plan.other_guards(placed),
               "hide -- a nullable colour/track_color/max always hides the element, "
-              "regardless of the value's own when_absent")
+              "regardless of the value's own absent:")
     else:
-        guard(plan.guards(placed),
-              f"when_absent: {getattr(element, 'when_absent', None) or 'hide'}")
+        guard(plan.guards(placed), vocab.absent(element))
     toggles = (antialias_default is not None and kind.antialiased
                and element.resolved_antialias != antialias_default)
     if toggles:

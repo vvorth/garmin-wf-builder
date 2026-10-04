@@ -201,7 +201,7 @@ class ReadPlan:
         if not readers:
             return
         w.comment("data for this frame" if mode == "active"
-                  else f"data for this frame ({mode}); every reader is a plain pull")
+                  else "data for this sleep update; every reader is a plain pull")
         self.emit_pulls(w, readers)
 
     def emit_pulls(self, w: Writer, readers: list[str]) -> None:

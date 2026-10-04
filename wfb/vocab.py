@@ -73,3 +73,17 @@ def refs(text: str) -> str:
             return "color.accent" if match.group(2) == "accent_color" else "color.data"
         return match.group(3)
     return _REF.sub(one, text)
+
+
+def absent(element: object) -> str:
+    """An element's absence policy as the author writes it: ``absent:
+    hide``, ``absent: "--"`` (a placeholder) or ``absent: {value: ...}``
+    (a fallback reading).  Generated code comments quote this."""
+    policy = getattr(element, "when_absent", None) or "hide"
+    if policy == "placeholder":
+        return f'absent: "{getattr(element, "placeholder", "")}"'
+    if policy == "fallback":
+        fallback = getattr(element, "fallback", None)
+        shown = getattr(fallback, "shown", "...")
+        return f"absent: {{value: {shown}}}"
+    return f"absent: {policy}"

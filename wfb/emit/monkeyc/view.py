@@ -7,7 +7,7 @@ import itertools
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ... import complications, draw, expr, kinds
+from ... import complications, draw, expr, kinds, vocab
 from ...availability import Guards
 from ...draw.frames import frame_members
 from ...catalog import READERS
@@ -656,7 +656,7 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
         if face.config_data:
             ids = config_data_ids(face)
             w.blank()
-            w.comment("config: data: -- each ComplicationRef names the slot it belongs")
+            w.comment("config: slots: -- each ComplicationRef names the slot it belongs")
             w.comment("to by 'uniqueIdentifier', matching the <complication id=...> below")
             w.line("var slots = settings.complicationSettings;")
             with w.block("if (slots != null)"):
@@ -752,9 +752,9 @@ def _emit_resolve_style(w: Writer, face: Face) -> None:
             with w.block(f"if (style == {index})"):
                 comment = []
                 if entry.colors is not None:
-                    comment.append(f"color_scheme.{entry.colors}")
+                    comment.append(f"scheme: {entry.colors}")
                 if entry.layout is not None:
-                    comment.append(f"layouts.{entry.layout}")
+                    comment.append(f"layout: {entry.layout}")
                 w.comment(f"{entry.name} -- {', '.join(comment)}")
                 if entry.colors is not None:
                     scheme = face.color_scheme[entry.colors]
@@ -810,8 +810,8 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
         if guards.complications and face.config_data:
             w.blank()
             w.comment("Toybox.Complications is absent on at least one target -- leave")
-            w.comment("every slot's Id null there, which config: data: draw code below")
-            w.comment("already treats as \"nothing chosen\" (when_absent-style absence)")
+            w.comment("every slot's Id null there, which config: slots: draw code below")
+            w.comment("already treats as \"nothing chosen\" (absent:-style absence)")
             with w.block("if (Toybox has :Complications)"):
                 for name, slot in face.config_data.items():
                     ctype = complications.TYPES[slot.default]
@@ -1302,15 +1302,15 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                             antialias_default: bool | None = None,
                             rings: Rings = _NO_RINGS) -> None:
     w.doc(
-        "Redraw only the low-power elements, once a second, while asleep.\n"
+        "Redraw only the `sleep_update: true` elements, once a second, while asleep.\n"
         "\n"
         "The clip is the tightest box around them because setClip is charged by\n"
         "region area (each device's Layout.mc gives its share of the screen).\n"
         "Overrunning the power budget calls onPowerBudgetExceeded and disables\n"
         "partial updates for the rest of the app's lifecycle.  Nothing here is\n"
-        "rate-limited by the compiler: since the refresh-tier concept was\n"
-        "deleted, any source a low_power element binds -- weather.* and\n"
-        "complication.* included -- is read on every one of these updates.  The\n"
+        "rate-limited by the compiler: any source a `sleep_update: true` element\n"
+        "binds -- weather.* and complication.* included -- is read on every one\n"
+        "of these updates.  The\n"
         "suppressible partial-update-budget lint is the only thing watching that."
     )
     with w.block("function onPartialUpdate(dc as Dc) as Void"):
@@ -1453,7 +1453,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan
     with w.block(signature):
         if subscreen_guarded:
             # Before any read: where it does not draw, it reads nothing.
-            w.comment("anchor: subscreen, if_unavailable: hide -- false on a device "
+            w.comment("anchor: subscreen, unsupported: hide -- false on a device "
                       "without the window")
             with w.block(f"if (!Layout.{const_prefix(placed.id)}_SHOWN)"):
                 w.line("return;")
@@ -1474,21 +1474,21 @@ def _method_doc(placed: Placed) -> str:
     lines = [f"`{element.id}` -- {_describe(placed)}."]
     # `visible:` gets its own line below rather than being listed as a
     # binding: it says when the element draws, not what it shows.
-    bindings = [e.text for e in element.expressions()
+    bindings = [e.shown for e in element.expressions()
                 if e.sources and e is not element.visible]
     if bindings:
         lines.append("")
         lines.append("Bound to " + and_list(f"`{text}`" for text in bindings) + ".")
     if element.visible is not None:
-        lines.append(f"Drawn only when `{element.visible.text}` "
+        lines.append(f"Drawn only when `{element.visible.shown}` "
                      "(absent readings count as hidden).")
     policy = getattr(element, "when_absent", None)
     if policy:
         keeps = policy == "hide" and kinds.for_placed(placed).draws_while_absent(element)
-        lines.append(f"When the value is absent: {policy}"
+        lines.append(f"Absence policy: `{vocab.absent(element)}`"
                      + (" -- the track still draws." if keeps else "."))
-    modes = ", ".join(element.modes)
-    lines.append(f"Drawn in: {modes}.")
+    if "low_power" in element.modes:
+        lines.append("Redrawn every second while asleep (`sleep_update: true`).")
     return "\n".join(lines)
 
 
@@ -1569,16 +1569,16 @@ def _emit_visible_guard(w: Writer, placed: Placed, plan: "ReadPlan") -> None:
 
 
 def _emit_guard(w: Writer, placed: Placed, guards: list[str], note: str | None = None) -> None:
-    """Emit the null check, and say which `when_absent:` produced it.
+    """Emit the null check, and say which `absent:` produced it.
 
-    ``note`` overrides the default "when_absent: <policy>" comment for the
+    ``note`` overrides the default "absent: <policy>" comment for the
     case where the guard covers only bindings the value's own policy does
     not govern -- a nullable colour still just hides the element even when
     the value itself falls back to a placeholder.
     """
     element = placed.element
     condition = " || ".join(f"{name} == null" for name in guards)
-    w.comment(note if note is not None else f"when_absent: {getattr(element, 'when_absent', None) or 'hide'}")
+    w.comment(note if note is not None else vocab.absent(element))
     with w.block(f"if ({condition})"):
         w.line("return;")
     w.blank()

@@ -6,20 +6,20 @@
 
 import Toybox.Lang;
 
-//! Colours declared in the design's `palette:` block.
+//! Colours declared in the design's `resources: palette:` block.
 //!
 //! Elements reference these by name rather than by hex, so a colour can be
 //! changed in one place and linted in one place.
 module Palette {
-    //! `palette.bg` = #000000
+    //! `color.bg` = #000000
     const BG as Number = 0x000000;
 
-    //! `palette.text` = #FFFFFF
+    //! `color.text` = #FFFFFF
     const TEXT as Number = 0xFFFFFF;
 
-    //! `palette.accent` = #FF5500
+    //! `color.accent` = #FF5500
     const ACCENT as Number = 0xFF5500;
 
-    //! `palette.track` = #555555
+    //! `color.track` = #555555
     const TRACK as Number = 0x555555;
 }

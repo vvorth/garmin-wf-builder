@@ -64,7 +64,6 @@ class VectorTextView extends WatchUi.WatchFace {
     }
 
     //! `background` -- a rectangle.
-    //! Drawn in: active.
     private function drawBackground(dc as Dc) as Void {
         dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(Layout.BACKGROUND_X, Layout.BACKGROUND_Y,
@@ -74,7 +73,6 @@ class VectorTextView extends WatchUi.WatchFace {
     //! `clock` -- text.
     //!
     //! Bound to `time.clock`.
-    //! Drawn in: active.
     private function drawClock(dc as Dc, clock as System.ClockTime, settings as System.DeviceSettings) as Void {
         var font = _fontClock;
         if (font == null) {
@@ -88,7 +86,6 @@ class VectorTextView extends WatchUi.WatchFace {
     }
 
     //! `upright_vector` -- fixed text.
-    //! Drawn in: active.
     private function drawUprightVector(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
@@ -100,7 +97,6 @@ class VectorTextView extends WatchUi.WatchFace {
     }
 
     //! `brand` -- fixed text.
-    //! Drawn in: active.
     private function drawBrand(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
@@ -111,7 +107,6 @@ class VectorTextView extends WatchUi.WatchFace {
     }
 
     //! `bezel_text` -- fixed text.
-    //! Drawn in: active.
     private function drawBezelText(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {

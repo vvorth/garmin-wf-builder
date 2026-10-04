@@ -24,7 +24,7 @@ module Layout {
     const BACKGROUND_WIDTH as Number = 280;
     const BACKGROUND_HEIGHT as Number = 280;
 
-    //! `step_ring` -- an arc progress indicator
+    //! `step_ring` -- an arc gauge
     const STEP_RING_CX as Number = 140;
     const STEP_RING_CY as Number = 140;
     const STEP_RING_RADIUS as Number = 126;

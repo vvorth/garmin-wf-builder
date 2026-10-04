@@ -108,11 +108,10 @@ Running `wfb` and the full command list moved to
 ## What the generated code looks like
 
 ```monkeyc
-//! `step_ring` -- an arc progress indicator.
+//! `step_ring` -- an arc gauge.
 //!
 //! Bound to `activity.steps` and `activity.step_goal`.
-//! When the value is absent: hide -- the track still draws.
-//! Drawn in: active.
+//! Absence policy: `absent: hide` -- the track still draws.
 private function drawStepRing(dc as Dc, activity as ActivityMonitor.Info) as Void {
     // the values this element is bound to
     var activitySteps = activity.steps;
@@ -138,9 +137,9 @@ something misbehaves on the wrist, and it is the substrate the escape hatch will
 drop into. Symbol names derive from element ids, every block cites its YAML
 element, layout constants are named rather than inlined, and every nullable read
 is guarded with the `absent:` policy that produced the guard -- here, as
-`absent: hide` on a gauge, around the fill alone, so the track still draws. (The generated
-comments name keys in the compiler's internal spelling, `when_absent:` here:
-format 2 is lowered into it, `wfb/lower.py`.)
+`absent: hide` on a gauge, around the fill alone, so the track still draws. The
+comments quote keys and expressions as the author wrote them (`absent:`,
+`color.accent`, `slot: top`), never the compiler's internal names.
 
 ## Layout
 

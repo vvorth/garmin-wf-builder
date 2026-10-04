@@ -659,7 +659,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             Comment("drawSlot lifts this for the editor's own drawable"),
             If(IsPulsing(config_data_ids(face)[element.slot]), (Return(),)),
             Blank(),
-            Comment(f"slot: config.data.{element.slot}"),
+            Comment(f"slot: {element.slot}"),
             SlotPull(config_field(f"data_{element.slot}"), guarded,
                      COMPLICATION_SLOT_SAMPLE.get(shown)),
         ]
@@ -732,7 +732,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
                                    text_paint, icon_paint, draw)
 
     def describe(self, placed: PlacedComplicationSlot) -> str:
-        return f"a native Data-axis slot (config.data.{placed.element.slot})"
+        return f"a native Data-axis slot (`slot: {placed.element.slot}`)"
 
     def layout_constants(self, prefix: str,
                          placed: PlacedComplicationSlot) -> "layout_constants_mod.Constants":
@@ -748,7 +748,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'
             # is a different pixel count per screen).
             out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
-                        "icon_gap: resolved for this device"))
+                        "icon: {gap:} resolved for this device"))
         return out
 
 

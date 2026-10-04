@@ -139,12 +139,12 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     with w.block(f"class {face.entry}Delegate extends WatchUi.WatchFaceDelegate"):
         if needs_view:
             w.doc("The view, so a config edit can be applied to it, or a\n"
-                  "complication_slot's hold target read back.\n"
+                  "`data` element's hold target read back.\n"
                   "\n"
                   "Only declared when it is actually read from: `monkeyc -w` reports an\n"
                   "unused member variable (verified -- \"Member variable '_view' is not\n"
                   "used.\" on a plain `on_hold:` design with neither `config:` nor a\n"
-                  "complication_slot), and a generator has no excuse for output a human\n"
+                  "`data` element), and a generator has no excuse for output a human\n"
                   "wouldn't have written (CLAUDE.md).  The constructor parameter stays\n"
                   "unconditional either way: an unused *parameter* does not warn (verified\n"
                   "the same way, standalone), so one delegate shape and one\n"
@@ -168,7 +168,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
               "\"Only available in WatchFace config mode\" and never fires during normal\n"
               "display, on any device." +
               ("  The onTap above exists purely to serve the\n"
-               "native editor's own animated highlight over a complication_slot, which\n"
+               "native editor's own animated highlight over a `data` element, which\n"
                "is a different thing entirely.\n" if slot_pairs else "\n") +
               "\n"
               "Returns true when the touch was consumed, so the system does not also\n"
@@ -201,7 +201,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 condition = _hit_test(f"{prefix}_HOLD", layout_test)
                 if isinstance(element, ComplicationSlot):
                     w.comment(f"`{element.id}` -> whatever the wearer picked for "
-                              f"config.data.{element.slot}")
+                              f"slot {element.slot}")
                     with w.block(condition):
                         if guards.complications:
                             # The slot's own Id field is null wherever
@@ -266,7 +266,7 @@ def _emit_on_tap(w: Writer, slots: list[EditorSlot]) -> None:
             box = f"Layout.{slot.const_prefix}_BOX"
             w.blank()
             ids = ", ".join(f"`{element.id}`" for element in slot.elements)
-            w.comment(f"config.data.{slot.name}: {ids}")
+            w.comment(f"slot {slot.name}: {ids}")
             with w.block(_hit_test(f"{slot.const_prefix}_BOX")):
                 w.line(f"var area = {box}_WIDTH * {box}_HEIGHT;")
                 with w.block("if (chosen == 0 || area < chosenArea)"):

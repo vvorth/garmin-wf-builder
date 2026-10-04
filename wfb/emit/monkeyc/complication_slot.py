@@ -114,7 +114,7 @@ def _emit_complication_slot_editor_methods(w: Writer, resolved: ResolvedFace, pl
     for slot in slots:
         members = [placed_by_id[element.id] for element in slot.elements
                    if element.id in placed_by_id]
-        w.doc(f"Every element drawing config.data.{slot.name}, as the editor's drawable shows it.")
+        w.doc(f"Every element drawing slot `{slot.name}`, as the editor's drawable shows it.")
         with w.block(f"private function {slot.draw_method}(dc as Dc) as Void"):
             readers: list[str] = []
             for placed in members:
@@ -191,7 +191,7 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     w.doc(header(face)).blank()
     w.lines("import Toybox.Graphics;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
     w.doc(
-        "A generated stand-in for one complication_slot, handed to the editor so\n"
+        "A generated stand-in for one `data` element's slot, handed to the editor so\n"
         "it can animate (\"pulse\") the slot the wearer is about to change.  It\n"
         "delegates straight back to the view's own drawSlot, so there is exactly\n"
         "one implementation of what a slot looks like.\n"
@@ -335,7 +335,7 @@ def emit_slot_text(face: Face) -> SourceFile:
     w.doc(header(face)).blank()
     w.lines("import Toybox.Complications;", "import Toybox.Lang;", "import Toybox.System;").blank()
     w.doc(
-        "A complication_slot's reading as the text it draws: one rule per\n"
+        "A `data` element's reading as the text it draws: one rule per\n"
         "complication type, generated from wfb.complications.READING."
     )
     with w.block(f"module {SLOT_TEXT_MODULE}"):

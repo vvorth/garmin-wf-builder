@@ -1,12 +1,12 @@
 import Toybox.Lang;
 
 //! Which catalogue *name* a `Toybox.Weather.CONDITION_*` value maps to, for a
-//! dynamic (`icon_for:`) weather icon.
+//! dynamic (`icon: {for:}`) weather icon.
 //!
 //! The on-device twin of `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` -- kept in
 //! sync with it deliberately (tests/test_weather_barrel.py checks the two agree,
 //! name for name), not by generating this file, because the mapping is fixed
-//! and shared across every design that uses `icon_for:`, the same reasoning
+//! and shared across every design that uses `icon: {for:}`, the same reasoning
 //! that keeps WfbArc.mc and WfbTime.mc hand-written.
 //!
 //! Deliberately returns a *name*, never a glyph: `source/IconGlyphs.mc`

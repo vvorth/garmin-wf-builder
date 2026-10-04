@@ -73,7 +73,7 @@ def test_the_view_prints_the_guards_in_draw_order(write_design, bag, db):
     view = emit_view(resolved).text
     body = view.split("private function drawDot(", 1)[1].split("\n    }\n", 1)[0]
     visible = body.index("// visible: ")
-    absent = body.index("// when_absent: hide")
+    absent = body.index("// absent: hide")
     toggle = body.index("applyAntiAlias(dc, true);")
     fill = body.index("dc.fillCircle(")
     assert visible < absent < toggle < fill < body.index("applyAntiAlias(dc, false);")

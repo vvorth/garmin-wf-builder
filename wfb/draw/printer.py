@@ -282,10 +282,10 @@ def _print(w: Writer, op: Op, aod: AodStyle) -> None:
 def _print_slot_text(w: Writer, op: SlotText) -> None:
     def absent() -> None:
         if op.when_absent == "placeholder":
-            w.comment("when_absent: placeholder")
+            w.comment(f'absent: "{op.placeholder}"')
             w.line(f'text = "{op.placeholder}";')
         else:
-            w.comment("when_absent: hide -- the reading blanks, the icon (if any) stays")
+            w.comment("absent: hide -- the reading blanks, the icon (if any) stays")
 
     w.line('var text = "";')
     unit = "true" if op.unit else "false"

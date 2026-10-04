@@ -356,7 +356,7 @@ class _Lowering:
             # The fill fraction falls back, not the raw value/max: either half
             # of the pair can be the absent reading, so the outcome is the
             # only well-defined thing to substitute (`_check_fallback_fraction`).
-            ops += [Comment("when_absent: fallback"),
+            ops += [Comment(vocab.absent(element)),
                     Let("fraction", _fallback_num(element)),
                     If(Present(guards, probes), (Assign("fraction", fraction),)),
                     Blank()]
@@ -386,7 +386,7 @@ class _Lowering:
         inner: list[Op] = [Let("reading", Call("WfbScale.fraction", (NumLocal("pulled"),
                                                                      NumLocal("scale"))))]
         if element.when_absent == "fallback":
-            inner += [Comment("when_absent: fallback"),
+            inner += [Comment(vocab.absent(element)),
                       Let("fraction", NumPick(has_reading, reading, _fallback_num(element))),
                       *self.styles(NumLocal("fraction"), None)]
         elif keeps_track(element):
@@ -394,7 +394,7 @@ class _Lowering:
         else:
             inner.append(If(has_reading, tuple(self.styles(reading, None))))
         body: list[Op] = [
-            Comment(f"slot: config.data.{element.slot} -- the wearer's pick, against its own "
+            Comment(f"slot: {element.slot} -- the wearer's pick, against its own "
                     "scale"),
             LetSlotPick(config_field(f"data_{element.slot}"), SLOT_SCALE_MODULE,
                         self.ctx.complications_guarded, sample, scale),
@@ -790,7 +790,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         return keeps_track(element)
 
     def describe(self, placed: PlacedProgress) -> str:
-        return article(f"{placed.element.style} progress indicator")
+        return article(f"{placed.element.style} gauge")
 
     def live_handle(self, placed: PlacedProgress, handle: dict[str, Any]) -> dict[str, Any] | None:
         """A plain arc gauge (`style: arc`) draws its track and its fill from

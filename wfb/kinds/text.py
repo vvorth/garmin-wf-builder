@@ -8,7 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 from dataclasses import replace
 
-from .. import catalog, conversion, formatting
+from .. import catalog, conversion, formatting, vocab
 from ..catalog import Type
 from ..ir.model import Element, Expression, Outline, Text, TextSegment, aod_outline_choice
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
@@ -517,12 +517,12 @@ class TextKind(ElementKind[Text, PlacedText]):
             # One string, not two draw calls: a placeholder is a different
             # value, and a fallback the same, through the same format.
             if element.when_absent == "placeholder":
-                ops.append(Comment("when_absent: placeholder"))
+                ops.append(Comment(vocab.absent(element)))
                 initial: Str = StrLit(element.placeholder or "")
             else:
                 assert element.fallback is not None  # when_absent: fallback sets it
                 initial = Reading(element.format or "{}", element.fallback, unit)
-                ops.append(Comment("when_absent: fallback"))
+                ops.append(Comment(vocab.absent(element)))
             ops += [LetText(initial, text, ctx.value_guards), Blank()]
             return Local("text")
         return text

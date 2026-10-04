@@ -107,7 +107,7 @@ def emit_palette(face: Face) -> SourceFile:
     w.doc(header(face)).blank()
     w.lines("import Toybox.Lang;").blank()
     w.doc(
-        "Colours declared in the design's `palette:` block.\n"
+        "Colours declared in the design's `resources: palette:` block.\n"
         "\n"
         "Elements reference these by name rather than by hex, so a colour can be\n"
         "changed in one place and linted in one place."
@@ -116,7 +116,7 @@ def emit_palette(face: Face) -> SourceFile:
         for index, (name, color) in enumerate(face.palette.items()):
             if index:
                 w.blank()
-            w.doc(f"`palette.{name}` = {color}")
+            w.doc(f"`color.{name}` = {color}")
             w.line(f"const {name.upper()} as Number = {color.as_monkeyc()};")
     return SourceFile("source/Palette.mc", w.render())
 
@@ -152,8 +152,8 @@ def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> Sour
     w.doc(header(face)).blank()
     w.lines("import Toybox.Lang;").blank()
     w.doc(
-        "Catalogue name (or a per-choice 'glyph:' override's canonical U+XXXX\n"
-        "spelling) -> drawn glyph, for a dynamic (`icon_for:`) icon.\n"
+        "Catalogue name (or a per-choice 'icon: U+XXXX' override's canonical\n"
+        "spelling) -> drawn glyph, for a dynamic (`icon: {for:}`) icon.\n"
         "\n"
         "Generated directly from wfb.icon_catalog.CATALOG (plus any per-choice\n"
         "override) -- see wfb/icons.py's module docstring for why this table,\n"

@@ -208,7 +208,7 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS,
             boxes = slot_box_constants(resolved, slot)
             if boxes:
                 w.blank()
-                w.doc(f"The native editor's boxes for config.data.{slot.name}: every element "
+                w.doc(f"The native editor's boxes for slot {slot.name}: every element "
                       "drawing it,\ntaken together.")
                 _emit_constants(w, boxes)
         vector_fonts = _vector_fonts_used(resolved)

@@ -1,7 +1,7 @@
 import Toybox.Lang;
 import Toybox.Complications;
 
-//! A `complication_slot`'s reading as display text: the arithmetic behind the
+//! A `data` element's reading as display text: the arithmetic behind the
 //! generated `SlotText.reading`, which picks one of these per complication
 //! type.  Each function has a Python twin in `wfb/complications.py`
 //! (`format_reading` and its helpers), which the host preview draws with.

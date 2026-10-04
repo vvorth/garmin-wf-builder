@@ -26,7 +26,7 @@ module WfbArc {
         drawSpan(dc, cx, cy, radius, penWidth, startDegrees, swept);
     }
 
-    //! Draw a fixed span, used for a progress element's unfilled track.
+    //! Draw a fixed span, used for a gauge's unfilled track.
     function drawSpan(
         dc as Graphics.Dc,
         cx as Number, cy as Number, radius as Number, penWidth as Number,

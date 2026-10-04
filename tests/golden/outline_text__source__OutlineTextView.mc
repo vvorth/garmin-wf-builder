@@ -69,7 +69,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `background` -- a rectangle.
-    //! Drawn in: active.
     private function drawBackground(dc as Dc) as Void {
         dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(Layout.BACKGROUND_X, Layout.BACKGROUND_Y,
@@ -79,7 +78,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     //! `clock` -- text.
     //!
     //! Bound to `time.clock`.
-    //! Drawn in: active.
     private function drawClock(dc as Dc, clock as System.ClockTime, settings as System.DeviceSettings) as Void {
         var font = _fontClock;
         if (font == null) {
@@ -101,7 +99,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `upright_vector` -- fixed text.
-    //! Drawn in: active.
     private function drawUprightVector(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
@@ -127,7 +124,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `brand` -- fixed text.
-    //! Drawn in: active.
     private function drawBrand(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
@@ -148,7 +144,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `bezel_text` -- fixed text.
-    //! Drawn in: active.
     private function drawBezelText(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
@@ -210,7 +205,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `dial_numbers` -- a radial pattern: 3 copies, 12 degrees apart.
-    //! Drawn in: active.
     private function drawDialNumbers(dc as Dc) as Void {
         var cx = Layout.DIAL_NUMBERS_X;
         var cy = Layout.DIAL_NUMBERS_Y;
@@ -257,7 +251,6 @@ class OutlineTextView extends WatchUi.WatchFace {
     }
 
     //! `dial_ring` -- a radial pattern: 3 copies, 12 degrees apart.
-    //! Drawn in: active.
     private function drawDialRing(dc as Dc) as Void {
         var cx = Layout.DIAL_RING_X;
         var cy = Layout.DIAL_RING_Y;

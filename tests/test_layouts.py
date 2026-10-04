@@ -956,4 +956,4 @@ def test_emit_view_does_not_crash_on_a_layout_only_default_entry(write_design, d
     assert "private function resolveStyle(style as Number) as Void" in view
     resolve_body = view.split("private function resolveStyle")[1].split("\n\n")[0]
     assert "if (style == 0)" in resolve_body and "if (style == 1)" in resolve_body
-    assert "digital -- layouts.digital" in resolve_body
+    assert "digital -- layout: digital" in resolve_body

@@ -703,8 +703,8 @@ def test_the_generated_view_has_role_fields_and_resolve_style(write_design, db):
     assert "if (style == 0)" in resolve_body
     assert "if (style == 1)" in resolve_body
     assert "_configColorsBg = 0xFFFFFF;" in resolve_body  # style 1 == light
-    assert "dark -- color_scheme.dark" in resolve_body
-    assert "light -- color_scheme.light" in resolve_body
+    assert "dark -- scheme: dark" in resolve_body
+    assert "light -- scheme: light" in resolve_body
 
 
 def test_applyconfig_reads_styleid_and_dispatches(write_design, db):

@@ -205,7 +205,7 @@ def test_the_generated_doc_says_the_track_still_draws(write_design, db):
     files = generate(face, devices, write_design(HEAD + ARC).parent / "out",
                      {d.id: bake_fonts(face, d) for d in devices}).files()
     view = next(body for name, body in files.items() if name.endswith("View.mc"))
-    assert "When the value is absent: hide -- the track still draws." in view
+    assert "Absence policy: `absent: hide` -- the track still draws." in view
 
 
 def test_codegen_and_preview_read_one_definition(write_design, db):

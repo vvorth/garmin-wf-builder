@@ -60,18 +60,16 @@ class SliceView extends WatchUi.WatchFace {
     }
 
     //! `background` -- a rectangle.
-    //! Drawn in: active.
     private function drawBackground(dc as Dc) as Void {
         dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(Layout.BACKGROUND_X, Layout.BACKGROUND_Y,
                          Layout.BACKGROUND_WIDTH, Layout.BACKGROUND_HEIGHT);
     }
 
-    //! `step_ring` -- an arc progress indicator.
+    //! `step_ring` -- an arc gauge.
     //!
     //! Bound to `activity.steps` and `activity.step_goal`.
-    //! When the value is absent: hide -- the track still draws.
-    //! Drawn in: active.
+    //! Absence policy: `absent: hide` -- the track still draws.
     private function drawStepRing(dc as Dc, activity as ActivityMonitor.Info) as Void {
         // the values this element is bound to
         var activitySteps = activity.steps;
@@ -94,7 +92,6 @@ class SliceView extends WatchUi.WatchFace {
     //! `clock` -- text.
     //!
     //! Bound to `time.clock`.
-    //! Drawn in: active.
     private function drawClock(dc as Dc, clock as System.ClockTime, settings as System.DeviceSettings) as Void {
         var font = _fontClock;
         if (font == null) {
@@ -108,7 +105,6 @@ class SliceView extends WatchUi.WatchFace {
     }
 
     //! `steps_icon` -- the 'steps' icon.
-    //! Drawn in: active.
     private function drawStepsIcon(dc as Dc) as Void {
         var font = _fontIcon30pxUee14;
         if (font == null) {
@@ -125,13 +121,12 @@ class SliceView extends WatchUi.WatchFace {
     //! `steps_value` -- text.
     //!
     //! Bound to `activity.steps`.
-    //! When the value is absent: placeholder.
-    //! Drawn in: active.
+    //! Absence policy: `absent: "--"`.
     private function drawStepsValue(dc as Dc, activity as ActivityMonitor.Info) as Void {
         // the values this element is bound to
         var activitySteps = activity.steps;
 
-        // when_absent: placeholder
+        // absent: "--"
         var text = "--";
         if (activitySteps != null) {
             text = activitySteps.format("%d");

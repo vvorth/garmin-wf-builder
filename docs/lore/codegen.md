@@ -107,8 +107,10 @@ These cost real time to discover; do not rediscover them.
   text is exactly the format 1 document `wfb migrate` started from, which is
   why a face and its migrated twin generate byte-identical projects (the one
   exception: each generated file's header names the source file and its
-  format) -- the generated code's own comments quote expressions, keys and
-  slot names in the internal spelling. Three things keep diagnostics in the
+  format). Generated comments quote what the author wrote, never the internal
+  names: `Expression.shown`, `wfb.vocab.absent`, `slot: <name>`
+  (`tests/test_generated_vocabulary.py` scans the generated corpus for an
+  internal name in a comment). Three things keep diagnostics in the
   author's terms: every moved key keeps its source position (`lc`), every
   renamed or rewritten key records a `yamlsrc.Origin` (the author's key,
   text, and an offset map so a caret lands inside a template), and every

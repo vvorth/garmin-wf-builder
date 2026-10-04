@@ -73,9 +73,9 @@ def test_resolve_style_sets_both_colours_and_layout_per_entry(view_text):
         assert "_configColorsFg" in block
         assert "_configColorsTrack" in block
         assert f"_configLayout = {layout_index};" in block
-    assert "big_dark -- color_scheme.dark, layouts.big" in big_dark
-    assert "big_light -- color_scheme.light, layouts.big" in big_light
-    assert "compact_dark -- color_scheme.dark, layouts.compact" in compact_dark
+    assert "big_dark -- scheme: dark, layout: big" in big_dark
+    assert "big_light -- scheme: light, layout: big" in big_light
+    assert "compact_dark -- scheme: dark, layout: compact" in compact_dark
 
 
 def test_the_config_layout_field_starts_at_the_default_entrys_layout(view_text):

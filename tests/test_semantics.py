@@ -460,7 +460,7 @@ def test_text_fallback_is_emitted_not_dropped(write_design, bag, db):
     baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
-    assert "when_absent: fallback" in view
+    assert "// absent: {value: 0}" in view
     assert 'var text = 0.format("%d");' in view
     assert "if (activitySteps != null) {\n            text = activitySteps.format(\"%d\");" in view
     # The old, wrong behaviour: an unconditional early return with no fallback
@@ -494,7 +494,7 @@ def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
     baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
-    assert "when_absent: fallback" in view
+    assert "// absent: {value: 0.0}" in view
     assert "var fraction = 0.0f;" in view
     assert "fraction = WfbMath.percent(activitySteps, activityStepGoal) / 100.0;" in view
     assert "// absent: hide" not in view

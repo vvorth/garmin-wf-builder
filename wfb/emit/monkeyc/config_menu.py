@@ -150,7 +150,7 @@ def emit_layout_constants(w: Writer, face: Face, device: Device) -> None:
         types = slot_types(slot, device)
         default = complications.TYPES[slot.default]
         w.blank()
-        w.doc(f"`config.data.{axis.name}` in the settings menu: its options on {device.id}.")
+        w.doc(f"Slot `{axis.name}` in the settings menu: its options on {device.id}.")
         values = ", ".join(f"Complications.{t.constant}" for t in types)
         labels = ", ".join(_mc_string(humanise(t.name)) for t in types)
         w.line(f"const {axis.layout_prefix}_TYPES as Array<Complications.Type> = [{values}];")
