@@ -368,6 +368,8 @@ Selecting an element on the face or in the layers selects its lines; the
 cursor selects the element it is in. Switching to the face and back keeps
 the pane where it was, scrolled and with its cursor, unless another
 element was selected meanwhile: then the pane shows that element's lines.
+Text not saved yet goes with you: switching away keeps it, unsaved, and
+the top bar keeps saying **not saved** until you come back to it.
 If the face changed elsewhere while
 you were typing (the Properties or Face panel, another tab), your text is
 not saved over that change: the pane keeps it and asks. **Keep my text**

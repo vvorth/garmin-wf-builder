@@ -63,3 +63,20 @@ export function resolve(state, doc, choice) {
   const settled = { ...state, conflict: false, acked: doc.text, base: doc.version, held: null };
   return { state: settled, replace: choice === "theirs" ? doc.text : null };
 }
+
+// The pane closing (the author left the tab) holding `buffer`: `left` is
+// the text to show again when it reopens, or null when the server has it,
+// and `kind` is `plan`'s for it. Text not saved, held, or waiting on a
+// conflict is never dropped by leaving the tab.
+export function closed(state, buffer) {
+  const kind = plan(state, buffer).kind;
+  return { left: kind === "idle" ? null : buffer, kind };
+}
+
+// The pane opening on `doc` with `left` (what `closed` left, or null): the
+// text to show and the state. With nothing left the face as it now is
+// starts afresh, however it changed while the tab was closed.
+export function reopened(state, left, doc) {
+  if (left === null) return { text: doc.text, state: initial(doc) };
+  return { text: left, state };
+}

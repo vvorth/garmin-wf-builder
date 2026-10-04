@@ -493,6 +493,43 @@ def test_the_yaml_tab_holds_text_the_server_did_not_take():
                       "afterFailure": "held", "retried": "send", "held": None}
 
 
+def test_leaving_the_yaml_tab_keeps_text_the_server_does_not_have():
+    """Text that is not YAML, or waits on a conflict, is what the tab shows
+    again when it reopens, still unsaved; saved text is not kept, and the
+    face as it then is opens instead, however it changed meanwhile. A send
+    answered after the tab closed leaves nothing unsaved."""
+    result = run("""
+      const v1 = {version: 1, text: "a: 1\\n"};
+      const v2 = {version: 2, text: "a: 2\\n"};
+      let s = textsync.initial(v1);
+      const broken = "a: [";
+      s = textsync.answered(s, broken, 400);
+      const held = textsync.closed(s, broken);
+      const heldBack = textsync.reopened(s, held.left, v2);
+
+      let c = textsync.answered(textsync.initial(v1), "a: 1\\nb: 3\\n", 409);
+      const waiting = textsync.closed(c, "a: 1\\nb: 3\\n");
+      const waitingBack = textsync.reopened(c, waiting.left, v2);
+
+      const clean = textsync.closed(textsync.initial(v1), v1.text);
+      const cleanBack = textsync.reopened(textsync.initial(v1), clean.left, v2);
+
+      const sending = textsync.closed(textsync.initial(v1), "a: 5\\n");
+      const answeredLate = textsync.answered(textsync.initial(v1), "a: 5\\n", 200, 2);
+      const lateBack = textsync.reopened(answeredLate, sending.left, {version: 2, text: "a: 5\\n"});
+      console.log(JSON.stringify({
+        held: [held.kind, held.left, heldBack.text, textsync.plan(heldBack.state, heldBack.text).kind],
+        waiting: [waiting.kind, waitingBack.text, textsync.plan(waitingBack.state, waitingBack.text).kind],
+        clean: [clean.kind, clean.left, cleanBack.text, textsync.plan(cleanBack.state, cleanBack.text).kind],
+        late: [sending.kind, sending.left, lateBack.text, textsync.plan(lateBack.state, lateBack.text).kind],
+      }));
+    """)
+    assert result["held"] == ["held", "a: [", "a: [", "held"]
+    assert result["waiting"] == ["wait", "a: 1\nb: 3\n", "wait"]
+    assert result["clean"] == ["idle", None, "a: 2\n", "idle"]
+    assert result["late"] == ["send", "a: 5\n", "a: 5\n", "idle"]
+
+
 def test_only_a_layer_rows_own_drag_reads_as_a_path():
     result = run("""
       console.log(JSON.stringify({
