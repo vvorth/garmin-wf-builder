@@ -269,3 +269,40 @@ def test_a_new_slot_asks_what_it_shows_first(summary):
       out(edits);
     """)
     assert printed[0] == [{"op": "add_slot", "name": "heart", "default": "heart_rate"}]
+
+
+def test_a_drop_on_the_layers_moves_a_row_and_ignores_anything_else(summary):
+    """A row dragged onto a block is moved there; text or a file dragged
+    in from elsewhere is ignored, not parsed as a path (it used to throw)."""
+    doc = summary(starters.instantiate("minimal", "T"))
+    script = f"""
+      import {{ install }} from {json.dumps((HERE / 'studio_dom.mjs').as_uri())};
+      const document = install();
+      const {{ html, render }} = await import({json.dumps((STATIC / 'vendor/preact-htm.module.js').as_uri())});
+      const {{ Layers }} = await import({json.dumps((STATIC / 'layers.js').as_uri())});
+      const ops = [];
+      const root = document.createElement("div");
+      render(html`<${{Layers}} doc=${{{json.dumps(doc)}}} vocab=${{{{}}}} selected=${{null}} extra=${{[]}}
+        drawn=${{null}} onSelect=${{() => {{}}}} onStructure=${{(op) => ops.push(op)}} />`, root);
+      const cls = (e) => e.attributes.class || "";
+      const block = (label) => root.all((e) => cls(e).startsWith("block") && e.textContent.trim() === label)[0];
+      const row = root.all((e) => cls(e).startsWith("item") && e.textContent.startsWith("clock"))[0];
+      const data = {{}};
+      const transfer = {{ types: [], setData(t, v) {{ data[t] = v; this.types.push(t); }},
+                         getData: (t) => data[t] ?? "" }};
+      const foreign = {{ types: ["text/plain", "Files"], getData: (t) => (t === "text/plain" ? "hello" : "") }};
+      block("static").dispatch("dragover", {{ dataTransfer: foreign }});
+      block("static").dispatch("drop", {{ dataTransfer: foreign }});
+      row.dispatch("drop", {{ dataTransfer: foreign }});
+      const afterForeign = ops.length;
+      row.dispatch("dragstart", {{ dataTransfer: transfer }});
+      block("static").dispatch("drop", {{ dataTransfer: transfer }});
+      console.log(JSON.stringify({{ afterForeign, ops }}));
+    """
+    done = subprocess.run(["node", "--input-type=module", "-e", script],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr[-1500:]
+    result = json.loads(done.stdout)
+    assert result["afterForeign"] == 0
+    assert result["ops"] == [{"op": "move", "path": ["elements", "clock"],
+                              "block": ["static"], "before": None}]

@@ -18,7 +18,8 @@ class Node {
   contains(n) { while (n) { if (n === this) return true; n = n.parentNode; } return false; }
 }
 class Text extends Node { constructor(d) { super(3, "#text"); this.data = String(d); } set nodeValue(v) { this.data = String(v); } get nodeValue() { return this.data; } }
-const EVENTS = ["click", "change", "input", "keydown", "blur", "focus", "mousedown", "pointerdown"];
+const EVENTS = ["click", "change", "input", "keydown", "blur", "focus", "mousedown", "pointerdown",
+                "dragstart", "dragover", "dragleave", "drop"];
 class Element extends Node {
   constructor(name) { super(1, name.toUpperCase()); this.localName = name; this.attributes = {}; this.style = { setProperty(k, v) { this[k] = v; }, cssText: "" }; this.listeners = {};
     // preact lower-cases `onClick` to "click" only when the element has an
@@ -35,6 +36,7 @@ class Element extends Node {
     for (const f of this.listeners[type] || []) f.call(this, event);
   }
   click() { this.dispatch("click"); }
+  getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
 }
 export function install() {
   const document = {

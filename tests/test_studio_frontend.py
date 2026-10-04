@@ -489,3 +489,18 @@ def test_the_yaml_tab_holds_text_the_server_did_not_take():
     """)
     assert result == {"first": "send", "again": "held", "typedOn": "send",
                       "afterFailure": "held", "held": None}
+
+
+def test_only_a_layer_rows_own_drag_reads_as_a_path():
+    result = run("""
+      console.log(JSON.stringify({
+        path: treeMod.droppedPath('["elements", "clock"]'),
+        notJson: treeMod.droppedPath("hello"), empty: treeMod.droppedPath(""),
+        object: treeMod.droppedPath('{"a": 1}'), none: treeMod.droppedPath("[]"),
+        mixed: treeMod.droppedPath('["a", 1.5]'),
+        ours: treeMod.carriesPath([treeMod.PATH_TYPE]),
+        file: treeMod.carriesPath(["Files", "text/plain"]),
+      }));
+    """)
+    assert result == {"path": ["elements", "clock"], "notJson": None, "empty": None,
+                      "object": None, "none": None, "mixed": None, "ours": True, "file": False}

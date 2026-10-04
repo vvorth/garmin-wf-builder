@@ -5,9 +5,16 @@
 // the server patches into the text, checks and records.
 
 import { html, useState } from "./vendor/preact-htm.module.js";
-import { blocksOf, dropTarget, siblingsOf } from "./tree.js";
+import { PATH_TYPE, blocksOf, carriesPath, dropTarget, droppedPath, siblingsOf } from "./tree.js";
 
 const NEEDS = { graph: ["series", "series"], data: ["slot", "slots"], hands: ["set", "hand_sets"] };
+
+// A drop on the tree: a layer row's moves it; anything else (text, a
+// file) is ignored.
+function dropped(e, ctx, target) {
+  const path = droppedPath(e.dataTransfer.getData(PATH_TYPE));
+  if (path) ctx.onDrop(path, target);
+}
 
 function Row({ node, next, ctx, depth }) {
   const [over, setOver] = useState(null);
@@ -22,10 +29,10 @@ function Row({ node, next, ctx, depth }) {
                  (drawn && node.type !== "group" && !drawn.has(node.id) ? " undrawn" : "")}
          draggable="true" title=${`line ${node.line}`}
          onClick=${(e) => ctx.onSelect(node.id, e.ctrlKey || e.metaKey || e.shiftKey)}
-         onDragStart=${(e) => { e.dataTransfer.setData("text/plain", JSON.stringify(node.path)); e.dataTransfer.effectAllowed = "move"; }}
-         onDragOver=${(e) => { e.preventDefault(); setOver(zone(e).where); }}
+         onDragStart=${(e) => { e.dataTransfer.setData(PATH_TYPE, JSON.stringify(node.path)); e.dataTransfer.effectAllowed = "move"; }}
+         onDragOver=${(e) => { e.preventDefault(); if (carriesPath(e.dataTransfer.types)) setOver(zone(e).where); }}
          onDragLeave=${() => setOver(null)}
-         onDrop=${(e) => { e.preventDefault(); setOver(null); ctx.onDrop(JSON.parse(e.dataTransfer.getData("text/plain")), zone(e).target); }}>
+         onDrop=${(e) => { e.preventDefault(); setOver(null); dropped(e, ctx, zone(e).target); }}>
       <span>${node.id}</span><span class="type">${node.type}</span>
     </div>
     ${node.children.length ? html`<ul class="tree">${node.children.map((c, i) => html`<${Row} node=${c} next=${(node.children[i + 1] || {}).id ?? null} ctx=${ctx} depth=${depth + 1} />`)}</ul>` : null}
@@ -36,9 +43,9 @@ function Block({ block, ctx }) {
   const [over, setOver] = useState(false);
   return html`<li>
     <div class=${"block" + (over ? " drop-into" : "")}
-         onDragOver=${(e) => { e.preventDefault(); setOver(true); }}
+         onDragOver=${(e) => { e.preventDefault(); if (carriesPath(e.dataTransfer.types)) setOver(true); }}
          onDragLeave=${() => setOver(false)}
-         onDrop=${(e) => { e.preventDefault(); setOver(false); ctx.onDrop(JSON.parse(e.dataTransfer.getData("text/plain")), { block: block.path, before: null }); }}>
+         onDrop=${(e) => { e.preventDefault(); setOver(false); dropped(e, ctx, { block: block.path, before: null }); }}>
       ${block.label}</div>
     ${block.children.length ? html`<ul class="tree">${block.children.map((c, i) => html`<${Row} node=${c} next=${(block.children[i + 1] || {}).id ?? null} ctx=${ctx} depth=${1} />`)}</ul>`
       : html`<div class="empty-block">empty: drop here</div>`}

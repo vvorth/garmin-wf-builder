@@ -38,3 +38,20 @@ export function dropTarget(node, fraction, next = null) {
   if (fraction < 0.5) return { where: "before", target: { block, before: node.id } };
   return { where: "after", target: { block, before: next } };
 }
+
+// What a dragged layer row carries: its author path, under a type of its
+// own, so text or a file dragged in from elsewhere is never read as one.
+export const PATH_TYPE = "application/x-wfb-path";
+
+// Whether a drag (its `dataTransfer.types`) is a layer row's.
+export function carriesPath(types) {
+  return Array.from(types || []).includes(PATH_TYPE);
+}
+
+// The path a drop carries, or null when it is not a path.
+export function droppedPath(raw) {
+  let path;
+  try { path = JSON.parse(raw); } catch (_) { return null; }
+  const step = (s) => typeof s === "string" || Number.isInteger(s);
+  return Array.isArray(path) && path.length && path.every(step) ? path : null;
+}
