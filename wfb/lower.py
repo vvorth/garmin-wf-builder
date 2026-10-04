@@ -280,24 +280,6 @@ class _Lowering:
                     yield body
 
     def top_level(self, data: CommentedMap) -> None:
-        build = data.get("build")
-        if isinstance(build, CommentedMap):
-            self.lift(data, "build", build, [("targets", "targets")])
-        defaults = data.get("defaults")
-        if isinstance(defaults, CommentedMap):
-            if "aod" in defaults:
-                # `defaults: {aod:}` is format 1's `aod: {default:}`.
-                aod = data.get("aod")
-                if not isinstance(aod, CommentedMap):
-                    aod = CommentedMap()
-                    data.insert(list(data).index("defaults") + 1, "aod", aod)
-                    _set_lc(data, "aod", _lc(data, "defaults"))
-                aod.insert(0, "default", defaults["aod"])
-                _set_lc(aod, "default", _lc(defaults, "aod"))
-                self.doc.set_origin(aod, "default", Origin("defaults.aod"))
-                del defaults["aod"]
-            self.lift(data, "defaults", defaults, [("antialias", "antialias"),
-                                                   ("min_1px", "min_1px")])
         resources = data.get("resources")
         if isinstance(resources, CommentedMap):
             hand_sets = resources.get("hand_sets")
@@ -309,8 +291,6 @@ class _Lowering:
                         if isinstance(hand, CommentedMap):
                             self.expr_key(hand, "color")
                             self.parts(hand.get("parts"))
-            self.lift(data, "resources", resources,
-                      [("fonts", "fonts"), ("palette", "palette"), ("hand_sets", "hands")])
         theme = data.get("theme")
         if isinstance(theme, CommentedMap):
             schemes = theme.get("schemes")
@@ -320,25 +300,9 @@ class _Lowering:
                     if isinstance(colors, CommentedMap):
                         for role in list(colors):
                             self.swatch(colors, role, f"theme.schemes: {role}")
-            self.lift(data, "theme", theme, [("schemes", "color_scheme")])
         config = data.get("config")
         if isinstance(config, CommentedMap):
             self.config(config)
-
-    def lift(self, data: CommentedMap, group_key: str, group: CommentedMap,
-             members: list[tuple[str, str]]) -> None:
-        """Move ``group``'s members up to the top level under their internal
-        names, where ``group`` was."""
-        index = list(data).index(group_key)
-        group_pos = _lc(data, group_key)
-        for new_index, (old, new) in enumerate([(o, n) for o, n in members if o in group]):
-            value = group[old]
-            pos = _lc(group, old)
-            data.insert(index + new_index, new, value)
-            _set_lc(data, new, list(pos) if pos is not None else group_pos)
-            self.doc.set_origin(data, new, Origin(f"{group_key}.{old}"))
-        if not [k for k in group if k not in dict(members)]:
-            del data[group_key]
 
     def config(self, config: CommentedMap) -> None:
         for axis in ("accent_color", "data_color"):
@@ -406,8 +370,6 @@ class _Lowering:
             self.icon(node)
         elif kind == "data":
             self.data(node)
-        elif kind == "hands" and "set" in node:
-            self.rekey(node, "set", "hands", author="set")
         elif kind == "pattern":
             self.parts(node.get("parts"), pattern=True)
         elif kind == "graph":

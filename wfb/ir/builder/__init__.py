@@ -85,18 +85,20 @@ class Builder(ElementTree):
 
     def build(self) -> Face | None:
         data = self.doc.data
-        self.face_antialias = bool(data.get("antialias", False))
-        self.face_min_1px = bool(data.get("min_1px", False))
-        self._build_face_aod(data.get("aod") or {})
+        defaults = data.get("defaults") or {}
+        resources = data.get("resources") or {}
+        self.face_antialias = bool(defaults.get("antialias", False))
+        self.face_min_1px = bool(defaults.get("min_1px", False))
+        self._build_face_aod(data.get("aod") or {}, defaults.get("aod"))
         # Layouts first: a `config: style:` entry's `layout:` resolves
         # against the declared names, the same build pass its `colors:`
-        # resolves against `color_scheme:`.
+        # resolves against `theme: schemes:`.
         self._build_layouts(data.get("layouts") or {})
-        self._build_palette(data.get("palette") or {})
-        self._build_color_scheme(data.get("color_scheme") or {})
+        self._build_palette(resources.get("palette") or {})
+        self._build_color_scheme((data.get("theme") or {}).get("schemes") or {})
         self._build_config(data.get("config") or {})
         self._check_layouts_reachable(data)
-        self._build_fonts(data.get("fonts") or {})
+        self._build_fonts(resources.get("fonts") or {})
         self._build_scope()
         # Hands need the scope built first: a hand's `color:` may read
         # `palette.*`/`config.*` through the same `color_expression` an
@@ -104,7 +106,7 @@ class Builder(ElementTree):
         # They need to run before `build_elements` so a `type: hands`
         # element can resolve `hands: <name>` against `self.hand_sets` the
         # same build pass.
-        self._build_hands(data.get("hands") or {})
+        self._build_hands(resources.get("hand_sets") or {})
 
         elements = self.build_elements(data.get("elements") or [], ("elements",))
         if not self.bag.ok():
@@ -145,7 +147,7 @@ class Builder(ElementTree):
             name=name,
             version=face.get("version", "1.0.0"),
             entry=face.get("entry") or _pascal(name) or "WatchFace",
-            targets=tuple(data["targets"]),
+            targets=tuple(data["build"]["targets"]),
             palette=dict(self.palette),
             palette_labels=dict(self.palette_labels),
             fonts=dict(self.fonts),

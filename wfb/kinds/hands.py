@@ -92,10 +92,10 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         element's extent is the disc it sweeps, computed later in
         `wfb.layout`, not a box.
         """
-        name = node["hands"]
+        name = node["set"]
         element_id = common["id"]
         hand_set = b.hand_sets.resolve(
-            b.bag, name, b.doc.span(node, "hands"), code="hands",
+            b.bag, name, b.doc.span(node, "set"), code="hands",
             message=f"{element_id}: unknown hand set {name!r}",
             note="declared hand sets",
         )

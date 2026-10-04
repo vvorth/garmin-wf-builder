@@ -29,9 +29,9 @@ class AodPass(HandParts):
 
     # -- always-on display (`aod:`) -----------------------------------------
 
-    def _build_face_aod(self, raw: dict[str, Any]) -> None:
-        """Top-level `aod:`: `default:`, `dim:`, `mask:`."""
-        self.face_aod_default_hide = raw.get("default", "hide") == "hide"
+    def _build_face_aod(self, raw: dict[str, Any], default: str | None) -> None:
+        """Top-level `aod:` (`dim:`, `mask:`) and `defaults: {aod:}`."""
+        self.face_aod_default_hide = (default or "hide") == "hide"
         lint = _lint_suppression(raw)
         self.face_aod_lint_allow = lint["lint_allow"]
         self.face_aod_lint_reason = lint["lint_reason"]

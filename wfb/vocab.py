@@ -14,7 +14,6 @@ from typing import Iterable
 #: Internal key -> the key a format 2 author writes.
 KEYS = {
     "format": "text",
-    "color_scheme": "theme: schemes:",
 }
 
 def key(name: str, *, text_value: bool = False) -> str:
