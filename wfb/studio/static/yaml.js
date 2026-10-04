@@ -211,7 +211,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       box.sync = opened.state;
       box.left = null;
       if (!kept) box.status = null;
-      box.pane = { setStatus, setConflict, settled };
+      box.pane = { setStatus, setConflict, settled, text: buffer };
       setConflict(box.sync.conflict);
       setStatus(box.status);
       view.current = new EditorView({

@@ -80,3 +80,10 @@ export function reopened(state, left, doc) {
   if (left === null) return { text: doc.text, state: initial(doc) };
   return { text: left, state };
 }
+
+// The face's text as the author last had it, for the lost-session banner
+// to copy: the YAML tab's (`buffer`, while it is open), else the text it
+// closed on unsaved (`left`), else the face as the page last heard of it.
+export function latestText(buffer, left, doc) {
+  return buffer ?? left ?? doc.text;
+}

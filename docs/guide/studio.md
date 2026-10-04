@@ -48,8 +48,10 @@ Each browser has its own faces. The editor knows a browser by a cookie,
 kept as long as the faces are (`--keep-days`) and renewed on every visit;
 another browser, or one whose cookies were cleared, starts with none.
 If the cookie goes while a face is open, the page reloads into a new
-session; when something is not saved yet, it says so instead and waits,
-so you can copy your text from the YAML tab first.
+session; when something is not saved yet, it says so instead and waits.
+**Copy my text** puts the face's text as you last had it, unsaved typing
+included, on the clipboard (or downloads it, where the browser will not
+let the page write the clipboard); then **Reload**.
 
 - **The address `wfb studio` prints** carries a one-time claim. The browser
   that opens it gets every face the editor kept from before faces

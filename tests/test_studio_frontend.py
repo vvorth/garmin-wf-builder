@@ -557,6 +557,20 @@ def test_a_conflict_shows_what_the_other_change_did():
                                    "removed 3 lines", "left the text as it was"]
 
 
+def test_a_lost_session_copies_the_text_the_author_last_had():
+    """The lost-session banner copies the YAML tab's text while it is open,
+    else the text it closed on unsaved, else the face as last heard of."""
+    result = run("""
+      const doc = {text: "face\\n"};
+      console.log(JSON.stringify([
+        textsync.latestText("typing\\n", "left\\n", doc),
+        textsync.latestText(null, "left\\n", doc),
+        textsync.latestText(null, null, doc),
+      ]));
+    """)
+    assert result == ["typing\n", "left\n", "face\n"]
+
+
 def test_only_a_layer_rows_own_drag_reads_as_a_path():
     result = run("""
       console.log(JSON.stringify({

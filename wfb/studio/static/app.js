@@ -49,6 +49,24 @@ import { picksParam, typeLabel } from "./values.js";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
 import { deleteOp } from "./tree.js";
 import { sessionLost, watch } from "./session.js";
+import { latestText } from "./textsync.js";
+
+// `text` on the clipboard, or, where the page may not write it (a
+// browser that refuses, or a page served over plain http from another
+// machine), downloaded as `filename`: "copied" or "downloaded".
+async function copyOrDownload(text, filename) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return "copied";
+  } catch (_) {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([text], { type: "text/yaml" }));
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    return "downloaded";
+  }
+}
 
 // -- the server --------------------------------------------------------------------
 
@@ -388,6 +406,12 @@ function Editor({ docId, onError, onNotice }) {
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
   // A lost session with work unsaved (`session.js`) is a banner, not a reload.
   const [lost, setLost] = useState(false);
+  const [copied, setCopied] = useState(null);
+  const copyText = async () => {
+    const box = (yamlMemory.current[docId] || {}).text;
+    const text = latestText(box && box.pane ? box.pane.text() : null, box ? box.left : null, doc);
+    setCopied(await copyOrDownload(text, `${doc.name}.yaml`));
+  };
   const unsavedNow = useRef(() => false);
   unsavedNow.current = () => yamlSaving !== "idle" || queued.current.some((e) => e.state !== "done");
   useEffect(() => watch(() => unsavedNow.current(), () => setLost(true)), []);
@@ -563,7 +587,9 @@ function Editor({ docId, onError, onNotice }) {
       </div>
       ${lost ? html`<div class="banner lost" role="alert">
         <strong>This browser's session has ended</strong> (its cookie was cleared or expired), so changes can no longer be saved.
-        Copy anything unsaved from the YAML tab, then reload to start a new session.
+        Copy the face's text, with anything unsaved, then reload to start a new session.
+        <button onClick=${copyText} title="The face's text as you last had it, the YAML tab's included">Copy my text</button>
+        ${copied ? html`<span class="dim">${copied === "copied" ? "copied" : "downloaded as a file"}</span>` : null}
         <button onClick=${() => location.reload()}>Reload</button></div>` : null}
       <${Missing} doc=${doc} onChanged=${setDoc} onError=${onError} />
     </div>
