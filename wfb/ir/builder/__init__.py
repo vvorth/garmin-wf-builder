@@ -10,7 +10,7 @@ which is what lets `mypy --strict` check each module on its own:
     state       shared state, `NamedRegistry`, `dedup_append`, `and_paths`
     reading     one key of a node: expressions, colours, lengths, fonts
     absence     `when_absent:` and `format:`
-    glyphs      icons, `outline:`, `curve:`, `if_unavailable:`
+    glyphs      icons, `outline:`, `curve:`, `unsupported:`
     visibility  `visible:` and the enclosing groups' conditions
     fonts       the `fonts:` block
     blocks      `layouts:`, `palette:`, `color_scheme:` and the scope
@@ -70,7 +70,7 @@ class Builder(ElementTree):
       `check_reachable_substitute`, `nullable_sources`, `check_format`,
       `check_format_spec`, `check_format_not_on_literal`.
     - Fonts and icons: `resolve_font`, `is_vector_font`, `font_kind_note`,
-      `check_if_unavailable`, `build_curve`, `build_outline`,
+      `check_unsupported`, `build_curve`, `build_outline`,
       `resolve_icon_name`, `resolve_icon_glyph`.
     - Structure: `build_elements` and `push_visible` (a group's children),
       `build_hand_part` and `owned_color` (a hand's or a pattern's parts),

@@ -255,9 +255,9 @@ class FontSpec:
     face: tuple[str, ...] | None = None
     #: **Vector only.** `"error"` (the default) or `"hide"` -- what to do on
     #: a device that publishes none of the listed faces.  An element using
-    #: this font may override it (`Text.if_unavailable`,
-    #: `TextPart.if_unavailable`).
-    if_unavailable: str | None = None
+    #: this font may override it (`Text.unsupported`,
+    #: `TextPart.unsupported`).
+    unsupported: str | None = None
 
     @property
     def is_baked(self) -> bool:
@@ -762,13 +762,13 @@ class Element:
     #: also the only gesture there is: `WatchFaceDelegate.onTap` fires solely
     #: inside the on-device config editor, on every device that has it.
     on_hold: str | None = None
-    #: `if_unavailable:` -- `error`/`hide`, or `None` as written.  Governs
+    #: `unsupported:` -- `error`/`hide`, or `None` as written.  Governs
     #: whatever this element needs that a target may lack: its `anchor:
     #: subscreen` window (`None` means `error`), and on a `Text`, a `face:`
-    #: font (`None` inherits the font's own `FontSpec.if_unavailable`).
+    #: font (`None` inherits the font's own `FontSpec.unsupported`).
     #: Rejected where neither applies (`ElementTree._build_element`,
-    #: `Builder.check_if_unavailable`).
-    if_unavailable: str | None = None
+    #: `Builder.check_unsupported`).
+    unsupported: str | None = None
     #: `overrides:`: the geometry fields (`at`, `size`, `radius`, `align`,
     #: `vertical_align`) this element takes on a device, keyed by
     #: ``(shape, device id)`` -- ``(s, None)`` for a `shape:<s>` selector,
@@ -1084,9 +1084,9 @@ class TextPart(HandPart):
     #: frame: a radial pattern's per-copy rotation composes with it
     #: downstream, so one angle serves every copy.
     curve: "Curve | None" = None
-    #: Overrides the (vector) font's own `if_unavailable:`; `None` inherits.
+    #: Overrides the (vector) font's own `unsupported:`; `None` inherits.
     #: Per part, since each text part may name a different font.
-    if_unavailable: str | None = None
+    unsupported: str | None = None
     #: `outline:` -- `Text.outline`'s stamped ring, offset in screen space
     #: from this copy's already transformed anchor.  Its colour joins
     #: `PatternElement.colors`, so absence is policed for the whole pattern.

@@ -107,11 +107,11 @@ class TextRun:
     #: layout decided for this run follows from it: `placed.parts[i].font`,
     #: else `placed.font` (:func:`placed_font`).
     part_index: int | None = None
-    #: Where the run's `font:`/`if_unavailable:` were written.
+    #: Where the run's `font:`/`unsupported:` were written.
     span: "Span | None" = None
-    #: The run's own `if_unavailable:`, which wins over its font's, and its
+    #: The run's own `unsupported:`, which wins over its font's, and its
     #: own `curve:`, whose style decides which draw call gate 1 needs.
-    if_unavailable: str | None = None
+    unsupported: str | None = None
     curve: "Curve | None" = None
     #: Drawn only in the always-on frame (a `text` element's own `aod: {font:
     #: ...}`): baked like any other run, but loaded on entering sleep

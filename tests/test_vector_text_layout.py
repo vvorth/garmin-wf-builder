@@ -1,5 +1,5 @@
 """Vector fonts and `curve:` -- step 2: per-device face
-resolution (gates 1-3), the `if_unavailable:` policy (including the
+resolution (gates 1-3), the `unsupported:` policy (including the
 cross-device `error`/`hide` aggregate in `wfb.lint.check_vector_font_
 availability`, wired into `wfb.build.resolve_all`), and the angled/radial
 lint boxes.  `tests/test_vector_fonts.py` covers step 1 (the IR alone) and
@@ -223,7 +223,7 @@ def test_error_mode_gate23_failure_names_the_unpublished_face(write_design, bag,
 # -- error fails the build, hide does not --------------------------------------
 
 
-def test_if_unavailable_error_fails_the_build_when_any_target_lacks_the_face(
+def test_unsupported_error_fails_the_build_when_any_target_lacks_the_face(
     write_design, bag, db, monkeypatch,
 ):
     face = _load(
@@ -237,7 +237,7 @@ def test_if_unavailable_error_fails_the_build_when_any_target_lacks_the_face(
     assert any(d.code == "font-unavailable" for d in bag.errors)
 
 
-def test_if_unavailable_hide_does_not_fail_the_build(write_design, bag, db, monkeypatch):
+def test_unsupported_hide_does_not_fail_the_build(write_design, bag, db, monkeypatch):
     face = _load(
         write_design, bag,
         _design(_HIDE_FONT, _text("brand"), targets="[fenix8solar47mm, fenix6]"),
@@ -281,10 +281,10 @@ def test_hide_warning_is_suppressible(write_design, bag, db, monkeypatch):
     assert not any(d.code == "font-unavailable" for d in bag.items)
 
 
-# -- element overrides the font's own if_unavailable ---------------------------
+# -- element overrides the font's own unsupported ---------------------------
 
 
-def test_element_if_unavailable_error_overrides_the_fonts_own_hide(
+def test_element_unsupported_error_overrides_the_fonts_own_hide(
     write_design, bag, db, monkeypatch,
 ):
     element = _text("brand", """    unsupported: error
@@ -300,7 +300,7 @@ def test_element_if_unavailable_error_overrides_the_fonts_own_hide(
     assert any(d.code == "font-unavailable" for d in bag.errors)
 
 
-def test_element_if_unavailable_hide_overrides_the_fonts_own_error(
+def test_element_unsupported_hide_overrides_the_fonts_own_error(
     write_design, bag, db, monkeypatch,
 ):
     element = _text("brand", """    unsupported: hide

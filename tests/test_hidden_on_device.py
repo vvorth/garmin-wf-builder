@@ -1,6 +1,6 @@
 """An element a device does not draw is one `ResolvedFace.hidden` entry,
 whatever hides it: `anchor: subscreen` on a device without the window, or a
-`face:` font that resolves no face there under `if_unavailable: hide`.
+`face:` font that resolves no face there under `unsupported: hide`.
 Every consumer -- the per-device lints, the preview, the hold regions --
 reads that one map, so a font-hidden text is no longer linted, or held,
 where nothing draws it."""

@@ -392,7 +392,7 @@ class Guards:
     #: subscreen`, and a group's children) when at least one target has no
     #: subscreen (`Device.subscreen`). Each gets a per-device
     #: `Layout.<ID>_SHOWN` and its draw method returns early where that is
-    #: false (`if_unavailable: hide`; `error` never builds). Empty when every
+    #: false (`unsupported: hide`; `error` never builds). Empty when every
     #: target has the window, so such a build is unchanged.
     subscreen_hidden: frozenset[str] = frozenset()
 

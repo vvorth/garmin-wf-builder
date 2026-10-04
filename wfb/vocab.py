@@ -17,7 +17,6 @@ KEYS = {
     "placeholder": "absent",
     "fallback": "absent: {value:}",
     "vertical_align": "align",
-    "if_unavailable": "unsupported",
     "icon_size": "icon: {size:}",
     "icon_position": "icon: {position:}",
     "icon_gap": "icon: {gap:}",

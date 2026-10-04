@@ -616,7 +616,7 @@ class LetText:
 class IfNotNull:
     """``if (<local> != null) { <body> }``.  A loaded font is null on the
     host only when ``present`` says so (a vector font this device does not
-    resolve, `if_unavailable: hide`); otherwise the evaluator runs the
+    resolve, `unsupported: hide`); otherwise the evaluator runs the
     body."""
 
     local: str

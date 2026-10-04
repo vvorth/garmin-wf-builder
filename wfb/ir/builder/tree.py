@@ -104,7 +104,7 @@ class ElementTree(StaticPass):
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
             aod_own_hide=aod_own_hide,
             aod_own=aod_own,
-            if_unavailable=node.get("if_unavailable"),
+            unsupported=node.get("unsupported"),
         )
 
         if node["type"] not in kinds.names():  # unreachable once the schema has run
@@ -283,9 +283,9 @@ class ElementTree(StaticPass):
     def _check_subscreen(self, node: dict[str, Any], at: Position, path: tuple[str | int, ...],
                          span: Span | None) -> bool:
         """`anchor: subscreen` is a top-level element's alone, and
-        `if_unavailable:` needs something that can be unavailable: the
+        `unsupported:` needs something that can be unavailable: the
         subscreen here, or a `text` element's `face:` font (checked by the
-        text kind itself, `Builder.check_if_unavailable`)."""
+        text kind itself, `Builder.check_unsupported`)."""
         in_subscreen = at.anchor == "subscreen"
         if in_subscreen and "children" in path:
             self.bag.error(
@@ -296,11 +296,11 @@ class ElementTree(StaticPass):
                        "children are then laid out inside the window"],
             )
             return False
-        if "if_unavailable" in node and not in_subscreen and node["type"] != "text":
+        if "unsupported" in node and not in_subscreen and node["type"] != "text":
             self.bag.error(
                 "subscreen",
                 f"{node['id']}: 'unsupported:' is not accepted here",
-                self.doc.span(node, "if_unavailable") or span,
+                self.doc.span(node, "unsupported") or span,
                 notes=["on this element it governs 'at: {anchor: subscreen}' on a target "
                        "without a subscreen window; this element is not anchored there",
                        "drop 'unsupported:', or anchor the element to the subscreen"],

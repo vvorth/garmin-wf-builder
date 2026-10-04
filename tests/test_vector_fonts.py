@@ -1,6 +1,6 @@
 """Vector fonts and `curve:` -- the device layer
 (`Device.scalable_faces`, gate 1's symbol constants), the IR
-(`FontSpec.is_vector`/`is_baked`, `Curve`, `Text.curve`/`if_unavailable`),
+(`FontSpec.is_vector`/`is_baked`, `Curve`, `Text.curve`/`unsupported`),
 and every builder diagnostic.  Layout, lint, codegen and preview are
 `tests/test_vector_text_*.py` and are not exercised here.
 """
@@ -133,10 +133,10 @@ def test_vector_font_reaches_the_ir(write_design, bag, repo_root):
     assert spec.is_baked is False
     assert spec.source is None
     assert spec.face == ("RobotoCondensedBold",)
-    assert spec.if_unavailable == "error"
+    assert spec.unsupported == "error"
 
 
-def test_vector_font_face_list_and_if_unavailable(write_design, bag, repo_root):
+def test_vector_font_face_list_and_unsupported(write_design, bag, repo_root):
     fonts = """\
   bezel:
     face: [RobotoCondensedBold, RobotoCondensedRegular]
@@ -148,7 +148,7 @@ def test_vector_font_face_list_and_if_unavailable(write_design, bag, repo_root):
     assert face is not None, bag.render()
     spec = face.fonts["bezel"]
     assert spec.face == ("RobotoCondensedBold", "RobotoCondensedRegular")
-    assert spec.if_unavailable == "hide"
+    assert spec.unsupported == "hide"
 
 
 def test_baked_font_is_unaffected(write_design, bag, repo_root):
@@ -160,7 +160,7 @@ def test_baked_font_is_unaffected(write_design, bag, repo_root):
     assert spec.is_baked is True
     assert spec.is_vector is False
     assert spec.face is None
-    assert spec.if_unavailable is None
+    assert spec.unsupported is None
 
 
 @pytest.mark.parametrize("both_source_and_face", [True, False])
@@ -208,7 +208,7 @@ def test_baking_keys_are_rejected_on_a_vector_font(write_design, bag, repo_root,
     assert any(key in d.message and "face" in d.message for d in errors)
 
 
-def test_if_unavailable_is_rejected_on_a_baked_font_entry(write_design, bag, repo_root):
+def test_unsupported_is_rejected_on_a_baked_font_entry(write_design, bag, repo_root):
     fonts = f"""\
   clock:
     source: {_BAKED_SOURCE}
@@ -363,19 +363,19 @@ def test_every_vertical_align_is_accepted_under_radial_curve(
     assert face.elements[0].vertical_align == vertical_align
 
 
-# -- text: if_unavailable: -------------------------------------------------------
+# -- text: unsupported: -------------------------------------------------------
 
 
-def test_if_unavailable_on_a_vector_font_element_reaches_the_ir(write_design, bag, repo_root):
+def test_unsupported_on_a_vector_font_element_reaches_the_ir(write_design, bag, repo_root):
     element = _text_element("""    unsupported: hide
 """)
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
-    assert face.elements[0].if_unavailable == "hide"
+    assert face.elements[0].unsupported == "hide"
 
 
-def test_if_unavailable_is_rejected_on_an_element_with_a_baked_font(write_design, bag, repo_root):
+def test_unsupported_is_rejected_on_an_element_with_a_baked_font(write_design, bag, repo_root):
     element = _text_element("""    unsupported: hide
 """, font="font.clock")
     design = _design(_BAKED_FONT, element, repo_root=repo_root)
@@ -387,7 +387,7 @@ def test_if_unavailable_is_rejected_on_an_element_with_a_baked_font(write_design
     assert any("baked" in note for note in errors[0].notes)
 
 
-def test_if_unavailable_is_rejected_on_an_element_with_a_system_font(write_design, bag, repo_root):
+def test_unsupported_is_rejected_on_an_element_with_a_system_font(write_design, bag, repo_root):
     element = _text_element("""    unsupported: hide
 """, font=None)
     design = _design(None, element, repo_root=repo_root)
@@ -447,7 +447,7 @@ def test_vector_font_is_accepted_on_a_pattern_text_part(write_design, bag, repo_
     font, with or without
     `curve:` -- this used to be a build error naming "the next slice", and
     now that slice has landed. See `tests/test_pattern_text_curve.py` for
-    the curve-specific behaviour (angle composition, if_unavailable, lint,
+    the curve-specific behaviour (angle composition, unsupported, lint,
     codegen, preview)."""
     design = f"""
 format: 2

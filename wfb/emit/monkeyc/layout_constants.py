@@ -279,9 +279,9 @@ def _shown_constants(resolved: ResolvedFace, placed: Placed, guards: "Guards") -
         return []
     reason = resolved.hidden.get(placed.id)
     note = ("drawn in the subscreen window" if reason is None
-            else "no subscreen on this device: 'if_unavailable: hide'"
+            else "no subscreen on this device: 'unsupported: hide'"
             if reason == HIDDEN_BY_SUBSCREEN
-            else "its font has no face on this device: 'if_unavailable: hide'")
+            else "its font has no face on this device: 'unsupported: hide'")
     return [(f"{const_prefix(placed.id)}_SHOWN", reason is None, note)]
 
 

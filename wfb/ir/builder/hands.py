@@ -60,7 +60,7 @@ PATTERN_PART_GEOMETRY_KEYS = {
     #: No `at` -- an arc part is always centred on the copy's own origin.
     "arc": frozenset({"radius", "start_angle", "sweep"}),
     "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align",
-                       "curve", "if_unavailable", "outline"}),
+                       "curve", "unsupported", "outline"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -429,8 +429,8 @@ class HandParts(ConfigAxes):
                 font_is_vector=font_is_vector)
             if curve is None:
                 ok = False
-        if font_ok and "if_unavailable" in node:
-            self.check_if_unavailable(node, part_where, font_is_vector)
+        if font_ok and "unsupported" in node:
+            self.check_unsupported(node, part_where, font_is_vector)
 
         # A failed `outline:` aborts the part; `outline: none` (or no key)
         # is not a failure.  Absence is deferred to
@@ -447,7 +447,7 @@ class HandParts(ConfigAxes):
         return dict(
             text_value=text_value, text_literal=text_literal, format=text_format,
             font=font, font_is_custom=font_is_custom, curve=curve,
-            if_unavailable=node.get("if_unavailable"), outline=outline,
+            unsupported=node.get("unsupported"), outline=outline,
         )
 
     def _check_hand_part_keys(

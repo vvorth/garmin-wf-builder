@@ -7,7 +7,7 @@ document into that shape, in place, before :mod:`wfb.desugar` runs:
 
 * the top level ungrouped (``build:``, ``defaults:``, ``resources:``,
   ``theme:``), ``config:``'s ``slots:``, ``scheme:`` and colour references;
-* each element's own keys (``absent:``, ``align:``, ``unsupported:``,
+* each element's own keys (``absent:``, ``align:``,
   ``sleep_update:``) and each kind's (``type: rectangle`` is a ``shape``,
   a ``text:`` template becomes ``value:`` + ``format:``, ...);
 * every ``color.<name>`` into the reference the builder binds: a scheme role
@@ -304,11 +304,6 @@ class _Lowering:
                                                    ("min_1px", "min_1px")])
         resources = data.get("resources")
         if isinstance(resources, CommentedMap):
-            fonts = resources.get("fonts")
-            if isinstance(fonts, CommentedMap):
-                for font in fonts.values():
-                    if isinstance(font, CommentedMap) and "unsupported" in font:
-                        self.rekey(font, "unsupported", "if_unavailable", author="unsupported")
             hand_sets = resources.get("hand_sets")
             if isinstance(hand_sets, CommentedMap):
                 for hand_set in hand_sets.values():
@@ -447,8 +442,6 @@ class _Lowering:
             modes = CommentedSeq(["active", "low_power"] if node["sleep_update"] is True
                                  else ["active"])
             self.rekey(node, "sleep_update", "modes", modes, author="sleep_update")
-        if "unsupported" in node:
-            self.rekey(node, "unsupported", "if_unavailable", author="unsupported")
         self.align(node)
         for key in ("color", "track_color", "visible"):
             self.expr_key(node, key)
@@ -730,8 +723,6 @@ class _Lowering:
             if "type" in part:
                 self.rekey(part, "type", "shape", author="type")
             self.align(part)
-            if "unsupported" in part:
-                self.rekey(part, "unsupported", "if_unavailable", author="unsupported")
             for key in ("color", "visible"):
                 self.expr_key(part, key)
             if "outline" in part:

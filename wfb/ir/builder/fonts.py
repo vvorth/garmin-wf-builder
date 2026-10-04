@@ -62,11 +62,11 @@ class FontBlock(VisibilityHelpers):
                 ],
             )
             return None
-        if "if_unavailable" in spec:
+        if "unsupported" in spec:
             self.bag.error(
                 "font",
                 f"font {name!r}: 'unsupported:' is not accepted on a baked font",
-                self.doc.span(spec, "if_unavailable"),
+                self.doc.span(spec, "unsupported"),
                 notes=[
                     "'unsupported:' governs a device-resident 'face:' font "
                     "failing to publish a face -- a baked font is rasterised from "
@@ -129,7 +129,7 @@ class FontBlock(VisibilityHelpers):
             size=size,
             span=span,
             face=face,
-            if_unavailable=str(spec.get("if_unavailable", "error")),
+            unsupported=str(spec.get("unsupported", "error")),
         )
 
     def _font_size(self, name: str, spec: dict[str, Any]) -> Length | None:

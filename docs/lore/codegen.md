@@ -341,7 +341,7 @@ These cost real time to discover; do not rediscover them.
 
   **Gate 4 -- `Graphics.getVectorFont` returning `null` even when every
   build-time gate passed -- has no guard of any kind, ever, in either
-  `if_unavailable:` mode**, because the platform gives none: every draw
+  `unsupported:` mode**, because the platform gives none: every draw
   call using a vector font (`wfb.kinds.text.TextKind.lower`)
   captures the field into a local first (`var font = _fontBezel;`) and wraps the actual `dc.drawText`/`drawAngledText`/`drawRadialText` in
   `if (font != null)` -- the field-vs-local capture is not optional
@@ -403,7 +403,7 @@ These cost real time to discover; do not rediscover them.
   loop."** That is exactly what a *baked* custom font on a pattern text
   part still does (`wfb.kinds.pattern.PatternKind.lower`'s own `text_fonts` pre-loop loading) -- reasonable there, because a baked resource failing to load
   is a structural failure, essentially never observed. A vector font's
-  null is the *ordinary* case under `if_unavailable: hide`, or even under
+  null is the *ordinary* case under `unsupported: hide`, or even under
   `error` (gate 4 has no build-time guarantee at all), and an early
   `return;` before the loop would silently cancel every *other* part of
   the *same* pattern too -- unrelated shapes, unrelated fonts, all sharing

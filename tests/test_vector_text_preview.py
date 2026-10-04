@@ -3,7 +3,7 @@
 The simulator does not run in this environment (`CLAUDE.md` §3), so preview
 is the only way this feature can be seen at all -- these tests exercise the
 three draw styles `wfb.preview.Renderer.draw_vector_text` dispatches to
-(upright, `angled`, `radial`) plus `if_unavailable: hide` drawing nothing,
+(upright, `angled`, `radial`) plus `unsupported: hide` drawing nothing,
 each against a contrast a backwards angle/direction or a mirrored glyph run
 would actually fail (`docs/lore/working-agreement.md`: a test must exercise
 the contrast it claims). Real installed devices throughout:
@@ -47,7 +47,7 @@ resources:
     bezel:
       face: RobotoCondensedBold
       size: {font_size}
-{if_unavailable}  palette:
+{unsupported}  palette:
     bg: "#000000"
     fg: "#FFFFFF"
 elements:
@@ -62,9 +62,9 @@ elements:
 
 def _render(write_design, db, bag, body: str, *, target: str = "fenix8solar47mm",
            hide: bool = False, font_size: str = "10%r", **options):
-    if_unavailable = """      unsupported: hide
+    unsupported = """      unsupported: hide
 """ if hide else ""
-    design = _HEADER.format(target=target, if_unavailable=if_unavailable, body=body,
+    design = _HEADER.format(target=target, unsupported=unsupported, body=body,
                             font_size=font_size)
     path = write_design(design)
     face = build.load(path, bag)
@@ -718,7 +718,7 @@ def _render_with_resolved(write_design, db, bag, body: str, *, target: str = "fe
     any of `_draw_radial_vector_text`'s own code, the same
     independent-prediction discipline `_polar` above uses for the simpler,
     whole-string tests."""
-    design = _HEADER.format(target=target, if_unavailable="", body=body, font_size=font_size)
+    design = _HEADER.format(target=target, unsupported="", body=body, font_size=font_size)
     path = write_design(design)
     face = build.load(path, bag)
     assert face is not None, bag.render()
@@ -982,11 +982,11 @@ def test_radial_glyph_stroke_points_at_the_circles_centre(write_design, db, bag)
         )
 
 
-# -- font_available: False (if_unavailable: hide) --------------------------------
+# -- font_available: False (unsupported: hide) --------------------------------
 
 
 def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, db, bag):
-    """fenix6 has no vector fonts at all (gate 1) -- `if_unavailable: hide`
+    """fenix6 has no vector fonts at all (gate 1) -- `unsupported: hide`
     on the font means every element using it draws nothing, upright or
     curved, the same as the real watch: the honest preview
     of "this element does not exist on this device" is a blank image, not

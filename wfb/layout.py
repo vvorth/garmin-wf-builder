@@ -583,7 +583,7 @@ class ResolvedFont:
     is_vector: bool = False
     #: Whether vector gates 1-3 passed on this device (always `True` for a
     #: baked or system font).  `False` survives into a build only under
-    #: `if_unavailable: hide` (`wfb.lint.check_vector_font_availability`):
+    #: `unsupported: hide` (`wfb.lint.check_vector_font_availability`):
     #: the element still resolves, but nothing draws it on this device -- a
     #: `text` element is then in `ResolvedFace.hidden` (`HIDDEN_BY_FONT`);
     #: a pattern part is skipped by its own pattern.
@@ -1099,9 +1099,9 @@ class ResolvedFace:
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
     #: The items that do not draw on this device, each mapped to why: the
     #: code of the lint that reports it.  `HIDDEN_BY_SUBSCREEN`: an `anchor:
-    #: subscreen` element with `if_unavailable: hide` on a device without a
+    #: subscreen` element with `unsupported: hide` on a device without a
     #: subscreen, and its group's children.  `HIDDEN_BY_FONT`: a text whose
-    #: `face:` font resolves no face here under `if_unavailable: hide`
+    #: `face:` font resolves no face here under `unsupported: hide`
     #: (`ElementKind.hidden_reason`).  They are still in `items`, because
     #: the shared view and every device's `Layout.mc` need their constants;
     #: the lints, the preview and the hold regions read :attr:`shown_items`
@@ -1275,7 +1275,7 @@ class Resolver:
             if element.in_subscreen:
                 window = self.device.subscreen
                 if window is None:
-                    # `if_unavailable: hide` (an `error` fails the build,
+                    # `unsupported: hide` (an `error` fails the build,
                     # `wfb.lint.check_subscreen_availability`): placed on the
                     # screen so every constant exists, and marked hidden.
                     reason = HIDDEN_BY_SUBSCREEN

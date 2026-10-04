@@ -314,7 +314,7 @@ def check_subscreen_availability(
     """`anchor: subscreen` on a target without a subscreen window
     (`Device.subscreen`): cross-device, like
     :func:`check_vector_font_availability`, because it names every such
-    target at once.  `if_unavailable: error` (the default) fails the build;
+    target at once.  `unsupported: error` (the default) fails the build;
     `hide` is the author's explicit choice, so it is a note, naming where
     the element will not draw.
     """
@@ -326,7 +326,7 @@ def check_subscreen_availability(
         if not element.in_subscreen:
             continue
         span = element.span
-        if element.if_unavailable == "hide":
+        if element.unsupported == "hide":
             bag.note(
                 "subscreen",
                 f"{element.id}: not drawn on " + ", ".join(lacking)
@@ -355,7 +355,7 @@ def check_subscreen_availability(
 def check_vector_font_availability(
     face: Face, resolved: dict[str, ResolvedFace], bag: Bag,
 ) -> None:
-    """`if_unavailable:` is a cross-device question ("did
+    """`unsupported:` is a cross-device question ("did
     gates 1-3 fail on any target?"), so unlike :func:`run`'s per-device
     checks this takes every target's `ResolvedFace` and `wfb.build.
     resolve_all` calls it once, after all of them are resolved.  Layout has
@@ -379,7 +379,7 @@ def check_vector_font_availability(
     it does not draw there.
 
     A `Text` element and a pattern's `shape: text` part
-    go through the same gates, the same `if_unavailable:` precedence (the
+    go through the same gates, the same `unsupported:` precedence (the
     carrier's own value over the font's) and the same wording; a part is
     suppressed through its pattern's `lint:`.
     """
@@ -399,7 +399,7 @@ def check_vector_font_availability(
         )
         if not failing:
             continue
-        effective = run.if_unavailable or spec.if_unavailable or "error"
+        effective = run.unsupported or spec.unsupported or "error"
         requested = ", ".join(spec.face or ())
         if effective == "error":
             bag.error(

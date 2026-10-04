@@ -337,8 +337,8 @@ class TextKind(ElementKind[Text, PlacedText]):
             element.curve = b.build_curve(
                 node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
                 font_is_vector=font_is_vector, font_note=font_note)
-        if font_ok and "if_unavailable" in node and not element.in_subscreen:
-            b.check_if_unavailable(node, element.id, font_is_vector, font_note)
+        if font_ok and "unsupported" in node and not element.in_subscreen:
+            b.check_unsupported(node, element.id, font_is_vector, font_note)
         if "outline" in node:
             element.outline = b.build_outline(node, "outline", element.id, element=element)
         own_aod_format = element.aod_own is not None and "format" in element.aod_own
@@ -371,7 +371,7 @@ class TextKind(ElementKind[Text, PlacedText]):
     def hidden_reason(self, placed: PlacedText) -> str | None:
         # `available` is only ever false for a `face:` font that failed
         # gates 1-3 here, which survives into a build only under
-        # `if_unavailable: hide`.
+        # `unsupported: hide`.
         return None if placed.font.available else HIDDEN_BY_FONT
 
     def resolve(self, r: Resolver, element: Text, parent: Box, depth: int) -> Placed:
@@ -429,7 +429,7 @@ class TextKind(ElementKind[Text, PlacedText]):
             runs.append(TextRun(
                 element.id, element.font, glyphs=frozenset(glyphs), samples=(widest,),
                 sample_note=f"the widest rendering of this element is {widest!r}",
-                span=element.span, if_unavailable=element.if_unavailable, curve=element.curve))
+                span=element.span, unsupported=element.unsupported, curve=element.curve))
         if aod_font is not None:
             # Whatever the element's own font is: a system or `face:` font
             # draws awake, this baked one asleep, and it still needs the glyphs.

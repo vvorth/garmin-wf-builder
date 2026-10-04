@@ -425,7 +425,7 @@ def _lower_text_part(element: PatternElement, part: ResolvedTextPart, part_prefi
     same vector-font null guard, the part's own `outline:` stamp, then the
     interior call.
 
-    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
+    **Gate 4 is never omitted, on any device, in either `unsupported:`
     mode** (`docs/research/12-vector-fonts.md` §1): a vector font's draw is
     wrapped `if (<font local> != null)` whether or not it is curved, since
     `Graphics.getVectorFont` can return null even when every build-time
@@ -725,7 +725,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             runs.append(TextRun(
                 f"{element.id}.parts[{index}]", part.font, glyphs=frozenset("".join(samples)),
                 samples=samples, part_index=index, span=part.span,
-                if_unavailable=part.if_unavailable, curve=part.curve))
+                unsupported=part.unsupported, curve=part.curve))
         return runs
 
     def lower(self, ctx: DrawContext, placed: PlacedPattern) -> list[Op]:

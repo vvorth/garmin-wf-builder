@@ -540,7 +540,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
         # Not a `WatchUi.loadResource` resource at all -- a
         # `Graphics.VectorFont` handed back by `Graphics.getVectorFont`, or
         # `null` when this device cannot build it (a target that fails
-        # gates 1-3 under `if_unavailable: hide`, or `Graphics.
+        # gates 1-3 under `unsupported: hide`, or `Graphics.
         # getVectorFont`'s own documented "or NULL" even when it can --
         # gate 4, never assumed away). Every draw call using one checks for
         # `null` before drawing (`wfb.kinds.text.TextKind.lower`).

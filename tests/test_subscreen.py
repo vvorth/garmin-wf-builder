@@ -1,5 +1,5 @@
 """`at: {anchor: subscreen}`: an element laid out inside the
-Instinct family's subscreen window, and `if_unavailable: error|hide` on a
+Instinct family's subscreen window, and `unsupported: error|hide` on a
 target without one."""
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ def test_the_window_is_the_parent_box(write_design, db):
     assert find(rf, "dot").radius == round(0.10 * 88)
 
 
-# -- if_unavailable -----------------------------------------------------------
+# -- unsupported -----------------------------------------------------------
 
 
 def test_a_target_without_a_window_is_an_error_by_default(write_design, db):
@@ -231,7 +231,7 @@ def test_subscreen_is_a_top_level_at_only(write_design):
     assert any("not accepted in 'to:'" in m for m in _errors(write_design, line))
 
 
-def test_if_unavailable_needs_something_that_can_be_unavailable(write_design):
+def test_unsupported_needs_something_that_can_be_unavailable(write_design):
     shape = _text(None).replace("      dot:\n", """      dot:
         unsupported: hide\n""")
     assert any("dot: 'unsupported:' is not accepted here" in m

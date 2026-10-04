@@ -137,7 +137,7 @@ def _stub_baking(monkeypatch) -> None:
 
 
 # --------------------------------------------------------------------------
-# IR: curve/if_unavailable accepted only with a face: font
+# IR: curve/unsupported accepted only with a face: font
 
 
 def test_curve_on_a_pattern_text_part_is_accepted_with_a_vector_font(write_design, bag):
@@ -190,7 +190,7 @@ def test_radius_and_direction_rejected_under_angled(write_design, bag):
     assert any("radius" in d.message for d in bag.errors), bag.render()
 
 
-def test_if_unavailable_requires_a_face_font_on_a_pattern_part(write_design, bag, repo_root):
+def test_unsupported_requires_a_face_font_on_a_pattern_part(write_design, bag, repo_root):
     source = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     baked = f"  bezel:\n    source: {source}\n    size: 20px\n"
     elements = _radial_hours(curve="").rstrip("\n") + """
@@ -202,13 +202,13 @@ def test_if_unavailable_requires_a_face_font_on_a_pattern_part(write_design, bag
     assert any("'unsupported:' is not accepted" in e.message for e in errors), bag.render()
 
 
-def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_design, bag):
+def test_unsupported_is_accepted_on_a_pattern_part_with_a_face_font(write_design, bag):
     elements = _radial_hours(curve="").rstrip("\n") + """
         unsupported: hide
 """
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
     part = face.elements[0].parts[0]
-    assert part.if_unavailable == "hide"
+    assert part.unsupported == "hide"
 
 
 # --------------------------------------------------------------------------
@@ -535,7 +535,7 @@ def test_preview_renders_a_curved_pattern_without_crashing(write_design, db, bag
 
 
 def test_preview_draws_nothing_for_a_hidden_unavailable_pattern_part(write_design, db, bag):
-    """`if_unavailable: hide` on fenix6 (no vector fonts at all): the
+    """`unsupported: hide` on fenix6 (no vector fonts at all): the
     honest preview is nothing drawn for that part, not a crash and not a
     fallback glyph."""
     background = (

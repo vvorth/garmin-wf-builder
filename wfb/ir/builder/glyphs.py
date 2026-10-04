@@ -1,5 +1,5 @@
 """Fonts, icons and the text decorations shared by `text` elements and
-pattern text parts: `outline:`, `curve:`, `if_unavailable:`, icon names and
+pattern text parts: `outline:`, `curve:`, `unsupported:`, icon names and
 glyphs, and the per-`shape:`/`style:` foreign-key check."""
 
 from __future__ import annotations
@@ -182,7 +182,7 @@ class GlyphHelpers(AbsenceChecks):
     @staticmethod
     def font_kind_note(font: str, is_custom: bool) -> str:
         """What kind of (non-vector) font a `text` element's `font:` resolved
-        to -- the extra note `build_curve`/`check_if_unavailable` add for
+        to -- the extra note `build_curve`/`check_unsupported` add for
         a `text` element."""
         if is_custom:
             return f"'font: font.{font}' is a baked bitmap font, declared with 'source:'"
@@ -250,10 +250,10 @@ class GlyphHelpers(AbsenceChecks):
             )
         return Curve(style=style, angle=angle, radius=radius, direction=direction)
 
-    def check_if_unavailable(
+    def check_unsupported(
         self, node: dict[str, Any], label: str, font_is_vector: bool, font_note: str | None = None,
     ) -> None:
-        """`if_unavailable:` on a `text` element or a pattern's `shape: text`
+        """`unsupported:` on a `text` element or a pattern's `shape: text`
         part -- only meaningful when the font is a `face:` (vector) font:
         nothing about a baked or system font can ever be unavailable, so
         accepting it would promise a check that never runs (the same
@@ -265,7 +265,7 @@ class GlyphHelpers(AbsenceChecks):
         self.bag.error(
             "text-curve",
             f"{label}: 'unsupported:' is not accepted here",
-            self.doc.span(node, "if_unavailable"),
+            self.doc.span(node, "unsupported"),
             notes=[
                 "'unsupported:' governs a device-resident 'face:' font "
                 "failing to publish a face on some target device -- nothing "

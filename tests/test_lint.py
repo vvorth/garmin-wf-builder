@@ -1875,7 +1875,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     own namespace; never one for a function, which is
     precisely why `kind == "function"` is promoted to the different,
     unsuppressible code. `vector_fonts` is a third, unrelated
-    guard -- a `face:` font's own gates 1-3, governed by `if_unavailable:`
+    guard -- a `face:` font's own gates 1-3, governed by `unsupported:`
     and `wfb.lint.check_vector_font_availability`'s `font-unavailable`, not
     a `check_api_gated` "kind" at all -- so it is excluded from the
     comparison below rather than added to it. `amoled_target`/`burn_in_
@@ -1886,7 +1886,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     `partial_update_unsupported`, the view's build-wide
     `onPartialUpdate` decision, `config_menu`, whether the build carries
     the `config:` settings menu, and `subscreen_hidden`, governed by
-    `if_unavailable:` and `wfb.lint.check_subscreen_availability`."""
+    `unsupported:` and `wfb.lint.check_subscreen_availability`."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards

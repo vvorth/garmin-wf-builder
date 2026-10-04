@@ -507,7 +507,7 @@ that has everything it calls; the package docstring lists the order.
 | `require` | a key the schema cannot require by itself |
 | `check_absence`, `check_other_absence`, `check_reachable_substitute`, `nullable_sources` | `absent:` for the value and for every other nullable binding |
 | `check_format`, `check_format_spec`, `check_format_not_on_literal` | a `text:` template's format spec |
-| `resolve_font`, `is_vector_font`, `font_kind_note`, `check_if_unavailable`, `build_curve`, `build_outline` | `font:`, `unsupported:`, `curve:`, `outline:` |
+| `resolve_font`, `is_vector_font`, `font_kind_note`, `check_unsupported`, `build_curve`, `build_outline` | `font:`, `unsupported:`, `curve:`, `outline:` |
 | `resolve_icon_name`, `resolve_icon_glyph` | `icon:` |
 | `build_elements`, `push_visible` | a group's children |
 | `build_hand_part`, `owned_color` | a hand's or a pattern's `parts:` |
