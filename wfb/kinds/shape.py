@@ -452,7 +452,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         element = placed.element
         if element.shape == "polygon":
             return f"a polygon of {len(element.points)} points"
-        noun = article(element.shape.replace("_", " "))
+        noun = article("rounded rectangle" if element.rounded else element.shape)
         if (element.shape in ("rectangle", "circle", "ellipse")
                 and not element.filled):
             return f"{noun}, outlined"
