@@ -13,7 +13,7 @@ import textwrap
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generic, TextIO, TypeVar
+from typing import Any, Callable, Generic, TextIO, TypeVar
 
 from . import term
 from .term import SEVERITY_STYLE
@@ -73,8 +73,9 @@ class Diagnostic:
         color: bool = False,
         width: int | None = None,
         notes_as: str | None = None,
+        brief: bool = False,
     ) -> str:
-        """Render one diagnostic.
+        """Render one diagnostic.  ``brief`` renders the header line alone.
 
         With the defaults this is plain text -- no ANSI -- so existing
         callers such as ``bag.render()`` in tests keep working unchanged.
@@ -92,6 +93,8 @@ class Diagnostic:
         code_str = term.style(f"[{self.code}]", "dim", enabled=color)
         msg_str = term.style(self.message, "bold", enabled=color)
         out = [f"{head}{sev_str}{code_str}: {msg_str}"]
+        if brief:
+            return out[0]
         if self.span and source_lines:
             lines = source_lines.get(self.span.path)
             if lines and 0 < self.span.line <= len(lines):
@@ -153,6 +156,14 @@ class Bag:
     def note(self, code: str, message: str, span: Span | None = None, **kw: Any) -> Diagnostic:
         return self.add(Diagnostic(Severity.NOTE, code, message, span, **kw))
 
+    def only(self, keep: Callable[[Diagnostic], bool]) -> "Bag":
+        """A bag of the diagnostics ``keep`` accepts, rendering against the
+        same source lines."""
+        view = Bag()
+        view._sources = self._sources
+        view.items = [d for d in self.items if keep(d)]
+        return view
+
     @property
     def errors(self) -> list[Diagnostic]:
         return [d for d in self.items if d.severity is Severity.ERROR]
@@ -160,8 +171,14 @@ class Bag:
     def ok(self) -> bool:
         return not self.errors
 
-    def render(self, *, color: bool = False, width: int | None = None) -> str:
+    def render(self, *, color: bool = False, width: int | None = None,
+               verbose: bool = True) -> str:
         """Render every diagnostic, most important last, next to the summary.
+
+        Without ``verbose``, a note is its header line alone, and the notes
+        sit together as one block: a healthy build's notes (its measured
+        memory, its graphics-pool share) are worth a line each, not a page.
+        A last line then says how to see what was left out.
 
         Diagnostics are ordered notes, then warnings, then errors (stable
         within a severity; ``self.items`` itself is not reordered) and
@@ -175,7 +192,16 @@ class Bag:
         ordered = sorted(self.items, key=lambda d: _RENDER_ORDER[d.severity])
         seen: set[tuple[str, tuple[str, ...], str | None]] = set()
         pieces = []
+        brief = [d for d in ordered if d.severity is Severity.NOTE] if not verbose else []
+        if brief:
+            lines = [d.render(color=color, brief=True) for d in brief]
+            if any(d.notes or d.confidence or d.span for d in brief):
+                lines.append(term.style("      (-v shows the notes in full)", "dim",
+                                        enabled=color))
+            pieces.append("\n".join(lines))
         for d in ordered:
+            if brief and d.severity is Severity.NOTE:
+                continue
             key = (d.code, tuple(d.notes), d.confidence)
             notes_as = None
             if (d.notes or d.confidence) and key in seen:
@@ -185,12 +211,13 @@ class Bag:
             pieces.append(d.render(self._sources, color=color, width=width, notes_as=notes_as))
         return "\n\n".join(pieces)
 
-    def print(self, stream: TextIO | None = None) -> None:
+    def print(self, stream: TextIO | None = None, *, verbose: bool = True) -> None:
         # `sys.stderr` read at call time, not bound as a default at import,
         # so a caller that redirects it (an in-process test) sees the output.
         stream = sys.stderr if stream is None else stream
         if self.items:
-            print(self.render(color=term.should_color(stream), width=term.width(stream)), file=stream)
+            print(self.render(color=term.should_color(stream), width=term.width(stream),
+                              verbose=verbose), file=stream)
 
     def summary(self, *, color: bool = False) -> str:
         parts = []

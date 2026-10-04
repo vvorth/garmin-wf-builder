@@ -77,6 +77,79 @@ def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
     )
 
 
+def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
+    """Fake `subprocess.run` as `monkeyc`: each device sleeps a different
+    time, so they finish out of order, and ``fail`` exits 1 with an
+    `ERROR:` line.  Returns the most runs seen at once."""
+    import subprocess as sp
+    import threading
+    import time
+
+    lock = threading.Lock()
+    state = {"now": 0, "most": 0}
+    delays = {"fenix8solar47mm": 0.3, "fenix8solar51mm": 0.2, "fr955": 0.1}
+
+    def fake_run(command, cwd, capture_output, text, check):
+        device = command[command.index("-d") + 1]
+        output = Path(command[command.index("-o") + 1])
+        with lock:
+            state["now"] += 1
+            state["most"] = max(state["most"], state["now"])
+        time.sleep(delays.get(device, 0.1))
+        with lock:
+            state["now"] -= 1
+        # intermediates beside the output, as monkeyc writes them
+        (output.parent / "gen").mkdir(exist_ok=True)
+        if device == fail:
+            return sp.CompletedProcess(command, 1, stdout=f"ERROR: {device}: broken\n", stderr="")
+        output.write_bytes(device.encode())
+        output.with_name(output.name + ".debug.xml").write_text("<debug/>")
+        stats = "Data:\n  Foreground: 10 bytes\nCode:\n  Foreground: 20 bytes\n"
+        return sp.CompletedProcess(command, 0, stdout=f"WARNING: {device}: noted\n{stats}",
+                                   stderr="")
+
+    monkeypatch.setattr("wfb.build.subprocess.run", fake_run)
+    return state
+
+
+def test_devices_compile_in_parallel_and_report_in_device_order(
+        slice_design, tmp_path, db, monkeypatch):
+    """Runs overlap, yet each device's diagnostics, product and debug file
+    come out as a one-at-a-time build would give them, and the per-device
+    work directories are gone afterwards."""
+    state = _fake_monkeyc(monkeypatch, fail="fenix8solar51mm")
+    toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
+                   devices_only=["fenix8solar47mm", "fenix8solar51mm", "fr955"])
+
+    assert result is not None
+    assert state["most"] > 1, "the runs never overlapped"
+    monkeyc = [d.message for d in bag.items if d.code == "monkeyc"]
+    assert monkeyc == [
+        "fenix8solar47mm: noted",
+        "fenix8solar51mm: broken",
+        "fenix8solar51mm: build failed",
+        "fr955: noted",
+    ]
+    assert sorted(result.products) == ["fenix8solar47mm", "fr955"]
+    for device, product in result.products.items():
+        assert product.parent == result.output_dir
+        assert product.read_bytes() == device.encode()
+        assert product.with_name(product.name + ".debug.xml").exists()
+    assert not (result.output_dir / ".monkeyc").exists()
+
+
+def test_jobs_one_compiles_one_device_at_a_time(slice_design, tmp_path, db, monkeypatch):
+    state = _fake_monkeyc(monkeypatch)
+    toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
+                   devices_only=["fenix8solar47mm", "fenix8solar51mm", "fr955"], jobs=1)
+    assert result is not None and len(result.products) == 3, bag.render()
+    assert state["most"] == 1
+
+
 def test_an_off_screen_low_power_element_builds_and_clamps_the_clip(
     write_design, tmp_path, db, bag,
 ):

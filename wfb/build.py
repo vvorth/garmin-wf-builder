@@ -14,6 +14,7 @@ import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -224,7 +225,9 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag, memo: BakeMemo | No
 def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None = None,
           db: DeviceDatabase | None = None, toolchain: Toolchain | None = None,
           compile_prg: bool = True, clean: bool = True,
-          profile: int | None = None) -> BuildResult | None:
+          profile: int | None = None, jobs: int | None = None) -> BuildResult | None:
+    """Build ``path`` into ``output``.  ``jobs`` is how many `monkeyc`s run
+    at once (`default_jobs` when `None`)."""
     started = time.monotonic()
 
     face = load(path, bag)
@@ -299,8 +302,7 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
             )
         else:
             result.sdk_version = check_sdk(toolchain, bag)
-            for device in devices:
-                _compile(result, device, toolchain, bag)
+            _compile_all(result, toolchain, bag, jobs)
             _write_build_info(result)
 
     result.duration = time.monotonic() - started
@@ -319,8 +321,59 @@ def _write_build_info(result: BuildResult) -> None:
                                                 encoding="utf-8")
 
 
-def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag) -> None:
-    output = result.output_dir / f"{slug(result.face.name)}-{device.id}.prg"
+#: Where each device's `monkeyc` writes, under the build directory: its own
+#: directory, because `monkeyc` puts its intermediates (`gen/`,
+#: `internal-mir/`, `external-mir/`) beside the output file, and two runs
+#: sharing them would collide.
+WORK_DIR = ".monkeyc"
+
+#: The most `monkeyc`s `default_jobs` runs at once: each is its own JVM.
+MAX_DEFAULT_JOBS = 4
+
+
+def default_jobs(devices: int) -> int:
+    """How many `monkeyc`s to run at once for ``devices`` devices: one per
+    device, at most one per CPU and at most `MAX_DEFAULT_JOBS`."""
+    return max(1, min(devices, os.cpu_count() or 1, MAX_DEFAULT_JOBS))
+
+
+@dataclass
+class _Compiled:
+    """One device's `monkeyc` run: its exit status, its output with the
+    JVM's noise stripped, and where it wrote the `.prg`."""
+
+    returncode: int
+    text: str
+    output: Path
+
+
+def _compile_all(result: BuildResult, toolchain: Toolchain, bag: Bag,
+                 jobs: int | None) -> None:
+    """Compile every device, ``jobs`` at a time, and report each run in
+    device order, so the diagnostics read the same however the runs
+    interleaved."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    work = result.output_dir / WORK_DIR
+    workers = jobs if jobs is not None else default_jobs(len(result.devices))
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            runs = list(pool.map(lambda device: _run_monkeyc(result, device, toolchain, work),
+                                 result.devices))
+        for device, run in zip(result.devices, runs, strict=True):
+            _report(result, device, run, bag)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _run_monkeyc(result: BuildResult, device: Device, toolchain: Toolchain,
+                 work: Path) -> _Compiled:
+    """Run `monkeyc` for ``device`` into its own directory under ``work``,
+    and move the `.prg` and its `.prg.debug.xml` up into the build
+    directory.  Touches nothing another device's run reads."""
+    name = f"{slug(result.face.name)}-{device.id}.prg"
+    staged = work / device.id / name
+    staged.parent.mkdir(parents=True, exist_ok=True)
     #: Typecheck and optimization levels live in the generated jungle, not here, so
     #: that a hand-run `monkeyc -f monkey.jungle` reproduces this build exactly.
     #: Passing them on the command line as well makes monkeyc warn that one of the
@@ -329,7 +382,7 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
         str(toolchain.monkeyc),
         "-f", "monkey.jungle",
         "-d", device.id,
-        "-o", str(output),
+        "-o", str(staged),
         "-y", str(toolchain.key),
         "-w",
         "--no-gen-styles",
@@ -338,8 +391,18 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
     process = subprocess.run(
         command, cwd=result.output_dir, capture_output=True, text=True, check=False
     )
-    text = _strip_noise(process.stdout + process.stderr)
+    output = result.output_dir / name
+    for suffix in ("", ".debug.xml"):
+        built = staged.with_name(name + suffix)
+        if built.exists():
+            os.replace(built, output.with_name(name + suffix))
+    return _Compiled(process.returncode, _strip_noise(process.stdout + process.stderr), output)
 
+
+def _report(result: BuildResult, device: Device, run: _Compiled, bag: Bag) -> None:
+    """``device``'s `monkeyc` run as diagnostics, its product and its
+    measured memory."""
+    text, output = run.text, run.output
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("ERROR:"):
@@ -347,7 +410,7 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
         elif stripped.startswith("WARNING:"):
             bag.warning("monkeyc", stripped[len("WARNING:"):].strip())
 
-    if process.returncode != 0 or not output.exists():
+    if run.returncode != 0 or not output.exists():
         bag.error("monkeyc", f"{device.id}: build failed",
                   notes=[line for line in text.splitlines() if line.strip()][-6:])
         return

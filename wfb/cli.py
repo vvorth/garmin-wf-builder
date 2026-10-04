@@ -31,13 +31,13 @@ from typing import Callable, TextIO
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import (
-    BUILD_INFO, BuildResult, Toolchain, build as run_build, load, resolve_all, select_devices,
-    slug,
+    BUILD_INFO, MAX_DEFAULT_JOBS, BuildResult, Toolchain, build as run_build, load, resolve_all,
+    select_devices, slug,
 )
 from .simulate import SimulatorError, push, screenshot
 from .devices import (DEVICE_REFERENCE, Device, DeviceDatabase, DeviceError,
                       DeviceReferenceMissing, FontMetric, reference_sdk_version)
-from .diagnostics import Bag
+from .diagnostics import Bag, Severity
 from .lint import MemoryStats
 
 DEFAULT_OUTPUT = Path("build")
@@ -253,6 +253,8 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     build = _command(sub, "build", _build)
+    build.add_argument("-v", "--verbose", action="store_true",
+                       help="show every note in full, with its source line and details")
     build.add_argument("design", type=Path, help="the .yaml design file")
     build.add_argument("-d", "--device", action="append", dest="devices",
                        help="build only this device (repeatable); any installed device, "
@@ -266,11 +268,16 @@ def _parser() -> argparse.ArgumentParser:
                        help="time every element's draw on the watch and show the average "
                             f"per call over it (default: {DEFAULT_PROFILE_REPS} repetitions "
                             "per sample) -- a build for measuring, not for wearing")
+    build.add_argument("-j", "--jobs", type=_positive_int, metavar="N",
+                       help="compile up to N devices at once (default: one per device, "
+                            f"at most one per CPU and at most {MAX_DEFAULT_JOBS})")
     build.add_argument("--sdk", help="Connect IQ SDK root (default: $CIQ_SDK)")
     build.add_argument("--key", help="developer key .der (default: ~/ciq/developer_key.der)")
     build.add_argument("--devices-dir", help="device definitions directory")
 
     check = _command(sub, "validate", _validate)
+    check.add_argument("-v", "--verbose", action="store_true",
+                       help="show every note in full, with its source line and details")
     check.add_argument("design", type=Path)
     check.add_argument("-d", "--device", action="append", dest="devices",
                        help="check only this device (repeatable); any installed device, "
@@ -278,6 +285,8 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("--devices-dir")
 
     preview = _command(sub, "preview", _preview)
+    preview.add_argument("-v", "--verbose", action="store_true",
+                       help="show every note in full, with its source line and details")
     preview.add_argument("design", type=Path)
     preview.add_argument("-d", "--device", action="append", dest="devices",
                          help="render only this device (repeatable); any installed "
@@ -336,6 +345,8 @@ def _parser() -> argparse.ArgumentParser:
                               "drawn with a stand-in typeface -- see `wfb doctor`")
 
     simulate = _command(sub, "simulate", _simulate)
+    simulate.add_argument("-v", "--verbose", action="store_true",
+                       help="show every note in full, with its source line and details")
     simulate.add_argument("design", type=Path)
     simulate.add_argument("-d", "--device", dest="device",
                           help="which device to run, target or not (default: the "
@@ -435,6 +446,10 @@ def _build(args: argparse.Namespace) -> int:
     devices instead of every target the design lists; it may name any
     installed device (`wfb devices`), not only a listed target, which
     draws a note and needs no edit to the design.
+
+    The devices compile in parallel, each `monkeyc` in its own directory;
+    `-j/--jobs N` caps how many run at once (`-j 1` compiles one at a
+    time). Diagnostics are reported in device order either way.
     """
     bag = Bag()
     result = run_build(
@@ -446,8 +461,14 @@ def _build(args: argparse.Namespace) -> int:
         toolchain=Toolchain.discover(args.sdk, args.key),
         compile_prg=not args.no_compile,
         profile=args.profile,
+        jobs=args.jobs,
     )
-    bag.print()
+    shown = bag
+    if result is not None and not args.verbose:
+        # the "built" lines below give each built device's measured memory
+        shown = bag.only(lambda d: not (d.code == "memory" and d.severity is Severity.NOTE
+                                        and d.message.split(":", 1)[0] in result.products))
+    shown.print(verbose=args.verbose)
     if result is None or not bag.ok():
         _verdict(bag, sys.stderr, "failed", "bold", "red", before="\nbuild ")
         return 1
@@ -508,12 +529,19 @@ def _validate(args: argparse.Namespace) -> int:
             devices = select_devices(face, db, bag, args.devices)
             if devices:
                 resolve_all(face, devices, bag)
-    bag.print()
+    bag.print(verbose=args.verbose)
     if face is None or not bag.ok():
         _verdict(bag, sys.stderr, "invalid", "red", before="\n")
         return 1
     _verdict(bag, sys.stdout, "ok", "bold", "green", before=f"{args.design}: ")
     return 0
+
+
+def _positive_int(text: str) -> int:
+    """An argparse type: a whole number of at least 1."""
+    if not text.isdigit() or int(text) < 1:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a whole number of at least 1")
+    return int(text)
 
 
 def _parse_preview_time(text: str) -> tuple[int, int, int] | None:
@@ -585,7 +613,7 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
     bag = Bag()
     face = load(args.design, bag)
     if face is None:
-        bag.print()
+        bag.print(verbose=args.verbose)
         return 1, [args.design]
     # Font sources are watched too: re-baking on a font change is the whole point
     # of watching, and the design file alone would not notice.
@@ -593,14 +621,14 @@ def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool
 
     devices = select_devices(face, db, bag, args.devices)
     if not devices:
-        bag.print()
+        bag.print(verbose=args.verbose)
         return 1, watched
     if to_stdout:
         # One stream, one image: the first device asked for with -d, or the
         # design's first target.  `select_devices` keeps that order.
         devices = devices[:1]
     resolved, _ = resolve_all(face, devices, bag)
-    bag.print()
+    bag.print(verbose=args.verbose)
     if not bag.ok():
         return 1, watched
 
@@ -815,7 +843,7 @@ def _simulate(args: argparse.Namespace) -> int:
         toolchain=toolchain,
         compile_prg=True,
     )
-    bag.print()
+    bag.print(verbose=args.verbose)
     if toolchain is None or result is None or not result.products:
         print("\nnothing to run -- the build produced no .prg", file=sys.stderr)
         return 1

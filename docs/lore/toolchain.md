@@ -92,6 +92,14 @@ glitch.
   the 128 KB budget) for anything emitted as code; take file-size
   comparisons only at equal-length paths, and only for costs
   `--build-stats` cannot see (a resource like a baked font).
+- **`monkeyc` writes its intermediates beside the `-o` file**, not beside
+  the jungle: `gen/`, `internal-mir/` and `external-mir/` appear in the
+  output file's directory (SDK 9.2.0, checked 2026-10-04). Two runs that
+  share an output directory share those, so `wfb build` gives each
+  device's run its own directory under the build directory's `.monkeyc/`
+  and moves the `.prg` and `.prg.debug.xml` up afterwards; that is what
+  lets the devices compile in parallel. The `.prg` then embeds that path
+  (the size finding above), which `--build-stats` does not see.
 - Compiling a `<watchface-config>` makes this SDK's JVM print a four-line
   `sun.misc.Unsafe` notice using `monkeyc`'s own bare `WARNING:` prefix.
   `wfb/build.py` strips exactly that line shape and nothing else — this is

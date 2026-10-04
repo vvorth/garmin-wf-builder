@@ -49,7 +49,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 ```sh
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
 wfb studio    [design.yaml|face.zip] [-p PORT]  # the editor, on http://127.0.0.1:8765/
-wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile] [--profile [REPS]]
+wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml [-d DEVICE] [-f] [--screenshot PNG]  # run it in the simulator
@@ -66,6 +66,19 @@ wfb help      [command]            # every command's own help, from its own docs
 named. It accepts any installed device (`wfb devices`), not only a listed
 target; an unlisted one draws a `target` note, and the generated manifest
 lists exactly the devices asked for.
+
+`wfb build` compiles the devices in parallel: one `monkeyc` per device, at
+most one per CPU and at most four at once. `-j N` sets the limit, and `-j 1`
+compiles one device at a time. Each `monkeyc` is its own Java process, so
+lower it on a machine short of memory. The diagnostics come out in device
+order however the runs interleave.
+
+**Notes are one line each.** `build`, `validate`, `preview` and `simulate`
+print a note (a measured memory figure, the static buffer's share of the
+graphics pool) as its one header line; `-v`/`--verbose` prints it in full,
+with its source line and details, as warnings and errors always are. A
+successful `wfb build` leaves out each built watch's memory note, since
+its `built` line gives the same figure.
 
 `wfb preview` draws the face at the watch's own resolution, then enlarges
 it `--scale` times (default 2) with each watch pixel as a square block, so
