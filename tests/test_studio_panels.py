@@ -187,6 +187,28 @@ def test_the_schemes_table_adds_renames_and_removes(summary):
                           "2 styles naming only a scheme will go.")
 
 
+def test_a_styles_label_is_set_and_cleared(summary):
+    text = summary(starters.instantiate("minimal", "T") + (
+        "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n"
+        "    light:\n      colors: { ink: color.bg }\n"
+        "\nconfig:\n  style:\n    default: d\n"
+        "    choices: { d: { scheme: dark, label: Night }, l: { scheme: light } }\n"))
+    printed = render(text, """
+      const inputs = find((e) => e.localName === "input" && e.attributes.placeholder === "label");
+      out(inputs.map((i) => i.attributes.value));
+      const type = (input, value) => { input.value = value; input.dispatch("blur", { target: input }); };
+      type(inputs[1], " Day "); await settle();
+      type(inputs[0], ""); await settle();
+      type(inputs[1], ""); await settle();                    // no label to remove: nothing sent
+      out(edits);
+    """)
+    assert printed[0] == ["Night", ""]
+    assert printed[1] == [
+        {"op": "set", "path": ["config", "style", "choices", "l", "label"], "value": "Day"},
+        {"op": "remove", "path": ["config", "style", "choices", "d", "label"]},
+    ]
+
+
 def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
     text = summary(starters.instantiate("analog", "T"))
     printed = render(text, """

@@ -11,13 +11,38 @@ import { YamlPane } from "./yaml.js";
 import { BuildDialog, CalibrateDialog } from "./dialogs.js";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
 
-// What this browser remembers between visits: the zoom, and how many CSS
-// pixels make a real inch on its screen.
+// What this browser remembers between visits: the zoom, how many CSS
+// pixels make a real inch on its screen, and the side panels' widths.
 function stored(key, fallback) {
   try { const v = Number(localStorage.getItem(key)); return v > 0 ? v : fallback; } catch (_) { return fallback; }
 }
 const storedZoom = () => clampZoom(stored("wfb-zoom", 2));
 const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
+const PANEL_MIN = 180;
+const PANEL_MAX = 720;
+const clampPanel = (w) => Math.round(Math.min(PANEL_MAX, Math.max(PANEL_MIN, w)));
+// This computer's time and date, as the time and date inputs write them.
+function clockNow() {
+  const d = new Date();
+  const two = (n) => String(n).padStart(2, "0");
+  return { time: `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`,
+           date: `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}` };
+}
+const storedPanels = () => ({ left: clampPanel(stored("wfb-panel-left", 280)),
+                              right: clampPanel(stored("wfb-panel-right", 340)) });
+
+// The edge between a side panel and the centre: dragged, it sets the
+// panel's width (`sign` is +1 when the panel lies left of the edge);
+// a double click puts the default back.
+function Splitter({ width, sign, fallback, onWidth }) {
+  const start = useRef(null);
+  return html`<div class="splitter" title="drag to resize; double-click to reset"
+    onPointerDown=${(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId);
+                             start.current = { x: e.clientX, width }; }}
+    onPointerMove=${(e) => { if (start.current) onWidth(clampPanel(start.current.width + sign * (e.clientX - start.current.x)), false); }}
+    onPointerUp=${() => { if (start.current) { start.current = null; onWidth(width, true); } }}
+    onDblClick=${() => onWidth(fallback, true)}></div>`;
+}
 import { FacePanel, Inspector } from "./panels.js";
 import { picksParam, typeLabel } from "./values.js";
 
@@ -285,8 +310,13 @@ function Editor({ docId, onError }) {
   const [frame, setFrame] = useState(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [view, setView] = useState({ device: null, style: "", time: "", asleep: false, aod: false, skin: false,
-                                     zoom: storedZoom() });
+  const [view, setView] = useState({ device: null, style: "", time: "", date: "", now: false, asleep: false,
+                                     aod: false, skin: false, zoom: storedZoom() });
+  // "now": the frame follows this computer's clock; the time and date it
+  // was drawn at, moved on a second after each frame arrives
+  const [clock, setClock] = useState(clockNow());
+  const time = view.now ? clock.time : view.time;
+  const date = view.now ? clock.date : view.date;
   // the server draws at a whole scale; the browser shows it at the zoom
   const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
@@ -316,7 +346,8 @@ function Editor({ docId, onError }) {
     setBusy(true);
     const q = new URLSearchParams({ device: view.device, scale });
     if (view.style) q.set("style", view.style);
-    if (view.time) q.set("time", view.time);
+    if (time) q.set("time", time);
+    if (date) q.set("date", date);
     if (view.asleep) q.set("asleep", "1");
     if (view.aod) q.set("aod", "1");
     const picks = picksParam(view.picks, slots);
@@ -325,7 +356,7 @@ function Editor({ docId, onError }) {
       .then((f) => { if (live) setFrame(f); }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
-  }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, view.time,
+  }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, time, date,
       view.asleep, view.aod, scale, picksParam(view.picks, slots)]);
 
   // the watch's skin, at the frame's scale, when asked for and it has one
@@ -336,6 +367,12 @@ function Editor({ docId, onError }) {
     api(`/api/skin?device=${enc(view.device)}&scale=${scale}`).then((s) => { if (live) setSkin(s); }, onError);
     return () => { live = false; };
   }, [view.skin, view.device, scale, deviceInfo && deviceInfo.skin]);
+  // the next tick waits for the frame, so a slow one is never queued behind
+  useEffect(() => {
+    if (!view.now || busy) return;
+    const timer = setTimeout(() => setClock(clockNow()), 1000 - (Date.now() % 1000) + 5);
+    return () => clearTimeout(timer);
+  }, [view.now, busy, clock]);
   const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
   // the slider's steps are hundredths; real size is set exactly
   const setZoom = (z, exact = false) => {
@@ -376,6 +413,14 @@ function Editor({ docId, onError }) {
   }, [doc, view.device, scope]);
   const [left, setLeft] = useState("layers");
   const [pane, setPane] = useState("face");
+  // where the YAML tab was, per face, while the editor is open
+  const yamlMemory = useRef({});
+  const [panels, setPanels] = useState(storedPanels());
+  // `save`: the drag is over, so the browser keeps the width
+  const panelWidth = (side) => (w, save) => {
+    setPanels((p) => ({ ...p, [side]: w }));
+    if (save) { try { localStorage.setItem(`wfb-panel-${side}`, String(w)); } catch (_) { /* private mode */ } }
+  };
   // lines the YAML tab is asked to select, from a link elsewhere
   const [reveal, setReveal] = useState(null);
   const showLines = useCallback((line, end) => { setReveal({ line, end, at: Date.now() }); setPane("yaml"); }, []);
@@ -464,7 +509,7 @@ function Editor({ docId, onError }) {
       </div>
       <${Missing} doc=${doc} onChanged=${setDoc} onError=${onError} />
     </div>
-    <div class="columns">
+    <div class="columns" style=${`grid-template-columns:${panels.left}px auto minmax(0, 1fr) auto ${panels.right}px`}>
       <div class="panel left">
         <div class="tabs top">
           <button class=${left === "layers" ? "on" : ""} onClick=${() => setLeft("layers")}>Layers</button>
@@ -476,6 +521,7 @@ function Editor({ docId, onError }) {
           : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload}
                                onSelect=${select} onStructure=${structure} onReveal=${showLines} />`}
       </div>
+      <${Splitter} width=${panels.left} sign=${1} fallback=${280} onWidth=${panelWidth("left")} />
       <div class="stage">
         <div class="controls">
           <span class="seg" title="The face drawn, or its text">
@@ -497,7 +543,16 @@ function Editor({ docId, onError }) {
               ${(Array.isArray(s.choices) ? s.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
                 .map((t) => html`<option value=${t}>${t === s.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
             </select></label>`)}
-          <label>Time <input type="time" step="1" value=${view.time} onChange=${set("time")} /></label>
+          <label>Time <input type="time" step="1" value=${time} disabled=${view.now} onChange=${set("time")} /></label>
+          <label title="the day the date is drawn at; empty, a sample day">Date
+            <input type="date" value=${date} disabled=${view.now} onChange=${set("date")} /></label>
+          <label title="draw the face at this computer's time and date, as it goes on">
+            <input type="checkbox" checked=${view.now}
+                   onChange=${(e) => {
+                     // switched off, the face stays at the moment it last drew
+                     if (e.target.checked) { setClock(clockNow()); setView({ ...view, now: true }); }
+                     else setView({ ...view, now: false, time: clock.time, date: clock.date });
+                   }} /> now</label>
           <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
           <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
           <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
@@ -518,7 +573,7 @@ function Editor({ docId, onError }) {
           <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
-          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} onDoc=${setDoc} onError=${onError}
+          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${setDoc} onError=${onError}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
@@ -529,9 +584,10 @@ function Editor({ docId, onError }) {
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
-        <${Strip} doc=${doc} view=${view} picks=${picksParam(view.picks, slots)}
+        <${Strip} doc=${doc} view=${{ ...view, time, date }} picks=${picksParam(view.picks, slots)}
                   onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
+      <${Splitter} width=${panels.right} sign=${-1} fallback=${340} onWidth=${panelWidth("right")} />
       <div class="panel right">
         <h3>Properties</h3>
         ${element ? html`<div class="body dim where">

@@ -59,6 +59,8 @@ class FrameKey:
     device: str
     style: str | None = None
     time: tuple[int, int, int] | None = None
+    #: `(year, month, day)`, or the preview's sample date.
+    date: tuple[int, int, int] | None = None
     asleep: bool = False
     aod: bool = False
     scale: int = 2
@@ -526,7 +528,7 @@ class Document:
             raise Refused(f"{key.device} is not drawn: the face does not load, "
                           "or does not target it")
         return resolved, PreviewOptions(scale=key.scale, style=key.style, time=key.time,
-                                        asleep=key.asleep, aod=key.aod, picks=key.picks)
+                                        date=key.date, asleep=key.asleep, aod=key.aod, picks=key.picks)
 
     def _cached(self, kind: str, key: FrameKey, make: Callable[[], Any]) -> Any:
         slot = (kind, key)

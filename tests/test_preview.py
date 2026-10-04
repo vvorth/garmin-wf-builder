@@ -635,3 +635,16 @@ elements:
     for scale in (1, 2):
         image = render(resolved, PreviewOptions(scale=scale, mask_shape=False, quantise=False))
         assert image.getbbox() is not None  # the dot still draws
+
+
+def test_date_values_name_the_day_and_month_as_the_watch_does():
+    from wfb.preview import SAMPLE, date_values
+
+    sunday = date_values(2026, 10, 4)
+    assert (sunday["date.day_of_week"], sunday["date.weekday"]) == ("Sun", 1)
+    assert (sunday["date.month"], sunday["date.month_number"], sunday["date.day"]) == ("Oct", 10, 4)
+    saturday = date_values(2027, 1, 2)
+    assert (saturday["date.day_of_week"], saturday["date.weekday"], saturday["date.month"]) == ("Sat", 7, "Jan")
+    assert date_values(2026, 9, 2)["date.weekday"] == SAMPLE["date.weekday"]   # both a Wednesday
+    with pytest.raises(ValueError):
+        date_values(2026, 2, 30)

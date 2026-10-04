@@ -96,11 +96,22 @@ first.
 |---|---|---|
 | **Layers**: the element tree; **Face**: targets, colours, schemes, styles, slots, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
 
+Drag the edge between a side panel and the centre to widen or narrow
+the panel; a double click on the edge puts its width back. The browser
+remembers both widths.
+
 The bar above the centre picks the watch, the style, what each slot
 shows, the time, asleep, always-on and the skin, and the zoom. A slot is
 drawn showing its first type until you pick another of its choices there:
 the watch draws whatever the wearer picks, so check each choice fits. The faces in the strip under it
 switch the watch on a click.
+
+**Time** and **Date** set the moment the face is drawn at; left empty,
+it is a sample one (10:09:42 on Wed 3 Sep). **now** draws it at this
+computer's time and date instead, and keeps it going: the face is drawn
+again each second, once the last frame has arrived, and the strip's
+faces each minute. Switched off, the face stays at the moment it last
+showed. A slot showing the date draws its sample text either way.
 
 **Zoom** is a slider from 0.2× to 4× (screen pixels per watch pixel). The
 face is always drawn at the watch's own resolution and shown at the zoom
@@ -257,8 +268,9 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
     a scheme goes, and one that names a layout stays, even when that
     leaves two alike. The confirmation says how many; Diagnostics then
     names each copy, for you to delete or change.
-- **Styles**: the default, each style's layout and scheme, add (shaped like
-  the others), delete ([styles and layouts](styles-and-layouts.md)).
+- **Styles**: the default, each style's label (the name the wearer sees;
+  cleared, the entry has none), layout and scheme, add (shaped like the
+  others), delete ([styles and layouts](styles-and-layouts.md)).
 - **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
   as at 10:09:42, on the face's first watch; each hand's colour through
   the picker, and how many parts it has; the elements placing it (click
@@ -332,7 +344,10 @@ saved, with the errors beside it: the face is not drawn until they are
 mended, and the canvas waits for that.
 
 Selecting an element on the face or in the layers selects its lines; the
-cursor selects the element it is in. If the face changed elsewhere while
+cursor selects the element it is in. Switching to the face and back keeps
+the pane where it was, scrolled and with its cursor, unless another
+element was selected meanwhile: then the pane shows that element's lines.
+If the face changed elsewhere while
 you were typing (another tab), your text is refused and the pane reloads
 the face as it is.
 

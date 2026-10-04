@@ -404,6 +404,8 @@ def test_frames_and_refusals_over_http(client):
     assert frame["device"] == "fenix8solar47mm" and frame["items"]
     assert client.get(f"{url}?device=vivoactive4").status_code == 400
     assert client.get(f"{url}?device=fr955&time=25:00").status_code == 400
+    assert client.get(f"{url}?device=fr955&date=2026-02-30").status_code == 400
+    assert client.get(f"{url}?device=fr955&date=4.10.2026").status_code == 400
     assert client.get(f"{url}?device=fr955&scale=big").status_code == 400
     assert client.get("/api/documents/" + "0" * 32).status_code == 404
     assert client.get("/api/documents/../../etc").status_code == 404
@@ -654,3 +656,13 @@ def test_the_cli_defaults_are_the_studio_defaults():
     args = _parser().parse_args(["studio"])
     assert (args.snapshot_minutes, args.keep_days, args.keep_snapshots) == (
         SNAPSHOT_MINUTES, KEEP_DAYS, KEEP_SNAPSHOTS)
+
+
+def test_a_frame_is_drawn_on_the_date_asked_for(client):
+    doc = client.post("/api/documents/new?template=analog&name=D").json()
+    url = f"/api/documents/{doc['id']}/frame?device=fr955&scale=1"
+    # a Sunday and a Saturday, months apart: the day, weekday and month all differ
+    sunday = client.get(f"{url}&date=2026-10-04").json()["frame"]
+    saturday = client.get(f"{url}&date=2026-03-28").json()["frame"]
+    sample = client.get(url).json()["frame"]
+    assert len({sunday, saturday, sample}) == 3

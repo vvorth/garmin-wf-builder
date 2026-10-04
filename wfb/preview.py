@@ -22,6 +22,7 @@ is how a caller finds out (`stand_in_warning`).
 
 from __future__ import annotations
 
+import datetime as _dt
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass, replace as dataclass_replace
@@ -146,6 +147,10 @@ class PreviewOptions:
     #: is also what every non-hands element still reads through the
     #: ordinary `time.hour`/`time.minute`/`time.second` sources.
     time: tuple[int, int, int] | None = None
+    #: `(year, month, day)` the `date.*` sources read, overriding `SAMPLE`'s
+    #: (Wed 3 Sep 2026); its weekday and month names follow.  `None` keeps
+    #: the sample date.
+    date: tuple[int, int, int] | None = None
     #: Hide every `awake`-only second hand -- `wfb preview --asleep`, the
     #: same choice the generated view makes while `_sleeping`. `aod` below
     #: implies this too, since AOD only ever runs while asleep.
@@ -281,6 +286,21 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     return finish_frame(renderer.image, resolved, options, values)
 
 
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def date_values(year: int, month: int, day: int) -> dict[str, object]:
+    """The `date.*` readings for one day, in the shapes the watch gives
+    them: English abbreviations for `date.month`/`date.day_of_week`, and
+    `date.weekday` counted from Sunday (`Gregorian.DAY_SUNDAY` = 1).
+    Raises `ValueError` for a day that does not exist."""
+    weekday = _dt.date(year, month, day).weekday()          # Monday = 0
+    return {"date.year": year, "date.month_number": month, "date.month": _MONTHS[month - 1],
+            "date.day": day, "date.day_of_week": _DAYS[weekday],
+            "date.weekday": (weekday + 1) % 7 + 1}
+
+
 def sample_values(resolved: ResolvedFace, options: PreviewOptions,
                   entry: StyleEntry | None) -> dict[str, object]:
     """The readings a preview frame draws at: `SAMPLE`, the `--time` and
@@ -296,6 +316,8 @@ def sample_values(resolved: ResolvedFace, options: PreviewOptions,
         values["time.hour"] = hour
         values["time.minute"] = minute
         values["time.second"] = second
+    if options.date is not None:
+        values.update(date_values(*options.date))
     if options.sample:
         values.update(options.sample)
 

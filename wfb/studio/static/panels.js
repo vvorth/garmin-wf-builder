@@ -612,6 +612,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
       ${styles.entries.length ? html`<ul class="rows">${styles.entries.map((e) => html`<li class="style">
         <label title="the style the face starts in"><input type="radio" name="default-style" checked=${styles.default === e.name}
           onChange=${() => onEdit({ op: "set", path: ["config", "style", "default"], value: e.name })} /> ${e.name}</label>
+        <${Commit} value=${e.label} placeholder="label" width="8em"
+          onCommit=${(t) => onEdit(t.trim()
+            ? { op: "set", path: ["config", "style", "choices", e.name, "label"], value: t.trim() }
+            : { op: "remove", path: ["config", "style", "choices", e.name, "label"] })} />
         ${g.layouts.length ? html`<select value=${e.layout || ""} onChange=${(ev) => onEdit(ev.target.value
             ? { op: "set", path: ["config", "style", "choices", e.name, "layout"], value: ev.target.value }
             : { op: "remove", path: ["config", "style", "choices", e.name, "layout"] })}>

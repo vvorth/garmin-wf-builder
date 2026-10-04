@@ -11,6 +11,7 @@ file name in the query: no multipart parser.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import re
 import threading
@@ -141,6 +142,19 @@ def _time(raw: str | None) -> tuple[int, int, int] | None:
     return int(m[1]), int(m[2]), int(m[3] or 0)
 
 
+def _date(raw: str | None) -> tuple[int, int, int] | None:
+    if not raw:
+        return None
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", raw)
+    try:
+        if m is None:
+            raise ValueError
+        datetime.date(int(m[1]), int(m[2]), int(m[3]))
+    except ValueError:
+        raise Refused(f"date {raw!r} is not a day, YYYY-MM-DD") from None
+    return int(m[1]), int(m[2]), int(m[3])
+
+
 def _frame_key(request: Request, scale: int | None = None) -> FrameKey:
     """A frame's device and switches, from the query."""
     if scale is None:
@@ -149,6 +163,7 @@ def _frame_key(request: Request, scale: int | None = None) -> FrameKey:
         device=request.query_params.get("device", ""),
         style=request.query_params.get("style") or None,
         time=_time(request.query_params.get("time")),
+        date=_date(request.query_params.get("date")),
         asleep=_flag(request, "asleep"),
         aod=_flag(request, "aod"),
         scale=min(4, max(1, scale)),

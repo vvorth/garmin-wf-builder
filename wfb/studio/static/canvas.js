@@ -422,7 +422,9 @@ export function Strip({ doc, view, picks, onDevice }) {
   const q = (device) => {
     const p = new URLSearchParams({ device, v: doc.version });
     if (view.style) p.set("style", view.style);
-    if (view.time) p.set("time", view.time);
+    // following the clock, the thumbnails change once a minute, not every second
+    if (view.time) p.set("time", view.now ? view.time.slice(0, 5) : view.time);
+    if (view.date) p.set("date", view.date);
     if (view.asleep) p.set("asleep", "1");
     if (view.aod) p.set("aod", "1");
     if (picks) p.set("picks", picks);
