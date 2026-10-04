@@ -227,6 +227,12 @@ table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
 .yaml-status { padding: 4px 12px; font-size: 12px; color: var(--warning); border-top: 1px solid var(--line); }
 .yaml-status.failed { color: var(--error); display: flex; gap: 10px; align-items: center; }
 .yaml-conflict { background: #3a2f12; border-bottom: 1px solid #6b5520; padding: 6px 12px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; }
+.yaml-diff { flex-basis: 100%; margin: 4px 0 0; max-height: 40vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 0; font-size: 12px; line-height: 1.4; }
+.yaml-diff > div { padding: 0 8px; white-space: pre; }
+.yaml-diff .add { color: var(--text); background: color-mix(in srgb, #3fb950 22%, transparent); }
+.yaml-diff .del { color: var(--text); background: color-mix(in srgb, var(--error) 22%, transparent); }
+.yaml-diff .same { color: var(--dim); }
+.yaml-diff .gap { color: var(--dim); text-align: center; }
 
 /* -- zoom, the build dialog --------------------------------------------------- */
 

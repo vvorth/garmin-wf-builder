@@ -26,7 +26,8 @@ def run(script: str) -> object:
               f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n"
               f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n"
               f"import * as textsync from {json.dumps((STATIC / 'textsync.js').as_uri())};\n"
-              f"import * as session from {json.dumps((STATIC / 'session.js').as_uri())};\n{script}")
+              f"import * as session from {json.dumps((STATIC / 'session.js').as_uri())};\n"
+              f"import * as linediff from {json.dumps((STATIC / 'linediff.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -528,6 +529,32 @@ def test_leaving_the_yaml_tab_keeps_text_the_server_does_not_have():
     assert result["waiting"] == ["wait", "a: 1\nb: 3\n", "wait"]
     assert result["clean"] == ["idle", None, "a: 2\n", "idle"]
     assert result["late"] == ["send", "a: 5\n", "a: 5\n", "idle"]
+
+
+def test_a_conflict_shows_what_the_other_change_did():
+    """The conflict banner's diff: the other change's lines, added and
+    removed, with two lines of context and a gap where more is left out.
+    A changed line reads as one removed and one added."""
+    result = run("""
+      const base = ["a: 1", "b: 2", "c: 3", "d: 4", "e: 5", "f: 6", "g: 7", "h: 8"].join("\\n");
+      const theirs = ["a: 1", "b: 20", "c: 3", "d: 4", "e: 5", "f: 6", "g: 7", "h: 8", "i: 9"].join("\\n");
+      const ops = linediff.lineDiff(base, theirs);
+      const shown = linediff.hunks(ops).map((o) => o.op === "gap" ? "~" : o.op[0] + o.text);
+      console.log(JSON.stringify({
+        counts: linediff.diffCounts(ops), shown,
+        same: linediff.diffCounts(linediff.lineDiff(base, base)),
+        summaries: [linediff.changeSummary(linediff.diffCounts(ops)),
+                    linediff.changeSummary({added: 1, removed: 0}),
+                    linediff.changeSummary({added: 0, removed: 3}),
+                    linediff.changeSummary({added: 0, removed: 0})],
+      }));
+    """)
+    assert result["counts"] == {"added": 2, "removed": 1}
+    assert result["shown"] == ["sa: 1", "db: 2", "ab: 20", "sc: 3", "sd: 4", "~",
+                               "sg: 7", "sh: 8", "ai: 9"]
+    assert result["same"] == {"added": 0, "removed": 0}
+    assert result["summaries"] == ["added 2 lines and removed 1 line", "added 1 line",
+                                   "removed 3 lines", "left the text as it was"]
 
 
 def test_only_a_layer_rows_own_drag_reads_as_a_path():

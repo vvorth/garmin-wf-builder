@@ -16,6 +16,7 @@ import {
 } from "./vendor/codemirror.module.js";
 import { elementAtLine, flatten } from "./hit.js";
 import * as sync from "./textsync.js";
+import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.js";
 import { sessionLost } from "./session.js";
 
 const DEBOUNCE = 300;
@@ -81,6 +82,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   const state = useRef({ doc, timer: null, selectTimer: null });
   const [status, setStatus] = useState(box.left === null ? null : box.status);
   const [conflict, setConflict] = useState(box.left !== null && box.sync.conflict);
+  // whether the conflict banner lists the other change's lines
+  const [showOther, setShowOther] = useState(false);
+  useEffect(() => { if (!conflict) setShowOther(false); }, [conflict]);
   state.current.doc = doc;
   state.current.onSaving = onSaving;
   state.current.onSelect = onSelect;
@@ -281,11 +285,21 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   };
   useEffect(() => { if (view.current) showReveal(view.current); }, [reveal && reveal.at]);
 
+  // the other change: from the text the pane's was typed over to the face now
+  const other = conflict ? lineDiff(box.sync.acked, doc.text) : null;
+  const counts = other && diffCounts(other);
   return html`<div class="yaml-pane">
     ${conflict ? html`<div class="yaml-conflict" role="alert">
-      The face changed elsewhere while you were typing, so your text was not saved.
+      <span>The face changed elsewhere while you were typing, so your text was not saved.
+        The other change ${changeSummary(counts)}.</span>
+      ${counts.added + counts.removed
+        ? html`<button onClick=${() => setShowOther(!showOther)} aria-expanded=${showOther}>
+            ${showOther ? "Hide it" : "Show it"}</button>` : null}
       <button onClick=${() => choose("mine")} title="Save your text over the other change (undoable)">Keep my text</button>
       <button onClick=${() => choose("theirs")} title="Discard your typing and show the face as it now is">Take the face as it is</button>
+      ${showOther ? html`<pre class="yaml-diff">${hunks(other).map((o) => o.op === "gap"
+        ? html`<div class="gap">⋯</div>`
+        : html`<div class=${o.op}>${{ same: "  ", del: "- ", add: "+ " }[o.op]}${o.text}</div>`)}</pre>` : null}
     </div>` : null}
     <div class="yaml-host" ref=${host}></div>
     ${status && status.kind === "invalid"

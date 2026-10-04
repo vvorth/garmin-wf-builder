@@ -372,7 +372,9 @@ Text not saved yet goes with you: switching away keeps it, unsaved, and
 the top bar keeps saying **not saved** until you come back to it.
 If the face changed elsewhere while
 you were typing (the Properties or Face panel, another tab), your text is
-not saved over that change: the pane keeps it and asks. **Keep my text**
+not saved over that change: the pane keeps it and asks, saying how many
+lines the other change added and removed; **Show it** lists them, with a
+little context. **Keep my text**
 saves it over the other change, which Undo brings back; **Take the face as
 it is** discards your typing and shows the face as it now is.
 
