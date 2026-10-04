@@ -4,7 +4,8 @@
 
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
-import { elementAtLine, flatten } from "./hit.js";
+import { elementAtLine, flatten, movedBy, together } from "./hit.js";
+import { enqueue, mark, next } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
@@ -305,7 +306,7 @@ function DownloadMenu({ doc }) {
   </div>`;
 }
 
-function Editor({ docId, onError }) {
+function Editor({ docId, onError, onNotice }) {
   const [doc, setDoc] = useState(null);
   const [frame, setFrame] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -397,20 +398,49 @@ function Editor({ docId, onError }) {
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
-  // `ids`: the elements one gesture drags; several only for a move
-  const onDrag = useCallback(async (ids, gesture) => {
-    if (!doc) return false;
-    const which = ids.length > 1 ? { elements: ids } : { element: ids[0] };
+  // The outbox (`outbox.js`): gestures from the canvas and the arrow keys,
+  // sent one at a time, each against the version the one before produced,
+  // so the canvas never waits for the server. `ids`: the elements one
+  // gesture drags; several only for a move.
+  const [queue, setQueue] = useState([]);
+  const queued = useRef([]);
+  const latest = useRef(null);       // the newest version known, for the next send
+  const commit = (q) => { queued.current = q; setQueue(q); };
+  useEffect(() => { if (doc) latest.current = doc.version; }, [doc && doc.version]);
+  useEffect(() => { commit([]); }, [docId]);
+  // a frame showing a gesture's version retires it
+  useEffect(() => {
+    if (frame) commit(queued.current.filter((e) => !(e.state === "done" && e.done <= frame.version)));
+  }, [frame && frame.version]);
+  // the device and scope a gesture is written for, as they were when it was made
+  const where = useRef({});
+  where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
+  const pump = useCallback(async () => {
+    const entry = next(queued.current);
+    if (!entry || latest.current === null) return;
+    commit(mark(queued.current, entry, "sent"));
+    const which = entry.ids.length > 1 ? { elements: entry.ids } : { element: entry.ids[0] };
     try {
-      const updated = await api(`/api/documents/${docId}/drag?version=${doc.version}`, {
+      const updated = await api(`/api/documents/${docId}/drag?version=${latest.current}`, {
         method: "POST",
-        body: JSON.stringify({ ...which, gesture, device: view.device, scope: scope === "all" ? "auto" : scope }),
+        body: JSON.stringify({ ...which, gesture: entry.gesture, ...entry.where }),
       });
+      latest.current = updated.version;
+      commit(mark(queued.current, queued.current.find((e) => e.state === "sent"), "done", updated.version));
       setDoc(updated);
-      if (!updated.landed) onError(new Error(`${updated.what}: written as close as its units allow, not exactly on the pixel`));
-      return true;
-    } catch (e) { onError(e); if (e.status === 409) loadDoc(); return false; }
-  }, [doc, view.device, scope]);
+      if (!updated.landed) onNotice(`${updated.what}: written as close as its units allow, not exactly on the pixel`);
+      pump();
+    } catch (e) {
+      // what was queued behind it was aimed at a face that did not happen
+      commit(queued.current.filter((q) => q.state === "done"));
+      onError(e);
+      if (e.status === 409) loadDoc();
+    }
+  }, [docId]);
+  const onDrag = useCallback((ids, gesture, shown) => {
+    commit(enqueue(queued.current, { ids, gesture, ...shown, where: { ...where.current } }));
+    pump();
+  }, [pump]);
   const [left, setLeft] = useState("layers");
   const [pane, setPane] = useState("face");
   // where the YAML tab was, per face, while the editor is open
@@ -444,6 +474,16 @@ function Editor({ docId, onError }) {
       setExtra([]);
     } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
+  // Arrow keys move the selection a pixel, ten with Shift, as a drag would.
+  const nudge = useCallback((dx, dy) => {
+    const ids = [selected, ...extra].filter(Boolean);
+    if (!ids.length || !frame || !doc) return false;
+    const item = ids.length > 1 ? together(frame.items, ids) : frame.items.find((i) => i.id === ids[0]);
+    if (!item || !item.box) return false;
+    const gesture = { kind: "move", part: "both", dx, dy };
+    onDrag(ids, gesture, { item, moving: movedBy(doc.tree, ids), preview: gesture });
+    return true;
+  }, [selected, extra, frame, doc, onDrag]);
   useEffect(() => {
     const onKey = (e) => {
       if (!(e.ctrlKey || e.metaKey) || e.target.closest("input, textarea, select, .cm-editor")) return;
@@ -453,6 +493,15 @@ function Editor({ docId, onError }) {
       else if (key === "d" && element) { e.preventDefault(); structure({ op: "duplicate", path: element.path }); }
     };
     addEventListener("keydown", onKey);
+    // the arrows nudge, while the face is shown and nothing is being typed
+    const onArrow = (e) => {
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!step || pane !== "face" || e.ctrlKey || e.metaKey || e.altKey
+          || e.target.closest("input, textarea, select, .cm-editor")) return;
+      const n = e.shiftKey ? 10 : 1;
+      if (nudge(step[0] * n, step[1] * n)) e.preventDefault();
+    };
+    addEventListener("keydown", onArrow);
     // Delete: no modifier, and not while typing
     const onDelete = (e) => {
       if ((e.key === "Delete" || e.key === "Backspace") && !e.ctrlKey && !e.metaKey && element &&
@@ -462,8 +511,11 @@ function Editor({ docId, onError }) {
       }
     };
     addEventListener("keydown", onDelete);
-    return () => { removeEventListener("keydown", onKey); removeEventListener("keydown", onDelete); };
-  }, [step, structure, element]);
+    return () => {
+      removeEventListener("keydown", onKey); removeEventListener("keydown", onArrow);
+      removeEventListener("keydown", onDelete);
+    };
+  }, [step, structure, element, nudge, pane]);
 
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.
@@ -578,7 +630,7 @@ function Editor({ docId, onError }) {
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
-                                        extra=${extra} tree=${doc.tree}
+                                        extra=${extra} tree=${doc.tree} queue=${queue}
                                         zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
                                         onPick=${select} onDrag=${onDrag} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
@@ -623,7 +675,8 @@ function Editor({ docId, onError }) {
 
 function App() {
   const [docId, setDocId] = useState(route());
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState(null);       // {message, kind}
+  const toastTimer = useRef(null);
   useEffect(() => {
     const onHash = () => setDocId(route());
     addEventListener("hashchange", onHash);
@@ -634,13 +687,19 @@ function App() {
     } }, () => {});
     return () => removeEventListener("hashchange", onHash);
   }, []);
-  const onError = useCallback((e) => {
-    setToast(e.message || String(e));
-    setTimeout(() => setToast(null), 6000);
+  // a new message replaces the last, and gets its own full time
+  const show = useCallback((message, kind) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, kind });
+    toastTimer.current = setTimeout(() => setToast(null), kind === "error" ? 6000 : 4000);
   }, []);
+  const onError = useCallback((e) => show(e.message || String(e), "error"), [show]);
+  const onNotice = useCallback((message) => show(message, "notice"), [show]);
   return html`
-    ${docId ? html`<${Editor} docId=${docId} onError=${onError} />` : html`<${Home} onError=${onError} />`}
-    ${toast ? html`<div class="toast" onClick=${() => setToast(null)}>${toast}</div>` : null}`;
+    ${docId ? html`<${Editor} docId=${docId} onError=${onError} onNotice=${onNotice} />`
+            : html`<${Home} onError=${onError} />`}
+    ${toast ? html`<div class=${"toast " + toast.kind} role=${toast.kind === "error" ? "alert" : "status"}
+                        onClick=${() => setToast(null)}>${toast.message}</div>` : null}`;
 }
 
 render(html`<${App} />`, document.getElementById("app"));

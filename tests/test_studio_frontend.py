@@ -1,4 +1,5 @@
-"""The editor front end's pure functions (`wfb/studio/static/hit.js`),
+"""The editor front end's pure functions (`wfb/studio/static/hit.js`,
+`outbox.js` and the rest without a DOM),
 run in Node when it is installed. The UI itself is checked by hand: there
 is no headless browser here."""
 
@@ -22,7 +23,8 @@ def run(script: str) -> object:
               f"import * as values from {json.dumps((STATIC / 'values.js').as_uri())};\n"
               f"import * as snap from {json.dumps((STATIC / 'snap.js').as_uri())};\n"
               f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n"
-              f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n{script}")
+              f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n"
+              f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -347,3 +349,80 @@ def test_the_showing_control_sends_only_what_differs_from_each_default():
     """)
     assert result == {"none": "", "some": "left:heart_rate,right:battery",
                       "label": ["Steps", "steps"]}
+
+
+def test_the_outbox_sends_one_at_a_time_and_folds_repeated_moves():
+    """A held arrow key queues one move per repeat; while the first is on
+    its way, the rest fold into one request. A move of other elements, or
+    a resize, stays its own entry."""
+    result = run("""
+      const move = (ids, dx, dy) => ({ids, gesture: {kind: "move", part: "both", dx, dy},
+                                      preview: {kind: "move", part: "both", dx, dy, guides: {x: [1], y: []}},
+                                      moving: new Set(ids)});
+      let q = outbox.enqueue([], move(["a"], 1, 0));
+      const first = outbox.next(q);
+      q = outbox.mark(q, first, "sent");
+      const whileSent = outbox.next(q);
+      q = outbox.enqueue(q, move(["a"], 1, 0));
+      q = outbox.enqueue(q, move(["a"], 0, 10));
+      q = outbox.enqueue(q, move(["b"], 1, 0));
+      q = outbox.enqueue(q, {ids: ["b"], gesture: {kind: "resize", key: ["radius"], delta: 2},
+                             preview: {kind: "resize"}, moving: new Set(["b"])});
+      q = outbox.enqueue(q, move(["b"], 1, 0));
+      q = outbox.enqueue(q, {...move(["b"], 1, 0), where: {device: "fr955"}});
+      const shape = q.map((e) => [e.ids.join(), e.state, e.gesture.kind, e.gesture.dx ?? null,
+                                  e.gesture.dy ?? null]);
+      q = outbox.mark(q, q[0], "done", 7);
+      console.log(JSON.stringify({
+        first: first.gesture, whileSent, shape,
+        folded: q[1].preview,
+        nextAfterDone: outbox.next(q).gesture,
+      }));
+    """)
+    assert result["first"] == {"kind": "move", "part": "both", "dx": 1, "dy": 0}
+    assert result["whileSent"] is None
+    assert result["shape"] == [
+        ["a", "sent", "move", 1, 0],
+        ["a", "queued", "move", 1, 10],
+        ["b", "queued", "move", 1, 0],
+        ["b", "queued", "resize", None, None],
+        ["b", "queued", "move", 1, 0],
+        # the same move written for another device stays apart
+        ["b", "queued", "move", 1, 0],
+    ]
+    # the folded preview carries the sum, and no stale snapping guides
+    assert result["folded"] == {"kind": "move", "part": "both", "dx": 1, "dy": 10}
+    assert result["nextAfterDone"] == {"kind": "move", "part": "both", "dx": 1, "dy": 10}
+
+
+def test_the_canvas_draws_what_a_frame_does_not_show_yet():
+    """An entry stays drawn until a frame of the version it produced
+    arrives; its moves add up per element, a group's children included, and
+    the items they move are hit-tested where they will be."""
+    result = run("""
+      const e = (ids, moving, gesture, state, done) => ({ids, moving: new Set(moving), gesture, state, done});
+      const mv = (dx, dy) => ({kind: "move", part: "both", dx, dy});
+      const q = [e(["a"], ["a"], mv(2, 0), "done", 5), e(["g"], ["g", "a"], mv(0, 3), "sent", null),
+                 e(["b"], ["b"], mv(-1, 0), "queued", null)];
+      const at5 = outbox.unshown(q, 5), at4 = outbox.unshown(q, 4);
+      const by = outbox.offsets(at4);
+      const items = [{id: "a", box: [10, 10, 4, 4], center: [12, 12],
+                      handles: [{kind: "size", x: 14, y: 12}, {kind: "angle", x: 1, y: 1, cx: 12, cy: 12}]},
+                     {id: "c", box: [0, 0, 1, 1], center: [0, 0], handles: []}];
+      const shifted = outbox.shiftItems(items, by);
+      console.log(JSON.stringify({
+        at5: at5.length, at4: at4.length,
+        by: [...by.entries()].sort(),
+        notAllMoves: outbox.offsets([e(["a"], ["a"], {kind: "resize", delta: 1}, "sent", null)]),
+        shifted, untouched: shifted[1] === items[1],
+      }));
+    """)
+    assert result["at5"] == 2 and result["at4"] == 3
+    assert result["by"] == [["a", [2, 3]], ["b", [-1, 0]], ["g", [0, 3]]]
+    assert result["notAllMoves"] is None
+    assert result["shifted"][0] == {
+        "id": "a", "box": [12, 13, 4, 4], "center": [14, 15],
+        "handles": [{"kind": "size", "x": 16, "y": 15},
+                    {"kind": "angle", "x": 3, "y": 4, "cx": 14, "cy": 15}],
+    }
+    assert result["untouched"] is True

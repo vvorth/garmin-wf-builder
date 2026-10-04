@@ -160,7 +160,17 @@ to the other edge. Otherwise it
 shows the outline, since a centred box's edges round about its centre on
 the watch in a way only the compiler knows. When you let go, the change is
 written and the watch's own rendering replaces the preview. A change the face cannot take
-snaps back, with the reason.
+snaps back, with the reason, and so does anything you did after it that
+was still waiting to be written.
+
+You need not wait for the watch's rendering: the next drag can start at
+once, from where the last one put things ("saving…" shows while changes
+are on their way). They are written in the order you made them.
+
+**Nudging.** With the face shown, the arrow keys move the selection one
+pixel, ten with **Shift**, written the same way as a drag. Repeats made
+while an earlier change is still being written go together as one change,
+so a held key does not write one change per pixel.
 
 **Snapping.** A moved element's edges and centre snap to the screen's
 centre and to other elements' centres and edges, within 4 pixels, shown as
@@ -172,7 +182,9 @@ grid, angles to 30° within 3°, else to 6°. Hold **Alt** to place freely;
 **Units.** A drag is written in the unit the key already has: a `%r` stays
 `%r`, a `%` stays `%`, rounded to the coarsest value that still lands on
 the pixel you dropped it on, on the watch you are looking at. A key written
-in `pt` cannot be dragged (a `pt` has no size outside its font).
+in `pt` cannot be dragged (a `pt` has no size outside its font). When no
+value in the key's unit lands exactly on that pixel, the nearest one is
+written and a notice says so.
 
 ### Properties
 

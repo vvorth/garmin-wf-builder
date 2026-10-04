@@ -3,12 +3,16 @@
 // draws them), so hit-testing reads where each layer leaves ink. During a
 // move the whole face is drawn here from the layers' ops, the dragged ones
 // translated; a resize, an angle or a line's end is drawn as an outline. On
-// release one gesture goes to the server, which writes it in the author's
-// units and answers with the new face, whose frame then replaces the
-// preview. Nothing here decides where anything lands.
+// release the gesture joins the editor's outbox (`outbox.js`), which sends
+// it to the server, which writes it in the author's units and answers with
+// the new face, whose frame then replaces the preview. Until it does, the
+// canvas draws the gestures still on their way and takes the next press
+// against where they will put things. Nothing here decides where anything
+// lands.
 
-import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
+import { html, useEffect, useMemo, useRef, useState } from "./vendor/preact-htm.module.js";
 import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
+import { offsets, shiftItems, unshown } from "./outbox.js";
 import * as raster from "./raster.js";
 import {
   angleAt, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
@@ -68,10 +72,19 @@ function inkAt(frame, prepared, layer, x, y) {
 }
 
 // What is under device pixel (x, y): by the layers' ink when they are
-// ready, else the smallest drawn box holding the point.
-function pick(frame, prepared, x, y) {
+// ready, else the smallest drawn box holding the point. `frame.items` may
+// be shifted (`shiftItems`) by `by`, the moves not drawn yet: a moved
+// layer is read where it will be.
+function pick(frame, prepared, x, y, by = new Map()) {
   if (prepared) {
-    const hit = topmost(prepared.layers, x, y, (layer) => inkAt(frame, prepared, layer, x, y));
+    const layers = by.size ? prepared.layers.map((l) => {
+      const o = by.get(elementOf(l.id));
+      return o ? { id: l.id, box: l.box && [l.box[0] + o[0], l.box[1] + o[1], l.box[2], l.box[3]],
+                   base: l, off: o } : l;
+    }) : prepared.layers;
+    const hit = topmost(layers, x, y, (layer) => (layer.base
+      ? inkAt(frame, prepared, layer.base, x - layer.off[0], y - layer.off[1])
+      : inkAt(frame, prepared, layer, x, y)));
     if (hit) return elementOf(hit.id);
   }
   let best = null;
@@ -164,11 +177,24 @@ function resizedBox(box, handle, delta) {
   return [x, y, w, h];
 }
 
-// The face with the elements in `moving` moved by (dx, dy) device pixels.
-function drawMoved(ctx, frame, prepared, moving, dx, dy, s) {
-  const moved = (l) => moving.has(elementOf(l.id));
-  drawChanged(ctx, frame, prepared, (l) => (moved(l) ? raster.translateOps(l.ops, dx, dy) : l.ops),
-              (l) => (moved(l) ? [dx, dy] : [0, 0]), s);
+// The face with each element `by` (a Map from id to [dx, dy] device
+// pixels) names moved by that much.
+function drawMoved(ctx, frame, prepared, by, s) {
+  const off = (l) => by.get(elementOf(l.id));
+  drawChanged(ctx, frame, prepared, (l) => {
+    const o = off(l);
+    return o ? raster.translateOps(l.ops, o[0], o[1]) : l.ops;
+  }, (l) => off(l) || [0, 0], s);
+}
+
+// `by` with every element of `moving` moved (dx, dy) further.
+function plus(by, moving, dx, dy) {
+  const out = new Map(by);
+  for (const id of moving) {
+    const [x, y] = out.get(id) || [0, 0];
+    out.set(id, [x + dx, y + dy]);
+  }
+  return out;
 }
 
 // The face with `item` drawn as a live handle (`handle.live`, which the
@@ -182,14 +208,19 @@ function drawLive(ctx, frame, prepared, item, g, s) {
 
 // The preview of a gesture in progress, or of one sent and not yet drawn.
 // `moving`: every element the gesture moves (a group's children included).
-function drawPreview(ctx, frame, prepared, item, moving, g, s) {
+// `by`: the moves sent before it and not drawn yet, which `item` already
+// carries.
+function drawPreview(ctx, frame, prepared, item, moving, g, s, by = new Map()) {
+  if (prepared && by.size && !(g.kind === "move" && g.part === "both")) {
+    drawMoved(ctx, frame, prepared, by, s);
+  }
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2;
-  if (g.kind !== "move" && g.handle && g.handle.live && prepared) {
+  if (g.kind !== "move" && g.handle && g.handle.live && prepared && !by.size) {
     drawLive(ctx, frame, prepared, item, g, s);
   } else if (g.kind === "move" && g.part === "both") {
-    if (prepared) drawMoved(ctx, frame, prepared, moving, g.dx, g.dy, s);
+    if (prepared) drawMoved(ctx, frame, prepared, plus(by, moving, g.dx, g.dy), s);
     const [x, y, w, h] = item.box;
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = ACCENT;
@@ -277,8 +308,9 @@ function changed(gesture) {
 // screen, at the frame's scale, with where the screen sits in it.
 // `selected` and `extra`: the selection, `extra` being the elements added
 // to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
-// carries. `onPick(id, additive)`; `onDrag(ids, gesture)`.
-export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
+// carries. `queue`: the editor's outbox. `onPick(id, additive)`;
+// `onDrag(ids, gesture, {item, moving, preview})` adds a gesture to it.
+export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onPick, onDrag,
                          zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
   const [drag, setDragState] = useState(null);     // a press, maybe a gesture
@@ -286,7 +318,6 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
   // before the re-render the first one scheduled.
   const dragRef = useRef(null);
   const setDrag = (value) => { dragRef.current = value; setDragState(value); };
-  const [pending, setPending] = useState(null);    // a gesture sent, not yet drawn
   const [prepared, setPrepared] = useState(null);  // the frame's layers, ready
   const usable = prepared && prepared.version === frame.version ? prepared : null;
 
@@ -295,12 +326,18 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     prepare(frame).then((p) => { if (live) setPrepared(p); }, () => {});
     return () => { live = false; };
   }, [frame]);
-  // the new frame replaces a sent gesture's preview
-  useEffect(() => { if (pending && frame.version !== pending.version) setPending(null); }, [frame.version]);
+  // the gestures this frame does not show yet; their moves, per element,
+  // or null when one is not a move; and the frame's items where those
+  // moves will put them, which every press and snap reads
+  const waiting = useMemo(() => unshown(queue, frame.version), [queue, frame.version]);
+  const moves = useMemo(() => offsets(waiting), [waiting]);
+  const by = moves || new Map();
+  const seen = useMemo(() => ({ ...frame, items: shiftItems(frame.items, by) }), [frame, moves]);
 
-  const item = frame.items.find((i) => i.id === selected);
-  const others = frame.items.filter((i) => extra.includes(i.id));
-  const live = drag && drag.gesture ? drag : pending;
+  const item = seen.items.find((i) => i.id === selected);
+  const others = seen.items.filter((i) => extra.includes(i.id));
+  const live = drag && drag.gesture ? drag : null;
+  const last = waiting[waiting.length - 1];
 
   useEffect(() => {
     const c = overlay.current;
@@ -310,7 +347,12 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     const ctx = c.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, c.width, c.height);
-    if (live) { drawPreview(ctx, frame, usable, live.item, live.moving, live.gesture, s); return; }
+    if (live) { drawPreview(ctx, frame, usable, live.item, live.moving, live.gesture, s, by); return; }
+    if (last && !moves) {
+      drawPreview(ctx, frame, usable, last.item, last.moving, last.preview, s);
+      return;
+    }
+    if (moves && moves.size && usable) drawMoved(ctx, frame, usable, moves, s);
     if (!item) return;
     const k = s / zoom;
     ctx.setLineDash([6 * k, 4 * k]);
@@ -322,9 +364,9 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     }
     // handles act on one element, so a selection of several shows none
     if (!others.length) for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s, k);
-    const grip = moveHandle(frame.items, [selected, ...extra], (GRIP + 2) / zoom);
+    const grip = moveHandle(seen.items, [selected, ...extra], (GRIP + 2) / zoom);
     if (grip) drawGrip(ctx, grip.x, grip.y, s, k);
-  }, [frame, usable, selected, extra, live, zoom]);
+  }, [frame, seen, usable, selected, extra, live, waiting, zoom]);
 
   const point = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -340,14 +382,14 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
   // selects what is under it and drags that. Ctrl/Cmd/Shift adds to the
   // selection.
   const down = (e) => {
-    if (e.button !== 0 || pending) return;
+    if (e.button !== 0) return;
     const p = point(e);
     const chosen = [selected, ...extra].filter(Boolean);
-    const grip = moveHandle(frame.items, chosen, (GRIP + 2) / zoom);
+    const grip = moveHandle(seen.items, chosen, (GRIP + 2) / zoom);
     const onGrip = grip && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
     const near = (h) => Math.abs((h.x - p.x) * zoom) <= HANDLE + 2 && Math.abs((h.y - p.y) * zoom) <= HANDLE + 2;
     const handle = !onGrip && item && !extra.length ? item.handles.find(near) : null;
-    const under = handle || onGrip ? null : pick(frame, usable, p.x, p.y);
+    const under = handle || onGrip ? null : pick(seen, usable, p.x, p.y, by);
     if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       if (under) onPick(under, true);
       return;
@@ -372,11 +414,11 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     const drag = dragRef.current;
     if (!drag) return;
     if (!drag.gesture && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < START) return;
-    const target = drag.ids.length > 1 ? together(frame.items, drag.ids)
-      : frame.items.find((i) => i.id === drag.ids[0]);
+    const target = drag.ids.length > 1 ? together(seen.items, drag.ids)
+      : seen.items.find((i) => i.id === drag.ids[0]);
     if (!target) return;
     const p = point(e);
-    setDrag({ ...drag, item: target, gesture: gestureAt(frame, target, drag, p.x, p.y, e.altKey) });
+    setDrag({ ...drag, item: target, gesture: gestureAt(seen, target, drag, p.x, p.y, e.altKey) });
   };
 
   const up = () => {
@@ -391,8 +433,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     }
     if (!changed(g)) return;
     const { handle, guides: _g, to: _t, ...send } = g;
-    setPending({ gesture: g, item: drag.item, moving: drag.moving, version: frame.version });
-    Promise.resolve(onDrag(drag.ids, send)).then((ok) => { if (!ok) setPending(null); });
+    onDrag(drag.ids, send, { item: drag.item, moving: drag.moving, preview: g });
   };
 
   useEffect(() => {
@@ -412,7 +453,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], onPick, onDrag,
     <canvas ref=${overlay} style=${screen}></canvas>
     <div class=${"hit" + (drag && drag.gesture ? " dragging" : "")} style=${screen}
          onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${() => setDrag(null)}></div>
-    ${pending ? html`<div class="saving">saving…</div>` : null}
+    ${waiting.length ? html`<div class="saving">saving…</div>` : null}
   </div>`;
 }
 
