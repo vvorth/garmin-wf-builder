@@ -330,16 +330,36 @@ def test_the_diagnostics_filter_by_severity_and_the_tab_counts_each():
       root.all((e) => e.localName === "button" && e.textContent.startsWith("warnings"))[0].click();
       await settle();
       out.push(rows());
-      const label = document.createElement("div");
-      render(diagnosticsLabel({json.dumps(items)}), label);
-      out.push(label.textContent);
+      const label = (filter) => {{
+        const host = document.createElement("div");
+        render(diagnosticsLabel({json.dumps(items)}, filter), host);
+        return host.textContent;
+      }};
+      out.push(label(), label("warning"), label("note"));
+      const noNotes = {json.dumps([i for i in items if i["severity"] != "note"])};
+      const host = document.createElement("div");
+      render(diagnosticsLabel(noNotes, "note"), host);
+      out.push(host.textContent);
+      // held by the editor: a chip asks it, and its filter is what shows
+      const held = document.createElement("div");
+      const asked = [];
+      render(html`<${{Diagnostics}} items=${{{json.dumps(items)}}} tree=${{[]}} onSelect=${{() => {{}}}}
+                   filter="error" onFilter=${{(f) => asked.push(f)}} />`, held);
+      held.all((e) => e.localName === "button" && e.textContent.startsWith("notes"))[0].click();
+      await settle();
+      out.push(held.all((e) => e.localName === "li").map((li) => li.textContent.trim()), asked);
       console.log(JSON.stringify(out));
     """
     done = subprocess.run(["node", "--input-type=module", "-e", script],
                           capture_output=True, text=True)
     assert done.returncode == 0, done.stderr[-1500:]
-    chips, every, warnings, label = json.loads(done.stdout)
+    chips, every, warnings, label, warnings_only, notes_only, no_notes, held, asked = \
+        json.loads(done.stdout)
     assert chips == ["all 4", "errors 1", "warnings 2", "notes 1"]
     assert every == ["erroran error", "warningfirst warning", "warningsecond warning", "notea note"]
     assert warnings == ["warningfirst warning", "warningsecond warning"]
     assert label == "Diagnostics ✕ 1⚠ 2ℹ 1"
+    assert warnings_only == "Diagnostics ✕ 1⚠ 2ℹ 1 · warnings only"
+    assert notes_only == "Diagnostics ✕ 1⚠ 2ℹ 1 · notes only"
+    assert no_notes == "Diagnostics ✕ 1⚠ 2", "a filter on an absent severity is not claimed"
+    assert held == ["erroran error"] and asked == ["note"]

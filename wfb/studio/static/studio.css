@@ -311,3 +311,4 @@ button.save.unsaved { font-size: 12px; padding: 1px 8px; border-color: var(--err
 .tabs .count.error { color: var(--error); }
 .tabs .count.warning { color: var(--warning); }
 .tabs .count.note { color: var(--note); }
+.tabs .filtered { margin-left: 6px; text-transform: none; letter-spacing: 0; color: var(--accent); }

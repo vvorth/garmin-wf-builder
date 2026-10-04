@@ -105,8 +105,9 @@ remembers both widths.
 
 **Diagnostics** are the compiler's errors, warnings and notes, most severe
 first; the tab counts each kind, and when there is more than one kind,
-chips above the list show one at a time. Clicking one selects the element
-it is about.
+chips above the list show one at a time. The chosen kind stays chosen when
+you visit History and come back, and the tab says so (**· warnings
+only**). Clicking a diagnostic selects the element it is about.
 
 The bar above the centre picks the watch, the style, what each slot
 shows, the time, asleep, always-on and the skin, and the zoom. A slot is

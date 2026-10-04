@@ -395,6 +395,9 @@ function Editor({ docId, onError, onNotice }) {
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
   const [tab, setTab] = useState("diagnostics");
+  // the Diagnostics tab's severity filter, kept across tabs, reset per face
+  const [diagFilter, setDiagFilter] = useState("all");
+  useEffect(() => { setDiagFilter("all"); }, [docId]);
   // Changes on their way: the edits below while their request is out, and
   // the YAML tab's own state (`YamlPane`'s `onSaving`).
   const [inflight, setInflight] = useState(0);
@@ -686,11 +689,12 @@ function Editor({ docId, onError, onNotice }) {
                       onReveal=${showLines} onSelect=${select} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
-            ${diagnosticsLabel(doc.diagnostics)}</button>
+            ${diagnosticsLabel(doc.diagnostics, diagFilter)}</button>
           <button class=${tab === "history" ? "on" : ""} onClick=${() => setTab("history")}>History</button>
         </div>
         ${tab === "diagnostics"
-          ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected} />`
+          ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected}
+                                 filter=${diagFilter} onFilter=${setDiagFilter} />`
           : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)}
                              onChanged=${(updated) => updated ? setDoc(updated) : loadDoc()} />`}
       </div>

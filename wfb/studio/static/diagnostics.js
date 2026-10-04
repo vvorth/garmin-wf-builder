@@ -5,15 +5,26 @@ import { html, useState } from "./vendor/preact-htm.module.js";
 import { elementAtLine } from "./hit.js";
 import { severityCounts, shownDiagnostics } from "./values.js";
 
+const NAMES = { error: "errors", warning: "warnings", note: "notes" };
+
+// The filter in effect: `filter`, unless no diagnostic has that severity
+// (then all show, and the label does not claim a filter).
+function effective(items, filter) {
+  return filter === "all" || severityCounts(items)[filter] ? filter : "all";
+}
+
 // The compiler's diagnostics, most severe first; with more than one
-// severity present, chips filter them to one.
-export function Diagnostics({ items, tree, onSelect }) {
-  const [filter, setFilter] = useState("all");
+// severity present, chips filter them to one. The editor holds the filter
+// (`filter`, `onFilter`), so it outlasts a visit to another tab and the
+// tab's label can show it; without them the list keeps its own.
+export function Diagnostics({ items, tree, onSelect, filter, onFilter }) {
+  const [own, setOwn] = useState("all");
+  const setFilter = onFilter || setOwn;
   if (!items.length) return html`<div class="body dim">No diagnostics.</div>`;
   const counts = severityCounts(items);
   const present = ["error", "warning", "note"].filter((s) => counts[s]);
-  const which = filter === "all" || counts[filter] ? filter : "all";
-  const names = { error: "errors", warning: "warnings", note: "notes" };
+  const which = effective(items, filter ?? own);
+  const names = NAMES;
   return html`${present.length > 1 ? html`<div class="diag-filter" role="group" aria-label="Show">
       <button class=${which === "all" ? "on" : ""} aria-pressed=${which === "all"} onClick=${() => setFilter("all")}>all ${items.length}</button>
       ${present.map((s) => html`<button class=${(which === s ? "on " : "") + s} aria-pressed=${which === s}
@@ -29,10 +40,13 @@ export function Diagnostics({ items, tree, onSelect }) {
   </ul>`;
 }
 
-// The Diagnostics tab's label: its count per severity present.
-export function diagnosticsLabel(items) {
+// The Diagnostics tab's label: its count per severity present, and the
+// filter when one is in effect.
+export function diagnosticsLabel(items, filter = "all") {
   const counts = severityCounts(items);
   const parts = [["error", "✕"], ["warning", "⚠"], ["note", "ℹ"]]
     .filter(([s]) => counts[s]).map(([s, mark]) => html`<span class=${"count " + s}>${mark} ${counts[s]}</span>`);
-  return html`Diagnostics${parts.length ? html` ${parts}` : null}`;
+  const which = effective(items, filter);
+  return html`Diagnostics${parts.length ? html` ${parts}` : null}${which !== "all"
+    ? html`<span class="filtered"> · ${NAMES[which]} only</span>` : null}`;
 }
