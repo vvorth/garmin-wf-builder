@@ -971,6 +971,12 @@ class Shape(Element):
     color: Expression | None = None
     filled: bool = True
 
+    @property
+    def rounded(self) -> bool:
+        """A rectangle that writes `corner_radius:`, drawn with the
+        `RoundedRectangle` calls."""
+        return self.shape == "rectangle" and self.corner_radius is not None
+
     def _own_roles(self) -> list[tuple[str, Expression]]:
         return [(ROLE_COLOR, e) for e in (self.color,) if e]
 

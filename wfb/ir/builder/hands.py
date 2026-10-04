@@ -40,8 +40,6 @@ HAND_PART_NO_UNFILLED = frozenset({"polygon", "rectangle"})
 #: `shape:` values the hand-part schema accepts only so that this
 #: dedicated message fires instead of a blunt enum mismatch.
 HAND_PART_REJECTED_SHAPES = {
-    "rounded_rectangle": "no Dc call draws a rotated rounded rectangle -- "
-                          "approximate it with 'polygon'",
     "ellipse": "no Dc call draws a rotated ellipse -- approximate it with 'polygon'",
     "arc": "an arc part would need its start angle to rotate with the hand too, "
            "which is not implemented yet (docs/limitations.md) -- "
@@ -78,8 +76,6 @@ _HAND_PART_NO_ALIGNMENT_REASON = {
 #: Like `HAND_PART_REJECTED_SHAPES`, minus `arc` and `text`, which a pattern
 #: part can draw.
 PATTERN_PART_REJECTED_SHAPES = {
-    "rounded_rectangle": "no Dc call draws a rotated or translated rounded "
-                          "rectangle -- approximate it with 'polygon'",
     "ellipse": "no Dc call draws a rotated or translated ellipse -- "
                "approximate it with 'polygon'",
     "icon": "a bitmap font cannot rotate or translate through this loop",

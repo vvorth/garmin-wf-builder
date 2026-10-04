@@ -17,12 +17,6 @@ KEYS = {
     "color_scheme": "theme: schemes:",
 }
 
-#: Internal element kind (or shape) -> the `type:` a format 2 author writes.
-KINDS = {
-    "rounded_rectangle": "rectangle",
-}
-
-
 def key(name: str, *, text_value: bool = False) -> str:
     """The author's name for internal key ``name``.  ``text_value``: the key
     is a text element's (or text part's) ``value:``, which format 2 writes
@@ -35,10 +29,6 @@ def key(name: str, *, text_value: bool = False) -> str:
 def keys(names: Iterable[str], *, text_value: bool = False) -> list[str]:
     """The author's names for ``names``, sorted, each once."""
     return sorted({key(name, text_value=text_value) for name in names})
-
-
-def kind(name: str) -> str:
-    return KINDS.get(name, name)
 
 
 _REF = re.compile(r"\b(?:palette|config\.colors)\.([A-Za-z_][A-Za-z0-9_]*)"

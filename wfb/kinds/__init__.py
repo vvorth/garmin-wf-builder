@@ -61,14 +61,9 @@ def kind_of(node: Mapping[str, Any]) -> Any:
 
 
 def shape_of(node: Mapping[str, Any]) -> str | None:
-    """A primitive's shape: its `type:`, with a `rectangle` that writes
-    `corner_radius:` told apart as `rounded_rectangle`; `None` for any
-    other kind."""
+    """A primitive's shape, its `type:`; `None` for any other kind."""
     written = node.get("type")
-    if written not in PRIMITIVES:
-        return None
-    return "rounded_rectangle" if written == "rectangle" and "corner_radius" in node \
-        else str(written)
+    return str(written) if written in PRIMITIVES else None
 
 
 # -- text runs ----------------------------------------------------------------

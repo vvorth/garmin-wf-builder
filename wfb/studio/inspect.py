@@ -84,7 +84,7 @@ def element_schema(type_: str) -> dict[str, Any] | None:
 def _hidden(type_: str) -> frozenset[str]:
     from ..kinds.shape import SHAPE_GEOMETRY_KEYS
 
-    shapes = {"rectangle": ("rectangle", "rounded_rectangle"), "circle": ("circle",),
+    shapes = {"rectangle": ("rectangle",), "circle": ("circle",),
               "ellipse": ("ellipse",), "line": ("line",), "arc": ("arc",),
               "polygon": ("polygon",)}
     if type_ not in shapes:

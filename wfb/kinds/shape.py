@@ -6,7 +6,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
-from .. import vocab
 from ..ir import disc_perimeter_offsets
 from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
@@ -27,14 +26,12 @@ if TYPE_CHECKING:
 
 #: Which geometry keys each `shape:` reads.  A key outside its own row
 #: would be parsed and silently dropped, so `_check_shape_keys` rejects it
-#: (a `radius:` typed onto a rounded_rectangle instead of `corner_radius:`,
-#: say).  `color:`/`filled:` are common to every shape; `thickness:` is
+#: (a `radius:` typed onto a rectangle instead of `corner_radius:`, say).  `color:`/`filled:` are common to every shape; `thickness:` is
 #: checked separately, because whether it is read depends on `filled:`.
 #: `polygon` and `line` carry no `align`/`vertical_align`: a polygon has no
 #: single `at:` to align on, and a line's `at:`/`to:` are its two ends.
 SHAPE_GEOMETRY_KEYS = {
-    "rectangle": frozenset({"size", "align"}),
-    "rounded_rectangle": frozenset({"size", "corner_radius", "align"}),
+    "rectangle": frozenset({"size", "corner_radius", "align"}),
     "circle": frozenset({"radius", "align"}),
     "ellipse": frozenset({"size", "align"}),
     "line": frozenset({"to"}),
@@ -57,9 +54,9 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
     """Reject a geometry key the chosen `shape:` does not read.
 
     Without this check, an unread key would be parsed by the schema,
-    resolved into the IR, and then never looked at -- so `shape:
-    rounded_rectangle` with a `radius:` (rather than `corner_radius:`)
-    would draw square corners and say nothing, and `thickness:` on a
+    resolved into the IR, and then never looked at -- so a `type:
+    rectangle` with a `radius:` (rather than `corner_radius:`) would draw
+    square corners and say nothing, and `thickness:` on a
     shape left filled would do nothing at all.  ADR 0009's rule applies:
     a design must not quietly lose something it asked for.
 
@@ -80,7 +77,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
             and bool(node.get("filled", True)):
         b.bag.error(
             "element",
-            f"'thickness' is not used by a filled 'type: {vocab.kind(shape)}'",
+            f"'thickness' is not used by a filled 'type: {shape}'",
             b.doc.span(node, "thickness") or b.doc.span(node),
             notes=["thickness is the pen width of a stroked shape; a filled shape has "
                    "no stroke to draw",
@@ -102,8 +99,9 @@ def _shape_filled_override(element: Shape, aod: AodStyle) -> bool:
 
 
 #: The shapes with both a `Dc.fill<Name>` and a `Dc.draw<Name>` primitive:
-#: `shape:` -> (`<Name>`, the call's argument groups, one wrapped line each,
-#: as `Layout.<P>_<suffix>` suffixes).
+#: shape -> (`<Name>`, the call's argument groups, one wrapped line each,
+#: as `Layout.<P>_<suffix>` suffixes).  A rounded rectangle (`Shape.rounded`)
+#: has calls of its own, under their name.
 _FILLABLE_SHAPES: dict[str, tuple[str, tuple[tuple[str, ...], ...]]] = {
     "rectangle": ("Rectangle", (("X", "Y"), ("WIDTH", "HEIGHT"))),
     "rounded_rectangle": ("RoundedRectangle", (("X", "Y"), ("WIDTH", "HEIGHT"), ("CORNER",))),
@@ -133,7 +131,7 @@ def _needs_thickness_constant(element: Shape) -> bool:
 #: its corner radius grown by `w`.  Every other shape is stamped -- an
 #: ellipse's offset curve is not an ellipse, a stroke's or an arc's ends are
 #: undocumented, and a polygon's sharp corners have no one-draw dilation.
-_GROWN = frozenset({"circle", "rectangle", "rounded_rectangle"})
+_GROWN = frozenset({"circle", "rectangle"})
 
 
 
@@ -146,13 +144,13 @@ def _ring_copy(prefix: str, width: int, index: int) -> str:
 
 
 
-def _grown(shape: str, c: Callable[[str], Const], width: int) -> Primitive:
+def _grown(shape: str, rounded: bool, c: Callable[[str], Const], width: int) -> Primitive:
     """The one grown copy a filled circle or rectangle rings as: a circle
     ``width`` px larger, or a rounded rectangle ``width`` px larger on
     every side with its corner grown by ``width``."""
     if shape == "circle":
         return Primitive("fillCircle", ((c("CX"), c("CY"), Grown(c("RADIUS"), width)),))
-    corner: Num = Grown(c("CORNER"), width) if shape == "rounded_rectangle" else Lit(width)
+    corner: Num = Grown(c("CORNER"), width) if rounded else Lit(width)
     return Primitive("fillRoundedRectangle", (
         (Grown(c("X"), width, -1), Grown(c("Y"), width, -1)),
         (Grown(c("WIDTH"), width, 2), Grown(c("HEIGHT"), width, 2)),
@@ -210,8 +208,6 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             b.require(node, "radius", "a circle needs a radius")
         if shape == "rectangle" and (element.size.width is None or element.size.height is None):
             b.require(node, "size", "a rectangle needs size.width and size.height")
-        if shape == "rounded_rectangle" and element.corner_radius is None:
-            b.require(node, "corner_radius", "a rounded rectangle needs a corner_radius")
         if shape == "line" and element.to is None:
             b.require(node, "to", "a line needs a 'to' position")
         _check_shape_keys(b, node, shape)
@@ -309,7 +305,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
-        # rectangle, rounded_rectangle, ellipse: aligned by the declared
+        # rectangle, ellipse: aligned by the declared
         # `size:`, before any outline pad is added.
         sized, cx, cy = r.sized_box(element, parent, cx, cy)
 
@@ -389,7 +385,8 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             stamp.  ``set_pen=False``: the caller set the pen around
             several of these."""
             if element.shape in _FILLABLE_SHAPES:
-                name, groups = _FILLABLE_SHAPES[element.shape]
+                name, groups = _FILLABLE_SHAPES[
+                    "rounded_rectangle" if element.rounded else element.shape]
                 first = groups[0]
                 head = ((Shifted(c(first[0]), dx), Shifted(c(first[1]), dy))
                         + tuple(c(s) for s in first[2:]))
@@ -429,7 +426,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             width = ring.width if ring is not None else (outline.width if outline else 1)
             offsets = disc_perimeter_offsets(width)
             if element.shape in _GROWN and element.filled and not flips:
-                ops += [SetColor(paint), _grown(element.shape, c, width)]
+                ops += [SetColor(paint), _grown(element.shape, element.rounded, c, width)]
             elif element.shape == "polygon":
                 ops.append(SetColor(paint))
                 ops += [FillPolygon(_ring_copy(prefix, width, index),
@@ -456,7 +453,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if element.shape == "polygon":
             return f"a polygon of {len(element.points)} points"
         noun = article(element.shape.replace("_", " "))
-        if (element.shape in ("rectangle", "rounded_rectangle", "circle", "ellipse")
+        if (element.shape in ("rectangle", "circle", "ellipse")
                 and not element.filled):
             return f"{noun}, outlined"
         return noun
@@ -480,7 +477,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             if element.shape in ("circle", "arc") and centred:
                 return {"consts": {f"{prefix}_RADIUS": 1}}
             return None
-        if element.shape in ("rectangle", "rounded_rectangle") and handle["gain"] in (1, -1):
+        if element.shape == "rectangle" and handle["gain"] in (1, -1):
             extent, edge = ("WIDTH", "X") if key == ("size", "width") else ("HEIGHT", "Y")
             consts = {f"{prefix}_{extent}": 1}
             if handle["gain"] == -1:
@@ -536,7 +533,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         else:
             rect = placed.rect or placed.inner_box
             out.extend(layout_constants_mod.box_constants(prefix, rect))
-            if element.shape == "rounded_rectangle":
+            if element.rounded:
                 out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
             if _needs_thickness_constant(element):
                 out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))

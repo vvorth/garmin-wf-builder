@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from ... import catalog, complications, kinds, vocab
+from ... import catalog, complications, kinds
 from ...diagnostics import Span
 
 from ..model import DataElement, Element, HOLD_AUTO, ROLE_VALUE, Position
@@ -40,8 +40,8 @@ def _merged(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
 def _kind_name(element: Element) -> str:
     """The `type:` the author wrote for ``element``."""
     if element.kind == "shape":
-        return str(getattr(element, "shape", "shape")).replace("rounded_rectangle", "rectangle")
-    return vocab.kind(element.kind)
+        return str(getattr(element, "shape", "shape"))
+    return element.kind
 
 
 def _takes_align(element: Element) -> bool:

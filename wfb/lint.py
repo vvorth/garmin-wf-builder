@@ -1242,7 +1242,7 @@ def _check_outline_contrast(
 #: behind everything else.  An `arc` or a `polygon` can easily have a
 #: screen-sized bounding box while painting a sliver of it, and an outlined
 #: shape of any kind paints only its edge -- neither is a backdrop.
-_BACKDROP_SHAPES = ("rectangle", "rounded_rectangle", "circle", "ellipse")
+_BACKDROP_SHAPES = ("rectangle", "circle", "ellipse")
 
 
 def _is_solid_backdrop_shape(placed: Placed) -> bool:

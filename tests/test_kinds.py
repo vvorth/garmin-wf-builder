@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from wfb import kinds, validate, vocab
+from wfb import kinds, validate
 from wfb.ir import model as ir_model
 from wfb import layout
 
@@ -30,7 +30,7 @@ def test_names_match_the_schema_and_validate():
     assert built == set(kinds.names())
     for name in kinds.names():
         if name != "shape":
-            assert vocab.kind(name) in schema_order, name
+            assert name in schema_order, name
 
 
 def _concrete_element_classes() -> set[type]:

@@ -79,9 +79,9 @@ class GlyphHelpers(AbsenceChecks):
             if author in reported or author in vocab.keys(table[chosen], text_value=text_part):
                 continue
             reported.add(author)
-            owners = sorted({vocab.kind(s) for s, keys in table.items() if key in keys})
+            owners = sorted({s for s, keys in table.items() if key in keys})
             notes = [
-                f"'{label}: {vocab.kind(chosen)}' reads: "
+                f"'{label}: {chosen}' reads: "
                 + (", ".join(vocab.keys(table[chosen], text_value=text_part)) or empty_label),
                 f"{author!r} belongs to " + " and ".join(f"'{label}: {s}'" for s in owners),
             ]
@@ -90,7 +90,7 @@ class GlyphHelpers(AbsenceChecks):
             self.bag.error(
                 code,
                 f"{prefix}{author!r} is not used by {qualifier}'{label}: "
-                f"{vocab.kind(chosen)}'{suffix}",
+                f"{chosen}'{suffix}",
                 self.doc.span(node, key) or self.doc.span(node),
                 notes=notes,
             )
