@@ -382,7 +382,7 @@ class HandParts(ConfigAxes):
                     self.bag.error(
                         "pattern",
                         f"{part_where}.text: a pattern text part's placeholder "
-                        "may read only 'copy', not " + ", ".join(vocab.refs(r) for r in bad_refs),
+                        "may read only 'copy', not " + ", ".join(bad_refs),
                         value.span,
                         notes=["every copy's string must be known at build "
                                "time, for font subsetting and extents",

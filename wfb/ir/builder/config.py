@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import complications, icons, vocab
+from ... import complications, icons
 from ...diagnostics import Span
 from ...palette import Color, ColorError
 
-from ..model import ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry
+from ..model import CONFIG_AXIS_ROLES, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry
 from .state import _lint_suppression
 from .glyphs import _NO_ICON_OVERRIDE, _ICON_OVERRIDE_ERROR
 from .blocks import TopLevelBlocks
@@ -314,6 +314,8 @@ class ConfigAxes(TopLevelBlocks):
             if name == "slots":
                 self._build_config_data(spec, span)
                 continue
+            role = str(spec.get("role", CONFIG_AXIS_ROLES[name]))
+            self.config_roles[name] = role
             default_span = self.doc.span(spec, "default")
             default = self._resolve_config_color(
                 spec["default"], f"config.{name}.default", default_span)
@@ -324,7 +326,7 @@ class ConfigAxes(TopLevelBlocks):
             raw_choices = spec["choices"]
             if raw_choices == "any":
                 self.config[name] = ConfigColor(name=name, default=default, choices="any",
-                                                span=span)
+                                                span=span, role=role)
                 continue
 
             choices: list[ConfigChoice] = []
@@ -332,7 +334,7 @@ class ConfigAxes(TopLevelBlocks):
             for index, item in enumerate(raw_choices):
                 item_span = self.doc.span(raw_choices, index)
                 if isinstance(item, str):
-                    # A bare `palette.<name>` reference -- the schema accepts
+                    # A bare `color.<swatch>` reference -- the schema accepts
                     # nothing else as a plain string here.  Contributes the
                     # entry's colour and, if it has one, its label.
                     color = self._palette_reference(item, item_span)
@@ -341,7 +343,7 @@ class ConfigAxes(TopLevelBlocks):
                         continue
                     choices.append(ConfigChoice(
                         color=color,
-                        label=self.palette_labels.get(item[len("palette."):]),
+                        label=self.palette_labels.get(item[len("color."):]),
                     ))
                     continue
                 try:
@@ -357,11 +359,11 @@ class ConfigAxes(TopLevelBlocks):
 
             if not any(choice.color == default for choice in choices):
                 self._default_not_in_choices(
-                    f"config.{name}", vocab.refs(str(spec["default"])), default_span,
+                    f"config.{name}", str(spec["default"]), default_span,
                     noun="colour", tag="color",
                     listed="listed colours: " + ", ".join(str(c.color) for c in choices))
                 self.rejected_config.add(name)
                 continue
 
             self.config[name] = ConfigColor(name=name, default=default,
-                                            choices=tuple(choices), span=span)
+                                            choices=tuple(choices), span=span, role=role)

@@ -17,13 +17,10 @@ from ...yamlsrc import Origin
 from ..model import DataElement, Expression, Position, SYSTEM_FONTS, Size, Text
 from .state import BuilderState
 
-#: Matches `expr.check`'s "unknown data source" message for exactly
-#: `config.colors` or `config.colors.<role>`.  Group 1 is `""` for the bare
-#: axis, or `.<role>` for a bad role -- `Builder.expression` turns either
-#: into a domain-specific error.
-_CONFIG_COLORS_RE = re.compile(
-    r"^unknown data source 'config\.colors((?:\.[A-Za-z_][A-Za-z0-9_]*)?)'$"
-)
+#: Matches `expr.check`'s "unknown data source" message for a `color.<name>`
+#: the scope does not bind -- `Builder.expression` explains a scheme role
+#: that no style picks.
+_COLOR_RE = re.compile(r"^unknown data source 'color\.([A-Za-z_][A-Za-z0-9_]*)'$")
 
 
 def _offset_span(span: Span | None, text: str, offset: int) -> Span | None:
@@ -120,31 +117,15 @@ reporting why) out."""
             resolved = expr.fold(node_ast, self.scope)
         except expr.ExprError as exc:
             message, notes, code_ = exc.message, exc.notes, exc.code or "expression"
-            # `config.colors` (a scheme, used bare) and `config.colors.<bad
-            # role>` both reach here as an ordinary "unknown data source" --
-            # nothing under `config.colors.*` is bound in scope except the
-            # roles a real axis actually has (`_build_scope`).  Overridden
-            # with a domain-specific message rather than left as a generic
-            # typo report: a bare `color: config.colors` (missing its role)
-            # or a misspelled role deserves better than a "did you mean"
-            # guess against an unrelated name.
-            match = _CONFIG_COLORS_RE.match(message)
+            # `wfb.lower` has refused an unknown `color.<name>`, so one that
+            # reaches here unbound is a scheme role: it has a value only once
+            # a style picks the scheme, and with no `config: style:` naming
+            # one, no role is bound at all.
+            match = _COLOR_RE.match(message)
             declared = {r for scheme in self.color_scheme.values() for r in scheme.colors}
-            if match is not None and self._config_colors_roles is not None:
-                roles = ", ".join(f"color.{r}" for r in self._config_colors_roles)
+            if match is not None and match.group(1) in declared:
                 code_ = "config"
-                if match.group(1) == "":
-                    message = "a colour scheme is not a colour"
-                    notes = [f"reference a role instead: {roles}"]
-                else:
-                    message = f"color.{match.group(1)[1:]} is not a role"
-                    notes = [f"declared roles: {roles}"]
-            elif match is not None and match.group(1)[1:] in declared:
-                # A scheme's role has a value only once a style picks the
-                # scheme: with no `config: style:` naming one, no role is
-                # bound at all.
-                code_ = "config"
-                message = (f"color.{match.group(1)[1:]} is a role of 'theme: schemes:', "
+                message = (f"color.{match.group(1)} is a role of 'theme: schemes:', "
                            "but no 'config: style:' entry picks a scheme")
                 notes = ["add a 'config: style:' entry with 'scheme:', or make it a "
                          "palette colour"]

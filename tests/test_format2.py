@@ -130,9 +130,11 @@ def test_color_resolution(write_design):
           c: {type: circle, radius: 3, color: color.highlight}
           d: {type: circle, radius: 3, color: color.red}
         """), write_design)
-    texts = [e.color.text for e in face.elements]
-    assert texts == ["config.colors.fg", "config.accent_color", "config.data_color",
-                     "palette.red"]
+    # Each name binds what it means: a scheme role, an axis role (its own
+    # 'role:' or the axis's default one) and a swatch.
+    bound = [(e.color.text, e.color.code) for e in face.elements]
+    assert bound == [("color.fg", "_configColorsFg"), ("color.accent", "_configAccentColor"),
+                     ("color.highlight", "_configDataColor"), ("color.red", "Palette.RED")]
 
 
 def test_an_unknown_colour_suggests_a_near_one(write_design):

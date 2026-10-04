@@ -323,16 +323,16 @@ def sample_values(resolved: ResolvedFace, options: PreviewOptions,
 
     # Palette entries are ordinary references inside an expression, so a
     # conditional colour cannot be evaluated without them.  Seeding them here is
-    # what makes `cond ? palette.a : palette.b` render as the design intends
+    # what makes `cond ? color.a : color.b` render as the design intends
     # rather than silently falling back to white.
     for name, color in resolved.face.palette.items():
-        values.setdefault(f"palette.{name}", color.value)
+        values.setdefault(f"color.{name}", color.value)
 
     # `config:` entries render at their declared defaults -- the preview has
     # no on-device editor to ask, and the default is the only value a target
     # without one (fr955) ever shows anyway (ADR 0006 1).
-    for name, config_entry in resolved.face.config.items():
-        values.setdefault(f"config.{name}", config_entry.default.value)
+    for config_entry in resolved.face.config.values():
+        values.setdefault(f"color.{config_entry.role}", config_entry.default.value)
 
     # `config: style:` renders at the chosen entry's scheme colours (the
     # default entry's, absent `--style`) -- the preview has no editor to ask
@@ -340,7 +340,7 @@ def sample_values(resolved: ResolvedFace, options: PreviewOptions,
     if entry is not None and entry.colors is not None:
         scheme = resolved.face.color_scheme[entry.colors]
         for role, color in scheme.colors.items():
-            values.setdefault(f"config.colors.{role}", color.value)
+            values.setdefault(f"color.{role}", color.value)
     return values
 
 

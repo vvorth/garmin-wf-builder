@@ -116,7 +116,7 @@ against."""
         The short form, `name: "#RRGGBB"`, is unchanged.  The long form,
         `name: {value: "#RRGGBB", label: "..."}`, adds a label with no other
         effect here -- it only matters once a `config:` entry references this
-        entry as `palette.<name>` (`_palette_reference`), which is where the
+        entry as `color.<name>` (`_palette_reference`), which is where the
         label becomes a generated `<string>`, exactly as an inline `label:`
         on a `config:` choice already does.
         """
@@ -131,7 +131,7 @@ against."""
                 raw_value = value
                 value_span = span
                 label = None
-            if isinstance(raw_value, str) and raw_value.startswith(("palette.", "config.")):
+            if isinstance(raw_value, str) and raw_value.startswith("color."):
                 self.bag.error(
                     "palette",
                     f"palette entry {name!r} refers to {raw_value!r}",
@@ -146,7 +146,7 @@ against."""
                 self.palette.reject(name)
                 continue
             try:
-                self.palette[name] = Color.parse(raw_value, what=f"palette.{name}")
+                self.palette[name] = Color.parse(raw_value, what=f"color.{name}")
             except ColorError as exc:
                 self.bag.error("palette", str(exc), value_span)
                 self.palette.reject(name)
@@ -155,28 +155,28 @@ against."""
                 self.palette_labels[name] = label
 
     def _palette_reference(self, name: str, span: Span | None) -> Color | None:
-        """Resolve a `palette.<name>` reference used where a build-time literal
+        """Resolve a `color.<swatch>` reference used where a build-time literal
         colour is required -- a `config:` entry's own `default:`/`choices:`.
 
         Returns ``None`` when the name does not resolve, either because it was
         never declared or because it *was* declared and then rejected by
-        `_build_palette` (an out-of-range colour, a `config.*` reference).  In
+        `_build_palette` (an out-of-range colour, a `color.*` reference).  In
         the rejected case this stays quiet: the real mistake already has its
         own error pointing at the `palette:` block, and the same cascade fix
         every `NamedRegistry` applies here -- one error at the real mistake,
         not one more per reference blaming the wrong line.
         """
-        key = name[len("palette."):]
+        key = name[len("color."):]
         return self.palette.resolve(
             self.bag, key, span, code="config",
             message=f"unknown palette entry {name!r}",
-            note="declared palette entries", prefix="palette.",
+            note="declared palette entries", prefix="color.",
         )
 
     def _resolve_config_color(self, raw: object, what: str, span: Span | None) -> Color | None:
         """A `config:` `default:`/`choices:` colour: a literal hex, or a
-        `palette.<name>` reference resolved through `_palette_reference`."""
-        if isinstance(raw, str) and raw.startswith("palette."):
+        `color.<swatch>` reference resolved through `_palette_reference`."""
+        if isinstance(raw, str) and raw.startswith("color."):
             return self._palette_reference(raw, span)
         try:
             return Color.parse(raw, what=what)
@@ -191,13 +191,13 @@ against."""
 
         A role's colour is resolved exactly like a `config:` axis's own
         `default:`/`choices:` colour (`_resolve_config_color`): a literal
-        hex, or a `palette.<name>` reference, with the identical
+        hex, or a `color.<swatch>` reference, with the identical
         declared/rejected cascade behaviour a bad palette reference already
         has everywhere else.
 
         Every accepted scheme must declare the identical role set, checked
         here against the union of every scheme's own roles -- a scheme
-        missing one that another has would leave `config.colors.<role>`
+        missing one that another has would leave `color.<role>`
         undefined whenever the wearer picks the one that lacks it.  Checked
         with the union rather than an arbitrary "first" scheme so the report
         does not depend on declaration order: whichever scheme(s) fall short
@@ -214,7 +214,7 @@ against."""
             for role in raw_colors:
                 role_span = self.doc.span(raw_colors, role)
                 color = self._resolve_config_color(
-                    raw_colors[role], f"color_scheme.{name}.colors.{role}", role_span)
+                    raw_colors[role], f"theme.schemes.{name}.colors.{role}", role_span)
                 if color is None:
                     ok = False
                     continue
@@ -256,7 +256,7 @@ against."""
 
         Bare, not `color_scheme.<name>` -- that qualifying form is for
         expressions (`color: color_scheme.dark` is not even legal there
-        either; it is `config.colors.<role>`), and there is exactly one thing
+        either; it is `color.<role>` (a scheme role)), and there is exactly one thing
         `colors:` can name here, so a prefix buys nothing.  The schema's own
         `$defs/identifier` already rejects a non-identifier value before this
         ever runs, so this only ever sees a plausible name.
@@ -290,7 +290,7 @@ against."""
         return name if decl is not None else None
 
     def _define_palette_color(self, name: str, constant: int) -> None:
-        """Bind `palette.<name>` to its Monkey C constant -- shared by an
+        """Bind `color.<name>` to its swatch's Monkey C constant -- shared by an
         accepted palette entry (`constant` is its real value) and a
         declared-then-rejected one (`constant=0`, a placeholder: nothing is
         emitted from a design that has an error, so it is never reached --
@@ -298,7 +298,7 @@ against."""
         into scope for).
         """
         self.scope.define(
-            f"palette.{name}",
+            f"color.{name}",
             expr.Binding(
                 expr.Value(Type.COLOR),
                 code=f"Palette.{name.upper()}",
@@ -307,7 +307,7 @@ against."""
         )
 
     def _define_config_color(self, path: str, code: str) -> None:
-        """Bind `path` (`config.<name>` or `config.colors.<role>`) to the
+        """Bind `path` (`color.<role>`, a colour axis's or a scheme's) to the
         view field `code` reads back from -- shared by every accepted or
         declared-then-rejected config colour binding in `_build_scope`.
 
@@ -347,20 +347,18 @@ against."""
         for name in sorted(self.palette.rejected):
             self._define_palette_color(name, 0)
         for name, entry in self.config.items():
-            self._define_config_color(f"config.{name}", entry.field)
+            self._define_config_color(f"color.{entry.role}", entry.field)
         for name in sorted(self.rejected_config - {"style"}):
             # (`style` is not a single colour; its roles are bound below.)
-            self._define_config_color(f"config.{name}", config_field(name))
+            self._define_config_color(f"color.{self.config_roles[name]}", config_field(name))
 
-        # `config.colors.<role>` -- one binding per role of the default
-        # style entry's scheme, and none for the bare `config.colors` (a
-        # scheme is not a colour; `expression` gives both mistakes a
-        # dedicated error).  A layout-only default entry binds no roles.
+        # A scheme's roles -- one binding per role of the default style
+        # entry's scheme.  A layout-only default entry binds no roles.
         if self.config_style is not None and self.config_style.default_entry.colors is not None:
             default_scheme = self.color_scheme[self.config_style.default_entry.colors]
             self._config_colors_roles = tuple(sorted(default_scheme.colors))
             for role in default_scheme.colors:
-                self._define_config_color(f"config.colors.{role}", config_field(f"colors_{role}"))
+                self._define_config_color(f"color.{role}", config_field(f"colors_{role}"))
         elif "style" in self.rejected_config:
             # The same cascade for a rejected Styles axis: bind every role a
             # surviving `color_scheme:` entry declares.
@@ -370,5 +368,5 @@ against."""
             if roles:
                 self._config_colors_roles = tuple(sorted(roles))
                 for role in self._config_colors_roles:
-                    self._define_config_color(f"config.colors.{role}", config_field(f"colors_{role}"))
+                    self._define_config_color(f"color.{role}", config_field(f"colors_{role}"))
         self.scope.used.clear()

@@ -1505,7 +1505,7 @@ def _sources(args: argparse.Namespace) -> int:
     into prose, which goes stale the moment the catalogue grows.
 
     Also lists `config.*` -- the native on-device colour axes, including
-    Styles (`config.colors.<role>`, ADR 0006 1, twice amended) -- even
+    Styles (`color.<role>` (a scheme role), ADR 0006 1, twice amended) -- even
     though, unlike everything above, these are not read from any device API:
     a design that declares `config:` binds them the same way, as an ordinary
     colour expression.

@@ -165,7 +165,7 @@ def test_config_colour_is_an_ordinary_unfoldable_colour_binding(write_design, ba
     `binding.constant` is set)."""
     face = _face(DESIGN, write_design, bag)
     dot = next(e for e in face.walk() if e.id == "accent_dot")
-    assert dot.color.text == "config.accent_color"
+    assert dot.color.text == "color.accent"
     assert dot.color.code == "_configAccentColor"
     assert dot.color.constant is None
 

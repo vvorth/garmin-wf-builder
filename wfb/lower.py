@@ -5,15 +5,9 @@ names and grouping are the author's, and the IR builder still reads the
 internal shape it always has.  This pass rewrites a schema-valid format 2
 document into that shape, in place, before :mod:`wfb.desugar` runs:
 
-* the top level ungrouped (``build:``, ``defaults:``, ``resources:``,
-  ``theme:``), ``config:``'s ``slots:``, ``scheme:`` and colour references;
-* each element's own keys (``absent:``, ``align:``) and each kind's
-  (``type: rectangle`` is a ``shape``, a ``text:`` template becomes
-  ``value:`` + ``format:``, ...);
-* every ``color.<name>`` into the reference the builder binds: a scheme role
-  is ``config.colors.<name>``, an axis role ``config.accent_color`` or
-  ``config.data_color``, a swatch ``palette.<name>``.  Expressions are
-  rewritten token by token (:func:`wfb.expr.tokenize`).
+* a ``text:`` template becomes ``value:`` + ``format:`` (and
+  ``more_values:``), and an ``aod: {text:}`` its ``format:``;
+* a compass alias (``align: NE``, ``anchor: SW``) is spelled out.
 
 Each moved key keeps the author's source position, and each renamed or
 rewritten one records an :class:`~wfb.yamlsrc.Origin` naming the key the
@@ -52,14 +46,13 @@ COMPASS = {"N": "top", "NE": "top_right", "E": "right", "SE": "bottom_right",
 
 @dataclass
 class _Colors:
-    """What a ``color.<name>`` resolves to."""
+    """The names a ``color.<name>`` may take."""
 
     swatches: set[str] = field(default_factory=set)
-    #: role -> the internal reference it lowers to
-    roles: dict[str, str] = field(default_factory=dict)
+    roles: set[str] = field(default_factory=set)
 
     def names(self) -> list[str]:
-        return sorted(self.swatches | set(self.roles))
+        return sorted(self.swatches | self.roles)
 
 
 class _Lowering:
@@ -126,7 +119,7 @@ class _Lowering:
                 if isinstance(colors, dict):
                     for role in colors:
                         declared.setdefault(role, (colors, role))
-                        self.colors.roles[role] = f"config.colors.{role}"
+                        self.colors.roles.add(role)
         config = data.get("config")
         if isinstance(config, dict):
             for axis, default in (("accent_color", "accent"), ("data_color", "data")):
@@ -145,8 +138,8 @@ class _Lowering:
                                "'role:'")
                     continue
                 declared[role] = where
-                self.colors.roles[role] = f"config.{axis}"
-        for name in sorted(self.colors.swatches & set(self.colors.roles)):
+                self.colors.roles.add(role)
+        for name in sorted(self.colors.swatches & self.colors.roles):
             node, key = declared[name]
             for span in (self.span(palette, name, of="key"), self.span(node, key, of="key")):
                 self.error("color",
@@ -157,13 +150,6 @@ class _Lowering:
                            "rather than shadowed",
                            "rename the palette swatch or the role")
 
-    def color_ref(self, name: str) -> str | None:
-        if name in self.colors.roles:
-            return self.colors.roles[name]
-        if name in self.colors.swatches:
-            return f"palette.{name}"
-        return None
-
     def unknown_color(self, name: str, span: Span | None) -> None:
         near = difflib.get_close_matches(name, self.colors.names(), n=3, cutoff=0.5)
         notes = ([f"did you mean {', '.join(f'color.{n}' for n in near)}?"] if near else
@@ -172,23 +158,18 @@ class _Lowering:
                   "declare it under 'resources: palette:', or as a 'theme: schemes:' role"])
         self.error("color", f"unknown colour 'color.{name}'", span, *notes)
 
-    def lower_refs(self, node: Any, key: Any, *, author: str | None = None,
-                   swatch_only: bool = False, text: str | None = None,
-                   ) -> tuple[str, tuple[tuple[int, int], ...]] | None:
-        """``node[key]`` (or ``text``) with every ``color.<name>`` rewritten,
-        plus the offset map from the rewritten text back to the author's.
-        ``None`` (reported) for an unknown or misplaced colour."""
+    def check_refs(self, node: Any, key: Any, *, author: str | None = None,
+                   swatch_only: bool = False, text: str | None = None) -> bool:
+        """Whether every ``color.<name>`` in ``node[key]`` (or ``text``) names
+        a declared colour -- a palette swatch where ``swatch_only`` -- and no
+        format 1 colour reference is left; each mistake reported."""
         raw = node[key] if text is None else text
         if not isinstance(raw, str):
-            return str(raw), ()
+            return True
         try:
             tokens = tokenize(raw)
         except ExprError:
-            return raw, ()  # the builder reports the syntax error
-        out: list[str] = []
-        offsets: list[tuple[int, int]] = []
-        pos = 0
-        length = 0
+            return True  # the builder reports the syntax error
         ok = True
         for token in tokens:
             if token.kind != "name":
@@ -206,13 +187,12 @@ class _Lowering:
             if len(parts) != 2:
                 continue
             name = parts[1]
-            new = self.color_ref(name)
             span = self.span(node, key)
-            if new is None:
+            if name not in self.colors.swatches and name not in self.colors.roles:
                 self.unknown_color(name, span)
                 ok = False
                 continue
-            if swatch_only and not new.startswith("palette."):
+            if swatch_only and name not in self.colors.swatches:
                 self.error("color",
                            f"'color.{name}' is a colour role, but {author or key!r} needs a "
                            "build-time colour",
@@ -221,40 +201,23 @@ class _Lowering:
                            "pick, so it has no single value when the face is built",
                            "name a palette swatch, or write the colour as '#RRGGBB'")
                 ok = False
-                continue
-            out.append(raw[pos:token.offset])
-            length += token.offset - pos
-            offsets.append((length, token.offset))
-            out.append(new)
-            length += len(new)
-            pos = token.offset + len(token.text)
-            offsets.append((length, pos))
-        if not ok:
-            return None
-        return "".join(out) + raw[pos:], tuple(offsets)
+        return ok
 
     def expr_key(self, node: CommentedMap, key: str, *, author: str | None = None) -> None:
-        """Lower the colour references in ``node[key]`` in place."""
+        """Check the colour references in ``node[key]``, and record the key's
+        author name (``author``, a dotted path for a nested key) for the
+        builder's diagnostics."""
         if key not in node or not isinstance(node[key], str):
             return
-        lowered = self.lower_refs(node, key, author=author)
-        if lowered is None:
-            return
-        text, offsets = lowered
-        original = node[key]
-        if text != original:
-            node[key] = text
-        self.doc.set_origin(node, key, Origin(author or key, str(original), offsets))
+        if self.check_refs(node, key, author=author):
+            self.doc.set_origin(node, key, Origin(author or key, str(node[key])))
 
     def swatch(self, node: Any, key: Any, author: str) -> None:
-        """A colour that must be a build-time literal: a hex literal as it
-        is, or ``color.<swatch>`` -> ``palette.<swatch>``."""
+        """A colour that must be a build-time literal: a hex literal, or a
+        ``color.<swatch>``."""
         value = node[key]
-        if not isinstance(value, str) or not value.startswith("color."):
-            return
-        lowered = self.lower_refs(node, key, author=author, swatch_only=True)
-        if lowered is not None:
-            node[key] = lowered[0]
+        if isinstance(value, str) and value.startswith("color."):
+            self.check_refs(node, key, author=author, swatch_only=True)
 
     # -- the document --------------------------------------------------------
 
@@ -309,8 +272,6 @@ class _Lowering:
             body = config.get(axis)
             if not isinstance(body, CommentedMap):
                 continue
-            if "role" in body:
-                del body["role"]
             if "default" in body:
                 self.swatch(body, "default", f"config.{axis}.default")
             choices = body.get("choices")
@@ -454,15 +415,10 @@ class _Lowering:
             return None
         assert expr is not None
         expr, strip = _strip_template_parens(expr)
-        lowered = self.lower_refs(node, "text", text=expr)
-        if lowered is None:
+        if not self.check_refs(node, "text", text=expr):
             return None
-        value, offsets = lowered
         base = placeholder.offset + _leading_space(raw, placeholder.offset) + strip
-        shifted = tuple((r, a + base) for r, a in offsets) or ((0, base),)
-        if offsets and offsets[0][0] != 0:
-            shifted = ((0, base),) + shifted
-        return value, Origin("text", raw, shifted, quote=placeholder.expr), fmt
+        return expr, Origin("text", raw, ((0, base),), quote=placeholder.expr), fmt
 
     def template(self, node: CommentedMap, key: str, *, aod: bool = False,
                  several: bool = False) -> Template | None:

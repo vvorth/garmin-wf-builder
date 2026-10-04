@@ -8,7 +8,6 @@ reference goes through here.
 
 from __future__ import annotations
 
-import re
 from typing import Iterable
 
 #: Internal key -> the key a format 2 author writes.
@@ -28,25 +27,6 @@ def key(name: str, *, text_value: bool = False) -> str:
 def keys(names: Iterable[str], *, text_value: bool = False) -> list[str]:
     """The author's names for ``names``, sorted, each once."""
     return sorted({key(name, text_value=text_value) for name in names})
-
-
-_REF = re.compile(r"\b(?:palette|config\.colors)\.([A-Za-z_][A-Za-z0-9_]*)"
-                  r"|\bconfig\.(accent_color|data_color)\b"
-                  r"|\bconfig\.data\.([A-Za-z_][A-Za-z0-9_]*)")
-
-
-def refs(text: str) -> str:
-    """``text`` with every internal colour or slot reference named the way
-    the author writes it: ``palette.x``/``config.colors.x`` -> ``color.x``,
-    ``config.accent_color`` -> ``color.accent`` (the axis's default role),
-    ``config.data.x`` -> ``x``."""
-    def one(match: re.Match[str]) -> str:
-        if match.group(1):
-            return f"color.{match.group(1)}"
-        if match.group(2):
-            return "color.accent" if match.group(2) == "accent_color" else "color.data"
-        return match.group(3)
-    return _REF.sub(one, text)
 
 
 def absent(element: object) -> str:

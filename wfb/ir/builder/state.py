@@ -56,7 +56,7 @@ class NamedRegistry(dict[str, T], Generic[T]):
         `message` is the error's full text; `note` is the fixed lead-in for
         the one note ("declared palette entries", "declared fonts", ...),
         followed by the declared names, sorted and `prefix`-qualified
-        (`"palette."`, `"font."`, `"config.data."`, or `""`), or "(none
+        (`"color."`, `"font."`, or `""`), or "(none
         declared)".  Nothing is reported for a declared-then-rejected name.
         """
         if name in self:
@@ -110,7 +110,7 @@ scope.  Every other layer of `Builder` reads and writes these."""
         # `docs/lore/codegen.md`).
         self.palette: NamedRegistry[Color] = NamedRegistry()
         #: Accepted long-form `palette:` entries' labels, keyed by name --
-        #: read when a `config:` choice names `palette.<name>`.
+        #: read when a `config:` choice names `color.<swatch>`.
         self.palette_labels: dict[str, str] = {}
         self.fonts: NamedRegistry[FontSpec] = NamedRegistry()
         #: `layouts:` entries in declaration order; built before `config:`
@@ -126,10 +126,13 @@ scope.  Every other layer of `Builder` reads and writes these."""
         self.rejected_config: set[str] = set()
         #: The `config: style:` axis; `None` if undeclared or rejected.
         self.config_style: ConfigStyle | None = None
-        #: The roles `config.colors.<role>` may name, set by `_build_scope`
+        #: The roles `color.<role>` (a scheme role) may name, set by `_build_scope`
         #: for `expression`'s dedicated error; `None` means no Styles
         #: colours at all, not zero roles.
         self._config_colors_roles: tuple[str, ...] | None = None
+        #: Each declared colour axis's role (`config: accent_color: {role:}`),
+        #: rejected axes included, so `color.<role>` is bound either way.
+        self.config_roles: dict[str, str] = {}
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it

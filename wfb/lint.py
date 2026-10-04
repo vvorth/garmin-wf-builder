@@ -516,11 +516,11 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
 
 def _users_of(face: Face, token: str) -> list[Element]:
     """Elements with a colour whose author text is exactly ``token``
-    (``palette.<name>``, ``config.<name>``, ``config.colors.<role>``).
+    (``color.<name>``: a palette swatch or a colour role).
 
     Deliberately an exact textual match, not a search through folded
     constants: a conditional that merely *mentions* the reference
-    (``hr.current > 100 ? palette.fg : ...``) does not count, because
+    (``hr.current > 100 ? color.fg : ...``) does not count, because
     dithering is a property of the named colour, and tracing it through
     arbitrary expressions would overclaim what this can verify.
 
@@ -550,12 +550,12 @@ def _emit_dither(
     if users:
         suppress_note = (
             f"set 'lint: {{allow: [{code}], reason: ...}}' on an element "
-            f"that draws '{vocab.refs(token)}' ({', '.join(u.id for u in users)}) to keep it"
+            f"that draws '{token}' ({', '.join(u.id for u in users)}) to keep it"
         )
     else:
         # Never claim a suppression site that does not exist.
         suppress_note = (
-            f"no element draws exactly '{vocab.refs(token)}' (as 'color:', 'track_color:', "
+            f"no element draws exactly '{token}' (as 'color:', 'track_color:', "
             f"'icon: {{color:}}', 'outline:' or an 'aod:' override), so there is nowhere "
             f"to put 'lint: {{allow: [{code}]}}' for it"
         )
@@ -610,10 +610,10 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
     for name, color in resolved.face.palette.items():
         if color.is_palette_legal(colors):
             continue
-        token = f"palette.{name}"
+        token = f"color.{name}"
         _emit_dither(
             bag, _users_of(resolved.face, token), resolved.device,
-            f"{vocab.refs(token)} = {color} is",
+            f"{token} = {color} is",
             f"nearest legal colour: {color.nearest_legal(colors)}",
             token,
         )
@@ -668,21 +668,21 @@ def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
 
 def _check_declared_colors(
     resolved: ResolvedFace, bag: Bag, token: str, declared: list[tuple[str, Color]],
+    shown: str | None = None,
 ) -> None:
-    """`palette-dither` for one config token that can show any of several
-    declared colours; each `(label, colour)` is named in the nearest-legal
-    note as ``<label><colour> -> <nearest>``."""
+    """`palette-dither` for one colour role ``token`` (`color.<role>`) that
+    can show any of several declared colours; each `(label, colour)` is
+    named in the nearest-legal note as ``<label><colour> -> <nearest>``.
+    ``shown`` names it in the message when not ``token``: a colour axis by
+    its own `config:` path."""
     colors = resolved.device.display_colors
     bad = [(label, c) for label, c in declared if not c.is_palette_legal(colors)]
     if not bad:
         return
     nearest = ", ".join(f"{label}{c} -> {c.nearest_legal(colors)}" for label, c in bad)
-    # A scheme role is named the way the author reads it (`color.bg`); a
-    # colour axis by its own `config:` path.
-    shown = vocab.refs(token) if token.startswith("config.colors.") else token
     _emit_dither(
         bag, _users_of(resolved.face, token), resolved.device,
-        f"{shown}: {len(bad)} declared colour(s) are",
+        f"{shown or token}: {len(bad)} declared colour(s) are",
         f"off-palette -> nearest legal: {nearest}",
         token,
     )
@@ -702,7 +702,8 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
         declared = [entry.default]
         if not isinstance(entry.choices, str):  # `choices: any` declares no list
             declared += [c.color for c in entry.choices]
-        _check_declared_colors(resolved, bag, f"config.{name}", [("", c) for c in declared])
+        _check_declared_colors(resolved, bag, f"color.{entry.role}", [("", c) for c in declared],
+                               shown=f"config.{name}")
 
 
 def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
@@ -725,7 +726,7 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
     scheme_names = list(dict.fromkeys(
         e.colors for e in axis.entries if e.colors is not None))
     for role in roles:
-        _check_declared_colors(resolved, bag, f"config.colors.{role}", [
+        _check_declared_colors(resolved, bag, f"color.{role}", [
             (f"theme.schemes.{name}.colors.{role}=", schemes[name].colors[role])
             for name in scheme_names
         ])
@@ -751,7 +752,7 @@ def _axis_name(token: str) -> str:
     by its `color.` reference."""
     if token.startswith("config.data."):
         return f"slot {token[len('config.data.'):]!r}"
-    return vocab.refs(token)
+    return token
 
 
 def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
@@ -785,14 +786,14 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
                       lambda: device.has_symbol(availability.SETTINGS_MENU_SYMBOL)) is not False:
         return  # the settings menu offers config: here
 
-    colour_tokens = [f"config.{name}" for name in sorted(face.config)]
+    colour_tokens = [f"color.{face.config[name].role}" for name in sorted(face.config)]
     non_default_entries: list[str] = []
     if face.config_style is not None:
         default_entry = face.config_style.default_entry
         if default_entry.colors is not None:
             # A layout-only default entry names no role at all.
             default_scheme = face.color_scheme[default_entry.colors]
-            colour_tokens += [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
+            colour_tokens += [f"color.{role}" for role in sorted(default_scheme.colors)]
         default_style = face.config_style.default
         non_default_entries = [
             e.name for e in face.config_style.entries if e.name != default_style
@@ -830,7 +831,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         notes.append(
             "a slot's own declared default is itself read through "
             "Toybox.Complications, which this device also lacks -- so "
-            + ", ".join(vocab.refs(t) for t in absent_slot_tokens)
+            + ", ".join(t[len("config.data."):] for t in absent_slot_tokens)
             + " show their absent state here instead of "
             "any declared default (see the 'api-gated' warning for the same fact)"
         )

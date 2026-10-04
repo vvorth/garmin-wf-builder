@@ -240,10 +240,10 @@ def _dim_color_code(expression: Expression | None, awake_code: str,
     frame draws, override or not).
 
     A colour whose value is fixed at build time -- a bare hex literal, or a
-    `palette.<name>` reference, `Expression.is_constant` either way -- is
+    `color.<swatch>` reference, `Expression.is_constant` either way -- is
     pre-dimmed into a second literal here, in Python, once, rather than
     spending a runtime call on arithmetic whose answer never changes
-    (`wfb.palette.Color.dim`). Anything else -- `config.colors.<role>` (a
+    (`wfb.palette.Color.dim`). Anything else -- `color.<role>` (a scheme role) (a
     view field the wearer's own on-device pick can repoint) or a
     conditional between several colours -- is dimmed on-device instead, with
     the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`).
@@ -299,7 +299,7 @@ class AodStyle:
 
         An override colour is a fully resolved `Expression` built by the same
         machinery as the element's own `color:`, so it follows
-        `color_scheme:`/`config.colors` at runtime exactly as the awake one
+        `theme: schemes:` at runtime exactly as the awake one
         does. Which of the three applies is `aod_color_choice`
         (`wfb.ir`), the one decision `wfb.preview.aod_color` also reads --
         this method only turns that decision into Monkey C.

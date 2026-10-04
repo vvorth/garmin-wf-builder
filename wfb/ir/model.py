@@ -173,9 +173,9 @@ class Expression:
     #: evaluate the same expression the device compiles.  Nothing on the device
     #: ever sees this -- ADR 0005's "no runtime evaluator" is about the watch.
     ast: expr.Node | None = None
-    #: What the author wrote, when `wfb.lower` rewrote it into ``text``
-    #: (`color.bg` for `config.colors.bg`, a template's expression).  Only
-    #: diagnostics read it; generated code keeps ``text``.
+    #: What the author wrote, when it is not ``text`` alone: a template's
+    #: placeholder expression, quoted from inside its `text:`.  Diagnostics
+    #: and generated comments read it through `shown`.
     author: str | None = field(default=None, compare=False)
 
     @property
@@ -509,6 +509,9 @@ CONFIG_AXES: dict[str, ConfigAxis] = {
     "data_color": ConfigAxis("data_color", "dataColors", "complicationColor"),
 }
 
+#: The role a colour axis binds (`color.<role>`) when it writes no `role:`.
+CONFIG_AXIS_ROLES: dict[str, str] = {"accent_color": "accent", "data_color": "data"}
+
 
 @dataclass(frozen=True)
 class ConfigColor:
@@ -519,6 +522,9 @@ class ConfigColor:
     #: `"any"`, or the explicit picklist the editor offers.
     choices: "str | tuple[ConfigChoice, ...]"
     span: Span | None = None
+    #: The colour role it binds, read as `color.<role>` (`role:`, or
+    #: `CONFIG_AXIS_ROLES`).
+    role: str = ""
 
     @property
     def allow_any(self) -> bool:

@@ -101,7 +101,7 @@ class Builder(ElementTree):
         self._build_fonts(resources.get("fonts") or {})
         self._build_scope()
         # Hands need the scope built first: a hand's `color:` may read
-        # `palette.*`/`config.*` through the same `color_expression` an
+        # `color.*` through the same `color_expression` an
         # element's own `color:` uses, and it needs `self.scope` in place.
         # They need to run before `build_elements` so a `type: hands`
         # element can resolve `hands: <name>` against `self.hand_sets` the
