@@ -1,8 +1,9 @@
 // The YAML tab: the face's text in CodeMirror, with the format's schema
 // (completion, hovers, its own checks) and wfb's diagnostics in the gutter.
 // Typing is sent as the whole text, debounced, against the version it
-// started from; the server records it, and a version moved on elsewhere
-// reloads the pane. Selection follows the canvas and the layer tree, and
+// was typed over (`textsync.js`); the server records it. A change made
+// elsewhere meanwhile refuses the send, and the author chooses whose text
+// to keep. Selection follows the canvas and the layer tree, and
 // the cursor selects the element it is in. Leaving the tab keeps where it
 // was scrolled and its cursor in `memory`, and coming back restores them
 // unless another element was selected meanwhile.
@@ -13,6 +14,7 @@ import {
   yamlSchema,
 } from "./vendor/codemirror.module.js";
 import { elementAtLine, flatten } from "./hit.js";
+import * as sync from "./textsync.js";
 
 const DEBOUNCE = 300;
 // A change the pane makes itself (a reload, a selection from outside): not
@@ -62,8 +64,9 @@ function restore(v, place) {
 export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onError }) {
   const host = useRef(null);
   const view = useRef(null);
-  const state = useRef({ doc, acked: doc.text, timer: null, sending: false, selectTimer: null });
+  const state = useRef({ doc, sync: sync.initial(doc), timer: null, sending: false, selectTimer: null });
   const [status, setStatus] = useState("");
+  const [conflict, setConflict] = useState(false);
   state.current.doc = doc;
   state.current.onSelect = onSelect;
   state.current.selected = selected;
@@ -72,33 +75,45 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     const s = state.current;
     const v = view.current;
     if (!v || s.sending) return;
-    const text = v.state.doc.toString();
-    if (text === s.acked) { setStatus(""); return; }     // back to what the server has
+    const step = sync.plan(s.sync, v.state.doc.toString());
+    if (step.kind !== "send") { if (step.kind === "idle") setStatus(""); return; }
     s.sending = true;
     try {
-      const response = await fetch(`/api/documents/${s.doc.id}/text?version=${s.doc.version}`,
-                                   { method: "POST", body: text });
+      const response = await fetch(`/api/documents/${s.doc.id}/text?version=${step.version}`,
+                                   { method: "POST", body: step.text });
       const body = await response.json();
+      s.sync = sync.answered(s.sync, step.text, response.status, body.version);
       if (response.ok) {
-        s.acked = text;
         setStatus("");
         onDoc(body);
       } else if (response.status === 409) {
-        onError(new Error(`${body.error} — the text was reloaded`));
-        const fresh = await (await fetch(`/api/documents/${s.doc.id}`)).json();
-        s.acked = fresh.text;
-        replace(fresh.text);
-        onDoc(fresh);
+        // changed elsewhere since the pane's text was typed over: the
+        // text stays, and the author chooses (`choose`)
+        setConflict(true);
+        onDoc(await (await fetch(`/api/documents/${s.doc.id}`)).json());
       } else {
         // not YAML yet: keep typing; nothing was recorded
         setStatus(body.error || `${response.status}`);
       }
     } catch (e) { onError(e); } finally {
       s.sending = false;
-      if (view.current && view.current.state.doc.toString() !== s.acked && !s.timer) {
+      if (view.current && sync.plan(s.sync, view.current.state.doc.toString()).kind === "send"
+          && !s.timer) {
         s.timer = setTimeout(() => { s.timer = null; send(); }, DEBOUNCE);
       }
     }
+  };
+
+  // The author's choice after a refused send: "mine" sends the pane's
+  // text over the newer face, "theirs" shows the newer face.
+  const choose = (choice) => {
+    const s = state.current;
+    const settled = sync.resolve(s.sync, s.doc, choice);
+    s.sync = settled.state;
+    setConflict(false);
+    setStatus("");
+    if (settled.replace !== null) replace(settled.replace);
+    else send();
   };
 
   const replace = (text) => {
@@ -149,7 +164,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       if (view.current && memory) {
         memory.place = { ...remember(view.current), selected: st.selected, at: Date.now() };
       }
-      if (view.current && view.current.state.doc.toString() !== st.acked) send();
+      if (view.current && sync.plan(st.sync, view.current.state.doc.toString()).kind === "send") send();
       view.current && view.current.destroy();
       view.current = null;
     };
@@ -161,10 +176,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     const st = state.current;
     const v = view.current;
     if (!v) return;
-    if (v.state.doc.toString() === st.acked && doc.text !== st.acked) {
-      st.acked = doc.text;
-      replace(doc.text);
-    }
+    const followed = sync.follow(st.sync, doc, v.state.doc.toString());
+    st.sync = followed.state;
+    if (followed.replace !== null) replace(followed.replace);
     forceLinting(v);
   }, [doc.version, doc.text]);
 
@@ -192,6 +206,11 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   useEffect(() => { if (view.current) showReveal(view.current); }, [reveal && reveal.at]);
 
   return html`<div class="yaml-pane">
+    ${conflict ? html`<div class="yaml-conflict" role="alert">
+      The face changed elsewhere while you were typing, so your text was not saved.
+      <button onClick=${() => choose("mine")} title="Save your text over the other change (undoable)">Keep my text</button>
+      <button onClick=${() => choose("theirs")} title="Discard your typing and show the face as it now is">Take the face as it is</button>
+    </div>` : null}
     <div class="yaml-host" ref=${host}></div>
     ${status ? html`<div class="yaml-status">${status} — not recorded until it is YAML again</div>` : null}
   </div>`;

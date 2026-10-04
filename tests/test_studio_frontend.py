@@ -1,5 +1,5 @@
 """The editor front end's pure functions (`wfb/studio/static/hit.js`,
-`outbox.js` and the rest without a DOM),
+`outbox.js`, `textsync.js` and the rest without a DOM),
 run in Node when it is installed. The UI itself is checked by hand: there
 is no headless browser here."""
 
@@ -24,7 +24,8 @@ def run(script: str) -> object:
               f"import * as snap from {json.dumps((STATIC / 'snap.js').as_uri())};\n"
               f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n"
               f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n"
-              f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n{script}")
+              f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n"
+              f"import * as textsync from {json.dumps((STATIC / 'textsync.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -426,3 +427,46 @@ def test_the_canvas_draws_what_a_frame_does_not_show_yet():
                     {"kind": "angle", "x": 3, "y": 4, "cx": 14, "cy": 15}],
     }
     assert result["untouched"] is True
+
+
+def test_the_yaml_tab_sends_against_the_version_its_text_was_typed_over():
+    """Text typed over version 1 is sent against version 1 even after a
+    change elsewhere (the inspector) made the face version 2, so the
+    server refuses it rather than overwrite that change; the author then
+    chooses. A pane with nothing unsent follows the change, and a late,
+    older face is ignored."""
+    result = run("""
+      const v1 = {version: 1, text: "a: 1\\n"};
+      const v2 = {version: 2, text: "a: 2\\n"};
+      let s = textsync.initial(v1);
+      const typed = "a: 1\\nb: 3\\n";
+      const kept = textsync.follow(s, v2, typed);          // the inspector's change arrives
+      s = kept.state;
+      const send = textsync.plan(s, typed);
+      s = textsync.answered(s, typed, 409);
+      const waiting = textsync.plan(s, typed);
+      const whileConflict = textsync.follow(s, v2, typed).replace;
+      const mine = textsync.resolve(s, v2, "mine");
+      const theirs = textsync.resolve(s, v2, "theirs");
+      const resend = textsync.plan(mine.state, typed);
+      const saved = textsync.answered(mine.state, typed, 200, 3);
+      let clean = textsync.initial(v1);
+      const followed = textsync.follow(clean, v2, v1.text);
+      const late = textsync.follow(followed.state, v1, v2.text);
+      console.log(JSON.stringify({
+        keptReplace: kept.replace, send, waiting, whileConflict,
+        mineReplace: mine.replace, theirsReplace: theirs.replace, resend,
+        saved: [saved.acked === typed, saved.base, textsync.plan(saved, typed).kind],
+        followed: [followed.replace, followed.state.base],
+        late: [late.replace, late.state.base],
+      }));
+    """)
+    assert result["keptReplace"] is None
+    assert result["send"] == {"kind": "send", "text": "a: 1\nb: 3\n", "version": 1}
+    assert result["waiting"] == {"kind": "wait"}
+    assert result["whileConflict"] is None
+    assert result["mineReplace"] is None and result["theirsReplace"] == "a: 2\n"
+    assert result["resend"] == {"kind": "send", "text": "a: 1\nb: 3\n", "version": 2}
+    assert result["saved"] == [True, 3, "idle"]
+    assert result["followed"] == ["a: 2\n", 2]
+    assert result["late"] == [None, 2]

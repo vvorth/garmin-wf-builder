@@ -358,8 +358,10 @@ cursor selects the element it is in. Switching to the face and back keeps
 the pane where it was, scrolled and with its cursor, unless another
 element was selected meanwhile: then the pane shows that element's lines.
 If the face changed elsewhere while
-you were typing (another tab), your text is refused and the pane reloads
-the face as it is.
+you were typing (the Properties or Face panel, another tab), your text is
+not saved over that change: the pane keeps it and asks. **Keep my text**
+saves it over the other change, which Undo brings back; **Take the face as
+it is** discards your typing and shows the face as it now is.
 
 ## Build
 

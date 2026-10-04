@@ -1,0 +1,51 @@
+// The YAML tab's text on its way to the server: pure functions, no DOM, so
+// Node can check them (tests/test_studio_frontend.py).
+//
+// The pane's state is `{acked, base, conflict}`: `acked` is the text the
+// server holds at version `base`, which is what the pane's text was typed
+// over. A send is made against `base`, never against a newer version the
+// editor heard of meanwhile, so a change made elsewhere while the author
+// was typing (the inspector, another tab) is refused by the server rather
+// than overwritten. `conflict` is set by that refusal and holds the pane
+// until the author chooses (`resolve`).
+
+export function initial(doc) {
+  return { acked: doc.text, base: doc.version, conflict: false };
+}
+
+// What to do with `buffer`, the pane's text: `{kind: "idle"}` when the
+// server has it, `{kind: "wait"}` while a conflict waits for the author,
+// or `{kind: "send", text, version}`.
+export function plan(state, buffer) {
+  if (state.conflict) return { kind: "wait" };
+  if (buffer === state.acked) return { kind: "idle" };
+  return { kind: "send", text: buffer, version: state.base };
+}
+
+// The state after a send of `text` was answered: `status` and, when the
+// server recorded it, the face's new `version`.
+export function answered(state, text, status, version = null) {
+  if (status >= 200 && status < 300) return { ...state, acked: text, base: version };
+  if (status === 409) return { ...state, conflict: true };
+  return state;
+}
+
+// The face as the server now has it (`doc`), the pane holding `buffer`. A
+// pane with nothing unsent follows it, and `replace` is the text to show;
+// one with unsent text keeps it, and its base. A face older than the base
+// (a late answer) is ignored.
+export function follow(state, doc, buffer) {
+  const keep = { state, replace: null };
+  if (state.conflict || buffer !== state.acked || doc.version < state.base) return keep;
+  if (doc.version === state.base && doc.text === state.acked) return keep;
+  return { state: { ...state, acked: doc.text, base: doc.version },
+           replace: doc.text === buffer ? null : doc.text };
+}
+
+// The author's choice on a conflict, `doc` being the face as it now is:
+// "mine" keeps the pane's text, to be sent against `doc`'s version (so it
+// replaces the other change, knowingly); "theirs" shows `doc`'s text.
+export function resolve(state, doc, choice) {
+  const settled = { ...state, conflict: false, acked: doc.text, base: doc.version };
+  return { state: settled, replace: choice === "theirs" ? doc.text : null };
+}
