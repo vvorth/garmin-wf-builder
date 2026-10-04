@@ -1,5 +1,5 @@
 """The editor front end's pure functions (`wfb/studio/static/hit.js`,
-`outbox.js`, `textsync.js` and the rest without a DOM),
+`outbox.js`, `textsync.js`, `session.js` and the rest without a DOM),
 run in Node when it is installed. The UI itself is checked by hand: there
 is no headless browser here."""
 
@@ -25,7 +25,8 @@ def run(script: str) -> object:
               f"import * as treeMod from {json.dumps((STATIC / 'tree.js').as_uri())};\n"
               f"import * as zoom from {json.dumps((STATIC / 'zoom.js').as_uri())};\n"
               f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n"
-              f"import * as textsync from {json.dumps((STATIC / 'textsync.js').as_uri())};\n{script}")
+              f"import * as textsync from {json.dumps((STATIC / 'textsync.js').as_uri())};\n"
+              f"import * as session from {json.dumps((STATIC / 'session.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -541,3 +542,18 @@ def test_the_top_bar_says_whether_the_face_is_saved():
       ]));
     """)
     assert result == ["saved", "saving", "saving", "saved", "saving", "unsaved", "unsaved"]
+
+
+def test_a_lost_session_with_unsaved_work_asks_rather_than_reloads():
+    """A reload would start a session that does not own the face, losing
+    what is unsaved; without unsaved work it reloads, at most once in ten
+    seconds."""
+    result = run("""
+      const now = 100000;
+      console.log(JSON.stringify([
+        session.onLost({unsaved: true, lastReload: 0, now}),
+        session.onLost({unsaved: false, lastReload: 0, now}),
+        session.onLost({unsaved: false, lastReload: now - 5000, now}),
+      ]));
+    """)
+    assert result == ["banner", "reload", "nothing"]

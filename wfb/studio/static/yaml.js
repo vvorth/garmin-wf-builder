@@ -15,6 +15,7 @@ import {
 } from "./vendor/codemirror.module.js";
 import { elementAtLine, flatten } from "./hit.js";
 import * as sync from "./textsync.js";
+import { sessionLost } from "./session.js";
 
 const DEBOUNCE = 300;
 // A change the pane makes itself (a reload, a selection from outside): not
@@ -104,6 +105,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         // text stays, and the author chooses (`choose`)
         setConflict(true);
         onDoc(await (await fetch(`/api/documents/${s.doc.id}`)).json());
+      } else if (response.status === 401) {
+        setStatus({ kind: "failed", message: "this browser's session has ended" });
+        sessionLost();
       } else if (response.status === 400) {
         // not YAML yet: keep typing; nothing was recorded
         setStatus({ kind: "invalid", message: body.error || "the text is not YAML" });

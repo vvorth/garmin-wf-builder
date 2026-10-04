@@ -47,6 +47,7 @@ function Splitter({ width, sign, fallback, onWidth }) {
 import { FacePanel, Inspector } from "./panels.js";
 import { picksParam, typeLabel } from "./values.js";
 import { deleteOp } from "./tree.js";
+import { sessionLost, watch } from "./session.js";
 
 // -- the server --------------------------------------------------------------------
 
@@ -54,16 +55,8 @@ async function api(path, options = {}) {
   const response = await fetch(path, options);
   const type = response.headers.get("content-type") || "";
   const body = type.includes("json") ? await response.json() : null;
-  if (response.status === 401) {
-    // the session cookie is gone (cleared, or expired): the page starts a
-    // new one -- once, so a browser that refuses cookies does not loop
-    let last = 0;
-    try { last = Number(sessionStorage.getItem("wfb-reloaded")) || 0; } catch (_) { /* private mode */ }
-    if (Date.now() - last > 10000) {
-      try { sessionStorage.setItem("wfb-reloaded", String(Date.now())); } catch (_) { /* private mode */ }
-      location.reload();
-    }
-  }
+  // the session cookie is gone (cleared, or expired): `session.js`
+  if (response.status === 401) sessionLost();
   if (!response.ok) {
     const error = new Error((body && body.error) || `${response.status} ${response.statusText}`);
     error.status = response.status;
@@ -406,6 +399,11 @@ function Editor({ docId, onError, onNotice }) {
   }, []);
   const [yamlSaving, setYamlSaving] = useState("idle");
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
+  // A lost session with work unsaved (`session.js`) is a banner, not a reload.
+  const [lost, setLost] = useState(false);
+  const unsavedNow = useRef(() => false);
+  unsavedNow.current = () => yamlSaving !== "idle" || queued.current.some((e) => e.state !== "done");
+  useEffect(() => watch(() => unsavedNow.current(), () => setLost(true)), []);
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
@@ -576,6 +574,10 @@ function Editor({ docId, onError, onNotice }) {
                 onClick=${() => setDialog("build")}>Build…</button>
         <${DownloadMenu} doc=${doc} />
       </div>
+      ${lost ? html`<div class="banner lost" role="alert">
+        <strong>This browser's session has ended</strong> (its cookie was cleared or expired), so changes can no longer be saved.
+        Copy anything unsaved from the YAML tab, then reload to start a new session.
+        <button onClick=${() => location.reload()}>Reload</button></div>` : null}
       <${Missing} doc=${doc} onChanged=${setDoc} onError=${onError} />
     </div>
     <div class="columns" style=${`grid-template-columns:${panels.left}px auto minmax(0, 1fr) auto ${panels.right}px`}>
