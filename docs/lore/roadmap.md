@@ -159,7 +159,7 @@ or AOD-related has been observed on a watch or in the simulator.
 - Refresh tiers (`WfbCache.mc`, `catalog.Tier`).
 - `config: colors:`. Use `config: style:`.
 - `vertical_align: baseline`, renamed `bottom`.
-- `modes: [always_on]`. Use `aod:` (plan 14 D3) -- the schema error names
+- `modes: [always_on]`. Use `aod:` -- the schema error names
   the replacement.
 - **Format 1** and `wfb migrate` (removed 2026-10-04): `format: 1` is an
   error. Every format 1 key is gone with it, among
@@ -174,8 +174,8 @@ or AOD-related has been observed on a watch or in the simulator.
 
 ## Not implemented
 
-See `docs/limitations.md` §2 for the full table and the ADR or plan that
-specifies each item.
+See `docs/limitations.md` §2 for the full table and why each item is not
+built.
 
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
@@ -204,22 +204,21 @@ specifies each item.
 10. `wfb install`, `package`.
 11. A `pattern`'s or `data` element's own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and
-    `aod: {filled: ...}` on `type: polygon` (plan 14 §4.3, slice 2 built
-    every other override key and a `text` element's baked-font override)
-    -- all three are friendly build errors, whether the element writes
+    `aod: {filled: ...}` on `type: polygon` (every other override key and
+    a `text` element's baked-font override are built) -- all three are friendly build errors, whether the element writes
     the key or inherits it from a group (`Builder.aod_refusal`), never a
     silent no-op.
-12. **Non-round screens** (plan 20, research 16): rectangles resolve, lint,
-    preview and build against real device files (slice 1); every non-round
-    shape's visible area is its simulator skin (slice 2); 2-colour panels
-    are black and white only, `palette-mono` (slice 3); `anchor: subscreen`
+12. **Non-round screens** (research 16): rectangles resolve, lint,
+    preview and build against real device files; every non-round
+    shape's visible area is its simulator skin; 2-colour panels
+    are black and white only, `palette-mono`; `anchor: subscreen`
     places an element in the Instinct window; `overrides:` patches an
     element's geometry per device id or shape.
 
-13. **Reserved by format 2** (plan 22 §5), each a friendly "not
+13. **Reserved by format 2**, each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
     data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
     rule lists, and an advisory `static-candidate` lint.
     `docs/limitations.md` §2. `outline:` on the element (every kind but
-    `data`, `graph` and a ticked gauge) and on a group is built (plan 23);
+    `data`, `graph` and a ticked gauge) and on a group is built;
     only the per-part form stays reserved.

@@ -474,7 +474,7 @@ resources:
 
 
 def test_hands_element_still_reports_an_unrelated_bad_key(bag, write_design):
-    """R3: an unrelated mistake on the same element is still reported --
+    """An unrelated mistake on the same element is still reported --
     the alignment refusal must not swallow the whole element's other errors.
     """
     elements = """  e:

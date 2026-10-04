@@ -69,7 +69,7 @@ def _resolve_vector(write_design, bag, db, design: str):
 def test_upright_box_grows_by_the_ring_on_every_side(write_design, bag, db, repo_root):
     """A plain (no `curve:`) element's box grows by `2 * outline.width` in
     both dimensions, centred on the same point -- the "Minkowski dilation
-    of the pre-transform box" D9 describes, checked against the actual
+    of the pre-transform box", checked against the actual
     numbers, not just "grew at all" (a bug that grew only one side would
     still pass a weaker check)."""
     elements = (

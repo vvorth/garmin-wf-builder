@@ -159,8 +159,7 @@ These are the findings that shaped every decision. Full detail and citations in
    add an axis (the editor's group label is Garmin's). So colours *and* widget
    layouts share Styles as **explicitly listed entries** (each names a
    layout, a colour scheme, or both); background colour does not move to
-   Data Color. Plans 01–02 hold the rejected options (`docs/CLAUDE.md`);
-   `examples/features/styles/face.yaml` is the worked example.
+   Data Color. `examples/features/styles/face.yaml` is the worked example.
 
 10. **`alphaBlendingSupport: false`** on all three verification devices. No
     transparency. Per device, like everything else: read the flag.

@@ -64,7 +64,7 @@ no watch in this container).
 with a clip that moves with the hand every second, repainted from a
 full-frame buffer redrawn every minute — a different buffer architecture
 from `static:`'s paint-once one, and not built (`seconds: always` is a
-friendly "not implemented yet" error; see §2 and plan 04 §11). `seconds:
+friendly "not implemented yet" error; see §2). `seconds:
 awake` (the default) hides the second hand while asleep instead; `seconds:
 never` drops it entirely.
 
@@ -83,7 +83,7 @@ has no `absent:`. **12-hour dial only**: the hour hand turns twice a
 day; there is no 24-hour (GMT) hand. **Hands cannot be held** (`on_hold:`
 is not a key on `type: hands`), although a `group` around them can be.
 
-**Patterns turn in Monkey C too** (`type: pattern`, plan 05).
+**Patterns turn in Monkey C too** (`type: pattern`).
 A radial pattern's copies are the build-time-resolved template rotated on
 the watch, one `sin`/`cos` pair per copy, and a linear pattern's are
 translated by a whole-pixel step. Both go through the same
@@ -105,8 +105,7 @@ hands have.
   `tests/test_parameter_limits.py` guards it). The value may read only
   `copy`, so every copy's string is known at build time. The per-copy
   `formatting.emit` call on the device is unmeasured, and costs nothing
-  inside `static:`. **A `type: text` part can now turn too** (plan 11
-  slice 2), the same way a `text` **element** already could (below, "A face
+  inside `static:`. **A `type: text` part can turn too**, the same way a `text` **element** already could (below, "A face
   cannot ship its own TTF, and vector fonts are Garmin's only"): give the
   part a device-resident `face:`
   font and its own `curve:`. The one thing genuinely different from a
@@ -207,7 +206,7 @@ nothing inside it changed.
 MIP and AMOLED are structurally different low-power paths, not a styling
 difference. All three verification targets are MIP; **74 of 164 devices are
 AMOLED-class** and need an `aod:` sleep frame instead
-(`docs/guide/always-on-display.md`, plan 14): overrides on the one design,
+(`docs/guide/always-on-display.md`): overrides on the one design,
 not a second element set.
 
 One generated view serves every target in a build (only `Layout.mc` is per
@@ -237,10 +236,10 @@ it chooses.
 `Dc.drawAngledText`/`Dc.drawRadialText` accept scalable fonts only and
 explicitly refuse resource fonts, so **text drawn with an author's baked
 font still cannot be rotated or curved, and never will be** — that part of
-the practical consequence is permanent. What *is* built (plan 11,
-`docs/guide/text.md`'s `curve:` section): a `fonts:` entry can name a
+the practical consequence is permanent. What *is* built
+(`docs/guide/text.md`'s `curve:` section): a `fonts:` entry can name a
 device-resident face instead of baking one (`face:` instead of `source:`),
-and a `text` **element**, or a pattern's own `type: text` part (slice 2),
+and a `text` **element**, or a pattern's own `type: text` part,
 can bend it along a line (`style: angled`) or around a circle (`style:
 radial`). One honest limit on that, not to be glossed over:
 
@@ -272,8 +271,7 @@ remains approximate (preview uses a located stand-in face, not the real
 one) — unrelated to and unchanged by this. Still just one device
 (`fenix8solar47mm`) and the simulator, not physical hardware.
 
-**Rotated (`angled`/`radial`) ink is closer, not exact (plan 12 R2,
-2026-09-21).** Garmin rotates the outline and rasterises the result; the
+**Rotated (`angled`/`radial`) ink is closer, not exact.** Garmin rotates the outline and rasterises the result; the
 preview used to draw the run upright and `Image.rotate(...,
 resample=Image.BICUBIC)` the already-rasterised bitmap, which softened and
 thinned stems well beyond what the device actually draws.
@@ -567,8 +565,8 @@ still true of the shipped feature:
   (`wfb.icons.COMPLICATION_ICON` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping form `{type:, icon:}`, with a name, `"U+XXXX"` or `none`), and
-  `icon: {position:, gap:, color:}` place, space and colour it (plan
-  03 §6.1/§6.3) -- `docs/guide/configuration.md`'s "The Data axis" has the full account.
+  `icon: {position:, gap:, color:}` place, space and colour it --
+  `docs/guide/configuration.md`'s "The Data axis" has the full account.
 * **A slot's reading is formatted per complication type**
   (`wfb.complications.READING`, the generated `SlotText.mc`), following
   the watch's own units and clock. Each rule rests on the SDK's documented
@@ -766,13 +764,12 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | `overrides:` beyond geometry (`color:`, `visible:`, fonts, data, the `colors:`/`touch:`/`api:` selectors), and an `align:` override on `text`, `icon` or `data` | ADR 0004 §4. The geometry keys (`at:`, `size:`, `radius:`, `align:`) are built; the others are a schema error. A glyph kind's alignment is its `drawText` justification, one flag in the view every target shares, so overriding it is a build error |
 | Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install, and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. |
-| `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
+| `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | declined by the user; there is no plan to build it |
 | Colouring or segmenting a slot gauge by its picked metric's own bands (heart-rate zones, Body Battery and stress levels, sleep-score and VO2 max ratings) | the band edges are in `wfb.complications.SCALE`; drawing them needs band geometry computed on the watch each frame, where `bands:` today are build-time constants |
 | `on_hold: auto` on a gauge with `slot:` | a friendly build error; the slot's `type: data` element carries it |
-| A `data` element, or a gauge with `slot:`, inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
-| Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
-| Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |
-| The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
+| A `data` element, or a gauge with `slot:`, inside a `layouts:` body | a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
+| Per-layout fonts, or a per-layout `onPartialUpdate` clip | Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
+| The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | needs a probe; only worth doing if fr955 runs short of memory |
 | Ticks drawn by a `style: scale` gauge itself | ADR 0004 §1 lists "ticks + coloured range band + pointer"; the band and the pointer are built, and ticks are a radial `pattern` sharing the scale's `start_angle`/`sweep` rather than a second tick mechanism |
 | `aod: {text: ...}` on a `text` element with several placeholders, and `units:` or `absent: {value:}` beside several | a friendly build error each. An AOD restyle would pair each placeholder with its own; `units:` and `absent: {value:}` speak of one reading. The text draws its awake template in the always-on frame (`docs/guide/text.md`) |
 | `units:` on an expression, or on a `data` element | a conversion needs the unit its value is in, which only a bare source states. A slot has no `units:`: each type's reading already follows the watch's own metric/statute settings (`docs/guide/configuration.md`, "The Data axis") |
@@ -782,27 +779,27 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | An SDK check outside `wfb build` (`validate`, `preview`) | `wfb build` warns when the device reference came from another SDK than the one it compiles with, and records both in `build-info.json`; `wfb doctor` reports the mismatch too. `validate` and `preview` compile nothing, so they do not check |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `wfb.availability.source_unavailable` but set on no source, because none needs it today |
 | CI | nothing runs the tests unattended: the slow suite and the opt-in `typecheck` test set (`mypy --strict`, clean over `wfb/`, ADR 0001 amendment) run only by hand |
-| `seconds: always` (a second hand while asleep) | plan 04 §11 -- needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
-| `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
-| Data-driven hand colours | plan 04 §11 -- a hand has no `absent:` to fall back through if the bound reading were absent |
-| 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
-| A pattern `text` part whose placeholder reads data (a data source or a colour) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `absent:`. Text parts reading only `copy` are built |
-| Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today |
-| `on_hold:` and `sleep_update: true` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
-| Rounded-rectangle (`corner_radius:`)/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
-| A true typographic-baseline value for `align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
-| Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
-| Pixel shifting in the AOD frame (`aod: jitter:`) | built as plan 14 slice 5 and removed on 2026-09-23 to cut codegen complexity -- the key is now a schema error. Superseded by `aod: {mask: ...}` (plan 16, `docs/research/15-aod-pixel-masks.md` §7), a moving 2×2 pixel mask, on by default, built the same day |
-| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | plan 14 §4.5 -- left UNVERIFIED on purpose: the burn-in lint (slice 4, `aod-burn-in`) now measures whatever `wfb preview --aod` actually renders, but the alpha route itself was never built to render anything through it, so whether the meter would count a *blended* result correctly is still an open question. Pre-computed/on-device channel arithmetic (`wfb.palette.dim_channel`/`WfbColor.dim`) is what shipped instead |
-| A `pattern`'s own `aod: {font: ...}` override, and a `data` element's `aod: {font: ...}` override | plan 14 §4.3, slice 2 built `color`/`track_color`/icon `color`/`thickness`/`bar_width`/`filled`/`text` overrides and a `text` element's `font:` override, but not these two -- the builder rejects them with a friendly "not implemented yet" error rather than silently keeping the element's awake font, whether the element writes the key itself or inherits it from a group (`Builder.aod_refusal`) |
-| An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | plan 14 §4.3, slice 2 -- same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
+| `seconds: always` (a second hand while asleep) | needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
+| `arc` hand parts | would need the start angle to rotate with the hand too |
+| Data-driven hand colours | a hand has no `absent:` to fall back through if the bound reading were absent |
+| 24-hour (GMT) hands; a minute hand that creeps with the seconds | not built |
+| A pattern `text` part whose placeholder reads data (a data source or a colour) | every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `absent:`. Text parts reading only `copy` are built |
+| Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | a longer or differently-shaped copy is a second pattern element today |
+| `on_hold:` and `sleep_update: true` on a `pattern` | hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
+| Rounded-rectangle (`corner_radius:`)/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | a linear pattern could draw both untransformed, but patterns keep one part vocabulary |
+| A true typographic-baseline value for `align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
+| Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:` outright) | useful for aligning a whole row, but not built because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
+| Pixel shifting in the AOD frame (`aod: jitter:`) | a schema error: `aod: {mask: ...}`, a moving 2×2 pixel mask on by default, protects the panel instead, without moving the design (`docs/research/15-aod-pixel-masks.md` §7) |
+| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | UNVERIFIED and not built: the burn-in lint (`aod-burn-in`) measures whatever `wfb preview --aod` renders, and nothing renders through the alpha route, so whether the meter would count a *blended* result correctly is an open question. Channel arithmetic, at build time or on the device (`wfb.palette.dim_channel`/`WfbColor.dim`), is what `dim:` does instead |
+| A `pattern`'s own `aod: {font: ...}` override, and a `data` element's `aod: {font: ...}` override | the `color`/`track_color`/icon `color`/`thickness`/`bar_width`/`filled`/`text` overrides and a `text` element's `font:` override are built, but not these two -- the builder rejects them with a friendly "not implemented yet" error rather than silently keeping the element's awake font, whether the element writes the key itself or inherits it from a group (`Builder.aod_refusal`) |
+| An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | the same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
 | `aod: {filled: ...}` on `type: polygon` | there is no outline primitive for it to switch to (Dc has fillPolygon, no drawPolygon) -- a friendly build error, the same one the awake element's own `filled: false` already gets, and the same when the key is inherited from a group |
 | `outline:` on a `data` or `graph` element, or on a `segments`/`scale` gauge | research 19 -- a `data` and a `graph` have no ring op (and so cannot sit in an outlined group either), and a ticked gauge's cells would need their own; a friendly build error on the element and on an outlined group containing it |
 | `outline:` on a pattern whose `type: text` part has its own `outline:` | research 19 -- the part's ring inside the pattern's would be a stamp inside a stamp (N x M draws per copy); a friendly build error naming both keys |
 | `aod: {outline: ...}` on anything but `text` | research 19 -- every other kind's awake ring carries over into the AOD frame, dimmed like every AOD colour, but cannot be replaced there |
 | A group `outline.color` that reads data | research 19 -- the group's ring is drawn from the frame methods, which read only what the members bind; a friendly build error |
 
-**Reserved by format 2** (plan 22 §5): the vocabulary is fixed now, and
+**Reserved by format 2**: the vocabulary is fixed now, and
 writing any of these is a friendly "not implemented" error naming what it
 will be, never an unknown key. Each needs its own plan before it is built.
 
@@ -824,15 +821,14 @@ than to its 10% rule. It is not the burn-in lint (`aod-burn-in`, §3 below),
 which scores one worst-case frame's lit-pixel/luminance share, and it is not
 the simulator's own tool, which is unreachable in this environment and
 would also vary sensor data over its 24-hour run. **With the pixel mask on
-(the default, `aod: {mask: ...}`, plan 16), `--heatmap` applies the same
+(the default, `aod: {mask: ...}`), `--heatmap` applies the same
 masked frame the device draws, so its peak persistence figure is capped at
 25% by construction** -- on `examples/features/aod/face.yaml` it falls from
 100% (unmasked) to 25.0%. `aod: {mask: false}` restores the unmasked figure
 and the old caveat above in full.
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
-verified anywhere in this project** (plan 02 §9,
-the same standing "no simulator in this container, no watch" caveat every
+verified anywhere in this project** (the same standing "no simulator in this container, no watch" caveat every
 `config:` feature in this table carries): whether the editor lists a
 `<style>` entry's label and previews it live as the wearer scrolls, whether
 the static buffer repaints promptly on a style edit, and whether a
@@ -1073,8 +1069,8 @@ stubs one). `fenix5`/`fenix5x` (ConnectIQ 3.1.6) lack `Toybox.Weather`
 outright, but that is a whole-module gap: both weather readers set
 `Reader.requires_module = "Weather"`, so every `weather.*` read and every
 forecast `graph`'s acquisition sits behind `Toybox has :Weather`, reads as
-absent there, and gets an `api-gated` warning (plan 18 item 2;
-`tests/test_availability.py::test_weather_readers_track_the_weather_module`,
+absent there, and gets an `api-gated` warning
+(`tests/test_availability.py::test_weather_readers_track_the_weather_module`,
 `::test_weather_guards_compile_warning_free_on_fenix5`).
 
 **The bare-field-name approximation is a real, if currently unrealised,
@@ -1101,22 +1097,22 @@ fact on real hardware -- confirm in the host simulator (or on a real
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is measured with the device's own font file when `vendor/fonts/` holds Garmin's fonts: a `.ttf` scaled to the device's published metrics (`wfb/fonts/fallback.py`), or on the fenix 6/7 family, fr245 and fr255 a decoded `.cft` bitmap font, exact to the pixel (`wfb/fonts/cft.py`). Without them it is **an estimate** against a pinned free stand-in (`exact`/`family`/`substitute` match, `docs/research/10-system-fonts.md`), then Pillow's default face, then a flat 0.55 em/character. Every system-font width is labelled `(estimated)` in the generated code regardless. UNVERIFIED for `.cft` devices (`docs/research/10-system-fonts.md` §10.6–10.7): whether `getFontHeight` reports the file's `height` or `height − 1`, whether the simulator quantises the antialias blend to the 64-colour palette, and which glyph an unmapped character draws (glyph 0 is assumed). **A device the SDK's scraped reference has no page for at all** (the fenix 9 family) gets a `size_px` *derived* from a located real `.ttf`/`.otf`'s own `head`/`hhea` tables (`wfb.devices.Device.system_fonts`'s third source, `docs/research/10-system-fonts.md` §3.1) for the 9 standard `FONT_*` symbols, but only when the user's own licensed Garmin fonts are installed and locatable -- otherwise it stays "not checked", same as before. A `.cft` symbol on such a device, and its palette-size check (also scrape-only, `display_colors` below), stay unavailable either way: there is no verified height model for a bitmap font (§10.6). |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
-| **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8; masked scoring plan 16 slice 2) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. **With the pixel mask on (the default), the reported figures are the masked frame's, taken as the worst of the 4 mask phases at each sampled time** (`examples/features/aod/face.yaml`: 4.0% lit / 0.3% luminance unmasked, 1.0% lit / 0.1% luminance masked), and the 3-minute static-pixel rule -- a property of a *sequence* of frames that a single rendered frame otherwise can't see -- **now holds by construction**, since no pixel the mask allows through is ever lit two minutes running. `aod: {mask: false}` turns both back into exactly what they were before the mask existed: the unmasked figures, and the old caveat that this check cannot see the 3-minute rule at all (`wfb preview --heatmap` approximates that sequence question separately, above). |
+| **`aod-burn-in`** (research 11 §6 D, ADR 0008 check 8) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. **With the pixel mask on (the default), the reported figures are the masked frame's, taken as the worst of the 4 mask phases at each sampled time** (`examples/features/aod/face.yaml`: 4.0% lit / 0.3% luminance unmasked, 1.0% lit / 0.1% luminance masked), and the 3-minute static-pixel rule -- a property of a *sequence* of frames that a single rendered frame otherwise can't see -- **now holds by construction**, since no pixel the mask allows through is ever lit two minutes running. `aod: {mask: false}` turns both back into exactly what they were before the mask existed: the unmasked figures, and the old caveat that this check cannot see the 3-minute rule at all (`wfb preview --heatmap` approximates that sequence question separately, above). |
 
 **AOD, more broadly, has no real AMOLED hardware behind any of it.** Every
 AOD claim in this project -- the lint above, `dim:`, the pixel mask, and the
-`getDisplayMode` ladder (plan 14 slice 6) that now decides when the sleep
+`getDisplayMode` ladder that decides when the sleep
 frame draws at all -- is checked against a host-side render or a real
 `monkeyc` compile, never against a real panel or the simulator's own Screen
 Heat Map (no simulator in this container, root `CLAUDE.md` §3). Things stay
 open specifically because of that: whether `onEnterSleep`/`onExitSleep`
 and a `DISPLAY_MODE_LOW_POWER`/`_HIGH_POWER` transition ever land at
-different moments on a real device (research 11 §5 -- slice 6 narrowed the
-window with a `DISPLAY_MODE_OFF` check *inside* it, it did not verify the
+different moments on a real device (research 11 §5 -- the `DISPLAY_MODE_OFF` check narrows the window
+*inside* it; it does not verify the
 window's own edges), whether `System.getDisplayMode`/`DISPLAY_MODE_*`
 genuinely move together on every AMOLED device the way they do on the two
 installed here (research 11 §2's table is two devices, not Garmin's whole
-fleet), and, since the pixel mask shipped (plan 16): whether ~454
+fleet), and, with the pixel mask: whether ~454
 `Dc.fillRectangle` calls a minute fit inside the AOD update's unpublished
 watchdog budget, the real per-frame cost of drawing them, and whether the
 once-a-minute moving grain is visible on the panel as texture, crawl or
@@ -1171,7 +1167,7 @@ the element itself reaches them -- for `static-overlap`, on the element
 that ends up on top; for `sub-pixel-length`, on the element even when the
 finding is actually about one of its hand/pattern **parts**, since a part
 has no `lint:` block of its own to hang an `allow:` on. `text-outline-
-interior` (plan 15) is scoped the same way as `static-overlap` -- on the
+interior` is scoped the same way as `static-overlap` -- on the
 `outline:`-bearing element itself, never the earlier-drawn element(s) it
 may overlap.
 
@@ -1188,7 +1184,7 @@ exists) overlap. Two elements that are `visible:` on mutually exclusive
 conditions, deliberately stacked in the same place, will still be reported as
 overlapping when that check lands, and both still count toward the clip.
 
-`aod-burn-in` (built, plan 14 slice 4) is the one exception to "occupies its
+`aod-burn-in` is the one exception to "occupies its
 box regardless": it is not a static-geometry check at all, but a render, so
 an element whose resolved `aod: {visible: ...}` evaluates false at the
 sampled worst-case reading genuinely draws nothing and contributes nothing

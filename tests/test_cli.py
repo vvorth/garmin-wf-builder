@@ -330,7 +330,7 @@ def test_print_all_device_fonts_summary_skips_fonts_for_non_watchface_device(mon
 
 
 def test_sources_has_no_refresh_tier_flag():
-    """D2: the tier concept is gone outright -- `wfb sources` must not print
+    """The tier concept is gone outright -- `wfb sources` must not print
     a "slow tier"/"event tier" flag for anything, weather and complications
     included."""
     result = run("sources")
@@ -596,7 +596,7 @@ def test_preview_to_stdout_refuses_to_watch(db):
 #: which the registry's `names` table maps to the `bionic-substitute`
 #: stand-in -- match `"substitute"`, a different family entirely, not a
 #: free release of Bionic itself (`tests/test_font_registry.py`) -- which
-#: is what makes it a reliable way to force the R1.2 warning at the CLI
+#: is what makes it a reliable way to force the stand-in-font warning at the CLI
 #: layer without depending on which symbols happen to be `exact`-matched
 #: today.
 _FONT_WARNING_DESIGN = """
@@ -629,11 +629,11 @@ def _require_bionic_substitute():
 
 
 def test_preview_warns_about_a_stand_in_font_even_with_dash_o(db, tmp_path):
-    """R1.2/R1.4: with no Garmin font root (conftest's session-wide
+    """With no Garmin font root (conftest's session-wide
     `WFB_NO_GARMIN_FONTS=1`), `FONT_NUMBER_HOT`
     draws with the free `bionic-substitute` stand-in instead of Bionic
-    itself -- the warning must reach stderr even under `-o -`, which R1.4
-    says silences stdout *progress* only, never a correctness warning."""
+    itself -- the warning must reach stderr even under `-o -`, which
+    silences stdout *progress* only, never a correctness warning."""
     _require_bionic_substitute()
     design = tmp_path / "face.yaml"
     design.write_text(_FONT_WARNING_DESIGN, encoding="utf-8")
@@ -647,7 +647,7 @@ def test_preview_warns_about_a_stand_in_font_even_with_dash_o(db, tmp_path):
 
 
 def test_preview_fonts_flag_silences_the_warning(db, tmp_path):
-    """R1.5: `--fonts DIR` reaches every `fallback.system_face` call this
+    """`--fonts DIR` reaches every `fallback.system_face` call this
     renderer makes, the same way `wfb doctor --fonts` already reaches its
     own report.  Pointing it at a directory holding a file named exactly
     like the device's own `Bionic_semibold` stem makes `fetch_system.locate`

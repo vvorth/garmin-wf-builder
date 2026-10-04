@@ -149,7 +149,7 @@ def test_circle_right_bottom_rightmost_and_bottommost_points_on_at(write_design,
 
 
 def test_outlined_circle_aligns_by_the_declared_radius_not_the_padded_box(write_design, bag, db):
-    """R4: an outline's pen pad must not move the shift -- `box` is padded
+    """An outline's pen pad must not move the shift -- `box` is padded
     by the pen straddle, but `center`/`radius` (the declared geometry) still
     land exactly on `at:`, the same as a filled circle."""
     resolved = _resolve(

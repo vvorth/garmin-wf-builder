@@ -55,9 +55,9 @@ These cost real time to discover; do not rediscover them.
    a device below that level** (`docs/research/probes/api-gating/`). Raising
    it for one feature raises it for *every* target device in the same
    `<iq:products>` block, including one that never touches the feature.
-   `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.1.0`, lowered from `3.2.0`
-   plan 14 slice 6 once `fenix5`/`fenix5x` -- ConnectIQ 3.1.6, this
-   project's lowest installed ceiling -- were installed and audited) is the
+   `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.1.0`, the ceiling of
+   `fenix5`/`fenix5x` -- ConnectIQ 3.1.6, this project's lowest installed
+   ceiling) is the
    *only* level this compiler ever emits; a feature that needs more is
    gated at runtime per device instead (below), never by moving this
    number. A device below the floor is a friendly `target` build error
@@ -142,7 +142,7 @@ These cost real time to discover; do not rediscover them.
   devices) -> Guards(complications: bool, fields: frozenset[str], modules:
   frozenset[str], ...)` is the single place that decides, once per build,
   which `Toybox` modules the shared code must `has`-guard (`modules`:
-  `Complications`, and since plan 18 item 2 `Weather`, which
+  `Complications` and `Weather`, which
   `fenix5`/`fenix5x` lack; `complications` is kept as the flag the
   complication-only sites read), and which bare field names
   (`Device.has_field`'s namespace, e.g. `stressScore`) need an `x has
@@ -175,7 +175,7 @@ These cost real time to discover; do not rediscover them.
   `source_unavailable`/`reader_unavailable` for a lint pass to point at the
   exact YAML line) and `docs/research/probes/api-gating/` for the evidence.
 - **One view and one delegate for every target, and a check that they
-  really are shared (plan 19 A5, 2026-09-25).** `wfb.build` resolves each
+  really are shared.** `wfb.build` resolves each
   target once (`resolve_all`), and `wfb.emit.generate(..., resolved=...)`
   reuses those faces instead of baking and resolving again. Whatever the
   shared sources decide per device is decided over the whole build:
@@ -189,11 +189,11 @@ These cost real time to discover; do not rediscover them.
   differing line. A per-device fact that leaks into a shared source
   therefore fails the build instead of silently following the first
   target, the way the view's `Device: <first>` header and its
-  partial-update comment (that device's clip percentage) did until A5. A
+  partial-update comment (that device's clip percentage) once did. A
   per-device fact belongs in `Layout.mc`. Measured before the change, over
   every example and fixture on its own targets and on all 22 installed
   devices: those two comment lines were the only differences.
-- **System-font metrics (plan 09 §4 R2, 2026-09-18): one `FontMetric` per
+- **System-font metrics: one `FontMetric` per
   `FONT_*` symbol per device, one place turning it into a real face.**
   `wfb.devices.Device.system_fonts` merges the scraped SDK reference table
   (`face`/`font`/`size_px` -- `size_px` is the published *line height*, and
@@ -224,7 +224,7 @@ These cost real time to discover; do not rediscover them.
   (drawing, at the renderer's scale -- 1 for every preview frame, which
   is enlarged block-wise afterwards) both go through this one function
   **with the same root** (`Device.fonts_root`, owned by `DeviceDatabase` and
-  carried by every `Device` it builds -- plan 18 item 8), so a
+  carried by every `Device` it builds), so a
   monkeypatched `em_px` moves both by
   construction, never one without the other, and a build measures a box
   from the exact file it is then drawn with. The preview draws a
@@ -252,8 +252,7 @@ These cost real time to discover; do not rediscover them.
   system font's widest-rendering comment, never referenced elsewhere in the
   generated code) -- confirmed by the golden `Layout.mc` diffs this step
   produced, one line each, nothing else.
-- **Derived metrics for a device with no scraped page at all (plan 17,
-  2026-09-23): a third source, stdlib `struct` only, that never touches a
+- **Derived metrics for a device with no scraped page at all: a third source, stdlib `struct` only, that never touches a
   scraped device.** Three installed devices (`fenix947mm`,
   `fenix9prosolar47mm`, `fenix9prosolar51mm`) have no
   `.cache/device-reference/devices/<id>.json` at all, so `Device.system_fonts`'
@@ -273,8 +272,8 @@ These cost real time to discover; do not rediscover them.
   self.fonts_root)` -- local files only, never the free-stand-in registry,
   and never a `.cft`: no verified height model for one, per the `.cft`
   finding above; `fonts_root` is `None` for the ordinary search order and
-  `--fonts DIR`'s own value for a `DeviceDatabase` built with it -- plan 18
-  item 8). **`wfb.devices` still never imports
+  `--fonts DIR`'s own value for a `DeviceDatabase` built with it).
+  **`wfb.devices` still never imports
   Pillow/fontTools**: `_sfnt_head_hhea` is a from-scratch `struct` reader
   of the sfnt table directory (`numTables` at offset 4, 16-byte table
   records from offset 12, `head.unitsPerEm` at its own offset 18,
@@ -291,7 +290,7 @@ These cost real time to discover; do not rediscover them.
   but harmless deferred to call time, since nothing calls
   `Device.system_fonts` until a caller already holds a fully-constructed
   `Device`, long after both modules have finished loading.
-- **Vector fonts and `curve:` (plan 11): per-device `Layout` constants, one
+- **Vector fonts and `curve:`: per-device `Layout` constants, one
   guard for the whole build, one null check that is never omitted.** A used
   `face:` font gets `FONT_<NAME>_FACE`/`_SIZE` in every target device's own
   `Layout.mc` (`wfb.emit.monkeyc.layout_constants._vector_font_constants`):
@@ -331,21 +330,20 @@ These cost real time to discover; do not rediscover them.
   font" vs. "did building it actually work" -- and neither is relied on to
   stand in for the other.
 
-- **Vector fonts and `curve:` on a pattern's own `shape: text` part (plan
-  11 slice 2): the local-angle-composed-with-the-copy design, and why gate
-  4's guard has to move from "once, before the loop" to "once per copy,
-  inside it."** Slice 1's own `Curve` dataclass and every build-time gate
-  (1-3) are reused unchanged (`wfb.layout.Resolver._resolve_vector_face`/
-  `._vector_font_metric`, called from `._resolve_hand_part`'s own `text`
-  branch the same way `wfb.kinds.text.TextKind.resolve` already calls them) -- the
-  only new work is the angle's *composition* and one codegen-side behaviour
-  change.
+- **Vector fonts and `curve:` on a pattern's own `shape: text` part: the
+  local angle composed with the copy's, and why gate 4's guard is "once
+  per copy, inside the loop", not "once, before it".** The element's
+  `Curve` dataclass and every build-time gate (1-3) are shared
+  (`wfb.layout.Resolver._resolve_vector_face`/`._vector_font_metric`,
+  called from `._resolve_hand_part`'s own `text` branch the same way
+  `wfb.kinds.text.TextKind.resolve` calls them); what differs is the
+  angle's *composition* and where the null guard sits.
 
   **Composition.** `ResolvedTextPart.curve.angle_garmin` is this part's own
   *local* angle (`TextPart.curve.angle`, run through `wfb.layout.
   garmin_curve_angle`), for copy 0 alone -- never combined with a radial
   pattern's own rotation in `wfb.layout`. That combination is one
-  definition, `wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): `local`/`start`/
+  definition, `wfb.kinds.pattern.PatternTextAngle`: `local`/`start`/
   `step` are the part's local angle and the pattern's own repeat angle, and
   `copy_curve_angle(index)` is `(local - (start + index * step)) % 360.0`,
   the host evaluator the lint ink box (`wfb.kinds.pattern._pattern_text_ink`)
@@ -396,8 +394,8 @@ These cost real time to discover; do not rediscover them.
   **`style: radial`'s circle is centred on that copy's own anchor**, not a
   fixed point -- the same `at:` reinterpretation a standalone `curve:
   {style: radial}` text element already gives, applied per copy: the
-  circle's radius (`curve.radius_px`, a `handLength` -- px/%r only, plan
-  11 slice 2's `patternCurve` schema def -- resolved once, the same for
+  circle's radius (`curve.radius_px`, a `handLength` -- px/%r only, the
+  schema's `patternCurve` -- resolved once, the same for
   every copy) gets a `Layout` constant (`<part>_RADIUS`, `wfb.emit.monkeyc.
   layout_constants.hand_part_constants`'s `text` branch), the same as an
   `arc` part's own `_RADIUS`; the angle does not, for the same reason an
@@ -456,7 +454,7 @@ These cost real time to discover; do not rediscover them.
   block-scoped, and a second `var` of one name in a scope is
   `Redefinition of variable`.**  The AOD frame's `aod: {visible: ...}`
   guard locals were redeclared per element, which failed as soon as two
-  guards read one source (a bug on main before plan 23, and every outlined
+  guards read one source (and every outlined
   group member in AOD hits it via its ring call); reusing one declared
   inside another `_configLayout` block is `Undefined symbol`.
   `view._GuardScopes` declares once per scope, afresh in each layout block
@@ -532,12 +530,12 @@ These cost real time to discover; do not rediscover them.
   system and a vector font, warning-free on `fenix847mm` and `fr955`
   (`tests/test_aod_outline.py`, `slow`).
 
-- **`aod:` restyling (plan 14 slice 2): ternary beats a second method,
+- **`aod:` restyling: ternary beats a second method,
   measured per ADR 0008, and an AOD-only font is cheap.** Two candidate
   shapes for reading an `AodOverride` at the draw call site: an inline
   `_aod ? <aod> : <awake>` ternary inside the *one* existing per-element
   method (`_emit_element_method` already calls the same method from both
-  the active and AOD branches -- plan 14 slice 1), or a second, fully
+  the active and AOD branches), or a second, fully
   separate method (`draw<Id>Aod`) called from the AOD branch instead. A
   throwaway probe with 8 overridden elements (every override key exercised
   at least once: `color`/`track_color`/`thickness`/`filled`/`format`/`font`/
@@ -547,13 +545,12 @@ These cost real time to discover; do not rediscover them.
   second-method variant of the exact same design -- the ternary is **465 B
   (9%) smaller**, because every duplicated method repeats its own
   declarations/guards/reads and the two-method call sites (one per branch)
-  cost more than one ternary each. Kept the ternary as the unconditional
+  cost more than one ternary each. The ternary is the unconditional
   default (`wfb.emit.monkeyc.common.AodStyle`, one call site
-  per overridable key), matching the plan's own prediction (§4.2) rather
-  than just assuming it.
+  per overridable key).
 
   **A baked font used only by an `aod: {font: ...}` override, never drawn
-  while awake, is a second resource** (§4.3): declared under `fonts:` like
+  while awake, is a second resource**: declared under `fonts:` like
   any other, baked unconditionally by `wfb.emit.resources.bake_fonts`
   (which bakes every declared font regardless of whether anything draws
   with it while awake -- `glyph_set` is extended to also collect the
@@ -569,13 +566,11 @@ These cost real time to discover; do not rediscover them.
   (651 B data + 650 B code) once a *second*, AOD-only font is declared and
   overridden in -- a **92 B** difference (0.07% of the 131,072 B budget) for
   the extra field, its conditional load/null bookkeeping, and the font
-  ternary at the call site. Confirms the plan's own prediction ("since API
-  4.0.0, loaded fonts live in the graphics pool, this should be cheap") --
-  the *resource* itself never touches this figure at all (constraint 11);
+  ternary at the call site. Cheap, as expected: since API 4.0.0 a loaded
+  font lives in the graphics pool, so the *resource* itself never touches this figure at all (constraint 11);
   what is measured here is purely the bookkeeping around it.
 
-  **Scope actually shipped in slice 2, and what is deliberately deferred:**
-  ternaries for every allowlisted key on `shape`/`text`/`gauge`/`icon`/
+  **What is built, and what is not:** ternaries for every allowlisted key on `shape`/`text`/`gauge`/`icon`/
   `graph`, `filled` as an `if (_aod) { <opposite draw> } else { <awake
   draw> } ` branch (`wfb.kinds.shape._emit_filled_toggle`), `format`
   as two fully-formatted value expressions ternaried against each other
@@ -583,11 +578,11 @@ These cost real time to discover; do not rediscover them.
   still sees the right one), and `hands`/`pattern` `color`/`thickness`
   applied uniformly to every part by ternarying the *existing* per-part/
   hoisted `dc.setColor`/`dc.setPenWidth` call sites against one element-
-  level override, never restructuring the hoisting logic itself (plan 14
-  §5.1). **Not implemented yet, matching `docs/limitations.md` §2 -- and,
+  level override, never restructuring the hoisting logic itself. **Not
+  implemented yet, matching `docs/limitations.md` §2 -- and,
   per house style (CLAUDE.md §7), each is a friendly build error, never
   a silent no-op**: a
-  `pattern`'s own `font:` override (allowlisted, plan 14 §2.3, but a
+  `pattern`'s own `font:` override (in the schema's allowlist, but a
   pattern's per-copy text font loading has no second-resource slot yet), a
   `data` element's `font:` override (same reason), any `font:`
   override that names a `face:` (vector) font rather than a baked one (gate
@@ -597,7 +592,7 @@ These cost real time to discover; do not rediscover them.
   `filled: false` is already refused, `wfb.kinds.shape.ShapeKind.build`).
   All four are raised on the author's own line: in `Builder._build_aod_authored`
   for an element's own block, and in `Builder._resolve_aod` for a key the
-  element inherits from a group (plan 18 item 5; both read one table,
+  element inherits from a group (both read one table,
   `Builder.aod_refusal`, so they cannot disagree). A face using one of
   them never reaches codegen or `wfb preview
   --aod` at all -- there is nothing left for either to draw, and the
@@ -605,16 +600,16 @@ These cost real time to discover; do not rediscover them.
   `wfb.kinds.text.TextKind._font`'s `is_vector` check) is
   defensive, not a live path.
 
-- **`aod: {dim: ...}` (plan 14 slice 3): the split is `Expression.is_constant`,
+- **`aod: {dim: ...}`: the split is `Expression.is_constant`,
   not a choice between two implementations -- and a real `monkeyc` build
   caught a barrel-file omission no Python-level codegen test could.**
   `dim` has to scale a colour that is either a build-time literal
   (`color.<swatch>`, a bare hex) or something the device resolves at
   runtime (a scheme's `color.<role>`, a conditional between several colours).
-  Plan §4.5 offered two candidate implementations for the runtime half:
+  There were two candidate implementations for the runtime half:
   a small integer-math helper (`dim(color, num, den)`), or precomputing a
-  dimmed variant per `color_scheme:` entry. The second was never actually
-  built to compare against: a scheme's `color.<role>` is a *view field* the
+  dimmed variant per scheme. The second was never built to compare
+  against: a scheme's `color.<role>` is a *view field* the
   wearer's own on-device pick can repoint at runtime
   (`Builder._define_config_color`, `constant=None` by design), so
   precomputing a dimmed variant would mean a second shadow field kept in
@@ -646,7 +641,7 @@ These cost real time to discover; do not rediscover them.
   on a fact no per-kind IR walk can see**: whether *any* AOD-shown colour,
   across every element and every one of `color`/`track_color`/`icon_color`,
   turned out non-constant with no override. So the barrel set is never
-  derived from the IR: `wfb.emit.usage.barrel_modules` (plan 19 A3) scans
+  derived from the IR: `wfb.emit.usage.barrel_modules` scans
   every generated Monkey C source (comments and strings stripped) for a
   `Wfb<Name>.` reference and copies exactly the files named, closed over the
   runtime-lib files themselves -- the same "inspect what was actually
@@ -666,9 +661,9 @@ These cost real time to discover; do not rediscover them.
   the barrel set is decided (not just its Python-level output), because
   that decision only has a real audience once `monkeyc` runs.
 
-- **The `getDisplayMode` ladder (plan 14 slice 6): one `has`-guarded `if`
+- **The `getDisplayMode` ladder: one `has`-guarded `if`
   at the top of the AOD branch, cheap enough that no ternary-vs-method
-  comparison was needed -- unlike slice 2's own restyling decision, there
+  comparison was needed -- unlike the restyling decision above, there
   is only one reasonable shape here (an early `return;`), so this is a
   measurement of cost, not a choice between two implementations.**
   `wfb.emit.monkeyc.view._emit_aod_body` gained one condition
@@ -701,7 +696,7 @@ These cost real time to discover; do not rediscover them.
   per-device symbol question (`AppBase` gets no override, no test needed
   for one) -- not measured, because nothing was built to measure.
 
-- **`aod: {mask: ...}` (plan 16, the same day): `WfbAodMask.apply` is
+- **`aod: {mask: ...}`: `WfbAodMask.apply` is
   emitted last in the `_aod` branch, after every element the frame draws,
   and only when the resolved AOD set is non-empty** -- masking an
   all-black frame is pure waste, and the same "only emit what could
@@ -721,7 +716,7 @@ These cost real time to discover; do not rediscover them.
   tables (`PHASES` in `wfb/aod_mask.py`, the `dx`/`dy` ternaries in
   `runtime-lib/WfbAodMask.mc`) cannot be hand-kept in sync either --
   `tests/test_aod_mask_preview.py` parses the `dx`/`dy` logic straight out
-  of the real `.mc` source rather than re-typing plan 16 §2 a third time,
+  of the real `.mc` source rather than re-typing the table a third time,
   the same anti-drift move as the barrel-detection grep above.
   Measured: `examples/features/aod/face.yaml` on `fenix847mm` is
   **2,726 B** with the mask (the default) against **2,447 B** with

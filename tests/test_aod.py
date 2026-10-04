@@ -572,7 +572,7 @@ elements:
 
 
 def test_aod_empty_is_silent_on_a_mip_target(write_design, bag, db):
-    """D5/D1: nothing about `aod:` applies to a MIP device at all."""
+    """Nothing about `aod:` applies to a MIP device at all."""
     text = BASE.replace("""build:
   targets: [fenix847mm]""", """build:
   targets: [fenix8solar47mm]""") + """
@@ -1112,7 +1112,7 @@ elements:
 
 
 def test_ancestor_group_aod_format_is_checked_against_the_descendant_value(write_design, bag):
-    """A group's own `aod: {format: ...}` (D2.3: the union of what its
+    """A group's own `aod: {format: ...}` (the union of what its
     descendants allow) reaches a text descendant by the ordinary key-by-key
     resolution rule -- it must be checked against *that* descendant's bound
     value type too, not just an element's own override (`_resolve_aod`)."""
@@ -1890,7 +1890,7 @@ def test_aod_burn_in_is_suppressible_on_the_top_contributor(write_design, bag, d
 
 
 def test_aod_burn_in_is_silent_on_a_mip_target(write_design, bag, db):
-    """D5: `aod:` does not apply on MIP at all, so this must never even
+    """`aod:` does not apply on MIP at all, so this must never even
     render -- checked with a design that would fail outright on an AMOLED
     target, so a check that forgot the device guard cannot pass by
     accident."""

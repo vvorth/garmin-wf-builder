@@ -704,7 +704,7 @@ def test_aod_elements_are_drawn_while_asleep(write_design, bag, db):
 
 def test_a_design_with_no_amoled_target_declares_no_aod_plumbing(write_design, bag, db, minimal):
     """The `_aod` plumbing must be entirely invisible to an all-MIP build
-    (D1's build-time gate: some target must be AMOLED), so ordinary designs
+    (the build-time gate: some target must be AMOLED), so ordinary designs
     (and their golden files) do not churn."""
     from wfb.emit import generate
     from wfb.emit.resources import bake_fonts
@@ -1180,7 +1180,7 @@ def test_on_hold_auto_is_ambiguous_between_two_targets(write_design, bag):
 
 
 def test_on_hold_auto_ignores_color_and_max(write_design, bag):
-    """D3: only the value binding is consulted -- a conditional colour's
+    """Only the value binding is consulted -- a conditional colour's
     heart-rate reference is not what the element is *about*, so it must not
     make `auto` ambiguous or change what it resolves to."""
     load(write_design(design("""

@@ -116,7 +116,7 @@ def test_measure_equals_the_sum_of_the_cft_advances(bitmap_root, monkeypatch):
 
 def test_line_height_overrides_the_scraped_size_px_once_the_cft_is_found(
         bitmap_root, monkeypatch):
-    """Plan §2.3's decision: a located `.cft`'s own `height` is the line
+    """A located `.cft`'s own `height` is the line
     box, overriding `size_px` (99 here) -- `wfb.layout` and `wfb.preview`
     must agree on this, which is exactly what `fallback.line_height` (what
     `wfb.layout` calls) and `fallback.system_face.line_height` (what

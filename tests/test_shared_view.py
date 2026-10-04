@@ -82,8 +82,7 @@ def test_generate_reuses_the_resolved_faces_it_is_given(write_design, db, tmp_pa
 
 def test_partial_update_is_decided_over_every_target_not_the_first(write_design, db, tmp_path):
     """A `low_power` design with an AMOLED target first. The lint rejects
-    this build (`partial-update`), so `generate` is called directly: before
-    A5 the view took `onPartialUpdate` from device 0 alone, and fr955 --
+    this build (`partial-update`), so `generate` is called directly: the view once took `onPartialUpdate` from device 0 alone, and fr955 --
     which runs it -- got none."""
     face, devices, resolved, _ = _resolved(write_design, db, LOW_POWER, MIXED)
     project = generate(face, devices, tmp_path, resolved=resolved)

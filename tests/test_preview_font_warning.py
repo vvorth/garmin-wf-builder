@@ -81,7 +81,7 @@ def _require_bionic_substitute() -> None:
 
 
 def test_a_stand_in_font_is_named_in_the_warning(write_design, bag, db):
-    """R1.2/R1.6 (red): with no Garmin font root at all (the session-wide
+    """With no Garmin font root at all (the session-wide
     `WFB_NO_GARMIN_FONTS=1`), `FONT_NUMBER_HOT` resolves to the free
     `bionic-substitute` stand-in, not Bionic itself -- `render`'s own
     `used_faces` records exactly that face at match `"substitute"`, and
@@ -107,7 +107,7 @@ def test_a_stand_in_font_is_named_in_the_warning(write_design, bag, db):
 
 
 def test_a_garmin_root_face_draws_silently(write_design, bag, db, tmp_path):
-    """R1.2/R1.5/R1.6 (green): pointing `fonts_root` (what `--fonts DIR`
+    """Pointing `fonts_root` (what `--fonts DIR`
     sets `PreviewOptions.fonts_root` to) at a directory holding a file
     named exactly like the device's own `Bionic_semibold` stem makes
     `fetch_system.locate` report match `"garmin"` -- outranking the
@@ -135,11 +135,11 @@ def test_a_garmin_root_face_draws_silently(write_design, bag, db, tmp_path):
 
 
 def test_an_exact_registry_match_is_never_warned_about(write_design, bag, db):
-    """R1.3: `exact`/`family` share the real letterforms (a free release of
+    """`exact`/`family` share the real letterforms (a free release of
     the very same, or a closely related, typeface) -- only `substitute`/
     `none` change the glyph shapes, so a design that only ever touches an
-    `exact`-matched symbol (`FONT_MEDIUM` -> `RobotoCondensed-Bold`, plan
-    09's own worked example) must stay silent even with no Garmin root."""
+    `exact`-matched symbol (`FONT_MEDIUM` -> `RobotoCondensed-Bold`) must
+    stay silent even with no Garmin root."""
     if fetch_system.path_for("roboto-condensed-bold") is None:
         pytest.skip("roboto-condensed-bold.ttf is not installed at wfb/assets/system-fonts/")
     design = DESIGN.replace("font: FONT_NUMBER_HOT", "font: FONT_MEDIUM")

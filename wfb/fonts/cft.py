@@ -36,8 +36,8 @@ Everything in the container is big-endian::
   wins for an overlapping codepoint (matching the reference's dict-assignment
   semantics, where each group's codepoints are written into the same map in
   turn). A codepoint matched by no group maps to glyph 0, the "missing" box
-  -- what the device itself draws for an unmapped character is UNVERIFIED
-  (plan §2.2); glyph 0 is the working assumption.
+  -- what the device itself draws for an unmapped character is UNVERIFIED;
+  glyph 0 is the working assumption.
 * **Glyph info**: one u32 per glyph, at ``glyph-info offset + 4 * index``.
   ``glyph_offset = ((word >> 16) & 0xffff) + ((word & 0xff00) << 8)``, masked
   ``& 0x7fffff`` when RLE. ``advance = word & 0xff``. Every glyph is a full
@@ -84,7 +84,7 @@ _FLAG_RLE = 0x02
 _FLAG_2BPP = 0x04
 
 #: The two "maybe-zlib" magic words a 40-byte header's glyph data may open
-#: with (plan §2.2 / cftinfo.ts's `getGlyphData`).
+#: with (cftinfo.ts's `getGlyphData`).
 _ZLIB_MAGIC_LENGTH_PREFIXED = 0xCD00000D
 _ZLIB_MAGIC_RAW = 0xD000000D
 

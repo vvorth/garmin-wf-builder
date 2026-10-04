@@ -1586,7 +1586,7 @@ def check_aod_unreachable(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
-    """D2: a face whose target is AMOLED but whose resolved `aod:` set is
+    """A face whose target is AMOLED but whose resolved `aod:` set is
     empty -- the face default is `hide`, so an unconverted design
     silently ships a blank always-on frame on every AMOLED target unless an
     element opts back in. Garmin treats an absent always-on view as a defect

@@ -56,7 +56,7 @@ def design(top: str, elements: str) -> str:
     return f"{HEAD}{top}elements:\n{BACKGROUND}{elements}"
 
 
-# -- R1: the face-wide default -----------------------------------------------
+# -- the face-wide default -----------------------------------------------
 
 
 def test_antialias_defaults_to_false(write_design, bag):
@@ -73,7 +73,7 @@ def test_a_declared_face_default_is_recorded(write_design, bag):
     assert face.antialias is True
 
 
-# -- R2: per-element resolution and inheritance ------------------------------
+# -- per-element resolution and inheritance ------------------------------
 
 ICON = """  probe:
     type: icon
@@ -206,7 +206,7 @@ def test_shape_and_progress_accept_and_resolve_antialias(write_design, bag):
     assert deco.resolved_antialias is True
 
 
-# -- R3: `antialias:` on `text` is a build error -----------------------------
+# -- `antialias:` on `text` is a build error -----------------------------
 
 TEXT_CUSTOM_FONT = """  t:
     type: text
@@ -258,7 +258,7 @@ def test_without_the_guard_antialias_on_text_would_build_silently(write_design, 
     assert not any(d.code == "text-antialias" for d in bag.errors)
 
 
-# -- R5: a font with no `antialias:` of its own follows the face default ----
+# -- a font with no `antialias:` of its own follows the face default ----
 
 
 def test_a_font_with_no_antialias_follows_the_face_default(write_design, bag):
@@ -277,7 +277,7 @@ def test_a_fonts_own_antialias_wins_over_the_face_default(write_design, bag):
     assert face.fonts["clock"].antialias is False
 
 
-# -- R4: `wfb.icons.font_key` must incorporate anti-aliasing -----------------
+# -- `wfb.icons.font_key` must incorporate anti-aliasing -----------------
 
 
 def test_font_key_default_is_unchanged_by_the_new_parameter():
@@ -300,7 +300,7 @@ def test_font_key_distinguishes_antialiasing():
 
 
 def test_two_icons_same_size_and_glyph_collide_without_the_antialias_key(write_design, bag, db):
-    """Reproduces the bug R4 exists to prevent: two icons agreeing on `size:`
+    """Reproduces the bug `font_key` keys on `antialias:` to prevent: two icons agreeing on `size:`
     and glyph but not on `antialias:` used to fold into one font resource,
     and the one built second would silently overwrite the sheet the other one
     needed -- shown here by calling the *pre-fix* two-argument form directly.

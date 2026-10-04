@@ -191,8 +191,8 @@ def test_undeclared_font_is_one_error(write_design, bag):
 
 def test_a_hand_still_rejects_shape_text(write_design, bag):
     """Regression: `HAND_PART_REJECTED_SHAPES` keeps its own `text` entry --
-    only `PATTERN_PART_REJECTED_SHAPES` lost it. Same wording as before plan
-    06 (`tests/test_patterns.py`'s own hand-vs-pattern regression test)."""
+    only `PATTERN_PART_REJECTED_SHAPES` lost it. The same wording as
+    `tests/test_patterns.py`'s own hand-vs-pattern regression test."""
     hands = """
 resources:
   hand_sets:
@@ -315,7 +315,7 @@ def test_linear_text_anchor_steps_by_dx(resolved_for):
 
 
 def test_pattern_text_anchor_rounds_half_up_not_to_even_or_away_from_zero():
-    """Plan §3.2 D5: `floor(v + 0.5)`, not Python's banker's `round()` and
+    """`floor(v + 0.5)`, not Python's banker's `round()` and
     not `_round_away`'s half-away-from-zero -- picked so the device's own
     `(v + 0.5).toNumber()` (`runtime-lib/WfbGeom.mc`) matches this
     exactly. `x = 2.5` rounds up to 3 (`round(2.5)` would give 2, banker's

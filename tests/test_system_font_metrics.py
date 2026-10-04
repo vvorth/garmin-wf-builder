@@ -89,7 +89,7 @@ def _ink_y_bounds(image, bg, x_lo: int, x_hi: int,
     return top, bottom
 
 
-# -- 1. fenix8solar47mm FONT_MEDIUM: the plan's own worked example ----------
+# -- 1. fenix8solar47mm FONT_MEDIUM ----------------------------------------
 
 
 def test_fenix8_font_medium_matches_the_worked_example(db):

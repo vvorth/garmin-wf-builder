@@ -68,7 +68,7 @@ def test_text_bound_expressions_order(write_design, bag):
     label = _by_id(face, "label")
     assert isinstance(label, Text)
 
-    # the pre-A2 formula, by hand
+    # every expression the element holds, collected by hand
     expected = [e for e in (label.value, label.color, label.fallback) if e]
     expected.append(label.outline.color)
     expected.append(label.visible)

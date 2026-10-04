@@ -382,12 +382,11 @@ early exit added to the existing path, not a second one.
 a mixed build (an AMOLED target alongside MIP ones — the common case, since
 `examples/features/aod/face.yaml` targets both) wraps the call in `System
 has :getDisplayMode`, because `monkeyc` compiles the one shared view once
-per device and a MIP target's own symbol table lacks it entirely (research
-11 §2). Only a build whose every target has the symbol — today, only an
+per device and a MIP target's own symbol table lacks it entirely. Only a build whose every target has the symbol — today, only an
 AMOLED-only build of `fenix847mm`/`fenix947mm` — emits the bare call. A
 device with neither `getDisplayMode` (every MIP device, and any older
 AMOLED device that predates it) keeps drawing the resolved `aod:` set on
-every asleep frame exactly as before this ladder existed:
+every asleep frame:
 `requiresBurnInProtection` is the only signal such a device has ever had.
 
 `DISPLAY_MODE_*`'s own constants need no `has` guard of their own — unlike
@@ -472,8 +471,7 @@ does (potentially 100% on a static pixel).
   - **luminance fraction** — the mean relative luminance across the same
     pixels (`wfb.palette.Color.relative_luminance`, WCAG-style: Rec. 709
     primaries over sRGB-decoded channels), already a 0–1 fraction of full
-    white by construction. Garmin's own integral is unpublished (research
-    11 §5) — this is a stated, reused choice (the same formula the
+    white by construction. Garmin's own integral is unpublished — this is a stated, reused choice (the same formula the
     contrast lint already uses), not a claim of matching Garmin's firmware
     bit for bit.
 
@@ -520,7 +518,7 @@ does (potentially 100% on a static pixel).
   platform limit. **Under 10% is an informational `note`** stating both
   measured figures, the same "the author sees the number on every build"
   shape `graphics-pool` already uses. On a MIP target this check never
-  runs at all (D5: `aod:` doesn't apply there).
+  runs at all (`aod:` doesn't apply there).
 
   **What it cannot see:** with the mask on, the 3-minute static-pixel rule
   holds *by construction* (no pixel is ever lit two consecutive

@@ -244,8 +244,7 @@ three primary targets. `setup-env.sh` installs them.
 
 20 devices are vendored: the three targets plus older-API devices such as
 `fenix6`, `fenix6xpro`, `fr245` and `fr255` (`docs/research/probes/
-api-gating/`), and, since plan 14 slice 0 (2026-09-23), the project's first
-two AMOLED devices, `fenix847mm` and `fenix947mm` (research 11 §3.6).
+api-gating/`), and the project's first two AMOLED devices, `fenix847mm` and `fenix947mm` (research 11 §3.6).
 `setup-env.sh`'s device install is **incremental**: on every run it copies
 in whichever device directories under `vendor/devices/` are not yet at the
 destination, without touching what is already there — a re-run installs
@@ -281,7 +280,7 @@ cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
 
 ### System fonts: registry fetch, cache, and Garmin's own font root
 
-plan 09 (Step A). `wfb/fonts/fetch_system.py` is deliberately
+`wfb/fonts/fetch_system.py` is deliberately
 **stdlib-only, no `wfb`/Pillow import** — it must load by
 file path (`importlib.util.spec_from_file_location`) before `.venv` exists,
 in the Docker SDK stage, and from `wfb doctor` without a rasteriser.
@@ -309,7 +308,7 @@ test session, so a test that needs the online path must `monkeypatch.delenv`
 it back off. `WFB_FONTS_MIRROR` overrides every source URL's host, for an
 internal mirror that reproduces the same paths.
 
-**Garmin's own font files rank above the registry** (plan 09 R1b): the SDK
+**Garmin's own font files rank above the registry**: the SDK
 Manager's `Fonts` directory (next to `Devices`) is the user's own licensed
 copy, vendored at `vendor/fonts/` the same way `vendor/devices/` is —
 gitignored, incrementally copied into `~/.Garmin/ConnectIQ/Fonts` by
@@ -319,7 +318,7 @@ non-empty candidate winning: an explicit override (`--fonts DIR`), then
 locations (`%APPDATA%` only consulted when set, for Windows). It is
 optional; without it the registry's free stand-ins are used.
 
-**What that actually costs (plan 12 R1/R3): `wfb preview` draws a
+**What that actually costs: `wfb preview` draws a
 different family's letterforms, not just an estimate of the right one.**
 `locate`'s `"garmin"` match and a registry `"exact"`/`"family"` match both
 draw the *same* glyph shapes the device does (a free release of the same,
@@ -342,7 +341,7 @@ fonts_root=...)`) and carried by every `Device` it builds
 (`fallback.measure`/`line_height`/`ascent`), `Device.system_fonts`' derived
 loop locates the fenix 9 family's files with it, and `wfb preview --fonts
 DIR` passes the same value to both the database and `PreviewOptions`, so a
-box is always sized from the file it is drawn with (plan 18 item 8).
+box is always sized from the file it is drawn with.
 `wfb build`/`validate` take no `--fonts`, so their root is `None`: the
 ordinary search order above. `wfb doctor --fonts` only reports what
 `garmin_font_root(override)` finds.

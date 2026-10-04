@@ -96,7 +96,7 @@ def test_icon_lint_box_right_bottom_puts_bottom_right_corner_on_anchor(write_des
 
 
 def test_icon_box_default_matches_no_keys_at_all(write_design, bag, db):
-    """R5: writing `align: center`/`vertical_align: center` explicitly must
+    """Writing `align: center`/`vertical_align: center` explicitly must
     resolve to the exact same box (and the same `justify`) as writing
     neither key at all."""
     with_keys = find(_resolve_icon(write_design, bag, db, _icon_yaml("i", "center", "center")), "i")

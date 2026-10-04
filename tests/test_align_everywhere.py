@@ -2,7 +2,7 @@
 every element, starting with the shared foundation -- `group`, `text` and a
 pattern's `shape: text` part.
 
-Covers: `wfb.layout.alignment_shift` itself (R1's nine combinations); a
+Covers: `wfb.layout.alignment_shift` itself (its nine combinations); a
 `text` element's lint box for every combination; the `baseline` -> `bottom`
 rename, including "one error, not N" on both a `text` element and a
 pattern text part; the §1.2 device/preview bug fix in codegen (the
@@ -61,13 +61,13 @@ def test_alignment_shift_all_nine_combinations(align, vertical_align, dx, dy):
     """`width=40, height=30`: `left`/`top` shift the centre by +half towards
     the far edge (so that edge lands back on the point), `right`/`bottom`
     shift it the other way, and `center` never moves it at all -- checked
-    exactly, not just in sign, since R5 depends on `center` being exactly
+    exactly, not just in sign, since the default path depends on `center` being exactly
     `0.0`, not merely close to it."""
     assert alignment_shift(40.0, 30.0, align, vertical_align) == (dx, dy)
 
 
 def test_alignment_shift_center_is_exactly_zero_not_merely_close():
-    """R5: the default path must add exactly `0.0`, bit for bit, or a
+    """The default path must add exactly `0.0`, bit for bit, or a
     downstream `x + 0.0` could round differently from a bare `x` for some
     input -- checked directly with `is`/`==` on the float, not `pytest.approx`."""
     dx, dy = alignment_shift(123.456, 78.9, "center", "center")
@@ -118,7 +118,7 @@ def test_text_box_edge_sits_on_the_anchor(text_box_for, align, vertical_align):
     """For every one of the nine combinations, the named edge (or the
     centre) of the resolved box sits on the anchor point -- the same
     property `test_group_align.py` checks for a group's own box, now
-    checked for `text` (R1: one rule, every accepting kind)."""
+    checked for `text` (one rule, every accepting kind)."""
     placed = text_box_for(align=align, vertical_align=vertical_align)
     box = placed.box
     ax, ay = placed.anchor_point
@@ -139,7 +139,7 @@ def test_text_box_edge_sits_on_the_anchor(text_box_for, align, vertical_align):
 
 
 def test_text_box_bottom_matches_the_pre_rename_baseline_box():
-    """R6/R7: the box for `bottom` is exactly what `baseline` already
+    """The box for `bottom` is exactly what `baseline` already
     computed before the rename (the §1.2 bug was in the *draw*, never the
     lint box) -- `top = anchor_y - line_height`, checked arithmetically
     rather than by re-authoring the removed spelling."""
@@ -268,7 +268,7 @@ def test_radial_pattern_text_top_center_do_not_touch_cy():
     before this phase. Documented here rather than duplicated."""
 
 
-# -- preview: R7, ink on the correct side of the anchor ----------------------
+# -- preview: ink on the correct side of the anchor ----------------------
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -315,7 +315,7 @@ def _white_rows(image, x_range, y_range):
 
 
 def test_system_font_bottom_ink_lies_above_the_anchor_row(write_design, bag, db):
-    """R7, system-font path (`draw_text` over a device face): drive this red first by
+    """The system-font path (`draw_text` over a device face): drive this red first by
     checking it against the *old* meaning of `baseline` -- the old
     code drew a bottom-anchored line exactly like `top`, hanging down from
     the anchor, so this same assertion made against that code fails (see

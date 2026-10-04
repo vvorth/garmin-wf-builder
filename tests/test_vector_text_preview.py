@@ -621,14 +621,14 @@ def test_radial_counter_clockwise_vertical_align_orders_ink_radius_bottom_lt_cen
     )
 
 
-# -- R1: per-glyph midline on its own radius, not half an advance off ------------
+# -- per-glyph midline on its own radius, not half an advance off ------------
 
 
 def _perp_distance_from_ray(cx: float, cy: float, angle_garmin_degrees: float,
                              point: tuple[float, float]) -> float:
     """How far `point` sits from the infinite line through `(cx, cy)` at
     Garmin angle `angle_garmin_degrees` -- the "off its own radius" measure
-    R1 claims fixes: a glyph whose midline truly lies on the radius through
+    per-glyph placement fixes: a glyph whose midline truly lies on the radius through
     its own centre has its ink's centre of mass land on this line (distance
     ~0); the pre-fix left-edge-anchored placement displaces it tangentially
     instead, so this distance is what catches it. `(cos, -sin)` is the
@@ -737,7 +737,7 @@ def _placed(resolved, element_id: str):
 
 
 def _expected_radial_slot(placed, text: str, index: int) -> float:
-    """R1's own formula (`pen + advance/2 - align_offset`, turned into an
+    """The per-glyph placement formula (`pen + advance/2 - align_offset`, turned into an
     angle with `direction_sign`/`radius`) for `text[index]`'s expected
     Garmin angle, assuming `placed.align == "center"` (so `align_offset ==
     sum(advances) / 2`, matching every design below) -- reproduced here,
@@ -758,13 +758,13 @@ def _expected_radial_slot(placed, text: str, index: int) -> float:
 
 
 def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, db, bag):
-    """R1: `_draw_radial_vector_text` must place a glyph at the arc
+    """`_draw_radial_vector_text` must place a glyph at the arc
     position of the *middle* of its advance, not its left edge -- ground
     truth from the real simulator (2026-09-21, `fenix8solar51mm`, large
     roman numerals in `examples/showcase`): every glyph's own vertical
     midline lies on the radius through that glyph's own centre, like
     spokes. A single glyph with `align: center` isolates this cleanly: the
-    whole-string `align:` (already correct, out of scope for R1) places
+    whole-string `align:` (a separate rule, already correct) places
     this one glyph's *slot* exactly at `curve.angle` regardless of its
     advance width (`align_offset == total / 2 == advance / 2` for a
     one-character string, so `pixel_offset` is exactly `0` under the fix,
@@ -806,7 +806,7 @@ def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, d
 
 
 def test_radial_same_width_glyphs_each_sit_on_their_own_radius(write_design, db, bag):
-    """The multi-glyph half of R1/R2: three same-width glyphs ("H"),
+    """The multi-glyph half of per-glyph placement: three same-width glyphs ("H"),
     spaced out with literal spaces (which advance the pen and draw no ink)
     so each glyph's own blob stays well clear of its neighbours -- three
     *adjacent* "H"s touch/overlap into a single connected blob at any
@@ -814,11 +814,11 @@ def test_radial_same_width_glyphs_each_sit_on_their_own_radius(write_design, db,
     anti-aliasing noise, regardless of the bug, which would make this test
     measure glyph spacing instead of glyph placement (verified by hand
     while tuning these parameters: this exact font/radius/spacing
-    combination gives three separate blobs both before and after R1 --
+    combination gives three separate blobs both with and without the fix --
     the two states move the ink by only a few px, not by the tens of px a
     single, un-spaced glyph can show, so the spacing has to be tuned
     against *both* to avoid a red run that merely fails to find three
-    blobs at all, and R2 requires the red run to fail for the *placement*
+    blobs at all, and the red run has to fail for the *placement*
     reason). `align: center` on the whole string keeps the classic
     three-slot symmetry (`-a, 0, +a` arc-length offsets from `curve.angle`
     for the first/middle/last "H"), but each glyph's own expected slot is
@@ -950,7 +950,7 @@ def test_radial_glyph_stroke_points_at_the_circles_centre(write_design, db, bag)
     other glyph's radius, but to its *own*. `angle: 50deg` (design) is
     away from every axis in either convention, so the defect cannot hide
     behind the glyph's own symmetry. Driven red against the unfixed code
-    (temporarily reverting R1's two lines): every "I" tilts by
+    (temporarily reverting the per-glyph placement's two lines): every "I" tilts by
     ~2.0-2.4deg off its own radius; the fixed code holds every "I" under
     0.6deg -- both measured by hand while writing this test, see the
     tolerance below."""
@@ -1013,14 +1013,14 @@ def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, d
             assert image.getpixel((x, y)) == BACKGROUND, (x, y)
 
 
-# -- R2: rasterised, not resampled ------------------------------------------
+# -- rasterised, not resampled ------------------------------------------
 
 
 def _weighted_centroid(image, region: tuple[int, int, int, int] = (0, 0, 260, 260),
                        min_channel: int = 10) -> tuple[float, float]:
     """Intensity-weighted centre of mass of every pixel in `region` lit
-    above `min_channel` -- `_paste_rotated_run`'s own R2.2 contrast.
-    Weighted, not a hard bounding box (`_ink_bbox`): R2's whole point is
+    above `min_channel` -- the contrast `_paste_rotated_run` is checked by.
+    Weighted, not a hard bounding box (`_ink_bbox`): supersampling's whole point is
     that ink gets *sharper*, which is exactly the kind of change a single
     threshold-crossing pixel at one corner can misreport as "moved" by a
     pixel or two on its own (see the tolerance note on
@@ -1043,14 +1043,14 @@ def _weighted_centroid(image, region: tuple[int, int, int, int] = (0, 0, 260, 26
 
 
 def _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body: str) -> None:
-    """Renders `body` twice -- once with R2's supersample-then-downsample
+    """Renders `body` twice -- once with the supersample-then-downsample
     path live, once with `_ROTATED_TEXT_SUPERSAMPLE` monkeypatched to `1`
     -- and asserts the drawn ink's centre of mass moved by under a pixel.
 
     Forcing the factor to `1` is not a second, independently-typed copy of
-    the pre-R2 formula that could quietly drift from what
-    `_paste_rotated_run` actually does: `ss == 1` skips every line R2
-    added (the supersampled `_system_face` lookup, the wider layer, the
+    the plain formula that could quietly drift from what
+    `_paste_rotated_run` actually does: `ss == 1` skips every line
+    supersampling adds (the supersampled `_system_face` lookup, the wider layer, the
     `Image.LANCZOS` downsample) and falls straight through to exactly the
     arithmetic that shipped before this slice, so this comparison *is* the
     "against the pre-change implementation" check,
@@ -1069,13 +1069,13 @@ def _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body: str)
     drift = math.hypot(bx - sx, by - sy)
     assert drift < 1.0, (
         f"centre of mass moved {drift:.3f}px when supersampling was "
-        "turned on -- R2 must change ink weight, not placement"
+        "turned on -- supersampling must change ink weight, not placement"
     )
 
 
 @pytest.mark.parametrize("angle", [0, 20, 45, 90, 135, 200, 270, 330])
 def test_angled_supersampling_does_not_move_the_centre_of_mass(write_design, db, bag, monkeypatch, angle):
-    """R2.2, `angled` -- a spread of angles, including axis-aligned ones
+    """`angled` -- a spread of angles, including axis-aligned ones
     (`0`/`90`/`270`, where `Image.rotate`'s own `expand=True` bounding box
     is a no-op or a pure swap) and oblique ones (`45`/`135`/`200`/`330`,
     where it genuinely grows). A single glyph (`"R"`), not a multi-
@@ -1100,11 +1100,11 @@ def test_angled_supersampling_does_not_move_the_centre_of_mass(write_design, db,
 
 @pytest.mark.parametrize("angle", [0, 45, 90, 180, 270])
 def test_radial_supersampling_does_not_move_the_centre_of_mass(write_design, db, bag, monkeypatch, angle):
-    """R2.2, `radial` -- `_draw_radial_vector_text` calls
+    """`radial` -- `_draw_radial_vector_text` calls
     `_paste_rotated_run` once per glyph (its own docstring), so it
-    inherits R2 exactly the same way `angled` text does and needs the same
+    inherits supersampling exactly the same way `angled` text does and needs the same
     guard; a bug that only threaded `font_metric` through one of the two
-    call sites (R2.3's own warning) would leave this one still resampling
+    call sites would leave this one still resampling
     while `test_angled_supersampling_does_not_move_the_centre_of_mass`
     passed, so the two tests together are what actually confirm "both call
     sites... consistent." """
@@ -1121,7 +1121,7 @@ def test_radial_supersampling_does_not_move_the_centre_of_mass(write_design, db,
 
 
 def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
-    """R2.4: a bitmap (`.cft`) face has no outline to supersample.
+    """A bitmap (`.cft`) face has no outline to supersample.
     Purely defensive -- gate 2 (`docs/lore/codegen.md`) only ever publishes
     an outline face as a vector `face:` font, so `draw_vector_text` can
     never actually hand `_paste_rotated_run` a bitmap `SystemFace` from a

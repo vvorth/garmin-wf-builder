@@ -542,7 +542,7 @@ def test_part_visible_reading_a_nullable_source_builds_with_when_absent_hide(wri
 def test_part_visible_reading_a_data_source_inside_static_is_a_static_error(write_design, bag):
     """Even a never-absent source: static freezes the reading, the same
     ordinary static-binding error a colour reading `date.weekday` gets --
-    and the message says 'visible', not 'a value' (A3)."""
+    and the message says 'visible', not 'a value'."""
     text = _static(_with_part_visible(RADIAL_RING, "date.weekday == 1"))
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1

@@ -67,8 +67,8 @@ has a `Fonts` directory, the script copies it from `vendor/fonts/` (gitignored,
 same reasoning as `vendor/devices/`) into `~/.Garmin/ConnectIQ/Fonts`
 incrementally. `wfb doctor` reports which root it found (`--fonts DIR` or
 `WFB_FONTS` override it); a device's real file there outranks the
-registry's stand-in for every build/preview consumer that consults it (plan
-09 R1b). See `docs/lore/toolchain.md`.
+registry's stand-in for every build/preview consumer that consults it. See
+`docs/lore/toolchain.md`.
 
 **Without the Garmin font root, `wfb preview` draws stand-in typefaces for
 any face the registry has no exact match for** — not merely "an estimate",

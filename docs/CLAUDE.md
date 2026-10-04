@@ -39,7 +39,10 @@ its own words -- the citation is the evidence, not the explanation. A
 reader must never have to open a plan or a research file to understand a
 doc. Plans are never cited anywhere outside the records: no "plan 14 §4.3",
 "slice 2", decision ids (D3, R2.1, A5), `docs/plans/` links or `git show`
-of a deleted plan. Records may point at docs freely.
+of a deleted plan. Records may point at docs freely. `tests/test_docs_citations.py`
+fails on a plan citation outside the records and on a research citation
+where none is allowed; decision ids it cannot tell from ordinary names, so
+those are on the writer.
 
 **House style:** state the current truth. When something is superseded,
 rewrite it in place rather than adding a dated correction beside it; history

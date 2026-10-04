@@ -8,13 +8,13 @@ rejection, and `wfb.icons.font_key`. This file covers what reads
 (`wfb.layout.is_antialiased_primitive`) and turns it
 into a guarded `Dc.setAntiAlias` call --
 
-* R1: the guarded helper, named anything but `setAntiAlias`
+* the guarded helper, named anything but `setAntiAlias`
   (`docs/research/probes/antialias/README.md` 3);
-* R2: where the calls land -- `onUpdate` (both branches), `onPartialUpdate`,
+* where the calls land -- `onUpdate` (both branches), `onPartialUpdate`,
   and `renderStatic` (both its call sites);
-* R3: a face that never turns this on for a primitive-drawing element
+* a face that never turns this on for a primitive-drawing element
   generates exactly what it did before this feature existed;
-* R4: `antialias-dither`, the suppressible 64-colour-palette lint.
+* `antialias-dither`, the suppressible 64-colour-palette lint.
 
 Every guard below was watched fail before it was believed, the same
 discipline `test_static.py` and `test_visibility.py` use.
@@ -74,7 +74,7 @@ def _view_text(text, write_design, db, tmp_path):
     return files[view_path]
 
 
-# -- R3: nothing used means nothing emitted ----------------------------------
+# -- nothing used means nothing emitted ----------------------------------
 
 
 def test_no_antialias_anywhere_emits_nothing(write_design, db, tmp_path):
@@ -88,7 +88,7 @@ def test_no_antialias_anywhere_emits_nothing(write_design, db, tmp_path):
 def test_face_default_true_but_every_shape_overrides_back_to_false_emits_nothing(
     write_design, db, tmp_path
 ):
-    """R3's other zero case: the face default is `true`, but nothing actually
+    """The other "nothing emitted" case: the face default is `true`, but nothing actually
     draws anti-aliased once every `shape`/`progress` element overrides it
     back.  `resolved_antialias` already folds the override in, so this must
     be indistinguishable from never mentioning `antialias:` at all."""
@@ -105,7 +105,7 @@ def test_face_default_true_but_every_shape_overrides_back_to_false_emits_nothing
 def test_a_face_with_nothing_antialiased_matches_a_design_that_never_mentions_the_key(
     write_design, db, tmp_path
 ):
-    """The strongest form of R3: byte-identical output, not just "no mentions"."""
+    """The strongest form of "nothing used, nothing emitted": byte-identical output, not just "no mentions"."""
     plain = f"{HEAD}elements:\n{BACKGROUND}{RING}"
     explicit_false = f"{HEAD}defaults: {{antialias: false}}\nelements:\n{BACKGROUND}{RING}"
     assert (
@@ -114,7 +114,7 @@ def test_a_face_with_nothing_antialiased_matches_a_design_that_never_mentions_th
     )
 
 
-# -- R1: the guarded helper ---------------------------------------------------
+# -- the guarded helper ---------------------------------------------------
 
 
 def test_the_helper_is_never_named_setantialias(write_design, db, tmp_path):
@@ -140,7 +140,7 @@ def test_the_helper_is_not_emitted_when_nothing_calls_it(write_design, db, tmp_p
     assert "applyAntiAlias" not in text
 
 
-# -- R2: entry points and per-element overrides ------------------------------
+# -- entry points and per-element overrides ------------------------------
 
 
 def test_face_default_true_resets_in_onupdate_with_no_override_calls(
@@ -345,7 +345,7 @@ elements:
     assert "applyAntiAlias" not in draw_bezel  # inherits the default, no toggle
 
 
-# -- R4: antialias-dither -----------------------------------------------------
+# -- antialias-dither -----------------------------------------------------
 
 
 def _resolved(text, write_design, db, device_id="fenix8solar47mm"):

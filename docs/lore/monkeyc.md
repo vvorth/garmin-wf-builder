@@ -16,7 +16,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
 - Type narrowing must go through a **local**, never a repeated field access —
   `_staticBuffer.getDc()` fails even after a null check on the field itself;
   `pulled.value` must be captured into a local first, every time. A vector
-  font's own null check is the same rule again (plan 11): `var font =
+  font's own null check is the same rule again: `var font =
   _fontBezel;` before `if (font != null)`, never `if (_fontBezel != null) {
   ... _fontBezel ... }` (`wfb.kinds.text.TextKind.lower`).
 - Monkey C has **no explicitly-typed local**: `var x as String? = null` is
