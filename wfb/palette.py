@@ -171,7 +171,7 @@ class Color:
         if display_colors == 64:
             return Color(MIP64_SNAP[self.r], MIP64_SNAP[self.g], MIP64_SNAP[self.b])
         if display_colors == 2:
-            units = sum(table[c] for table, c in zip(MONO_LUMINANCE, (self.r, self.g, self.b)))
+            units = sum(table[c] for table, c in zip(MONO_LUMINANCE, (self.r, self.g, self.b), strict=True))
             return WHITE if units > MONO_THRESHOLD else BLACK
         return self
 

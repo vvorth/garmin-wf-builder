@@ -149,7 +149,7 @@ def parse_device(path: Path) -> dict[str, Any]:
 
         elif label.endswith("Layout"):
             field_layouts[label] = [
-                dict(zip(rows[0], r)) for r in rows[1:] if len(r) == len(rows[0])
+                dict(zip(rows[0], r, strict=True)) for r in rows[1:] if len(r) == len(rows[0])
             ]
 
         elif label == "Fonts" or "font symbol" in " ".join(header):

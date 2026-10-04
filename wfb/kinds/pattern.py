@@ -850,7 +850,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
         def parts(ring: int | None) -> list[Op]:
             out: list[Op] = []
             current = codes[0] if hoist_color else None
-            for paint, code, (index, part) in zip(paints, codes, live):
+            for paint, code, (index, part) in zip(paints, codes, live, strict=True):
                 if ring is None and not hoist_color and code != current:
                     out.append(SetColor(paint))
                     current = code

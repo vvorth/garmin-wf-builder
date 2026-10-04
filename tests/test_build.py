@@ -53,7 +53,7 @@ def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
     """
     import subprocess as sp
 
-    def fake_run(command, cwd, capture_output, text, check):
+    def fake_run(command, cwd, capture_output, text, check, timeout):
         output_path = Path(command[command.index("-o") + 1])
         output_path.write_bytes(b"fake-prg")
         return sp.CompletedProcess(command, 0, stdout="BUILD SUCCESSFUL\n", stderr="")
@@ -89,7 +89,7 @@ def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
     state = {"now": 0, "most": 0}
     delays = {"fenix8solar47mm": 0.3, "fenix8solar51mm": 0.2, "fr955": 0.1}
 
-    def fake_run(command, cwd, capture_output, text, check):
+    def fake_run(command, cwd, capture_output, text, check, timeout):
         device = command[command.index("-d") + 1]
         output = Path(command[command.index("-o") + 1])
         with lock:
@@ -101,7 +101,8 @@ def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
         # intermediates beside the output, as monkeyc writes them
         (output.parent / "gen").mkdir(exist_ok=True)
         if device == fail:
-            return sp.CompletedProcess(command, 1, stdout=f"ERROR: {device}: broken\n", stderr="")
+            return sp.CompletedProcess(command, 1, stdout=f"ERROR: {device}: broken\n"
+                                       "BUILD FAILED\n", stderr="")
         output.write_bytes(device.encode())
         output.with_name(output.name + ".debug.xml").write_text("<debug/>")
         stats = "Data:\n  Foreground: 10 bytes\nCode:\n  Foreground: 20 bytes\n"
@@ -132,12 +133,31 @@ def test_devices_compile_in_parallel_and_report_in_device_order(
         "fenix8solar51mm: build failed",
         "fr955: noted",
     ]
+    failed = next(d for d in bag.items if d.message == "fenix8solar51mm: build failed")
+    # the ERROR line is reported once, as its own error, not again as a note
+    assert failed.notes == ["BUILD FAILED"]
     assert sorted(result.products) == ["fenix8solar47mm", "fr955"]
     for device, product in result.products.items():
         assert product.parent == result.output_dir
         assert product.read_bytes() == device.encode()
         assert product.with_name(product.name + ".debug.xml").exists()
     assert not (result.output_dir / ".monkeyc").exists()
+
+
+def test_a_monkeyc_that_hangs_is_stopped_and_reported(slice_design, tmp_path, db, monkeypatch):
+    import subprocess as sp
+
+    def hangs(command, cwd, capture_output, text, check, timeout):
+        raise sp.TimeoutExpired(command, timeout)
+
+    monkeypatch.setattr("wfb.build.subprocess.run", hangs)
+    toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
+                   devices_only=["fr955"])
+    assert result is not None and not result.products
+    assert [d.message for d in bag.errors] == [
+        "fr955: monkeyc took longer than 600 s and was stopped"]
 
 
 def test_jobs_one_compiles_one_device_at_a_time(slice_design, tmp_path, db, monkeypatch):

@@ -175,7 +175,7 @@ class Case:
 def run_wfb(args: list[str], *, env: dict, timeout: float = 240.0) -> subprocess.CompletedProcess:
     cmd = [sys.executable, str(WFB), *args]
     return subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True,
-                          timeout=timeout)
+                          timeout=timeout, check=False)
 
 
 def _write_std(scratch: Path, proc: subprocess.CompletedProcess) -> dict[str, Path]:

@@ -188,7 +188,7 @@ def _check_shared(project: GeneratedProject,
         if text == source.text:
             continue
         mine, theirs = source.text.splitlines(), text.splitlines()
-        index = next((i for i, (a, b) in enumerate(zip(mine, theirs)) if a != b),
+        index = next((i for i, (a, b) in enumerate(zip(mine, theirs, strict=False)) if a != b),
                      min(len(mine), len(theirs)))
         project.divergences.append(Divergence(
             source.path, ids[0], other,

@@ -5,10 +5,7 @@
     wfb build    design.yaml     # generate Monkey C, resources and manifest, then compile
 
 Run `wfb help` for the full command list, or `wfb help <command>` /
-`wfb <command> help` for one command's own help -- both are read straight
-from that command's handler docstring in this file, which is the one place
-its behaviour is documented; nothing here is duplicated into a markdown doc.
-`wfb doctor` reports what is installed and what to do about anything
+`wfb <command> help` for one command's own help. `wfb doctor` reports what is installed and what to do about anything
 missing; `wfb sources`, `wfb devices` and `wfb fonts` list what a design
 may bind and which watches and fonts it may use.
 
@@ -818,10 +815,11 @@ def _simulate(args: argparse.Namespace) -> int:
 
     Builds the design (like `wfb build`), starts the simulator if it is not
     already running, and pushes the build for `-d`, or the first target,
-    with `monkeydo`. On macOS the simulator is the SDK's `ConnectIQ.app`,
-    opened for you. On Linux it needs a display (`DISPLAY`), and it
-    currently crashes as soon as an app is pushed to it (see
-    docs/limitations.md), which is the gap `wfb preview` covers.
+    with `monkeydo`. On macOS, where this works, the simulator is the SDK's
+    `ConnectIQ.app`, opened for you. Other systems are untested; on Linux
+    the simulator needs a display (`DISPLAY`), and in a container it
+    crashes as soon as an app is pushed to it (docs/limitations.md), which
+    is the gap `wfb preview` covers.
 
     The command returns once the face is running. `monkeydo` stays behind,
     writing the face's console output (`System.println`) to `simulator.log`

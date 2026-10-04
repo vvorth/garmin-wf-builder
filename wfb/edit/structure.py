@@ -24,8 +24,8 @@ from typing import Any
 from ruamel.yaml.nodes import MappingNode, ScalarNode
 
 from .patch import (
-    DEFAULTS, Patch, _block, _data_at, _ended_patch, _insert_after, _remove, _with,
-    face_color, flow, key_text,
+    DEFAULTS, Patch, _block, _data_at, _ended_patch, _remove, _with,
+    face_color, key_text,
 )
 from .spans import (
     ELEMENT_BLOCKS, Entry, Path, Refused, SpanIndex, dotted, index_for, is_element, line_end,

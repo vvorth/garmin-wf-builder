@@ -112,8 +112,10 @@ file name, and one warning names it. Around the watch, the image keeps the
 skin's own background, which is white on most devices.
 
 `wfb simulate` builds the design, starts the Connect IQ simulator if it is
-not already running (on macOS it opens the SDK's `ConnectIQ.app`; on Linux it
-needs a display), and loads the face into it. It returns once the face is
+not already running (on macOS it opens the SDK's `ConnectIQ.app`), and loads
+the face into it. It works on macOS; other systems are untested, and in a
+Linux container the simulator crashes when the face is loaded
+([limitations](../limitations.md#the-simulator-crashes-when-an-app-is-pushed)). It returns once the face is
 running. The face's console output (`System.println`) keeps going to
 `simulator.log` beside the built `.prg`; `-f/--follow` prints it in the
 terminal too, until Ctrl-C, which leaves the face running. `--screenshot
@@ -122,9 +124,7 @@ have the Screen Recording permission (System Settings → Privacy & Security),
 or the capture shows only the desktop.
 
 `wfb help <command>` and `wfb <command> help` print the same thing as
-`wfb <command> --help`, byte for byte, because all three are read from that
-command's handler docstring rather than from a hand-written string that could
-drift from it.
+`wfb <command> --help`.
 
 The quickest start:
 

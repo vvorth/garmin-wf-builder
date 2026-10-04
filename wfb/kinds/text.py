@@ -22,7 +22,7 @@ from ..draw.program import (
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc.common import AodStyle, aod_font_field, const_prefix, font_field
 from ..ir import disc_perimeter_offsets
-from . import ElementKind, TextRun, ring_font, ring_widths
+from . import ElementKind, TextRun, ring_font
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder

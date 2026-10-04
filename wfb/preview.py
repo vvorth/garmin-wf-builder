@@ -821,7 +821,7 @@ class Renderer:
         recording = draw is None and self.stamps is not None
         draw = self.draw if draw is None else draw
         pen = left
-        for char, advance in zip(text, face.advances(text)):
+        for char, advance in zip(text, face.advances(text), strict=True):
             if recording:
                 self._stamp_char(face, pen, baseline_y, char, color)
             else:
@@ -855,7 +855,7 @@ class Renderer:
         s = self.scale
         top = baseline_y - face.baseline
         pen = left
-        for char, advance in zip(text, face.advances(text)):
+        for char, advance in zip(text, face.advances(text), strict=True):
             mask = _bitmap_glyph_mask(face.path, char, s)
             if mask.size[0] and mask.size[1]:
                 at = (int(round(pen)), int(round(top)))
@@ -972,7 +972,7 @@ class Renderer:
             glyph_radius = radius + (-face.baseline if counter_clockwise else face.baseline)
         base_theta = math.radians(curve_angle_garmin)
         pen = 0.0
-        for char, advance in zip(text, advances):
+        for char, advance in zip(text, advances, strict=True):
             pixel_offset = pen + advance / 2.0 - align_offset
             theta_pos = base_theta + direction_sign * (pixel_offset / radius)
             px = cx + glyph_radius * math.cos(theta_pos)
@@ -1155,7 +1155,7 @@ def _quantise_mono(image: Image.Image) -> Image.Image:
     integers, and compared with `MONO_THRESHOLD`."""
     parts: dict[str, Image.Image] = {}
     for index, (band, (high, low)) in enumerate(zip(image.convert("RGB").split(),
-                                                    _mono_byte_tables())):
+                                                    _mono_byte_tables(), strict=True)):
         parts[f"high{index}"] = band.point(high).convert("I")
         parts[f"low{index}"] = band.point(low).convert("I")
     white = ImageMath.lambda_eval(

@@ -92,7 +92,7 @@ class Builder:
             started = time.monotonic()
             try:
                 done = subprocess.run(self.command(work / "face" / FACE, device, work / "out"),
-                                      capture_output=True, text=True, timeout=self.timeout,
+                                      capture_output=True, text=True, timeout=self.timeout, check=False,
                                       cwd=work)
                 log = (done.stdout + ("\n" + done.stderr if done.stderr else "")).strip()
                 ok = done.returncode == 0

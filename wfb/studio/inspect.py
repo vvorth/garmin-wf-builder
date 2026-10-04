@@ -188,7 +188,7 @@ def inspect(text: str, element: Path, device: Device | None) -> dict[str, Any]:
     unknown = [k for k in data if k not in props]
     overrides: dict[str, Any] = {}
     if device is not None:
-        for scope, selector in zip(("device", "shape"), selector_paths(device)):
+        for scope, selector in zip(("device", "shape"), selector_paths(device), strict=True):
             patch = _data_at(data, selector)
             if isinstance(patch, dict):
                 overrides[scope] = {"selector": selector[1], "keys": patch}

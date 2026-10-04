@@ -330,6 +330,10 @@ WORK_DIR = ".monkeyc"
 #: The most `monkeyc`s `default_jobs` runs at once: each is its own JVM.
 MAX_DEFAULT_JOBS = 4
 
+#: Seconds one device's `monkeyc` may take before it is stopped. A real
+#: build takes seconds; a JVM that hangs would otherwise hang `wfb build`.
+MONKEYC_TIMEOUT = 600.0
+
 
 def default_jobs(devices: int) -> int:
     """How many `monkeyc`s to run at once for ``devices`` devices: one per
@@ -342,7 +346,8 @@ class _Compiled:
     """One device's `monkeyc` run: its exit status, its output with the
     JVM's noise stripped, and where it wrote the `.prg`."""
 
-    returncode: int
+    #: `None` when it was stopped for taking too long.
+    returncode: int | None
     text: str
     output: Path
 
@@ -388,10 +393,15 @@ def _run_monkeyc(result: BuildResult, device: Device, toolchain: Toolchain,
         "--no-gen-styles",
         "--build-stats", "0",
     ]
-    process = subprocess.run(
-        command, cwd=result.output_dir, capture_output=True, text=True, check=False
-    )
     output = result.output_dir / name
+    try:
+        process = subprocess.run(
+            command, cwd=result.output_dir, capture_output=True, text=True, check=False,
+            timeout=MONKEYC_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return _Compiled(None, f"monkeyc took longer than {MONKEYC_TIMEOUT:g} s and was stopped",
+                         output)
     for suffix in ("", ".debug.xml"):
         built = staged.with_name(name + suffix)
         if built.exists():
@@ -410,9 +420,15 @@ def _report(result: BuildResult, device: Device, run: _Compiled, bag: Bag) -> No
         elif stripped.startswith("WARNING:"):
             bag.warning("monkeyc", stripped[len("WARNING:"):].strip())
 
+    if run.returncode is None:
+        bag.error("monkeyc", f"{device.id}: {text}")
+        return
     if run.returncode != 0 or not output.exists():
-        bag.error("monkeyc", f"{device.id}: build failed",
-                  notes=[line for line in text.splitlines() if line.strip()][-6:])
+        # the last lines monkeyc printed, less the ERROR and WARNING lines
+        # already reported above
+        rest = [line for line in text.splitlines() if line.strip()
+                and not line.strip().startswith(("ERROR:", "WARNING:"))]
+        bag.error("monkeyc", f"{device.id}: build failed", notes=rest[-6:])
         return
 
     result.products[device.id] = output

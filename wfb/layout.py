@@ -23,7 +23,7 @@ from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .ir import (
     DataElement, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    AnyHandPart, HandPart, HandsElement, IconElement, PatternElement, Position, Gauge, Shape,
+    AnyHandPart, HandsElement, IconElement, PatternElement, Position, Gauge, Shape,
     Text, TextPart, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length

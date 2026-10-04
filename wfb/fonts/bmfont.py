@@ -232,7 +232,7 @@ def bake(
         png_name=f"{name}.png",
         sheet=sheet,
     )
-    for (char, tile, left, top, advance), (x, y) in zip(rendered, placements):
+    for (char, tile, left, top, advance), (x, y) in zip(rendered, placements, strict=True):
         empty = _is_empty(tile)
         if not empty:
             sheet.paste(tile, (x, y))
@@ -295,7 +295,7 @@ def dilate(base: BakedFont, *, name: str, glyphs: str,
         antialias=base.antialias, monospace=base.monospace, cell_width=base.cell_width,
         fnt_name=f"{name}.fnt", png_name=f"{name}.png", sheet=sheet,
     )
-    for (char, tile, left, top, advance), (x, y) in zip(rendered, placements):
+    for (char, tile, left, top, advance), (x, y) in zip(rendered, placements, strict=True):
         empty = _is_empty(tile)
         if not empty:
             sheet.paste(tile, (x, y))
