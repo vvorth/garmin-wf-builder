@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from ..process import run as run_process
 from .bundle import FACE
 
 #: `wfb.py`, run by the same Python the editor runs under.
@@ -91,9 +92,8 @@ class Builder:
             build_id = work.name
             started = time.monotonic()
             try:
-                done = subprocess.run(self.command(work / "face" / FACE, device, work / "out"),
-                                      capture_output=True, text=True, timeout=self.timeout, check=False,
-                                      cwd=work)
+                done = run_process(self.command(work / "face" / FACE, device, work / "out"),
+                                   cwd=work, timeout=self.timeout)
                 log = (done.stdout + ("\n" + done.stderr if done.stderr else "")).strip()
                 ok = done.returncode == 0
             except subprocess.TimeoutExpired:

@@ -100,6 +100,13 @@ glitch.
   and moves the `.prg` and `.prg.debug.xml` up afterwards; that is what
   lets the devices compile in parallel. The `.prg` then embeds that path
   (the size finding above), which `--build-stats` does not see.
+- **`$CIQ_SDK/bin/monkeyc` is a bash script that runs `java` as its child,
+  not by `exec`** (SDK 9.2.0, checked 2026-10-04). `subprocess.run`'s
+  timeout kills only the script, so a hung build used to leave its JVM
+  (`-Xms1g`) running after wfb reported it stopped; the editor, which runs
+  `wfb build`, left `monkeyc` itself behind too. Both run their command
+  through `wfb.process.run`, which starts it in its own process group and
+  kills the group on a timeout or an interrupt.
 - Compiling a `<watchface-config>` makes this SDK's JVM print a four-line
   `sun.misc.Unsafe` notice using `monkeyc`'s own bare `WARNING:` prefix.
   `wfb/build.py` strips exactly that line shape and nothing else — this is

@@ -32,6 +32,7 @@ from .emit.resources import BakeMemo
 from .fonts import BakedFont
 from .ir import Face, build as build_ir
 from .layout import ResolvedFace
+from .process import run as run_process
 
 
 @dataclass
@@ -395,10 +396,7 @@ def _run_monkeyc(result: BuildResult, device: Device, toolchain: Toolchain,
     ]
     output = result.output_dir / name
     try:
-        process = subprocess.run(
-            command, cwd=result.output_dir, capture_output=True, text=True, check=False,
-            timeout=MONKEYC_TIMEOUT,
-        )
+        process = run_process(command, cwd=result.output_dir, timeout=MONKEYC_TIMEOUT)
     except subprocess.TimeoutExpired:
         return _Compiled(None, f"monkeyc took longer than {MONKEYC_TIMEOUT:g} s and was stopped",
                          output)

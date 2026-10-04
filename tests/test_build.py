@@ -47,18 +47,18 @@ def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
     that quietly skips the check on such a `None` would silently stop
     catching an over-budget design the moment the SDK's own output changed
     shape, with nothing in the diagnostics to say so. No real toolchain is
-    needed: `subprocess.run` is faked to "succeed" (writes the `.prg`,
+    needed: `wfb.process.run` is faked to "succeed" (writes the `.prg`,
     returns code 0) with output that carries no `--build-stats` section at
     all, which is exactly the case `_STATS_RE` fails to match.
     """
     import subprocess as sp
 
-    def fake_run(command, cwd, capture_output, text, check, timeout):
+    def fake_run(command, *, cwd, timeout):
         output_path = Path(command[command.index("-o") + 1])
         output_path.write_bytes(b"fake-prg")
         return sp.CompletedProcess(command, 0, stdout="BUILD SUCCESSFUL\n", stderr="")
 
-    monkeypatch.setattr("wfb.build.subprocess.run", fake_run)
+    monkeypatch.setattr("wfb.build.run_process", fake_run)
 
     toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
     bag = Bag()
@@ -78,7 +78,7 @@ def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
 
 
 def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
-    """Fake `subprocess.run` as `monkeyc`: each device sleeps a different
+    """Fake `wfb.process.run` as `monkeyc`: each device sleeps a different
     time, so they finish out of order, and ``fail`` exits 1 with an
     `ERROR:` line.  Returns the most runs seen at once."""
     import subprocess as sp
@@ -89,7 +89,7 @@ def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
     state = {"now": 0, "most": 0}
     delays = {"fenix8solar47mm": 0.3, "fenix8solar51mm": 0.2, "fr955": 0.1}
 
-    def fake_run(command, cwd, capture_output, text, check, timeout):
+    def fake_run(command, *, cwd, timeout):
         device = command[command.index("-d") + 1]
         output = Path(command[command.index("-o") + 1])
         with lock:
@@ -109,7 +109,7 @@ def _fake_monkeyc(monkeypatch, *, fail: str | None = None):
         return sp.CompletedProcess(command, 0, stdout=f"WARNING: {device}: noted\n{stats}",
                                    stderr="")
 
-    monkeypatch.setattr("wfb.build.subprocess.run", fake_run)
+    monkeypatch.setattr("wfb.build.run_process", fake_run)
     return state
 
 
@@ -147,10 +147,10 @@ def test_devices_compile_in_parallel_and_report_in_device_order(
 def test_a_monkeyc_that_hangs_is_stopped_and_reported(slice_design, tmp_path, db, monkeypatch):
     import subprocess as sp
 
-    def hangs(command, cwd, capture_output, text, check, timeout):
+    def hangs(command, *, cwd, timeout):
         raise sp.TimeoutExpired(command, timeout)
 
-    monkeypatch.setattr("wfb.build.subprocess.run", hangs)
+    monkeypatch.setattr("wfb.build.run_process", hangs)
     toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
     bag = Bag()
     result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
