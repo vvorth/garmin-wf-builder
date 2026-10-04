@@ -300,6 +300,7 @@ button.star.on { color: var(--warning); }
 .topbar .save { font-size: 12px; color: var(--dim); }
 .topbar .save.saving { color: var(--accent); }
 .topbar .save.unsaved { color: var(--error); font-weight: 600; }
+button.save.unsaved { font-size: 12px; padding: 1px 8px; border-color: var(--error); background: none; }
 .diag-filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
 .diag-filter button { font-size: 11px; padding: 2px 8px; }
 .diag-filter button.on { border-color: var(--accent); color: var(--text); }

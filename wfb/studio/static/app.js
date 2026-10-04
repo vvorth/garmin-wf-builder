@@ -573,9 +573,12 @@ function Editor({ docId, onError, onNotice }) {
       <div class="topbar">
         <button onClick=${() => go(null)} title="All faces">← Faces</button>
         <span class="title">${doc.name}</span>
-        <span class=${"save " + saved} role="status"
-              title=${(saved === "unsaved" ? "the YAML tab's text is not saved: see under the text" : "changes are recorded as you make them") + ` · version ${doc.version}`}>
-          ${{ saved: "saved", saving: "saving…", unsaved: "not saved" }[saved]}</span>
+        <span role="status">${saved === "unsaved"
+          ? html`<button class="save unsaved" onClick=${() => setPane("yaml")}
+                         title=${`the YAML tab's text is not saved: open it to see why · version ${doc.version}`}>not saved</button>`
+          : html`<span class=${"save " + saved}
+                       title=${`changes are recorded as you make them · version ${doc.version}`}>
+              ${saved === "saving" ? "saving…" : "saved"}</span>`}</span>
         <button disabled=${!doc.history.can_undo} onClick=${() => step("undo")} title="Undo (Ctrl+Z)">↶ Undo</button>
         <button disabled=${!doc.history.can_redo} onClick=${() => step("redo")} title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         <span class="spacer"></span>

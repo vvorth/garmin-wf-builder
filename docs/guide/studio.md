@@ -399,7 +399,8 @@ does; in the container, mount `/keys` for it.
 Every change is recorded as you make it, so closing the tab or stopping
 the editor loses nothing. The top bar says so: **saved**, **saving…**
 while a change is on its way, or **not saved** while the YAML tab holds
-text the editor could not record (the reason is under the text). Its
+text the editor could not record; click it to open the YAML tab, where
+the reason is under the text or in a banner above it. The status's
 tooltip gives the face's version, the number a refused change names.
 **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; in the YAML tab
 these undo your typing) work across restarts. A change after an undo
