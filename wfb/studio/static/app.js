@@ -5,7 +5,7 @@
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
 import { elementAtLine, flatten, movedBy, together } from "./hit.js";
-import { enqueue, mark, next } from "./outbox.js";
+import { enqueue, mark, next, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
@@ -393,10 +393,19 @@ function Editor({ docId, onError, onNotice }) {
                           [doc, selected]);
   const step = useCallback(async (which) => {
     if (!doc) return;
-    try { setDoc(await api(`/api/documents/${docId}/${which}?version=${doc.version}`, { method: "POST" })); }
+    try { setDoc(await saving(api(`/api/documents/${docId}/${which}?version=${doc.version}`, { method: "POST" }))); }
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
   const [tab, setTab] = useState("diagnostics");
+  // Changes on their way: the edits below while their request is out, and
+  // the YAML tab's own state (`YamlPane`'s `onSaving`).
+  const [inflight, setInflight] = useState(0);
+  const saving = useCallback((request) => {
+    setInflight((n) => n + 1);
+    return request.finally(() => setInflight((n) => n - 1));
+  }, []);
+  const [yamlSaving, setYamlSaving] = useState("idle");
+  useEffect(() => { setYamlSaving("idle"); }, [docId]);
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
@@ -468,8 +477,8 @@ function Editor({ docId, onError, onNotice }) {
   const structure = useCallback(async (op) => {
     if (!doc) return;
     try {
-      const updated = await api(`/api/documents/${docId}/structure?version=${doc.version}`,
-                                { method: "POST", body: JSON.stringify(op) });
+      const updated = await saving(api(`/api/documents/${docId}/structure?version=${doc.version}`,
+                                       { method: "POST", body: JSON.stringify(op) }));
       setDoc(updated);
       if (op.op === "delete") setSelected(null);
       else if (updated.select) setSelected(updated.select);
@@ -526,8 +535,8 @@ function Editor({ docId, onError, onNotice }) {
   const edit = useCallback(async (op) => {
     if (!doc) return;
     try {
-      setDoc(await api(`/api/documents/${docId}/edit?version=${doc.version}`,
-                       { method: "POST", body: JSON.stringify(op) }));
+      setDoc(await saving(api(`/api/documents/${docId}/edit?version=${doc.version}`,
+                              { method: "POST", body: JSON.stringify(op) })));
     } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
   const upload = useCallback(async (file, { font, size, reference }) => {
@@ -535,7 +544,7 @@ function Editor({ docId, onError, onNotice }) {
     const q = new URLSearchParams({ filename: file.name, version: doc.version });
     if (font) { q.set("font", font); q.set("size", size || "10%r"); }
     if (reference) q.set("reference", reference);
-    try { setDoc(await api(`/api/documents/${docId}/assets?${q}`, { method: "POST", body: file })); }
+    try { setDoc(await saving(api(`/api/documents/${docId}/assets?${q}`, { method: "POST", body: file }))); }
     catch (e) { onError(e); if (e.status === 409) loadDoc(); }
   }, [doc]);
 
@@ -547,6 +556,7 @@ function Editor({ docId, onError, onNotice }) {
 
   if (!doc) return html`<div class="home dim">Loading…</div>`;
   const set = (key) => (e) => setView({ ...view, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  const saved = saveState({ inflight, queue, yaml: yamlSaving });
   const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), {});
 
   return html`<div class="editor">
@@ -555,6 +565,9 @@ function Editor({ docId, onError, onNotice }) {
         <button onClick=${() => go(null)} title="All faces">← Faces</button>
         <span class="title">${doc.name}</span>
         <span class="dim">version ${doc.version}</span>
+        <span class=${"save " + saved} role="status"
+              title=${saved === "unsaved" ? "the YAML tab's text is not saved: see under the text" : "changes are recorded as you make them"}>
+          ${{ saved: "saved", saving: "saving…", unsaved: "not saved" }[saved]}</span>
         <button disabled=${!doc.history.can_undo} onClick=${() => step("undo")} title="Undo (Ctrl+Z)">↶ Undo</button>
         <button disabled=${!doc.history.can_redo} onClick=${() => step("redo")} title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         <span class="spacer"></span>
@@ -629,7 +642,7 @@ function Editor({ docId, onError, onNotice }) {
           <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
-          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${setDoc} onError=${onError}
+          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${setDoc} onError=${onError} onSaving=${setYamlSaving}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}

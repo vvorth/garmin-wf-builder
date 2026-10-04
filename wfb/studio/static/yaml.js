@@ -61,7 +61,9 @@ function restore(v, place) {
 
 // `memory`: an object the editor keeps while the face is open, where the
 // pane leaves its place for next time.
-export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onError }) {
+// `onSaving(kind)` hears whether the pane's text is saved: `textsync.plan`'s
+// "idle" (saved), "send" (on its way) or "held"/"wait" (not saved).
+export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onError, onSaving }) {
   const host = useRef(null);
   const view = useRef(null);
   const state = useRef({ doc, sync: sync.initial(doc), timer: null, sending: false, selectTimer: null });
@@ -70,7 +72,13 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   const [status, setStatus] = useState(null);
   const [conflict, setConflict] = useState(false);
   state.current.doc = doc;
+  state.current.onSaving = onSaving;
   state.current.onSelect = onSelect;
+  // tell the editor whether `buffer` (the text now) is saved
+  const report = (buffer) => {
+    const s = state.current;
+    if (s.onSaving) s.onSaving(s.sending ? "send" : sync.plan(s.sync, buffer).kind);
+  };
   state.current.selected = selected;
 
   const send = async () => {
@@ -107,6 +115,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       setStatus({ kind: "failed", message: e.message || String(e) });
     } finally {
       s.sending = false;
+      report(view.current ? view.current.state.doc.toString() : step.text);
       if (view.current && sync.plan(s.sync, view.current.state.doc.toString()).kind === "send"
           && !s.timer) {
         s.timer = setTimeout(() => { s.timer = null; send(); }, DEBOUNCE);
@@ -119,6 +128,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   // Send the held text again, after a failure the author has seen.
   const retry = () => {
     state.current.sync = sync.retry(state.current.sync);
+    if (view.current) report(view.current.state.doc.toString());
     send();
   };
 
@@ -126,6 +136,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     const s = state.current;
     const settled = sync.resolve(s.sync, s.doc, choice);
     s.sync = settled.state;
+    if (view.current) report(settled.replace ?? view.current.state.doc.toString());
     setConflict(false);
     setStatus(null);
     if (settled.replace !== null) replace(settled.replace);
@@ -146,6 +157,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         const st = state.current;
         const own = u.transactions.some((t) => t.annotation(remote));
         if (u.docChanged && !own) {
+          report(u.state.doc.toString());
           clearTimeout(st.timer);
           st.timer = setTimeout(() => { st.timer = null; send(); }, DEBOUNCE);
         }
@@ -181,6 +193,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         memory.place = { ...remember(view.current), selected: st.selected, at: Date.now() };
       }
       if (view.current && sync.plan(st.sync, view.current.state.doc.toString()).kind === "send") send();
+      else if (st.onSaving) st.onSaving("idle");
       view.current && view.current.destroy();
       view.current = null;
     };
@@ -194,6 +207,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     if (!v) return;
     const followed = sync.follow(st.sync, doc, v.state.doc.toString());
     st.sync = followed.state;
+    report(followed.replace ?? v.state.doc.toString());
     if (followed.replace !== null) replace(followed.replace);
     forceLinting(v);
   }, [doc.version, doc.text]);

@@ -78,3 +78,13 @@ export function shiftItems(items, by) {
     return { ...item, box, center, handles };
   });
 }
+
+// Whether the face's changes are saved, for the top bar: "unsaved" when
+// the YAML tab holds text the server did not take (its `textsync.plan`
+// kind is "held" or "wait"), "saving" while an edit's request, a gesture
+// or the YAML tab's text is on its way, else "saved".
+export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
+  if (yaml === "held" || yaml === "wait") return "unsaved";
+  if (inflight > 0 || yaml === "send" || queue.some((e) => e.state !== "done")) return "saving";
+  return "saved";
+}

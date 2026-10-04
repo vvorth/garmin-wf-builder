@@ -525,3 +525,19 @@ def test_delete_acts_on_the_whole_selection():
                                               ["elements", "g", "children", "b"]]},
         "none": None,
     }
+
+
+def test_the_top_bar_says_whether_the_face_is_saved():
+    result = run("""
+      const s = outbox.saveState;
+      console.log(JSON.stringify([
+        s({}),
+        s({inflight: 1}),
+        s({queue: [{state: "done"}, {state: "queued"}]}),
+        s({queue: [{state: "done"}]}),
+        s({yaml: "send"}),
+        s({yaml: "held", inflight: 2}),
+        s({yaml: "wait"}),
+      ]));
+    """)
+    assert result == ["saved", "saving", "saving", "saved", "saving", "unsaved", "unsaved"]

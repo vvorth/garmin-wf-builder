@@ -291,3 +291,6 @@ button.star { padding: 0 3px; border: none; background: none; color: var(--dim);
 button.star.on { color: var(--warning); }
 .another { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .another code { user-select: all; word-break: break-all; }
+.topbar .save { font-size: 12px; color: var(--dim); }
+.topbar .save.saving { color: var(--accent); }
+.topbar .save.unsaved { color: var(--error); font-weight: 600; }

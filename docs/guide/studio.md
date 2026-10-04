@@ -383,9 +383,12 @@ does; in the container, mount `/keys` for it.
 ## History
 
 Every change is recorded as you make it, so closing the tab or stopping
-the editor loses nothing, and **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z
-or Ctrl+Y; in the YAML tab these undo your typing) work across restarts.
-A change after an undo ends the redo line, as in any editor.
+the editor loses nothing. The top bar says so: **saved**, **saving…**
+while a change is on its way, or **not saved** while the YAML tab holds
+text the editor could not record (the reason is under the text).
+**Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; in the YAML tab
+these undo your typing) work across restarts. A change after an undo
+ends the redo line, as in any editor.
 
 A **snapshot** is a point in time to go back to. One is taken every few
 minutes while the face changes, on every download, and on **Snapshot
