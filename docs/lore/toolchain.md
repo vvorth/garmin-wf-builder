@@ -1,7 +1,6 @@
 # Toolchain, environment and measurement lore
 
-The full text behind root `CLAUDE.md` §2, §3, §6 and §8, with the same
-numbering. Add new lore here, not to `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §2, §3 and §8. Add new lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -78,7 +77,7 @@ glitch.
 
 ---
 
-## Measurement / build lore (formerly §6 "Hard-won facts")
+## Measurement / build lore
 
 **Measurement / build lore:**
 

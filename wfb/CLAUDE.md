@@ -1,7 +1,7 @@
 # wfb/ — the compiler
 
 Loaded automatically when working under `wfb/`. The pipeline stage table is
-in the root `CLAUDE.md` §6.
+in `docs/development.md`, "Pipeline".
 
 - The builder reads format 2's keys and kind names as the author writes
   them. `wfb/lower.py` checks what the schema cannot (colour names,

@@ -441,7 +441,7 @@ config:
 def test_the_old_config_colors_spelling_is_now_a_schema_error(write_design):
     """`config: colors:` was removed outright, no shim -- the old spelling is now an unknown-key schema error, reported on
     the author's own `config:` line, the same as `on_tap:`/`carousel`/bare
-    font `scale:` (CLAUDE.md §6)."""
+    font `scale:` (`docs/lore/roadmap.md`, "Removed")."""
     text = HEAD + """theme:
   schemes:
     dark:

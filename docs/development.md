@@ -141,6 +141,26 @@ is guarded with the `absent:` policy that produced the guard -- here, as
 comments quote keys and expressions as the author wrote them (`absent:`,
 `color.accent`, `slot: top`), never the compiler's internal names.
 
+## Pipeline
+
+| Stage | Module | Toolchain? |
+|---|---|---|
+| YAML load with source spans | `wfb/yamlsrc.py` | no |
+| JSON Schema, reported on author lines | `wfb/validate.py` | no |
+| Format 2 checks the schema cannot make (colours, templates) | `wfb/lower.py` | no |
+| Element blocks (`elements:`, `static:`, layouts) → one element list | `wfb/desugar.py` | no |
+| Semantic pass (sources, types, nulls) | `wfb/ir/` (`model.py`, `naming.py`, `builder/`), `wfb/catalog.py`, `wfb/expr.py` | no |
+| Per-device layout resolve | `wfb/layout.py` | device files |
+| Lint | `wfb/lint.py` | device files |
+| Font baking (TTF → BMFont) | `wfb/fonts/` | no |
+| Draw program: each element's drawing and guards as one program (its kind's `lower`), printed by the view and evaluated by the preview; a frame as layers, with the program as JSON | `wfb/draw/` | no |
+| Codegen: Monkey C, resources, manifest, jungle | `wfb/emit/` | no |
+| `monkeyc` + measured memory | `wfb/build.py` | **yes** |
+| Host-side preview | `wfb/preview.py` | no |
+
+Each element kind's own code, from every stage above, lives in
+`wfb/kinds/<kind>.py` behind a registry ("Element kinds", below).
+
 ## Layout
 
 ```
@@ -633,5 +653,5 @@ an accent and a data colour edited in the fēnix 8's own on-device editor, and
 all 42
 complication types as `complication.*` data sources, read by a plain pull with
 no cache anywhere in the generated face. See
-[`docs/limitations.md`](limitations.md) §2 for the full list and `CLAUDE.md`
-§6 for the ordering.
+[`docs/limitations.md`](limitations.md) §2 for the full list and
+[`docs/lore/roadmap.md`](lore/roadmap.md) for what shipped.

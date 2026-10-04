@@ -1,7 +1,7 @@
 # Monkey C and `monkeyc` behaviour
 
-The full text behind root `CLAUDE.md` §6, with the same numbering. Add new
-lore here, not to `CLAUDE.md`.
+Monkey C lore, loaded in `wfb/emit/` and `runtime-lib/`. Add new lore
+here, not to `CLAUDE.md`.
 
 ---
 

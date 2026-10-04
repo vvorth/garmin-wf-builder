@@ -407,7 +407,7 @@ def test_unsupported_is_rejected_on_an_element_with_a_system_font(write_design, 
 # Before these checks existed, either of the two designs below validated
 # clean and then crashed `monkeyc` on a generated `Undefined symbol` for the
 # `:face` resource constant -- a raw compiler crash leaking to the author,
-# which this project does not accept (root `CLAUDE.md` §6's `image`/`raw`
+# which this project does not accept (`docs/limitations.md` §2's `image`/`raw`
 # precedent). Regression tests for that hole.
 
 

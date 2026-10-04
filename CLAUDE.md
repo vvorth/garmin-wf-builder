@@ -49,7 +49,7 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`12`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: every element type, `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere and format 2 shipped — see §6 |
+| 3 breadth | in progress: every element type, `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere and format 2 shipped — see `docs/lore/roadmap.md` |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -128,6 +128,9 @@ $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figur
   Java's `user.home` is wrong (it comes from passwd, not `$HOME`).
 - Details for all of this are in `docs/lore/toolchain.md` and
   `docs/lore/codegen.md` (Phase 2 findings 1–11).
+- **Known-good reference:** `~/claude/garmin-watchface-protomolecule/` is a
+  working face for the same targets. It is **read-only**, lives on the
+  user's host (not in the sandbox), and its build claims are false.
 
 ---
 
@@ -149,7 +152,7 @@ re-litigate these without new evidence.**
    `setClip` is charged by clip *area*.
 5. **AMOLED forbids `onPartialUpdate`.** The targets are MIP, but 74/164
    devices are AMOLED-class. An AMOLED target instead draws a constrained
-   sleep frame via `aod:` (§6) — see `docs/guide/always-on-display.md`.
+   sleep frame via `aod:` — see `docs/guide/always-on-display.md`.
 6. **API level does not decide availability.** Resolve symbols against
    `<id>.api.debug.xml` by fully qualified parent. (`fr955` is 5.2.0 and
    lacks `WatchFaceDelegate.onTap`.)
@@ -237,97 +240,34 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 
 ---
 
-## 6. Pipeline and current state
+## 6. Current state
 
-| Stage | Module | Toolchain? |
-|---|---|---|
-| YAML load with source spans | `wfb/yamlsrc.py` | no |
-| JSON Schema, reported on author lines | `wfb/validate.py` | no |
-| Format 2 checks the schema cannot make (colours, templates) | `wfb/lower.py` | no |
-| Element blocks (`elements:`, `static:`, layouts) → one element list | `wfb/desugar.py` | no |
-| Semantic pass (sources, types, nulls) | `wfb/ir/` (`model.py`, `naming.py`, `builder/`), `wfb/catalog.py`, `wfb/expr.py` | no |
-| Per-device layout resolve | `wfb/layout.py` | device files |
-| Lint | `wfb/lint.py` | device files |
-| Font baking (TTF → BMFont) | `wfb/fonts/` | no |
-| Draw program: each element's drawing and guards as one program (its kind's `lower`), printed by the view and evaluated by the preview; a frame as layers, with the program as JSON | `wfb/draw/` | no |
-| Codegen: Monkey C, resources, manifest, jungle | `wfb/emit/` | no |
-| `monkeyc` + measured memory | `wfb/build.py` | **yes** |
-| Host-side preview | `wfb/preview.py` | no |
+**Removed outright, with no shim.** Do not assume these exist:
 
-Each element kind's own code, from every stage above, lives in
-`wfb/kinds/<kind>.py` behind a registry (`docs/development.md`, "Element kinds").
+- `type: carousel`;
+- `on_tap:` (now `on_hold:`);
+- a font `size:` given as a bare number, and `scale:`;
+- a raw pasted character in `icon:`;
+- refresh tiers (`WfbCache.mc`, `catalog.Tier`);
+- `vertical_align: baseline` (renamed `bottom`);
+- `modes: [always_on]` (replaced by `aod:` — a schema error names the
+  replacement);
+- **format 1**, migrated by `wfb migrate`: `format: 1` is an error naming
+  it, and a format 1 key in a format 2 file is a schema error naming the
+  replacement. Gone with it: the list form (`- id:`), top-level
+  `targets:`/`fonts:`/`palette:`/`hands:`, `color_scheme:`,
+  `palette.x`/`config.colors.x`, `type: shape`/`progress`/
+  `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
+  `when_absent:`, `vertical_align:`, `if_unavailable:`, `modes:`,
+  `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
+  `docs/guide/format-2-migration.md`.
 
-**Tests:** `pytest -m "not slow"`. The fast suite is green
-(`tests/CLAUDE.md`), so a red test is a regression until shown otherwise.
-
-**Roadmap:** `docs/limitations.md` §2 is authoritative, and the full checklist
-is `docs/lore/roadmap.md`. Turn-one summary:
-
-- **Removed outright, with no shim.** Do not assume these exist:
-  - `type: carousel`;
-  - `on_tap:` (now `on_hold:`);
-  - a font `size:` given as a bare number, and `scale:`;
-  - a raw pasted character in `icon:`;
-  - refresh tiers (`WfbCache.mc`, `catalog.Tier`);
-  - `vertical_align: baseline` (renamed `bottom`);
-  - `modes: [always_on]` (replaced by `aod:` — a schema error names the
-    replacement);
-  - **format 1**, migrated by `wfb migrate`: `format: 1` is an error naming
-    it, and a format 1 key in a format 2 file is a schema error naming the
-    replacement. Gone with it: the list form (`- id:`), top-level
-    `targets:`/`fonts:`/`palette:`/`hands:`, `color_scheme:`,
-    `palette.x`/`config.colors.x`, `type: shape`/`progress`/
-    `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
-    `when_absent:`, `vertical_align:`, `if_unavailable:`, `modes:`,
-    `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
-    `docs/guide/format-2-migration.md`.
-- **Not implemented:**
-  - `image` and `raw` elements (friendly error);
-  - `overrides:` beyond geometry (`at:`/`size:`/`radius:`/`align:`
-    are built; anything else is a schema or build error);
-  - a `pattern`'s/`data` element's own `aod: {font: ...}` override;
-    any `aod: {font: ...}` naming a `face:` (vector) font;
-    `aod: {filled: ...}` on `type: polygon` (no outline primitive to
-    switch to) -- friendly build errors, all three, never a silent no-op;
-  - wearer settings beyond `config:` (booleans, choices) -- decided
-    against, 2026-09-27. Do not revisit it without asking;
-  - non-round screens: checked against the simulator skin's visible area
-    and (2-colour) palette, `anchor: subscreen` for the Instinct window,
-    never seen on a watch;
-  - catalogue generation from the SDK;
-  - any `Source.requires` entry: the hook is honoured by
-    `wfb.availability.source_unavailable` but no source sets it (ADR 0008
-    check 2 is otherwise built: `api-gated`);
-  - sideloading from the editor (`wfb studio`): its Build downloads the
-    `.prg`, copied to the watch by hand;
-  - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
-    hand, fails on any error);
-  - `wfb install`/`package`;
-  - format 2's reserved vocabulary (components, `effects:`, `outline:` on parts, the data widget, `when:`
-    rules): friendly "not implemented" errors, `docs/limitations.md` §2.
-- **Shipped:** format 2 and `wfb migrate`; one draw program per element,
-  printed by the view and evaluated by the preview (`wfb/draw/`); several placeholders in one
-  `text:`; per-device and per-shape `overrides:` (geometry); the SDK
-  version recorded per build (`build-info.json`); every element type;
-  `align:` everywhere, `static:`,
-  `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
-  `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
-  `curve:`, `outline:` on every drawable and on `group` (grown or stamped,
-  `docs/guide/outlines.md`); progress `needle`/`segments`/`scale`; gauges
-  on a slot (`slot:`) and `max: auto`, scaled per metric; `pattern:
-  grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
-  and the burn-in lint; the `config:` settings menu on a watch without the
-  native editor; the editor, `wfb studio` (`wfb/edit/` patches the text,
-  `wfb/studio/` serves it, the browser draws the layers' JSON with
-  `static/raster.js`, `docs/guide/studio.md`). One line each, with the
-  guide chapter, in `docs/lore/roadmap.md`.
-
-**`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
-even when its test is red, unless asked. See `examples/CLAUDE.md`.
-
-**Known-good reference:** `~/claude/garmin-watchface-protomolecule/` is a
-working face for the same targets. It is **read-only**, lives on the user's
-host (not in the sandbox), and its build claims are false (§3).
+Everything else about the current state is a file away:
+`docs/limitations.md` §2 is the **authoritative** list of what is not
+implemented, `docs/lore/roadmap.md` is the checklist of what shipped (one
+line per feature, with its guide chapter), and `docs/development.md` has the
+pipeline stage by stage, the element-kind registry and the repository
+layout.
 
 ---
 
@@ -357,6 +297,10 @@ The full text, with the incident behind each rule, is in
 - **No plan or slice history in code comments.** A comment says what the
   code does and why; which plan or slice built it goes in the commit
   message.
+- **The fast suite is green** (`pytest -m "not slow"`, `tests/CLAUDE.md`), so
+  a red test is a regression until shown otherwise.
+- **`examples/dashboard/face.yaml` is the user's playground. Leave it
+  alone**, even when its test is red, unless asked (`examples/CLAUDE.md`).
 
 ### Documentation discipline
 

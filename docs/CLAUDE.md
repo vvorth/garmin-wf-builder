@@ -13,7 +13,7 @@ behind its decision:
 |---|---|---|
 | `research/NN-*.md` | investigations, with citations; index `research/00-summary.md` | cite SDK paths and API levels; mark every behavioural claim VERIFIED or UNVERIFIED |
 | `research/probes/` | minimal Monkey C projects backing research claims | a claim about `monkeyc` is only as good as the probe that built it |
-| `plans/NN-*.md` | proposals written but not built; index `plans/README.md` | status at the top; record user decisions there; **delete once built**, and add a row to `plans/README.md`'s deleted-plans table |
+| `plans/NN-*.md` | proposals written but not built; index `plans/README.md` | status at the top; record user decisions there; **delete once built**, and add a row to `plans/README.md`'s deleted-plans table: how to read it, no per-slice commits (`git log --grep "plan NN"` lists them) |
 | `adr/NNNN-*.md` | accepted decisions; index in `adr/README.md` | amend with a dated note, never silently rewrite |
 
 **Docs** are what is true now: what is implemented, and platform knowledge

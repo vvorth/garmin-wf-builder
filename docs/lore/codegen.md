@@ -1,7 +1,6 @@
 # Codegen, IR and generated-project lore
 
-The full text behind root `CLAUDE.md` §6, with the same numbering. Add new
-lore here, not to `CLAUDE.md`.
+Codegen lore, loaded in `wfb/`. Add new lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -68,7 +67,7 @@ These cost real time to discover; do not rediscover them.
 
 ---
 
-## Build-time / codegen lore (formerly §6 "Hard-won facts")
+## Build-time / codegen lore
 
 **Build-time / codegen lore:**
 
