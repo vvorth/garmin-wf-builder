@@ -23,7 +23,6 @@ KEYS = {
     "icon_color": "icon: {color:}",
     "icon_for": "icon: {for:}",
     "glyph": "icon",
-    "modes": "sleep_update",
     "shape": "type",
     "format": "text",
     "color_scheme": "theme: schemes:",

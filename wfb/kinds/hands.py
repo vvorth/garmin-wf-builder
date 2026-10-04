@@ -132,7 +132,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             b.bag.error(
                 "hands",
                 f"{element_id}: 'sleep_update: true' is not accepted on analog hands",
-                b.doc.span(node, "modes") or common["span"],
+                b.doc.span(node, "sleep_update") or common["span"],
                 notes=["the hour and minute hands never need it -- they change once a "
                        "minute, and the sleeping onUpdate already redraws them",
                        "a second hand while asleep is 'seconds: always', which is not "

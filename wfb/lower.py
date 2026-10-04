@@ -7,9 +7,9 @@ document into that shape, in place, before :mod:`wfb.desugar` runs:
 
 * the top level ungrouped (``build:``, ``defaults:``, ``resources:``,
   ``theme:``), ``config:``'s ``slots:``, ``scheme:`` and colour references;
-* each element's own keys (``absent:``, ``align:``,
-  ``sleep_update:``) and each kind's (``type: rectangle`` is a ``shape``,
-  a ``text:`` template becomes ``value:`` + ``format:``, ...);
+* each element's own keys (``absent:``, ``align:``) and each kind's
+  (``type: rectangle`` is a ``shape``, a ``text:`` template becomes
+  ``value:`` + ``format:``, ...);
 * every ``color.<name>`` into the reference the builder binds: a scheme role
   is ``config.colors.<name>``, an axis role ``config.accent_color`` or
   ``config.data_color``, a swatch ``palette.<name>``.  Expressions are
@@ -436,12 +436,6 @@ class _Lowering:
         self.aod(node)
 
     def common(self, node: CommentedMap, kind: Any) -> None:
-        if "sleep_update" in node:
-            # An explicit `false` is kept: `sleep_update:` is inherited from
-            # an enclosing group, and `false` is how a member opts out.
-            modes = CommentedSeq(["active", "low_power"] if node["sleep_update"] is True
-                                 else ["active"])
-            self.rekey(node, "sleep_update", "modes", modes, author="sleep_update")
         self.align(node)
         for key in ("color", "track_color", "visible"):
             self.expr_key(node, key)

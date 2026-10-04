@@ -524,7 +524,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             b.bag.error(
                 "pattern",
                 f"{element_id}: 'sleep_update: true' is not accepted on a pattern",
-                b.doc.span(node, "modes") or common["span"],
+                b.doc.span(node, "sleep_update") or common["span"],
                 notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
                        "geometry never changes -- and its clip would be its whole "
                        "extent"],
