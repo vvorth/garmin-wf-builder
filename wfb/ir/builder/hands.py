@@ -212,14 +212,14 @@ class HandParts(ConfigAxes):
         rejected_shapes = HAND_PART_REJECTED_SHAPES if is_hand else PATTERN_PART_REJECTED_SHAPES
         geometry_keys = HAND_PART_GEOMETRY_KEYS if is_hand else PATTERN_PART_GEOMETRY_KEYS
         part_where = f"{where}.parts[{index}]"
-        shape = node.get("shape")
+        shape = node.get("type")
         span = self.doc.span(node)
         if shape in rejected_shapes:
             self.bag.error(
                 "element",
                 f"{part_where}: 'type: {shape}' is not accepted on a {noun} part -- "
                 f"{rejected_shapes[shape]}",
-                self.doc.span(node, "shape") or span,
+                self.doc.span(node, "type") or span,
                 notes=["the rotatable primitives are: " + ", ".join(sorted(geometry_keys))],
             )
             return None
@@ -477,7 +477,7 @@ class HandParts(ConfigAxes):
             return notes
 
         ok = self.check_foreign_keys(
-            node, shape, geometry_keys, all_keys, code="element", disc="shape",
+            node, shape, geometry_keys, all_keys, code="element", disc="type",
             prefix=f"{part_where}: ", qualifier=f"a {noun} ", suffix=" part",
             extra_notes=extra_notes,
         )

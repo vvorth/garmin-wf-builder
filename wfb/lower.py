@@ -48,7 +48,6 @@ from .yamlsrc import Origin, YamlDocument
 COMPASS = {"N": "top", "NE": "top_right", "E": "right", "SE": "bottom_right",
            "S": "bottom", "SW": "bottom_left", "W": "left", "NW": "top_left"}
 
-_PRIMITIVES = ("rectangle", "circle", "line", "arc", "ellipse", "polygon")
 
 
 @dataclass
@@ -389,12 +388,7 @@ class _Lowering:
         self.lowered.add(id(node))
         kind = node.get("type")
         self.common(node, kind)
-        if kind in _PRIMITIVES:
-            shape = "rounded_rectangle" if kind == "rectangle" and "corner_radius" in node \
-                else kind
-            node["type"] = "shape"
-            self.add(node, "shape", shape, "type", after="type")
-        elif kind == "text":
+        if kind == "text":
             self.text(node, several=True)
         elif kind == "gauge":
             node["type"] = "progress"
@@ -667,14 +661,12 @@ class _Lowering:
         for part in parts:
             if not isinstance(part, CommentedMap):
                 continue
-            if "type" in part:
-                self.rekey(part, "type", "shape", author="type")
             self.align(part)
             for key in ("color", "visible"):
                 self.expr_key(part, key)
             if "outline" in part:
                 self.outline(part)
-            if pattern and part.get("shape") == "text":
+            if pattern and part.get("type") == "text":
                 self.text(part)
 
 

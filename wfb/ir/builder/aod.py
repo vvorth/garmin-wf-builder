@@ -84,7 +84,7 @@ class AodPass(HandParts):
         for key in ("thickness", "bar_width"):
             if key in raw:
                 keys[key] = self.length(raw, key)
-        kind, shape = node.get("type"), node.get("shape")
+        kind, shape = kinds.kind_of(node), kinds.shape_of(node)
         if "filled" in raw:
             refusal = self.aod_refusal("filled", kind, shape, literal_text=False)
             if refusal is not None:

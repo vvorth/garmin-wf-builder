@@ -49,6 +49,28 @@ _NAMES: tuple[str, ...] = (
 )
 
 
+#: The `type:`s one kind, `shape`, draws.
+PRIMITIVES: tuple[str, ...] = ("rectangle", "circle", "line", "arc", "ellipse", "polygon")
+
+
+def kind_of(node: Mapping[str, Any]) -> Any:
+    """The kind that builds an element node: its `type:`, except that every
+    primitive (`type: rectangle`, `circle`, ...) is the `shape` kind's."""
+    written = node.get("type")
+    return "shape" if written in PRIMITIVES else written
+
+
+def shape_of(node: Mapping[str, Any]) -> str | None:
+    """A primitive's shape: its `type:`, with a `rectangle` that writes
+    `corner_radius:` told apart as `rounded_rectangle`; `None` for any
+    other kind."""
+    written = node.get("type")
+    if written not in PRIMITIVES:
+        return None
+    return "rounded_rectangle" if written == "rectangle" and "corner_radius" in node \
+        else str(written)
+
+
 # -- text runs ----------------------------------------------------------------
 
 

@@ -90,7 +90,7 @@ class ElementTree(StaticPass):
             return None
         common = dict(
             id=element_id,
-            kind=node["type"],
+            kind=kinds.kind_of(node),
             at=at,
             modes=("active", "low_power") if node.get("sleep_update") is True else ("active",),
             sleep_update=node.get("sleep_update"),
@@ -107,12 +107,12 @@ class ElementTree(StaticPass):
             unsupported=node.get("unsupported"),
         )
 
-        if node["type"] not in kinds.names():  # unreachable once the schema has run
+        if common["kind"] not in kinds.names():  # unreachable once the schema has run
             self.bag.error("element", f"unsupported element type {node['type']!r}", span)
             return None
         # A kind is written against the whole `Builder`, which this layer
         # only ever is a base of.
-        element = kinds.get(node["type"]).build(cast("Builder", self), node, common, path)
+        element = kinds.get(common["kind"]).build(cast("Builder", self), node, common, path)
         if element is not None and node.get("overrides"):
             if not self._build_overrides(node, element):
                 return None
@@ -319,7 +319,7 @@ class ElementTree(StaticPass):
         they fold case and separators independently; in practice they collide
         together, but there is no reason to assume that stays true forever.
         """
-        node_kind = node.get("type")
+        node_kind = kinds.kind_of(node)
         extra_symbols = kinds.get(node_kind).extra_symbols if node_kind in kinds.names() else ()
         candidates = [element_const_prefix(element_id), element_method_name(element_id)]
         candidates += [derive(element_id) for derive in extra_symbols]

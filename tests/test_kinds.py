@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from wfb import kinds, lower, validate, vocab
+from wfb import kinds, validate, vocab
 from wfb.ir import model as ir_model
 from wfb import layout
 
@@ -22,13 +22,13 @@ def _schema_element_types() -> tuple[str, ...]:
 
 
 def test_names_match_the_schema_and_validate():
-    """Every author type lowers to a registered kind, every kind is reached
+    """Every author type is built by a registered kind, every kind is reached
     from one, and a diagnostic names each kind by an author type."""
     schema_order = _schema_element_types()
     assert schema_order == validate.ELEMENT_TYPES
-    lowered = {name: "shape" for name in lower._PRIMITIVES}
-    lowered |= {"gauge": "progress", "data": "complication_slot"}
-    assert {lowered.get(name, name) for name in schema_order} == set(kinds.names())
+    lowered = {"gauge": "progress", "data": "complication_slot"}
+    built = {lowered.get(name, kinds.kind_of({"type": name})) for name in schema_order}
+    assert built == set(kinds.names())
     for name in kinds.names():
         if name != "shape":
             assert vocab.kind(name) in schema_order, name

@@ -18,7 +18,7 @@ from ..draw.program import (
 )
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc.common import McLiteral, AodStyle, article, const_prefix
-from . import ElementKind
+from . import ElementKind, shape_of
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
@@ -69,7 +69,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
     """
     b.check_foreign_keys(
         node, shape, SHAPE_GEOMETRY_KEYS, _ALL_SHAPE_GEOMETRY_KEYS,
-        code="element", disc="shape",
+        code="element", disc="type",
         extra_notes=lambda key: (
             [_SHAPE_NO_ALIGNMENT_REASON[shape]]
             if key == "align" and shape in _SHAPE_NO_ALIGNMENT_REASON
@@ -185,7 +185,8 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                 else super().ring_draws(element, face))
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
-        shape = node["shape"]
+        shape = shape_of(node)
+        assert shape is not None  # this kind builds the primitives only
         raw_points = node.get("points") or []
         align, vertical_align = b.alignment(node)
         element = Shape(

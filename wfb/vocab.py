@@ -13,7 +13,6 @@ from typing import Iterable
 
 #: Internal key -> the key a format 2 author writes.
 KEYS = {
-    "shape": "type",
     "format": "text",
     "color_scheme": "theme: schemes:",
 }
