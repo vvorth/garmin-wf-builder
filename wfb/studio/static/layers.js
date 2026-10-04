@@ -5,7 +5,7 @@
 // the server patches into the text, checks and records.
 
 import { html, useState } from "./vendor/preact-htm.module.js";
-import { PATH_TYPE, blocksOf, carriesPath, dropTarget, droppedPath, siblingsOf } from "./tree.js";
+import { PATH_TYPE, blocksOf, carriesPath, deleteOp, dropTarget, droppedPath, siblingsOf } from "./tree.js";
 
 const NEEDS = { graph: ["series", "series"], data: ["slot", "slots"], hands: ["set", "hand_sets"] };
 
@@ -109,7 +109,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
       <button title="Move up" onClick=${() => step(-1)}>↑</button>
       <button title="Move down" onClick=${() => step(1)}>↓</button>
       <button title="Duplicate (Ctrl+D)" onClick=${() => onStructure({ op: "duplicate", path: selectedNode.path })}>Duplicate</button>
-      <button class="danger" title="Delete (Del)" onClick=${() => onStructure({ op: "delete", path: selectedNode.path })}>Delete</button>
+      <button class="danger" title="Delete the selection (Del)" onClick=${() => onStructure(deleteOp(doc.tree, [selected, ...extra]))}>Delete${extra.length ? ` (${extra.length + 1})` : ""}</button>
       <button title="Group the selection (Ctrl/Cmd-click to select more)" onClick=${group}>Group${extra.length ? ` (${extra.length + 1})` : ""}</button>
       ${selectedNode.type === "group" ? html`<button onClick=${() => onStructure({ op: "ungroup", path: selectedNode.path })}>Ungroup</button>` : null}
       <select value="" onChange=${(e) => { if (e.target.value) onStructure({ op: "move", path: selectedNode.path, block: JSON.parse(e.target.value), before: null }); }}>

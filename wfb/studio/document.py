@@ -396,13 +396,14 @@ class Document:
         new group):
 
         - `{"op": "add", "type": t, "block": [...], "before": id, "choice": c}`;
-        - `{"op": "delete" | "duplicate" | "ungroup", "path": [...]}`;
+        - `{"op": "delete" | "duplicate" | "ungroup", "path": [...]}`, and a
+          delete of several, `{"op": "delete", "paths": [[...], ...]}`;
         - `{"op": "move", "path": [...], "block": [...], "before": id}`: within
           its own block a reorder, else into the other block;
         - `{"op": "group", "paths": [[...], ...]}`."""
         from ..edit import (
-            add, delete_element, duplicate_element, group, move_element, move_to_block,
-            ungroup,
+            add, delete_element, delete_elements, duplicate_element, group, move_element,
+            move_to_block, ungroup,
         )
 
         self._check(expected)
@@ -415,6 +416,11 @@ class Document:
             patch = add(index, str(op.get("type")), block, before, choice=op.get("choice"))
             select = next(iter(set(index_for(patch.text).element_ids())
                                - index.element_ids()), None)
+        elif kind == "delete" and op.get("paths") is not None:
+            paths = op["paths"]
+            if not isinstance(paths, list):
+                raise Refused("a delete of several is a list of paths")
+            patch = delete_elements(index, [_path(p) for p in paths])
         elif kind in ("delete", "duplicate", "ungroup"):
             path = _path(op.get("path"))
             patch = {"delete": delete_element, "duplicate": duplicate_element,

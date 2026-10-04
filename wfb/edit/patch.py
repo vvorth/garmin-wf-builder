@@ -562,6 +562,26 @@ def delete_element(index: SpanIndex, path: Path) -> Patch:
     return _ended_patch(index, _delete_element, path)
 
 
+def delete_elements(index: SpanIndex, paths: list[Path]) -> Patch:
+    """Delete several elements as one patch, each as `delete_element`
+    deletes one, in turn on the text the last left. An element inside
+    another being deleted goes with it rather than being deleted twice."""
+    unique = list(dict.fromkeys(tuple(p) for p in paths))
+    kept = [p for p in unique
+            if not any(len(q) < len(p) and p[:len(q)] == q for q in unique)]
+    if not kept:
+        raise Refused("there is nothing to delete")
+
+    def deleting(path: Path) -> Callable[[SpanIndex], Patch]:
+        return lambda i: delete_element(i, path)
+
+    patch = delete_element(index, kept[0])
+    for path in kept[1:]:
+        patch = chain(patch, deleting(path))
+    return Patch(patch.text, patch.expected,
+                 "delete " + ", ".join(str(p[-1]) for p in kept))
+
+
 def duplicate_element(index: SpanIndex, path: Path) -> Patch:
     """Copy an element right after itself, every element id inside the copy
     renamed with one fresh suffix. Leading comments are not copied."""

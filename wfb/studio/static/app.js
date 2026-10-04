@@ -46,6 +46,7 @@ function Splitter({ width, sign, fallback, onWidth }) {
 }
 import { FacePanel, Inspector } from "./panels.js";
 import { picksParam, typeLabel } from "./values.js";
+import { deleteOp } from "./tree.js";
 
 // -- the server --------------------------------------------------------------------
 
@@ -503,12 +504,14 @@ function Editor({ docId, onError, onNotice }) {
       if (nudge(step[0] * n, step[1] * n)) e.preventDefault();
     };
     addEventListener("keydown", onArrow);
-    // Delete: no modifier, and not while typing
+    // Delete: the whole selection, as one change; no modifier, and not
+    // while typing
     const onDelete = (e) => {
       if ((e.key === "Delete" || e.key === "Backspace") && !e.ctrlKey && !e.metaKey && element &&
           !e.target.closest("input, textarea, select, .cm-editor")) {
         e.preventDefault();
-        structure({ op: "delete", path: element.path });
+        const op = deleteOp(doc.tree, [selected, ...extra]);
+        if (op) structure(op);
       }
     };
     addEventListener("keydown", onDelete);
@@ -516,7 +519,7 @@ function Editor({ docId, onError, onNotice }) {
       removeEventListener("keydown", onKey); removeEventListener("keydown", onArrow);
       removeEventListener("keydown", onDelete);
     };
-  }, [step, structure, element, nudge, pane]);
+  }, [step, structure, element, nudge, pane, doc, selected, extra]);
 
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.

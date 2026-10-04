@@ -504,3 +504,23 @@ def test_only_a_layer_rows_own_drag_reads_as_a_path():
     """)
     assert result == {"path": ["elements", "clock"], "notJson": None, "empty": None,
                       "object": None, "none": None, "mixed": None, "ours": True, "file": False}
+
+
+def test_delete_acts_on_the_whole_selection():
+    result = run("""
+      const tree = [{kind: "block", path: ["elements"], children: [
+        {id: "a", type: "text", path: ["elements", "a"], children: []},
+        {id: "g", type: "group", path: ["elements", "g"], children: [
+          {id: "b", type: "text", path: ["elements", "g", "children", "b"], children: []}]}]}];
+      console.log(JSON.stringify({
+        one: treeMod.deleteOp(tree, ["a"]),
+        several: treeMod.deleteOp(tree, ["b", "a"]),
+        none: treeMod.deleteOp(tree, ["zz"]),
+      }));
+    """)
+    assert result == {
+        "one": {"op": "delete", "path": ["elements", "a"]},
+        "several": {"op": "delete", "paths": [["elements", "a"],
+                                              ["elements", "g", "children", "b"]]},
+        "none": None,
+    }

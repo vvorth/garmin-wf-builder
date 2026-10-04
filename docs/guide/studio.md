@@ -218,7 +218,8 @@ go.
   end of `elements`). A graph asks for its series, a data element for its
   slot and hands for their set (both declared in the Face tab).
 - With an element selected: **↑ ↓** reorder it, **Duplicate** (Ctrl+D),
-  **Delete** (Del), **move to…** any block or group.
+  **Delete** (Del), **move to…** any block or group. Delete, like the
+  arrow keys, acts on everything selected, as one change.
 - Drag a row onto another to put it before (upper half) or after (lower
   half) it; onto a group's middle to put it inside; onto a block's name to
   put it at the end.

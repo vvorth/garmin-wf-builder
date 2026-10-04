@@ -55,3 +55,11 @@ export function droppedPath(raw) {
   const step = (s) => typeof s === "string" || Number.isInteger(s);
   return Array.isArray(path) && path.length && path.every(step) ? path : null;
 }
+
+// The structural edit that deletes the elements `ids` name: one path, or
+// all of them as one change.
+export function deleteOp(tree, ids) {
+  const paths = blocksOf(tree).nodes.filter((n) => ids.includes(n.id)).map((n) => n.path);
+  if (!paths.length) return null;
+  return paths.length === 1 ? { op: "delete", path: paths[0] } : { op: "delete", paths };
+}

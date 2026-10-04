@@ -29,7 +29,8 @@ There is no server here: text in, text out.
 from .gate import Gate, Loaded, load_text
 from .geometry import Converted, View, move, resize, target, turn
 from .patch import (
-    Patch, add_element, chain, delete_element, duplicate_element, move_element, remove,
+    Patch, add_element, chain, delete_element, delete_elements, duplicate_element, move_element,
+    remove,
     remove_slot, rename_key, rename_reference, rename_slot, rewrite_scalars, set_value,
 )
 from .spans import Entry, Refused, SpanIndex, parse
@@ -37,7 +38,7 @@ from .structure import add, element_types, group, move_to_block, ungroup
 
 __all__ = [
     "Converted", "Entry", "Gate", "Loaded", "Patch", "Refused", "SpanIndex", "View",
-    "add_element", "chain", "delete_element", "duplicate_element", "load_text", "move",
+    "add_element", "chain", "delete_element", "delete_elements", "duplicate_element", "load_text", "move",
     "move_element", "parse", "remove", "remove_slot", "rename_key", "rename_reference", "rename_slot",
     "resize",
     "rewrite_scalars", "set_value", "target", "turn",

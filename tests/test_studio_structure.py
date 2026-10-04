@@ -160,3 +160,25 @@ def test_structure_over_http(tmp_path, studio):
     words = client.get("/api/vocabulary").json()
     assert "graph" in words["types"] and "steps" in words["series"]
     assert "hand_sets" in r.json()["globals"] and "slots" in r.json()["globals"]
+
+
+def test_a_selection_of_several_is_deleted_as_one_change(studio):
+    """Del acts on everything selected, as the arrow keys do: one change,
+    one undo. An element whose group is deleted too goes with the group."""
+    doc = new(studio)
+    original, version = doc.text, doc.version
+    doc.structure({"op": "group", "paths": [["elements", "clock"]]}, doc.version)
+    grouped = doc.version
+    doc.structure({"op": "delete", "paths": [["elements", "group", "children", "clock"],
+                                             ["elements", "group"],
+                                             ["elements", "seconds"],
+                                             ["static", "background"]]}, doc.version)
+    assert doc.version == grouped + 1
+    data = SpanIndex(doc.text).data
+    assert "static" not in data and not data.get("elements")
+    assert doc.history()["states"][0]["label"] == "delete group, seconds, background"
+    doc.undo(doc.version)
+    doc.undo(doc.version)
+    assert doc.text == original and doc.version > version
+    with pytest.raises(Refused, match="list of paths"):
+        doc.structure({"op": "delete", "paths": "clock"}, doc.version)
