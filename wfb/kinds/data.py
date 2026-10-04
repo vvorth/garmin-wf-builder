@@ -85,23 +85,16 @@ DATA_SAMPLE: dict[str, object] = {
 
 
 def resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDataSlot | None:
-    """Resolve a `slot: config.data.<name>` reference -- a `data` element's
-    or a gauge's.
+    """Resolve a `slot: <name>` reference -- a `data` element's or a
+    gauge's -- against `config: slots:`.
 
     The same declared/rejected cascade every other `config:` sub-block
     keeps: a name that was declared and then rejected (a bad default/
     choice reference, or a default not among choices) gets no second
     error here, because the real mistake already has its own error
-    reported against the `config: data:` block.
+    reported against the `config: slots:` block.
     """
-    if not raw.startswith("config.data."):
-        b.bag.error(
-            "complication-slot",
-            f"slot: expected the name of a 'config: slots:' entry, got {raw!r}",
-            span,
-        )
-        return None
-    name = raw[len("config.data."):]
+    name = raw
     return b.config_data.resolve(
         b.bag, name, span, code="complication-slot",
         message=f"unknown slot {name!r}",

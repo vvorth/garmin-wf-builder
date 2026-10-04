@@ -47,7 +47,7 @@ class ConfigAxes(TopLevelBlocks):
         has_layouts = bool(self.layouts)
 
         for name, item in raw_choices.items():
-            if "layout" in item or "colors" in item:
+            if "layout" in item or "scheme" in item:
                 continue
             self.bag.error(
                 "config",
@@ -84,9 +84,9 @@ class ConfigAxes(TopLevelBlocks):
                 return
 
         baseline_name = next(iter(raw_choices))
-        baseline_has_colors = "colors" in raw_choices[baseline_name]
+        baseline_has_colors = "scheme" in raw_choices[baseline_name]
         for name, item in raw_choices.items():
-            has_colors = "colors" in item
+            has_colors = "scheme" in item
             if has_colors == baseline_has_colors:
                 continue
             item_span = self.doc.span(raw_choices, name)
@@ -109,9 +109,9 @@ class ConfigAxes(TopLevelBlocks):
             item_span = self.doc.span(raw_choices, name)
             entry_ok = True
             colors_name: str | None = None
-            if "colors" in item:
-                color_span = self.doc.span(item, "colors") or item_span
-                colors_name = self._scheme_reference(item["colors"], color_span)
+            if "scheme" in item:
+                color_span = self.doc.span(item, "scheme") or item_span
+                colors_name = self._scheme_reference(item["scheme"], color_span)
                 if colors_name is None:
                     entry_ok = False
             layout_name: str | None = None
@@ -185,16 +185,16 @@ class ConfigAxes(TopLevelBlocks):
         return notes
 
     def _complication_reference(self, raw: object, what: str, span: Span | None) -> str | None:
-        """Resolve a `complication.<name>` reference used from `config: data:`'s
+        """Resolve a complication type's name used from `config: slots:`'s
         own `default:`/`choices:`, against :mod:`wfb.complications` -- the same
         table `on_hold:` and `catalog`'s `complication.*` sources already
         resolve against, not a second one (docs/research/09 §4).
         """
-        if not (isinstance(raw, str) and raw.startswith("complication.")):
+        if not isinstance(raw, str):
             self.bag.error("config", f"{what}: expected a complication type's name, "
                                      f"got {raw!r}", span)
             return None
-        name = raw[len("complication."):]
+        name = raw
         if complications.get(name) is not None:
             return name
         notes = self._complication_suggestion_notes(name, "types")
@@ -311,7 +311,7 @@ class ConfigAxes(TopLevelBlocks):
             if name == "style":
                 self._build_config_style(spec, span)
                 continue
-            if name == "data":
+            if name == "slots":
                 self._build_config_data(spec, span)
                 continue
             default_span = self.doc.span(spec, "default")

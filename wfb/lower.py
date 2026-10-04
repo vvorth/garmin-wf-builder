@@ -318,31 +318,6 @@ class _Lowering:
                 for index, choice in enumerate(choices):
                     if isinstance(choice, str):
                         self.swatch(choices, index, f"config.{axis}.choices")
-        style = config.get("style")
-        if isinstance(style, CommentedMap) and isinstance(style.get("choices"), CommentedMap):
-            for entry in style["choices"].values():
-                if isinstance(entry, CommentedMap) and "scheme" in entry:
-                    self.rekey(entry, "scheme", "colors", author="scheme")
-        if "slots" in config:
-            self.rekey(config, "slots", "data", author="slots")
-            slots = config["data"]
-            if isinstance(slots, CommentedMap):
-                for slot in slots.values():
-                    if isinstance(slot, CommentedMap):
-                        self.slot(slot)
-
-    def slot(self, slot: CommentedMap) -> None:
-        if isinstance(slot.get("default"), str):
-            slot["default"] = f"complication.{slot['default']}"
-        choices = slot.get("choices")
-        if not isinstance(choices, CommentedSeq):
-            return
-        for index, choice in enumerate(choices):
-            if isinstance(choice, str):
-                choices[index] = f"complication.{choice}"
-            elif isinstance(choice, CommentedMap):
-                if isinstance(choice.get("type"), str):
-                    choice["type"] = f"complication.{choice['type']}"
 
     # -- elements ------------------------------------------------------------
 
@@ -355,9 +330,6 @@ class _Lowering:
         if kind == "text":
             self.text(node, several=True)
         elif kind == "gauge":
-            if isinstance(node.get("slot"), str):
-                node["slot"] = f"config.data.{node['slot']}"
-                self.doc.set_origin(node, "slot", Origin("slot"))
             self.expr_key(node, "value")
             self.expr_key(node, "max")
             bands = node.get("bands")
@@ -543,9 +515,6 @@ class _Lowering:
             self.expr_key(icon, "for", author="icon.for")
 
     def data(self, node: CommentedMap) -> None:
-        if isinstance(node.get("slot"), str):
-            node["slot"] = f"config.data.{node['slot']}"
-            self.doc.set_origin(node, "slot", Origin("slot"))
         icon = node.get("icon")
         if isinstance(icon, CommentedMap):
             self.expr_key(icon, "color", author="icon.color")
