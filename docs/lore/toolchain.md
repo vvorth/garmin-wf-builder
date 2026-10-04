@@ -131,7 +131,7 @@ glitch.
     byte-identical output. A collision it cannot rewrite (for example two
     static `icon:` elements, whose glyphs are literals in the view) is a
     `string-label` build error naming both strings, instead of a monkeyc
-    crash. `choices: any` + `icon_size:` (all 42 types) builds warning-free
+    crash. `choices: any` + `icon: {size:}` (all 42 types) builds warning-free
     on all three targets this way. **Unverified on a device:** that
     `toChar` on a supplementary-plane codepoint draws the right glyph (no
     simulator, no watch).
