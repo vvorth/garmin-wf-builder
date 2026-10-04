@@ -10,6 +10,7 @@ from ...layout import (
     HIDDEN_BY_SUBSCREEN, Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedGauge,
     PlacedShape, ResolvedFace, ResolvedHandPart,
 )
+from ...mcsource import comment_text
 from ...units import IntBox
 from .common import (
     EditorSlot, McLiteral, SourceFile, _NO_GUARDS, _describe, _mc_number, _mc_type,
@@ -33,7 +34,7 @@ def _emit_constants(w: Writer, constants: Constants) -> None:
     of the same `(name, value, note)` shape.
     """
     for name, value, note in constants:
-        suffix = f"  // {note}" if note else ""
+        suffix = f"  // {comment_text(note)}" if note else ""
         w.line(f"const {name} as {_mc_type(value)} = {_mc_number(value)};{suffix}")
 
 

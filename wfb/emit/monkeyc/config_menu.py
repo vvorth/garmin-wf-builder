@@ -25,6 +25,7 @@ from ... import complications
 from ...devices import Device, version_key
 from ...ir import ConfigDataSlot, Face, config_field
 from ...ir.naming import _pascal
+from ...mcsource import comment_text
 from ...palette import Color
 from ..writer import Writer
 from .common import SourceFile, _mc_string, header
@@ -201,7 +202,7 @@ def emit_view_methods(w: Writer, face: Face, entry: str, *, repaint: str | None,
                 assert axis.labels is not None
                 for index, color in enumerate(axis.colors):
                     with w.block(f"if ({axis.index_field} == {index})"):
-                        w.line(f"{field} = {color.as_monkeyc()};  // {axis.labels[index]}")
+                        w.line(f"{field} = {color.as_monkeyc()};  // {comment_text(axis.labels[index])}")
             else:
                 slot = face.config_data[axis.name]
                 # One local per slot: without the `has` block around it, a

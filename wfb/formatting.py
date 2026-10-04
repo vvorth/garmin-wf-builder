@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
 
 from .catalog import Source, Type
+from .mcsource import string_literal
 
 _FIELD_RE = re.compile(r"\{(?:(?P<unit>unit)|:(?P<spec>[^}]*))?\}")
 _NUMERIC_SPEC_RE = re.compile(r"^(?P<zero>0)?(?P<width>\d+)?(?:\.(?P<precision>\d+))?(?P<kind>[dfs])$")
@@ -496,8 +497,7 @@ def extra_paths(spec: str, value_type: Type) -> tuple[str, ...]:
 
 
 def _quote(text: str) -> str:
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return string_literal(text)
 
 
 # --------------------------------------------------------------------------

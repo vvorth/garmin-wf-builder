@@ -9,7 +9,9 @@ cannot express:
 * every ``text:`` template: it parses, a ternary inside a placeholder is
   parenthesised, ``{unit}`` has a reading to label, several placeholders
   only where several are drawn, and an ``aod: {text:}`` restyle reads the
-  element's own expression.
+  element's own expression;
+* every drawn text (a template, an ``absent:`` placeholder) is one line: no
+  line break, tab or other control character.
 
 It changes one thing: a compass alias (``align: NE``, ``anchor: SW``) is
 spelled out.  And it records, for a nested key the builder compiles
@@ -27,6 +29,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from .diagnostics import Bag, Span
 from .expr import ExprError, tokenize
+from .mcsource import control_character
 from .template import (
     Placeholder, TemplateError, Template, Unit, aod_format, parse_template, segments,
     strip_template_parens, to_value_format,
@@ -336,6 +339,8 @@ class _Lowering:
     def template(self, node: CommentedMap, key: str, *, aod: bool = False,
                  several: bool = False) -> Template | None:
         raw = node[key]
+        if not self.one_line(node, key):
+            return None
         try:
             template = parse_template(raw)
         except TemplateError as exc:
@@ -388,8 +393,24 @@ class _Lowering:
         if isinstance(icon, CommentedMap):
             self.expr_key(icon, "color", author="icon.color")
 
+    def one_line(self, node: CommentedMap, key: str, *, author: str | None = None) -> bool:
+        """Whether the drawn text at ``key`` holds no control character:
+        a text is measured and drawn as one line."""
+        raw = node.get(key)
+        bad = control_character(raw) if isinstance(raw, str) else None
+        if bad is None:
+            return True
+        self.error("format",
+                   f"{author or key}: a text is drawn on one line, so it cannot hold a "
+                   f"line break or a tab (found '{bad}')",
+                   self.span(node, key),
+                   "draw each line as its own element")
+        return False
+
     def absent(self, node: CommentedMap) -> None:
         value = node.get("absent")
+        if isinstance(value, str):
+            self.one_line(node, "absent")
         if isinstance(value, CommentedMap):
             self.expr_key(value, "value", author="absent.value")
 

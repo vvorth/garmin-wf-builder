@@ -441,7 +441,7 @@ def _lower_text_part(element: PatternElement, part: ResolvedTextPart, part_prefi
     assert ir_part.shape == "text"  # resolved parts are the IR parts, 1:1
     printed: Str
     if ir_part.text_literal is not None:
-        printed = StrLit(ir_part.text_literal.replace("\\", "\\\\").replace('"', '\\"'))
+        printed = StrLit(ir_part.text_literal)
     else:
         assert ir_part.text_value is not None  # `text:` or `value:`, never neither
         printed = Reading(ir_part.format or "{}", ir_part.text_value)

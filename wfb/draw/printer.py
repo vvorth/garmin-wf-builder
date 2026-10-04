@@ -15,6 +15,7 @@ from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, glyph_y_expr, mc_color, mc_float, plus
 from ..emit.writer import Writer
 from ..ir import local_name
+from ..mcsource import string_literal
 from .program import (
     AodDimmed, AodPaint, AodPart, AodPick, AodRestyled, AodStr, ArcProgress, ArcSpan, Assign, Bin,
     AnyOf, Blank, Call, Cmp, Color, Comment, Concat, Cond, Const, Continue, Conv,
@@ -85,7 +86,7 @@ def str_code(s: Str, aod: AodStyle = NO_AOD) -> str:
     if isinstance(s, AodStr):
         return aod.value(str_code(s.asleep, aod), str_code(s.awake, aod))
     if isinstance(s, StrLit):
-        return f'"{s.text}"'
+        return string_literal(s.text)
     if isinstance(s, Reading):
         return formatting.emit(s.spec, s.value.code, s.value.value.type,
                                unit_code=s.unit.code if s.unit is not None else None)

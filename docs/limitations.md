@@ -783,6 +783,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `arc` hand parts | would need the start angle to rotate with the hand too |
 | Data-driven hand colours | a hand has no `absent:` to fall back through if the bound reading were absent |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | not built |
+| Text on more than one line | a line break, tab or other control character in drawn text (`text:`, an `absent:` placeholder, a pattern's text part) is a build error on its line: a text is measured and previewed as one line. Each line is its own element |
 | A pattern `text` part whose placeholder reads data (a data source or a colour) | every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `absent:`. Text parts reading only `copy` are built |
 | Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | a longer or differently-shaped copy is a second pattern element today |
 | `on_hold:` and `sleep_update: true` on a `pattern` | hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |

@@ -97,6 +97,9 @@ clock:
 | `"{heart_rate.current:d} bpm / {activity.steps:d}"` | two readings in one string |
 | `"{{x}}"` | the literal `{x}`: a brace is written twice |
 
+A text is one line: a line break or a tab in `text:` is an error on that
+line, so draw each line as its own element.
+
 The placeholder is an **expression** over data sources (the language is in
 [Data binding](data.md)), then optionally `:` and a **format spec**, exactly
 the specs [Formats](data.md#formats) lists. The expression ends at the first

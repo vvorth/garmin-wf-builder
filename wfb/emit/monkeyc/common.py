@@ -12,6 +12,7 @@ from ...availability import Guards
 from ...ir import DataElement, Element, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name, slot_of
 from ...layout import Placed, PlacedText, ResolvedFace
+from ...mcsource import string_literal
 from ...palette import Color
 
 
@@ -518,17 +519,8 @@ def _mc_type(value: float | str | bool | McLiteral) -> str:
 
 
 def _mc_string(value: str) -> str:
-    """A double-quoted Monkey C string literal for `value`.
-
-    Every string this project ever emits into a `Layout` constant is a
-    device-published face *name* (`Device.scalable_faces`, straight out of
-    a device's own `simulator.json`) or the empty string (an unavailable
-    font -- never drawn, since the null check at the call site
-    always gates it) -- neither can contain a `"` or a control character in
-    practice, but the two characters that would break the literal if they
-    somehow did are still escaped rather than assumed absent.
-    """
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """A double-quoted Monkey C string literal for `value`."""
+    return string_literal(value)
 
 
 def _mc_number(value: float | str | bool | McLiteral) -> str:

@@ -24,6 +24,7 @@ from typing import Any, Callable, Iterator, TypeGuard
 from . import catalog
 from .catalog import Type
 from .diagnostics import did_you_mean
+from .mcsource import string_literal
 
 # --------------------------------------------------------------------------
 # tokens
@@ -836,8 +837,7 @@ def _emit_literal(node: Literal) -> str:
     if node.type is Type.BOOLEAN:
         return "true" if node.value else "false"
     if node.type is Type.STRING:
-        escaped = str(node.value).replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
+        return string_literal(str(node.value))
     if node.type is Type.COLOR:
         return f"0x{int(as_number(node.value)):06X}"
     if node.type is Type.FLOAT:
