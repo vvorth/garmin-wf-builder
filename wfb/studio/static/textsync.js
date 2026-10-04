@@ -1,33 +1,42 @@
 // The YAML tab's text on its way to the server: pure functions, no DOM, so
 // Node can check them (tests/test_studio_frontend.py).
 //
-// The pane's state is `{acked, base, conflict}`: `acked` is the text the
-// server holds at version `base`, which is what the pane's text was typed
-// over. A send is made against `base`, never against a newer version the
+// The pane's state is `{acked, base, conflict, held}`: `acked` is the
+// text the server holds at version `base`, which is what the pane's text
+// was typed over; `held` is a text the server did not take (not YAML, or
+// the request failed), not sent again until the author changes it. A send is made against `base`, never against a newer version the
 // editor heard of meanwhile, so a change made elsewhere while the author
 // was typing (the inspector, another tab) is refused by the server rather
 // than overwritten. `conflict` is set by that refusal and holds the pane
 // until the author chooses (`resolve`).
 
 export function initial(doc) {
-  return { acked: doc.text, base: doc.version, conflict: false };
+  return { acked: doc.text, base: doc.version, conflict: false, held: null };
 }
 
 // What to do with `buffer`, the pane's text: `{kind: "idle"}` when the
 // server has it, `{kind: "wait"}` while a conflict waits for the author,
-// or `{kind: "send", text, version}`.
+// `{kind: "held"}` when the server did not take this very text, or
+// `{kind: "send", text, version}`.
 export function plan(state, buffer) {
   if (state.conflict) return { kind: "wait" };
   if (buffer === state.acked) return { kind: "idle" };
+  if (buffer === state.held) return { kind: "held" };
   return { kind: "send", text: buffer, version: state.base };
 }
 
 // The state after a send of `text` was answered: `status` and, when the
-// server recorded it, the face's new `version`.
+// server recorded it, the face's new `version`. Any other refusal holds
+// the text.
 export function answered(state, text, status, version = null) {
-  if (status >= 200 && status < 300) return { ...state, acked: text, base: version };
+  if (status >= 200 && status < 300) return { ...state, acked: text, base: version, held: null };
   if (status === 409) return { ...state, conflict: true };
-  return state;
+  return { ...state, held: text };
+}
+
+// The state after a send of `text` failed on its way (no answer).
+export function failed(state, text) {
+  return { ...state, held: text };
 }
 
 // The face as the server now has it (`doc`), the pane holding `buffer`. A
@@ -46,6 +55,6 @@ export function follow(state, doc, buffer) {
 // "mine" keeps the pane's text, to be sent against `doc`'s version (so it
 // replaces the other change, knowingly); "theirs" shows `doc`'s text.
 export function resolve(state, doc, choice) {
-  const settled = { ...state, conflict: false, acked: doc.text, base: doc.version };
+  const settled = { ...state, conflict: false, acked: doc.text, base: doc.version, held: null };
   return { state: settled, replace: choice === "theirs" ? doc.text : null };
 }

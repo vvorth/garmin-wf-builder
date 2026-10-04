@@ -470,3 +470,22 @@ def test_the_yaml_tab_sends_against_the_version_its_text_was_typed_over():
     assert result["saved"] == [True, 3, "idle"]
     assert result["followed"] == ["a: 2\n", 2]
     assert result["late"] == [None, 2]
+
+
+def test_the_yaml_tab_holds_text_the_server_did_not_take():
+    """Text that is not YAML, or whose send failed, is not sent again until
+    the author changes it: the pane does not poll the server with it."""
+    result = run("""
+      let s = textsync.initial({version: 1, text: "a: 1\\n"});
+      const broken = "a: [";
+      const first = textsync.plan(s, broken).kind;
+      s = textsync.answered(s, broken, 400);
+      const again = textsync.plan(s, broken).kind;
+      const typedOn = textsync.plan(s, "a: [1").kind;
+      s = textsync.failed(s, "a: [1]");
+      const afterFailure = textsync.plan(s, "a: [1]").kind;
+      s = textsync.answered(s, "a: [1]\\n", 200, 2);
+      console.log(JSON.stringify({first, again, typedOn, afterFailure, held: s.held}));
+    """)
+    assert result == {"first": "send", "again": "held", "typedOn": "send",
+                      "afterFailure": "held", "held": None}

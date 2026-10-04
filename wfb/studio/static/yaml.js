@@ -78,11 +78,13 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     const step = sync.plan(s.sync, v.state.doc.toString());
     if (step.kind !== "send") { if (step.kind === "idle") setStatus(""); return; }
     s.sending = true;
+    let answered = false;
     try {
       const response = await fetch(`/api/documents/${s.doc.id}/text?version=${step.version}`,
                                    { method: "POST", body: step.text });
       const body = await response.json();
       s.sync = sync.answered(s.sync, step.text, response.status, body.version);
+      answered = true;
       if (response.ok) {
         setStatus("");
         onDoc(body);
@@ -95,7 +97,10 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         // not YAML yet: keep typing; nothing was recorded
         setStatus(body.error || `${response.status}`);
       }
-    } catch (e) { onError(e); } finally {
+    } catch (e) {
+      if (!answered) s.sync = sync.failed(s.sync, step.text);
+      onError(e);
+    } finally {
       s.sending = false;
       if (view.current && sync.plan(s.sync, view.current.state.doc.toString()).kind === "send"
           && !s.timer) {
