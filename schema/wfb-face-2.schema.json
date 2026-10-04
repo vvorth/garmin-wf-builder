@@ -12,7 +12,7 @@
   "additionalProperties": false,
   "properties": {
     "format": {
-      "description": "Format major version. The compiler refuses a version it does not understand rather than parsing it partially (ADR 0009); a format 1 file is rewritten once with 'wfb migrate'.",
+      "description": "Format major version. The compiler refuses a version it does not understand rather than parsing it partially (ADR 0009); format 1 is no longer read.",
       "const": 2
     },
     "face": {

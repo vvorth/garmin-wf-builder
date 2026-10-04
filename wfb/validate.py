@@ -62,9 +62,8 @@ def check_format_version(doc: YamlDocument, bag: Bag) -> bool:
             "format-version",
             "this file is format 1, which this compiler no longer reads",
             doc.span(doc.data, "format"),
-            notes=[f"run 'wfb migrate --in-place {doc.path}' to rewrite it as format 2, "
-                   "once -- comments, key order and quoting survive",
-                   "every rename is listed in docs/guide/format-2-migration.md"],
+            notes=["change it to 'format: 2': each format 1 key is then reported "
+                   "with its format 2 replacement, to rewrite by hand"],
         )
         return False
     if declared not in SUPPORTED_FORMATS:
@@ -890,8 +889,7 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
             )
         for key in _unexpected_keys(error):
             if key in FORMAT_1_KEYS:
-                notes.append(f"'{key}:' is format 1; format 2 writes {FORMAT_1_KEYS[key]} "
-                             "-- 'wfb migrate' rewrites a whole file")
+                notes.append(f"'{key}:' is format 1; format 2 writes {FORMAT_1_KEYS[key]}")
         notes.append(
             "unknown keys are an error, not a warning -- a misspelled key is how a "
             "design silently loses an element (ADR 0009)"

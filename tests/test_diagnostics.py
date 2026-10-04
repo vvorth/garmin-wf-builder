@@ -25,6 +25,15 @@ def test_unknown_format_version_is_refused_outright(write_design, bag, minimal):
     assert any(d.code == "format-version" for d in bag.errors)
 
 
+def test_format_1_says_how_to_move_on(write_design, bag, minimal):
+    """`format: 1` is refused, and the note names what to declare instead:
+    the format 1 keys are then each reported with their replacement."""
+    load(write_design(minimal.replace("format: 2", "format: 1")), bag)
+    [found] = [d for d in bag.errors if d.code == "format-version"]
+    assert "format 1" in found.message
+    assert "'format: 2'" in found.notes[0] and "migrate" not in found.notes[0]
+
+
 def test_missing_format_key_is_reported(write_design, bag, minimal):
     load(write_design(minimal.replace("""format: 2
 """, "")), bag)

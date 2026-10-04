@@ -143,8 +143,7 @@ class _Lowering:
             v1 = _format_1_ref(token.text)
             if v1 is not None:
                 self.error("color", f"{token.text!r} is format 1's spelling of a colour",
-                           self.span(node, key), f"format 2 writes {v1!r}",
-                           "'wfb migrate' rewrites a whole file")
+                           self.span(node, key), f"format 2 writes {v1!r}")
                 ok = False
                 continue
             if not token.text.startswith("color."):

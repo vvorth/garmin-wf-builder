@@ -2,8 +2,7 @@
 
 The normative definition is [`schema/wfb-face-2.schema.json`](../../schema/wfb-face-2.schema.json).
 This page explains the parts the schema cannot: *why* a key exists, and what the
-platform does with it. A face written in format 1 is moved to format 2 with
-one command, `wfb migrate` ([Moving a face to format 2](format-2-migration.md)).
+platform does with it.
 
 ## At a glance
 

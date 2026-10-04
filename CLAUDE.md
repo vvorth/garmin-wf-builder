@@ -232,9 +232,9 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
   settings never reach a sideload; no `.SET` writer.
 - **Format 2 (2026-09-28):** one designed revision of the YAML
   format (one `color.` namespace, author-shaped names, one spelling per
-  idea, a grouped top level). `wfb migrate` rewrites a format 1 file once;
-  the compiler reads format 2 only (ADR 0009 amendment). New features are
-  written in format 2 vocabulary.
+  idea, a grouped top level). The compiler reads format 2 only (ADR 0009
+  amendments); `wfb migrate`, which rewrote a format 1 file once, was
+  removed on 2026-10-04. New features are written in format 2 vocabulary.
 - **Repo:** a sibling directory; the Dashboard face repo is left untouched.
   `forums.garmin.com` and `developer.android.com` are allowlisted.
 
@@ -252,15 +252,14 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 - `vertical_align: baseline` (renamed `bottom`);
 - `modes: [always_on]` (replaced by `aod:` — a schema error names the
   replacement);
-- **format 1**, migrated by `wfb migrate`: `format: 1` is an error naming
-  it, and a format 1 key in a format 2 file is a schema error naming the
-  replacement. Gone with it: the list form (`- id:`), top-level
+- **format 1** and `wfb migrate`: `format: 1` is an error, and a format 1
+  key in a format 2 file is a schema error naming its replacement. Gone
+  with it: the list form (`- id:`), top-level
   `targets:`/`fonts:`/`palette:`/`hands:`, `color_scheme:`,
   `palette.x`/`config.colors.x`, `type: shape`/`progress`/
   `complication_slot`, `rounded_rectangle`, `value:`+`format:` on text,
   `when_absent:`, `vertical_align:`, `if_unavailable:`, `modes:`,
-  `static: true`, `glyph:`/`icon_for:`/`icon_*`. The table is
-  `docs/guide/format-2-migration.md`.
+  `static: true`, `glyph:`/`icon_for:`/`icon_*`.
 
 Everything else about the current state is a file away:
 `docs/limitations.md` §2 is the **authoritative** list of what is not

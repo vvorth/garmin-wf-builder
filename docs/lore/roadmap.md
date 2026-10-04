@@ -12,10 +12,9 @@ Verified means a warning-free real `monkeyc` build on the three
 verification devices plus `wfb preview`. Nothing config-, hands-, pattern-
 or AOD-related has been observed on a watch or in the simulator.
 
-- **Format 2** (plan 22) — the only format the compiler reads; `wfb
-  migrate` rewrites a format 1 file once, keeping its comments. Lowered
-  into the internal shape by `wfb/lower.py`, so output is unchanged.
-  `docs/guide/format-2-migration.md`.
+- **Format 2** — the only format the compiler reads, and the builder reads
+  its keys as written; `wfb/lower.py` checks what the schema cannot.
+  `docs/guide/design-file.md`.
 - **Every element type** — `group`, `text`, `icon`, `data`, the six
   primitives (`rectangle`, `circle`, `ellipse`, `arc`, `polygon`, `line`),
   `gauge`, `graph`, `hands`, `pattern` (`radial`, `linear`, `grid`); nine
@@ -162,8 +161,8 @@ or AOD-related has been observed on a watch or in the simulator.
 - `vertical_align: baseline`, renamed `bottom`.
 - `modes: [always_on]`. Use `aod:` (plan 14 D3) -- the schema error names
   the replacement.
-- **Format 1** (plan 22): `format: 1` is an error naming `wfb migrate`,
-  which rewrites the file once. Every format 1 key is gone with it, among
+- **Format 1** and `wfb migrate` (removed 2026-10-04): `format: 1` is an
+  error. Every format 1 key is gone with it, among
   them the list form of `elements:` (`- id:`), `targets:`/`fonts:`/
   `palette:`/`hands:` at the top level, `color_scheme:`, `palette.x`/
   `config.colors.x` references, `type: shape`/`progress`/
@@ -171,8 +170,7 @@ or AOD-related has been observed on a watch or in the simulator.
   `when_absent:`/`placeholder:`/`fallback:`, `vertical_align:`,
   `if_unavailable:`, `modes:`, the `static: true` flag, `glyph:`/
   `icon_for:` and the `icon_*` keys; a format 1 key in a format 2 file is
-  a schema error naming its replacement. The table is
-  `docs/guide/format-2-migration.md`.
+  a schema error naming its replacement.
 
 ## Not implemented
 

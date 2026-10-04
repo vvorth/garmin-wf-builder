@@ -129,3 +129,15 @@ the devices and the `.prg`s; `wfb doctor` reports a mismatch. The
 themselves (`compiler.json`, `simulator.json`) carry no SDK version.
 Catalogue regeneration and its CI drift check stay unbuilt (ADR 0005 §1).
 
+
+## Amendment (2026-10-04): `wfb migrate` removed
+
+The user decided to remove `wfb migrate` and its guide chapter once no
+format 1 face was left to move: every example and fixture is format 2. The
+compiler still reads format 2 only. `format: 1` is an error telling the
+author to declare `format: 2`, after which each format 1 key is a schema
+error naming its replacement (`wfb/validate.py`, `FORMAT_1_KEYS`), to
+rewrite by hand. The migrator is in git history up to the commit that
+removed it. At the same time the builder stopped reading an internal,
+format 1-shaped document: it reads format 2's keys as written, and
+`wfb/lower.py` only checks what the schema cannot.

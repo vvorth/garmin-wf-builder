@@ -46,7 +46,8 @@ Three Phase 0 findings drive most of what follows:
   format -- one `color.` namespace, author-shaped names, one spelling per
   idea, a grouped top level -- migrated once by `wfb migrate` rather than
   deprecated over a major (0009, and the 2026-09-29 amendments to 0004,
-  0005 and 0006).
+  0005 and 0006). `wfb migrate` itself was removed on 2026-10-04 (0009
+  amendment).
 - **Per-device API gating (2026-09-15):** a feature needing a higher API level
   (complications) is guarded at runtime per device (`Toybox has :Complications`),
   never by raising the shared `minApiLevel` -- a target device lacking a

@@ -171,7 +171,6 @@ wfb/                  the compiler
   vocab.py              an absence policy spelled as the author writes it
   template.py           the `text:` template: "{expr:spec}" parsing
   desugar.py            the element mapping form and the `static:` blocks -> one form
-  migrate.py            `wfb migrate`: a format 1 file rewritten as format 2
   catalog.py            the typed data-source catalogue
   expr.py               the expression language -> Monkey C
   ir/                   the IR (model.py, naming.py) and the semantic pass (builder/,

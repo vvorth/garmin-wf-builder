@@ -19,8 +19,7 @@ styles the wearer switches between on the watch.*
   Garmin's own device files, not hardcoded. The examples are tested on the
   fēnix 8 Solar and the Forerunner 955.
 - **Distribution:** personal sideloading over USB, not the Connect IQ Store.
-- **Status:** early (`wfb` 0.1.0, `format: 2`; a format 1 face moves over
-  with `wfb migrate`). It works end to end and is still changing. See [what isn't built yet](docs/limitations.md#2-not-implemented-yet).
+- **Status:** early (`wfb` 0.1.0, `format: 2`). It works end to end and is still changing. See [what isn't built yet](docs/limitations.md#2-not-implemented-yet).
 
 ## Quick start
 

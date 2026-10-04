@@ -17,7 +17,6 @@ can't: why each key exists, and what the watch does with it.
 |---|---|
 | [Getting started](guide/getting-started.md) | Installing, device files, `wfb new`, building, sideloading, supported watches, troubleshooting, a glossary |
 | [The design file](guide/design-file.md) | The top-level keys of a face, element mappings, versioning |
-| [Moving a face to format 2](guide/format-2-migration.md) | `wfb migrate`, every format 1 → format 2 rename, and the vocabulary reserved for later |
 | [Preview and the command line](guide/preview-and-cli.md) | `wfb preview` and what it can't show, and every `wfb` command in one table |
 | [The editor](guide/studio.md) | `wfb studio`: a face edited in the browser, on its screen, in layers and as YAML, with its history; bundles in and out |
 

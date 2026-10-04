@@ -405,15 +405,6 @@ def _parser() -> argparse.ArgumentParser:
                          help="Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, "
                               "vendor/fonts/, or the SDK Manager's per-OS install location)")
 
-    migrate = _command(sub, "migrate", _migrate)
-    migrate.add_argument("designs", nargs="+", type=Path, metavar="FILE",
-                         help="a format 1 design, or a directory to search for *.yaml")
-    mode = migrate.add_mutually_exclusive_group()
-    mode.add_argument("--in-place", action="store_true",
-                      help="rewrite each file instead of printing it")
-    mode.add_argument("--check", action="store_true",
-                      help="write nothing; exit 1 if any file would change")
-
     schema = _command(sub, "schema", _schema)
     schema.add_argument("--path", action="store_true",
                         help="print the schema's path instead of its contents")
@@ -1169,51 +1160,6 @@ def _doctor(args: argparse.Namespace) -> int:
     word = term.style("not ready", "red", enabled=color_out)
     print(f"{word}: " + "; ".join(problems))
     return 1
-
-
-def _migrate(args: argparse.Namespace) -> int:
-    """rewrite a format 1 design as format 2
-
-    Prints the format 2 document to stdout; `--in-place` rewrites the file
-    instead, and `--check` writes nothing and exits 1 if any file would
-    change. A directory is searched for `*.yaml`. Comments, key order and
-    quoting survive; a file already in format 2 passes through unchanged.
-
-    Every rename is listed in docs/guide/format-2-migration.md. A file the
-    migrator cannot rewrite faithfully -- a `static: true` element nested
-    in a group, a `modes:` value with no format 2 spelling, a palette entry
-    named like a colour role -- is refused with the line, the reason and
-    what to do by hand, and is left untouched.
-    """
-    from .migrate import iter_files, migrate_file
-
-    bag = Bag()
-    files = list(iter_files(args.designs))
-    changed: list[Path] = []
-    for path in files:
-        result = migrate_file(path, bag)
-        if result is None:
-            continue
-        if result.changed:
-            changed.append(path)
-        if args.check:
-            continue
-        if args.in_place:
-            if result.changed:
-                path.write_text(result.text, encoding="utf-8")
-                print(f"{_status('migrated', color=term.should_color(sys.stdout))}  {path}")
-            continue
-        if len(files) > 1:
-            print(f"# ==> {path} <==")
-        print(result.text, end="" if result.text.endswith("\n") else "\n")
-    bag.print()
-    if not bag.ok():
-        return 1
-    if args.check:
-        for path in changed:
-            print(f"would migrate  {path}")
-        return 1 if changed else 0
-    return 0
 
 
 def _schema(args: argparse.Namespace) -> int:
