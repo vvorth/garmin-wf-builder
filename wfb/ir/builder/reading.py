@@ -38,12 +38,18 @@ class Readers(BuilderState):
 reporting why) out."""
 
     def alignment(self, node: dict[str, Any]) -> tuple[str, str]:
-        """`(align, vertical_align)`, defaulting to `"center"`/`"center"` --
-        the one place every kind with a placement box reads the two keys.
-        The schema is normative on which values reach here, so this is a
-        plain lookup.
-        """
-        return node.get("align", "center"), node.get("vertical_align", "center")
+        """`align:` as `(horizontal, vertical)`, each defaulting to
+        `"center"` -- the one place every kind with a placement box reads
+        it.  `top_left` is `("left", "top")`, `top` is `("center", "top")`
+        and `left` is `("left", "center")`.  The schema is normative on
+        which values reach here, and `wfb.lower` has already spelled a
+        compass alias (`NE`) out."""
+        value = str(node.get("align", "center"))
+        vertical = next((v for v in ("top", "bottom")
+                         if value == v or value.startswith(v + "_")), None)
+        if vertical is None:
+            return value, "center"
+        return value[len(vertical) + 1:] or "center", vertical
 
     def require(self, node: dict[str, Any], key: str, message: str) -> None:
         """Report `message` as an `element` error on `node[key]`'s line, or

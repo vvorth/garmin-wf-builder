@@ -237,7 +237,7 @@ class GlyphHelpers(AbsenceChecks):
                 "text-curve",
                 f"{label}: a bottom alignment ('align: bottom', 'bottom_left', ...) is "
                 "not accepted under 'curve: {style: angled}'",
-                self.doc.span(node, "vertical_align") or span,
+                self.doc.span(node, "align") or span,
                 notes=[
                     "an upright text's 'bottom' is implemented by subtracting the "
                     "font's own height from the anchor in screen space -- once the "

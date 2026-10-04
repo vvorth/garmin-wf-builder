@@ -33,12 +33,12 @@ if TYPE_CHECKING:
 #: `polygon` and `line` carry no `align`/`vertical_align`: a polygon has no
 #: single `at:` to align on, and a line's `at:`/`to:` are its two ends.
 SHAPE_GEOMETRY_KEYS = {
-    "rectangle": frozenset({"size", "align", "vertical_align"}),
-    "rounded_rectangle": frozenset({"size", "corner_radius", "align", "vertical_align"}),
-    "circle": frozenset({"radius", "align", "vertical_align"}),
-    "ellipse": frozenset({"size", "align", "vertical_align"}),
+    "rectangle": frozenset({"size", "align"}),
+    "rounded_rectangle": frozenset({"size", "corner_radius", "align"}),
+    "circle": frozenset({"radius", "align"}),
+    "ellipse": frozenset({"size", "align"}),
     "line": frozenset({"to"}),
-    "arc": frozenset({"radius", "start_angle", "sweep", "align", "vertical_align"}),
+    "arc": frozenset({"radius", "start_angle", "sweep", "align"}),
     "polygon": frozenset({"points"}),
 }
 
@@ -72,7 +72,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
         code="element", disc="shape",
         extra_notes=lambda key: (
             [_SHAPE_NO_ALIGNMENT_REASON[shape]]
-            if key in ("align", "vertical_align") and shape in _SHAPE_NO_ALIGNMENT_REASON
+            if key == "align" and shape in _SHAPE_NO_ALIGNMENT_REASON
             else []
         ),
     )

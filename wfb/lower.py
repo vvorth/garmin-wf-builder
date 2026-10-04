@@ -48,8 +48,6 @@ from .yamlsrc import Origin, YamlDocument
 COMPASS = {"N": "top", "NE": "top_right", "E": "right", "SE": "bottom_right",
            "S": "bottom", "SW": "bottom_left", "W": "left", "NW": "top_left"}
 
-_V = ("top", "bottom")
-
 _PRIMITIVES = ("rectangle", "circle", "line", "arc", "ellipse", "polygon")
 _U_PLUS = re.compile(r"^[Uu]\+[0-9A-Fa-f]{1,6}$")
 
@@ -456,19 +454,8 @@ class _Lowering:
 
     def align(self, node: CommentedMap) -> None:
         value = node.get("align")
-        if not isinstance(value, str):
-            return
-        value = COMPASS.get(value, value)
-        vertical = next((v for v in _V if value == v or value.startswith(v + "_")), None)
-        if vertical is None:
-            node["align"] = value
-            return
-        horizontal = value[len(vertical) + 1:] or None
-        if horizontal is None:
-            self.rekey(node, "align", "vertical_align", vertical, author="align")
-        else:
-            node["align"] = horizontal
-            self.add(node, "vertical_align", vertical, "align", after="align")
+        if isinstance(value, str) and value in COMPASS:
+            node["align"] = COMPASS[value]
 
     def outline(self, node: CommentedMap) -> None:
         outline = node["outline"]

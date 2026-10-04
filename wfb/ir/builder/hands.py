@@ -24,9 +24,9 @@ from .config import ConfigAxes
 #: `Resolver._resolve_hand_part` before rounding).
 HAND_PART_GEOMETRY_KEYS = {
     "polygon": frozenset({"points"}),
-    "rectangle": frozenset({"at", "size", "align", "vertical_align"}),
+    "rectangle": frozenset({"at", "size", "align"}),
     "line": frozenset({"at", "to"}),
-    "circle": frozenset({"at", "radius", "align", "vertical_align"}),
+    "circle": frozenset({"at", "radius", "align"}),
 }
 _ALL_HAND_PART_GEOMETRY_KEYS = frozenset().union(*HAND_PART_GEOMETRY_KEYS.values())
 
@@ -59,8 +59,8 @@ PATTERN_PART_GEOMETRY_KEYS = {
     **HAND_PART_GEOMETRY_KEYS,
     #: No `at` -- an arc part is always centred on the copy's own origin.
     "arc": frozenset({"radius", "start_angle", "sweep"}),
-    "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align",
-                       "curve", "unsupported", "outline"}),
+    "text": frozenset({"at", "value", "text", "format", "font", "align", "curve",
+                       "unsupported", "outline"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -472,7 +472,7 @@ class HandParts(ConfigAxes):
             if not is_hand and shape == "arc" and key == "at":
                 notes.append("an arc part is always centred on the copy's own "
                              "origin -- there is no separate centre to offset")
-            if key in ("align", "vertical_align") and shape in _HAND_PART_NO_ALIGNMENT_REASON:
+            if key == "align" and shape in _HAND_PART_NO_ALIGNMENT_REASON:
                 notes.append(_HAND_PART_NO_ALIGNMENT_REASON[shape])
             return notes
 

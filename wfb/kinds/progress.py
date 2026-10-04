@@ -154,8 +154,6 @@ def _build_needle(b: Builder, node: dict[str, Any], element: Progress) -> bool:
     part's default.  False when anything was reported."""
     ok = True
     for key, why in _NEEDLE_UNREAD.items():
-        if key == "align" and "vertical_align" in node and key not in node:
-            key = "vertical_align"  # format 2's `align: top` lowers to this
         if key in node:
             b.bag.error("element", f"{element.id}: '{vocab.key(key)}:' is not read by "
                         f"'style: needle' -- {why}",

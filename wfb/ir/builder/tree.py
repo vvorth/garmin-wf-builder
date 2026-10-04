@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from . import Builder
 
 #: The keys an `overrides:` patch may carry, as `wfb.lower` leaves them.
-_OVERRIDE_FIELDS = ("at", "size", "radius", "align", "vertical_align")
+_OVERRIDE_FIELDS = ("at", "size", "radius", "align")
 
 #: Kinds whose `align:` is a `TEXT_JUSTIFY_*` flag in the shared view
 #: rather than a per-device box shift, so no override may change it.
@@ -173,7 +173,7 @@ class ElementTree(StaticPass):
         errors_before = len(self.bag.errors)
         for key in patch:
             span = self.doc.span(patch, key, of="key") or self.doc.span(patch, key)
-            if key in ("align", "vertical_align"):
+            if key == "align":
                 if element.kind in _GLYPH_KINDS:
                     self.bag.error(
                         "overrides",
@@ -216,9 +216,8 @@ class ElementTree(StaticPass):
         `align:` replacing the element's whole alignment."""
         own: dict[str, Any] = {key: node[key] for key in _OVERRIDE_FIELDS if key in node}
         for patch in patches:
-            if "align" in patch or "vertical_align" in patch:
+            if "align" in patch:
                 own.pop("align", None)
-                own.pop("vertical_align", None)
             own = _merged(own, patch)
         touched = {key for patch in patches for key in patch}
         fields: dict[str, Any] = {}
@@ -229,7 +228,7 @@ class ElementTree(StaticPass):
             fields["size"] = self.size(own.get("size"))
         if "radius" in touched:
             fields["radius"] = self.length(own, "radius")
-        if touched & {"align", "vertical_align"}:
+        if "align" in touched:
             fields["align"], fields["vertical_align"] = self.alignment(own)
         return fields
 
