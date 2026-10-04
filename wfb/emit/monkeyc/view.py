@@ -1113,7 +1113,8 @@ def _emit_profile_overlay(w: Writer, profile: "profile_mod.ProfilePlan") -> None
 
 
 def _emit_layout_guarded(w: Writer, face: Face, items: list[Placed],
-                         emit_one: Callable[[Placed], object]) -> None:
+                         emit_one: Callable[[Placed], object],
+                         before_run: Callable[[list[Placed]], object] | None = None) -> None:
     """Emit ``items`` (`Placed`s, in draw order) through ``emit_one``,
     grouping *consecutive* items whose ``element.layout`` agrees into one
     ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
@@ -1125,14 +1126,55 @@ def _emit_layout_guarded(w: Writer, face: Face, items: list[Placed],
     `onUpdate`'s active and AOD branches, `onPartialUpdate` and
     `renderStatic` -- so none of them can drift into guarding differently.
     A design with no `layouts:` has ``element.layout is None`` everywhere,
-    so the emitted sequence is exactly the unguarded one.
+    so the emitted sequence is exactly the unguarded one.  ``before_run``
+    opens each layout's block (its reads, `_emit_frame_reads`).
     """
-    for layout, run in itertools.groupby(items, key=lambda placed: placed.element.layout):
+    for layout, group in itertools.groupby(items, key=lambda placed: placed.element.layout):
+        run = list(group)
         guard = (None if layout is None
                  else f"if ({CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)})")
         with w.block_if(guard):
+            if layout is not None and before_run is not None:
+                before_run(run)
             for placed in run:
                 emit_one(placed)
+
+
+def _emit_frame_reads(w: Writer, plan: "ReadPlan", items: list[Placed],
+                      prelude: dict[str, list[tuple[RingGroup, list[Placed]]]],
+                      comment: str, aod: bool = False) -> Callable[[list[Placed]], None]:
+    """The reads one frame's draw sequence needs, where it needs them: what
+    its shared content draws with, at the top of the frame, and what only
+    one layout's elements draw with, inside that layout's block, so a
+    hidden layout costs no reads.  Emits the first; returns the
+    `_emit_layout_guarded` ``before_run`` that emits the second.
+
+    An element's readers include those of the outlined-group rings drawn
+    before it (``prelude``), and with ``aod`` its `aod: {visible: ...}`
+    condition's."""
+
+    def drawn(run: list[Placed]) -> list[Placed]:
+        out = list(run)
+        for placed in run:
+            for _, members in prelude.get(placed.id, []):
+                out += members
+        return out
+
+    shared = plan.readers_for(drawn([p for p in items if p.element.layout is None]), aod)
+    declared: frozenset[str] = frozenset()
+    if shared:
+        w.comment(comment)
+        declared = plan.emit_pulls(w, shared)
+        w.blank()
+
+    def before_run(run: list[Placed]) -> None:
+        own = [r for r in plan.readers_for(drawn(run), aod) if r not in shared]
+        if own:
+            w.comment("data only this layout draws with")
+            plan.emit_pulls(w, own, declared)
+            w.blank()
+
+    return before_run
 
 
 def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str] = frozenset()) -> list[Placed]:
@@ -1155,15 +1197,10 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     if static is not None and mode in static.modes:
         _emit_static_blit(w, static)
         w.blank()
-    # Reads everything unconditionally, layout guards included below -- a
-    # read only a hidden layout's element uses is wasted work.  A real
-    # optimisation (moving reads inside the guards) is left for later and
-    # only worth doing if it is measured.
-    plan.emit_reads(w, mode)
-    w.blank()
     skip = static.ids if static is not None else set()
     items = _drawn_in(resolved, mode, skip)
     prelude = rings.prelude(items)
+    before_run = _emit_frame_reads(w, plan, items, prelude, "data for this frame")
     if profile is not None:
         w.line("var profT0 = System.getTimer();")
         w.comment("the empty loop: the timing overhead every reading includes")
@@ -1185,7 +1222,7 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
         _emit_timed(w, profile, profile.index(placed.id),
                     lambda: w.line(_draw_call(plan, placed)))
 
-    _emit_layout_guarded(w, resolved.face, items, one)
+    _emit_layout_guarded(w, resolved.face, items, one, before_run)
     if profile is not None:
         w.blank()
         w.line(f"{profile_mod.FRAME} = System.getTimer() - profT0;")
@@ -1235,11 +1272,10 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     w.comment("and the awake frame's own background does not draw here")
     w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
     w.line("dc.clear();")
-    plan.emit_reads(w, "aod")
-    w.blank()
     ids = set(plan.aod_ids())
     entries = [placed for placed in resolved.items if placed.id in ids]
     prelude = rings.prelude(entries)
+    before_run = _emit_frame_reads(w, plan, entries, prelude, "data for this frame", aod=True)
     scopes = _GuardScopes()
 
     def one(placed: Placed) -> None:
@@ -1248,7 +1284,7 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                           lambda member, line: _emit_one_aod_call(w, plan, member, line, declared))
         _emit_one_aod_call(w, plan, placed, declared=declared)
 
-    _emit_layout_guarded(w, resolved.face, entries, one)
+    _emit_layout_guarded(w, resolved.face, entries, one, before_run)
     # The moving 2x2 pixel mask, drawn last; an empty frame is already black.
     if resolved.face.aod_mask and entries:
         w.blank()
@@ -1322,16 +1358,16 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
         )
         if antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
-        plan.emit_reads(w, "low_power")
-        w.blank()
         items = _drawn_in(resolved, "low_power")
         prelude = rings.prelude(items)
+        before_run = _emit_frame_reads(w, plan, items, prelude,
+                                       "data for this sleep update; every reader is a plain pull")
 
         def one(placed: Placed) -> None:
             rings.emit_before(w, plan, prelude, placed)
             w.line(_draw_call(plan, placed))
 
-        _emit_layout_guarded(w, resolved.face, items, one)
+        _emit_layout_guarded(w, resolved.face, items, one, before_run)
         w.line("dc.clearClip();")
     w.blank()
 

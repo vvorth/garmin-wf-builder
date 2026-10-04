@@ -107,22 +107,22 @@ def test_toybox_math_is_imported(view_text):
     assert "import Toybox.Math;" in view_text
 
 
-def test_onupdate_reads_the_clock_once_for_every_hands_element(view_text):
-    """One `System.getClockTime()` covers every hands element in the mode,
-    however many layouts they belong to -- "reads happen
-    unconditionally, only the calls are layout-guarded" applies to `clock`
-    exactly like any other reader."""
+def test_each_layout_reads_the_clock_once_inside_its_own_guard(view_text):
+    """A reader only one layout's elements draw with is read inside that
+    layout's guard, so a frame never reads for a layout it does not show:
+    every hands element here belongs to a layout, so each layout block
+    reads the clock once and nothing is read before the first guard."""
     on_update = view_text.split("function onUpdate(dc as Dc) as Void {")[1]
     on_update = on_update.split("\n    }\n")[0]
-    assert on_update.count("System.getClockTime()") == 1
-    assert "drawMainHands(dc, clock);" in on_update
-    assert "drawSmallSecs(dc, clock);" in on_update
-    assert "drawSportHands(dc, clock);" in on_update
-    # `sport`'s call sits behind its own layout guard, one line above it.
-    before, _, after = on_update.partition("drawSportHands(dc, clock);")
-    guard_line = before.strip().splitlines()[-1]
-    assert "if (_configLayout ==" in guard_line
-    assert after.strip().startswith("}")  # the guard closes right after
+    shared, *blocks = on_update.split("if (_configLayout ==")
+    assert "System.getClockTime()" not in shared
+    assert len(blocks) == 2
+    for block in blocks:
+        assert block.count("System.getClockTime()") == 1
+    first, second = blocks
+    assert "drawMainHands(dc, clock);" in first and "drawSmallSecs(dc, clock);" in first
+    assert first.index("var clock = System.getClockTime();") < first.index("drawMainHands")
+    assert "drawSportHands(dc, clock);" in second
 
 
 def test_barrel_includes_wfbhands(resolved, tmp_path, db):

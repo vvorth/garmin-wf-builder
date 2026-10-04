@@ -224,9 +224,12 @@ already cached on *its* side -- `Toybox/Weather.html` describes
 conditions", not "fetch weather conditions" -- so a second cache inside the
 128 KB watch-face budget would buy nothing but code and memory.
 `wfb/emit/monkeyc/readplan.py`'s `ReadPlan` hoists one read per distinct
-reader per element method (two elements sharing
-`weather.getDailyForecast()` share one call, not one each), and that is the
-entire optimisation -- no staleness check, no field, no TTL.
+reader per frame (two elements sharing `weather.getDailyForecast()` share
+one call, not one each), and makes it where the frame needs it: what shared
+content draws with at the top of the frame, and what only one layout's
+elements draw with inside that layout's block, so a frame showing another
+layout never reads it. That is the entire optimisation -- no staleness
+check, no field, no TTL.
 
 **Consequence: any source, including `weather.*` and `complication.*`, may
 be bound from a `sleep_update: true` element (or an AMOLED sleep frame's `aod:`

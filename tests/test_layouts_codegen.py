@@ -144,3 +144,68 @@ def test_config_layout_accessor_is_public_and_used_by_the_delegate(view_text, de
     condition = on_press.split("if (")[1].split("{")[0]
     assert "_view.configLayout() == 0" in condition
     assert "Complications.COMPLICATION_TYPE_HEART_RATE" in on_press
+
+
+READS_DESIGN = """\
+format: 2
+face: { id: 6f1c2b7e-3d4a-4e5f-9a1b-2c3d4e5f6a7b, name: Reads, version: 1.0.0 }
+build:
+  targets: [fenix8solar47mm]
+resources:
+  palette: { fg: "#FFFFFF" }
+config:
+  style:
+    default: a
+    choices:
+      a: { layout: a }
+      b: { layout: b }
+elements:
+  battery:
+    type: text
+    text: "{system.battery:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -30% }
+    color: color.fg
+layouts:
+  a:
+    elements:
+      steps_a:
+        type: text
+        text: "{activity.steps}"
+        absent: hide
+        font: FONT_XTINY
+        at: { anchor: center }
+        color: color.fg
+      battery_a:
+        type: text
+        text: "{system.battery:d}%"
+        font: FONT_XTINY
+        at: { anchor: center, dy: 30% }
+        color: color.fg
+  b:
+    elements:
+      clock_b:
+        type: text
+        text: "{time.clock:%H:%M}"
+        font: FONT_XTINY
+        at: { anchor: center }
+        color: color.fg
+"""
+
+
+def test_a_reader_is_read_where_its_elements_draw(write_design, bag, db):
+    """Shared content's readers are read at the top of the frame, once,
+    and each layout reads only what its own elements draw with, inside its
+    guard: `stats` (shared and layout `a`) at the top only, `activity`
+    (layout `a` alone) in `a`'s block, the clock (layout `b` alone) in
+    `b`'s -- so showing `a` never reads the clock, nor `b` the activity."""
+    from tests.helpers import resolve_text
+
+    _, resolved = resolve_text(READS_DESIGN, write_design, bag, db)
+    view = emit_view(resolved).text
+    on_update = view.split("function onUpdate(dc as Dc) as Void {")[1].split("\n    }\n")[0]
+    shared, block_a, block_b = on_update.split("if (_configLayout ==")
+    assert shared.count("System.getSystemStats()") == 1
+    assert "System.getSystemStats()" not in block_a + block_b
+    assert "ActivityMonitor.getInfo()" in block_a and "ActivityMonitor.getInfo()" not in shared + block_b
+    assert "System.getClockTime()" in block_b and "System.getClockTime()" not in shared + block_a

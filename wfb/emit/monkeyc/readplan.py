@@ -186,7 +186,7 @@ class ReadPlan:
         """Reader names this design reads through `Toybox.Complications`.
 
         These are the readers `onLayout` subscribes to.  The *read* itself is
-        an ordinary pull like every other reader (`emit_reads` below) -- the
+        an ordinary pull like every other reader (`emit_pulls` below) -- the
         subscription only keeps the platform's own value fresh, it is not how
         the value arrives.  Found under every mode, not just `active`: with
         the refresh-tier concept gone there is nothing stopping a `low_power`
@@ -196,17 +196,24 @@ class ReadPlan:
                  for name in readers if READERS[name].complication_type}
         return sorted(names)
 
-    def emit_reads(self, w: Writer, mode: str) -> None:
-        readers = self._readers_for_mode.get(mode) or []
-        if not readers:
-            return
-        w.comment("data for this frame" if mode == "active"
-                  else "data for this sleep update; every reader is a plain pull")
-        self.emit_pulls(w, readers)
+    def readers_for(self, items: list[Placed], aod: bool = False) -> list[str]:
+        """The readers drawing ``items`` needs, in first-use order: each
+        one's draw method's, and with ``aod`` the readers its `aod:
+        {visible: ...}` call-site condition reads too."""
+        readers: list[str] = []
+        for placed in items:
+            readers = self._dedupe_readers(self._per_element[placed.id], readers)
+            extra = self.aod_visible_override(placed) if aod else None
+            if extra is not None:
+                readers = self._dedupe_readers(list(extra.sources), readers)
+        return readers
 
-    def emit_pulls(self, w: Writer, readers: list[str]) -> None:
+    def emit_pulls(self, w: Writer, readers: list[str],
+                   declared: frozenset[str] = frozenset()) -> frozenset[str]:
         """`var <reader> = <call>;` for each of ``readers``, a module some
-        target lacks read behind one `has<Module>` local."""
+        target lacks read behind one `has<Module>` local.  ``declared``:
+        the `has<Module>` locals an enclosing scope already declared, which
+        are reused, not declared again.  Returns every one in scope after."""
         # A reader whose whole module some target lacks
         # (`Guards.modules`: Toybox.Complications on fenix6/fr245,
         # Toybox.Weather on fenix5/fenix5x) is read behind `Toybox has
@@ -220,7 +227,8 @@ class ReadPlan:
                           if (module := READERS[name].requires_module) is not None}
                          & self.device_guards.modules)
         for module in guarded:
-            w.line(f"var has{module} = Toybox has :{module};")
+            if module not in declared:
+                w.line(f"var has{module} = Toybox has :{module};")
         for name in readers:
             # Every reader is a plain pull, complications included: the value
             # each one returns is already the platform's own cached reading
@@ -237,6 +245,7 @@ class ReadPlan:
                 w.line(f"var {reader.name} = has{reader.requires_module} ? {reader.call} : null;")
             else:
                 w.line(f"var {reader.name} = {reader.call};")
+        return declared | frozenset(guarded)
 
     def readers_of(self, placed: Placed) -> list[str]:
         """The readers ``placed``'s draw method takes, in parameter order."""
