@@ -9,16 +9,19 @@
 * ``{unit}`` is the label of the unit a ``units:`` conversion displays in
   (``km``/``mi``), not an expression.
 
-This module only parses.  Lowering a template into the compiler's internal
-``value:`` + ``format:`` pair is :func:`to_value_format`; a template with
-several placeholders is first cut into one single-placeholder template per
-reading by :func:`segments`.
+This module only parses.  :func:`readings` turns a template into what the
+builder compiles: each placeholder's expression with its format string
+(:func:`to_value_format`, after :func:`segments` cuts a template with several
+placeholders into one per reading), and :func:`aod_format` an
+``aod: {text:}`` restyle into its format string alone.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+
+from .expr import ExprError, tokenize
 
 _V1_FIELD_RE = re.compile(r"\{(?:(?P<unit>unit)|:(?P<spec>[^}]*))?\}")
 
@@ -191,3 +194,95 @@ def to_value_format(template: Template) -> tuple[str | None, str | None]:
         raise TemplateError("literal braces next to the placeholder that the "
                             "compiler would read as a second field", 0)
     return placeholder.expr, fmt
+
+
+@dataclass(frozen=True)
+class Reading:
+    """One placeholder of a ``text:`` template, as the builder compiles it."""
+
+    #: The expression, with a ternary's template parentheses dropped.
+    expr: str
+    #: Its format string (``"{:02d}"``, ``"Steps {}"``), or ``None`` for the
+    #: first reading when that is its placeholder alone with no spec.
+    format: str | None
+    #: Where ``expr`` starts in the template, for a caret inside it.
+    offset: int
+    #: The placeholder's expression as written, which a diagnostic quotes.
+    quote: str
+
+
+def readings(raw: str) -> tuple[str | None, tuple[Reading, ...]]:
+    """``(literal, readings)``: a template with no placeholder is its literal
+    text and no readings; otherwise ``literal`` is ``None`` and each
+    placeholder is one :class:`Reading`, the literal text around it in its
+    format.  A reading after the first always has a format (``"{}"`` at
+    least).  Raises :class:`TemplateError`."""
+    template = parse_template(raw)
+    if template.placeholder is None:
+        return template.literal, ()
+    out: list[Reading] = []
+    for segment in segments(template):
+        placeholder = segment.placeholder
+        assert placeholder is not None
+        expr, fmt = to_value_format(segment)
+        assert expr is not None
+        expr, strip = strip_template_parens(expr)
+        offset = placeholder.offset + leading_space(raw, placeholder.offset) + strip
+        if out and fmt is None:
+            fmt = "{}"
+        out.append(Reading(expr, fmt, offset, placeholder.expr))
+    return None, tuple(out)
+
+
+def aod_format(raw: str) -> str:
+    """An ``aod: {text:}`` restyle's format string: the template with its
+    placeholder's expression set aside (it must read the element's own).
+    Raises :class:`TemplateError`."""
+    template = parse_template(raw)
+    stripped = Template(tuple(Placeholder("x", p.spec, p.offset)
+                              if isinstance(p, Placeholder) else p
+                              for p in template.pieces))
+    _, fmt = to_value_format(stripped)
+    return fmt if fmt is not None else "{}"
+
+
+def strip_template_parens(expr: str) -> tuple[str, int]:
+    """A ternary needs parentheses inside a placeholder; they are template
+    syntax, not part of the expression.  Returns the expression and how many
+    characters were dropped from its front."""
+    text = expr.strip()
+    if not (text.startswith("(") and text.endswith(")")):
+        return expr, 0
+    depth = 0
+    for index, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0 and index != len(text) - 1:
+                return expr, 0  # "(a) + (b)": the outer pair is not one group
+    inner = text[1:-1]
+    if not _top_level_colon(inner):
+        return expr, 0
+    return inner, 1
+
+
+def _top_level_colon(expr: str) -> bool:
+    try:
+        tokens = tokenize(expr)
+    except ExprError:
+        return False
+    depth = 0
+    for token in tokens:
+        if token.text == "(":
+            depth += 1
+        elif token.text == ")":
+            depth -= 1
+        elif token.kind == "op" and token.text == ":" and depth == 0:
+            return True
+    return False
+
+
+def leading_space(raw: str, offset: int) -> int:
+    """How many spaces open the placeholder expression at ``offset``."""
+    return len(raw[offset:]) - len(raw[offset:].lstrip())

@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ... import catalog, expr, units
+from ... import catalog, expr, template, units
 from ...catalog import Type
 from ...diagnostics import Span
 from ...palette import Color, ColorError
@@ -67,6 +67,30 @@ reporting why) out."""
         return ((self.doc.span(absent, "value") if isinstance(absent, dict) else None)
                 or self.doc.span(node, "absent"))
 
+    def text_readings(self, node: dict[str, Any], key: str = "text",
+                      ) -> tuple[str | None, tuple[template.Reading, ...]]:
+        """``node[key]``'s template as ``(literal, readings)``
+        (`wfb.template.readings`); ``(None, ())`` when it is unwritten or
+        malformed, which `wfb.lower` has already reported."""
+        raw = node.get(key)
+        if not isinstance(raw, str):
+            return None, ()
+        try:
+            return template.readings(raw)
+        except template.TemplateError:
+            return None, ()
+
+    def reading_expression(self, node: dict[str, Any], reading: template.Reading,
+                           key: str = "text", text: str | None = None) -> Expression | None:
+        """One reading of ``node[key]``'s template compiled, a diagnostic
+        quoting the placeholder and pointing inside it.  ``text``, when
+        given, is compiled instead: a rewrite of the reading's expression
+        (a `units:` conversion)."""
+        origin = (Origin(key, str(node[key]), ((0, reading.offset),), quote=reading.quote)
+                  if text is None else None)
+        return self.compile_expression(text if text is not None else reading.expr,
+                                       self.doc.span(node, key), key, origin=origin)
+
     def require(self, node: dict[str, Any], key: str, message: str) -> None:
         """Report `message` as an `element` error on `node[key]`'s line, or
         on the node's own when the key is absent -- for a key the schema
@@ -92,23 +116,14 @@ reporting why) out."""
         """`text` parsed, type-checked and compiled as :meth:`expression`
         does for an authored key -- for an expression the builder writes
         itself (a `units:` conversion, `wfb.conversion`), reported against
-        ``span`` under ``key``.  ``origin`` is what the author wrote there,
-        when `wfb.lower` rewrote it: a diagnostic names and points into
-        that instead."""
+        ``span`` under ``key``.  ``origin`` is what the author wrote there
+        when it is more than ``text`` (a template around a placeholder, a
+        nested key's dotted name): a diagnostic names and points into that
+        instead."""
         before = set(self.scope.used)
         self.scope.used.clear()
-        syntax_error = False
         try:
-            try:
-                node_ast = expr.parse(text)
-            except expr.ExprError:
-                # A *syntax* failure, as opposed to an unknown source or a type
-                # error below.  Worth telling apart: `value: XX%` is almost
-                # always someone reaching for literal text, while
-                # `value: activity.stepss` is a real typo in a real expression
-                # and must not be told to use `text:` instead.
-                syntax_error = True
-                raise
+            node_ast = expr.parse(text)
             value = expr.check(node_ast, self.scope)
             # Emit from a fold that keeps palette names; derive the build-time
             # constant, which the linter needs, from a fold that resolves them.
@@ -129,14 +144,6 @@ reporting why) out."""
                            "but no 'config: style:' entry picks a scheme")
                 notes = ["add a 'config: style:' entry with 'scheme:', or make it a "
                          "palette colour"]
-            if syntax_error and key == "value" and origin is None:
-                notes = list(notes) + [
-                    "'value:' is an expression over data sources, not literal text -- "
-                    "for a fixed string use 'text:' instead:\n"
-                    '    text: "XX%"',
-                    "note that YAML strips the quotes, so `value: 'XX%'` reaches the "
-                    "expression parser as a bare XX%",
-                ]
             offset = exc.offset if origin is None else origin.author_offset(exc.offset)
             if self._quoted_at(span):
                 offset += 1  # the offset is into the value, after its opening quote

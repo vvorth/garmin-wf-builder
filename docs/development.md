@@ -147,8 +147,8 @@ comments quote keys and expressions as the author wrote them (`absent:`,
 wfb/                  the compiler
   yamlsrc.py            YAML loading that keeps source spans
   validate.py           JSON Schema, reported against the author's lines
-  lower.py              format 2 -> the internal shape the IR builder reads
-  vocab.py              internal key/kind names -> the author's, for messages
+  lower.py              format 2 checks the schema cannot make (colours, templates)
+  vocab.py              an absence policy spelled as the author writes it
   template.py           the `text:` template: "{expr:spec}" parsing
   desugar.py            the element mapping form and the `static:` blocks -> one form
   migrate.py            `wfb migrate`: a format 1 file rewritten as format 2
@@ -311,9 +311,7 @@ two calls.
 reference it from `$defs.element.oneOf`. `additionalProperties` is `false`
 on every element, so an element restates the keys every kind accepts; copy
 them from `circleElement`. The id is the element's key, so it is not a
-property. A type whose author name is its internal kind name, as here,
-needs nothing in `wfb/lower.py`; one that is renamed (like `gauge`) is
-rewritten there, and named back in messages through `wfb/vocab.py`. `aod:` takes a per-kind `aod<Kind>` definition that
+property. The kind's name is its `type:`. `aod:` takes a per-kind `aod<Kind>` definition that
 lists which keys an override may restyle; `aodIcon` (colour and `visible:`)
 fits a one-colour kind.
 

@@ -100,29 +100,27 @@ These cost real time to discover; do not rediscover them.
   value-dependent drawing in `if (x != null && y != null) { ... }`, where
   `monkeyc` narrows the locals, confirmed by a strict warning-free build
   (`tests/test_gauge_absent.py`).
-- **Format 2 is lowered, not compiled (plan 22).** `wfb/lower.py` rewrites a
-  schema-valid format 2 document in place into the internal shape the IR
-  builder has always read -- `targets:`, `palette.x`, `when_absent:`,
-  `type: shape` -- and `wfb.desugar` runs after it as before. The rewritten
-  text is exactly the format 1 document `wfb migrate` started from, which is
-  why a face and its migrated twin generate byte-identical projects (the one
-  exception: each generated file's header names the source file and its
-  format). Generated comments quote what the author wrote, never the internal
-  names: `Expression.shown`, `wfb.vocab.absent`, `slot: <name>`
+- **The builder reads format 2 as written.** The IR builder reads the
+  author's own keys and kind names -- `build: {targets:}`, `absent:`,
+  `align: top_left`, `type: gauge`, `icon: {for:}`, `color.<name>` -- so a
+  diagnostic names a key by the key itself. `wfb/lower.py` runs between the
+  schema and `wfb.desugar` and only checks what a JSON Schema cannot (a
+  colour name, a template) and spells out a compass alias. Where the IR
+  splits one author key into fields, the builder does the split in one
+  place: `Readers.alignment` (`align:` into horizontal and vertical),
+  `Readers.absence` (`absent:` into policy, placeholder and fallback),
+  `Readers.text_readings` (a `text:` template into readings, through
+  `wfb.template.readings`). A placeholder's expression is compiled with a
+  `yamlsrc.Origin` holding the template and the expression's offset in it,
+  so a caret lands inside the template and the message quotes the
+  placeholder (`Expression.shown`). The scope binds `color.<swatch>` to its
+  palette constant and `color.<role>` to the view field of a scheme role or
+  of a colour axis (`ConfigColor.role`). Generated comments quote what the
+  author wrote too: `Expression.shown`, `wfb.vocab.absent`, `slot <name>`
   (`tests/test_generated_vocabulary.py` scans the generated corpus for an
-  internal name in a comment). Three things keep diagnostics in the
-  author's terms: every moved key keeps its source position (`lc`), every
-  renamed or rewritten key records a `yamlsrc.Origin` (the author's key,
-  text, and an offset map so a caret lands inside a template), and every
-  message that names a key, kind or colour goes through `wfb/vocab.py` or
-  quotes `Expression.shown`. While both formats compiled (slice 2) the whole
-  corpus was checked twin by twin: the same diagnostics, the same internal
-  document and the same output. With format 1 gone, `tools/snapshot.py
-  compare` against the recorded baseline carries that proof, and
-  `tests/test_format2.py` keeps the message scan, a case per moved key. A
-  lowering pass that rewrites nodes in place must visit each node once: a
-  YAML alias shares one node between two keys, and lowering it twice reads
-  the pass's own output as format 1 (`_Lowering.lowered`).
+  internal name in a comment). A pass over the document must visit each
+  node once: a YAML alias shares one node between two keys, and visiting it
+  twice reports its mistakes twice (`_Lowering.lowered`).
 - **Rewriting YAML with ruamel and keeping the author's layout** (`wfb
   migrate`, plan 22). What the round-trip loader does *not* keep, and what
   `wfb/migrate.py` does about each, all found on the example corpus:

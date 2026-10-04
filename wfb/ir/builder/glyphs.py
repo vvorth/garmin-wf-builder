@@ -8,7 +8,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, Final, Literal
 
-from ... import icons, vocab
+from ... import icons
 from ...diagnostics import Span
 
 from ..model import Curve, Element, MAX_OUTLINE_WIDTH, Outline
@@ -66,30 +66,19 @@ class GlyphHelpers(AbsenceChecks):
         Returns whether every key present belonged to `chosen`'s own row.
         """
         ok = True
-        # Named the way the author writes them (`wfb.vocab`): a shape or a
-        # part is a `type:`, and two internal keys can be one author key
-        # (`align:` is both `align` and `vertical_align`), reported once.
-        label = vocab.key(disc)
-        text_part = chosen == "text"
-        reported: set[str] = set()
         for key in sorted(all_keys - table[chosen]):
             if key not in node:
                 continue
-            author = vocab.key(key, text_value=True)
-            if author in reported or author in vocab.keys(table[chosen], text_value=text_part):
-                continue
-            reported.add(author)
             owners = sorted({s for s, keys in table.items() if key in keys})
             notes = [
-                f"'{label}: {chosen}' reads: "
-                + (", ".join(vocab.keys(table[chosen], text_value=text_part)) or empty_label),
-                f"{author!r} belongs to " + " and ".join(f"'{label}: {s}'" for s in owners),
+                f"'{disc}: {chosen}' reads: " + (", ".join(sorted(table[chosen])) or empty_label),
+                f"{key!r} belongs to " + " and ".join(f"'{disc}: {s}'" for s in owners),
             ]
             if extra_notes is not None:
                 notes.extend(extra_notes(key))
             self.bag.error(
                 code,
-                f"{prefix}{author!r} is not used by {qualifier}'{label}: "
+                f"{prefix}{key!r} is not used by {qualifier}'{disc}: "
                 f"{chosen}'{suffix}",
                 self.doc.span(node, key) or self.doc.span(node),
                 notes=notes,

@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ... import catalog, formatting, vocab
+from ... import catalog, formatting
 from ...catalog import Type
 from ...diagnostics import Span
 
@@ -105,13 +105,13 @@ class AbsenceChecks(Readers):
             return
         self.bag.error(
             "when-absent",
-            f"{element.id}: {vocab.key(key)!r} reads {bound.shown!r}, which can be absent, "
+            f"{element.id}: {key!r} reads {bound.shown!r}, which can be absent, "
             "so 'absent:' is required",
             span if span is not None else self.doc.span(node, key),
             notes=[
                 ABSENCE_IS_NORMAL,
                 f"'absent:' is required once anything on this element is nullable, not "
-                f"just the reading it draws -- a nullable {vocab.key(key)} always hides the "
+                f"just the reading it draws -- a nullable {key} always hides the "
                 "element when absent, whatever 'absent:' says for the reading",
                 _WHEN_ABSENT_CHOICES,
             ],
@@ -157,7 +157,7 @@ class AbsenceChecks(Readers):
         shared = ", ".join(sorted(value_sources))
         substitute = ("'absent: {value:}' value" if policy == "fallback"
                       else "'absent:' text")
-        shown = vocab.key(key)
+        shown = key
         self.bag.warning(
             "when-absent",
             f"{element.id}: the {substitute} can never be drawn -- {shared} is also read "
@@ -187,11 +187,11 @@ class AbsenceChecks(Readers):
         return out
 
     def check_format(self, node: dict[str, Any], bound: Expression, spec: str | None) -> None:
-        """Check `format:` against the bound `value:`: a date or time value
-        must have one, and a given spec must suit the value's type
-        (:meth:`check_format_spec`).
+        """Check a `text:` placeholder's format against the value it reads:
+        a date or time value must have one, and a given spec must suit the
+        value's type (:meth:`check_format_spec`).
         """
-        span = self.doc.span(node, "format")
+        span = self.doc.span(node, "text")
         if spec is None:
             if bound.value.type.is_formatted():
                 example = "{:%a %e %b}" if bound.value.type is Type.DATE else "{:%H:%M}"
@@ -199,7 +199,7 @@ class AbsenceChecks(Readers):
                     "format",
                     f"a {bound.value.type.value} value needs a format spec in its "
                     f"placeholder, e.g. '{{{bound.shown}{example[1:]}'",
-                    self.doc.span(node, "value"),
+                    span,
                 )
             return
         self.check_format_spec(bound, spec, span)
@@ -265,17 +265,3 @@ class AbsenceChecks(Readers):
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
-    def check_format_not_on_literal(self, node: dict[str, Any], label: str) -> bool:
-        """`format:` is meaningless without a bound `value:` to format --
-        shared by a `text` element and a pattern's own `shape: text` part,
-        which both take the same `text:` spelling for a fixed string.
-        Returns `False` (having already reported it) when `format:` was
-        written anyway, `True` otherwise."""
-        if "format" not in node:
-            return True
-        self.bag.error(
-            "format",
-            f"{label}: a format spec needs a placeholder to format -- this text is fixed",
-            self.doc.span(node, "format"),
-        )
-        return False

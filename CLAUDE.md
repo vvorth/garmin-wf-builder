@@ -243,7 +243,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 |---|---|---|
 | YAML load with source spans | `wfb/yamlsrc.py` | no |
 | JSON Schema, reported on author lines | `wfb/validate.py` | no |
-| Format 2 → internal shape (spans and author names kept) | `wfb/lower.py` | no |
+| Format 2 checks the schema cannot make (colours, templates) | `wfb/lower.py` | no |
 | Element blocks (`elements:`, `static:`, layouts) → one element list | `wfb/desugar.py` | no |
 | Semantic pass (sources, types, nulls) | `wfb/ir/` (`model.py`, `naming.py`, `builder/`), `wfb/catalog.py`, `wfb/expr.py` | no |
 | Per-device layout resolve | `wfb/layout.py` | device files |

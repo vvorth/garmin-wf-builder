@@ -11,6 +11,7 @@ from dataclasses import replace
 from .. import catalog, conversion, formatting, vocab
 from ..catalog import Type
 from ..ir.model import Element, Expression, Outline, Text, TextSegment, aod_outline_choice
+from ..template import Reading as TemplateReading
 from ..layout import HIDDEN_BY_FONT, Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box
 from ..draw.program import (
@@ -183,24 +184,24 @@ def baked_ring_local(width: int) -> str:
 
 
 def _apply_units(
-    b: Builder, node: dict[str, Any], value: Expression | None,
+    b: Builder, node: dict[str, Any], value: Expression | None, reading: TemplateReading | None,
 ) -> tuple[Expression, str, Expression, tuple[str, ...], int] | None:
     """`units:` on a `text` element (ADR 0005 §4): the bound value rewritten
     to display in the wearer's units (`wfb.conversion`), as ``(value,
     system, label, labels, digits)``, or `None` when it was reported.
 
-    Only a `value:` that is exactly one source with a quantity converts: a
-    conversion needs the unit the value is *in*, which an arbitrary
+    Only a placeholder that is exactly one source with a quantity converts:
+    a conversion needs the unit the value is *in*, which an arbitrary
     expression over the source no longer states."""
     system = str(node["units"])
     element_id = node.get("id", "?")
     span = b.doc.span(node, "units")
-    if value is None:
-        if "value" not in node:
+    if value is None or reading is None:
+        if reading is None:
             b.bag.error("units", f"{element_id}: 'units:' converts the reading in a "
                         "placeholder, and this text is fixed", span)
         return None
-    raw = str(node["value"]).strip()
+    raw = reading.expr.strip()
     source = catalog.CATALOG.get(raw)
     found = conversion.conversion_for(source)
     if found is None:
@@ -210,46 +211,46 @@ def _apply_units(
                 if source is not None and source.unit else
                 f"{raw!r} is not a single source with a unit 'units:' converts")
         b.bag.error(
-            "units", f"{element_id}: {what}", b.doc.span(node, "value"),
+            "units", f"{element_id}: {what}", b.doc.span(node, "text"),
             notes=["'units:' converts a placeholder that is exactly one of: "
                    + ", ".join(convertible),
                    "write the bare source; the conversion replaces any "
                    "hand-written scaling such as 'activity.distance / 100000.0'"])
         return None
-    value_span = b.doc.span(node, "value")
-    converted = b.compile_expression(conversion.converted_text(raw, found, system),
-                                     value_span, "value")
+    converted = b.reading_expression(node, reading,
+                                     text=conversion.converted_text(raw, found, system))
     label = b.compile_expression(conversion.label_text(found, system), span, "units")
     if converted is None or label is None:
         return None
     return converted, system, label, conversion.labels(found, system), found.digits
 
 
-def _in_seconds(b: Builder, node: dict[str, Any], value: Expression) -> Expression:
+def _in_seconds(b: Builder, node: dict[str, Any], value: Expression,
+                reading: TemplateReading) -> Expression:
     """A duration `format:` reads its value as seconds, so a bare source
     the catalogue states in minutes, hours or days is rewritten to seconds
     (`wfb.conversion.SECONDS_PER_UNIT`) -- the same expression rewrite
     `units:` makes, and for the same reason only a bare source: an
     arbitrary expression no longer states its unit, and is read as seconds
     as written."""
-    spec = node.get("format")
-    if spec is None or not formatting.is_duration(str(spec), value.value.type):
+    spec = reading.format
+    if spec is None or not formatting.is_duration(spec, value.value.type):
         return value
-    raw = str(node["value"]).strip()
+    raw = reading.expr.strip()
     source = catalog.CATALOG.get(raw)
     factor = conversion.SECONDS_PER_UNIT.get(source.unit or "") if source is not None else None
     if factor is None or factor == 1:
         return value
-    scaled = b.compile_expression(f"{raw} * {factor}", b.doc.span(node, "value"), "value")
+    scaled = b.reading_expression(node, reading, text=f"{raw} * {factor}")
     return value if scaled is None else scaled
 
 
-def _build_more(b: Builder, node: dict[str, Any], element: Text) -> tuple[TextSegment, ...]:
+def _build_more(b: Builder, node: dict[str, Any], element: Text,
+                entries: tuple[TemplateReading, ...]) -> tuple[TextSegment, ...]:
     """The readings after the first of a `text:` template with several
-    placeholders (`more_values:`, `wfb.lower`), each compiled and its
-    format checked like the first's.  `units:` and `absent: {value:}`
-    speak of one reading, so either is an error beside several."""
-    entries = node.get("more_values") or []
+    placeholders, each compiled and its format checked like the first's.
+    `units:` and `absent: {value:}` speak of one reading, so either is an
+    error beside several."""
     if not entries:
         return ()
     if "units" in node:
@@ -265,26 +266,28 @@ def _build_more(b: Builder, node: dict[str, Any], element: Text) -> tuple[TextSe
                            "('absent: \"--\"'); the text is absent when any reading is"])
     out = []
     for entry in entries:
-        value = b.expression(entry, "value")
+        value = b.reading_expression(node, entry)
         if value is None:
             continue
-        value = _in_seconds(b, entry, value)
-        b.check_format(entry, value, str(entry["format"]))
-        out.append(TextSegment(value, str(entry["format"])))
+        value = _in_seconds(b, node, value, entry)
+        fmt = entry.format or "{}"
+        b.check_format(node, value, fmt)
+        out.append(TextSegment(value, fmt))
     return tuple(out)
 
 
 def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
-    """`{unit}` in `format:` (or its `aod:` twin) is the label of a
-    `units:` conversion, so it needs one.  A `units:` that was written but
-    failed is reported once, where it failed, not again here."""
+    """`{unit}` in a `text:` template (or its `aod:` twin) is the label of
+    a `units:` conversion, so it needs one.  A `units:` that was written
+    but failed is reported once, where it failed, not again here."""
     if "units" in node:
         return
     aod = node.get("aod")
+    own_aod = element.aod_own or {}
     for where, spec, span in (
-        ("text", element.format, b.doc.span(node, "format")),
-        ("aod.text", aod.get("format") if isinstance(aod, dict) else None,
-         b.doc.span(aod, "format") if isinstance(aod, dict) else None),
+        ("text", element.format, b.doc.span(node, "text")),
+        ("aod.text", own_aod.get("text"),
+         b.doc.span(aod, "text") if isinstance(aod, dict) else None),
     ):
         if spec and formatting.has_unit_field(str(spec)):
             b.bag.error("format", f"{element.id}.{where}: '{{unit}}' is the label of a "
@@ -303,20 +306,22 @@ class TextKind(ElementKind[Text, PlacedText]):
     placed_class = PlacedText
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
-        value = b.expression(node, "value") if "value" in node else None
+        literal, readings = b.text_readings(node)
+        first = readings[0] if readings else None
+        value = b.reading_expression(node, first) if first is not None else None
         units = None
         if "units" in node:
-            units = _apply_units(b, node, value)
+            units = _apply_units(b, node, value, first)
             if units is not None:
                 value = units[0]
-        elif value is not None:
-            value = _in_seconds(b, node, value)
+        elif value is not None and first is not None:
+            value = _in_seconds(b, node, value, first)
         align, vertical_align = b.alignment(node)
         element = Text(
             **common,
             value=value,
-            literal=node.get("text"),
-            format=node.get("format"),
+            literal=literal,
+            format=first.format if first is not None else None,
             color=b.color_expression(node, "color"),
             align=align,
             vertical_align=vertical_align,
@@ -325,7 +330,7 @@ class TextKind(ElementKind[Text, PlacedText]):
         if units is not None:
             _, element.units, element.unit_label, element.unit_labels, element.unit_digits = units
         if value is not None:
-            element.more = _build_more(b, node, element)
+            element.more = _build_more(b, node, element, readings[1:])
         _check_unit_field(b, node, element)
         font_ok = b.resolve_font(node, element)
         if "antialias" in node:
@@ -340,8 +345,8 @@ class TextKind(ElementKind[Text, PlacedText]):
             b.check_unsupported(node, element.id, font_is_vector, font_note)
         if "outline" in node:
             element.outline = b.build_outline(node, "outline", element.id, element=element)
-        own_aod_format = element.aod_own is not None and "format" in element.aod_own
-        aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
+        own_aod_format = element.aod_own is not None and "text" in element.aod_own
+        aod_format_span = (b.doc.span(node.get("aod"), "text") or b.doc.span(node, "aod")
                            if own_aod_format else None)
         if value is not None:
             nullable = next((v for v, _ in element.segments() if v.nullable), value)
@@ -349,15 +354,13 @@ class TextKind(ElementKind[Text, PlacedText]):
                             element.fallback)
             b.check_format(node, value, element.format)
             if own_aod_format and element.aod_own is not None:
-                # An `aod: {format: ...}` inherited from a group is checked
+                # An `aod: {text: ...}` inherited from a group is checked
                 # in `_resolve_aod` instead, once inheritance is resolved.
-                b.check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
-        elif "value" not in node:
-            # A fixed `text:` has no bound value for `format:`, or its
-            # `aod:` twin, to format.  (A `value:` that failed to compile
-            # already has its own error.)
-            b.check_format_not_on_literal(node, element.id)
-            refusal = b.aod_refusal("format", "text", None, literal_text=True)
+                b.check_format_spec(value, str(element.aod_own["text"]), aod_format_span)
+        elif first is None:
+            # A fixed `text:` has no reading for its `aod:` twin to restyle.
+            # (A placeholder that failed to compile already has its own error.)
+            refusal = b.aod_refusal("text", "text", None, literal_text=True)
             if own_aod_format and refusal is not None:
                 code, what, notes = refusal
                 b.bag.error(code, f"{element.id}.aod.text: {what}", aod_format_span,
@@ -412,7 +415,7 @@ class TextKind(ElementKind[Text, PlacedText]):
 
     def aod_refusal(self, key: str, shape: str | None,
                     literal_text: bool) -> tuple[str, str, list[str]] | None:
-        if key == "format" and literal_text:
+        if key == "text" and literal_text:
             return ("format", "'aod: {text:}' restyles a placeholder, and this text is fixed", [])
         return None
 

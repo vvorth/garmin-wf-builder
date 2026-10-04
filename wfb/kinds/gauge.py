@@ -155,7 +155,7 @@ def _build_needle(b: Builder, node: dict[str, Any], element: Gauge) -> bool:
     ok = True
     for key, why in _NEEDLE_UNREAD.items():
         if key in node:
-            b.bag.error("element", f"{element.id}: '{vocab.key(key)}:' is not read by "
+            b.bag.error("element", f"{element.id}: '{key}:' is not read by "
                         f"'style: needle' -- {why}",
                         b.doc.span(node, key))
             ok = False

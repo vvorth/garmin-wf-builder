@@ -3,15 +3,16 @@
 Loaded automatically when working under `wfb/`. The pipeline stage table is
 in the root `CLAUDE.md` §6.
 
-- `wfb/lower.py` rewrites a format 2 document into the internal shape the
-  builder reads (older key names), recording each key's author name as a
-  `yamlsrc.Origin`; a diagnostic names what the author wrote through
-  `wfb/vocab.py` and `Expression.shown`, never the internal name.
+- The builder reads format 2's keys and kind names as the author writes
+  them. `wfb/lower.py` checks what the schema cannot (colour names,
+  `text:` templates) and spells out compass aliases; it renames nothing.
+  A diagnostic or a generated comment names what the author wrote
+  (`Expression.shown` for an expression).
 - `wfb/desugar.py` runs after `wfb/lower.py` and rewrites the element
   blocks (the id-keyed mappings, the `static:` blocks, a layout's content)
   into the one list-of-elements shape the IR builder walks. The pipeline is
-  load → validate → lower → desugar → build. New sugar belongs in `lower`
-  or `desugar`, gated by a snapshot proving the output unchanged
+  load → validate → lower → desugar → build. New sugar belongs in
+  `desugar`, gated by a snapshot proving the output unchanged
   (`tools/snapshot.py`).
 - Any change to `wfb/build.py` or to how `monkeyc` is invoked or measured:
   read `docs/lore/toolchain.md` first. (A `.prg`'s size depends on its build

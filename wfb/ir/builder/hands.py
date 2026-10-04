@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import vocab, expr, formatting
+from ... import expr, formatting
 from ...catalog import Type
 from ...diagnostics import Span
 
@@ -57,8 +57,7 @@ PATTERN_PART_GEOMETRY_KEYS = {
     **HAND_PART_GEOMETRY_KEYS,
     #: No `at` -- an arc part is always centred on the copy's own origin.
     "arc": frozenset({"radius", "start_angle", "sweep"}),
-    "text": frozenset({"at", "value", "text", "format", "font", "align", "curve",
-                       "unsupported", "outline"}),
+    "text": frozenset({"at", "text", "font", "align", "curve", "unsupported", "outline"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -327,11 +326,10 @@ class HandParts(ConfigAxes):
                         **text_fields)
 
     def _check_part_format_settings(self, node: dict[str, Any], value: Expression,
-                                    part_where: str) -> None:
+                                    part_where: str, spec: str) -> None:
         """A pattern text part's strings are rendered at build time, one per
         copy, so a format code that follows a device setting (a duration's
         `%h`) has no setting to follow there."""
-        spec = str(node["format"])
         try:
             extra = formatting.extra_paths(spec, value.value.type)
         except formatting.FormatError:
@@ -341,7 +339,7 @@ class HandParts(ConfigAxes):
                 "format",
                 f"{part_where}.text: {spec!r} follows the watch's 12/24-hour "
                 "setting, which a pattern text part cannot read",
-                self.doc.span(node, "format"),
+                self.doc.span(node, "text"),
                 notes=["a pattern text part's strings are fixed at build time; "
                        "use '%H' for 24-hour or '%l %p' for 12-hour"])
 
@@ -359,8 +357,8 @@ class HandParts(ConfigAxes):
         text_value: Expression | None = None
         text_literal: str | None = None
         text_format: str | None = None
-        has_value = "value" in node
-        if has_value == ("text" in node):  # both, or neither
+        literal, readings = self.text_readings(node)
+        if "text" not in node:
             self.bag.error(
                 "pattern",
                 f"{part_where}: a text part needs a 'text:' -- fixed text, or a "
@@ -368,8 +366,8 @@ class HandParts(ConfigAxes):
                 self.doc.span(node),
             )
             ok = False
-        elif has_value:
-            value = self.expression(node, "value")
+        elif readings:
+            value = self.reading_expression(node, readings[0])
             if value is None:
                 ok = False  # expression already reported the real mistake
             else:
@@ -400,14 +398,14 @@ class HandParts(ConfigAxes):
                     ok = False
                 else:
                     text_value = value
-                    if "format" in node:
-                        text_format = node.get("format")
+                    if readings[0].format is not None:
+                        text_format = readings[0].format
                         self.check_format(node, value, text_format)
-                        self._check_part_format_settings(node, value, part_where)
-        elif not self.check_format_not_on_literal(node, part_where):
-            ok = False
+                        self._check_part_format_settings(node, value, part_where, text_format)
+        elif literal is not None:
+            text_literal = literal
         else:
-            text_literal = str(node.get("text"))
+            ok = False  # a malformed template, already reported
 
         font, font_is_custom, font_ok = "FONT_MEDIUM", False, True
         if "font" in node:

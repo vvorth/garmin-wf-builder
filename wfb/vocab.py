@@ -1,32 +1,6 @@
-"""The author's names for what the compiler calls something else.
-
-The IR builder reads the internal shape `wfb/lower.py` produces, whose key
-and kind names are older than format 2's.  A diagnostic names what the
-author wrote, so every message that names a key, a kind or a colour
-reference goes through here.
-"""
+"""How a generated comment spells an IR value the author wrote as a key."""
 
 from __future__ import annotations
-
-from typing import Iterable
-
-#: Internal key -> the key a format 2 author writes.
-KEYS = {
-    "format": "text",
-}
-
-def key(name: str, *, text_value: bool = False) -> str:
-    """The author's name for internal key ``name``.  ``text_value``: the key
-    is a text element's (or text part's) ``value:``, which format 2 writes
-    inside ``text:``."""
-    if name == "value" and text_value:
-        return "text"
-    return KEYS.get(name, name)
-
-
-def keys(names: Iterable[str], *, text_value: bool = False) -> list[str]:
-    """The author's names for ``names``, sorted, each once."""
-    return sorted({key(name, text_value=text_value) for name in names})
 
 
 def absent(element: object) -> str:

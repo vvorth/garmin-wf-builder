@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from ... import kinds, vocab
+from ... import kinds, template
 
 from ..model import AodOverride, Element, Outline, Shape, Text
 from .state import _lint_suppression
@@ -115,8 +115,13 @@ class AodPass(HandParts):
                     )
                 elif resolved is not None:
                     keys["font"] = resolved
-        if "format" in raw:
-            keys["format"] = raw["format"]
+        if isinstance(raw.get("text"), str):
+            # Kept as the restyle's format string; `wfb.lower` has reported
+            # a malformed template, or one that reads another expression.
+            try:
+                keys["text"] = template.aod_format(raw["text"])
+            except template.TemplateError:
+                pass
         if "outline" in raw:
             # Same grammar, colour machinery and width cap as the element's
             # own `outline:`; `none` is kept, since it drops an awake ring.
@@ -145,7 +150,7 @@ class AodPass(HandParts):
             filled=keys.get("filled"),
             font=font_name,
             font_is_custom=font_is_custom,
-            format=keys.get("format"),
+            format=keys.get("text"),
             visible=self._conjoin_visible(element.visible, own_visible),
             visible_override=own_visible,
         )
@@ -202,9 +207,9 @@ class AodPass(HandParts):
                     if own is not None:
                         effective.update(own)
                     element.aod = self._make_aod_override(element, effective)
-                    fmt = effective.get("format")
+                    fmt = effective.get("text")
                     if (fmt is not None and isinstance(element, Text) and element.value is not None
-                            and not (own is not None and "format" in own)):
+                            and not (own is not None and "text" in own)):
                         # Inherited from a group, whose block may reach
                         # several kinds and value types -- only checkable
                         # here.  An element's own one `wfb.kinds.text.TextKind.build` checked.
@@ -241,9 +246,9 @@ class AodPass(HandParts):
                 code,
                 f"{element.id}: {what}, inherited from group {group.id!r}",
                 element.span,
-                notes=[f"group {group.id!r} sets 'aod: {{{vocab.key(key)}: ...}}' ({where}) "
+                notes=[f"group {group.id!r} sets 'aod: {{{key}: ...}}' ({where}) "
                        "for every element below it", *notes,
-                       f"move the group's '{vocab.key(key)}' onto the elements that can "
+                       f"move the group's '{key}' onto the elements that can "
                        "take it"],
             )
             del inherited[key]

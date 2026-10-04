@@ -17,7 +17,7 @@ import re
 from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
-from . import availability, catalog, complications, expr, kinds, series, vocab
+from . import availability, catalog, complications, expr, kinds, series
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (

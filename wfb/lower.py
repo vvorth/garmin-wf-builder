@@ -1,31 +1,25 @@
-"""Lower a format 2 document into the shape the rest of the compiler reads.
+"""Check what the schema cannot in a format 2 document, before the builder.
 
-Format 2 (``docs/guide/format-2-migration.md``) is a front-end change: its
-names and grouping are the author's, and the IR builder still reads the
-internal shape it always has.  This pass rewrites a schema-valid format 2
-document into that shape, in place, before :mod:`wfb.desugar` runs:
+The builder reads the author's keys as written; this pass, between the
+schema and :mod:`wfb.desugar`, checks the format 2 semantics a JSON Schema
+cannot express:
 
-* a ``text:`` template becomes ``value:`` + ``format:`` (and
-  ``more_values:``), and an ``aod: {text:}`` its ``format:``;
-* a compass alias (``align: NE``, ``anchor: SW``) is spelled out.
+* every ``color.<name>``: unknown, a name that is both a swatch and a role,
+  a role where a build-time colour is needed, a format 1 spelling;
+* every ``text:`` template: it parses, a ternary inside a placeholder is
+  parenthesised, ``{unit}`` has a reading to label, several placeholders
+  only where several are drawn, and an ``aod: {text:}`` restyle reads the
+  element's own expression.
 
-Each moved key keeps the author's source position, and each renamed or
-rewritten one records an :class:`~wfb.yamlsrc.Origin` naming the key the
-author wrote, so a diagnostic points at, names and quotes the author's own
-text.  The rewritten document is what the same design said in format 1,
-which is why moving a face to format 2 (``wfb migrate``) changed no
-generated project.
-
-The format 2 semantics the schema cannot check are checked here: a colour
-name that is unknown, ambiguous, or a role where a build-time colour is
-needed; a malformed template; and several placeholders where only one
-reading is drawn.
+It changes one thing: a compass alias (``align: NE``, ``anchor: SW``) is
+spelled out.  And it records, for a nested key the builder compiles
+(``outline.color``, ``absent.value``), the dotted name a diagnostic gives
+it (:class:`~wfb.yamlsrc.Origin`).
 """
 
 from __future__ import annotations
 
 import difflib
-import re
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
@@ -34,7 +28,8 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from .diagnostics import Bag, Span
 from .expr import ExprError, tokenize
 from .template import (
-    Placeholder, TemplateError, Template, Unit, parse_template, segments, to_value_format,
+    Placeholder, TemplateError, Template, Unit, aod_format, parse_template, segments,
+    strip_template_parens, to_value_format,
 )
 from .yamlsrc import Origin, YamlDocument
 
@@ -73,35 +68,6 @@ class _Lowering:
     def error(self, code: str, message: str, span: Span | None, *notes: str) -> None:
         self.bag.error(code, message, span, notes=list(notes))
         self.ok = False
-
-    def rekey(self, node: CommentedMap, old: str, new: str, *values: Any,
-              author: str | None = None) -> None:
-        """Rename ``node[old]`` to ``new`` in place (optionally with a new
-        value), keeping its position in the mapping and its source span, and
-        recording that the author wrote ``author`` (default ``old``)."""
-        keys = list(node)
-        index = keys.index(old)
-        value = values[0] if values else node[old]
-        pos = _lc(node, old)
-        del node[old]
-        node.insert(index, new, value)
-        if pos is not None:
-            _set_lc(node, new, pos)
-        self.doc.set_origin(node, new, Origin(author or old))
-
-    def add(self, node: CommentedMap, key: str, value: Any, like: str, *,
-            author: str | None = None, after: str | None = None) -> None:
-        """Add ``node[key] = value``, positioned where ``node[like]`` is in
-        the source, and recorded as the author's ``author`` (default
-        ``like``)."""
-        pos = _lc(node, like)
-        if after is not None and after in node:
-            node.insert(list(node).index(after) + 1, key, value)
-        else:
-            node[key] = value
-        if pos is not None:
-            _set_lc(node, key, list(pos))
-        self.doc.set_origin(node, key, Origin(author or like))
 
     # -- colours -----------------------------------------------------------
 
@@ -349,76 +315,24 @@ class _Lowering:
             self.expr_key(node, "outline")
 
     def text(self, node: CommentedMap, *, several: bool = False) -> None:
-        """A ``text:`` template: literal text, or ``value:`` + ``format:``.
-        With ``several``, a template with more than one placeholder is
-        accepted: the first reading becomes ``value:`` + ``format:`` and each
-        later one an entry of ``more_values:``, each with the literal text
-        after it (`wfb.template.segments`)."""
+        """Check a ``text:`` template: it parses, and each placeholder's
+        expression reads declared colours.  With ``several``, a template
+        with more than one placeholder is accepted."""
         raw = node.get("text")
         if not isinstance(raw, str):
             return
         template = self.template(node, "text", several=several)
-        if template is None:
+        if template is None or template.placeholder is None:
             return
-        placeholder = template.placeholder
-        if placeholder is None:
-            node["text"] = template.literal
-            self.doc.set_origin(node, "text", Origin("text", raw))
-            return
-        lowered = [self.segment(node, raw, segment) for segment in segments(template)]
-        if any(found is None for found in lowered):
-            return
-        keys = list(node)
-        index = keys.index("text")
-        pos = _lc(node, "text")
-        del node["text"]
-        (value, origin, first_fmt), *more = (found for found in lowered if found is not None)
-        node.insert(index, "value", value)
-        if pos is not None:
-            _set_lc(node, "value", list(pos))
-        self.doc.set_origin(node, "value", origin)
-        if first_fmt is not None:
-            node.insert(index + 1, "format", first_fmt)
-            if pos is not None:
-                _set_lc(node, "format", list(pos))
-            self.doc.set_origin(node, "format", Origin("text", raw))
-        if not more:
-            return
-        entries = CommentedSeq()
-        for value, origin, fmt in more:
-            entry = CommentedMap()
-            entry["value"] = value
-            entry["format"] = fmt if fmt is not None else "{}"
-            for key in ("value", "format"):
-                if pos is not None:
-                    _set_lc(entry, key, list(pos))
-            self.doc.set_origin(entry, "value", origin)
-            self.doc.set_origin(entry, "format", Origin("text", raw))
-            entries.append(entry)
-        node.insert(index + (1 if first_fmt is None else 2), "more_values", entries)
-        if pos is not None:
-            _set_lc(node, "more_values", list(pos))
-        self.doc.set_origin(node, "more_values", Origin("text", raw))
-
-    def segment(self, node: CommentedMap, raw: str, template: Template,
-                ) -> tuple[str, Origin, str | None] | None:
-        """One reading of a ``text:`` template (a single-placeholder
-        `Template` cut from it): its lowered expression, the `Origin` that
-        points a diagnostic into the author's template, and its internal
-        ``format:`` (``None`` for the bare reading)."""
-        placeholder = template.placeholder
-        assert placeholder is not None
-        try:
-            expr, fmt = to_value_format(template)
-        except TemplateError as exc:
-            self.error("format", f"text: {exc.message}", self.span(node, "text"))
-            return None
-        assert expr is not None
-        expr, strip = _strip_template_parens(expr)
-        if not self.check_refs(node, "text", text=expr):
-            return None
-        base = placeholder.offset + _leading_space(raw, placeholder.offset) + strip
-        return expr, Origin("text", raw, ((0, base),), quote=placeholder.expr), fmt
+        for segment in segments(template):
+            try:
+                expr, _ = to_value_format(segment)
+            except TemplateError as exc:
+                self.error("format", f"text: {exc.message}", self.span(node, "text"))
+                return
+            assert expr is not None
+            if not self.check_refs(node, "text", text=strip_template_parens(expr)[0]):
+                return
 
     def template(self, node: CommentedMap, key: str, *, aod: bool = False,
                  several: bool = False) -> Template | None:
@@ -495,7 +409,9 @@ class _Lowering:
             self.aod_text(node, aod)
 
     def aod_text(self, node: CommentedMap, aod: CommentedMap) -> None:
-        if "more_values" in node:
+        own = node.get("text") if node.get("type") == "text" else None
+        own_template = _template_of(own) if isinstance(own, str) else None
+        if own_template is not None and len(own_template.placeholders) > 1:
             self.error("format",
                        "aod.text: restyling a text with several placeholders is not "
                        "implemented yet",
@@ -508,12 +424,9 @@ class _Lowering:
         if template is None:
             return
         placeholder = template.placeholder
-        own_author = self.doc.origin(node, "value") if node.get("type") == "text" else None
         if placeholder is not None and placeholder.expr:
-            expected = None
-            if own_author is not None and own_author.text is not None:
-                parsed = _placeholder_of(own_author.text)
-                expected = parsed.expr if parsed is not None else None
+            parsed = own_template.placeholder if own_template is not None else None
+            expected = parsed.expr if parsed is not None else None
             if expected is None or _normalise(placeholder.expr) != _normalise(expected):
                 self.error("format",
                            "aod.text: the placeholder must read the element's own "
@@ -530,15 +443,10 @@ class _Lowering:
                        "the always-on frame restyles the reading; it cannot replace it "
                        "with fixed text")
             return
-        stripped = Template(tuple(Placeholder("x", p.spec, p.offset)
-                                  if isinstance(p, Placeholder) else p
-                                  for p in template.pieces))
         try:
-            _, fmt = to_value_format(stripped)
+            aod_format(str(aod["text"]))
         except TemplateError as exc:
             self.error("format", f"aod.text: {exc.message}", self.span(aod, "text"))
-            return
-        self.rekey(aod, "text", "format", fmt if fmt is not None else "{}", author="aod.text")
 
     def parts(self, parts: Any, *, pattern: bool = False) -> None:
         if not isinstance(parts, CommentedSeq):
@@ -568,24 +476,6 @@ def lower(doc: YamlDocument, bag: Bag) -> bool:
     return lowering.ok
 
 
-def _set_lc(node: Any, key: Any, pos: Any) -> None:
-    """Record ``node[key]``'s source position (a ruamel ``[line, col, line,
-    col]``); a mapping this pass created has no position table until the
-    first one."""
-    if pos is None:
-        return
-    lc = getattr(node, "lc", None)
-    if lc is None:
-        return
-    lc.add_kv_line_col(key, list(pos))
-
-
-def _lc(node: Any, key: Any) -> list[int] | None:
-    data = getattr(getattr(node, "lc", None), "data", None)
-    if not isinstance(data, dict):
-        return None
-    pos = data.get(key)
-    return list(pos) if pos is not None else None
 
 
 def _format_1_ref(name: str) -> str | None:
@@ -610,41 +500,6 @@ def _anchor(position: Any) -> None:
         position["anchor"] = COMPASS[position["anchor"]]
 
 
-def _strip_template_parens(expr: str) -> tuple[str, int]:
-    """A ternary needs parentheses inside a placeholder; they are template
-    syntax, not part of the expression.  Returns the expression and how many
-    characters were dropped from its front."""
-    text = expr.strip()
-    if not (text.startswith("(") and text.endswith(")")):
-        return expr, 0
-    depth = 0
-    for index, ch in enumerate(text):
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-            if depth == 0 and index != len(text) - 1:
-                return expr, 0  # "(a) + (b)": the outer pair is not one group
-    inner = text[1:-1]
-    if not _top_level_colon(inner):
-        return expr, 0
-    return inner, 1
-
-
-def _top_level_colon(expr: str) -> bool:
-    try:
-        tokens = tokenize(expr)
-    except ExprError:
-        return False
-    depth = 0
-    for token in tokens:
-        if token.text == "(":
-            depth += 1
-        elif token.text == ")":
-            depth -= 1
-        elif token.kind == "op" and token.text == ":" and depth == 0:
-            return True
-    return False
 
 
 def _open_ternary(placeholder: Placeholder) -> bool:
@@ -666,13 +521,10 @@ def _open_ternary(placeholder: Placeholder) -> bool:
     return False
 
 
-def _leading_space(raw: str, offset: int) -> int:
-    return len(raw[offset:]) - len(raw[offset:].lstrip())
 
-
-def _placeholder_of(template: str) -> Placeholder | None:
+def _template_of(raw: str) -> Template | None:
     try:
-        return parse_template(template).placeholder
+        return parse_template(raw)
     except TemplateError:
         return None
 
