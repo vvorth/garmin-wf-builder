@@ -243,7 +243,7 @@ def _dim_color_code(expression: Expression | None, awake_code: str,
     `color.<swatch>` reference, `Expression.is_constant` either way -- is
     pre-dimmed into a second literal here, in Python, once, rather than
     spending a runtime call on arithmetic whose answer never changes
-    (`wfb.palette.Color.dim`). Anything else -- `color.<role>` (a scheme role) (a
+    (`wfb.palette.Color.dim`). Anything else -- a scheme's `color.<role>` (a
     view field the wearer's own on-device pick can repoint) or a
     conditional between several colours -- is dimmed on-device instead, with
     the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`).

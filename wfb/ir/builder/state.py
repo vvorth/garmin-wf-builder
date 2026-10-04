@@ -126,7 +126,7 @@ scope.  Every other layer of `Builder` reads and writes these."""
         self.rejected_config: set[str] = set()
         #: The `config: style:` axis; `None` if undeclared or rejected.
         self.config_style: ConfigStyle | None = None
-        #: The roles `color.<role>` (a scheme role) may name, set by `_build_scope`
+        #: The scheme roles `color.<role>` may name, set by `_build_scope`
         #: for `expression`'s dedicated error; `None` means no Styles
         #: colours at all, not zero roles.
         self._config_colors_roles: tuple[str, ...] | None = None

@@ -254,10 +254,9 @@ against."""
         """Resolve a bare `color_scheme:` name used from a `config: style:`
         entry's own `colors:`.
 
-        Bare, not `color_scheme.<name>` -- that qualifying form is for
-        expressions (`color: color_scheme.dark` is not even legal there
-        either; it is `color.<role>` (a scheme role)), and there is exactly one thing
-        `colors:` can name here, so a prefix buys nothing.  The schema's own
+        Bare: an expression names a scheme's roles (`color.<role>`), never
+        a scheme, and there is exactly one thing `scheme:` can name here, so
+        a prefix buys nothing.  The schema's own
         `$defs/identifier` already rejects a non-identifier value before this
         ever runs, so this only ever sees a plausible name.
 

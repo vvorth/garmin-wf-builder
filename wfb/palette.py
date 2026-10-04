@@ -261,7 +261,7 @@ def dim_channel(value: int, num: int, den: int) -> int:
     pre-dimmed into a second literal at build time, `wfb.emit.monkeyc.
     common._dim_color_code`); in the generated `WfbColor.dim`
     (`runtime-lib/WfbColor.mc`), for a colour whose value is not known until
-    the device resolves it (`color.<role>` (a scheme role), or a conditional between
+    the device resolves it (a scheme's `color.<role>`, or a conditional between
     several colours); and in `wfb.preview`, rendering the same frame on the
     host.  A float would let a channel landing near a `.5` boundary round
     differently across those three -- Python's banker's rounding, this

@@ -631,11 +631,11 @@ These cost real time to discover; do not rediscover them.
   caught a barrel-file omission no Python-level codegen test could.**
   `dim` has to scale a colour that is either a build-time literal
   (`color.<swatch>`, a bare hex) or something the device resolves at
-  runtime (`color.<role>` (a scheme role), a conditional between several colours).
+  runtime (a scheme's `color.<role>`, a conditional between several colours).
   Plan §4.5 offered two candidate implementations for the runtime half:
   a small integer-math helper (`dim(color, num, den)`), or precomputing a
   dimmed variant per `color_scheme:` entry. The second was never actually
-  built to compare against: `color.<role>` (a scheme role) is a *view field* the
+  built to compare against: a scheme's `color.<role>` is a *view field* the
   wearer's own on-device pick can repoint at runtime
   (`Builder._define_config_color`, `constant=None` by design), so
   precomputing a dimmed variant would mean a second shadow field kept in
@@ -648,14 +648,14 @@ These cost real time to discover; do not rediscover them.
   own `dim_channel` docstring) is what shipped. `Expression.is_constant` --
   already true for a `color.<swatch>` reference (`fold_colors=True`'s own
   resolved-constant half, `Builder.expression`) and already `None` for
-  `color.<role>` (a scheme role) -- is exactly the fact that decides which of the
+  a scheme's `color.<role>` -- is exactly the fact that decides which of the
   two a given colour needs, so `wfb.emit.monkeyc.common._dim_color_code`
   needed no new classification of its own: a constant colour is pre-dimmed
   into a second literal in Python once, at build time
   (`wfb.palette.Color.dim`); anything else calls `WfbColor.dim` at the draw
   site. Measured (`fenix847mm`, `--build-stats`, one `text` element): a
   face with `aod: show` and no `dim:` at all is 1,127 B; the same face with
-  `aod: {dim: 0.5}` on a `color.<role>` (a scheme role) colour is 1,318 B -- **191 B**
+  `aod: {dim: 0.5}` on a scheme's `color.<role>` is 1,318 B -- **191 B**
   for the runtime path (the `WfbColor` module, the call site and the
   ternary together). A colour dimmed at build time costs far less: the
   `examples/features/aod/face.yaml` example (one `color.<swatch>`-typed
@@ -676,7 +676,7 @@ These cost real time to discover; do not rediscover them.
   `Toybox` imports come from the same scan of the view body
   (`usage.toybox_modules`).
   **This is not a hypothetical:** a real `monkeyc` build of a
-  `color.<role>` (a scheme role)-dimmed design once failed outright with `Undefined
+  scheme-role-dimmed design once failed outright with `Undefined
   symbol ':WfbColor'` under the old ladder, while every Python-level codegen
   test in `tests/test_aod.py` stayed green -- none of them invoke `monkeyc`
   at all, only `wfb.emit.generate` (source text) or `wfb.preview` (a
