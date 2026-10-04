@@ -680,11 +680,6 @@ function App() {
   useEffect(() => {
     const onHash = () => setDocId(route());
     addEventListener("hashchange", onHash);
-    // `wfb studio face.yaml` opens that face first.
-    if (!route()) api("/api/home").then((h) => { if (h.initial && !sessionStorage.getItem("wfb-initial-shown")) {
-      try { sessionStorage.setItem("wfb-initial-shown", "1"); } catch (_) { /* private mode */ }
-      go(h.initial);
-    } }, () => {});
     return () => removeEventListener("hashchange", onHash);
   }, []);
   // a new message replaces the last, and gets its own full time

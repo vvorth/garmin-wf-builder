@@ -48,7 +48,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 
 ```sh
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
-wfb studio    [design.yaml|face.zip] [-p PORT]  # the editor, on http://127.0.0.1:8765/
+wfb studio    [-p PORT]            # the editor, on http://127.0.0.1:8765/
 wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator

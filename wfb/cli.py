@@ -368,9 +368,6 @@ def _parser() -> argparse.ArgumentParser:
                      help="list the available templates and exit")
 
     studio = _command(sub, "studio", _studio)
-    studio.add_argument("design", type=Path, nargs="?",
-                        help="a .yaml or .zip to open first (optional; it is copied in, "
-                             "never written back)")
     studio.add_argument("--host", default="127.0.0.1",
                         help="the address to listen on (default: 127.0.0.1, loopback only)")
     studio.add_argument("-p", "--port", type=int, default=8765,
@@ -902,26 +899,20 @@ def _studio(args: argparse.Namespace) -> int:
     faces untouched for `--keep-days` are deleted, and each keeps its
     newest `--keep-snapshots` snapshots.
 
-    `wfb studio face.yaml` opens that face first. It is copied in, with the
-    font files it names: the editor never writes to it. `--host` other than
-    loopback warns, since the server writes files.
+    A face is opened from the editor's home screen, never from the command
+    line. `--host` other than loopback warns, since the server writes files.
 
     Each browser has its own faces, kept by a cookie. The address printed
-    on start carries a one-time claim: the browser that opens it gets the
-    face named here and every face made before faces had owners. Another
+    on start carries a one-time claim: the browser that opens it gets every
+    face made before faces had owners. Another
     browser joins with a link from **Use my faces in another browser** on
     the home screen. `--single-user` gives every browser the same faces.
     Only requests addressed to a loopback name, `--host` or an
     `--allow-host` name are answered.
     """
-    from .edit import Refused
     from .studio import serve
-    from .studio.bundle import BundleError
     from .studio.store import StoreError, default_root
 
-    if args.design is not None and not args.design.is_file():
-        _error(f"{args.design} does not exist")
-        return 1
     try:
         db = DeviceDatabase.discover(args.devices_dir, fonts_root=args.fonts_dir)
     except DeviceError as exc:
@@ -933,10 +924,10 @@ def _studio(args: argparse.Namespace) -> int:
                    "--keep-snapshots at least 1")
             return 1
         serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
-              db=db, design=args.design, snapshot_minutes=args.snapshot_minutes,
+              db=db, snapshot_minutes=args.snapshot_minutes,
               keep_days=args.keep_days, keep_snapshots=args.keep_snapshots,
               single_user=args.single_user, allow_hosts=args.allow_host)
-    except (BundleError, Refused, StoreError) as exc:
+    except StoreError as exc:
         _error(str(exc))
         return 1
     except KeyboardInterrupt:

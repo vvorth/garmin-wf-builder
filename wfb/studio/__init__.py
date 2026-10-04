@@ -22,7 +22,6 @@ import sys
 from pathlib import Path
 
 from ..devices import DeviceDatabase
-from .bundle import from_path
 from .document import SNAPSHOT_MINUTES, Studio
 from .sessions import Sessions
 from .store import Store
@@ -50,7 +49,7 @@ def allowed_hosts(host: str, extra: list[str]) -> list[str]:
 
 
 def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
-          design: Path | None = None, snapshot_minutes: float = SNAPSHOT_MINUTES,
+          snapshot_minutes: float = SNAPSHOT_MINUTES,
           keep_days: float = KEEP_DAYS, keep_snapshots: int = KEEP_SNAPSHOTS,
           single_user: bool = False, allow_hosts: list[str] | None = None) -> None:
     """Run the editor until interrupted."""
@@ -65,12 +64,8 @@ def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
     for line in sessions.prune({store.owner(d["id"]) for d in store.documents()}):
         print(f"pruned {line}", flush=True)
     studio = Studio(store, db, snapshot_minutes=snapshot_minutes)
-    initial = None
     try:
-        if design is not None:
-            bundle, moved = from_path(design)
-            initial = studio.create(bundle, f"open {design.name}", moved).id
-        app = create_app(studio, initial=initial, sessions=sessions,
+        app = create_app(studio, sessions=sessions,
                          allowed_hosts=allowed_hosts(host, allow_hosts or []))
         shown = f"[{host}]" if ":" in host else host
         if host in ("0.0.0.0", "::"):

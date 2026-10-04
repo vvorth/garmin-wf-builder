@@ -202,8 +202,8 @@ def _unwrapped(entries: dict[str, zipfile.ZipInfo]) -> dict[str, zipfile.ZipInfo
 
 
 def from_path(design: Path) -> tuple[Bundle, dict[str, str]]:
-    """A design on disk (`wfb studio face.yaml`) and the files it
-    references, read as an upload would be.
+    """A design on disk and the files it references, read as an upload
+    would be.
 
     A referenced file inside the design's directory keeps its relative
     path; one outside it is copied under `assets/`.  The second value maps

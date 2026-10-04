@@ -15,8 +15,10 @@ to copy to the watch; **Download** saves the face itself.
 
 ```sh
 wfb studio                      # then open the address it prints
-wfb studio examples/showcase/face.yaml   # opens that face first
 ```
+
+Faces are opened in the editor itself, from its home screen
+([faces in and out](#faces-in-and-out)), not named on the command line.
 
 The address it prints ends in `?claim=…`: open it once, in the browser you
 will use ([whose faces](#whose-faces)).
@@ -30,10 +32,6 @@ will use ([whose faces](#whose-faces)).
 | `--keep-days`, `--keep-snapshots` | on start, faces untouched this many days are deleted, and each keeps its newest snapshots (defaults 30 and 50); a browser unseen this long is forgotten too |
 | `--single-user` | every browser sees and edits the same faces, as one person ([whose faces](#whose-faces)) |
 | `--allow-host` | also answer requests addressed to this name, a proxy's or a LAN name (repeatable); see below |
-
-A face named on the command line is copied into the editor, with the font
-files it names. The editor never writes back to it: you save by
-downloading.
 
 In the Docker image, publish the port to your computer only and keep the
 history in a volume ([the container guide](../container.md#the-editor)):
@@ -51,8 +49,8 @@ kept as long as the faces are (`--keep-days`) and renewed on every visit;
 another browser, or one whose cookies were cleared, starts with none.
 
 - **The address `wfb studio` prints** carries a one-time claim. The browser
-  that opens it gets the face named on the command line, and every face
-  the editor kept from before faces belonged to a browser.
+  that opens it gets every face the editor kept from before faces
+  belonged to a browser.
 - **Use my faces in another browser**, on the home screen, gives a link
   for the other browser: it works once, within 10 minutes, and from then
   on both see the same faces.

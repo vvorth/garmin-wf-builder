@@ -182,11 +182,9 @@ def _picks(raw: str | None) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(out))
 
 
-def create_app(studio: Studio, *, initial: str | None = None,
-               sessions: Sessions | None = None,
+def create_app(studio: Studio, *, sessions: Sessions | None = None,
                allowed_hosts: list[str] | None = None) -> Starlette:
-    """The app over ``studio``.  ``initial`` is a document id the home
-    screen opens straight away (`wfb studio face.yaml`).
+    """The app over ``studio``.
 
     With ``sessions``, each browser is a principal and sees only its own
     faces (`wfb.studio.sessions`); without, everyone is the owner, as with
@@ -227,7 +225,6 @@ def create_app(studio: Studio, *, initial: str | None = None,
                               for n in starters.names()],
                 "documents": studio.store.documents(owner=who),
                 "store": str(studio.store.root),
-                "initial": initial if initial is not None and owner_of(initial) == who else None,
                 "shared": sessions is None or sessions.single_user,
             })
 
