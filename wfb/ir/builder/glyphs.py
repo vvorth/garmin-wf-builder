@@ -301,9 +301,9 @@ class GlyphHelpers(AbsenceChecks):
     def resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
         """`"U+F0BC"` -> the character, or `None` plus a reported error.
 
-        The shared `glyph:` diagnostics: used by `wfb.kinds.icon._build_glyph_icon`'s
-        own inline checks and by a `complication_slot` choice's `glyph:`
-        override (`_resolve_choice_icon_override`), which needs the
+        The shared `icon: U+XXXX` diagnostics: used by
+        `wfb.kinds.icon._build_glyph_icon`'s own inline checks and by a slot
+        choice's `icon: U+XXXX` override (`_resolve_choice_icon_override`), which needs the
         identical "not that notation" / "not in the font" messages, not a
         second copy of them.
         The "this glyph is already a catalogue name" note is a `bag.note`,
@@ -346,8 +346,7 @@ class GlyphHelpers(AbsenceChecks):
     def _resolve_choice_icon_override(
         self, item: dict[str, Any], what: str, fallback_span: Span | None,
     ) -> "icons.SlotIcon | None | Literal[_IconOverride.NONE, _IconOverride.ERROR]":
-        """A `config: data:` choice's own `icon:`/`glyph:`, if it declares
-        one.
+        """A `config: slots:` choice's own `icon:`, if it declares one.
 
         Returns `_NO_ICON_OVERRIDE` when the choice names neither key (fall
         back to `wfb.icons.COMPLICATION_ICON`), `_ICON_OVERRIDE_ERROR` when
@@ -359,35 +358,22 @@ class GlyphHelpers(AbsenceChecks):
         `icon` element's own `icon:`/`glyph:` get -- rather than a second,
         parallel set of diagnostics for what is the same two keys.
         """
-        has_icon = "icon" in item
-        has_glyph = "glyph" in item
-        if not has_icon and not has_glyph:
+        if "icon" not in item:
             return _NO_ICON_OVERRIDE
-        if has_icon and has_glyph:
+        raw_icon = item["icon"]
+        span = self.doc.span(item, "icon") or fallback_span
+        if raw_icon == "none":
+            return None
+        if not isinstance(raw_icon, str):
             self.bag.error(
-                "config",
-                f"{what}: 'icon:' and 'glyph:' are mutually exclusive",
-                fallback_span,
-                notes=["'icon:' names a catalogue entry; 'glyph:' is any codepoint "
-                       "in the icon font -- pick one"],
-            )
+                "config", f"{what}.icon: expected a string, got {raw_icon!r}", span)
             return _ICON_OVERRIDE_ERROR
-        if has_icon:
-            raw_icon = item["icon"]
-            span = self.doc.span(item, "icon") or fallback_span
-            if raw_icon == "none":
-                return None
-            if not isinstance(raw_icon, str):
-                self.bag.error(
-                    "config", f"{what}.icon: expected a string, got {raw_icon!r}", span)
-                return _ICON_OVERRIDE_ERROR
+        if not icons.is_codepoint_spelling(raw_icon):
             codepoint = self.resolve_icon_name(raw_icon, span)
             if codepoint is None:
                 return _ICON_OVERRIDE_ERROR
             return icons.SlotIcon(raw_icon, codepoint)
-        raw_glyph = str(item["glyph"])
-        span = self.doc.span(item, "glyph") or fallback_span
-        character = self.resolve_icon_glyph(raw_glyph, span)
+        character = self.resolve_icon_glyph(raw_icon, span)
         if character is None:
             return _ICON_OVERRIDE_ERROR
         return icons.SlotIcon(icons.codepoint_key(character), character)

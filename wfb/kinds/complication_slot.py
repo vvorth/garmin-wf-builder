@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
-from .. import complications, icons, units, vocab
+from .. import complications, icons, units
 from ..diagnostics import Span
 from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import HOLD_AUTO, ComplicationSlot, ConfigDataSlot, Element, Expression
@@ -111,7 +111,7 @@ def resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDat
 
 def _check_slot_color_absence(
     b: Builder, node: dict[str, Any], element: "ComplicationSlot", key: str,
-    color: Expression | None, note: str,
+    color: Expression | None, note: str, label: str | None = None,
 ) -> None:
     """A complication_slot's `color:`/`icon_color:` may not read
     anything absent-able -- neither has a `absent:` of its own to
@@ -125,7 +125,7 @@ def _check_slot_color_absence(
         return
     b.bag.error(
         "complication-slot",
-        f"{element.id}: '{vocab.key(key)}' reads {color.shown!r}, which can be absent",
+        f"{element.id}: '{label or key}' reads {color.shown!r}, which can be absent",
         b.doc.span(node, key),
         notes=[
             note,
@@ -388,14 +388,16 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         slot_raw = node["slot"]
         slot = resolve_slot_reference(b, str(slot_raw), b.doc.span(node, "slot"))
 
+        icon = node.get("icon")
+        icon = icon if isinstance(icon, dict) else {}
         icon_size = b.baked_size_length(
-            node, "icon_size", code="complication-slot", label="icon: {size:}",
+            icon, "size", code="complication-slot", label="icon: {size:}",
             note=ICON_SIZE_NOTE,
         )
 
-        icon_position = node.get("icon_position", "left")
+        icon_position = icon.get("position", "left")
         icon_gap = b.baked_size_length(
-            node, "icon_gap", code="complication-slot", label="icon: {gap:}",
+            icon, "gap", code="complication-slot", label="icon: {gap:}",
             note="the same restriction the icon's size has -- an icon's font is "
                  "baked once, before layout runs, so the gap that sits "
                  "against it cannot depend on a parent box (%) or an "
@@ -405,34 +407,11 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             b.bag.error(
                 "complication-slot",
                 f"icon: {{gap:}} must not be negative, got {icon_gap.value:g}{icon_gap.unit}",
-                b.doc.span(node, "icon_gap"),
+                b.doc.span(icon, "gap"),
             )
             icon_gap = None
 
-        icon_color = b.color_expression(node, "icon_color")
-
-        # None of 'icon_position:'/'icon_gap:'/'icon_color:' means anything
-        # without an icon to place, space or colour -- checked against
-        # whether the author wrote 'icon_size:' at all, not against whatever
-        # it resolved to, so a *different* mistake in 'icon_size:' (a bad
-        # unit, say) is reported once, not doubled up with a second "needs
-        # icon_size:" complaint about the same missing icon.
-        if "icon_size" not in node:
-            for key in ("icon_position", "icon_gap", "icon_color"):
-                if key not in node:
-                    continue
-                b.bag.error(
-                    "complication-slot",
-                    f"{common['id']}: '{vocab.key(key)}' needs 'icon: {{size:}}'",
-                    b.doc.span(node, key),
-                    notes=[f"'{vocab.key(key)}' only means something for the icon this "
-                           "slot draws, and there is no icon to place, space or colour "
-                           "without a size",
-                           f"add 'icon: {{size:}}', or drop '{vocab.key(key)}'"],
-                )
-            icon_position = "left"
-            icon_gap = None
-            icon_color = None
+        icon_color = b.color_expression(icon, "color")
 
         if "format" in node:
             b.bag.error(
@@ -524,9 +503,10 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             )
 
         _check_slot_color_absence(
-            b, node, element, "icon_color", icon_color,
+            b, icon, element, "color", icon_color,
             "a data element's colours have no 'absent:' of their own -- "
             "'absent:' governs the pulled reading, not the element's appearance",
+            label="icon: {color:}",
         )
 
         return element

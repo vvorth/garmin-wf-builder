@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 def _build_glyph_icon(b: Builder, node: dict[str, Any], common: dict[str, Any], placement: dict[str, Any]) -> Element:
-    """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
+    """`icon: "U+F0BC"` -- a codepoint the catalogue does not name.
 
     The only way to reach a glyph the catalogue does not name, and spelled
     so that it survives a code review: `U+F0BC` is greppable and visible,
@@ -38,8 +38,8 @@ def _build_glyph_icon(b: Builder, node: dict[str, Any], common: dict[str, Any], 
     font key -- is identical once it is a character, because this is
     exactly what a catalogue name resolves to.
     """
-    raw = str(node.get("glyph"))
-    span = b.doc.span(node, "glyph")
+    raw = str(node.get("icon"))
+    span = b.doc.span(node, "icon")
     character = b.resolve_icon_glyph(raw, span)
     if character is None:
         character = icons.FALLBACK_CODEPOINT
@@ -58,10 +58,9 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
 
     def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         name = node.get("icon")
-        has_icon_for = "icon_for" in node
-        has_glyph = "glyph" in node
-        chosen = [k for k in ("icon", "icon_for", "glyph") if k in node]
-        if len(chosen) != 1:
+        dynamic = name if isinstance(name, dict) else None
+        has_glyph = isinstance(name, str) and icons.is_codepoint_spelling(name)
+        if name is None:
             b.bag.error(
                 "icon",
                 "an icon element needs one 'icon:'",
@@ -81,16 +80,16 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
 
         align, vertical_align = b.alignment(node)
         # Shared by every branch below: `**placement` is the four keys an
-        # `IconElement` needs regardless of which of 'icon'/'icon_for'/
-        # 'glyph' chose it -- one `color_expression(node, "color")` call
+        # `IconElement` needs regardless of which spelling of 'icon:' chose
+        # it -- one `color_expression(node, "color")` call
         # instead of one per branch.
         placement: dict[str, Any] = dict(
             size=size, color=b.color_expression(node, "color"),
             align=align, vertical_align=vertical_align,
         )
 
-        if has_icon_for:
-            value_for = b.expression(node, "icon_for")
+        if dynamic is not None:
+            value_for = b.expression(dynamic, "for")
             if value_for is not None and (
                 not isinstance(value_for.ast, expr.Ref)
                 or len(value_for.sources) != 1
@@ -101,7 +100,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
                     f"icon: {{for:}} must be exactly one of: "
                     f"{', '.join(sorted(catalog.WEATHER_CONDITION_SOURCES))} "
                     f"-- not {value_for.shown!r}",
-                    b.doc.span(node, "icon_for"),
+                    b.doc.span(dynamic, "for") or b.doc.span(node, "icon"),
                     notes=["arithmetic or a conditional would break the "
                            "condition-to-glyph lookup, which needs the raw "
                            "Weather.CONDITION_* value"],
@@ -115,7 +114,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         if has_glyph:
             return _build_glyph_icon(b, node, common, placement)
 
-        assert name is not None  # the schema requires one of icon/glyph/icon_for
+        assert isinstance(name, str)  # the schema requires 'icon:'
         codepoint = b.resolve_icon_name(name, b.doc.span(node, "icon"))
         if codepoint is None:
             codepoint = icons.FALLBACK_CODEPOINT

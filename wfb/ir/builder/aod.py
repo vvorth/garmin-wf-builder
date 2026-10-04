@@ -76,9 +76,11 @@ class AodPass(HandParts):
             return False, {}
         element_id = node.get("id", "?")
         keys: dict[str, Any] = {}
-        for key in ("color", "track_color", "icon_color"):
+        for key in ("color", "track_color"):
             if key in raw:
                 keys[key] = self.color_expression(raw, key)
+        if isinstance(raw.get("icon"), dict) and "color" in raw["icon"]:
+            keys["icon"] = self.color_expression(raw["icon"], "color")
         for key in ("thickness", "bar_width"):
             if key in raw:
                 keys[key] = self.length(raw, key)
@@ -137,7 +139,7 @@ class AodPass(HandParts):
             outline_none=outline == "none",
             color=keys.get("color"),
             track_color=keys.get("track_color"),
-            icon_color=keys.get("icon_color"),
+            icon_color=keys.get("icon"),
             thickness=keys.get("thickness"),
             bar_width=keys.get("bar_width"),
             filled=keys.get("filled"),

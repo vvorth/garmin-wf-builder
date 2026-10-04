@@ -100,6 +100,12 @@ def names() -> list[str]:
 _CODEPOINT_RE = re.compile(r"^[Uu]\+([0-9A-Fa-f]{1,6})$")
 
 
+def is_codepoint_spelling(text: str) -> bool:
+    """Whether ``text`` is written ``U+XXXX`` -- an `icon:` naming a codepoint
+    rather than a catalogue entry."""
+    return _CODEPOINT_RE.match(text) is not None
+
+
 def parse_codepoint(text: str) -> str | None:
     """``"U+F0BC"`` -> the character, or ``None`` if it is not that notation.
 

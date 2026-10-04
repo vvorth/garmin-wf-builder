@@ -49,7 +49,6 @@ COMPASS = {"N": "top", "NE": "top_right", "E": "right", "SE": "bottom_right",
            "S": "bottom", "SW": "bottom_left", "W": "left", "NW": "top_left"}
 
 _PRIMITIVES = ("rectangle", "circle", "line", "arc", "ellipse", "polygon")
-_U_PLUS = re.compile(r"^[Uu]\+[0-9A-Fa-f]{1,6}$")
 
 
 @dataclass
@@ -381,9 +380,6 @@ class _Lowering:
             elif isinstance(choice, CommentedMap):
                 if isinstance(choice.get("type"), str):
                     choice["type"] = f"complication.{choice['type']}"
-                icon = choice.get("icon")
-                if isinstance(icon, str) and _U_PLUS.match(icon):
-                    self.rekey(choice, "icon", "glyph", author="icon")
 
     # -- elements ------------------------------------------------------------
 
@@ -589,16 +585,7 @@ class _Lowering:
     def icon(self, node: CommentedMap) -> None:
         icon = node.get("icon")
         if isinstance(icon, CommentedMap):
-            expr = icon.get("for")
-            self.rekey(node, "icon", "icon_for", expr, author="icon")
-            if isinstance(expr, str):
-                lowered = self.lower_refs(node, "icon_for", author="icon.for")
-                if lowered is not None:
-                    node["icon_for"] = lowered[0]
-                    self.doc.set_origin(node, "icon_for",
-                                        Origin("icon.for", expr, lowered[1]))
-        elif isinstance(icon, str) and _U_PLUS.match(icon):
-            self.rekey(node, "icon", "glyph", author="icon")
+            self.expr_key(icon, "for", author="icon.for")
 
     def data(self, node: CommentedMap) -> None:
         node["type"] = "complication_slot"
@@ -607,16 +594,7 @@ class _Lowering:
             self.doc.set_origin(node, "slot", Origin("slot"))
         icon = node.get("icon")
         if isinstance(icon, CommentedMap):
-            index = list(node).index("icon")
-            node_pos = _lc(node, "icon")
-            del node["icon"]
-            for offset, key in enumerate(k for k in ("size", "position", "gap", "color")
-                                         if k in icon):
-                node.insert(index + offset, f"icon_{key}", icon[key])
-                pos = _lc(icon, key)
-                _set_lc(node, f"icon_{key}", pos if pos is not None else node_pos)
-                self.doc.set_origin(node, f"icon_{key}", Origin(f"icon.{key}"))
-            self.expr_key(node, "icon_color", author="icon.color")
+            self.expr_key(icon, "color", author="icon.color")
 
     def absent(self, node: CommentedMap) -> None:
         value = node.get("absent")
@@ -632,9 +610,8 @@ class _Lowering:
         if "outline" in aod:
             self.outline(aod)
         icon = aod.get("icon")
-        if isinstance(icon, CommentedMap) and "color" in icon:
-            self.rekey(aod, "icon", "icon_color", icon["color"], author="aod.icon.color")
-            self.expr_key(aod, "icon_color", author="aod.icon.color")
+        if isinstance(icon, CommentedMap):
+            self.expr_key(icon, "color", author="aod.icon.color")
         if isinstance(aod.get("text"), str):
             self.aod_text(node, aod)
 

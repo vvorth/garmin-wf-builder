@@ -13,12 +13,6 @@ from typing import Iterable
 
 #: Internal key -> the key a format 2 author writes.
 KEYS = {
-    "icon_size": "icon: {size:}",
-    "icon_position": "icon: {position:}",
-    "icon_gap": "icon: {gap:}",
-    "icon_color": "icon: {color:}",
-    "icon_for": "icon: {for:}",
-    "glyph": "icon",
     "shape": "type",
     "format": "text",
     "color_scheme": "theme: schemes:",
