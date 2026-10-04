@@ -22,7 +22,7 @@ from wfb.studio.app import Events, create_app
 from wfb.studio.bundle import (
     Bundle, BundleError, from_path, inside, missing, read_upload, references, to_zip,
 )
-from wfb.studio.document import FrameKey, StaleVersion, Studio
+from wfb.studio.document import Document, FrameKey, StaleVersion, Studio
 from wfb.studio.store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -666,3 +666,44 @@ def test_a_frame_is_drawn_on_the_date_asked_for(client):
     saturday = client.get(f"{url}&date=2026-03-28").json()["frame"]
     sample = client.get(url).json()["frame"]
     assert len({sunday, saturday, sample}) == 3
+
+
+def test_a_failed_timed_snapshot_is_told_to_its_owner_and_spares_the_rest(tmp_path, db,
+                                                                         monkeypatch):
+    s = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "s", snapshot_minutes=5)
+    heard: list[tuple[str, dict]] = []
+    s.on_event = lambda name, data: heard.append((name, data))
+    bad = s.create(Bundle("Bad", minimal_text()), "new")
+    good = s.create(Bundle("Good", minimal_text()), "new")
+    real = Document.snapshot
+
+    def snapshot(doc, reason, now=None):
+        if doc.id == bad.id:
+            raise OSError("disk full")
+        return real(doc, reason, now)
+
+    monkeypatch.setattr(Document, "snapshot", snapshot)
+    taken = s.tick(max(bad.last_snapshot[0], good.last_snapshot[0]) + 301)
+    assert [t.seq for t in taken] == [good.version]
+    assert heard[0] == ("error", {"id": bad.id,
+                                  "message": "the timed snapshot failed: disk full"})
+    assert heard[1][0] == "snapshot" and heard[1][1]["id"] == good.id
+    s.close()
+
+
+def test_the_page_listens_for_every_event_the_server_sends():
+    """An event the page does not subscribe to is never heard: the History
+    tab once missed every timed snapshot this way."""
+    import re
+    from pathlib import Path
+
+    studio_dir = Path(__file__).resolve().parent.parent / "wfb/studio"
+    sent = set()
+    for source in ("app.py", "document.py"):
+        sent |= set(re.findall(r'(?:publish|on_event)\("(\w+)"',
+                               (studio_dir / source).read_text()))
+    page = (studio_dir / "static/app.js").read_text()
+    listened = re.search(r"for \(const name of \[([^\]]*)\]\)", page)
+    assert listened is not None
+    heard = set(re.findall(r'"(\w+)"', listened[1]))
+    assert sent and sent == heard, (sent, heard)

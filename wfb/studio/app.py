@@ -259,10 +259,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         key = _frame_key(request)
         with studio.lock:
             document = doc(request)
-            shown = document.frame(key)
-            events.publish("rendered", {"id": document.id, "version": document.version,
-                                        "device": key.device})
-            return JSONResponse(shown)
+            return JSONResponse(document.frame(key))
 
     def thumbnail(request: Request, data: bytes) -> Response:
         key = _frame_key(request, scale=1)

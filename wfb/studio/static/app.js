@@ -87,7 +87,7 @@ function useEvents(onEvent) {
   handler.current = onEvent;
   useEffect(() => {
     const source = new EventSource("/api/events");
-    for (const name of ["changed", "rendered", "error"]) {
+    for (const name of ["changed", "snapshot", "error"]) {
       source.addEventListener(name, (e) => handler.current(name, JSON.parse(e.data)));
     }
     return () => source.close();
@@ -384,7 +384,8 @@ function Editor({ docId, onError, onNotice }) {
 
   useEvents((name, data) => {
     if (!doc || data.id !== docId) return;
-    if ((name === "changed" && data.version !== doc.version) || name === "snapshot") loadDoc();
+    if (name === "error") onError(new Error(data.message));
+    else if ((name === "changed" && data.version !== doc.version) || name === "snapshot") loadDoc();
   });
 
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),

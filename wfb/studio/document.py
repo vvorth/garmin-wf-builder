@@ -19,6 +19,7 @@ import io
 import json
 import re
 import shutil
+import sys
 import tempfile
 import threading
 import time
@@ -910,17 +911,25 @@ class Studio:
 
     def tick(self, now: float | None = None) -> list[Snapshot]:
         """Snapshot every open document that changed since its last
-        snapshot, once an interval has passed since that one."""
+        snapshot, once an interval has passed since that one. A document
+        whose snapshot fails is reported to its owner (an `error` event
+        naming it) and the others are still taken."""
         now = time.time() if now is None else now
         taken = []
         with self.lock:
             for doc in list(self._open.values()):
                 when, seq = doc.last_snapshot
-                if seq != doc.version and now - when >= self.snapshot_seconds:
+                if seq == doc.version or now - when < self.snapshot_seconds:
+                    continue
+                try:
                     snap = doc.snapshot("timer", now)
-                    taken.append(snap)
-                    self.on_event("snapshot", {"id": doc.id, "name": snap.name,
-                                               "version": doc.version})
+                except Exception as exc:  # the timer must outlive one bad document
+                    self.on_event("error", {"id": doc.id,
+                                            "message": f"the timed snapshot failed: {exc}"})
+                    continue
+                taken.append(snap)
+                self.on_event("snapshot", {"id": doc.id, "name": snap.name,
+                                           "version": doc.version})
         return taken
 
     def start_timer(self) -> None:
@@ -931,8 +940,8 @@ class Studio:
             while not self._stop.wait(period):
                 try:
                     self.tick()
-                except Exception as exc:  # the timer must outlive one bad document
-                    self.on_event("error", {"message": f"snapshot failed: {exc}"})
+                except Exception as exc:  # the timer must outlive any one failure
+                    print(f"wfb studio: the snapshot timer: {exc}", file=sys.stderr, flush=True)
 
         self._timer = threading.Thread(target=run, name="wfb-studio-snapshots", daemon=True)
         self._timer.start()
