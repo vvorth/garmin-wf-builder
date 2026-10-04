@@ -46,6 +46,7 @@ function Splitter({ width, sign, fallback, onWidth }) {
 }
 import { FacePanel, Inspector } from "./panels.js";
 import { picksParam, typeLabel } from "./values.js";
+import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
 import { deleteOp } from "./tree.js";
 import { sessionLost, watch } from "./session.js";
 
@@ -205,20 +206,6 @@ function AnotherBrowser() {
 }
 
 // -- the editor ----------------------------------------------------------------------
-
-function Diagnostics({ items, tree, onSelect }) {
-  if (!items.length) return html`<div class="body dim">No diagnostics.</div>`;
-  const order = { error: 0, warning: 1, note: 2 };
-  const sorted = [...items].sort((a, b) => order[a.severity] - order[b.severity]);
-  return html`<ul class="diags">
-    ${sorted.map((d) => html`
-      <li onClick=${() => { const el = d.line && elementAtLine(tree, d.line); if (el) onSelect(el.id); }}>
-        <span class=${"sev " + d.severity}>${d.severity}</span>${d.message}
-        ${d.line ? html`<div class="where">${d.file}:${d.line}:${d.col} · ${d.code}</div>` : null}
-        ${d.notes.length ? html`<div class="notes">${d.notes.join("\n")}</div>` : null}
-      </li>`)}
-  </ul>`;
-}
 
 function Missing({ doc, onChanged, onError }) {
   if (!doc.missing.length) return null;
@@ -671,7 +658,7 @@ function Editor({ docId, onError, onNotice }) {
                       onReveal=${showLines} onSelect=${select} />
         <div class="tabs">
           <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
-            Diagnostics${doc.diagnostics.length ? ` (${doc.diagnostics.length})` : ""}</button>
+            ${diagnosticsLabel(doc.diagnostics)}</button>
           <button class=${tab === "history" ? "on" : ""} onClick=${() => setTab("history")}>History</button>
         </div>
         ${tab === "diagnostics"

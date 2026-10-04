@@ -145,3 +145,20 @@ export function typeLabel(vocab, name) {
   const t = ((vocab && vocab.complication_types) || []).find((x) => x.name === name);
   return t ? t.label : name;
 }
+
+// The diagnostics' count per severity, `{error, warning, note}`.
+export function severityCounts(items) {
+  const out = { error: 0, warning: 0, note: 0 };
+  for (const d of items) out[d.severity] = (out[d.severity] || 0) + 1;
+  return out;
+}
+
+// The diagnostics a filter shows ("all", or one severity), most severe
+// first, in their own order within a severity.
+export function shownDiagnostics(items, filter = "all") {
+  const order = { error: 0, warning: 1, note: 2 };
+  const kept = filter === "all" ? items : items.filter((d) => d.severity === filter);
+  return kept.map((d, i) => [d, i])
+    .sort(([a, i], [b, j]) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3) || i - j)
+    .map(([d]) => d);
+}

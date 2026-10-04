@@ -101,6 +101,11 @@ Drag the edge between a side panel and the centre to widen or narrow
 the panel; a double click on the edge puts its width back. The browser
 remembers both widths.
 
+**Diagnostics** are the compiler's errors, warnings and notes, most severe
+first; the tab counts each kind, and when there is more than one kind,
+chips above the list show one at a time. Clicking one selects the element
+it is about.
+
 The bar above the centre picks the watch, the style, what each slot
 shows, the time, asleep, always-on and the skin, and the zoom. A slot is
 drawn showing its first type until you pick another of its choices there:

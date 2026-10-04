@@ -306,3 +306,40 @@ def test_a_drop_on_the_layers_moves_a_row_and_ignores_anything_else(summary):
     assert result["afterForeign"] == 0
     assert result["ops"] == [{"op": "move", "path": ["elements", "clock"],
                               "block": ["static"], "before": None}]
+
+
+def test_the_diagnostics_filter_by_severity_and_the_tab_counts_each():
+    items = [
+        {"severity": "note", "code": "n", "message": "a note", "notes": [], "line": None},
+        {"severity": "warning", "code": "w", "message": "first warning", "notes": [], "line": None},
+        {"severity": "error", "code": "e", "message": "an error", "notes": [], "line": None},
+        {"severity": "warning", "code": "w", "message": "second warning", "notes": [], "line": None},
+    ]
+    script = f"""
+      import {{ install }} from {json.dumps((HERE / 'studio_dom.mjs').as_uri())};
+      const document = install();
+      const {{ html, render }} = await import({json.dumps((STATIC / 'vendor/preact-htm.module.js').as_uri())});
+      const {{ Diagnostics, diagnosticsLabel }} = await import({json.dumps((STATIC / 'diagnostics.js').as_uri())});
+      const root = document.createElement("div");
+      render(html`<${{Diagnostics}} items=${{{json.dumps(items)}}} tree=${{[]}} onSelect=${{() => {{}}}} />`, root);
+      const cls = (e) => e.attributes.class || "";
+      const rows = () => root.all((e) => e.localName === "li").map((li) => li.textContent.trim());
+      const chips = () => root.all((e) => e.localName === "button").map((b) => b.textContent.trim());
+      const settle = () => new Promise((r) => setTimeout(r, 5));
+      const out = [chips(), rows()];
+      root.all((e) => e.localName === "button" && e.textContent.startsWith("warnings"))[0].click();
+      await settle();
+      out.push(rows());
+      const label = document.createElement("div");
+      render(diagnosticsLabel({json.dumps(items)}), label);
+      out.push(label.textContent);
+      console.log(JSON.stringify(out));
+    """
+    done = subprocess.run(["node", "--input-type=module", "-e", script],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr[-1500:]
+    chips, every, warnings, label = json.loads(done.stdout)
+    assert chips == ["all 4", "errors 1", "warnings 2", "notes 1"]
+    assert every == ["erroran error", "warningfirst warning", "warningsecond warning", "notea note"]
+    assert warnings == ["warningfirst warning", "warningsecond warning"]
+    assert label == "Diagnostics ✕ 1⚠ 2ℹ 1"

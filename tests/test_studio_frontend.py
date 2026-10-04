@@ -557,3 +557,17 @@ def test_a_lost_session_with_unsaved_work_asks_rather_than_reloads():
       ]));
     """)
     assert result == ["banner", "reload", "nothing"]
+
+
+def test_diagnostics_are_counted_and_filtered_most_severe_first():
+    result = run("""
+      const items = [{severity: "note", m: 1}, {severity: "error", m: 2},
+                     {severity: "warning", m: 3}, {severity: "error", m: 4}];
+      console.log(JSON.stringify({
+        counts: values.severityCounts(items),
+        all: values.shownDiagnostics(items).map((d) => d.m),
+        errors: values.shownDiagnostics(items, "error").map((d) => d.m),
+      }));
+    """)
+    assert result == {"counts": {"error": 2, "warning": 1, "note": 1},
+                      "all": [2, 4, 3, 1], "errors": [2, 4]}
