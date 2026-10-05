@@ -57,7 +57,10 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/fonts/files.ts` is the `FontFiles` interface (the Garmin font
     root, then the registry's stand-ins), and `src/fonts/node.ts` the same
     over disk. `sfnt.ts`, `cft.ts` and `fallback.ts` read and measure the
-    files; `bmfont.ts` is a baked font's data.
+    files; `bmfont.ts` is a baked font's data, and `bake.ts` bakes one:
+    opentype.js outlines (used nowhere else), our rasteriser (`raster.ts`)
+    and FreeType's fixed-point metrics. `src/emit/resources.ts` bakes a
+    face's fonts for a device.
   - `src/layout.ts` is per-device layout; each kind's `resolve` is in
     `src/kinds/`. Trigonometry is `Math.sin`/`cos`/`atan2`, but `hypot` is
     `py.hypot`: `Math.hypot` is often a bit off Python's.

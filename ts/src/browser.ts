@@ -25,3 +25,6 @@ export { BakedFont, GlyphBox } from "./fonts/bmfont.ts";
 export * as layout from "./layout.ts";
 export * as visibleArea from "./visible_area.ts";
 export * as geometry from "./edit/geometry.ts";
+export * as bake from "./fonts/bake.ts";
+export * as resources from "./emit/resources.ts";
+export * as png from "./png.ts";

@@ -2,11 +2,16 @@
 // with the fonts the oracle baked (its `fonts` dump), until the bake is
 // ported.
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { REPO_ROOT } from "../../src/devices/node.ts";
 import { load } from "../../src/build.ts";
 import { DeviceDatabase } from "../../src/devices/device.ts";
 import { Bag } from "../../src/diagnostics.ts";
 import { BakedFont, GlyphBox } from "../../src/fonts/bmfont.ts";
 import { NodeFontFiles } from "../../src/fonts/node.ts";
+import { bakeFonts } from "../../src/emit/resources.ts";
+import type { FontFile } from "../../src/fonts/files.ts";
 import { resolve } from "../../src/layout.ts";
 import { repoFileExists } from "../../src/node.ts";
 import type { Case } from "../stages.ts";
@@ -54,4 +59,27 @@ export function layout(input: Case): unknown {
       $image: createHash("sha256").update(sheet.bytes).digest("hex"), mode: sheet.mode, size: [sheet.width, sheet.height],
     }),
   });
+}
+
+const files = new Map<string, FontFile>();
+
+/** A font file by its repository-relative (or absolute) path. */
+export function readFont(path: string): FontFile {
+  let file = files.get(path);
+  if (file === undefined) {
+    const bytes = readFileSync(path.startsWith("/") ? path : join(REPO_ROOT, path));
+    files.set(path, file = { path, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) });
+  }
+  return file;
+}
+
+const sheetJson = (sheet: { mode: string; width: number; height: number; bytes: Uint8Array }): unknown =>
+  ({ mode: sheet.mode, size: [sheet.width, sheet.height], bytes: Buffer.from(sheet.bytes).toString("base64") });
+
+/** The port of `fonts`: every font this design bakes for the device, as the oracle dumps them. */
+export function fonts(input: Case): unknown {
+  const face = load(input.path, new Bag(), input.text, repoFileExists);
+  if (face === null) return null;
+  const baked = bakeFonts(face, db(input).get(input.device!), readFont);
+  return Object.fromEntries([...baked].map(([name, font]) => [name, irJson(font, true, { sheet: sheetJson })]));
 }

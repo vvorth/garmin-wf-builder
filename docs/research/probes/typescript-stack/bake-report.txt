@@ -1,0 +1,10 @@
+# The TS bake against Python's (FreeType's), per glyph: ts/tools/bake-report.ts, 2026-10-06.
+# Text fonts over the corpus on every device; an anti-aliased pixel differs when more than 32 levels apart.
+
+| font | glyphs | identical | same box and offsets | differing ink, all | ... where the box agrees |
+|---|---:|---:|---:|---:|---:|
+| Chivo Mono 1-bit | 680 | 373 | 613 | 1.78 % | 0.87 % |
+| Chivo Mono aa | 194 | 168 | 170 | 1.01 % | 0.00 % |
+| Dynalight aa | 80 | 80 | 80 | 0.00 % | 0.00 % |
+| Open Sans 1-bit | 176 | 63 | 174 | 0.44 % | 0.40 % |
+| Questrial aa | 60 | 60 | 60 | 0.00 % | 0.00 % |

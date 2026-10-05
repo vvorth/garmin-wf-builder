@@ -2,7 +2,7 @@
 // a channel, not interlaced), over fflate's inflate. A 16-bit sample keeps
 // its high byte, as Pillow's 8-bit modes read it. Anything else is
 // declined (`null`) rather than guessed at.
-import { unzlibSync } from "fflate";
+import { unzlibSync, zlibSync } from "fflate";
 
 export interface RgbaImage {
   width: number;
@@ -92,4 +92,50 @@ export function decodePng(bytes: Uint8Array): RgbaImage | null {
   } catch {
     return null;
   }
+}
+
+const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function chunk(type: string, body: Uint8Array): Uint8Array {
+  const out = new Uint8Array(12 + body.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, body.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(body, 8);
+  view.setUint32(8 + body.length, crc32(out.subarray(4, 8 + body.length)));
+  return out;
+}
+
+/**
+ * An 8-bit greyscale (`L`) or RGBA image as a PNG: no filter, zlib at level
+ * 9, no metadata, so the same pixels give the same bytes everywhere.
+ */
+export function encodePng(width: number, height: number, pixels: Uint8Array, channels: 1 | 4 = 1): Uint8Array {
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  header[8] = 8;
+  header[9] = channels === 1 ? 0 : 6;
+  const stride = width * channels;
+  const raw = new Uint8Array((stride + 1) * height);
+  for (let y = 0; y < height; y++) raw.set(pixels.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+  const parts = [Uint8Array.from(SIGNATURE), chunk("IHDR", header), chunk("IDAT", zlibSync(raw, { level: 9 })), chunk("IEND", new Uint8Array(0))];
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
 }

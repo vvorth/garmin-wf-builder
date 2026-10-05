@@ -14,7 +14,7 @@ import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, P
 import { formatG, repr, roundHalfEven as round, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
 import { Box, IntBox } from "../units.ts";
-import { type Common, ElementKind, type Refusal, register } from "./base.ts";
+import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -54,6 +54,55 @@ function dataWidest(r: Resolver, element: DataElement): string {
   return widest;
 }
 
+/** Text the device supplies (a firmware string, a label): unbounded, so the whole alphabet. */
+export const COMPLICATION_TEXT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ";
+
+/** Every character the slot's reading could render, whichever choice the wearer picks. */
+function textGlyphs(element: DataElement, face: Face): Set<string> {
+  const glyphs = new Set<string>();
+  for (const name of slotChoices(face, element)) {
+    for (const c of complications.readingGlyphs(name, element.unit, element.short)) glyphs.add(c);
+    if (["text", "training_status", "high_low"].includes(complications.READING.get(name)!)) for (const c of COMPLICATION_TEXT_ALPHABET) glyphs.add(c);
+  }
+  if (element.placeholder) for (const c of element.placeholder) glyphs.add(c);
+  if (element.label !== "none") for (const c of COMPLICATION_TEXT_ALPHABET) glyphs.add(c);
+  return glyphs;
+}
+
+const byKey = (a: icons.SlotIcon, b: icons.SlotIcon): number => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+
+/** The slot's multi-glyph icon font, or `null` when none of its choices has an icon. */
+function iconRun(element: DataElement, face: Face): TextRun | null {
+  if (element.icon_size === null) return null;
+  const slot = face.config_data.get(element.slot);
+  if (slot === undefined) return null;
+  const mapped = slot.icons;
+  if (mapped.size === 0) return null;
+  const codepoints = new Set([...mapped.values()].map((si) => si.codepoint));
+  const table = new Map([...mapped.values()].map((si): [string, string] => [si.key, si.codepoint]));
+  if (slot.conditionIcons.size > 0) {
+    // A weather choice's icon follows the pulled condition, so the font needs every condition's glyph.
+    for (const c of icons.WEATHER_GLYPH_SET) codepoints.add(c);
+    for (const name of icons.GARMIN_WEATHER_CONDITION_ICON.values()) table.set(name, icons.CATALOG.get(name)!.codepoint);
+  }
+  const glyphs = [...codepoints].sort(comparePoints).join("");
+  const reference = mapped.get(slot.default) ?? [...mapped.values()].sort(byKey)[0]!;
+  const key = icons.fontKey(element.icon_size, `slot_${element.slot}`, element.resolved_antialias);
+  return new TextRun(`${element.id}.icon`, key, {
+    span: element.span, icon: new IconFont(element.icon_size, glyphs, reference.codepoint, element.resolved_antialias), glyph_table: table,
+  });
+}
+
+/** Python's string order: by code point. */
+export function comparePoints(a: string, b: string): number {
+  const x = Array.from(a), y = Array.from(b);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = x[i]!.codePointAt(0)! - y[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+}
+
 /** The box the native editor gets with a slot's drawable: the slot's rows, and every column the pair could reach. */
 export function highlightBox(box: IntBox, anchorX: number, align: string, screenWidth: number): IntBox {
   let left: number, right: number;
@@ -76,6 +125,14 @@ class DataKind extends ElementKind<DataElement> {
     + "repoint it to a different complication at any time -- a buffer "
     + "filled once would freeze both",
   ] as const;
+
+  override textRuns(element: DataElement, face: Face): TextRun[] {
+    const runs: TextRun[] = [];
+    if (element.font_is_custom) runs.push(new TextRun(element.id, element.font, { glyphs: textGlyphs(element, face), span: element.span }));
+    const icon = iconRun(element, face);
+    if (icon !== null) runs.push(icon);
+    return runs;
+  }
 
   override resolve(r: Resolver, element: DataElement, parent: Box, depth: number): Placed {
     const [cx, cy] = r.point(element.at, parent);

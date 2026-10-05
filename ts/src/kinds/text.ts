@@ -12,7 +12,7 @@ import {
 import { repr, roundHalfEven as round, str } from "../py.ts";
 import type { Box } from "../units.ts";
 import type { Reading } from "../template.ts";
-import { type Common, ElementKind, type Refusal, register } from "./base.ts";
+import { type Common, ElementKind, type Refusal, register, TextRun } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -147,6 +147,31 @@ function widestText(element: Text): string {
   return widest;
 }
 
+/** The characters the element's font must hold, and those its `aod: {font:}` override must. */
+function textGlyphs(element: Text): [Set<string>, Set<string>] {
+  if (element.literal !== null) return [new Set(element.literal), new Set(element.literal)];
+  if (element.value === null) return [new Set(), new Set()];
+  const spec = element.format || "{}";
+  const options = { digits: element.unit_digits, unitLabels: element.unit_labels };
+  const valueGlyphs = formatting.glyphs(spec, source(element.value), element.value.value.type, element.value.scale, options);
+  const glyphs = new Set(valueGlyphs);
+  const aod = element.aod;
+  const aodSpec = aod !== null && aod.format !== null ? aod.format : spec;
+  const aodGlyphs = aodSpec === spec ? new Set(valueGlyphs)
+    : formatting.glyphs(aodSpec, source(element.value), element.value.value.type, element.value.scale, options);
+  for (const [value, moreSpec] of element.segments().slice(1)) {
+    for (const c of formatting.glyphs(moreSpec, source(value), value.value.type, value.scale)) glyphs.add(c);
+  }
+  if (element.placeholder) for (const c of element.placeholder) glyphs.add(c);
+  if (element.absent === "fallback" && element.fallback !== null) {
+    const fallback = element.fallback;
+    const more = fallback.value.type === "string" && fallback.constant !== null ? new Set(str(fallback.constant))
+      : formatting.glyphs(spec, source(fallback), fallback.value.type, fallback.scale);
+    for (const c of more) glyphs.add(c);
+  }
+  return [glyphs, aodGlyphs];
+}
+
 class TextKind extends ElementKind<Text> {
   readonly name = "text";
   readonly irClass = Text;
@@ -202,6 +227,24 @@ class TextKind extends ElementKind<Text> {
     b.checkOtherAbsence(node, element, "color", element.color);
     b.checkReachableSubstitute(node, element, "'color'", element.segments().map(([v]) => v), [element.color]);
     return element;
+  }
+
+  override textRuns(element: Text): TextRun[] {
+    const aod = element.aod;
+    const aodFont = aod !== null && aod.font_is_custom ? aod.font : null;
+    if (!element.font_is_custom && aodFont === null) return [];
+    const [glyphs, aodGlyphs] = textGlyphs(element);
+    const runs: TextRun[] = [];
+    if (element.font_is_custom) {
+      const widest = widestText(element);
+      runs.push(new TextRun(element.id, element.font, {
+        glyphs, samples: [widest], sample_note: `the widest rendering of this element is ${repr(widest)}`,
+        span: element.span, unsupported: element.unsupported, curve: element.curve,
+      }));
+    }
+    // Whatever the element's own font is, this baked one draws asleep, and it needs the glyphs.
+    if (aodFont !== null) runs.push(new TextRun(element.id, aodFont, { glyphs: aodGlyphs, span: element.span, aod_only: true }));
+    return runs;
   }
 
   override hiddenReason(placed: Placed): string | null {

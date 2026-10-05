@@ -145,3 +145,32 @@ function readSubtable(data: DataView, at: number): Map<number, number> | null {
   }
   return null;
 }
+
+/**
+ * The first `name` record with `nameId`, in file order, decoded as fontTools'
+ * `toUnicode` does: UTF-16BE for the Unicode and Windows platforms, one byte
+ * a character otherwise. `null` when there is none or the file is not an sfnt.
+ */
+export function nameRecord(bytes: Uint8Array, nameId: number): string | null {
+  try {
+    const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const at = tables(data)?.get("name");
+    if (at === undefined) return null;
+    const count = data.getUint16(at + 2), storage = at + data.getUint16(at + 4);
+    for (let i = 0; i < count; i++) {
+      const record = at + 6 + i * 12;
+      if (data.getUint16(record + 6) !== nameId) continue;
+      const platform = data.getUint16(record), length = data.getUint16(record + 8), offset = storage + data.getUint16(record + 10);
+      const raw = bytes.subarray(offset, offset + length);
+      if (platform === 0 || platform === 3) {
+        let text = "";
+        for (let j = 0; j + 1 < raw.length; j += 2) text += String.fromCharCode((raw[j]! << 8) | raw[j + 1]!);
+        return text;
+      }
+      return String.fromCharCode(...raw);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

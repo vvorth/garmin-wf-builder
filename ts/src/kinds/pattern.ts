@@ -17,7 +17,7 @@ import {
 } from "../layout.ts";
 import { deepEqual, formatG, num, pyMod, roundHalfEven as round } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
-import { type Common, ElementKind, type Refusal, register } from "./base.ts";
+import { type Common, ElementKind, type Refusal, register, TextRun } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -333,6 +333,20 @@ class PatternKind extends ElementKind<PatternElement> {
     placed.box = box.rounded();
     if (textReach > placed.reach) placed.reach = textReach;
     return placed;
+  }
+
+  override textRuns(element: PatternElement): TextRun[] {
+    // Every drawn copy's string is known at build time, so a text part's font needs exactly those.
+    const drawn = element.drawnIndices();
+    const runs: TextRun[] = [];
+    element.parts.forEach((part, index) => {
+      if (part.shape !== "text" || !part.font_is_custom) return;
+      const samples = drawn.map((i) => part.texts[i]!);
+      runs.push(new TextRun(`${element.id}.parts[${index}]`, part.font, {
+        glyphs: new Set(samples.join("")), samples, part_index: index, span: part.span, unsupported: part.unsupported, curve: part.curve,
+      }));
+    });
+    return runs;
   }
 
   override circularExtent(placed: Placed): [number, number, number] | null {

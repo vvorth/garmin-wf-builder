@@ -335,6 +335,37 @@ codegen, and layout asks it nothing.
 - `tests/golden/` resources are regenerated in this slice, with the report
   as the explanation (`tests/CLAUDE.md`: explain, do not just regenerate).
 
+**Built 2026-10-06.** `fonts` is equal on 97 of 168 face × device cases
+and within the two recorded deviations on the other 71. `layout` still
+places with the oracle's fonts, so its parity stays the layout's own.
+
+- **Metrics and advances are exact.** FreeType computes them in 16.16 and
+  26.6 fixed point, and the bake does too (`FT_DivFix`/`FT_MulFix`): equal
+  to Pillow on every size from 4 to 139 for every corpus font, and on 18 000
+  sampled advances. Rounding the exact values instead missed 9 line heights
+  and 84 advances.
+- **The rasteriser** (`fonts/raster.ts`) is the signed-area accumulation
+  of font-rs and stb_truetype over flattened outlines, with Pillow's BOX
+  resample transcribed. Against FreeType, where a glyph's box agrees, under
+  1 % of 1-bit ink differs (`docs/research/probes/typescript-stack/
+  bake-report.txt`): a recorded deviation on sheets, tile boxes and offsets.
+- **Icon sizing is a deviation of its own.** `bake_size` searches the
+  nominal size whose ink height matches `size:`, and Python measures
+  FreeType's *hinted* box, which at icon sizes moves points per glyph. The
+  closest unhinted rule (the outline's own pixel bounds) picks the same size
+  in 345 of 660 sampled searches; per the user (2026-10-06) this is left to
+  tune later. A choice to make then: match Python, or size by the TS bake's
+  own ink, which would be right for the sheets TS ships.
+- **Also built:** `emit/resources.ts`'s bake half (`glyphSet`,
+  `iconFontSpecs`, `bakeFonts`), every kind's `textRuns`, ring fonts, and a
+  deterministic PNG writer (`png.ts`).
+
+**Departures:**
+- `tests/golden/` stays Python's: the goldens are the shipping compiler's
+  output, and its codegen is still Python's until slice 8.
+- System-font stand-ins drawn glyph by glyph move to slice 6, with the
+  preview that draws them.
+
 ### Slice 6 — draw program, preview and layers (Pillow baseline)
 
 - `draw/*` (program, evaluator, printer, barrel, jsonform, layers,

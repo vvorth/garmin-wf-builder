@@ -11,7 +11,7 @@ import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from 
 import { repr, roundHalfEven as round, str } from "../py.ts";
 import * as units from "../units.ts";
 import { Box } from "../units.ts";
-import { type Common, ElementKind, register } from "./base.ts";
+import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
 type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align">;
@@ -50,6 +50,23 @@ class IconKind extends ElementKind<IconElement> {
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
       anchor_point: [round(cx), round(cy)], justify: justify(element),
     });
+  }
+
+  override textRuns(element: IconElement): TextRun[] {
+    let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
+    if (element.isDynamic) {
+      // The glyph is chosen on the device, so the font holds every one it could be.
+      glyphKey = icons.DYNAMIC_WEATHER_TAG;
+      glyphs = icons.WEATHER_GLYPH_SET;
+      reference = icons.WEATHER_BAKE_REFERENCE_GLYPH;
+      table = new Map([...new Set(icons.GARMIN_WEATHER_CONDITION_ICON.values())].map((name) => [name, icons.CATALOG.get(name)!.codepoint]));
+    } else {
+      glyphKey = glyphs = reference = element.codepoint;
+    }
+    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias);
+    return [new TextRun(element.id, key, {
+      span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias), glyph_table: table,
+    })];
   }
 
   build(b: Builder, node: Node, common: Common): Element {

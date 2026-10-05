@@ -3,7 +3,7 @@
 // registers its stage's port here when it lands.
 import type { DeviceFiles } from "../src/devices/files.ts";
 import { diagnosticsLoad, face } from "./ports/ir.ts";
-import { layout } from "./ports/layout.ts";
+import { fonts, layout } from "./ports/layout.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
 import * as text from "./ports/text.ts";
@@ -67,6 +67,7 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   face,
   "diagnostics-load": diagnosticsLoad,
   layout,
+  fonts,
 };
 
 /**
@@ -126,7 +127,39 @@ function hiddenByFontExtent(value: unknown): unknown {
   };
 }
 
+/** A bake with its rasterised parts set aside: the sheet, and each glyph's tile box and offsets. */
+function bakedMetrics(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  return Object.fromEntries(Object.entries(value as Record<string, Record<string, unknown>>).map(([name, font]) => [name, {
+    ...font, sheet: "<rasterised>", sheet_width: "<rasterised>", sheet_height: "<rasterised>",
+    glyphs: Object.fromEntries(Object.entries((font["glyphs"] ?? {}) as Record<string, Record<string, unknown>>)
+      .map(([ch, g]) => [ch, { char: g["char"], xadvance: g["xadvance"] }])),
+  }]));
+}
+
+/** Icon fonts (and their ring fonts) with their nominal size and what follows from it set aside. */
+function iconSizing(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  return Object.fromEntries(Object.entries(value as Record<string, Record<string, unknown>>).map(([name, font]) => {
+    if (!name.startsWith("icon_")) return [name, font];
+    const glyphs = Object.fromEntries(Object.keys((font["glyphs"] ?? {}) as object).map((ch) => [ch, "<sized>"]));
+    return [name, { ...font, size: "<sized>", line_height: "<sized>", base: "<sized>", cell_width: "<sized>", glyphs }];
+  }));
+}
+
 export const DEVIATIONS: readonly Deviation[] = [
+  {
+    stages: ["fonts"],
+    reason: "an icon's nominal size is searched by its unhinted ink height, where Python measures FreeType's hinted box: "
+      + "about half the searches land on another size",
+    normalise: iconSizing,
+  },
+  {
+    stages: ["fonts"],
+    reason: "glyphs are rasterised by our own coverage rasteriser from unhinted outlines, not FreeType: "
+      + "sheets, tile boxes and offsets differ at edge pixels",
+    normalise: bakedMetrics,
+  },
   {
     stages: ["layout"],
     reason: "a text whose vector font has no face on the device (hidden there) is measured with Pillow's default face's "
