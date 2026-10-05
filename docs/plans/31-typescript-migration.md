@@ -181,6 +181,41 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
 - **The gate** (`wfb/edit/gate.py`) waits for slice 3's diagnostics. Its
   tests come over then.
 
+**Built 2026-10-05.** Parity is exact on four stages:
+
+| Stage | Equal | Notes |
+|---|---|---|
+| `nodes` (new) | 50 of 51 | ruamel's whole composed tree |
+| `spans` | 50 of 51 | |
+| `data` | 48 of 48 | |
+| `patches` (new) | 51 of 51 | 37 442 replayed edit operations |
+
+- **The one deviation** in `nodes` and `spans` is recorded in
+  `ts/tools/stages.ts`: an invalid text's error message is the `yaml`
+  package's, not ruamel's.
+- **The corpus** now includes `ts/test/cases/yaml/`, edge cases the faces
+  do not exercise.
+- **`nodes` stage.** The composer rebuilds ruamel's node tree (marks,
+  tags, values) from the `yaml` package's AST. That turned out simpler than
+  restating `value_end`, and it leaves `SpanIndex` a line-for-line port.
+- **`patches` stage.** It replaces "every patch `tests/test_edit.py`
+  makes" with a generated battery (`tools/oracle_patches.py`):
+  - every operation of `patch`, `structure`, `colors`, `schemes` and
+    `hands`, on every entry and element of every design;
+  - each outcome recorded as a splice of the text, the description, a
+    hash of the intended data, a refusal or a crash.
+
+**Departures:**
+- **`slots`** moves to slice 3: it reads `complications.py`.
+- **`geometry`** (pixel drags) moves to slice 4: it reads devices, the IR
+  and layout.
+- **Also ported:** `palette.ts` (whole), and `series.ts` (its tables; its
+  difflib suggestions come with the catalogue).
+- **`ts/src/py.ts`** holds the Python semantics the port reproduces:
+  - truthiness, `repr`, `json.dumps` and `splitlines`;
+  - `f"{x:.6f}"` and `round()`, half to even;
+  - `float.hex()`, and `PyError` for crashes.
+
 ### Slice 3 — schema, lower, desugar, the IR, the catalogue and expressions
 
 - `validate.ts`: Ajv (Draft 2020-12, `allErrors`), and `validate.py`'s
@@ -188,7 +223,7 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
   meant, required-one-of, exclusive keys and unexpected keys, rebuilt from
   Ajv's `schemaPath` instead of jsonschema's `context`.
 - Also `lower.ts`, `desugar.ts`, `ir/*`, `catalog.ts`, `expr.ts`,
-  `units.ts`, `palette.ts`, `availability.ts`, `complications.ts`,
+  `units.ts`, `availability.ts`, `complications.ts`, `edit/slots.ts`,
   `formatting.ts`, `series.ts`, `vocab.ts`, `template.ts`, and each kind's
   lowering half (`kinds/*`).
 - **Parity:** `diagnostics` (code, severity, message text, span) and
@@ -198,7 +233,8 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
 
 ### Slice 4 — per-device layout
 
-- `layout.ts`, `visible_area.ts`, and font *metrics* only: `wfb/fonts/`
+- `layout.ts`, `visible_area.ts`, `edit/geometry.ts` (pixel drags in the
+  author's units), and font *metrics* only: `wfb/fonts/`
   system-font metrics, `cft.ts`'s header and metrics, and the registry.
   Baking waits for slice 5.
 - **Parity:** `layout`, every constant and box, on every corpus face ×
@@ -361,7 +397,12 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
   - `tests/CLAUDE.md`, `wfb/CLAUDE.md` → `ts/CLAUDE.md`;
   - `docs/lore/toolchain.md`, `docs/lore/codegen.md`;
   - the guide's CLI chapter (`docs/guide/preview-and-cli.md`).
-- The Docker image drops Python except for `tools/research/`.
+- **The Docker image.**
+  - It drops Python except for `tools/research/`.
+  - It is brought up to date with the TypeScript stack here, once, and the
+    user tests it.
+  - Until then, no slice builds or tests the image (user decision,
+    2026-10-05). Slice 1's Node stage stays as written.
 
 ### Close-out
 

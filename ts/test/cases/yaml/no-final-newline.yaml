@@ -1,0 +1,2 @@
+no_newline: {a: 1, b: [x, y]}
+last: value

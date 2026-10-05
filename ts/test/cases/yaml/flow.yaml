@@ -1,0 +1,12 @@
+inline: { a: 1, b: "two", c: 'three', d: [1, 2, 3] }
+empty_map: {}
+empty_seq: []
+multi: {
+  a: 1,
+  b: 2
+}
+seq_multi: [
+  one,
+  two,
+]
+nested: { at: { anchor: center, dx: -5% }, list: [{ x: 1 }, { y: 2 }] }

@@ -1,0 +1,15 @@
+ints: [0, -3, +4, 0x1F, 0o17, 1_000]
+floats: [1.5, -0.25, .5, 1e3, 1.0e-2, .inf, -.Inf, .nan]
+bools: [true, false, True, FALSE, yes, no, on, off]
+nulls: [~, null, Null, NULL]
+strings: [abc, "quoted \" escape", 'single '' quote', 12:30, 2026-10-05, "#hash", a#b]
+multiline_plain: this is
+  a folded plain
+  scalar
+multiline_double: "first
+  second"
+"quoted key": 1
+'single key': 2
+"shape:round": 3
+? complex
+: value

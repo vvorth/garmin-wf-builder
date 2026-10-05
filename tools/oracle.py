@@ -14,8 +14,12 @@ Writes `.cache/oracle/` (gitignored):
 - `<design>/<device>/<stage>.json` for a stage per device, and
   `<design>/<device>/preview.png`.
 
-A design is every `*.yaml` under `examples/` and `tests/fixtures/`, named by
-its path without the suffix, as `tools/snapshot.py` names them. A design
+A design is every `*.yaml` under `examples/`, `tests/fixtures/` and
+`ts/test/cases/`, named by its path without the suffix, as
+`tools/snapshot.py` names them. `ts/test/cases/` holds YAML edge cases the
+faces do not exercise (empty values, block scalars, comment placement, no
+final newline, invalid text). They are not faces, so only their text stages
+say much. A design
 the compiler refuses is still a valid case: its `diagnostics-load` says why,
 and the later stages are absent.
 
@@ -28,7 +32,9 @@ Stages, in pipeline order:
 
 | stage | scope | what |
 |---|---|---|
+| `nodes` | design | the composed node tree the edit engine reads (`wfb.edit.spans.compose`): each node's kind, tag, start and end marks (index, line, column), a scalar's style and value, a collection's flow style |
 | `spans` | design | `wfb.edit.spans.SpanIndex`: every entry's path and key, value and end offsets |
+| `patches` | design | the editor's operations replayed on the text (`tools/oracle_patches.py`): each call's arguments and outcome |
 | `data` | design | the parsed YAML, mappings as `[key, value]` pairs (`spans.ordered`) |
 | `lowered` | design | the document after the schema and `wfb.lower` |
 | `desugared` | design | the document after `wfb.desugar` |
@@ -47,6 +53,8 @@ Values are JSON by one generic walk (`to_json`):
 - a path is a string relative to the repository;
 - a set is a sorted list;
 - an image is `{"$image": sha256, "mode", "size"}`;
+- a YAML timestamp (ruamel resolves `2026-10-05` to a date even under
+  YAML 1.2) is `{"$timestamp": isoformat}`;
 - a `Device` is `{"$device": id}`;
 - a `Face` below the top is `{"$face": name}`.
 
@@ -58,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import datetime
 import enum
 import hashlib
 import json
@@ -79,19 +88,21 @@ from wfb import build as build_mod  # noqa: E402
 from wfb import desugar, lower, preview, validate, yamlsrc  # noqa: E402
 from wfb.devices import Device, DeviceDatabase  # noqa: E402
 from wfb.diagnostics import Bag  # noqa: E402
-from wfb.edit.spans import SpanIndex, ordered  # noqa: E402
+from ruamel.yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode  # noqa: E402
+
+from wfb.edit.spans import Refused, SpanIndex, compose, ordered  # noqa: E402
 from wfb.ir import build as build_ir  # noqa: E402
 from wfb.ir.model import Face  # noqa: E402
 
 OUT = ROOT / ".cache" / "oracle"
 #: The AMOLED target every design is also resolved on.
 AMOLED = "fenix847mm"
-DESIGN_STAGES = ("spans", "data", "lowered", "desugared", "face", "diagnostics-load",
+DESIGN_STAGES = ("nodes", "spans", "patches", "data", "lowered", "desugared", "face", "diagnostics-load",
                  "diagnostics-lint", "project")
 DEVICE_STAGES = ("fonts", "layout", "draw", "preview")
 STAGES = DESIGN_STAGES + DEVICE_STAGES
 #: Bumped when the dump's shape changes, so parity refuses a stale cache.
-FORMAT = 2
+FORMAT = 4
 
 
 def to_json(value: Any, *, top: bool = True, seen: tuple[int, ...] = ()) -> Any:
@@ -118,6 +129,8 @@ def to_json(value: Any, *, top: bool = True, seen: tuple[int, ...] = ()) -> Any:
         return {"$device": value.id}
     if isinstance(value, Face) and not top:
         return {"$face": value.name}
+    if isinstance(value, (datetime.date, datetime.datetime)):
+        return {"$timestamp": value.isoformat()}
     if isinstance(value, (bytes, bytearray)):
         return {"$bytes": hashlib.sha256(value).hexdigest(), "length": len(value)}
     if id(value) in seen:
@@ -137,8 +150,30 @@ def to_json(value: Any, *, top: bool = True, seen: tuple[int, ...] = ()) -> Any:
     raise TypeError(f"oracle: no JSON form for {type(value).__name__}")
 
 
+def mark(m: Any) -> list[int]:
+    return [m.index, m.line, m.column]
+
+
+def node_json(node: Node) -> dict[str, Any]:
+    """A composed node as the edit engine reads it."""
+    out: dict[str, Any] = {"kind": "", "tag": node.tag, "start": mark(node.start_mark),
+                           "end": mark(node.end_mark)}
+    if isinstance(node, ScalarNode):
+        out.update(kind="scalar", style=node.style, value=node.value)
+    elif isinstance(node, SequenceNode):
+        out.update(kind="sequence", flow=bool(node.flow_style),
+                   items=[node_json(v) for v in node.value])
+    elif isinstance(node, MappingNode):
+        out.update(kind="mapping", flow=bool(node.flow_style),
+                   pairs=[[node_json(k), node_json(v)] for k, v in node.value])
+    else:
+        raise TypeError(f"oracle: unknown node {type(node).__name__}")
+    return out
+
+
 def designs(only: list[str]) -> list[Path]:
-    paths = sorted([*ROOT.glob("examples/**/*.yaml"), *ROOT.glob("tests/fixtures/**/*.yaml")])
+    paths = sorted([*ROOT.glob("examples/**/*.yaml"), *ROOT.glob("tests/fixtures/**/*.yaml"),
+                    *ROOT.glob("ts/test/cases/**/*.yaml")])
     found = [p for p in paths if not only or design_id(p) in only]
     missing = set(only) - {design_id(p) for p in found}
     if missing:
@@ -171,6 +206,13 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
         if stage not in entry["stages"]:
             entry["stages"].append(stage)
 
+    if "nodes" in stages:
+        try:
+            root = compose(text)
+            done("nodes", None if root is None else node_json(root))
+        except Refused as exc:
+            done("nodes", {"$error": "yaml", "message": str(exc)})
+
     if "spans" in stages:
         try:
             index = SpanIndex(text)
@@ -179,6 +221,10 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
                            for e in index.entries()])
         except Exception as exc:  # the span index refuses what YAML refuses
             done("spans", {"$error": str(exc)})
+
+    if "patches" in stages:
+        from oracle_patches import battery
+        done("patches", battery(text, to_json))
 
     # `wfb.build.load`, unrolled so each boundary can be dumped.
     bag = Bag()

@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { NodeDeviceFiles, REPO_ROOT } from "../src/devices/node.ts";
 import { compare, type Difference } from "./compare.ts";
-import { type Case, isDeviceStage, ORACLE_FORMAT, PORTS, type Stage, STAGES } from "./stages.ts";
+import { type Case, DEVIATIONS, isDeviceStage, ORACLE_FORMAT, PORTS, type Stage, STAGES } from "./stages.ts";
 
 const ORACLE = join(REPO_ROOT, ".cache", "oracle");
 
@@ -27,6 +27,8 @@ interface DesignEntry {
 interface Tally {
   cases: number;
   equal: number;
+  /** Equal only once a recorded deviation is applied. */
+  deviated: number;
   differ: number;
   failed: number;
   missing: number;
@@ -65,7 +67,7 @@ function main(): number {
   const tallies = new Map<Stage, Tally>();
 
   for (const stage of stages) {
-    const tally: Tally = { cases: 0, equal: 0, differ: 0, failed: 0, missing: 0, examples: [] };
+    const tally: Tally = { cases: 0, equal: 0, deviated: 0, differ: 0, failed: 0, missing: 0, examples: [] };
     tallies.set(stage, tally);
     const port = PORTS[stage];
     for (const design of designs) {
@@ -84,15 +86,25 @@ function main(): number {
           oracle: (earlier, dev = device) => dump(design.id, earlier, isDeviceStage(earlier) ? dev : undefined),
         };
         let differences: Difference[];
+        let deviated = false;
         try {
-          differences = compare(dump(design.id, stage, device), port(input));
+          const expected = dump(design.id, stage, device);
+          const actual = port(input);
+          differences = compare(expected, actual);
+          if (differences.length > 0) {
+            const applying = DEVIATIONS.filter((d) => d.stages.includes(stage));
+            const normalise = (v: unknown): unknown => applying.reduce((acc, d) => d.normalise(acc), v);
+            const tolerated = compare(normalise(expected), normalise(actual));
+            if (tolerated.length < differences.length) deviated = tolerated.length === 0;
+            differences = tolerated;
+          }
         } catch (error) {
           tally.failed++;
           if (tally.examples.length < shown) tally.examples.push(`${label}: threw ${String(error)}`);
           continue;
         }
         if (differences.length === 0) {
-          tally.equal++;
+          if (deviated) tally.deviated++; else tally.equal++;
         } else {
           tally.differ++;
           if (tally.examples.length < shown) {
@@ -106,15 +118,17 @@ function main(): number {
   }
 
   console.log(`oracle ${index.revision}, ${designs.length} designs`);
-  console.log(`${"stage".padEnd(18)}${["cases", "equal", "differ", "failed", "missing"].map((h) => h.padStart(8)).join("")}`);
+  console.log(`${"stage".padEnd(18)}${["cases", "equal", "deviated", "differ", "failed", "missing"].map((h) => h.padStart(9)).join("")}`);
   let bad = false;
   for (const [stage, t] of tallies) {
-    console.log(`${stage.padEnd(18)}${[t.cases, t.equal, t.differ, t.failed, t.missing].map((n) => String(n).padStart(8)).join("")}`);
+    console.log(`${stage.padEnd(18)}${[t.cases, t.equal, t.deviated, t.differ, t.failed, t.missing].map((n) => String(n).padStart(9)).join("")}`);
     if (t.differ > 0 || t.failed > 0 || (t.missing > 0 && !values["allow-missing"])) bad = true;
   }
   for (const [stage, t] of tallies) {
     for (const example of t.examples) console.log(`\n${stage}: ${example}`);
   }
+  const used = DEVIATIONS.filter((d) => d.stages.some((s) => (tallies.get(s)?.deviated ?? 0) > 0));
+  if (used.length > 0) console.log(`\nrecorded deviations:\n${used.map((d) => `  ${d.stages.join(", ")}: ${d.reason}`).join("\n")}`);
   return bad ? 1 : 0;
 }
 

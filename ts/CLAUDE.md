@@ -32,6 +32,9 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   matching `src/` path, register its stage in `tools/stages.ts`'s `PORTS`,
   and run `npm run parity -- <stage>`. Every difference is either fixed or
   recorded as a deliberate change, with its reason.
+- **A deviation is recorded, never absorbed.** A difference the port keeps
+  on purpose goes in `tools/stages.ts`'s `DEVIATIONS`, with its reason.
+  Parity counts it separately.
 - **Keep Python's names at the oracle boundary.** A stage's output uses the
   dump's field names (snake_case) and shapes (`tools/oracle.py`'s
   docstring lists them), so a comparison needs no mapping.
@@ -49,6 +52,22 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/devices/files.ts` is the `DeviceFiles` interface every stage reads
     devices through: synchronous, filled up front in the browser.
   - `src/devices/node.ts` is the same interface over the SDK's folders.
+  - `src/edit/yaml.ts` rebuilds ruamel's composed node tree (marks, tags,
+    scalar values) from the `yaml` package, and constructs the data as
+    ruamel's safe loader does.
+    - A mapping is a `Map`, which keeps key order where an object would
+      reorder integer-like keys.
+    - Offsets are UTF-16, as JavaScript slices; lines and columns count
+      code points, as ruamel's do.
+  - `src/edit/` is the patch engine: `spans`, `patch`, `structure`,
+    `colors`, `schemes`, `hands`.
+  - `src/py.ts` holds Python's semantics where output depends on them:
+    - truthiness, `repr`, `json.dumps` and `splitlines`;
+    - `f"{x:.6f}"` and `round()`, half to even;
+    - `PyError`, a crash Python would raise, named by type.
 - `tools/` holds `parity.ts` (the runner), `compare.ts` (structural JSON
-  diff) and `stages.ts` (the stage table and each stage's port).
+  diff), `stages.ts` (the stage table, each stage's port, and the recorded
+  deviations) and `ports/` (each stage's port into the oracle's JSON form).
+- `test/cases/` holds inputs the oracle dumps beside the example faces:
+  `yaml/` has YAML edge cases the faces do not exercise.
 - `test/` holds the `node:test` files.

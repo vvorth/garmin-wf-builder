@@ -1,0 +1,14 @@
+items:
+  - plain
+  - key: value
+    other: 2
+  - - nested
+    - list
+  -
+    late: item
+points:
+- { dx: 1, dy: 2 }
+- { dx: 3 }
+indented_dash:
+    - a
+    - b
