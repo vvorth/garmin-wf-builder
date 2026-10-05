@@ -182,3 +182,19 @@ def test_a_selection_of_several_is_deleted_as_one_change(studio):
     assert doc.text == original and doc.version > version
     with pytest.raises(Refused, match="list of paths"):
         doc.structure({"op": "delete", "paths": "clock"}, doc.version)
+
+
+def test_elements_copied_from_one_face_paste_into_another_and_are_selected(studio):
+    source, target = new(studio), new(studio)
+    clock = node(source, "clock")
+    lines = source.text.splitlines(keepends=True)[clock["line"] - 1:clock["end"]]
+    indent = len(lines[0]) - len(lines[0].lstrip())
+    clip = "".join(line[indent:] for line in lines)
+    _, select = target.structure({"op": "paste", "text": clip, "block": ["elements"],
+                                  "before": "seconds"}, target.version)
+    # the target has a clock already: the copy is clock2, in front of it
+    assert select == "clock2"
+    assert ids(target) == ["clock", "clock2", "seconds"]
+    assert target.history()["states"][0]["label"] == "paste clock2"
+    with pytest.raises(Refused, match="nothing to paste"):
+        target.structure({"op": "paste", "text": "  "}, target.version)

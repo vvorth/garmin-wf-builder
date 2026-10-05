@@ -401,3 +401,11 @@ h3.fold:hover { color: var(--text); }
   .controls label { font-size: 11px; }
   .controls .zoom .mono { display: none; }
 }
+
+/* Layers' order, and the shortcut list */
+.layers .order-note { padding: 4px 12px 0; font-size: 11px; }
+.modal-body.shortcuts section h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim, inherit); }
+.modal-body.shortcuts dl { display: grid; grid-template-columns: minmax(0, 13em) 1fr; gap: 3px 12px; margin: 0; }
+.modal-body.shortcuts dt, .modal-body.shortcuts dd { margin: 0; }
+kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
+.topbar .keys-help { width: 26px; padding-left: 0; padding-right: 0; }

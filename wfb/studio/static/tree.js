@@ -63,3 +63,44 @@ export function deleteOp(tree, ids) {
   if (!paths.length) return null;
   return paths.length === 1 ? { op: "delete", path: paths[0] } : { op: "delete", paths };
 }
+
+// Layers lists each block front to back, the frontmost (drawn last) on
+// top, so a row's top half is in front of it in draw order. Where a row
+// dropped at `fraction` of its height (0 top, 1 bottom) sends the dragged
+// element, as `dropTarget` answers but for that order: `next` is the
+// sibling drawn after it, the row shown above. `where` is the edge drawn.
+export function shownDrop(node, fraction, next = null) {
+  const { where, target } = dropTarget(node, 1 - fraction, next);
+  return { where: { before: "after", after: "before" }[where] || where, target };
+}
+
+// The YAML of the elements `ids` name, as copied: each one's own lines
+// out of `text` (`node.line` to `node.end`), in document order, a group
+// standing for its children, every one moved to the first column.
+export function elementsYaml(text, tree, ids) {
+  const lines = text.split("\n");
+  const want = new Set(ids);
+  const out = [];
+  const walk = (nodes, inside) => nodes.forEach((n) => {
+    const chosen = n.kind === "element" && want.has(n.id);
+    if (chosen && !inside) {
+      const own = lines.slice(n.line - 1, n.end);
+      const indent = own[0].length - own[0].trimStart().length;
+      out.push(own.map((l) => l.slice(Math.min(indent, l.length - l.trimStart().length))).join("\n") + "\n");
+    }
+    walk(n.children || [], inside || chosen);
+  });
+  walk(tree, false);
+  return out.join("");
+}
+
+// The structural edit that moves the element at `path` one step in draw
+// order: `by` +1 forward (drawn later), -1 backward; null at the end.
+export function stepOp(tree, path, by) {
+  const siblings = siblingsOf(tree, path);
+  const id = path[path.length - 1];
+  const to = siblings.indexOf(id) + by;
+  if (to < 0 || to >= siblings.length) return null;
+  const rest = siblings.filter((s) => s !== id);
+  return { op: "move", path, block: path.slice(0, -1), before: rest[to] ?? null };
+}

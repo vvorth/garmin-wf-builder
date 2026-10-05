@@ -14,6 +14,11 @@ Grouping wraps sibling elements in a new `group` with only `type:` and
 Ungrouping is the reverse, and is refused for a group with any other key
 (`at:`, `visible:`, ...), since its children would lose what it gives
 them.
+
+Pasting puts elements copied as text (one face's, or another's) into a
+block the same way, as written: an id the face already has is renamed,
+and anything else the copy needs (a colour, a font, a slot) is the gate's
+to refuse.
 """
 
 from __future__ import annotations
@@ -247,6 +252,46 @@ def _add(index: SpanIndex, type_: str, block: Path, before: str | None,
     return Patch(text, expected, f"add {new_id}")
 
 
+def _paste_text(index: SpanIndex, clip: str, block: Path, before: str | None) -> Patch:
+    block = tuple(block)
+    _check_block(index, block)
+    if not clip.endswith("\n"):
+        clip += "\n"
+    root = SpanIndex(clip).root
+    if not isinstance(root, MappingNode) or root.flow_style or not root.value:
+        raise Refused(_NOT_ELEMENTS)
+    # read as an element block, so every element in it is one
+    head = "elements:\n"
+    wrapped = head + _reindent(clip, int(root.value[0][0].start_mark.column), 2)
+    source = SpanIndex(wrapped)
+    tops = [e for e in source.entries() if len(e.path) == 2]
+    if not all(is_element(source, e) for e in tops):
+        raise Refused(_NOT_ELEMENTS)
+    # every id the copy brings that the face has already is renamed; last
+    # first, so each rewrite leaves the positions before it, and a name the
+    # copy keeps is taken before an earlier one could be renamed to it
+    taken = set(index.element_ids())
+    for e in sorted(source.elements(), key=lambda e: e.key.start_mark.index, reverse=True):
+        name, n = e.name, 2
+        while name in taken:
+            name, n = f"{e.name}{n}", n + 1
+        taken.add(name)
+        if name != e.name:
+            wrapped = (wrapped[:e.key.start_mark.index] + key_text(name)
+                       + wrapped[e.key.end_mark.index:])
+    pasted = SpanIndex(wrapped)
+    text = _paste(index, block, wrapped[len(head):], 2, before)
+    expected = _with(index)
+    new = [e for e in pasted.entries() if len(e.path) == 2]
+    for e in new:
+        _put(expected, block, e.name, copy.deepcopy(_data_at(pasted.data, e.path)), before)
+    return Patch(text, expected, "paste " + ", ".join(e.name for e in new))
+
+
+_NOT_ELEMENTS = ("what is pasted is not elements: copy them in the editor, or paste YAML "
+                 "of the form `id: {type: ...}`")
+
+
 def _group(index: SpanIndex, paths: list[Path], group_id: str | None) -> Patch:
     paths = [tuple(p) for p in paths]
     if not paths:
@@ -361,6 +406,14 @@ def add(index: SpanIndex, type_: str, block: Path = ("elements",), before: str |
 def group(index: SpanIndex, paths: list[Path], group_id: str | None = None) -> Patch:
     """Wrap sibling elements in a new group, where the first of them was."""
     return _ended_patch(index, _group, paths, group_id)
+
+
+def paste(index: SpanIndex, clip: str, block: Path = ("elements",),
+          before: str | None = None) -> Patch:
+    """Put the elements ``clip`` writes (`id: {type: ...}`, each at one
+    indent, as copied) into ``block``, before ``before`` or at its end,
+    each id the face already has renamed with a number."""
+    return _ended_patch(index, _paste_text, clip, block, before)
 
 
 def ungroup(index: SpanIndex, path: Path) -> Patch:

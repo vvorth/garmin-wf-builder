@@ -148,8 +148,8 @@ export function useFrame({ docId, doc, view, scale, deviceInfo, onError }) {
 // -- the keyboard ----------------------------------------------------------------------
 
 // The editor's shortcuts (`keys.shortcutFor`), with one listener for the
-// editor's whole life: `actions` (`{undo, redo, duplicate, selectAll,
-// nudge, remove}`) is read as it is at the key press. An action that is
+// editor's whole life: `actions` (one per action name) is read as it is
+// at the key press. An action that is
 // null, or returns false, is not available then, and the browser keeps
 // the key (Ctrl+D, the arrows' scrolling). Nothing fires while typing.
 export function useShortcuts(actions) {
@@ -166,6 +166,42 @@ export function useShortcuts(actions) {
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
+  }, []);
+}
+
+// Copy, cut and paste as the browser's own events, which read and write
+// the system clipboard without asking, so elements go between faces, tabs
+// and a text editor as YAML. `actions` (`{copy, cut, paste}`) is read as
+// it is at the event: `copy()` returns the text to put on the clipboard,
+// or null to leave the event to the browser; `cut()` then removes what was
+// copied; `paste(text)` takes what is on it. Typing, or text selected on
+// the page, keeps the browser's own.
+export function useClipboard(actions) {
+  const current = useRef(actions);
+  current.current = actions;
+  useEffect(() => {
+    const out = (cut) => (e) => {
+      const selection = typeof getSelection === "function" ? String(getSelection() || "") : "";
+      if (typingIn(e.target) || selection) return;
+      const text = current.current.copy();
+      if (!text || !e.clipboardData) return;
+      e.clipboardData.setData("text/plain", text);
+      e.preventDefault();
+      if (cut) current.current.cut();
+    };
+    const onPaste = (e) => {
+      if (typingIn(e.target) || !current.current.paste) return;
+      const text = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
+      if (!text) return;
+      e.preventDefault();
+      current.current.paste(text);
+    };
+    const onCopy = out(false), onCut = out(true);
+    addEventListener("copy", onCopy); addEventListener("cut", onCut); addEventListener("paste", onPaste);
+    return () => {
+      removeEventListener("copy", onCopy); removeEventListener("cut", onCut);
+      removeEventListener("paste", onPaste);
+    };
   }, []);
 }
 

@@ -137,8 +137,11 @@ or AOD-related has been observed on a watch or in the simulator.
   faces per browser (a cookie bound to a principal that owns documents,
   one-time claim links, `--single-user`, a `Host` allowlist;
   `wfb/studio/sessions.py`), structure (add any type, reorder, static and
-  dynamic, groups), a YAML tab with the schema, a history with undo and
-  snapshots that survives restarts, Build for one watch (`wfb build` as a
+  dynamic, groups; Layers listed front to back), copy and paste of
+  elements as YAML between faces (`wfb/edit/structure.py` `paste`),
+  keyboard shortcuts with a "?" list (`static/keys.js`), a YAML tab with
+  the schema, a history with undo and snapshots that survives restarts
+  and keeps each face's newest `--keep-changes` changes, Build for one watch (`wfb build` as a
   subprocess, the `.prg` downloaded), a continuous zoom with real size
   from the device's ppi (calibrated in the browser), and the skin. Every edit but typed text is a
   patch of the text checked by the full load (`wfb/edit/`). The browser

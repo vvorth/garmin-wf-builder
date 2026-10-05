@@ -310,10 +310,10 @@ function changed(gesture) {
 // to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
 // carries. `queue`: the editor's outbox. `onPick(id, additive)`;
 // `onDrag(ids, gesture, {item, moving, preview})` adds a gesture to it.
-// Escape cancels a drag, or with none under way calls `onEscape`
-// (the editor deselects).
+// Escape cancels a drag under way, and goes no further (with none, the
+// editor's own Escape deselects).
 export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onPick, onDrag,
-                         onEscape, zoom = frame.scale, skin = null }) {
+                         zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
   const [drag, setDragState] = useState(null);     // a press, maybe a gesture
   // The handlers read the press from a ref: two pointer events can arrive
@@ -438,19 +438,15 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     onDrag(drag.ids, send, { item: drag.item, moving: drag.moving, preview: g });
   };
 
-  const escape = useRef(onEscape);
-  escape.current = onEscape;
   useEffect(() => {
+    // in the capture phase, ahead of the editor's shortcuts
     const onKey = (e) => {
-      if (e.key !== "Escape") return;
-      if (dragRef.current) { setDrag(null); return; }
-      // not while typing, and not when Escape is closing a popover
-      if (e.target.closest && e.target.closest("input, textarea, select, .cm-editor, .popover")) return;
-      if (document.querySelector(".popover-body, .modal-back")) return;
-      if (escape.current) escape.current();
+      if (e.key !== "Escape" || !dragRef.current) return;
+      setDrag(null);
+      e.stopImmediatePropagation();
     };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
+    addEventListener("keydown", onKey, true);
+    return () => removeEventListener("keydown", onKey, true);
   }, []);
 
   // the screen, and round it the skin when shown, all at the zoom

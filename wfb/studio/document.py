@@ -441,10 +441,12 @@ class Document:
           delete of several, `{"op": "delete", "paths": [[...], ...]}`;
         - `{"op": "move", "path": [...], "block": [...], "before": id}`: within
           its own block a reorder, else into the other block;
-        - `{"op": "group", "paths": [[...], ...]}`."""
+        - `{"op": "group", "paths": [[...], ...]}`;
+        - `{"op": "paste", "text": yaml, "block": [...], "before": id}`:
+          elements copied as text, the first of them selected."""
         from ..edit import (
             add, delete_element, delete_elements, duplicate_element, group, move_element,
-            move_to_block, ungroup,
+            move_to_block, paste, ungroup,
         )
 
         self.check(expected)
@@ -484,6 +486,16 @@ class Document:
             else:
                 patch = move_to_block(index, path, block, before)
             select = str(path[-1])
+        elif kind == "paste":
+            clip = op.get("text")
+            if not isinstance(clip, str) or not clip.strip():
+                raise Refused("there is nothing to paste")
+            block = _path(op.get("block") or ["elements"])
+            patch = paste(index, clip, block, op.get("before") or None)
+            added = index_for(patch.text)
+            select = next((e.name for e in added.entries()
+                           if e.path[:-1] == block and e.name not in index.element_ids()
+                           and is_element(added, e)), None)
         elif kind == "group":
             paths = op.get("paths")
             if not isinstance(paths, list):

@@ -322,6 +322,38 @@ def test_a_drop_on_the_layers_moves_a_row_and_ignores_anything_else(summary):
                               "block": ["static"], "before": None}]
 
 
+def test_the_layers_list_front_to_back_and_up_brings_forward(summary):
+    doc = summary(starters.instantiate("minimal", "T"))
+    elements = next(b for b in doc["tree"] if b["label"] == "elements")["children"]
+    first = elements[0]["id"]
+    script = f"""
+      import {{ install }} from {json.dumps((HERE / 'studio_dom.mjs').as_uri())};
+      const document = install();
+      const {{ html, render }} = await import({json.dumps((STATIC / 'vendor/preact-htm.module.js').as_uri())});
+      const {{ Layers }} = await import({json.dumps((STATIC / 'layers.js').as_uri())});
+      const ops = [];
+      const root = document.createElement("div");
+      render(html`<${{Layers}} doc=${{{json.dumps(doc)}}} vocab=${{{{}}}} selected=${{{json.dumps(first)}}} extra=${{[]}}
+        drawn=${{null}} onSelect=${{() => {{}}}} onStructure=${{(op) => ops.push(op)}} />`, root);
+      const cls = (e) => e.attributes.class || "";
+      const rows = root.all((e) => cls(e).startsWith("item")).map((e) => e.textContent.trim());
+      root.all((e) => e.localName === "button" && e.textContent === "↑")[0].click();
+      root.all((e) => e.localName === "button" && e.textContent === "↓")[0].click();
+      console.log(JSON.stringify({{ rows, ops }}));
+    """
+    done = subprocess.run(["node", "--input-type=module", "-e", script],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr[-1500:]
+    result = json.loads(done.stdout)
+    shown = [e["id"] for e in elements]
+    assert len(shown) > 1
+    # the last drawn is the top row
+    assert result["rows"][-len(shown):] == [e["id"] + e["type"] for e in reversed(elements)]
+    # ↑ moves the first drawn one step forward; ↓ has nowhere to go
+    assert result["ops"] == [{"op": "move", "path": ["elements", first], "block": ["elements"],
+                              "before": shown[2] if len(shown) > 2 else None}]
+
+
 def test_the_diagnostics_filter_by_severity_and_the_tab_counts_each():
     items = [
         {"severity": "note", "code": "n", "message": "a note", "notes": [], "line": None},

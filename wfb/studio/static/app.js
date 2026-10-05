@@ -5,14 +5,15 @@
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
 import { api, enc } from "./api.js";
-import { clockNow, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
+import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
 import { AddName, InlineName, Popover } from "./ui.js";
 import { newer, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
-import { BuildDialog, CalibrateDialog } from "./dialogs.js";
+import { BuildDialog, CalibrateDialog, Modal } from "./dialogs.js";
+import { SHORTCUTS } from "./keys.js";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
 
 // What this browser remembers between visits: the zoom, how many CSS
@@ -43,7 +44,7 @@ function Splitter({ width, sign, fallback, onWidth }) {
 import { FacePanel, Inspector } from "./panels.js";
 import { typeLabel } from "./values.js";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
-import { deleteOp } from "./tree.js";
+import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.js";
 import { TAB, watch } from "./session.js";
 import { latestText } from "./textsync.js";
 
@@ -320,6 +321,19 @@ function DownloadMenu({ doc }) {
   </div>`;
 }
 
+// Every shortcut, for "?" and the top bar's button.
+function ShortcutHelp({ onClose }) {
+  return html`<${Modal} title="Keyboard shortcuts" onClose=${onClose}>
+    <div class="modal-body shortcuts">
+      ${SHORTCUTS.map(([group, rows]) => html`<section>
+        <h4>${group}</h4>
+        <dl>${rows.map(([keys, what]) => html`<dt><kbd>${keys}</kbd></dt><dd>${what}</dd>`)}</dl>
+      </section>`)}
+      <div class="dim">Ctrl is Cmd on a Mac. None of these act while you type in a field or the YAML tab.</div>
+    </div>
+  </${Modal}>`;
+}
+
 function Editor({ docId, onError, onNotice }) {
   const [doc, setDoc] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -331,7 +345,7 @@ function Editor({ docId, onError, onNotice }) {
   // the server draws at a whole scale; the browser shows it at the zoom
   const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
-  const [dialog, setDialog] = useState(null);           // "build" | "calibrate"
+  const [dialog, setDialog] = useState(null);           // "build" | "calibrate" | "keys"
   const [vocab, setVocab] = useState({});
   // the face's slots, which the Preview popover picks a type for
   const slots = (doc && doc.globals && doc.globals.slots) || [];
@@ -458,6 +472,15 @@ function Editor({ docId, onError, onNotice }) {
   const deselect = useCallback(() => { setSelected(null); setExtra([]); }, []);
   const chosen = [selected, ...extra].filter(Boolean);
   const onFace = pane === "face" && frame && doc;
+  const nodes = doc ? blocksOf(doc.tree).nodes : [];
+  const chosenPaths = chosen.map((id) => nodes.find((n) => n.id === id)).filter(Boolean).map((n) => n.path);
+  // the zoom that shows the whole watch in the space round it
+  const fit = () => {
+    const box = panZoom.wrap.current, w = frame ? frame.width : deviceInfo && deviceInfo.width;
+    const h = frame ? frame.height : deviceInfo && deviceInfo.height;
+    if (!box || !w || !h) return false;
+    setZoom(Math.min(box.clientWidth / w, box.clientHeight / h) * 0.9);
+  };
   useShortcuts({
     undo: () => step("undo"),
     redo: () => step("redo"),
@@ -477,6 +500,41 @@ function Editor({ docId, onError, onNotice }) {
     } : null,
     // the whole selection, as one change
     remove: element ? () => { const op = deleteOp(doc.tree, chosen); if (op) structure(op); } : null,
+    group: chosenPaths.length ? () => structure({ op: "group", paths: chosenPaths }) : null,
+    ungroup: element && element.type === "group" ? () => structure({ op: "ungroup", path: element.path }) : null,
+    forward: element ? () => { const op = stepOp(doc.tree, element.path, 1); if (op) structure(op); } : null,
+    backward: element ? () => { const op = stepOp(doc.tree, element.path, -1); if (op) structure(op); } : null,
+    zoom: (by) => setZoom(view.zoom * (by > 0 ? 1.25 : 0.8)),
+    zoomFit: fit,
+    zoomReal: () => { if (!real) return false; setZoom(real, true); },
+    // the help, or a popover, closes first
+    deselect: () => {
+      if (dialog === "keys") { setDialog(null); return; }
+      if (dialog || document.querySelector(".popover-body, .modal-back")) return false;
+      if (!chosen.length) return false;
+      deselect();
+    },
+    help: () => setDialog(dialog === "keys" ? null : "keys"),
+  });
+  // Copied elements are their YAML, so they paste into another face, or
+  // into a text editor. A paste goes in front of the selection, in its
+  // block, or at the front of elements:.
+  useClipboard({
+    copy: () => {
+      if (!doc || !chosen.length) return null;
+      const text = elementsYaml(doc.text, doc.tree, chosen);
+      if (text) onNotice(`copied ${chosen.length > 1 ? `${chosen.length} elements` : chosen[0]}`);
+      return text || null;
+    },
+    cut: () => { const op = deleteOp(doc.tree, chosen); if (op) structure(op); },
+    paste: (text) => {
+      if (!doc) return;
+      const node = element || null;
+      const block = node ? node.path.slice(0, -1) : ["elements"];
+      const siblings = node ? siblingsOf(doc.tree, node.path) : [];
+      const before = node ? siblings[siblings.indexOf(node.id) + 1] || null : null;
+      structure({ op: "paste", text, block, before });
+    },
   });
 
   // the top bar's error count: Diagnostics, open, showing the errors
@@ -536,6 +594,7 @@ function Editor({ docId, onError, onNotice }) {
         <span class="spacer"></span>
         ${counts.error ? html`<button class="errors" onClick=${showErrors} title="Show the errors in Diagnostics">
             ${counts.error} error${counts.error > 1 ? "s" : ""}</button>` : null}
+        <button class="keys-help" title="Keyboard shortcuts (?)" onClick=${() => setDialog("keys")}>?</button>
         <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
                 onClick=${() => setDialog("build")}>Build…</button>
         <${DownloadMenu} doc=${doc} />
@@ -632,7 +691,7 @@ function Editor({ docId, onError, onNotice }) {
               ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
                                         extra=${extra} tree=${doc.tree} queue=${queue}
                                         zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
-                                        onPick=${select} onDrag=${onDrag} onEscape=${deselect} />`
+                                        onPick=${select} onDrag=${onDrag} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
@@ -677,6 +736,7 @@ function Editor({ docId, onError, onNotice }) {
     </div>
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
                                                onClose=${() => setDialog(null)} />` : null}
+    ${dialog === "keys" ? html`<${ShortcutHelp} onClose=${() => setDialog(null)} />` : null}
     ${dialog === "calibrate" ? html`<${CalibrateDialog} current=${pxPerInch} onClose=${() => setDialog(null)}
         onSave=${(v) => {
           try { localStorage.setItem("wfb-css-px-per-inch", String(v)); } catch (_) { /* private mode */ }

@@ -68,6 +68,10 @@ def test_each_shortcut_names_its_action_and_typing_is_left_alone():
         other: k("s", {ctrlKey: true}), plainZ: k("z"),
         left: k("ArrowLeft"), downTen: k("ArrowDown", {shiftKey: true}), alt: k("ArrowUp", {altKey: true}),
         del: k("Delete"), back: k("Backspace"),
+        group: k("g", {ctrlKey: true}), ungroup: k("G", {metaKey: true, shiftKey: true}),
+        forward: k("]", {ctrlKey: true}), backward: k("[", {metaKey: true}),
+        zoomIn: k("=", {ctrlKey: true}), zoomOut: k("-", {ctrlKey: true}), fit: k("0", {ctrlKey: true}),
+        real: k("1"), help: k("?", {shiftKey: true}), escape: k("Escape"), altLetter: k("1", {altKey: true}),
         typing: keys.typingIn({closest: (sel) => sel.includes("input") ? {} : null}),
         notTyping: keys.typingIn({closest: () => null}), nothing: keys.typingIn(null),
       }));
@@ -77,6 +81,9 @@ def test_each_shortcut_names_its_action_and_typing_is_left_alone():
         "all": ["selectAll"], "other": None, "plainZ": None,
         "left": ["nudge", -1, 0], "downTen": ["nudge", 0, 10], "alt": None,
         "del": ["remove"], "back": ["remove"],
+        "group": ["group"], "ungroup": ["ungroup"], "forward": ["forward"], "backward": ["backward"],
+        "zoomIn": ["zoom", 1], "zoomOut": ["zoom", -1], "fit": ["zoomFit"], "real": ["zoomReal"],
+        "help": ["help"], "escape": ["deselect"], "altLetter": None,
         "typing": True, "notTyping": False, "nothing": False,
     }
 
@@ -325,6 +332,41 @@ def test_the_tree_offers_its_blocks_siblings_and_drop_zones():
         {"where": "into", "target": {"block": ["elements", "g", "children"], "before": None}},
         {"where": "after", "target": {"block": ["elements"], "before": None}},
     ]
+
+
+def test_layers_shown_front_to_back_drop_and_step_by_draw_order():
+    result = run("""
+      const el = (id, path, children = []) => ({kind: "element", id, type: children.length ? "group" : "circle", path, children});
+      const t = [{kind: "block", label: "elements", path: ["elements"], children: [
+        el("a", ["elements", "a"]), el("b", ["elements", "b"]), el("c", ["elements", "c"])]}];
+      const b = t[0].children[1];
+      console.log(JSON.stringify({
+        // b is shown under c: its top half is in front of it, before c in draw order
+        top: treeMod.shownDrop(b, 0.2, "c"), bottom: treeMod.shownDrop(b, 0.8, "c"),
+        forward: treeMod.stepOp(t, b.path, 1), backward: treeMod.stepOp(t, b.path, -1),
+        frontmost: treeMod.stepOp(t, ["elements", "c"], 1),
+      }));
+    """)
+    assert result["top"] == {"where": "before", "target": {"block": ["elements"], "before": "c"}}
+    assert result["bottom"] == {"where": "after", "target": {"block": ["elements"], "before": "b"}}
+    assert result["forward"] == {"op": "move", "path": ["elements", "b"], "block": ["elements"],
+                                 "before": None}
+    assert result["backward"] == {"op": "move", "path": ["elements", "b"], "block": ["elements"],
+                                  "before": "a"}
+    assert result["frontmost"] is None
+
+
+def test_copied_elements_are_their_own_lines_at_the_first_column():
+    result = run("""
+      const text = "elements:\\n  a:\\n    type: circle\\n    radius: 5\\n  g:\\n    type: group\\n" +
+                   "    children:\\n      c:\\n        type: text\\n  b: {type: circle}\\n";
+      const el = (id, line, end, children = []) => ({kind: "element", id, line, end, children});
+      const t = [{kind: "block", children: [el("a", 2, 4), el("g", 5, 9, [el("c", 8, 9)]), el("b", 10, 10)]}];
+      console.log(JSON.stringify([treeMod.elementsYaml(text, t, ["b", "a"]), treeMod.elementsYaml(text, t, ["c", "g"])]));
+    """)
+    assert result[0] == "a:\n  type: circle\n  radius: 5\nb: {type: circle}\n"
+    # a group stands for its children
+    assert result[1] == "g:\n  type: group\n  children:\n    c:\n      type: text\n"
 
 
 def test_the_vendored_editor_bundle_exports_what_the_yaml_tab_imports():

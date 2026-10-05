@@ -1,12 +1,15 @@
 // The Layers panel: the face's element tree, its structure edited in place.
+// Each block and group is listed front to back, as design tools list
+// layers: the top row is drawn last, over the rows below it.
 // Click selects, Ctrl/Cmd-click adds to the selection or takes a row out
 // of it, Shift-click selects every row from the selection to it; a row dragged
-// onto another goes before it, onto a group's middle into the group, onto
-// a block's label to the block's end. Every change is one structural edit
-// the server patches into the text, checks and records.
+// onto another goes in front of it (its top half) or behind it, onto a
+// group's middle into the group, onto a block's label to the block's front.
+// Every change is one structural edit the server patches into the text,
+// checks and records.
 
 import { html, useState } from "./vendor/preact-htm.module.js";
-import { PATH_TYPE, blocksOf, carriesPath, deleteOp, dropTarget, droppedPath, siblingsOf } from "./tree.js";
+import { PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, shownDrop, siblingsOf, stepOp } from "./tree.js";
 
 const NEEDS = { graph: ["series", "series"], data: ["slot", "slots"], hands: ["set", "hand_sets"] };
 
@@ -23,7 +26,7 @@ function Row({ node, next, ctx, depth }) {
   const drawn = ctx.drawn;
   const zone = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
-    return dropTarget(node, r.height ? (e.clientY - r.top) / r.height : 0.5, next);
+    return shownDrop(node, r.height ? (e.clientY - r.top) / r.height : 0.5, next);
   };
   return html`<li>
     <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") +
@@ -36,8 +39,15 @@ function Row({ node, next, ctx, depth }) {
          onDrop=${(e) => { e.preventDefault(); setOver(null); dropped(e, ctx, zone(e).target); }}>
       <span>${node.id}</span><span class="type">${node.type}</span>
     </div>
-    ${node.children.length ? html`<ul class="tree">${node.children.map((c, i) => html`<${Row} node=${c} next=${(node.children[i + 1] || {}).id ?? null} ctx=${ctx} depth=${depth + 1} />`)}</ul>` : null}
+    ${node.children.length ? html`<ul class="tree">${frontToBack(node.children, ctx, depth + 1)}</ul>` : null}
   </li>`;
+}
+
+// `children`, in draw order, as rows front to back: each told the sibling
+// drawn after it, the row above it.
+function frontToBack(children, ctx, depth) {
+  return children.map((c, i) => html`<${Row} key=${c.id} node=${c} next=${(children[i + 1] || {}).id ?? null}
+                                             ctx=${ctx} depth=${depth} />`).reverse();
 }
 
 function Block({ block, ctx }) {
@@ -46,9 +56,10 @@ function Block({ block, ctx }) {
     <div class=${"block" + (over ? " drop-into" : "")}
          onDragOver=${(e) => { e.preventDefault(); if (carriesPath(e.dataTransfer.types)) setOver(true); }}
          onDragLeave=${() => setOver(false)}
+         title="drop here to put an element in front of everything in this block"
          onDrop=${(e) => { e.preventDefault(); setOver(false); dropped(e, ctx, { block: block.path, before: null }); }}>
       ${block.label}</div>
-    ${block.children.length ? html`<ul class="tree">${block.children.map((c, i) => html`<${Row} node=${c} next=${(block.children[i + 1] || {}).id ?? null} ctx=${ctx} depth=${1} />`)}</ul>`
+    ${block.children.length ? html`<ul class="tree">${frontToBack(block.children, ctx, 1)}</ul>`
       : html`<div class="empty-block">empty: drop here</div>`}
   </li>`;
 }
@@ -70,14 +81,8 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
     onStructure({ op: "add", type, block, before: next, choice: needs ? choice : undefined });
     setType(""); setChoice("");
   };
-  const step = (by) => {
-    const siblings = siblingsOf(doc.tree, selectedNode.path);
-    const at = siblings.indexOf(selectedNode.id);
-    const to = at + by;
-    if (to < 0 || to >= siblings.length) return;
-    const rest = siblings.filter((s) => s !== selectedNode.id);
-    onStructure({ op: "move", path: selectedNode.path, block: selectedNode.path.slice(0, -1), before: rest[to] ?? null });
-  };
+  // +1 forward (up the list, drawn later), -1 backward
+  const step = (by) => { const op = stepOp(doc.tree, selectedNode.path, by); if (op) onStructure(op); };
   const group = () => {
     const ids = [selected, ...extra];
     const paths = ids.map((id) => blocks.nodes.find((n) => n.id === id)).filter(Boolean).map((n) => n.path);
@@ -107,17 +112,18 @@ export function Layers({ doc, vocab, selected, extra, drawn, onSelect, onStructu
       ${needs && !options.length ? html`<div class="note">${needs[1] === "slots" ? "Add a slot in the Face tab first." : needs[1] === "hand_sets" ? "Add a hand set in the Face tab first (or write one under resources: hand_sets:)." : ""}</div>` : null}
     </div>
     ${selectedNode ? html`<div class="actions">
-      <button title="Move up" onClick=${() => step(-1)}>↑</button>
-      <button title="Move down" onClick=${() => step(1)}>↓</button>
+      <button title="Bring forward: drawn over the row above (Ctrl+])" onClick=${() => step(1)}>↑</button>
+      <button title="Send backward: drawn under the row below (Ctrl+[)" onClick=${() => step(-1)}>↓</button>
       <button title="Duplicate (Ctrl+D)" onClick=${() => onStructure({ op: "duplicate", path: selectedNode.path })}>Duplicate</button>
       <button class="danger" title="Delete the selection (Del)" onClick=${() => onStructure(deleteOp(doc.tree, [selected, ...extra]))}>Delete${extra.length ? ` (${extra.length + 1})` : ""}</button>
-      <button title="Group the selection (Ctrl/Cmd-click to select more)" onClick=${group}>Group${extra.length ? ` (${extra.length + 1})` : ""}</button>
-      ${selectedNode.type === "group" ? html`<button onClick=${() => onStructure({ op: "ungroup", path: selectedNode.path })}>Ungroup</button>` : null}
+      <button title="Group the selection (Ctrl+G; Ctrl/Cmd-click to select more)" onClick=${group}>Group${extra.length ? ` (${extra.length + 1})` : ""}</button>
+      ${selectedNode.type === "group" ? html`<button title="Ungroup (Ctrl+Shift+G)" onClick=${() => onStructure({ op: "ungroup", path: selectedNode.path })}>Ungroup</button>` : null}
       <select value="" onChange=${(e) => { if (e.target.value) onStructure({ op: "move", path: selectedNode.path, block: JSON.parse(e.target.value), before: null }); }}>
         <option value="">move to…</option>
         ${destinations.map((d) => html`<option value=${JSON.stringify(d.path)}>${d.label}</option>`)}
       </select>
     </div>` : null}
+    <div class="order-note dim" title="Each block draws its rows bottom to top">front at the top</div>
     <ul class="tree root">${doc.tree.map((b) => html`<${Block} block=${b} ctx=${ctx} />`)}</ul>
   </div>`;
 }

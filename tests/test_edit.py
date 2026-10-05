@@ -16,7 +16,7 @@ from wfb.edit import (
     duplicate_element, load_text, move, move_element, parse, remove, rename_key,
     rename_reference, resize, rewrite_scalars, set_value, target, turn,
 )
-from wfb.edit.structure import add, element_types, group, move_to_block, ungroup
+from wfb.edit.structure import add, element_types, group, move_to_block, paste, ungroup
 from wfb.edit.geometry import candidates, px_per_unit
 from wfb.edit.patch import DEFAULTS, face_color, set_scalars
 from wfb.edit.spans import index_for, ordered
@@ -707,3 +707,30 @@ def test_a_data_element_can_be_added_on_a_declared_slot():
     patch = add(SpanIndex(text), "data", choice="top")
     Gate(SHAPES, text).check(patch)
     assert parse(patch.text)["elements"]["new_data"]["slot"] == "top"
+
+
+# -- paste ----------------------------------------------------------------------------------
+
+def test_pasted_elements_keep_their_text_and_take_fresh_ids_where_the_face_has_them(tmp_path):
+    text = minimal("elements:\n  dot:\n    type: circle\n    at: { dx: 0, dy: 0 }\n"
+                   "    radius: 5\n    color: color.fg\n  last:\n    type: circle\n"
+                   "    at: { dx: 9, dy: 9 }\n    radius: 2\n    color: color.fg\n")
+    clip = ("dot:   # the copied one\n  type: circle\n  at: { dx: 30, dy: 0 }\n  radius: 5\n"
+            "  color: color.fg\nbox:\n  type: group\n  children:\n    dot2:\n      type: circle\n"
+            "      at: { dx: 1, dy: 1 }\n      radius: 1\n      color: color.fg\n")
+    index = SpanIndex(text)
+    patch = paste(index, clip, ("elements",), "last")
+    assert ordered(parse(patch.text)) == ordered(patch.expected)
+    after = SpanIndex(patch.text)
+    # `dot` is taken, and so is `dot2` once the copy brings it: each gets the next free number
+    assert list(after.data["elements"]) == ["dot", "dot3", "box", "last"]
+    assert list(after.data["elements"]["box"]["children"]) == ["dot2"]
+    assert "  dot3:   # the copied one\n    type: circle\n    at: { dx: 30, dy: 0 }" in patch.text
+    assert not Gate(tmp_path / "face.yaml", text).check(patch).errors
+
+
+def test_pasting_what_is_not_elements_is_refused():
+    index = SpanIndex(minimal("elements:\n  dot:\n    type: circle\n    radius: 5\n"))
+    for clip in ("just some words", "a: 1\n", "- type: circle\n"):
+        with pytest.raises(Refused, match="not elements"):
+            paste(index, clip)

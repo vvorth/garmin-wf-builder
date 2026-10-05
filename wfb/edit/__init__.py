@@ -20,8 +20,8 @@ rewrites some characters of that text and leaves every other byte alone:
 - `geometry`: a pixel drag on one device, written in the author's units to
   the key that device reads (the override target);
 - `structure`: an element moved between blocks (static and dynamic, a
-  layout's, a group's), grouped and ungrouped, and new elements of every
-  type.
+  layout's, a group's), grouped and ungrouped, new elements of every
+  type, and elements pasted as text.
 
 There is no server here: text in, text out.
 """
@@ -34,7 +34,7 @@ from .patch import (
     remove_slot, rename_key, rename_reference, rename_slot, rewrite_scalars, set_value,
 )
 from .spans import Entry, Refused, SpanIndex, parse
-from .structure import add, element_types, group, move_to_block, ungroup
+from .structure import add, element_types, group, move_to_block, paste, ungroup
 
 __all__ = [
     "Converted", "Entry", "Gate", "Loaded", "Patch", "Refused", "SpanIndex", "View",
@@ -42,5 +42,5 @@ __all__ = [
     "move_element", "parse", "remove", "remove_slot", "rename_key", "rename_reference", "rename_slot",
     "resize",
     "rewrite_scalars", "set_value", "target", "turn",
-    "add", "element_types", "group", "move_to_block", "ungroup",
+    "add", "element_types", "group", "move_to_block", "paste", "ungroup",
 ]

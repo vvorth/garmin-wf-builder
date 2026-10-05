@@ -152,9 +152,14 @@ inch, which is right on some screens and not others. **⚙** calibrates it:
 hold a bank card to the screen and drag until the box matches; the
 browser keeps the result. The editor remembers the zoom too.
 
-**Ctrl** (or **Cmd**) and the mouse wheel zoom about the pointer. To pan
+**Ctrl** (or **Cmd**) and the mouse wheel zoom about the pointer, and
+**Ctrl+=** and **Ctrl+-** zoom in and out; **Ctrl+0** fits the watch in
+the space, and **1** shows it at its real size. To pan
 a face larger than the space, drag the space around the watch, drag with
 the middle button, or hold **Space** and drag; the wheel scrolls too.
+
+**?** (or the **?** button in the top bar) lists every shortcut. None of
+them acts while you type in a field or the YAML tab.
 
 **Skin** draws the watch round its screen, as the simulator does, at the
 same zoom; some watches' files have no skin, and the box is then off.
@@ -179,6 +184,14 @@ Shift-click more elements on the face to add them (or take them out
 again); in the layers, Ctrl- or Cmd-click does that, and Shift-click
 selects every row from the selection to the one clicked. **Ctrl+A**
 selects everything the face shows; a group stands for what is in it.
+
+**Copy and paste.** **Ctrl+C** copies the selection as its YAML, **Ctrl+X**
+cuts it, and **Ctrl+V** pastes it in front of the selection, in its block
+(or at the front of `elements`), as one change. The clipboard holds plain
+YAML, so elements go from one face to another, or to and from a text
+editor. A pasted element whose id the face already has gets a number
+(`dot` becomes `dot2`); a paste that needs something the face lacks, a
+colour or a font, is refused with the reason.
 
 **Moving several at once.** Select them as above. A group, or a selection of several, shows a
 **move handle** on the middle of its top edge (a disc with four arrows): drag it, or any
@@ -251,25 +264,30 @@ A key overridden on the watch in view says so under its value.
 
 ### Layers
 
-The tree lists the face's blocks in drawing order: `static` and
-`elements`, then each layout's own two, with groups as folders. A block
-the face does not have yet is listed empty, as somewhere an element can
-go.
+The tree lists the face's blocks: `static` and `elements`, then each
+layout's own two, with groups as folders. Within each block and group the
+rows run front to back, as in other design tools: the top row is drawn
+last, over the ones below it (the YAML lists them the other way, in
+drawing order). A block the face does not have yet is listed empty, as
+somewhere an element can go.
 
-- **+ add…** adds an element of any type after the selection (or at the
-  end of `elements`). A graph asks for its series, a data element for its
-  slot and hands for their set (both declared in the Face tab).
-- With an element selected: **↑ ↓** reorder it, **Duplicate** (Ctrl+D),
-  **Delete** (Del), **move to…** any block or group. Delete, like the
-  arrow keys, acts on everything selected, as one change.
-- Drag a row onto another to put it before (upper half) or after (lower
-  half) it; onto a group's middle to put it inside; onto a block's name to
-  put it at the end.
-- **Group**: select more elements beside the first (Ctrl-, Cmd- or
-  Shift-click), then Group. The new group has no position or size of its own, so nothing
-  moves on the screen. **Ungroup** puts its children back where it was;
-  it is refused for a group with other keys (`at:`, `visible:`, ...),
-  whose children take something from it.
+- **+ add…** adds an element of any type in front of the selection (or
+  at the front of `elements`). A graph asks for its series, a data
+  element for its slot and hands for their set (both declared in the
+  Face tab).
+- With an element selected: **↑** brings it forward and **↓** sends it
+  backward (**Ctrl+]**, **Ctrl+[**), **Duplicate** (Ctrl+D), **Delete**
+  (Del), **move to…** any block or group. Delete, like the arrow keys,
+  acts on everything selected, as one change.
+- Drag a row onto another to put it in front of it (upper half) or
+  behind it (lower half); onto a group's middle to put it inside; onto a
+  block's name to put it in front of everything in the block.
+- **Group** (**Ctrl+G**): select more elements beside the first (Ctrl-,
+  Cmd- or Shift-click), then Group. The new group has no position or size
+  of its own, so nothing moves on the screen. **Ungroup**
+  (**Ctrl+Shift+G**) puts its children back where it was; it is refused
+  for a group with other keys (`at:`, `visible:`, ...), whose children
+  take something from it.
 
 A delete that would leave something dangling is refused the same way:
 the only element of a layout a style names (the layout would go with it),

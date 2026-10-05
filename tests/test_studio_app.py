@@ -207,3 +207,47 @@ def test_a_refused_change_says_how_many_queued_behind_it_were_not_sent(face):
     """)
     assert printed[0] == "refused for the test (2 later changes were not sent)"
     assert printed[1] == 1
+
+
+def test_shortcuts_group_open_the_list_and_copy_and_paste_elements_as_yaml(face):
+    doc = face["summary"]
+    printed = page(face, f"#/face/{doc['id']}", """
+      const sent = [];
+      const serve = globalThis.fetch;
+      globalThis.fetch = (url, options = {}) => {
+        if (url.includes("/structure")) {
+          sent.push(JSON.parse(options.body));
+          return Promise.resolve({ ok: true, status: 200, statusText: "OK",
+                                   headers: { get: () => "application/json" }, json: async () => summary });
+        }
+        return serve(url, options);
+      };
+      const row = (id) => find((e) => cls(e).startsWith("item") && e.textContent.startsWith(id))[0];
+      await click(row("clock"));
+      // Ctrl+G groups the selection, Ctrl+] brings it forward
+      out([press("g", { ctrlKey: true }), press("]", { ctrlKey: true })]);
+      await settle(); await settle();
+      // ? lists the shortcuts; Escape closes the list before it deselects
+      press("?", { shiftKey: true }); await settle();
+      out(app.textContent.includes("Keyboard shortcuts") && app.textContent.includes("Ctrl+G"));
+      press("Escape"); await settle();
+      out(app.textContent.includes("Keyboard shortcuts"));
+      // copy writes the selection's YAML; paste sends what is on the clipboard
+      const clip = {};
+      const event = (data) => ({ target: { closest: () => null }, preventDefault() { this.prevented = true; },
+                                 clipboardData: { setData: (t, v) => { clip[t] = v; }, getData: () => data } });
+      const copy = event("");
+      for (const f of listeners.copy || []) f(copy);
+      out([copy.prevented === true, clip["text/plain"]]);
+      for (const f of listeners.paste || []) f(event(clip["text/plain"]));
+      await settle(); await settle();
+      out(sent);
+    """)
+    assert printed[0] == [True, True]
+    assert printed[1] is True and printed[2] is False
+    prevented, text = printed[3]
+    assert prevented and text.startswith("clock:\n  type: ")
+    group, forward, paste = printed[4]
+    assert group == {"op": "group", "paths": [["elements", "clock"]]}
+    assert forward["op"] == "move" and forward["path"] == ["elements", "clock"]
+    assert paste["op"] == "paste" and paste["text"] == text and paste["block"] == ["elements"]

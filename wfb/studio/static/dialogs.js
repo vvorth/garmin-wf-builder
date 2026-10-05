@@ -3,7 +3,7 @@
 import { html, useState } from "./vendor/preact-htm.module.js";
 import { CARD_MM, CSS_PX_PER_INCH, calibrate } from "./zoom.js";
 
-function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children }) {
   return html`<div class="modal-back" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <div class="modal" role="dialog" aria-label=${title}>
       <div class="modal-head"><strong>${title}</strong>
