@@ -4,6 +4,12 @@ Loaded automatically when working under `tests/`.
 
 - **Fast suite:** `./.venv/bin/python -m pytest -m "not slow"`. Only tests
   marked `slow` invoke the real `monkeyc`.
+- **Never pipe a test run through `tail`, `head` or `grep`.**
+  - A cut-off log can hide the failures and the summary, and then the
+    whole suite (about six minutes) has to be rerun just to read it.
+  - A pipe also reports the filter's exit code, not pytest's.
+  - Run it whole. When the output is long, send it to a file
+    (`> log 2>&1; echo "exit=$?"`), then read that file in full.
 - **Type check:** `./.venv/bin/python -m pytest -m typecheck` runs
   `mypy --strict` over `wfb/` (`mypy.ini`) against `tests/mypy-baseline.txt`.
   It is its own test set: `conftest.py` deselects it unless `-m` names it.
