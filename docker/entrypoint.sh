@@ -18,7 +18,7 @@ set -eu
 # An escape hatch: anything that is obviously not a wfb subcommand runs directly,
 # so `docker run IMAGE pytest` and `docker run IMAGE sh` behave as expected.
 case "${1:-}" in
-    sh|bash|python|python3|pytest|pip|java|monkeyc)
+    sh|bash|python|python3|pytest|pip|java|monkeyc|node)
         exec "$@"
         ;;
 esac

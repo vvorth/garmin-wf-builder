@@ -110,6 +110,22 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
 
 ### Slice 1 — the package, the toolchain and the oracle
 
+**Built 2026-10-05.**
+- The oracle dumps all 12 stages for 40 designs: 168 device cases, in
+  about 30 s.
+- `npm run parity` reports every stage missing, as it should with nothing
+  ported yet.
+- The fast suite runs `ts/`'s tests and type check (`tests/test_ts.py`).
+
+**Departures from the plan:**
+- `diagnostics-lint` is per device set. The AMOLED `fenix847mm` resolves on
+  its own, not together with the targets. Resolving it with the targets made
+  three designs fail to build (no subscreen on `fenix847mm`; no partial
+  update on AMOLED), which would have left them without a `project`.
+- **The Docker image change is unverified:** Docker Hub was unreachable from
+  the sandbox. What was checked: official Node 24 runs inside the existing
+  runtime image (`python:3.13-slim-trixie`) and passes `ts/`'s tests there.
+
 - **Toolchain.**
   - `ts/package.json`, `tsconfig.json` (strict, `erasableSyntaxOnly`,
     `noEmit`, ES2023, `module: nodenext`), and esbuild.

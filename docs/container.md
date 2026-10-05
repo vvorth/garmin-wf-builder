@@ -35,7 +35,7 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
 | **Device definitions** | **required, and must come from you** — see below |
 | **Garmin's own font files** | optional — see below |
-| **Network** | only at image build time, for the SDK, the icon and system fonts, and the Python packages |
+| **Network** | only at image build time, for the SDK, the icon and system fonts, and the Python and npm packages |
 | **Architecture** | verified on `linux/amd64`. The pruned SDK contains **no native binaries** — only shell scripts and JVM bytecode — so `linux/arm64` should work, but has not been tested |
 
 ### The one thing you have to supply: device definitions
@@ -246,8 +246,8 @@ for those, run the simulator on a desktop machine with the full SDK.
 
 ## How the image is built
 
-Two stages, and **no package manager runs in either** — the image is composed
-from official bases rather than installed on top of one. That keeps builds
+Three stages, and **no system package manager runs in any of them** — the
+image is composed from official bases rather than installed on top of one. That keeps builds
 reproducible and working on networks where the distribution mirrors are not
 reachable.
 
@@ -268,14 +268,24 @@ pruning, the script sets aside `doc/docs/Device_Reference/`, the one part of
 `doc/` that is data: `tools/extract-device-reference.py` turns it into the
 device reference stage 2 copies into `.cache/device-reference/`.
 
-**Stage 2** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
-`python:3.13-slim`, adds the pruned SDK, installs the four host dependencies, and
-copies the compiler. The Debian base is what provides `bash` and `openssl`, both
+**Stage 2** installs `ts/`'s npm dependencies from its lock file
+(`npm ci`) on the official `node:24-trixie-slim` image. `ts/` is the
+compiler's TypeScript port in progress. Node runs its `.ts` sources
+directly, so nothing is compiled.
+
+**Stage 3** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
+`python:3.13-slim`. It also copies the `node` binary and the installed
+`ts/` package from stage 2: one binary, built for the same Debian suite, so
+its `libstdc++` comes from the base. It then adds the pruned SDK, installs
+the Python host dependencies, and copies the compiler. The Debian base is what provides `bash` and `openssl`, both
 of which are needed: the SDK's `monkeyc` launcher is a bash script, and `openssl`
 generates the developer key.
 
 Roughly 600 MB total: 159 MB JRE, ~150 MB Python base, ~100 MB of wheels
-(Pillow and fontTools dominate), 26 MB SDK.
+(Pillow and fontTools dominate), 26 MB SDK, plus about 175 MB for `ts/`:
+121 MB for the `node` binary and 54 MB for `node_modules`, development tools
+included, so the image can run `ts/`'s tests and type check. Those are host
+measurements, not the rebuilt image's.
 
 ### Build arguments
 
@@ -287,6 +297,7 @@ Roughly 600 MB total: 159 MB JRE, ~150 MB Python base, ~100 MB of wheels
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
 | `PYTHON_VERSION` | `3.13` | base image tag |
+| `NODE_VERSION` | `24.21.0` | the `node` image tag for stage 2 |
 | `EXTRA_CA_CERT_B64` | empty | a base64 PEM certificate to trust |
 
 Behind a TLS-inspecting proxy:

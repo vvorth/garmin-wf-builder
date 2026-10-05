@@ -35,6 +35,7 @@
 #   The /fonts mount is optional -- see docs/container.md.
 
 ARG PYTHON_VERSION=3.13
+ARG NODE_VERSION=24.21.0
 ARG DEBIAN_SUITE=trixie
 
 # Optional: a base64-encoded PEM certificate to trust, for networks behind a
@@ -101,7 +102,29 @@ RUN set -eux; \
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 -- the runtime image.
+# Stage 2 -- the TypeScript package in ts/ (being ported from wfb/), with its
+# npm dependencies installed from the lock file.  It runs on the official Node
+# image so the runtime stage below needs no package manager: it copies the
+# node binary and the installed package.  Node runs the .ts sources directly
+# (type stripping), so nothing is compiled here.
+# ---------------------------------------------------------------------------
+FROM node:${NODE_VERSION}-${DEBIAN_SUITE}-slim AS ts
+
+ARG EXTRA_CA_CERT_B64
+
+WORKDIR /opt/wfb/ts
+COPY ts/package.json ts/package-lock.json ./
+RUN set -eux; \
+    if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
+        echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
+        export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt; \
+    fi; \
+    npm ci --no-audit --no-fund
+COPY ts/ ./
+
+
+# ---------------------------------------------------------------------------
+# Stage 3 -- the runtime image.
 #
 # Composed rather than installed: the JRE is copied from an official Temurin
 # image and Python comes from the base, so no package manager runs here.  That
@@ -120,6 +143,9 @@ LABEL org.opencontainers.image.title="garmin-wf-builder" \
 # and nothing is compiled from Java source.
 COPY --from=eclipse-temurin:21-jre-noble /opt/java/openjdk /opt/java/openjdk
 COPY --from=sdk /opt/ciq /opt/ciq
+# Node, for ts/: the one binary, from the stage above (same Debian suite, so
+# the same glibc and libstdc++).
+COPY --from=ts /usr/local/bin/node /usr/local/bin/node
 
 ENV JAVA_HOME=/opt/java/openjdk \
     CIQ_SDK=/opt/ciq \
@@ -138,6 +164,7 @@ RUN set -eux; \
         echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
     fi; \
     java -version; \
+    node --version; \
     openssl version
 
 WORKDIR /opt/wfb
@@ -153,6 +180,7 @@ COPY runtime-lib/ ./runtime-lib/
 COPY schema/ ./schema/
 COPY examples/ ./examples/
 COPY tests/ ./tests/
+COPY --from=ts /opt/wfb/ts/ ./ts/
 # The SDK device reference: the only source for each panel's real palette size
 # (64 colours, not the 256 that bitsPerPixel implies) and for per-device
 # system-font pixel metrics.  Extracted from the SDK in the stage above; wfb

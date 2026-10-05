@@ -34,6 +34,12 @@ Loaded automatically when working under `tests/`.
   `FNT_VENU_ROBOTO_LARGE[_PLUS]_BOLD`, mapped the same way). The three
   tests above now assert real, currently-true invariants again and are
   part of the green fast suite.
+- **`test_ts.py` runs `ts/`'s own tests (`node --test`) and its type
+  check (`tsc`)**, so the fast suite keeps both halves green. Like the
+  rasteriser's tests, it fails rather than skips without a Node that runs
+  `.ts` files (`./tools/setup-env.sh` installs one). Parity with the Python
+  stages is `npm run parity` in `ts/`, not part of this suite: it needs
+  `tools/oracle.py`'s dump.
 - **Shared helpers live in `tests/helpers.py`**: loading, resolving and
   linting a design from text (`load_face`, `resolve_text`, `lint_text`, ...),
   running `wfb` in-process (`run_cli`; use a real subprocess only to test

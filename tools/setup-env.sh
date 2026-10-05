@@ -14,6 +14,9 @@
 #   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
 #   - the system fonts registry   -> wfb/assets/system-fonts/ (downloaded,
 #                                    hash-checked; docs/lore/toolchain.md)
+#   - Node 24 (if no Node on PATH -> ~/.local/share/wfb/node-v<version>
+#     strips TypeScript types)       (downloaded, checked against SHASUMS256),
+#                                    and ts/'s npm dependencies
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -378,18 +381,84 @@ else
 fi
 echo "installed host dependencies"
 
+# ----------------------------------------------------------- node -----------
+say "node"
+# The TypeScript compiler in ts/ runs its .ts sources directly, which needs a
+# Node that strips types: an official build of 22.18+ or 24. A distribution
+# build may lack it (Ubuntu's 22.22 fails with ERR_NO_TYPESCRIPT), so the
+# check runs a .ts file rather than reading the version.
+NODE_VERSION="24.21.0"
+NODE_HOME="${HOME}/.local/share/wfb/node-v${NODE_VERSION}"
+strips_types() {
+    local probe
+    probe="$(mktemp -d)"
+    printf 'const n: number = 1;\nprocess.exit(n - 1);\n' > "${probe}/probe.ts"
+    "$1" "${probe}/probe.ts" >/dev/null 2>&1
+    local ok=$?
+    rm -rf "${probe}"
+    return ${ok}
+}
+NODE=""
+for cand in "${NODE_HOME}/bin/node" "$(command -v node 2>/dev/null || true)"; do
+    if [ -n "${cand}" ] && [ -x "${cand}" ] && strips_types "${cand}"; then
+        NODE="${cand}"
+        break
+    fi
+done
+if [ -z "${NODE}" ]; then
+    case "$(uname -s)-$(uname -m)" in
+        Linux-x86_64)  node_platform="linux-x64" ;;
+        Linux-aarch64) node_platform="linux-arm64" ;;
+        Darwin-arm64)  node_platform="darwin-arm64" ;;
+        Darwin-x86_64) node_platform="darwin-x64" ;;
+        *) echo "ERROR: no Node ${NODE_VERSION} build for $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+    esac
+    node_file="node-v${NODE_VERSION}-${node_platform}.tar.gz"
+    node_url="https://nodejs.org/dist/v${NODE_VERSION}"
+    work="$(mktemp -d)"
+    curl -fsSL -o "${work}/${node_file}" "${node_url}/${node_file}"
+    curl -fsSL -o "${work}/SHASUMS256.txt" "${node_url}/SHASUMS256.txt"
+    expected="$(grep " ${node_file}\$" "${work}/SHASUMS256.txt" | cut -d' ' -f1)"
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual="$(sha256sum "${work}/${node_file}" | cut -d' ' -f1)"
+    else
+        actual="$(shasum -a 256 "${work}/${node_file}" | cut -d' ' -f1)"
+    fi
+    if [ -z "${expected}" ] || [ "${expected}" != "${actual}" ]; then
+        echo "ERROR: ${node_file} does not match nodejs.org's SHASUMS256.txt" >&2
+        exit 1
+    fi
+    mkdir -p "${NODE_HOME}"
+    tar -xzf "${work}/${node_file}" -C "${NODE_HOME}" --strip-components=1
+    rm -rf "${work}"
+    NODE="${NODE_HOME}/bin/node"
+    echo "installed Node ${NODE_VERSION} at ${NODE_HOME}"
+fi
+NODE_BIN="$(dirname "${NODE}")"
+echo "node $("${NODE}" --version) at ${NODE}: strips types"
+if [ "${NODE_BIN}" = "${NODE_HOME}/bin" ]; then
+    if [ "${IS_MAC}" = false ] && [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
+        grep -qF "${NODE_HOME}/bin" "${PERSIST}" 2>/dev/null || {
+            # Prepended: it must win over a distribution node on PATH.
+            echo "export PATH=${NODE_HOME}/bin:\$PATH" >> "${PERSIST}"
+            echo "prepended ${NODE_HOME}/bin to PATH in ${PERSIST}"
+        }
+    else
+        echo "Add this line to your shell profile (~/.zshrc or ~/.bashrc):"
+        echo ""
+        echo "  export PATH=\"${NODE_HOME}/bin:\$PATH\""
+    fi
+fi
+(cd "${REPO_ROOT}/ts" && PATH="${NODE_BIN}:${PATH}" npm ci --silent --no-audit --no-fund)
+echo "installed ts/ dependencies"
+
 # ---------------------------------------------------------- verify ----------
 say "verify"
 "${SDK_ROOT}/bin/monkeyc" --version 2>&1 | grep -v JAVA_TOOL_OPTIONS || true
 echo "devices: $(ls "${DEVICES_DEST}" | tr '\n' ' ')"
 
 "${VENV}/bin/python" -c "import ruamel.yaml, jsonschema, PIL, fontTools; print('host deps ok')"
-if command -v node >/dev/null 2>&1; then
-    echo "node $(node --version): the editor's front-end tests can run"
-else
-    echo "WARNING: node is not installed. The editor's rasteriser test" >&2
-    echo "  (tests/test_studio_raster.py) fails without it; install Node 18 or newer." >&2
-fi
+(cd "${REPO_ROOT}/ts" && PATH="${NODE_BIN}:${PATH}" npm run --silent typecheck) && echo "ts/ typechecks"
 
 cat <<EOF
 

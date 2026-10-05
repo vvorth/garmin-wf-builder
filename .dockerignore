@@ -7,6 +7,9 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+# ts/'s dependencies are installed in the image build (npm ci), never copied.
+ts/node_modules/
+ts/dist/
 
 # Garmin's device definitions are the user's own licensed copy and are mounted
 # at run time, never baked in.  See docs/container.md.

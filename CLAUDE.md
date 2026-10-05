@@ -51,7 +51,9 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
 | 3 breadth | in progress: every element type, `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:` everywhere and format 2 shipped — see `docs/lore/roadmap.md` |
 
-Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
+Where things live: `wfb/` is the compiler, being ported stage by stage to
+TypeScript in `ts/`, held equal to Python by `tools/oracle.py` and `npm run
+parity` (`ts/CLAUDE.md`). `runtime-lib/` is the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
 `wfb/studio/` is the editor (`wfb studio`), over the patch engine in
 `wfb/edit/`. `docs/guide/` is the format reference, `docs/limitations.md` records the
@@ -81,7 +83,8 @@ anything with an icon validates), the SDK device reference at
 `tools/extract-device-reference.py`; **derived and not committed**, rebuilt
 when missing or the SDK changes, and `wfb` refuses to load devices without
 it; `wfb build` warns when it came from another SDK), `CIQ_SDK` and `PATH` in
-`/etc/sandbox-persistent.sh`, and `.venv/`. On Debian/Ubuntu, `venv` needs
+`/etc/sandbox-persistent.sh`, `.venv/`, and an official Node 24 (when the
+`node` on `PATH` cannot run `.ts` files) with `ts/`'s npm dependencies. On Debian/Ubuntu, `venv` needs
 `python3-venv`, or the script falls back to `uv`. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device
 copies in just that one, without touching what is already installed
