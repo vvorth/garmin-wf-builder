@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState }
   from "./vendor/preact-htm.module.js";
 import { api, enc } from "./api.js";
 import { shortcutFor, typingIn } from "./keys.js";
-import { enqueue, mark, next } from "./outbox.js";
+import { droppedError, enqueue, mark, next } from "./outbox.js";
 import { picksParam } from "./values.js";
 
 // -- the outbox ------------------------------------------------------------------------
@@ -30,6 +30,8 @@ export function useOutbox({ docId, doc, frame, where, accept, reload, onError, o
   const [queue, setQueue] = useState([]);
   const queued = useRef([]);
   const latest = useRef(null);       // the newest version known, for the next send
+  const shown = useRef(docId);       // the face open now: an answer about another is dropped
+  shown.current = docId;
   const commit = (q) => { queued.current = q; setQueue(q); };
   useEffect(() => { if (doc) latest.current = doc.version; }, [doc && doc.id, doc && doc.version]);
   useEffect(() => { commit([]); latest.current = null; }, [docId]);
@@ -55,6 +57,9 @@ export function useOutbox({ docId, doc, frame, where, accept, reload, onError, o
     commit(mark(queued.current, entry, "sent"));
     try {
       const updated = await post(entry, latest.current);
+      // the editor moved to another face meanwhile: its queue and version
+      // are that face's now
+      if (shown.current !== docId) { if (entry.resolve) entry.resolve(null); return; }
       latest.current = updated.version;
       commit(mark(queued.current, queued.current.find((e) => e.state === "sent"), "done", updated.version));
       accept(updated);
@@ -62,11 +67,13 @@ export function useOutbox({ docId, doc, frame, where, accept, reload, onError, o
       if (entry.resolve) entry.resolve(updated);
       pump();
     } catch (e) {
-      // what was queued behind it was aimed at a face that did not happen
+      if (shown.current !== docId) { if (entry.resolve) entry.resolve(null); return; }
+      // what was queued behind it was aimed at a face that did not happen,
+      // and the message says how much that was
       const dropped = queued.current.filter((q) => q.state !== "done");
       commit(queued.current.filter((q) => q.state === "done"));
       for (const q of dropped) if (q.resolve) q.resolve(null);
-      onError(e);
+      onError(droppedError(e, dropped.length - 1));
       if (e.status === 409) reload();
     }
   }, [docId]);

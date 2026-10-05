@@ -105,3 +105,13 @@ export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
 export function newer(current, incoming) {
   return !current || incoming.id !== current.id || incoming.version >= current.version;
 }
+
+// The error to show for a refused change, `error`, when `later` changes
+// queued behind it were dropped with it: the same error, its status kept,
+// its message saying so, since nothing else would.
+export function droppedError(error, later) {
+  if (!(later > 0)) return error;
+  const shown = new Error(`${error.message} (${later} later change${later > 1 ? "s were" : " was"} not sent)`);
+  shown.status = error.status;
+  return shown;
+}

@@ -347,8 +347,14 @@ function Editor({ docId, onError, onNotice }) {
   const [scope, setScope] = useState("all");
 
   // A face from the server, shown unless it is older than the one shown
-  // (`outbox.newer`): answers can arrive out of order.
-  const accept = useCallback((d) => setDoc((current) => (newer(current, d) ? d : current)), []);
+  // (`outbox.newer`): answers can arrive out of order. An answer about
+  // another face (one left while its change was on its way) is dropped.
+  const docIdRef = useRef(docId);
+  docIdRef.current = docId;
+  const accept = useCallback((d) => {
+    if (d.id !== docIdRef.current) return;
+    setDoc((current) => (newer(current, d) ? d : current));
+  }, []);
   const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(accept, (e) => {
     onError(e);
     if (e.status === 404) go(null);

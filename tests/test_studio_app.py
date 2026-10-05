@@ -153,3 +153,57 @@ def test_the_editor_folds_its_controls_away_and_names_what_undo_takes_back(face)
     assert printed[6] == ["goto", "undo"]
     assert printed[7] is True
     assert "props-folded" in printed[8]
+
+
+def _deferred_fetch() -> str:
+    """Script wrapping the stand-in server so a test holds back the answer to
+    each POST until it calls `release(i, status)` (200 answers the face one
+    version on, anything else refuses)."""
+    return """
+      const held = [];
+      const serve = globalThis.fetch;
+      globalThis.fetch = (url, options = {}) => {
+        if ((options.method || "GET") !== "POST") return serve(url, options);
+        requests.push(["POST", url]);
+        return new Promise((resolve) => held.push((status) => resolve({
+          ok: status === 200, status, statusText: "", headers: { get: () => "application/json" },
+          json: async () => status === 200 ? { ...summary, version: summary.version + 1 }
+                                           : { error: "refused for the test" } })));
+      };
+      const release = async (i, status = 200) => { held[i](status); await settle(); await settle(); };
+    """
+
+
+def test_an_answer_for_a_face_left_behind_never_replaces_the_face_opened(face):
+    doc = face["summary"]
+    printed = page(face, f"#/face/{doc['id']}", _deferred_fetch() + """
+      const other = { ...summary, id: "b".repeat(32), name: "Evening", version: 1 };
+      answers[`/api/documents/${other.id}`] = other;
+      press("z", { ctrlKey: true }); await settle();        // face A's undo, on its way
+      location.hash = `#/face/${other.id}`;
+      for (const f of listeners.hashchange || []) f();
+      await settle(); await settle();
+      const name = () => find((e) => cls(e).startsWith("name renamable"))[0].textContent;
+      out(name());
+      await release(0);                                     // A's answer arrives late
+      out(name());
+      // the next change is aimed at B's version, not A's
+      press("z", { ctrlKey: true }); await settle();
+      out(requests.filter(([m]) => m === "POST").map(([m, u]) => u.split("/api/documents/")[1]));
+    """)
+    assert printed[0] == "Evening"
+    assert printed[1] == "Evening"
+    assert printed[2] == [f"{doc['id']}/undo?version={doc['version']}", f"{'b' * 32}/undo?version=1"]
+
+
+def test_a_refused_change_says_how_many_queued_behind_it_were_not_sent(face):
+    doc = face["summary"]
+    printed = page(face, f"#/face/{doc['id']}", _deferred_fetch() + """
+      press("z", { ctrlKey: true }); press("z", { ctrlKey: true }); press("z", { ctrlKey: true });
+      await settle();
+      await release(0, 400);
+      out(find((e) => cls(e).startsWith("toast"))[0].textContent);
+      out(requests.filter(([m]) => m === "POST").length);
+    """)
+    assert printed[0] == "refused for the test (2 later changes were not sent)"
+    assert printed[1] == 1

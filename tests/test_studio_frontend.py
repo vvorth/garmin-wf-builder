@@ -494,6 +494,16 @@ def test_an_older_face_never_replaces_a_newer_one():
     assert result == [True, True, True, False, True]
 
 
+def test_a_refusal_says_how_many_changes_behind_it_were_dropped():
+    result = run("""
+      const e = Object.assign(new Error("no such element"), {status: 400});
+      const one = outbox.droppedError(e, 1), three = outbox.droppedError(e, 3);
+      console.log(JSON.stringify([outbox.droppedError(e, 0) === e, one.message, three.message, three.status]));
+    """)
+    assert result == [True, "no such element (1 later change was not sent)",
+                      "no such element (3 later changes were not sent)", 400]
+
+
 def test_each_tab_has_its_own_name():
     result = run("console.log(JSON.stringify(typeof session.TAB === 'string' && session.TAB.length > 8));")
     assert result is True
