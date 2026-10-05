@@ -112,7 +112,10 @@ the panel; a double click on the edge puts its width back. The browser
 remembers both widths. The right column's two parts fold away, each on
 its own: click **Properties**, or the **▾** at the end of the tabs. The
 browser remembers which are folded. The face's name in the top bar is
-renamed by clicking it, as in the library.
+renamed by clicking it, as in the library. The small frames below the
+face catch up with it once it has been still for a second, so a run of
+drags does not redraw them all each time; a click on one views that
+watch.
 
 Messages (a refused change's reason, a notice) show for a few seconds at
 the bottom. **Messages**, in the bottom right corner, keeps every one,
@@ -230,7 +233,8 @@ centre and to other elements' centres and edges, within 4 pixels, shown as
 lines; with none near, its centre snaps to a grid of 5%r about the screen
 centre. An axis you did not drag along never moves. Sizes snap to the same
 grid, angles to 30° within 3°, else to 6°. Hold **Alt** to place freely;
-**Escape** cancels a drag.
+**Escape** cancels a drag. While you drag, a label at the top left of the
+face says how far the drag has gone and whether it snaps.
 
 **Units.** A drag is written in the unit the key already has: a `%r` stays
 `%r`, a `%` stays `%`, rounded to the coarsest value that still lands on

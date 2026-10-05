@@ -369,6 +369,19 @@ def test_copied_elements_are_their_own_lines_at_the_first_column():
     assert result[1] == "g:\n  type: group\n  children:\n    c:\n      type: text\n"
 
 
+def test_a_drag_says_how_far_it_went_and_how_to_stop_snapping():
+    result = run("""
+      console.log(JSON.stringify([
+        snap.dragHint({kind: "move", dx: 12, dy: -3}, false),
+        snap.dragHint({kind: "resize", delta: -4}, true),
+        snap.dragHint({kind: "turn", degrees: 89.6}, false),
+      ]));
+    """)
+    assert result == ["+12, −3 px · snapping · hold Alt to place freely",
+                      "−4 px · placed freely (Alt)",
+                      "90° · snapping · hold Alt to place freely"]
+
+
 def test_the_vendored_editor_bundle_exports_what_the_yaml_tab_imports():
     source = (STATIC / "yaml.js").read_text()
     start = source.index("import {", source.index("preact-htm"))

@@ -15,7 +15,7 @@ import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
 import { offsets, shiftItems, unshown } from "./outbox.js";
 import * as raster from "./raster.js";
 import {
-  angleAt, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
+  angleAt, dragHint, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.js";
 
 const ACCENT = "#4f9cf9";
@@ -420,7 +420,8 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
       : seen.items.find((i) => i.id === drag.ids[0]);
     if (!target) return;
     const p = point(e);
-    setDrag({ ...drag, item: target, gesture: gestureAt(seen, target, drag, p.x, p.y, e.altKey) });
+    setDrag({ ...drag, item: target, free: e.altKey,
+              gesture: gestureAt(seen, target, drag, p.x, p.y, e.altKey) });
   };
 
   const up = () => {
@@ -461,14 +462,28 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     <div class=${"hit" + (drag && drag.gesture ? " dragging" : "")} style=${screen}
          onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${() => setDrag(null)}></div>
     ${waiting.length ? html`<div class="saving">saving…</div>` : null}
+    ${live ? html`<div class=${"drag-hint" + (live.free ? " free" : "")} role="status">${dragHint(live.gesture, live.free)}</div>` : null}
   </div>`;
 }
 
+// How long the face must stay unchanged before the strip draws it again.
+export const STRIP_SETTLE_MS = 1000;
+
 // One small frame per target, the selected device marked; a click views it.
+// The thumbnails follow the face once it has been still for
+// `STRIP_SETTLE_MS`, so a run of drags is not a run of thumbnails, each
+// taking the face's lock from the frame being edited.
 export function Strip({ doc, view, picks, onDevice }) {
+  const [version, setVersion] = useState(doc.version);
+  useEffect(() => { setVersion(doc.version); }, [doc.id]);
+  useEffect(() => {
+    if (version === doc.version) return;
+    const timer = setTimeout(() => setVersion(doc.version), STRIP_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [doc.version]);
   if (doc.targets.length < 2) return null;
   const q = (device) => {
-    const p = new URLSearchParams({ device, v: doc.version });
+    const p = new URLSearchParams({ device, v: version });
     if (view.style) p.set("style", view.style);
     // following the clock, the thumbnails change once a minute, not every second
     if (view.time) p.set("time", view.now ? view.time.slice(0, 5) : view.time);

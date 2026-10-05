@@ -354,6 +354,37 @@ def test_the_layers_list_front_to_back_and_up_brings_forward(summary):
                               "before": shown[2] if len(shown) > 2 else None}]
 
 
+def test_the_thumbnails_wait_for_the_face_to_settle():
+    script = f"""
+      import {{ install }} from {json.dumps((HERE / 'studio_dom.mjs').as_uri())};
+      const document = install();
+      const {{ html, render }} = await import({json.dumps((STATIC / 'vendor/preact-htm.module.js').as_uri())});
+      const {{ Strip, STRIP_SETTLE_MS }} = await import({json.dumps((STATIC / 'canvas.js').as_uri())});
+      const root = document.createElement("div");
+      const doc = (version) => ({{ id: "f", version, targets: ["a", "b"] }});
+      const show = (version, view = {{}}) => render(html`<${{Strip}} doc=${{doc(version)}} view=${{{{ device: "a", ...view }}}}
+                                                               picks=${{null}} onDevice=${{() => {{}}}} />`, root);
+      const versions = () => root.all((e) => e.localName === "img")
+        .map((e) => new URLSearchParams(e.attributes.src.split("?")[1]).get("v"));
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const out = [];
+      show(1); await wait(5); out.push(versions());
+      show(2); await wait(5); show(3); await wait(5); out.push(versions());       // a run of drags
+      show(3, {{ style: "night" }}); await wait(5);
+      out.push(root.all((e) => e.localName === "img")[0].attributes.src.includes("style=night"));
+      await wait(STRIP_SETTLE_MS + 100); out.push(versions());
+      console.log(JSON.stringify(out));
+    """
+    done = subprocess.run(["node", "--input-type=module", "-e", script],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr[-1500:]
+    first, during, style_now, settled = json.loads(done.stdout)
+    assert first == ["1", "1"]
+    assert during == ["1", "1"]           # still the face before the drags
+    assert style_now is True               # what is viewed changes them at once
+    assert settled == ["3", "3"]
+
+
 def test_the_diagnostics_filter_by_severity_and_the_tab_counts_each():
     items = [
         {"severity": "note", "code": "n", "message": "a note", "notes": [], "line": None},

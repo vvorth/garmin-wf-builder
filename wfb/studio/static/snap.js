@@ -92,3 +92,14 @@ export function nearestTurn(value, near) {
 export function resizeDelta(handle, dx, dy) {
   return Math.round((handle.axis === "y" ? dy : dx) * handle.gain);
 }
+
+// What the canvas says during a drag: how far it has gone, and whether it
+// snaps or, with Alt held (`free`), places freely, so the key that turns
+// snapping off is on the screen while it matters.
+export function dragHint(gesture, free) {
+  const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+  const what = gesture.kind === "move" ? `${signed(gesture.dx)}, ${signed(gesture.dy)} px`
+    : gesture.kind === "resize" ? `${signed(gesture.delta)} px`
+    : `${Math.round(gesture.degrees)}°`;
+  return `${what} · ${free ? "placed freely (Alt)" : "snapping · hold Alt to place freely"}`;
+}
