@@ -60,7 +60,7 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
 | T1 | The whole stack moves to TypeScript |
 | T2 | The preview models Garmin's rasteriser, held to simulator captures. Pillow-based previews are the baseline for early development |
 | T3 | Our own deterministic rasteriser for anything that ships or is tested. The platform canvas is for the editor's chrome and live drawing only |
-| T4 | Glyph-outline features (rotated and curved vector text, `outline:` rings) and anti-aliasing are the lowest priority: postponed, to be re-researched with TypeScript in mind. A 1-bit bake uses `opentype.js`, behind one module |
+| T4 | Nothing is postponed from the port. **`outline:` rings** are ported exactly (sheet dilation, grown copies and stamps). **Rotated and curved vector text** rotates the glyph *outlines*, then rasterises them: a recorded change against Pillow's rotated image. **Anti-aliasing** has nothing to port: the preview draws no anti-aliased primitive, and anti-aliased sheets come with the bake. Only research into Garmin's own `setAntiAlias` and vector-text appearance waits, for slice 10's captures. Glyph outlines come from `opentype.js`, behind one module |
 | T5 | Option B: erasable-syntax TypeScript (`erasableSyntaxOnly`). Node runs sources directly; the browser gets an esbuild bundle |
 | T6 | Stage by stage with Python as the oracle (research 32 §6, M2) |
 | T7 | Simulator captures can come last. Only the pixel model needs them (research 32 §8.2) |
@@ -197,9 +197,10 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
      the flattened outline, nonzero winding, exact area per pixel);
   3. crop to the ink, area-average down, and threshold at 128;
   4. pack the sheet and write the `.fnt`.
-- Also: `dilate` for outline rings (postponed by T4, so ported as is,
-  without new research), `.cft` glyph decoding, stand-ins, and the icon
-  font (`icons.ts`, `icon_catalog.ts`).
+- Also: anti-aliased sheets (the same bake without the threshold), `dilate`
+  for `outline:` rings (exact: a pixel operation on the sheet), `.cft`
+  glyph decoding, system-font stand-ins drawn glyph by glyph through the
+  same rasteriser, and the icon font (`icons.ts`, `icon_catalog.ts`).
 - **The PNG writer** is our own, uncompressed or through `fflate`
   (`zlib`), so the output is deterministic everywhere.
 - **Parity:** `fonts`, as research 32's `fonts.mjs` tables, per font and
@@ -221,12 +222,25 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
   behind one interface, `Rasteriser`. That keeps today's goldens: the
   T2 baseline.
 - The text runs paste the slice-5 sheets.
-- **Vector text** (`face:` fonts, rotated or curved) is postponed by T4. It
-  keeps a placeholder that draws the run's ink box and reports `vector text
-  preview pending`. A face using it builds and lints as before, because
-  only its preview is affected.
-- **Parity:** `draw`, exact; `preview`, pixel for pixel except text from
-  re-baked sheets.
+- **`outline:` rings** on shapes, groups, hands and text: the grown copy,
+  the shifted polygon and the stamp, as the draw program has them. They
+  are exact, since they are geometry over the same primitives.
+- **Vector text** (`face:` fonts, upright, rotated or curved). Each glyph's
+  outline is placed, rotated about the run's pen path (`layout`'s curve
+  angles and radial bands), and rasterised by slice 5's coverage
+  rasteriser. This replaces Pillow's render-at-4×, rotate (bicubic) and
+  downsample (Lanczos) path (`preview.py` `draw_vector_text`,
+  `_draw_radial_vector_text`, `_paste_rotated_run`). The geometry is exact,
+  so the stairs Pillow's image rotation leaves are gone.
+- **Parity:**
+  - `draw`, exact;
+  - `preview`, pixel for pixel, except text from re-baked sheets and
+    vector runs.
+- **Recorded changes:** vector-text pixels on `features/outline`,
+  `features/vector-text` and `generated_by_skill/trail-utility` (84 runs).
+  For each run, measure ink overlap with Pillow's image (intersection over
+  union) and the bounding-box offset, so the change is a figure and not a
+  judgement.
 
 ### Slice 7 — lint
 

@@ -370,10 +370,18 @@ tests behind them, while the project keeps shipping features.
   TypeScript-ready port of the shape primitives) are the initial baseline.
   The Garmin model replaces them as simulator captures arrive (§8).
 - **T3:** yes, our own rasteriser.
-- **T4:** glyph-outline work and anti-aliasing are the lowest priority:
-  postponed, and to be re-researched with TypeScript in mind. A 1-bit bake
-  still needs some outline reader, so step 4 starts with `opentype.js`,
-  the one this probe measured, and keeps that choice behind one module.
+- **T4:** first postponed outline work and anti-aliasing, then revised the
+  same day. Nothing is postponed from the port, which keeps every corpus
+  frame comparable:
+  - `outline:` rings are ported exactly;
+  - rotated and curved vector text rotates the glyph outlines and then
+    rasterises them;
+  - anti-aliasing has nothing to port, since the preview draws no
+    anti-aliased primitive and anti-aliased sheets come with the bake.
+
+  Only research into Garmin's own `setAntiAlias` and vector-text
+  appearance waits for captures. Outlines come from `opentype.js`, behind
+  one module.
 - **T5:** option B, erasable-syntax TypeScript (§8.1).
 - **T6:** yes, M2, stage by stage with Python as the oracle.
 - **T7:** captures can come last (§8.2). Shapes are checked on the three
@@ -427,7 +435,8 @@ Everything the `.prg` contains is decided without it: positions (the
 | 7 codegen | no | the generated project byte for byte (`tools/snapshot.py`) |
 | 8 server, CLI, editor in the browser | no | the existing behaviour and tests, ported |
 | **5b the Garmin pixel model** | **yes**, per primitive | simulator diff tables, as §3 |
-| postponed: anti-aliasing, outline rings, rotated/curved vector text, system-font glyph shapes | yes, and re-researched first (T4) | — |
+| `outline:` rings; rotated and curved vector text (outlines rotated, then rasterised) | no | rings exact; vector runs a recorded change, by ink overlap with Pillow's image |
+| Garmin's own look of `setAntiAlias`, vector text and system-font glyphs | yes | simulator captures |
 
 **So all the migration's correctness work can be done without a capture.**
 Only 5b, the step that makes the preview *more* like the watch than
@@ -445,7 +454,7 @@ lines, and `preview.py` plus the masks are about 3 000 of the 46 000.
 - `drawLine` with a width: hands and ticks;
 - `fillPolygon`: hands;
 - `drawCircle` and `drawRoundedRectangle` with a pen width;
-- `setAntiAlias(true)` for each of these (postponed by T4);
+- `setAntiAlias(true)` for each of these;
 - `drawText` of a baked sheet: where a justified run lands. This is
   already proven by the system-font calibration face, but should be
   re-checked once on the new bake;
