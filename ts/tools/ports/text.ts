@@ -2,7 +2,7 @@
 // oracle's JSON form (tools/oracle.py). Offsets are converted from UTF-16
 // code units to the code points Python counts.
 import { Refused, SpanIndex } from "../../src/edit/spans.ts";
-import { compose, type Data, Timestamp, type YamlNode, YamlError } from "../../src/edit/yaml.ts";
+import { compose, type Data, PyFloat, Timestamp, type YamlNode, YamlError } from "../../src/edit/yaml.ts";
 import type { Case } from "../stages.ts";
 
 /** UTF-16 offset → code-point offset, for `text`. */
@@ -23,6 +23,7 @@ export function oracleData(data: Data): unknown {
   if (data instanceof Map) return [...data].map(([k, v]) => [oracleData(k), oracleData(v)]);
   if (Array.isArray(data)) return data.map(oracleData);
   if (data instanceof Timestamp) return { $timestamp: data.iso };
+  if (data instanceof PyFloat) return oracleData(data.value);
   if (typeof data === "number" && !Number.isFinite(data)) {
     return { $float: Number.isNaN(data) ? "nan" : data > 0 ? "inf" : "-inf" };
   }

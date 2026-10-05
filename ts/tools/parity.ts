@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { NodeDeviceFiles, REPO_ROOT } from "../src/devices/node.ts";
 import { compare, type Difference } from "./compare.ts";
-import { type Case, DEVIATIONS, isDeviceStage, ORACLE_FORMAT, PORTS, type Stage, STAGES } from "./stages.ts";
+import { type Case, DEVIATIONS, isDeviceStage, ORACLE_FORMAT, PORTS, type Stage, STAGES, VIRTUAL } from "./stages.ts";
 
 const ORACLE = join(REPO_ROOT, ".cache", "oracle");
 
@@ -71,7 +71,7 @@ function main(): number {
     tallies.set(stage, tally);
     const port = PORTS[stage];
     for (const design of designs) {
-      if (!design.stages.includes(stage)) continue;
+      if (!design.stages.includes(VIRTUAL[stage]?.source ?? stage)) continue;
       const devices = isDeviceStage(stage) ? design.devices : [undefined];
       const text = readFileSync(join(REPO_ROOT, design.path), "utf8");
       for (const device of devices) {
@@ -133,6 +133,8 @@ function main(): number {
 }
 
 function dump(design: string, stage: Stage, device: string | undefined): unknown {
+  const virtual = VIRTUAL[stage];
+  if (virtual !== undefined) return virtual.pick(dump(design, virtual.source, device));
   const path = device === undefined ? join(ORACLE, design, `${stage}.json`) : join(ORACLE, design, device, `${stage}.json`);
   return JSON.parse(readFileSync(path, "utf8"));
 }

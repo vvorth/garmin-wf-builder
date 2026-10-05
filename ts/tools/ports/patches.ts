@@ -11,7 +11,7 @@ import * as edit from "../../src/edit/patch.ts";
 import * as schemes from "../../src/edit/schemes.ts";
 import { type Path, Refused, SpanIndex } from "../../src/edit/spans.ts";
 import * as structure from "../../src/edit/structure.ts";
-import type { Data, DataKey } from "../../src/edit/yaml.ts";
+import { type Data, type DataKey, PyFloat } from "../../src/edit/yaml.ts";
 import { canonical, PyError } from "../../src/py.ts";
 import type { Case } from "../stages.ts";
 import { codePoints } from "./text.ts";
@@ -87,6 +87,7 @@ function isPatch(value: unknown): value is edit.Patch {
 
 /** A value as the oracle's `to_json` writes it: a mapping as an object. */
 function plain(value: unknown): unknown {
+  if (value instanceof PyFloat) return value.value;
   if (value instanceof Map) return Object.fromEntries([...value].map(([k, v]) => [String(k), plain(v)]));
   if (Array.isArray(value)) return value.map(plain);
   if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));

@@ -59,8 +59,17 @@ export interface MappingNode extends NodeBase {
 export type YamlNode = ScalarNode | SequenceNode | MappingNode;
 export type ScalarStyle = null | "\"" | "'" | "|" | ">";
 
-/** Text that is not valid YAML, or that ruamel's safe loader refuses. */
-export class YamlError extends Error {}
+/** Text that is not valid YAML, or that ruamel's safe loader refuses; `line` and `col` (1-based) where, when known. */
+export class YamlError extends Error {
+  readonly line: number | null;
+  readonly col: number | null;
+
+  constructor(message: string, line: number | null = null, col: number | null = null) {
+    super(message);
+    this.line = line;
+    this.col = col;
+  }
+}
 
 const TAG = "tag:yaml.org,2002:";
 
@@ -175,7 +184,11 @@ type AstNode = YAML.Scalar | YAML.YAMLMap | YAML.YAMLSeq | YAML.Alias;
 /** The composed node tree ruamel's safe loader builds for `text`, or `null` for an empty document. */
 export function compose(text: string): YamlNode | null {
   const doc = YAML.parseDocument(text, { schema: "failsafe", keepSourceTokens: true, uniqueKeys: false });
-  if (doc.errors.length > 0) throw new YamlError(doc.errors[0]!.message.split("\n")[0]!);
+  if (doc.errors.length > 0) {
+    const error = doc.errors[0]!;
+    const pos = error.linePos?.[0];
+    throw new YamlError(error.message.split("\n")[0]!, pos?.line ?? null, pos?.col ?? null);
+  }
   const lines = new Lines(text);
   const anchors = new Map<string, YamlNode>();
   if (doc.contents === null) return null;
@@ -269,6 +282,21 @@ class Composer {
 
 // -- constructing data: ruamel's safe constructor --------------------------------
 
+/**
+ * A float whose value is integral (`1.0`, `0.0`, `1e3`). Python keeps it a
+ * `float`, apart from the `int` 1, and the compiler types and prints the
+ * two differently (`0.0` is a Float reading, `0` a Number). Every other
+ * number in YAML data is a plain number: a non-integral one can only be a
+ * float, and an integral one is an int.
+ */
+export class PyFloat {
+  readonly value: number;
+
+  constructor(value: number) {
+    this.value = value;
+  }
+}
+
 /** A YAML timestamp, kept as ruamel's `isoformat()` of it. */
 export class Timestamp {
   readonly iso: string;
@@ -279,7 +307,7 @@ export class Timestamp {
 }
 
 export type DataKey = string | number | boolean | null;
-export type Data = null | boolean | number | string | Timestamp | Data[] | Map<DataKey, Data>;
+export type Data = null | boolean | number | PyFloat | string | Timestamp | Data[] | Map<DataKey, Data>;
 
 /** The plain data ruamel's safe constructor builds from `node`. */
 export function construct(node: YamlNode | null): Data {
@@ -288,17 +316,25 @@ export function construct(node: YamlNode | null): Data {
   if (node.kind === "mapping") {
     const out = new Map<DataKey, Data>();
     for (const [k, v] of node.pairs) {
-      const key = construct(k);
-      if (key instanceof Map || Array.isArray(key) || key instanceof Timestamp) {
-        throw new YamlError("found unhashable key");
-      }
-      if (k.kind === "scalar" && k.tag === TAG + "merge") throw new YamlError("merge keys (<<) are not supported");
-      if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`);
+      const key = mappingKey(k);
+      if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`, k.start.line + 1, k.start.column + 1);
       out.set(key, construct(v));
     }
     return out;
   }
   return scalarValue(node);
+}
+
+/**
+ * A mapping key as ruamel's constructor hashes it: by value, so `1.0` and
+ * `1` are one key. A collection cannot be a key, and a merge key (`<<`) is
+ * not supported.
+ */
+export function mappingKey(k: YamlNode): DataKey {
+  if (k.kind === "scalar" && k.tag === TAG + "merge") throw new YamlError("merge keys (<<) are not supported", k.start.line + 1, k.start.column + 1);
+  const key = construct(k);
+  if (key instanceof Map || Array.isArray(key)) throw new YamlError("found unhashable key", k.start.line + 1, k.start.column + 1);
+  return key instanceof PyFloat ? key.value : key instanceof Timestamp ? key.iso : key;
 }
 
 const BOOLS: Record<string, boolean> = { yes: true, no: false, y: true, n: false, true: true, false: false, on: true, off: false };
@@ -309,7 +345,10 @@ function scalarValue(node: ScalarNode): Data {
     case "null": return null;
     case "bool": return BOOLS[value.toLowerCase()] ?? value;
     case "int": return constructInt(value);
-    case "float": return constructFloat(value);
+    case "float": {
+      const number = constructFloat(value);
+      return Number.isInteger(number) ? new PyFloat(number) : number;
+    }
     case "timestamp": return constructTimestamp(value);
     default: return value;
   }
@@ -374,6 +413,7 @@ export function sameData(a: Data, b: Data): boolean {
   }
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => sameData(v, b[i]!));
   if (a instanceof Timestamp && b instanceof Timestamp) return a.iso === b.iso;
-  if (typeof a === "number" && typeof b === "number") return a === b || (Number.isNaN(a) && Number.isNaN(b));
-  return a === b;
+  const x = a instanceof PyFloat ? a.value : a, y = b instanceof PyFloat ? b.value : b;
+  if (typeof x === "number" && typeof y === "number") return x === y || (Number.isNaN(x) && Number.isNaN(y));
+  return x === y;
 }

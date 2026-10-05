@@ -35,6 +35,7 @@ Stages, in pipeline order:
 | `nodes` | design | the composed node tree the edit engine reads (`wfb.edit.spans.compose`): each node's kind, tag, start and end marks (index, line, column), a scalar's style and value, a collection's flow style |
 | `spans` | design | `wfb.edit.spans.SpanIndex`: every entry's path and key, value and end offsets |
 | `patches` | design | the editor's operations replayed on the text (`tools/oracle_patches.py`): each call's arguments and outcome |
+| `load-cases` | design | seeded broken variants of the design and each load pass's diagnostics on them (`tools/oracle_cases.py`) |
 | `data` | design | the parsed YAML, mappings as `[key, value]` pairs (`spans.ordered`) |
 | `lowered` | design | the document after the schema and `wfb.lower` |
 | `desugared` | design | the document after `wfb.desugar` |
@@ -97,7 +98,7 @@ from wfb.ir.model import Face  # noqa: E402
 OUT = ROOT / ".cache" / "oracle"
 #: The AMOLED target every design is also resolved on.
 AMOLED = "fenix847mm"
-DESIGN_STAGES = ("nodes", "spans", "patches", "data", "lowered", "desugared", "face", "diagnostics-load",
+DESIGN_STAGES = ("nodes", "spans", "patches", "load-cases", "data", "lowered", "desugared", "face", "diagnostics-load",
                  "diagnostics-lint", "project")
 DEVICE_STAGES = ("fonts", "layout", "draw", "preview")
 STAGES = DESIGN_STAGES + DEVICE_STAGES
@@ -225,6 +226,10 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
     if "patches" in stages:
         from oracle_patches import battery
         done("patches", battery(text, to_json))
+
+    if "load-cases" in stages:
+        from oracle_cases import cases
+        done("load-cases", cases(path, text, design_id(path), to_json))
 
     # `wfb.build.load`, unrolled so each boundary can be dumped.
     bag = Bag()

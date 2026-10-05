@@ -2,10 +2,11 @@
 // port reads like the code it came from and produces the same text:
 // truthiness, `repr` of a string, `json.dumps`, `str.splitlines`,
 // `f"{x:.6f}"` and `round()`.
-import { type Data, type DataKey, Timestamp } from "./edit/yaml.ts";
+import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
 
 /** Python's truthiness: `None`, `False`, `0`, `""` and empty containers are false. */
 export function truthy(value: unknown): boolean {
+  if (value instanceof PyFloat) return value.value !== 0;
   if (value === null || value === undefined || value === false || value === 0 || value === "") return false;
   if (typeof value === "number" && Number.isNaN(value)) return true;
   if (Array.isArray(value)) return value.length > 0;
@@ -27,12 +28,21 @@ export function get(value: unknown, key: DataKey): Data | undefined {
   return value instanceof Map ? value.get(key) : undefined;
 }
 
-/** Python's `repr()` of a string, `None`, a number or a bool, as an f-string's `!r` writes it. */
+/**
+ * Python's `repr()` as an f-string's `!r` writes it: of a string, `None`, a
+ * number, a bool, a dict (a `Map`, or a plain object such as a schema), a
+ * list or a date.
+ */
 export function repr(value: unknown): string {
   if (value === null || value === undefined) return "None";
   if (value === true) return "True";
   if (value === false) return "False";
-  if (typeof value === "number") return pyStr(value);
+  if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
+  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof Timestamp) return timestampRepr(value.iso);
+  if (value instanceof Map) return `{${[...value].map(([k, v]) => `${repr(k)}: ${repr(v)}`).join(", ")}}`;
+  if (Array.isArray(value)) return `[${value.map(repr).join(", ")}]`;
+  if (typeof value === "object") return `{${Object.entries(value).map(([k, v]) => `${repr(k)}: ${repr(v)}`).join(", ")}}`;
   if (typeof value !== "string") return String(value);
   const quote = value.includes("'") && !value.includes("\"") ? "\"" : "'";
   let out = quote;
@@ -46,6 +56,18 @@ export function repr(value: unknown): string {
     else out += ch;
   }
   return out + quote;
+}
+
+/** `datetime.date(2026, 10, 5)` or `datetime.datetime(...)`, from an isoformat. */
+function timestampRepr(iso: string): string {
+  const m = /^(\d+)-(\d+)-(\d+)(?:T(\d+):(\d+):(\d+)(?:\.(\d+))?)?/.exec(iso);
+  if (m === null) return iso;
+  const parts = [m[1], m[2], m[3]].map(Number);
+  if (m[4] === undefined) return `datetime.date(${parts.join(", ")})`;
+  const time = [m[4], m[5], m[6]].map(Number);
+  const micro = m[7] ? [Number(m[7])] : [];
+  while (time.length > 2 && time[time.length - 1] === 0 && micro.length === 0) time.pop();
+  return `datetime.datetime(${[...parts, ...time, ...micro].join(", ")})`;
 }
 
 /** Python's `str()` of a number: `1.0` for an integral float is not recoverable here, so integers print as integers. */
@@ -164,6 +186,7 @@ export function floatHex(value: number): string {
  * Python writes identically, for hashing intended data across languages.
  */
 export function canonical(data: Data): string {
+  if (data instanceof PyFloat) return canonical(data.value);
   if (data === null) return "n";
   if (data === true) return "t";
   if (data === false) return "f";
@@ -253,4 +276,114 @@ export function delItem(container: unknown, step: DataKey): void {
 /** A string for a regular expression that matches `text` literally: Python's `re.escape`. */
 export function reEscape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\\/-]/g, "\\$&");
+}
+
+/** Python's `a % b` on floats or ints: the result takes the divisor's sign. */
+export function pyMod(a: number, b: number): number {
+  if (b === 0) throw new PyError("ZeroDivisionError", "modulo by zero");
+  const r = a % b;
+  return r !== 0 && (r < 0) !== (b < 0) ? r + b : r;
+}
+
+/** Python's `a // b`. */
+export function floorDiv(a: number, b: number): number {
+  if (b === 0) throw new PyError("ZeroDivisionError", "division by zero");
+  return Math.floor(a / b);
+}
+
+/** Python's `math.degrees`: `x / (pi / 180)`, as CPython computes it. */
+export function degrees(x: number): number {
+  return x / (Math.PI / 180.0);
+}
+
+/** Python's `math.radians`: `x * (pi / 180)`. */
+export function radians(x: number): number {
+  return x * (Math.PI / 180.0);
+}
+
+/**
+ * Python's `repr()` of a float: the shortest digits that round-trip, as
+ * `1.0`, `0.1`, `1e-05` or `1e+16` (exponent form below 1e-4 and from 1e16).
+ */
+export function floatRepr(value: number): string {
+  if (Number.isNaN(value)) return "nan";
+  if (!Number.isFinite(value)) return value > 0 ? "inf" : "-inf";
+  if (value === 0) return Object.is(value, -0) ? "-0.0" : "0.0";
+  const [digits, exponent] = shortestDigits(Math.abs(value));
+  const sign = value < 0 ? "-" : "";
+  // `exponent` is the decimal exponent of the first digit: value = 0.d1d2... * 10^(exponent + 1).
+  if (exponent < -4 || exponent >= 16) {
+    const mantissa = digits.length > 1 ? `${digits[0]}.${digits.slice(1)}` : digits;
+    return `${sign}${mantissa}e${exponent < 0 ? "-" : "+"}${String(Math.abs(exponent)).padStart(2, "0")}`;
+  }
+  if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${digits}`;
+  if (digits.length <= exponent + 1) return `${sign}${digits}${"0".repeat(exponent + 1 - digits.length)}.0`;
+  return `${sign}${digits.slice(0, exponent + 1)}.${digits.slice(exponent + 1)}`;
+}
+
+/** The shortest round-trip decimal digits of a positive finite double, and its first digit's exponent. */
+function shortestDigits(value: number): [string, number] {
+  const text = value.toExponential(); // JavaScript also prints the shortest round-trip digits
+  const [mantissa, exp] = text.split("e");
+  return [mantissa!.replace(".", ""), Number(exp)];
+}
+
+/**
+ * Python's `format(value, "g")` (precision 6): six significant digits, the
+ * exponent form below 1e-4 or from 1e6, trailing zeros dropped.
+ */
+export function formatG(value: number, precision = 6): string {
+  if (Number.isNaN(value)) return "nan";
+  if (!Number.isFinite(value)) return value > 0 ? "inf" : "-inf";
+  if (value === 0) return Object.is(value, -0) ? "-0" : "0";
+  const p = precision === 0 ? 1 : precision;
+  // Round to p significant digits exactly, then pick the notation from the rounded exponent.
+  const [num, den] = exactFraction(Math.abs(value));
+  let exponent = Math.floor(Math.log10(Math.abs(value)));
+  let digits = roundSignificant(num, den, exponent, p);
+  if (digits.length > p) { exponent += 1; digits = digits.slice(0, p); }
+  else if (BigInt(digits) < 10n ** BigInt(p - 1)) {
+    exponent -= 1;
+    digits = roundSignificant(num, den, exponent, p);
+  }
+  const sign = value < 0 ? "-" : "";
+  const trimmed = digits.replace(/0+$/, "") || "0";
+  if (exponent < -4 || exponent >= p) {
+    const mantissa = trimmed.length > 1 ? `${trimmed[0]}.${trimmed.slice(1)}` : trimmed;
+    return `${sign}${mantissa}e${exponent < 0 ? "-" : "+"}${String(Math.abs(exponent)).padStart(2, "0")}`;
+  }
+  if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${trimmed}`;
+  if (trimmed.length <= exponent + 1) return `${sign}${trimmed}${"0".repeat(exponent + 1 - trimmed.length)}`;
+  return `${sign}${trimmed.slice(0, exponent + 1)}.${trimmed.slice(exponent + 1)}`;
+}
+
+/** `num/den` rounded half to even to `p` significant digits, the first at 10^exponent: the digits as a string. */
+function roundSignificant(num: bigint, den: bigint, exponent: number, p: number): string {
+  const shift = p - 1 - exponent;
+  let n = num, d = den;
+  if (shift >= 0) n *= 10n ** BigInt(shift); else d *= 10n ** BigInt(-shift);
+  let q = n / d;
+  const r = n % d;
+  if (r * 2n > d || (r * 2n === d && q % 2n === 1n)) q += 1n;
+  return q.toString();
+}
+
+/** Python's `isinstance(x, (int, float)) and not isinstance(x, bool)`. */
+export function isNumber(value: unknown): value is number | PyFloat {
+  return typeof value === "number" || value instanceof PyFloat;
+}
+
+/** Python's `isinstance(x, int) and not isinstance(x, bool)`. */
+export function isInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value);
+}
+
+/** Python's `isinstance(x, float)`: a boxed integral float, or any non-integral number. */
+export function isFloat(value: unknown): boolean {
+  return value instanceof PyFloat || (typeof value === "number" && !Number.isInteger(value));
+}
+
+/** A number's value, boxed or not. */
+export function num(value: number | PyFloat): number {
+  return value instanceof PyFloat ? value.value : value;
 }

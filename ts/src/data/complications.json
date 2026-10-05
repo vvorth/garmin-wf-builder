@@ -1,0 +1,1087 @@
+{
+ "types": {
+  "battery": {
+   "name": "battery",
+   "constant": "COMPLICATION_TYPE_BATTERY",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "percent",
+   "doc": "a non-negative Number percent 0 to 100 representing battery charge"
+  },
+  "steps": {
+   "name": "steps",
+   "constant": "COMPLICATION_TYPE_STEPS",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a non-negative Number of steps for the current day, not available in wheelchair mode"
+  },
+  "calories": {
+   "name": "calories",
+   "constant": "COMPLICATION_TYPE_CALORIES",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a non-negative Number of calories burned for the current day"
+  },
+  "floors_climbed": {
+   "name": "floors_climbed",
+   "constant": "COMPLICATION_TYPE_FLOORS_CLIMBED",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a non-negative Number of floors climbed, not available in wheelchair mode"
+  },
+  "intensity_minutes": {
+   "name": "intensity_minutes",
+   "constant": "COMPLICATION_TYPE_INTENSITY_MINUTES",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a non-negative Number of intensity minutes that resets weekly"
+  },
+  "date": {
+   "name": "date",
+   "constant": "COMPLICATION_TYPE_DATE",
+   "since": "4.2.0",
+   "value_type": "string",
+   "nullable": false,
+   "unit": null,
+   "doc": "a String with the day of the month and the month e.g., 28 Mar"
+  },
+  "weekday_monthday": {
+   "name": "weekday_monthday",
+   "constant": "COMPLICATION_TYPE_WEEKDAY_MONTHDAY",
+   "since": "4.2.0",
+   "value_type": "string",
+   "nullable": false,
+   "unit": null,
+   "doc": "a String with the day of the week and the day of the month e.g., Mon 28"
+  },
+  "current_weather": {
+   "name": "current_weather",
+   "constant": "COMPLICATION_TYPE_CURRENT_WEATHER",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a Weather.CONDITION_* for the current weather"
+  },
+  "forecast_weather_1day": {
+   "name": "forecast_weather_1day",
+   "constant": "COMPLICATION_TYPE_FORECAST_WEATHER_1DAY",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a Weather.CONDITION_* for the forecast weather one day in the future"
+  },
+  "forecast_weather_2day": {
+   "name": "forecast_weather_2day",
+   "constant": "COMPLICATION_TYPE_FORECAST_WEATHER_2DAY",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a Weather.CONDITION_* for the forecast weather two days in the future"
+  },
+  "forecast_weather_3day": {
+   "name": "forecast_weather_3day",
+   "constant": "COMPLICATION_TYPE_FORECAST_WEATHER_3DAY",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a Weather.CONDITION_* for the forecast weather three days in the future"
+  },
+  "calendar_events": {
+   "name": "calendar_events",
+   "constant": "COMPLICATION_TYPE_CALENDAR_EVENTS",
+   "since": "4.2.0",
+   "value_type": "string",
+   "nullable": true,
+   "unit": null,
+   "doc": "a String with the time of your next calendar event"
+  },
+  "sunrise": {
+   "name": "sunrise",
+   "constant": "COMPLICATION_TYPE_SUNRISE",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "seconds since local midnight",
+   "doc": "a non-negative Number representing seconds since midnight local time of the sunrise"
+  },
+  "sunset": {
+   "name": "sunset",
+   "constant": "COMPLICATION_TYPE_SUNSET",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "seconds since local midnight",
+   "doc": "a non-negative Number representing seconds since midnight local time of the sunset"
+  },
+  "altitude": {
+   "name": "altitude",
+   "constant": "COMPLICATION_TYPE_ALTITUDE",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": true,
+   "unit": "meters",
+   "doc": "a Float of the current altitude in meters"
+  },
+  "sea_level_pressure": {
+   "name": "sea_level_pressure",
+   "constant": "COMPLICATION_TYPE_SEA_LEVEL_PRESSURE",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": true,
+   "unit": "pascals",
+   "doc": "a Float in pascals of the current pressure"
+  },
+  "notification_count": {
+   "name": "notification_count",
+   "constant": "COMPLICATION_TYPE_NOTIFICATION_COUNT",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a non-negative Number of notifications"
+  },
+  "heart_rate": {
+   "name": "heart_rate",
+   "constant": "COMPLICATION_TYPE_HEART_RATE",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "beats per minute",
+   "doc": "a non-negative Number in beats per minute"
+  },
+  "weekly_run_distance": {
+   "name": "weekly_run_distance",
+   "constant": "COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters",
+   "doc": "a Float of your weekly run distance in meters"
+  },
+  "weekly_bike_distance": {
+   "name": "weekly_bike_distance",
+   "constant": "COMPLICATION_TYPE_WEEKLY_BIKE_DISTANCE",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters",
+   "doc": "a Float of your weekly bike distance in meters"
+  },
+  "recovery_time": {
+   "name": "recovery_time",
+   "constant": "COMPLICATION_TYPE_RECOVERY_TIME",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": "minutes",
+   "doc": "a Number of minutes remaining in your recovery time"
+  },
+  "stress": {
+   "name": "stress",
+   "constant": "COMPLICATION_TYPE_STRESS",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a Number representing your current stress level"
+  },
+  "body_battery": {
+   "name": "body_battery",
+   "constant": "COMPLICATION_TYPE_BODY_BATTERY",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a Number representing your current body battery"
+  },
+  "vo2max_run": {
+   "name": "vo2max_run",
+   "constant": "COMPLICATION_TYPE_VO2MAX_RUN",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a Number representing your running VO2 max"
+  },
+  "vo2max_bike": {
+   "name": "vo2max_bike",
+   "constant": "COMPLICATION_TYPE_VO2MAX_BIKE",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a Number representing your cycling VO2 max"
+  },
+  "training_status": {
+   "name": "training_status",
+   "constant": "COMPLICATION_TYPE_TRAINING_STATUS",
+   "since": "4.2.0",
+   "value_type": "string",
+   "nullable": false,
+   "unit": null,
+   "doc": "a String representing your training status"
+  },
+  "race_predictor_5k": {
+   "name": "race_predictor_5k",
+   "constant": "COMPLICATION_TYPE_RACE_PREDICTOR_5K",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": "seconds",
+   "doc": "a Number representing your predicted 5K time in seconds"
+  },
+  "race_predictor_10k": {
+   "name": "race_predictor_10k",
+   "constant": "COMPLICATION_TYPE_RACE_PREDICTOR_10K",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": "seconds",
+   "doc": "a Number representing your predicted 10k time in seconds"
+  },
+  "race_predictor_half_marathon": {
+   "name": "race_predictor_half_marathon",
+   "constant": "COMPLICATION_TYPE_RACE_PREDICTOR_HALF_MARATHON",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": "seconds",
+   "doc": "a Number representing your predicted half marathon time in seconds"
+  },
+  "race_predictor_marathon": {
+   "name": "race_predictor_marathon",
+   "constant": "COMPLICATION_TYPE_RACE_PREDICTOR_MARATHON",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": false,
+   "unit": "seconds",
+   "doc": "a Number representing your predicted your marathon time in seconds"
+  },
+  "race_pace_predictor_5k": {
+   "name": "race_pace_predictor_5k",
+   "constant": "COMPLICATION_TYPE_RACE_PACE_PREDICTOR_5K",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters/second",
+   "doc": "a Float representing your 5k pace in meters/second"
+  },
+  "race_pace_predictor_10k": {
+   "name": "race_pace_predictor_10k",
+   "constant": "COMPLICATION_TYPE_RACE_PACE_PREDICTOR_10K",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters/second",
+   "doc": "a Float representing your 10k pace in meters/second"
+  },
+  "race_pace_predictor_half_marathon": {
+   "name": "race_pace_predictor_half_marathon",
+   "constant": "COMPLICATION_TYPE_RACE_PACE_PREDICTOR_HALF_MARATHON",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters/second",
+   "doc": "a Float representing your half marathon pace in meters/second"
+  },
+  "race_pace_predictor_marathon": {
+   "name": "race_pace_predictor_marathon",
+   "constant": "COMPLICATION_TYPE_RACE_PACE_PREDICTOR_MARATHON",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": false,
+   "unit": "meters/second",
+   "doc": "a Float representing your marathon pace in meters/second"
+  },
+  "pulse_ox": {
+   "name": "pulse_ox",
+   "constant": "COMPLICATION_TYPE_PULSE_OX",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "percent",
+   "doc": "a non-negative Number as a percent from 0 to 100 representing your blood oxygen"
+  },
+  "respiration_rate": {
+   "name": "respiration_rate",
+   "constant": "COMPLICATION_TYPE_RESPIRATION_RATE",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "breaths per minute",
+   "doc": "a non-negative Number representing your breaths per minute"
+  },
+  "solar_input": {
+   "name": "solar_input",
+   "constant": "COMPLICATION_TYPE_SOLAR_INPUT",
+   "since": "4.2.0",
+   "value_type": "number",
+   "nullable": true,
+   "unit": "percent",
+   "doc": "a non-negative Number representing percent between 0 to 100 of solar charge"
+  },
+  "current_temperature": {
+   "name": "current_temperature",
+   "constant": "COMPLICATION_TYPE_CURRENT_TEMPERATURE",
+   "since": "4.2.0",
+   "value_type": "float",
+   "nullable": true,
+   "unit": "degrees Celsius",
+   "doc": "a Float representing temperature in degrees Celsius"
+  },
+  "high_low_temperature": {
+   "name": "high_low_temperature",
+   "constant": "COMPLICATION_TYPE_HIGH_LOW_TEMPERATURE",
+   "since": "4.2.0",
+   "value_type": "string",
+   "nullable": false,
+   "unit": null,
+   "doc": "a String providing the high and low temperature values in a format similar to \"H <high> / L <low>\""
+  },
+  "wheelchair_pushes": {
+   "name": "wheelchair_pushes",
+   "constant": "COMPLICATION_TYPE_WHEELCHAIR_PUSHES",
+   "since": "4.2.3",
+   "value_type": "number",
+   "nullable": false,
+   "unit": null,
+   "doc": "a non-negative Number of pushes for the current day, only available in wheelchair mode"
+  },
+  "last_golf_round_score": {
+   "name": "last_golf_round_score",
+   "constant": "COMPLICATION_TYPE_LAST_GOLF_ROUND_SCORE",
+   "since": "5.0.0",
+   "value_type": "string",
+   "nullable": false,
+   "unit": null,
+   "doc": "a String in the format \"<LastRoundTotalScore>(<Offset>)\" where Offset is \"E\" for even-par, a negative value for under par, or a positive value for over par"
+  },
+  "sleep_score": {
+   "name": "sleep_score",
+   "constant": "COMPLICATION_TYPE_SLEEP_SCORE",
+   "since": "6.0.2",
+   "value_type": "number",
+   "nullable": true,
+   "unit": null,
+   "doc": "a non-negative number from 0 to 100 representing sleep score"
+  }
+ },
+ "exit_to_api_level": "4.2.0",
+ "exit_to_permission": "ComplicationSubscriber",
+ "unit_suffix": {
+  "UNIT_DISTANCE": "m",
+  "UNIT_ELEVATION": "m",
+  "UNIT_HEIGHT": "m",
+  "UNIT_SPEED": "m/s",
+  "UNIT_TEMPERATURE": "°C",
+  "UNIT_WEIGHT": "g"
+ },
+ "categories": [
+  "activity",
+  "health",
+  "performance",
+  "weather",
+  "time",
+  "device"
+ ],
+ "presentation": {
+  "steps": [
+   "Steps",
+   "activity"
+  ],
+  "calories": [
+   "Calories",
+   "activity"
+  ],
+  "floors_climbed": [
+   "Floors climbed",
+   "activity"
+  ],
+  "intensity_minutes": [
+   "Intensity minutes",
+   "activity"
+  ],
+  "wheelchair_pushes": [
+   "Wheelchair pushes",
+   "activity"
+  ],
+  "weekly_run_distance": [
+   "Weekly run distance",
+   "activity"
+  ],
+  "weekly_bike_distance": [
+   "Weekly bike distance",
+   "activity"
+  ],
+  "heart_rate": [
+   "Heart rate",
+   "health"
+  ],
+  "stress": [
+   "Stress",
+   "health"
+  ],
+  "body_battery": [
+   "Body Battery",
+   "health"
+  ],
+  "pulse_ox": [
+   "Pulse Ox",
+   "health"
+  ],
+  "respiration_rate": [
+   "Respiration rate",
+   "health"
+  ],
+  "sleep_score": [
+   "Sleep score",
+   "health"
+  ],
+  "vo2max_run": [
+   "VO2 max, run",
+   "performance"
+  ],
+  "vo2max_bike": [
+   "VO2 max, bike",
+   "performance"
+  ],
+  "training_status": [
+   "Training status",
+   "performance"
+  ],
+  "recovery_time": [
+   "Recovery time",
+   "performance"
+  ],
+  "race_predictor_5k": [
+   "Race predictor, 5K",
+   "performance"
+  ],
+  "race_predictor_10k": [
+   "Race predictor, 10K",
+   "performance"
+  ],
+  "race_predictor_half_marathon": [
+   "Race predictor, half marathon",
+   "performance"
+  ],
+  "race_predictor_marathon": [
+   "Race predictor, marathon",
+   "performance"
+  ],
+  "race_pace_predictor_5k": [
+   "Race pace predictor, 5K",
+   "performance"
+  ],
+  "race_pace_predictor_10k": [
+   "Race pace predictor, 10K",
+   "performance"
+  ],
+  "race_pace_predictor_half_marathon": [
+   "Race pace predictor, half marathon",
+   "performance"
+  ],
+  "race_pace_predictor_marathon": [
+   "Race pace predictor, marathon",
+   "performance"
+  ],
+  "last_golf_round_score": [
+   "Last golf round score",
+   "performance"
+  ],
+  "current_weather": [
+   "Current weather",
+   "weather"
+  ],
+  "forecast_weather_1day": [
+   "Forecast weather, 1 day",
+   "weather"
+  ],
+  "forecast_weather_2day": [
+   "Forecast weather, 2 days",
+   "weather"
+  ],
+  "forecast_weather_3day": [
+   "Forecast weather, 3 days",
+   "weather"
+  ],
+  "current_temperature": [
+   "Current temperature",
+   "weather"
+  ],
+  "high_low_temperature": [
+   "High and low temperature",
+   "weather"
+  ],
+  "altitude": [
+   "Altitude",
+   "weather"
+  ],
+  "sea_level_pressure": [
+   "Sea level pressure",
+   "weather"
+  ],
+  "date": [
+   "Date",
+   "time"
+  ],
+  "weekday_monthday": [
+   "Weekday and day of the month",
+   "time"
+  ],
+  "calendar_events": [
+   "Calendar events",
+   "time"
+  ],
+  "sunrise": [
+   "Sunrise",
+   "time"
+  ],
+  "sunset": [
+   "Sunset",
+   "time"
+  ],
+  "battery": [
+   "Battery",
+   "device"
+  ],
+  "solar_input": [
+   "Solar input",
+   "device"
+  ],
+  "notification_count": [
+   "Notifications",
+   "device"
+  ]
+ },
+ "short_length": 7,
+ "reading": {
+  "battery": "percent",
+  "steps": "count",
+  "calories": "count",
+  "floors_climbed": "count",
+  "intensity_minutes": "count",
+  "date": "text",
+  "weekday_monthday": "text",
+  "current_weather": "condition",
+  "forecast_weather_1day": "condition",
+  "forecast_weather_2day": "condition",
+  "forecast_weather_3day": "condition",
+  "calendar_events": "text",
+  "sunrise": "clock",
+  "sunset": "clock",
+  "altitude": "elevation",
+  "sea_level_pressure": "pressure",
+  "notification_count": "count",
+  "heart_rate": "count",
+  "weekly_run_distance": "distance",
+  "weekly_bike_distance": "distance",
+  "recovery_time": "hours",
+  "stress": "count",
+  "body_battery": "percent",
+  "vo2max_run": "vo2max",
+  "vo2max_bike": "vo2max",
+  "training_status": "training_status",
+  "race_predictor_5k": "duration",
+  "race_predictor_10k": "duration",
+  "race_predictor_half_marathon": "duration",
+  "race_predictor_marathon": "duration",
+  "race_pace_predictor_5k": "pace",
+  "race_pace_predictor_10k": "pace",
+  "race_pace_predictor_half_marathon": "pace",
+  "race_pace_predictor_marathon": "pace",
+  "pulse_ox": "percent",
+  "respiration_rate": "count",
+  "solar_input": "percent",
+  "current_temperature": "temperature",
+  "high_low_temperature": "high_low",
+  "wheelchair_pushes": "count",
+  "last_golf_round_score": "text",
+  "sleep_score": "count"
+ },
+ "count_unit": {
+  "heart_rate": "bpm",
+  "respiration_rate": "brpm"
+ },
+ "worded": [
+  "condition",
+  "high_low",
+  "text",
+  "training_status"
+ ],
+ "weather_condition_text": {
+  "0": [
+   "Clear",
+   "Clear"
+  ],
+  "1": [
+   "Partly cloudy",
+   "Pt cldy"
+  ],
+  "2": [
+   "Mostly cloudy",
+   "Mo cldy"
+  ],
+  "3": [
+   "Rain",
+   "Rain"
+  ],
+  "4": [
+   "Snow",
+   "Snow"
+  ],
+  "5": [
+   "Windy",
+   "Windy"
+  ],
+  "6": [
+   "Thunderstorms",
+   "T-storm"
+  ],
+  "7": [
+   "Wintry mix",
+   "Wintry"
+  ],
+  "8": [
+   "Fog",
+   "Fog"
+  ],
+  "9": [
+   "Hazy",
+   "Hazy"
+  ],
+  "10": [
+   "Hail",
+   "Hail"
+  ],
+  "11": [
+   "Scattered showers",
+   "Sc shwr"
+  ],
+  "12": [
+   "Scattered thunderstorms",
+   "Sc tstm"
+  ],
+  "13": [
+   "Unknown precipitation",
+   "Precip"
+  ],
+  "14": [
+   "Light rain",
+   "Lt rain"
+  ],
+  "15": [
+   "Heavy rain",
+   "Hv rain"
+  ],
+  "16": [
+   "Light snow",
+   "Lt snow"
+  ],
+  "17": [
+   "Heavy snow",
+   "Hv snow"
+  ],
+  "18": [
+   "Light rain snow",
+   "Lt r/s"
+  ],
+  "19": [
+   "Heavy rain snow",
+   "Hv r/s"
+  ],
+  "20": [
+   "Cloudy",
+   "Cloudy"
+  ],
+  "21": [
+   "Rain snow",
+   "Rain/sn"
+  ],
+  "22": [
+   "Partly clear",
+   "Pt clr"
+  ],
+  "23": [
+   "Mostly clear",
+   "Mo clr"
+  ],
+  "24": [
+   "Light showers",
+   "Lt shwr"
+  ],
+  "25": [
+   "Showers",
+   "Showers"
+  ],
+  "26": [
+   "Heavy showers",
+   "Hv shwr"
+  ],
+  "27": [
+   "Chance of showers",
+   "Ch shwr"
+  ],
+  "28": [
+   "Chance of thunderstorms",
+   "Ch tstm"
+  ],
+  "29": [
+   "Mist",
+   "Mist"
+  ],
+  "30": [
+   "Dust",
+   "Dust"
+  ],
+  "31": [
+   "Drizzle",
+   "Drizzle"
+  ],
+  "32": [
+   "Tornado",
+   "Tornado"
+  ],
+  "33": [
+   "Smoke",
+   "Smoke"
+  ],
+  "34": [
+   "Ice",
+   "Ice"
+  ],
+  "35": [
+   "Sand",
+   "Sand"
+  ],
+  "36": [
+   "Squall",
+   "Squall"
+  ],
+  "37": [
+   "Sandstorm",
+   "Sndstrm"
+  ],
+  "38": [
+   "Volcanic ash",
+   "Vol ash"
+  ],
+  "39": [
+   "Haze",
+   "Haze"
+  ],
+  "40": [
+   "Fair",
+   "Fair"
+  ],
+  "41": [
+   "Hurricane",
+   "Hurricn"
+  ],
+  "42": [
+   "Tropical storm",
+   "Trp stm"
+  ],
+  "43": [
+   "Chance of snow",
+   "Ch snow"
+  ],
+  "44": [
+   "Chance of rain snow",
+   "Ch r/s"
+  ],
+  "45": [
+   "Cloudy chance of rain",
+   "Ch rain"
+  ],
+  "46": [
+   "Cloudy chance of snow",
+   "Ch snow"
+  ],
+  "47": [
+   "Cloudy chance of rain snow",
+   "Ch r/s"
+  ],
+  "48": [
+   "Flurries",
+   "Flurry"
+  ],
+  "49": [
+   "Freezing rain",
+   "Fz rain"
+  ],
+  "50": [
+   "Sleet",
+   "Sleet"
+  ],
+  "51": [
+   "Ice snow",
+   "Ice/sn"
+  ],
+  "52": [
+   "Thin clouds",
+   "Thin cl"
+  ],
+  "53": [
+   "Unknown",
+   "Unknown"
+  ]
+ },
+ "unknown_condition": 53,
+ "training_status_short": {
+  "PEAKING": "Peaking",
+  "PRODUCTIVE": "Prodctv",
+  "MAINTAINING": "Maint",
+  "RECOVERY": "Recovry",
+  "UNPRODUCTIVE": "Unprod",
+  "DETRAINING": "Detrain",
+  "OVERREACHING": "Overrch",
+  "STRAINED": "Strain",
+  "NO STATUS": "No stat"
+ },
+ "widest": {
+  "count": "88888",
+  "percent": "888",
+  "vo2max": "88",
+  "clock": "88:88",
+  "duration": "8:88:88",
+  "pace": "88:88",
+  "hours": "888h",
+  "temperature": "-88°",
+  "elevation": "88888",
+  "distance": "888.8",
+  "pressure": "8888",
+  "high_low": "H 88 / L 88",
+  "text": "88888",
+  "training_status": "88888"
+ },
+ "scale": {
+  "battery": {
+   "kind": "fixed",
+   "source": "Toybox/Complications.html, the Type table: \"0 to 100\"",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": []
+  },
+  "pulse_ox": {
+   "kind": "fixed",
+   "source": "Toybox/Complications.html, the Type table: \"0 to 100\"",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": []
+  },
+  "solar_input": {
+   "kind": "fixed",
+   "source": "Toybox/Complications.html, the Type table: \"0 to 100\"",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": []
+  },
+  "sleep_score": {
+   "kind": "fixed",
+   "source": "Toybox/Complications.html, the Type table: \"0 to 100\"; bands: Garmin blog, \"excellent (90-100), good (80-89), fair (60-79) and poor (0-60)\", 60 read as fair",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": [
+    60.0,
+    80.0,
+    90.0
+   ]
+  },
+  "body_battery": {
+   "kind": "fixed",
+   "source": "Forerunner 255 Owner's Manual, \"Body Battery\": \"from 0 to 100, where 0 to 25 is low ... 76 to 100 is very high reserve energy\"",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": [
+    26.0,
+    51.0,
+    76.0
+   ]
+  },
+  "stress": {
+   "kind": "fixed",
+   "source": "Lily Owner's Manual, \"Heart Rate Variability and Stress Level\": \"from 0 to 100, where 0 to 25 is a resting state ... 76 to 100 is a high stress state\"",
+   "minimum": 0.0,
+   "maximum": 100.0,
+   "goal": null,
+   "bands": [
+    26.0,
+    51.0,
+    76.0
+   ]
+  },
+  "steps": {
+   "kind": "goal",
+   "source": "Toybox/ActivityMonitor/Info.html: stepGoal",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": "stepGoal",
+   "bands": []
+  },
+  "floors_climbed": {
+   "kind": "goal",
+   "source": "Toybox/ActivityMonitor/Info.html: floorsClimbedGoal",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": "floorsClimbedGoal",
+   "bands": []
+  },
+  "intensity_minutes": {
+   "kind": "goal",
+   "source": "Toybox/ActivityMonitor/Info.html: activeMinutesWeekGoal (the type resets weekly)",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": "activeMinutesWeekGoal",
+   "bands": []
+  },
+  "wheelchair_pushes": {
+   "kind": "goal",
+   "source": "Toybox/ActivityMonitor/Info.html: pushGoal",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": "pushGoal",
+   "bands": []
+  },
+  "sunrise": {
+   "kind": "fixed",
+   "source": "seconds since local midnight: one day",
+   "minimum": 0.0,
+   "maximum": 86400.0,
+   "goal": null,
+   "bands": []
+  },
+  "sunset": {
+   "kind": "fixed",
+   "source": "seconds since local midnight: one day",
+   "minimum": 0.0,
+   "maximum": 86400.0,
+   "goal": null,
+   "bands": []
+  },
+  "heart_rate": {
+   "kind": "heart_rate_zones",
+   "source": "Toybox/UserProfile.html: getHeartRateZones(HR_ZONE_SPORT_GENERIC)",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": null,
+   "bands": []
+  },
+  "vo2max_run": {
+   "kind": "vo2max",
+   "source": "fenix 8 Owner's Manual, \"VO2 Max. Standard Ratings\"",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": null,
+   "bands": []
+  },
+  "vo2max_bike": {
+   "kind": "vo2max",
+   "source": "fenix 8 Owner's Manual, \"VO2 Max. Standard Ratings\" (one table, no sport named)",
+   "minimum": 0.0,
+   "maximum": 0.0,
+   "goal": null,
+   "bands": []
+  }
+ },
+ "vo2max_ages": [
+  20,
+  80
+ ],
+ "vo2max_ratings": {
+  "male": [
+   [
+    41.7,
+    45.4,
+    51.1,
+    55.4
+   ],
+   [
+    40.5,
+    44.0,
+    48.3,
+    54.0
+   ],
+   [
+    38.5,
+    42.4,
+    46.4,
+    52.5
+   ],
+   [
+    35.6,
+    39.2,
+    43.4,
+    48.9
+   ],
+   [
+    32.3,
+    35.5,
+    39.5,
+    45.7
+   ],
+   [
+    29.4,
+    32.3,
+    36.7,
+    42.1
+   ]
+  ],
+  "female": [
+   [
+    36.1,
+    39.5,
+    43.9,
+    49.6
+   ],
+   [
+    34.4,
+    37.8,
+    42.4,
+    47.4
+   ],
+   [
+    33.0,
+    36.3,
+    39.7,
+    45.3
+   ],
+   [
+    30.1,
+    33.0,
+    36.7,
+    41.1
+   ],
+   [
+    27.5,
+    30.0,
+    33.0,
+    37.8
+   ],
+   [
+    25.9,
+    28.1,
+    30.9,
+    36.7
+   ]
+  ]
+ }
+}

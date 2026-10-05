@@ -801,6 +801,27 @@ def test_a_progress_with_the_other_styles_keys_gets_one_friendly_error(write_des
                for note in error.notes)
 
 
+def test_a_mapping_where_a_style_or_type_goes_is_a_schema_error_not_a_crash(write_design, bag):
+    """A gauge's `style:` and a hands element's `type:` written as a mapping
+    are reported by the schema; the friendly pre-checks that look the value
+    up in their tables must not hash it first."""
+    load(write_design(design("""
+  ring:
+    type: gauge
+    style: {arc: 1}
+    value: activity.steps
+    max: 100
+    color: color.fg
+    at: {anchor: center}
+  pin:
+    type: {hands: 1}
+    align: center
+    at: {anchor: center}
+""")), bag)
+    assert bag.errors, bag.render()
+    assert all(error.code == "schema" for error in bag.errors), bag.render()
+
+
 def test_a_computed_progress_fallback_is_clamped_on_device(write_design, bag, db):
     """Only a *constant* fallback can be range-checked at build time, so
     anything computed is clamped where it is drawn instead."""

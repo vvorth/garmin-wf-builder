@@ -1,0 +1,394 @@
+{
+ "catalog": {
+  "heart": {
+   "name": "heart",
+   "codepoint": "󰋑",
+   "description": "a heart, for heart rate (Material Design md-heart)"
+  },
+  "steps": {
+   "name": "steps",
+   "codepoint": "",
+   "description": "two offset footprints, for step count (Font Awesome fa-shoe_prints -- kept over MDI's walking/running figures, which read as \"activity\" rather than \"steps\" at a glance)"
+  },
+  "flame": {
+   "name": "flame",
+   "codepoint": "󰈸",
+   "description": "a flame, for calories (Material Design md-fire)"
+  },
+  "alarm": {
+   "name": "alarm",
+   "codepoint": "󰀠",
+   "description": "an alarm clock with bells, for an alarm indicator (Material Design md-alarm)"
+  },
+  "dnd": {
+   "name": "dnd",
+   "codepoint": "󰂛",
+   "description": "a solid bell with a slash, for do-not-disturb (Material Design md-bell_off -- a solid glyph reads more reliably than an outline one at the small sizes a status row uses)"
+  },
+  "notification": {
+   "name": "notification",
+   "codepoint": "󰅺",
+   "description": "a speech bubble; draw a count on top of it (Material Design md-comment)"
+  },
+  "battery": {
+   "name": "battery",
+   "codepoint": "󰁹",
+   "description": "a battery outline (Material Design md-battery)"
+  },
+  "floors": {
+   "name": "floors",
+   "codepoint": "󰓍",
+   "description": "a flight of stairs, for floors climbed (Material Design md-stairs)"
+  },
+  "distance": {
+   "name": "distance",
+   "codepoint": "󰣰",
+   "description": "a map pin with a distance mark (Material Design md-map_marker_distance)"
+  },
+  "phone": {
+   "name": "phone",
+   "codepoint": "󰄜",
+   "description": "a phone, for phone-connected status (Material Design md-cellphone)"
+  },
+  "body_battery": {
+   "name": "body_battery",
+   "codepoint": "󱈑",
+   "description": "a battery with a heart cut into it, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-battery_heart_variant)"
+  },
+  "stress": {
+   "name": "stress",
+   "codepoint": "󱍀",
+   "description": "a head with a lightning flash, for the stress score (Material Design md-head_flash)"
+  },
+  "sunrise": {
+   "name": "sunrise",
+   "codepoint": "󰖜",
+   "description": "the sun rising over a horizon line (Material Design md-weather_sunset_up)"
+  },
+  "sunset": {
+   "name": "sunset",
+   "codepoint": "󰖛",
+   "description": "the sun setting below a horizon line (Material Design md-weather_sunset_down)"
+  },
+  "altitude": {
+   "name": "altitude",
+   "codepoint": "󰋵",
+   "description": "layered mountains, for altitude/elevation (Material Design md-image_filter_hdr)"
+  },
+  "pressure": {
+   "name": "pressure",
+   "codepoint": "󰊚",
+   "description": "a gauge dial, for sea-level pressure (Material Design md-gauge)"
+  },
+  "temperature": {
+   "name": "temperature",
+   "codepoint": "󰔏",
+   "description": "a thermometer, for a single current-temperature reading (Material Design md-thermometer)"
+  },
+  "temperature_range": {
+   "name": "temperature_range",
+   "codepoint": "󰔐",
+   "description": "a thermometer with tick lines, for a high/low temperature range (Material Design md-thermometer_lines)"
+  },
+  "calendar_event": {
+   "name": "calendar_event",
+   "codepoint": "󰃰",
+   "description": "a calendar page with a clock, for a scheduled event (Material Design md-calendar_clock)"
+  },
+  "calendar": {
+   "name": "calendar",
+   "codepoint": "󰸗",
+   "description": "a calendar page, for a plain date (Material Design md-calendar_month)"
+  },
+  "calendar_day": {
+   "name": "calendar_day",
+   "codepoint": "󰃶",
+   "description": "a calendar page marked 'today', for a weekday+day-of-month reading (Material Design md-calendar_today)"
+  },
+  "intensity": {
+   "name": "intensity",
+   "codepoint": "󰑮",
+   "description": "a running figure, for intensity minutes (Material Design md-run_fast)"
+  },
+  "run": {
+   "name": "run",
+   "codepoint": "󰜎",
+   "description": "a running figure, for running VO2 max (Material Design md-run)"
+  },
+  "bike": {
+   "name": "bike",
+   "codepoint": "󰂣",
+   "description": "a bicycle, for cycling VO2 max (Material Design md-bike)"
+  },
+  "lungs": {
+   "name": "lungs",
+   "codepoint": "󱂄",
+   "description": "a pair of lungs, for respiration rate (Material Design md-lungs)"
+  },
+  "pulse_ox": {
+   "name": "pulse_ox",
+   "codepoint": "󰖎",
+   "description": "a water-drop percentage glyph, for blood oxygen saturation -- deliberately not the 'heart' glyph, which means heart rate (Material Design md-water_percent)"
+  },
+  "recovery": {
+   "name": "recovery",
+   "codepoint": "󰔟",
+   "description": "a sand timer, for recovery time (Material Design md-timer_sand)"
+  },
+  "training": {
+   "name": "training",
+   "codepoint": "󰄪",
+   "description": "a line chart, for training status (Material Design md-chart_line)"
+  },
+  "finish_flag": {
+   "name": "finish_flag",
+   "codepoint": "󰈼",
+   "description": "a checkered flag, for a race time predictor (Material Design md-flag_checkered)"
+  },
+  "pace": {
+   "name": "pace",
+   "codepoint": "󰓅",
+   "description": "a speedometer, for a race pace predictor (Material Design md-speedometer)"
+  },
+  "sleep": {
+   "name": "sleep",
+   "codepoint": "󰋣",
+   "description": "a bed, for the sleep score (Material Design md-bed)"
+  },
+  "solar": {
+   "name": "solar",
+   "codepoint": "󰖨",
+   "description": "a bright sun, for solar input (Material Design md-white_balance_sunny)"
+  },
+  "wheelchair": {
+   "name": "wheelchair",
+   "codepoint": "󰖤",
+   "description": "a wheelchair figure, for wheelchair pushes (Material Design md-wheelchair_accessibility)"
+  },
+  "golf": {
+   "name": "golf",
+   "codepoint": "󰠣",
+   "description": "a golf flag, for the last golf round score (Material Design md-golf)"
+  },
+  "weather": {
+   "name": "weather",
+   "codepoint": "󰖕",
+   "description": "a generic partly-cloudy glyph, for a data element's fixed, type-keyed weather icon -- deliberately not the value-keyed condition icon 'icon: {for: weather.condition}' resolves on-device (Material Design md-weather_partly_cloudy)"
+  },
+  "weather_sunny": {
+   "name": "weather_sunny",
+   "codepoint": "",
+   "description": "weather: sunny (Weather Icons weather-day_sunny)"
+  },
+  "weather_sunny_overcast": {
+   "name": "weather_sunny_overcast",
+   "codepoint": "",
+   "description": "weather: sunny overcast (Weather Icons weather-day_sunny_overcast)"
+  },
+  "weather_cloudy_light": {
+   "name": "weather_cloudy_light",
+   "codepoint": "",
+   "description": "weather: cloudy light (Weather Icons weather-day_cloudy)"
+  },
+  "weather_cloudy": {
+   "name": "weather_cloudy",
+   "codepoint": "",
+   "description": "weather: cloudy (Weather Icons weather-cloudy)"
+  },
+  "weather_cloudy_heavy": {
+   "name": "weather_cloudy_heavy",
+   "codepoint": "",
+   "description": "weather: cloudy heavy (Weather Icons weather-day_cloudy_high)"
+  },
+  "weather_fog": {
+   "name": "weather_fog",
+   "codepoint": "",
+   "description": "weather: fog (Weather Icons weather-day_fog)"
+  },
+  "weather_haze": {
+   "name": "weather_haze",
+   "codepoint": "",
+   "description": "weather: haze (Weather Icons weather-day_haze)"
+  },
+  "weather_smoke": {
+   "name": "weather_smoke",
+   "codepoint": "",
+   "description": "weather: smoke (Weather Icons weather-smoke)"
+  },
+  "weather_dust": {
+   "name": "weather_dust",
+   "codepoint": "",
+   "description": "weather: dust (Weather Icons weather-dust)"
+  },
+  "weather_sandstorm": {
+   "name": "weather_sandstorm",
+   "codepoint": "",
+   "description": "weather: sandstorm (Weather Icons weather-sandstorm)"
+  },
+  "weather_rain_light": {
+   "name": "weather_rain_light",
+   "codepoint": "",
+   "description": "weather: rain light (Weather Icons weather-day_sprinkle)"
+  },
+  "weather_rain": {
+   "name": "weather_rain",
+   "codepoint": "",
+   "description": "weather: rain (Weather Icons weather-day_rain)"
+  },
+  "weather_rain_heavy": {
+   "name": "weather_rain_heavy",
+   "codepoint": "",
+   "description": "weather: rain heavy (Weather Icons weather-day_showers)"
+  },
+  "weather_snow": {
+   "name": "weather_snow",
+   "codepoint": "",
+   "description": "weather: snow (Weather Icons weather-day_snow)"
+  },
+  "weather_snow_heavy": {
+   "name": "weather_snow_heavy",
+   "codepoint": "",
+   "description": "weather: snow heavy (Weather Icons weather-day_snow_wind)"
+  },
+  "weather_ice": {
+   "name": "weather_ice",
+   "codepoint": "",
+   "description": "weather: ice (Weather Icons weather-snowflake_cold)"
+  },
+  "weather_wintry_mix": {
+   "name": "weather_wintry_mix",
+   "codepoint": "",
+   "description": "weather: wintry mix (Weather Icons weather-day_rain_mix)"
+  },
+  "weather_sleet": {
+   "name": "weather_sleet",
+   "codepoint": "",
+   "description": "weather: sleet (Weather Icons weather-day_sleet)"
+  },
+  "weather_hail": {
+   "name": "weather_hail",
+   "codepoint": "",
+   "description": "weather: hail (Weather Icons weather-day_hail)"
+  },
+  "weather_thunderstorm": {
+   "name": "weather_thunderstorm",
+   "codepoint": "",
+   "description": "weather: thunderstorm (Weather Icons weather-day_thunderstorm)"
+  },
+  "weather_thunderstorm_showers": {
+   "name": "weather_thunderstorm_showers",
+   "codepoint": "",
+   "description": "weather: thunderstorm showers (Weather Icons weather-day_storm_showers)"
+  },
+  "weather_lightning": {
+   "name": "weather_lightning",
+   "codepoint": "",
+   "description": "weather: lightning (Weather Icons weather-day_lightning)"
+  },
+  "weather_windy": {
+   "name": "weather_windy",
+   "codepoint": "",
+   "description": "weather: windy (Weather Icons weather-day_windy)"
+  },
+  "weather_strong_wind": {
+   "name": "weather_strong_wind",
+   "codepoint": "",
+   "description": "weather: strong wind (Weather Icons weather-strong_wind)"
+  },
+  "weather_tornado": {
+   "name": "weather_tornado",
+   "codepoint": "",
+   "description": "weather: tornado (Weather Icons weather-tornado)"
+  },
+  "weather_hurricane": {
+   "name": "weather_hurricane",
+   "codepoint": "",
+   "description": "weather: hurricane (Weather Icons weather-hurricane)"
+  },
+  "weather_hurricane_warning": {
+   "name": "weather_hurricane_warning",
+   "codepoint": "",
+   "description": "weather: hurricane warning (Weather Icons weather-hurricane_warning)"
+  },
+  "weather_volcano": {
+   "name": "weather_volcano",
+   "codepoint": "",
+   "description": "weather: volcano (Weather Icons weather-volcano)"
+  },
+  "weather_unknown": {
+   "name": "weather_unknown",
+   "codepoint": "",
+   "description": "weather: unknown (Weather Icons weather-na)"
+  },
+  "weather_sunny_night": {
+   "name": "weather_sunny_night",
+   "codepoint": "",
+   "description": "weather: sunny, night (Weather Icons weather-night_clear)"
+  },
+  "weather_cloudy_light_night": {
+   "name": "weather_cloudy_light_night",
+   "codepoint": "",
+   "description": "weather: cloudy light, night (Weather Icons weather-night_alt_partly_cloudy)"
+  },
+  "weather_cloudy_night": {
+   "name": "weather_cloudy_night",
+   "codepoint": "",
+   "description": "weather: cloudy, night (Weather Icons weather-night_alt_cloudy)"
+  },
+  "weather_fog_night": {
+   "name": "weather_fog_night",
+   "codepoint": "",
+   "description": "weather: fog, night (Weather Icons weather-night_fog)"
+  },
+  "weather_rain_light_night": {
+   "name": "weather_rain_light_night",
+   "codepoint": "",
+   "description": "weather: rain light, night (Weather Icons weather-night_alt_sprinkle)"
+  },
+  "weather_rain_night": {
+   "name": "weather_rain_night",
+   "codepoint": "",
+   "description": "weather: rain, night (Weather Icons weather-night_alt_rain)"
+  },
+  "weather_rain_heavy_night": {
+   "name": "weather_rain_heavy_night",
+   "codepoint": "",
+   "description": "weather: rain heavy, night (Weather Icons weather-night_alt_showers)"
+  },
+  "weather_snow_night": {
+   "name": "weather_snow_night",
+   "codepoint": "",
+   "description": "weather: snow, night (Weather Icons weather-night_alt_snow)"
+  },
+  "weather_snow_heavy_night": {
+   "name": "weather_snow_heavy_night",
+   "codepoint": "",
+   "description": "weather: snow heavy, night (Weather Icons weather-night_snow_wind)"
+  },
+  "weather_wintry_mix_night": {
+   "name": "weather_wintry_mix_night",
+   "codepoint": "",
+   "description": "weather: wintry mix, night (Weather Icons weather-night_alt_rain_mix)"
+  },
+  "weather_sleet_night": {
+   "name": "weather_sleet_night",
+   "codepoint": "",
+   "description": "weather: sleet, night (Weather Icons weather-night_alt_sleet)"
+  },
+  "weather_hail_night": {
+   "name": "weather_hail_night",
+   "codepoint": "",
+   "description": "weather: hail, night (Weather Icons weather-night_alt_hail)"
+  },
+  "weather_thunderstorm_night": {
+   "name": "weather_thunderstorm_night",
+   "codepoint": "",
+   "description": "weather: thunderstorm, night (Weather Icons weather-night_alt_thunderstorm)"
+  },
+  "weather_thunderstorm_showers_night": {
+   "name": "weather_thunderstorm_showers_night",
+   "codepoint": "",
+   "description": "weather: thunderstorm showers, night (Weather Icons weather-night_alt_storm_showers)"
+  }
+ }
+}

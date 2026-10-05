@@ -261,7 +261,7 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, A
     # `segments`/`scale` take either an arc's keys or a bar's, so no key of
     # the three fixed-geometry styles is "the wrong style's" there; the
     # builder checks which geometry they chose (`wfb.kinds.gauge`).
-    if style not in _PROGRESS_STYLE_KEYS:
+    if not isinstance(style, str) or style not in _PROGRESS_STYLE_KEYS:
         return False
     own = set(_PROGRESS_STYLE_KEYS[style])
     others = {key: other for other, keys in _PROGRESS_STYLE_KEYS.items() if other != style
@@ -646,7 +646,8 @@ def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None
     """
     if error.validator != "additionalProperties":
         return error
-    if not isinstance(error.instance, dict) or error.instance.get("type") not in _PIVOT_ALIGNMENT_REASON:
+    kind = error.instance.get("type") if isinstance(error.instance, dict) else None
+    if not isinstance(kind, str) or kind not in _PIVOT_ALIGNMENT_REASON:
         return error
     offending = set(_unexpected_keys(error))
     remaining = sorted(offending.difference(_PIVOT_ALIGNMENT_KEYS))

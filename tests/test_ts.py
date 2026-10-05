@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -44,3 +45,11 @@ def test_the_typescript_package_typechecks() -> None:
     node()
     result = run([str(TS / "node_modules" / ".bin" / "tsc"), "-p", "."])
     assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-2000:]
+
+
+def test_the_exported_tables_match_wfb() -> None:
+    """ts/src/data/*.json is tools/export_tables.py's export of wfb's
+    tables; a table changed on one side only fails here."""
+    result = subprocess.run([sys.executable, str(TS.parent / "tools" / "export_tables.py"), "--check"],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
