@@ -8,7 +8,9 @@ back here.
 
 ## Open
 
-None.
+| Plan | What |
+|---|---|
+| `31-typescript-migration.md` | the compiler, editor and server in TypeScript, stage by stage with Python as the oracle; the editor standalone in the browser (research 31, 32) |
 
 ## Built and deleted
 

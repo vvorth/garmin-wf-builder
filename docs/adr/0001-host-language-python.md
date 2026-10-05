@@ -96,3 +96,21 @@ own narrowed element type rather than the base `Element`. The baseline file
 stays, empty, as the record of the tool versions the result depends on and
 as the mechanism for a dependency upgrade that brings errors of its own. It
 is opt-in, not part of the fast suite; there is still no CI to run it.
+
+**Amendment 2026-10-05: superseded by TypeScript, migration in progress.**
+The user lifted the original brief's "not TypeScript/Node" constraint and
+decided to move the whole stack (compiler, CLI, preview, editor and build
+server) to TypeScript, so the editor can run in the browser on its own.
+The rationale above (mature font and image libraries; preview and codegen
+sharing one implementation) was re-measured in research 32:
+- `yaml` and Ajv reproduce ruamel's spans and jsonschema's verdicts on the
+  whole corpus;
+- leaving Pillow models Garmin's shapes more closely, not less (24 px
+  against 914 px from a simulator capture);
+- a Pillow-free font bake matches every line metric and all but 4 of 1 576
+  advances.
+
+One implementation is kept throughout, by porting stage by stage with this
+Python compiler as the oracle (plan 31). The last all-Python state is the
+tag `v0.3`. Python remains the shipping implementation until the plan's
+last slice, which amends this ADR again.

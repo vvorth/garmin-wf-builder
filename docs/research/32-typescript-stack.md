@@ -6,9 +6,9 @@ rejected that as the easy route: it keeps Pillow and FreeType as the model
 of the watch. Research instead the whole stack in TypeScript/JavaScript,
 with font rendering and vector drawing native rather than Pillow's.
 
-**Status (2026-10-05): T1, T2, T3 and T6 decided; T4 postponed; T5 and T7
-explained and awaiting the user (§7, §8).** No compiler code changed. The
-last Python-server state is tagged `v0.3`.
+**Status (2026-10-05): every decision taken (§7, §8); planned as plan 31
+(`docs/plans/31-typescript-migration.md`).** The last Python-server state
+is tagged `v0.3`.
 
 **Short answer.**
 
@@ -374,9 +374,12 @@ tests behind them, while the project keeps shipping features.
   postponed, and to be re-researched with TypeScript in mind. A 1-bit bake
   still needs some outline reader, so step 4 starts with `opentype.js`,
   the one this probe measured, and keeps that choice behind one module.
-- **T5:** explained (§8.1); awaiting the user.
+- **T5:** option B, erasable-syntax TypeScript (§8.1).
 - **T6:** yes, M2, stage by stage with Python as the oracle.
-- **T7:** explained (§8.2); awaiting the user.
+- **T7:** captures can come last (§8.2). Shapes are checked on the three
+  verification devices **and `fenix847mm`**, the AMOLED fēnix 8 47/51 mm
+  (one device definition, 454×454), whose resolution constrains a fit
+  better. AMOLED is fitted on its own, not assumed to match MIP.
 
 ## 8. Follow-up: the build step, and what needs simulator captures
 
