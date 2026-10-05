@@ -1,0 +1,31 @@
+
+services:
+  garmin-wf-builder:
+    container_name: garmin-wf-builder
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: garmin-wf-builder
+    pull_policy: build
+    user: 1000:1000
+    restart: unless-stopped
+    command: ["studio", "--host=0.0.0.0", "--port=8765", "--allow-host=localhost,127.0.0.1"]
+    ports:
+      - 8765:8765
+    volumes:
+      - ./vendor/devices:/devices:ro
+      - ./vendor/fonts:/fonts:ro
+      - ./.cache/data:/state:rw
+      - wfb-keys:/keys:rw
+
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2048M
+    #     reservations:
+    #       memory: 1G
+    
+volumes:
+  wfb-keys:
+    external: true
+
