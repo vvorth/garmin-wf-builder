@@ -21,7 +21,7 @@
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { PyError, repr } from "./py.ts";
-import { ensureLc, lcOf, type YamlDocument } from "./yamlsrc.ts";
+import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
 type Dict = Map<DataKey, Data>;
 const isDict = (x: unknown): x is Dict => x instanceof Map;
@@ -227,11 +227,8 @@ function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySp
     return false;
   }
   seen.set(body, name);
-  // `CommentedMap.insert(0, "id", name)`: the key first; an existing `id` moves to the front.
-  const items = [...body].filter(([k]) => k !== "id");
-  body.clear();
-  body.set("id", name);
-  for (const [k, v] of items) body.set(k, v);
+  // `CommentedMap.insert(0, "id", name)`: the key first, or after a merge key's keys.
+  insertKey(body, 0, "id", name);
   if (pos !== null) {
     // Key and value positions both point at the author's key, the only text there is for this pair.
     ensureLc(body).addKvLineCol("id", [pos[0], pos[1], pos[0], pos[1]]);

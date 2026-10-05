@@ -24,7 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from wfb import catalog, complications, icon_catalog  # noqa: E402
+from wfb import catalog, complications, icon_catalog, icons  # noqa: E402
 
 OUT = ROOT / "ts" / "src" / "data"
 
@@ -73,6 +73,8 @@ def tables() -> dict[str, Any]:
         },
         "icons.json": {
             "catalog": plain(icon_catalog.CATALOG),
+            "garmin_weather_condition_icon": plain(icons.GARMIN_WEATHER_CONDITION_ICON),
+            "complication_icon": plain(icons.COMPLICATION_ICON),
         },
     }
 

@@ -54,6 +54,8 @@ export interface MappingNode extends NodeBase {
   kind: "mapping";
   flow: boolean;
   pairs: [YamlNode, YamlNode][];
+  /** The pairs a merge key (`<<`) brought in, once `flattenMapping` has run: ruamel's `node.merge`. */
+  merge?: [YamlNode, YamlNode][];
 }
 
 export type YamlNode = ScalarNode | SequenceNode | MappingNode;
@@ -211,7 +213,10 @@ class Composer {
     if (ast === null) return this.empty(emptyAt ?? this.text.length);
     if (YAML.isAlias(ast)) {
       const target = this.anchors.get(ast.source);
-      if (target === undefined) throw new YamlError(`found undefined alias ${ast.source}`);
+      if (target === undefined) {
+        const at = this.lines.mark(ast.range![0]);
+        throw new YamlError(`found undefined alias ${ast.source}`, at.line + 1, at.column + 1);
+      }
       return target;
     }
     const range = ast.range!;
@@ -236,7 +241,12 @@ class Composer {
       out = { kind: "sequence", tag: this.tag(ast, "seq"), flow, items,
         start: this.lines.mark(range[0]), end: this.lines.mark(flow ? range[1] : nextToken(this.text, range[1])) };
     }
-    if (ast.anchor) this.anchors.set(ast.anchor, out);
+    if (ast.anchor) {
+      // ruamel's node starts at its properties: the anchor, not the content after it.
+      const at = this.text.lastIndexOf(`&${ast.anchor}`, range[0]);
+      if (at >= 0 && at < out.start.index) out.start = this.lines.mark(at);
+      this.anchors.set(ast.anchor, out);
+    }
     return out;
   }
 
@@ -314,7 +324,16 @@ export function construct(node: YamlNode | null): Data {
   if (node === null) return null;
   if (node.kind === "sequence") return node.items.map(construct);
   if (node.kind === "mapping") {
+    flattenMapping(node);
     const out = new Map<DataKey, Data>();
+    if (node.merge !== undefined) {
+      // The merged pairs first, then every pair (merged and own) again, unchecked: an own key wins, in the merged key's place.
+      for (const [k, v] of node.merge) out.set(mappingKey(k), construct(v));
+      const again = new Map<DataKey, Data>();
+      for (const [k, v] of node.pairs) again.set(mappingKey(k), construct(v));
+      for (const [k, v] of again) out.set(k, v);
+      return out;
+    }
     for (const [k, v] of node.pairs) {
       const key = mappingKey(k);
       if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`, k.start.line + 1, k.start.column + 1);
@@ -325,13 +344,100 @@ export function construct(node: YamlNode | null): Data {
   return scalarValue(node);
 }
 
+const MERGE_TAG = TAG + "merge";
+
+/** Is `k` a merge key, `<<`? */
+export function isMergeKey(k: YamlNode): boolean {
+  return k.kind === "scalar" && k.tag === MERGE_TAG;
+}
+
+function mergeSourceError(found: YamlNode, sequence: boolean): YamlError {
+  const what = sequence ? "expected a mapping for merging" : "expected a mapping or list of mappings for merging";
+  return new YamlError(`${what}, but found ${found.kind}`, found.start.line + 1, found.start.column + 1);
+}
+
+function duplicateMergeError(k: YamlNode): YamlError {
+  return new YamlError("found duplicate merge key \"<<\"", k.start.line + 1, k.start.column + 1);
+}
+
+/**
+ * ruamel's safe `flatten_mapping`: take the merge key's pairs out of `node`
+ * and put the pairs it names in front of its own, as `node.merge` too. A
+ * list of mappings merges the last first, so an earlier one wins. Mutates
+ * `node`, as ruamel does: the span index then sees the merged pairs.
+ */
+export function flattenMapping(node: MappingNode): void {
+  const merge: [YamlNode, YamlNode][] = [];
+  let index = 0;
+  while (index < node.pairs.length) {
+    const [k, v] = node.pairs[index]!;
+    if (!isMergeKey(k)) {
+      index++;
+      continue;
+    }
+    if (merge.length > 0) throw duplicateMergeError(k);
+    node.pairs.splice(index, 1);
+    if (v.kind === "mapping") {
+      flattenMapping(v);
+      merge.push(...v.pairs);
+    } else if (v.kind === "sequence") {
+      const submerge: [YamlNode, YamlNode][][] = [];
+      for (const sub of v.items) {
+        if (sub.kind !== "mapping") throw mergeSourceError(sub, true);
+        flattenMapping(sub);
+        submerge.push(sub.pairs);
+      }
+      for (const pairs of submerge.reverse()) merge.push(...pairs);
+    } else {
+      throw mergeSourceError(v, false);
+    }
+  }
+  if (merge.length > 0) {
+    node.merge = merge;
+    node.pairs = [...merge, ...node.pairs];
+  }
+}
+
+/**
+ * ruamel's round-trip `flatten_mapping`: take the merge key out of `node`
+ * and return the nodes of the mappings it names, in order; the round-trip
+ * constructor then adds each one's keys the mapping lacks, after its own.
+ */
+export function mergeSources(node: MappingNode): { sources: MappingNode[]; position: number } {
+  const sources: MappingNode[] = [];
+  let position = -1;
+  let merged = false;
+  let index = 0;
+  while (index < node.pairs.length) {
+    const [k, v] = node.pairs[index]!;
+    if (!isMergeKey(k)) {
+      index++;
+      continue;
+    }
+    if (merged) throw duplicateMergeError(k);
+    merged = true;
+    position = index;
+    node.pairs.splice(index, 1);
+    if (v.kind === "mapping") {
+      sources.push(v);
+    } else if (v.kind === "sequence") {
+      for (const sub of v.items) {
+        if (sub.kind !== "mapping") throw mergeSourceError(sub, true);
+        sources.push(sub);
+      }
+    } else {
+      throw mergeSourceError(v, false);
+    }
+  }
+  return { sources, position };
+}
+
 /**
  * A mapping key as ruamel's constructor hashes it: by value, so `1.0` and
- * `1` are one key. A collection cannot be a key, and a merge key (`<<`) is
- * not supported.
+ * `1` are one key. A collection cannot be a key; a merge key (`<<`) has been
+ * flattened away before any key is read.
  */
 export function mappingKey(k: YamlNode): DataKey {
-  if (k.kind === "scalar" && k.tag === TAG + "merge") throw new YamlError("merge keys (<<) are not supported", k.start.line + 1, k.start.column + 1);
   const key = construct(k);
   if (key instanceof Map || Array.isArray(key)) throw new YamlError("found unhashable key", k.start.line + 1, k.start.column + 1);
   return key instanceof PyFloat ? key.value : key instanceof Timestamp ? key.iso : key;

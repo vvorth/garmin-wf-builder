@@ -54,7 +54,7 @@ export function elementTypes(): string[] {
 
 /** A range the series can show: a week of days, half a day of hours, four hours of heart rate. */
 function graphRange(series: string): string | number {
-  const interval = seriesCatalog.get(series)?.intervalSeconds ?? null;
+  const interval = seriesCatalog.get(series)?.interval_seconds ?? null;
   if (interval === null) return "4h";
   return interval >= 86400 ? "7d" : interval >= 3600 ? "12h" : 12;
 }

@@ -1,0 +1,67 @@
+// `type: icon`: one glyph drawn from a baked icon font, static or chosen at
+// runtime from a bound value (`icon: {for:}`). Port of wfb/kinds/icon.py's
+// build half.
+import * as catalog from "../catalog.ts";
+import type { Data, DataKey } from "../edit/yaml.ts";
+import type { Builder } from "../ir/builder/index.ts";
+import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
+import { type Element, IconElement } from "../ir/model.ts";
+import * as icons from "../icons.ts";
+import { repr, str } from "../py.ts";
+import { type Common, ElementKind, register } from "./base.ts";
+
+type Node = Map<DataKey, Data>;
+type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align">;
+
+/** `icon: "U+F0BC"`: a codepoint the catalogue does not name, spelled so it survives a review. */
+function buildGlyphIcon(b: Builder, node: Node, common: Common, placement: Placement): Element {
+  const raw = str(node.get("icon"));
+  const character = b.resolveIconGlyph(raw, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
+  return IconElement.create({ ...common, icon: raw.toUpperCase(), codepoint: character, ...placement });
+}
+
+class IconKind extends ElementKind<IconElement> {
+  readonly name = "icon";
+  readonly irClass = IconElement;
+  override readonly ringed = true;
+
+  build(b: Builder, node: Node, common: Common): Element {
+    const name = node.get("icon");
+    const dynamic = name instanceof Map ? name : null;
+    const hasGlyph = typeof name === "string" && icons.isCodepointSpelling(name);
+    if (name === undefined || name === null) {
+      b.bag.error("icon", "an icon element needs one 'icon:'", b.doc.span(node), {
+        notes: ["'icon:' names a glyph from the built-in catalogue (run `wfb sources` for the list)",
+          "or is any codepoint in the icon font, written 'U+XXXX' -- for "
+          + "the ~10,000 glyphs the catalogue does not name",
+          "or is {for: <expression>}, choosing one at runtime from a "
+          + "bound value -- see wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
+      });
+    }
+    const size = b.bakedSizeLength(node, "size", { code: "icon", label: "icon size", note: ICON_SIZE_NOTE });
+    const [align, verticalAlign] = b.alignment(node);
+    // Every spelling of `icon:` shares these four keys.
+    const placement: Placement = { size, color: b.colorExpression(node, "color"), align, vertical_align: verticalAlign };
+
+    if (dynamic !== null) {
+      let valueFor = b.expression(dynamic, "for");
+      if (valueFor !== null && (valueFor.ast === null || valueFor.ast.kind !== "ref" || valueFor.sources.length !== 1
+        || !catalog.WEATHER_CONDITION_SOURCES.has(valueFor.sources[0]!))) {
+        b.bag.error("icon", "icon: {for:} must be exactly one of: "
+          + `${[...catalog.WEATHER_CONDITION_SOURCES].sort().join(", ")} -- not ${repr(valueFor.shown)}`,
+        b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
+          notes: ["arithmetic or a conditional would break the condition-to-glyph "
+            + "lookup, which needs the raw Weather.CONDITION_* value"],
+        });
+        valueFor = null;
+      }
+      return IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
+    }
+    if (hasGlyph) return buildGlyphIcon(b, node, common, placement);
+    if (typeof name !== "string") throw new Error("the schema requires 'icon:'");
+    const codepoint = b.resolveIconName(name, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
+    return IconElement.create({ ...common, icon: name, codepoint, ...placement });
+  }
+}
+
+register(new IconKind());

@@ -1,11 +1,13 @@
 // The `series:` a `graph` element may plot, and how each is read on the
-// device. Port of wfb/series.py's tables; its unknown-name suggestions
-// (`unavailable_reason`, difflib) come with the catalogue port.
+// device, and why a quantity it cannot plot is unavailable. Port of
+// wfb/series.py.
 //
 // Every field name and "or Null" was checked against the SDK's own docs
 // (`Toybox/ActivityMonitor.html`, `.../ActivityMonitor/History.html`,
 // `.../ActivityMonitor/ActiveMinutes.html`, `Toybox/Weather/HourlyForecast.html`,
 // `Toybox/Weather/DailyForecast.html`), as wfb/series.py records.
+
+import { Catalogue } from "./diagnostics.ts";
 
 /** How a series' samples are obtained on the device. */
 export type Acquisition = "heart_rate" | "activity_history" | "hourly_forecast" | "daily_forecast";
@@ -32,25 +34,25 @@ export interface SeriesDef {
   name: string;
   acquisition: Acquisition;
   /** The field read off one entry; `null` for `heart_rate`, whose value is the reader. */
-  fieldName: string | null;
-  valueType: "number" | "float";
-  /** A nullable intermediate object on a dotted `fieldName` (`activeMinutes`). */
+  field_name: string | null;
+  value_type: "number" | "float";
+  /** A nullable intermediate object on a dotted `field_name` (`activeMinutes`). */
   intermediate: string | null;
   /** Seconds between entries; `null` for `heart_rate`, whose interval is device dependent. */
-  intervalSeconds: number | null;
+  interval_seconds: number | null;
   /** The SDK's documented cap on the array, or `null` where none is documented. */
-  maxCount: number | null;
+  max_count: number | null;
   unit: string | null;
   doc: string;
-  sourceRef: string;
+  source_ref: string;
 }
 
-const s = (name: string, acquisition: Acquisition, fieldName: string | null, valueType: "number" | "float",
-  intermediate: string | null, intervalSeconds: number | null, maxCount: number | null, unit: string | null,
-  doc: string, sourceRef: string): SeriesDef =>
-  ({ name, acquisition, fieldName, valueType, intermediate, intervalSeconds, maxCount, unit, doc, sourceRef });
+const s = (name: string, acquisition: Acquisition, field_name: string | null, value_type: "number" | "float",
+  intermediate: string | null, interval_seconds: number | null, max_count: number | null, unit: string | null,
+  doc: string, source_ref: string): SeriesDef =>
+  ({ name, acquisition, field_name, value_type, intermediate, interval_seconds, max_count, unit, doc, source_ref });
 
-export const SERIES: ReadonlyMap<string, SeriesDef> = new Map([
+export const SERIES: Catalogue<SeriesDef> = new Catalogue([
   s("heart_rate", "heart_rate", null, "number", null, null, null, "bpm",
     "heart rate history -- a Duration range bins by time; a count range reads the last N samples raw",
     "Toybox/ActivityMonitor.html#getHeartRateHistory-instance_method"),
@@ -84,6 +86,36 @@ export const SERIES: ReadonlyMap<string, SeriesDef> = new Map([
   s("daily_precipitation_chance", "daily_forecast", "precipitationChance", "number", null, 86400, null, "percent",
     "daily forecast chance of precipitation, 0-100", "Toybox/Weather/DailyForecast.html"),
 ].map((def) => [def.name, def]));
+
+/** Why a quantity a watch face cannot plot as a history is unavailable, keyed by name. */
+const SENSOR_HISTORY = "Toybox.SensorHistory is the only API that serves it as a history, "
+  + "and a watch face may not declare that permission -- "
+  + "Core_Topics/Manifest_and_Permissions.html gives SensorHistory an "
+  + "empty 'Watch Face' column";
+const NO_SOLAR = "there is no solar history API anywhere in Connect IQ -- solar is "
+  + "only ever a current reading (System.Stats.solarIntensity, "
+  + "Complications.COMPLICATION_TYPE_SOLAR_INPUT), so the chart on a "
+  + "stock Garmin face is native firmware this API does not expose";
+export const UNAVAILABLE: ReadonlyMap<string, string> = new Map([
+  ...["pressure", "barometric_pressure", "stress", "elevation", "altitude",
+    "body_battery", "oxygen_saturation", "pulse_ox", "temperature"].map((n): [string, string] => [n, SENSOR_HISTORY]),
+  ...["solar", "solar_input", "solar_intensity", "solar_charge"].map((n): [string, string] => [n, NO_SOLAR]),
+]);
+
+/**
+ * Why a plausible-but-impossible series name cannot be plotted, or `null`:
+ * matched on the bare name and its last dotted segment, and on its last
+ * underscored segment only when it is not a near miss of a real series.
+ */
+export function unavailableReason(name: string): string | null {
+  const found = UNAVAILABLE.get(name);
+  if (found !== undefined) return found;
+  const dotted = name.slice(name.lastIndexOf(".") + 1);
+  const byDotted = UNAVAILABLE.get(dotted);
+  if (byDotted !== undefined) return byDotted;
+  if (SERIES.suggest(name).length > 0) return null;
+  return UNAVAILABLE.get(dotted.slice(dotted.lastIndexOf("_") + 1)) ?? null;
+}
 
 export function get(name: string): SeriesDef | undefined {
   return SERIES.get(name);

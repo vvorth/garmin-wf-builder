@@ -1,9 +1,11 @@
 // Parity ports of the text stages: `nodes`, `data` and `spans`, in the
 // oracle's JSON form (tools/oracle.py). Offsets are converted from UTF-16
 // code units to the code points Python counts.
-import { Refused, SpanIndex } from "../../src/edit/spans.ts";
+import { composeText, Refused, SpanIndex } from "../../src/edit/spans.ts";
 import { compose, type Data, PyFloat, Timestamp, type YamlNode, YamlError } from "../../src/edit/yaml.ts";
 import type { Case } from "../stages.ts";
+import { Bag } from "../../src/diagnostics.ts";
+import { load } from "../../src/yamlsrc.ts";
 
 /** UTF-16 offset → code-point offset, for `text`. */
 export function codePoints(text: string): (index: number) => number {
@@ -38,18 +40,21 @@ function nodeJson(node: YamlNode, cp: (i: number) => number): unknown {
   return { kind: "mapping", ...base, flow: node.flow, pairs: node.pairs.map(([k, v]) => [nodeJson(k, cp), nodeJson(v, cp)]) };
 }
 
+/** `spans.compose`: the composed tree after construction, which flattens a merge key and refuses a duplicate key. */
 export function nodes(input: Case): unknown {
   try {
-    const root = compose(input.text);
+    const root = composeText(input.text);
     return root === null ? null : nodeJson(root, codePoints(input.text));
   } catch (error) {
-    if (error instanceof YamlError) return { $error: "yaml", message: error.message };
+    if (error instanceof Refused) return { $error: "yaml", message: error.message };
     throw error;
   }
 }
 
+/** The loader's data (`yamlsrc.load`, ruamel's round-trip constructor), as the oracle dumps it. */
 export function data(input: Case): unknown {
-  return oracleData(compose(input.text) === null ? null : new SpanIndex(input.text).data);
+  const doc = load(input.path, new Bag(), input.text);
+  return doc === null ? null : oracleData(doc.data);
 }
 
 export function spans(input: Case): unknown {

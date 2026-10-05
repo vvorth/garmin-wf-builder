@@ -9,7 +9,9 @@
 // with no line at all, and a position recorded for a key is read back as
 // ruamel's `lc.key`/`lc.value`/`lc.item` read it.
 import { Bag, Span } from "./diagnostics.ts";
-import { compose, construct, type Data, type DataKey, mappingKey, PyFloat, Timestamp, type YamlNode, YamlError } from "./edit/yaml.ts";
+import {
+  compose, construct, type Data, type DataKey, mappingKey, mergeSources, PyFloat, Timestamp, type YamlNode, YamlError,
+} from "./edit/yaml.ts";
 import { PyError } from "./py.ts";
 
 /** ruamel's `LineCol`: a collection's own position and its entries'. */
@@ -173,6 +175,43 @@ export class YamlDocument {
   }
 }
 
+/** A mapping that had a merge key: its own keys (ruamel's `_ok`) and where the `<<` stood (`merge_pos`). */
+interface MergeInfo {
+  own: Set<DataKey>;
+  position: number;
+}
+
+const MERGES = new WeakMap<Map<DataKey, Data>, MergeInfo>();
+
+/**
+ * `CommentedMap.insert(pos, key, value)`: on a mapping with a merge key,
+ * ruamel appends the key, then moves the own keys from `pos` on (one fewer
+ * past the merge's place) behind it, so merged keys stay where they are.
+ */
+export function insertKey(mapping: Map<DataKey, Data>, pos: number, key: DataKey, value: Data): void {
+  const info = MERGES.get(mapping);
+  const own = info?.own ?? new Set(mapping.keys());
+  if (own.has(key)) {
+    mapping.delete(key);
+    own.delete(key);
+  }
+  const keys = [...mapping.keys()].filter((k) => own.has(k));
+  let idxMin = pos;
+  if (info !== undefined && info.position >= 0) {
+    if (info.position >= pos) info.position += 1;
+    else idxMin = pos - 1;
+  }
+  const idxMax = own.size;
+  mapping.set(key, value);
+  for (let idx = idxMin; idx < idxMax; idx++) {
+    const moved = keys[idx]!;
+    const v = mapping.get(moved)!;
+    mapping.delete(moved);
+    mapping.set(moved, v);
+  }
+  own.add(key);
+}
+
 /** The round-trip data for `node`, every collection's positions recorded as ruamel's constructor records them. */
 function roundTrip(node: YamlNode, built: Map<YamlNode, Data>): Data {
   const seen = built.get(node);
@@ -183,11 +222,18 @@ function roundTrip(node: YamlNode, built: Map<YamlNode, Data>): Data {
     const lc = ensureLc(out);
     lc.line = node.start.line;
     lc.col = node.start.column;
+    // ruamel builds a merge key's mappings first, then adds each key they have that the mapping lacks, after its own.
+    const { sources, position } = mergeSources(node);
+    const merged = sources.map((source) => roundTrip(source, built) as Map<DataKey, Data>);
+    if (sources.length > 0) MERGES.set(out, { own: new Set(node.pairs.map(([k]) => mappingKey(k))), position });
     for (const [k, v] of node.pairs) {
       const key = mappingKey(k);
       if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`, k.start.line + 1, k.start.column + 1);
       out.set(key, roundTrip(v, built));
       lc.addKvLineCol(key, [k.start.line, k.start.column, v.start.line, v.start.column]);
+    }
+    for (const source of merged) {
+      for (const [key, value] of source) if (!out.has(key)) out.set(key, value); // the first mapping wins
     }
     return out;
   }

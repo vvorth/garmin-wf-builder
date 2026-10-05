@@ -1,19 +1,19 @@
 // Parity ports of the `load-*` stages: each case of `load-cases`
 // (tools/oracle_cases.py) rebuilt from its splice, loaded pass by pass, and
 // one pass's diagnostics written in the oracle's form.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { REPO_ROOT } from "../../src/devices/node.ts";
-import { Bag, type Diagnostic } from "../../src/diagnostics.ts";
+import { Bag } from "../../src/diagnostics.ts";
 import { desugar } from "../../src/desugar.ts";
+import { build as buildIr } from "../../src/ir/builder/index.ts";
+import { installAssets, repoFileExists } from "../../src/node.ts";
 import { lower } from "../../src/lower.ts";
-import { loadSchema, validate } from "../../src/validate.ts";
+import { validate } from "../../src/validate.ts";
+import { diagnosticJson } from "./ir.ts";
 import { oracleData } from "./text.ts";
 import { load } from "../../src/yamlsrc.ts";
 import { PyError } from "../../src/py.ts";
 import type { Case } from "../stages.ts";
 
-loadSchema(JSON.parse(readFileSync(join(REPO_ROOT, "schema", "wfb-face-2.schema.json"), "utf8")));
+installAssets();
 
 export const PASSES = ["yaml", "validate", "lower", "desugar", "ir"] as const;
 export type Pass = (typeof PASSES)[number];
@@ -31,13 +31,6 @@ function caseText(text: string, splice: [number, number, string] | null): string
   return points.slice(0, at).join("") + insert + points.slice(at + cut).join("");
 }
 
-function diagnosticJson(d: Diagnostic): unknown {
-  return {
-    severity: d.severity, code: d.code, message: d.message,
-    span: d.span === null ? null : { path: d.span.path, line: d.span.line, col: d.span.col },
-    notes: d.notes, confidence: d.confidence,
-  };
-}
 
 /** Each pass's diagnostics up to `last`, as tools/oracle_cases.py's `load_passes` records them. */
 function loadPasses(path: string, text: string, last: Pass): Record<Pass, unknown> {
@@ -50,6 +43,7 @@ function loadPasses(path: string, text: string, last: Pass): Record<Pass, unknow
     ["validate", () => validate(doc, bag)],
     ["lower", () => lower(doc, bag)],
     ["desugar", () => desugar(doc, bag)],
+    ["ir", () => buildIr(doc, bag, repoFileExists) !== null],
   ];
   for (const [name, step] of steps) {
     const start = bag.items.length;

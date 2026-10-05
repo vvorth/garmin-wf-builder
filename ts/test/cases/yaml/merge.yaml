@@ -1,0 +1,13 @@
+# Merge keys: ruamel's safe constructor (the editor's span index) puts the
+# merged pairs first, and its round-trip one (the loader) appends the keys
+# a mapping lacks after its own; a list merges with its first mapping winning.
+base: &base
+  x: 1
+  y: 2
+over:
+  y: 9
+  <<: *base
+  z: 3
+listed:
+  <<: [*base, {x: 5, w: 6}]
+  q: 1

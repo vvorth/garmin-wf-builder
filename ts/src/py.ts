@@ -387,3 +387,40 @@ export function isFloat(value: unknown): boolean {
 export function num(value: number | PyFloat): number {
   return value instanceof PyFloat ? value.value : value;
 }
+
+/** Python's `str()` of a value: a string as itself, a number as Python prints it, anything else as `repr`. */
+export function str(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
+  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof Timestamp) return value.iso.replace("T", " ");
+  return repr(value);
+}
+
+/**
+ * Python's `==` between two values the IR holds: numbers by value (a boxed
+ * float equals its int), containers element by element, and two class
+ * instances of one class field by field, as a dataclass compares.
+ */
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (isNumber(a) && isNumber(b)) return num(a) === num(b);
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => deepEqual(x, b[i]));
+  }
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map && b instanceof Map) || a.size !== b.size) return false;
+    for (const [k, v] of a) if (!b.has(k) || !deepEqual(v, b.get(k))) return false;
+    return true;
+  }
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set && b instanceof Set) || a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;
+    return true;
+  }
+  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}

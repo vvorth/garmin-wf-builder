@@ -231,6 +231,43 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
   (`dump_schema.py`), whose messages must match too.
 - The gate's tests (`test_edit.py`'s refusals) come over here.
 
+**Built 2026-10-05.** Parity over 2 872 designs: the 51 of the corpus and
+2 820 captured from the fast test suite.
+
+| Stage | Equal | Notes |
+|---|---|---|
+| `face` (the IR) | 2 386 of 2 386 | every design that loads |
+| `diagnostics-load` | 2 867 of 2 872 | 5 deviated: an invalid text's message |
+| `load-validate`, `-lower`, `-desugar`, `-ir` | 52 of 52 each | 1 971 seeded broken variants, each pass |
+| `data`, `lowered`, `desugared` | all | |
+| `nodes`, `spans` | 2 867 of 2 872 | 5 deviated, as in slice 2 |
+
+- **`validate.ts` runs on `jsonschema.ts`, not Ajv.** A port of
+  python-jsonschema's Draft 2020-12 validator gives the same error tree,
+  so `validate.py`'s shaping ports line for line and its messages match;
+  rebuilding them from Ajv's `schemaPath` could not. Ajv is no longer a
+  dependency.
+- **The captured corpus.** `tools/capture_designs.py` runs the fast suite
+  with `wfb.build.load` wrapped, keeping every design it loads (thousands of
+  small faces, most written to hit one diagnostic) in
+  `.cache/test-designs/`. The oracle dumps their load stages. It stands in
+  for research 32's 1 230 mutated faces, which only reached the schema.
+- **The oracle loads by repository-relative path**, so a diagnostic that
+  quotes a path is the same on every machine (format 5).
+- **Merge keys (`<<`).** Slice 2's YAML layer refused them, and no face
+  used one. The captured corpus did. Both of ruamel's constructors are now
+  matched: the safe one (span index, `parse`) puts the merged pairs first;
+  the round-trip one (the loader) appends the keys a mapping lacks, and
+  `CommentedMap.insert` (desugar's injected `id`) keeps them in place. An
+  anchored node starts at its anchor.
+- **Also ported:** `conversion.ts`, `build.ts` (`load`), `ir/rings.ts`,
+  `edit/gate.ts` with its tests, `edit/slots.ts`, `src/node.ts` (the
+  schema, the icon font's character map and font files, read from disk).
+
+**Departures:**
+- **`availability.ts`** moves to slice 4: it reads devices, and only
+  layout and lint ask it anything.
+
 ### Slice 4 — per-device layout
 
 - `layout.ts`, `visible_area.ts`, `edit/geometry.ts` (pixel drags in the

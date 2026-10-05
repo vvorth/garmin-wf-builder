@@ -2,6 +2,7 @@
 // port of each. A stage with no port reports every case missing; a slice
 // registers its stage's port here when it lands.
 import type { DeviceFiles } from "../src/devices/files.ts";
+import { diagnosticsLoad, face } from "./ports/ir.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
 import * as text from "./ports/text.ts";
@@ -16,7 +17,7 @@ export const STAGES = [...DESIGN_STAGES, ...DEVICE_STAGES] as const;
 export type Stage = (typeof STAGES)[number];
 
 /** The dump format this runner reads: tools/oracle.py's `FORMAT`. */
-export const ORACLE_FORMAT = 4;
+export const ORACLE_FORMAT = 5;
 
 /**
  * Stages read out of another stage's dump: each pass of `load-cases`
@@ -58,9 +59,12 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   "load-validate": loadPass("validate"),
   "load-lower": loadPass("lower"),
   "load-desugar": loadPass("desugar"),
+  "load-ir": loadPass("ir"),
   lowered: documentAfter("lower"),
   desugared: documentAfter("desugar"),
   data: text.data,
+  face,
+  "diagnostics-load": diagnosticsLoad,
 };
 
 /**
@@ -86,21 +90,27 @@ function yamlMessage(value: unknown): unknown {
   return value;
 }
 
-/** A load case's `yaml` pass: an invalid text's diagnostic, its message and column the yaml package's. */
+/** An invalid text's diagnostic, its message and column the yaml package's. */
+function yamlDiagnostic(d: Record<string, unknown>): Record<string, unknown> {
+  return d["code"] !== "yaml" || d["message"] === "the document is empty" ? d
+    : { ...d, message: "<the yaml package's message>", span: d["span"] === null ? null
+      : { ...(d["span"] as object), col: "<the yaml package's column>" } };
+}
+
+/** A load case's `yaml` pass, or `diagnostics-load`'s list, with `yamlDiagnostic` applied. */
 function yamlDiagnostics(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   return value.map((c: Record<string, unknown>) => {
+    if (typeof c["code"] === "string") return yamlDiagnostic(c);
     const pass = c["yaml"];
     if (!Array.isArray(pass)) return c;
-    return { ...c, yaml: pass.map((d: Record<string, unknown>) => d["code"] !== "yaml" || d["message"] === "the document is empty" ? d
-      : { ...d, message: "<the yaml package's message>", span: d["span"] === null ? null
-        : { ...(d["span"] as object), col: "<the yaml package's column>" } }) };
+    return { ...c, yaml: pass.map(yamlDiagnostic) };
   });
 }
 
 export const DEVIATIONS: readonly Deviation[] = [
   {
-    stages: ["load-yaml"],
+    stages: ["load-yaml", "diagnostics-load"],
     reason: "an invalid text's diagnostic gives the yaml package's message and column, not ruamel's: the line agrees",
     normalise: yamlDiagnostics,
   },

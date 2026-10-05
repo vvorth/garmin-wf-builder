@@ -52,6 +52,10 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/devices/files.ts` is the `DeviceFiles` interface every stage reads
     devices through: synchronous, filled up front in the browser.
   - `src/devices/node.ts` is the same interface over the SDK's folders.
+  - `src/node.ts` hands Node's copies of what the browser hands in itself:
+    the schema, the icon font's character map, and whether a font
+    `source:` exists (`installAssets`, `repoFileExists`). A Node entry point
+    calls `installAssets()` before it loads a design.
   - `src/edit/yaml.ts` rebuilds ruamel's composed node tree (marks, tags,
     scalar values) from the `yaml` package, and constructs the data as
     ruamel's safe loader does.
@@ -60,9 +64,19 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     - Offsets are UTF-16, as JavaScript slices; lines and columns count
       code points, as ruamel's do.
   - `src/edit/` is the patch engine: `spans`, `patch`, `structure`,
-    `colors`, `schemes`, `hands`.
+    `colors`, `schemes`, `hands`, `slots`, and `gate`, which loads each
+    patched text through `build.ts`'s `load`.
+  - `src/ir/` is the IR. `model.ts` keeps the Python dataclasses' field
+    names and order, so the oracle's dump compares field for field; a
+    class is built with `Class.create({...})`. `builder/` is the semantic
+    pass, one layer per module as in Python, and `src/kinds/` each kind's
+    `build` half, registered by importing `kinds/index.ts`.
+  - `src/jsonschema.ts` is python-jsonschema's Draft 2020-12 validator,
+    ported, so `validate.ts` shapes the same error tree into the same
+    messages.
   - `src/py.ts` holds Python's semantics where output depends on them:
-    - truthiness, `repr`, `json.dumps` and `splitlines`;
+    - truthiness, `repr`, `str`, `==` (`deepEqual`), `json.dumps` and
+      `splitlines`;
     - `f"{x:.6f}"` and `round()`, half to even;
     - `PyError`, a crash Python would raise, named by type.
 - `tools/` holds `parity.ts` (the runner), `compare.ts` (structural JSON
@@ -70,4 +84,8 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   deviations) and `ports/` (each stage's port into the oracle's JSON form).
 - `test/cases/` holds inputs the oracle dumps beside the example faces:
   `yaml/` has YAML edge cases the faces do not exercise.
+- The oracle also dumps every design the fast test suite loads, captured
+  by `../tools/capture_designs.py` into `../.cache/test-designs/` (load
+  stages only): thousands of small faces, most written to hit one
+  diagnostic. Rerun the capture when tests change, then the oracle.
 - `test/` holds the `node:test` files.

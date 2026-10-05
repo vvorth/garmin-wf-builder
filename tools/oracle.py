@@ -15,7 +15,9 @@ Writes `.cache/oracle/` (gitignored):
   `<design>/<device>/preview.png`.
 
 A design is every `*.yaml` under `examples/`, `tests/fixtures/` and
-`ts/test/cases/`, named by its path without the suffix, as
+`ts/test/cases/`, and every design the fast test suite loads, captured by
+`tools/capture_designs.py` into `.cache/test-designs/` (its load stages
+alone, `CAPTURED_STAGES`), named by its path without the suffix, as
 `tools/snapshot.py` names them. `ts/test/cases/` holds YAML edge cases the
 faces do not exercise (empty values, block scalars, comment placement, no
 final newline, invalid text). They are not faces, so only their text stages
@@ -72,6 +74,7 @@ import enum
 import hashlib
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -102,8 +105,12 @@ DESIGN_STAGES = ("nodes", "spans", "patches", "load-cases", "data", "lowered", "
                  "diagnostics-lint", "project")
 DEVICE_STAGES = ("fonts", "layout", "draw", "preview")
 STAGES = DESIGN_STAGES + DEVICE_STAGES
+#: The designs the fast test suite loads (`tools/capture_designs.py`), and
+#: the stages dumped for them: the load stages alone, as most never load.
+CAPTURED = ROOT / ".cache" / "test-designs"
+CAPTURED_STAGES = frozenset({"nodes", "spans", "data", "lowered", "desugared", "face", "diagnostics-load"})
 #: Bumped when the dump's shape changes, so parity refuses a stale cache.
-FORMAT = 4
+FORMAT = 5
 
 
 def to_json(value: Any, *, top: bool = True, seen: tuple[int, ...] = ()) -> Any:
@@ -172,9 +179,17 @@ def node_json(node: Node) -> dict[str, Any]:
     return out
 
 
+def captured() -> list[Path]:
+    """The captured designs: each directory's `.design` names its file."""
+    if not CAPTURED.is_dir():
+        return []
+    return [d / (d / ".design").read_text(encoding="utf-8")
+            for d in CAPTURED.iterdir() if (d / ".design").is_file()]
+
+
 def designs(only: list[str]) -> list[Path]:
     paths = sorted([*ROOT.glob("examples/**/*.yaml"), *ROOT.glob("tests/fixtures/**/*.yaml"),
-                    *ROOT.glob("ts/test/cases/**/*.yaml")])
+                    *ROOT.glob("ts/test/cases/**/*.yaml"), *captured()])
     found = [p for p in paths if not only or design_id(p) in only]
     missing = set(only) - {design_id(p) for p in found}
     if missing:
@@ -199,6 +214,11 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
     """Every requested stage for one design; returns its index entry."""
     out = OUT / design_id(path)
     text = path.read_text(encoding="utf-8")
+    # Loaded by its repository-relative path (`main` works from the root),
+    # so a diagnostic that quotes a path reads the same on every machine.
+    rel = path.relative_to(ROOT)
+    if path.is_relative_to(CAPTURED):
+        stages = stages & CAPTURED_STAGES
     entry: dict[str, Any] = {"id": design_id(path), "path": path.relative_to(ROOT).as_posix(),
                              "devices": [], "stages": []}
 
@@ -229,11 +249,11 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
 
     if "load-cases" in stages:
         from oracle_cases import cases
-        done("load-cases", cases(path, text, design_id(path), to_json))
+        done("load-cases", cases(rel, text, design_id(path), to_json))
 
     # `wfb.build.load`, unrolled so each boundary can be dumped.
     bag = Bag()
-    doc = yamlsrc.load(path, bag, text)
+    doc = yamlsrc.load(rel, bag, text)
     if doc is not None and "data" in stages:
         done("data", to_json(ordered(doc.data)))
     face = None
@@ -312,11 +332,11 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
                 if not file.is_file():
                     continue
                 data = file.read_bytes()
-                rel = file.relative_to(Path(tmp) / "project").as_posix()
+                name = file.relative_to(Path(tmp) / "project").as_posix()
                 try:
-                    files[rel] = {"text": data.decode("utf-8")}
+                    files[name] = {"text": data.decode("utf-8")}
                 except UnicodeDecodeError:
-                    files[rel] = {"sha256": hashlib.sha256(data).hexdigest(), "length": len(data)}
+                    files[name] = {"sha256": hashlib.sha256(data).hexdigest(), "length": len(data)}
             done("project", files)
     return entry
 
@@ -333,6 +353,7 @@ def git_revision() -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    os.chdir(ROOT)
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--stage", nargs="+", choices=STAGES, default=list(STAGES))
     parser.add_argument("--design", nargs="+", default=[], help="design ids, e.g. examples/showcase/face")

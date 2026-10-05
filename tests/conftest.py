@@ -34,6 +34,14 @@ os.environ["WFB_OFFLINE"] = "1"
 # unset it (tests/test_system_fonts_fetch.py's `_isolated`).
 os.environ["WFB_NO_GARMIN_FONTS"] = "1"
 
+# `tools/capture_designs.py` runs the suite with this set, to keep every
+# design it loads as a parity corpus for the TypeScript port.
+if os.environ.get("WFB_CAPTURE_DESIGNS"):
+    sys.path.insert(0, str(ROOT / "tools"))
+    import capture_designs  # noqa: E402
+
+    capture_designs.install(Path(os.environ["WFB_CAPTURE_DESIGNS"]))
+
 from wfb.devices import DeviceDatabase, DeviceError  # noqa: E402
 
 #: The device the golden files are generated for.
