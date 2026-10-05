@@ -18,7 +18,7 @@ from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
 from . import availability, catalog, complications, expr, kinds, series
-from .devices import Device, version_key
+from .devices import Device, DeviceError, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
     CONFIG_SYMBOL, Curve, Element, Expression, Face, FontSpec, Graph,
@@ -735,10 +735,11 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
 def _probe_symbols(bag: Bag, device: Device, code: str, what: str,
                    probe: Callable[[], _T]) -> _T | None:
     """``probe()`` against the device's symbol table, or -- when the device
-    has no ``api.debug.xml`` -- a "not checked" note and ``None``."""
+    has no ``api.debug.xml``, or it cannot be read -- a "not checked" note
+    and ``None``.  Anything else ``probe()`` raises is a bug, and raises."""
     try:
         return probe()
-    except Exception:
+    except (DeviceError, OSError):
         bag.note(
             code,
             f"{device.id}: no symbol table, so {what} is not checked",

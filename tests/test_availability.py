@@ -561,3 +561,30 @@ def test_manifest_floor_stays_at_base_even_with_fenix6_and_a_complication(write_
     project = _generate(write_design, bag, db, tmp_path, "fenix6, fenix8solar47mm")
     assert 'minApiLevel="3.1.0"' in project.manifest_text
     assert 'minApiLevel="4.2.0"' not in project.manifest_text
+
+
+class _Probe:
+    """A device whose symbol lookup raises what it is given."""
+
+    id = "probe"
+
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def has_symbol(self, symbol: str) -> bool:
+        raise self.error
+
+
+def test_a_device_without_a_symbol_table_has_no_symbol():
+    from wfb.availability import _has
+    from wfb.devices import DeviceError
+
+    assert _has(_Probe(DeviceError("probe: missing probe.api.debug.xml")), "A.b") is False
+    assert _has(_Probe(PermissionError("unreadable")), "A.b") is False
+
+
+def test_a_bug_in_a_symbol_lookup_is_not_taken_for_a_missing_symbol():
+    from wfb.availability import _has
+
+    with pytest.raises(ValueError):
+        _has(_Probe(ValueError("expected Parent.name, got 'onTap'")), "onTap")

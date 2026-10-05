@@ -29,8 +29,7 @@ from .store import Store
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
-#: `--keep-days` and `--keep-snapshots`' defaults.
-KEEP_DAYS = 30.0
+#: `--keep-snapshots`' default.
 KEEP_SNAPSHOTS = 50
 
 
@@ -50,7 +49,7 @@ def allowed_hosts(host: str, extra: list[str]) -> list[str]:
 
 def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
           snapshot_minutes: float = SNAPSHOT_MINUTES,
-          keep_days: float = KEEP_DAYS, keep_snapshots: int = KEEP_SNAPSHOTS,
+          keep_snapshots: int = KEEP_SNAPSHOTS,
           single_user: bool = False, allow_hosts: list[str] | None = None) -> None:
     """Run the editor until interrupted."""
     import uvicorn
@@ -58,9 +57,9 @@ def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
     from .app import create_app
 
     store = Store(state_dir)
-    for line in store.prune(keep_days=keep_days, keep_snapshots=keep_snapshots):
+    for line in store.prune(keep_snapshots=keep_snapshots):
         print(f"pruned {line}", flush=True)
-    sessions = Sessions(state_dir, keep_days=keep_days, single_user=single_user)
+    sessions = Sessions(state_dir, single_user=single_user)
     for line in sessions.prune({store.owner(d["id"]) for d in store.documents()}):
         print(f"pruned {line}", flush=True)
     studio = Studio(store, db, snapshot_minutes=snapshot_minutes)

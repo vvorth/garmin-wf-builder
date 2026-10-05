@@ -398,6 +398,59 @@ def test_the_outbox_sends_one_at_a_time_and_folds_repeated_moves():
     assert result["nextAfterDone"] == {"kind": "move", "part": "both", "dx": 1, "dy": 10}
 
 
+def test_an_edit_made_while_a_drag_is_on_its_way_waits_its_turn():
+    """An inspector edit, an undo or a layer edit made while a gesture is
+    being written is queued behind it, never folded into a move, and sent
+    only once the gesture's answer gives the version it builds on; done,
+    it leaves the queue, since the canvas has nothing to draw for it."""
+    result = run("""
+      const move = (ids, dx) => ({ids, gesture: {kind: "move", part: "both", dx, dy: 0},
+                                  preview: {kind: "move", part: "both", dx, dy: 0}, moving: new Set(ids)});
+      let q = outbox.enqueue([], move(["a"], 1));
+      q = outbox.mark(q, outbox.next(q), "sent");
+      q = outbox.enqueue(q, {request: {path: "undo"}});
+      q = outbox.enqueue(q, move(["a"], 1));
+      const whileSent = outbox.next(q);
+      q = outbox.mark(q, q[0], "done", 5);
+      const second = outbox.next(q);
+      q = outbox.mark(q, second, "sent");
+      const sentShape = q.map((e) => [e.request ? e.request.path : "move", e.state]);
+      q = outbox.mark(q, q.find((e) => e.state === "sent"), "done", 6);
+      console.log(JSON.stringify({
+        whileSent, second: second.request, sentShape,
+        after: q.map((e) => [e.request ? e.request.path : "move", e.state, e.done]),
+        drawn: outbox.unshown(q, 4).length, moves: [...outbox.offsets(outbox.unshown(q, 4))],
+        saving: outbox.saveState({queue: q}),
+      }));
+    """)
+    assert result["whileSent"] is None
+    assert result["second"] == {"path": "undo"}
+    # the move behind the undo stayed its own entry
+    assert result["sentShape"] == [["move", "done"], ["undo", "sent"], ["move", "queued"]]
+    assert result["after"] == [["move", "done", 5], ["move", "queued", None]]
+    assert result["drawn"] == 2 and result["moves"] == [["a", [2, 0]]]
+    assert result["saving"] == "saving"
+
+
+def test_an_older_face_never_replaces_a_newer_one():
+    result = run("""
+      const n = outbox.newer;
+      console.log(JSON.stringify([
+        n(null, {id: "a", version: 1}),
+        n({id: "a", version: 5}, {id: "a", version: 6}),
+        n({id: "a", version: 5}, {id: "a", version: 5}),
+        n({id: "a", version: 5}, {id: "a", version: 4}),
+        n({id: "a", version: 5}, {id: "b", version: 1}),
+      ]));
+    """)
+    assert result == [True, True, True, False, True]
+
+
+def test_each_tab_has_its_own_name():
+    result = run("console.log(JSON.stringify(typeof session.TAB === 'string' && session.TAB.length > 8));")
+    assert result is True
+
+
 def test_the_canvas_draws_what_a_frame_does_not_show_yet():
     """An entry stays drawn until a frame of the version it produced
     arrives; its moves add up per element, a group's children included, and

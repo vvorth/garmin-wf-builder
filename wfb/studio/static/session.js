@@ -1,3 +1,9 @@
+// This tab, as its requests name it (`X-Wfb-Tab`): the server's
+// `changed` event names the tab that made the change, so a tab can skip
+// its own, whose face it has from the answer.
+export const TAB = (globalThis.crypto && crypto.randomUUID)
+  ? crypto.randomUUID() : String(Math.random()).slice(2);
+
 // What the page does when the server no longer knows this browser (a 401:
 // the session cookie was cleared, or expired). Reloading starts a new
 // session, but one that does not own the open face, so anything not yet

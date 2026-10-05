@@ -118,3 +118,37 @@ def test_text_and_schema_over_http(studio):
     assert client.post(f"{url}?version=2", content=b"\xff\xfe").status_code == 400
     schema = client.get("/api/schema").json()
     assert schema["$defs"]["textElement"]["properties"]["text"]
+
+
+def test_a_burst_of_typing_is_one_step_to_undo(studio, monkeypatch):
+    import wfb.studio.document as document_mod
+
+    doc = new(studio)
+    for n in range(1, 4):
+        doc.replace_text(doc.text.replace(f"version: 1.0.{n - 1}", f"version: 1.0.{n}"),
+                         doc.version)
+    assert doc.version == 4                     # every save is still its own version
+    assert [c.label for c in studio.store.timeline(doc.id).states] == ["new", "edit the text"]
+
+    # typing again after a pause is a step of its own
+    now = studio.store.head(doc.id).time + document_mod.TEXT_MERGE_SECONDS + 1
+    monkeypatch.setattr(document_mod.time, "time", lambda: now)
+    doc.replace_text(doc.text + "# later\n", doc.version)
+    labels = [c.label for c in studio.store.timeline(doc.id).states]
+    assert labels == ["new", "edit the text", "edit the text"]
+
+    doc.undo(doc.version)
+    assert "version: 1.0.3" in doc.text and "# later" not in doc.text
+    doc.undo(doc.version)
+    assert "version: 1.0.0" in doc.text         # the whole burst, in one undo
+
+
+def test_typing_after_an_undo_or_another_edit_is_not_merged_into_it(studio):
+    doc = new(studio)
+    doc.replace_text(doc.text + "# a\n", doc.version)
+    doc.undo(doc.version)
+    doc.replace_text(doc.text + "# b\n", doc.version)            # after an undo
+    doc.edit({"op": "set", "path": ["face", "version"], "value": "9.9.9"}, doc.version)
+    doc.replace_text(doc.text + "# c\n", doc.version)            # after an inspector edit
+    labels = [c.label for c in studio.store.timeline(doc.id).states]
+    assert labels == ["new", "edit the text", "set face.version to 9.9.9", "edit the text"]

@@ -29,7 +29,7 @@ will use ([whose faces](#whose-faces)).
 | `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since the editor writes files |
 | `--state-dir` | where every face's history is kept (default `~/.local/state/wfb/studio`, or `$XDG_STATE_HOME/wfb/studio`) |
 | `--snapshot-minutes` | how often a changed face is snapshotted (default 5) |
-| `--keep-days`, `--keep-snapshots` | on start, faces untouched this many days are deleted, and each keeps its newest snapshots (defaults 30 and 50); a browser unseen this long is forgotten too |
+| `--keep-snapshots` | on start, each face keeps its newest this many snapshots (default 50); faces themselves are kept until you delete them |
 | `--single-user` | every browser sees and edits the same faces, as one person ([whose faces](#whose-faces)) |
 | `--allow-host` | also answer requests addressed to this name, a proxy's or a LAN name (repeatable); see below |
 
@@ -45,8 +45,10 @@ docker run --rm -it -p 127.0.0.1:8765:8765 \
 ## Whose faces
 
 Each browser has its own faces. The editor knows a browser by a cookie,
-kept as long as the faces are (`--keep-days`) and renewed on every visit;
-another browser, or one whose cookies were cleared, starts with none.
+renewed on every visit and kept 400 days from the last (the longest a
+browser keeps one); another browser, or one whose cookies were cleared,
+starts with none. The editor forgets a browser that holds no face once it
+has been away 30 days; one that holds a face is never forgotten.
 If the cookie goes while a face is open, the page reloads into a new
 session; when something is not saved yet, it says so instead and waits.
 **Copy my text** puts the face's text as you last had it, unsaved typing
@@ -74,7 +76,9 @@ The home screen offers:
 - **New face**: from one of `wfb new`'s templates, with a name; its watches
   are set in the Face tab.
 - **Open**: drop or choose a `.zip` or a `.yaml`.
-- **Recent**: every face the editor holds, with its history, and Delete.
+- **Library**: every face the editor holds, with its history. A face
+  stays until you **Delete** it, which removes its history and snapshots
+  with it.
 
 A face travels as a **bundle**: a `.zip` with the design at its root
 (`face.yaml` by convention) and its font files beneath it, by convention
@@ -174,7 +178,9 @@ was still waiting to be written.
 
 You need not wait for the watch's rendering: the next drag can start at
 once, from where the last one put things ("saving…" shows while changes
-are on their way). They are written in the order you made them.
+are on their way). They are written in the order you made them, and so
+is anything else you change meanwhile (a property, the layers, Undo):
+it waits for the drag before it instead of being refused.
 
 **Nudging.** With the face shown, the arrow keys move the selection one
 pixel, ten with **Shift**, written the same way as a drag. Repeats made
@@ -359,7 +365,9 @@ is never renamed or removed for you.
 
 **YAML** above the face shows the design's text, with completion and
 explanations from the format's schema and the compiler's diagnostics in
-the gutter. What you type is saved a moment (300 ms) after you stop. Text that
+the gutter. What you type is saved a moment (300 ms) after you stop, and
+a burst of typing, saves less than 10 seconds apart, is one step for
+**Undo** outside the tab. Text that
 is not YAML for a moment (an open bracket) is not saved, and says so under
 the text, until it is YAML again. A save that fails (the editor stopped,
 say) says **Not saved** under the text, with **Retry**, until one gets
@@ -405,7 +413,8 @@ the reason is under the text or in a banner above it. The status's
 tooltip gives the face's version, the number a refused change names.
 **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; in the YAML tab
 these undo your typing) work across restarts. A change after an undo
-ends the redo line, as in any editor.
+ends the redo line, as in any editor. The History tab lists the newest
+100 changes; **Show all** lists the rest.
 
 A **snapshot** is a point in time to go back to. One is taken every few
 minutes while the face changes, on every download, and on **Snapshot
@@ -413,8 +422,11 @@ now** in the History tab. **Restore** brings one back as an ordinary
 change, so it too can be undone; **Open copy** opens it as a separate
 face.
 
-The history lives under `--state-dir`, one directory per face. Deleting a
-face from the home screen deletes its history.
+The history lives under `--state-dir`, one directory per face, and is
+kept until you delete the face from the home screen, which deletes its
+history and snapshots with it. A crash while a change was being recorded
+loses at most that change: the editor cuts the half-written line from the
+history and keeps it beside the history as `journal.jsonl.torn-<time>`.
 
 ## What it does not do
 

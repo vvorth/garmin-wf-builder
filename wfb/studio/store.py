@@ -14,7 +14,10 @@ One directory per document under the store's root:
 - `journal.jsonl`: one JSON line per action, appended and flushed to disk
   before the action is acknowledged.  Every line names the text and asset
   manifest the document has after it, by hash, so the last line *is* the
-  document;
+  document.  A crash mid-append can leave a line cut short; it was never
+  acknowledged, so before the next append the file is cut back to its last
+  whole line, and what was cut is kept beside it as
+  `journal.jsonl.torn-<ms>` rather than destroyed;
 - `snapshots/<name>.json`: a point in time to go back to, naming its text
   and assets by hash the same way.
 
@@ -24,7 +27,13 @@ sequence number (`target`).  Replaying the journal (`timeline`) gives the
 states on the current line of history and where the document is among
 them, so undo survives a restart.  A change after an undo drops the states
 past the cursor from the line, as every editor does; their blobs stay, so
-a snapshot taken in that branch still restores.
+a snapshot taken in that branch still restores.  A `change` line marked
+`merge` takes the place of the state before it instead of following it,
+so a burst of typing is one step to undo.
+
+The store keeps each journal it has read in memory, checked against the
+file's size and modification time, so a document's head and timeline cost
+nothing to ask for again.
 
 A document's directory is the whole of it: deleting the directory deletes
 the document.
@@ -82,12 +91,16 @@ class Change:
     kind: str = CHANGE
     #: For `undo`/`redo`: the `seq` of the `change` line it moved to.
     target: int | None = None
+    #: For a `change`: it replaces the state before it on the line.
+    merge: bool = False
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {"seq": self.seq, "time": self.time, "label": self.label,
                                "text": self.text, "assets": self.assets, "kind": self.kind}
         if self.target is not None:
             out["target"] = self.target
+        if self.merge:
+            out["merge"] = True
         return out
 
     @classmethod
@@ -95,7 +108,8 @@ class Change:
         target = data.get("target")
         return cls(int(data["seq"]), float(data["time"]), str(data["label"]),
                    str(data["text"]), {str(k): str(v) for k, v in data["assets"].items()},
-                   str(data.get("kind", CHANGE)), int(target) if target is not None else None)
+                   str(data.get("kind", CHANGE)), int(target) if target is not None else None,
+                   bool(data.get("merge", False)))
 
 
 @dataclass
@@ -113,6 +127,19 @@ class Timeline:
     @property
     def can_redo(self) -> bool:
         return self.cursor < len(self.states) - 1
+
+
+@dataclass
+class _Journal:
+    """A journal as read: the file's size and modification time when it
+    was read, its readable lines, how many bytes they take (the rest is a
+    line cut short), and their timeline once asked for."""
+
+    size: int
+    mtime: int
+    changes: list[Change]
+    valid: int
+    timeline: Timeline | None = None
 
 
 @dataclass(frozen=True)
@@ -163,10 +190,16 @@ def replay(journal: list[Change]) -> Timeline:
     by_seq: dict[int, int] = {}
     for entry in journal:
         if entry.kind == CHANGE:
+            for gone in line.states[line.cursor + 1:]:
+                del by_seq[gone.seq]
             del line.states[line.cursor + 1:]
-            line.states.append(entry)
+            if entry.merge and line.states:
+                del by_seq[line.states[-1].seq]
+                line.states[-1] = entry
+            else:
+                line.states.append(entry)
             line.cursor = len(line.states) - 1
-            by_seq = {c.seq: i for i, c in enumerate(line.states)}
+            by_seq[entry.seq] = line.cursor
         elif entry.target in by_seq:
             line.cursor = by_seq[entry.target]
     return line
@@ -175,6 +208,7 @@ def replay(journal: list[Change]) -> Timeline:
 class Store:
     def __init__(self, root: Path) -> None:
         self.root = root
+        self._journals: dict[str, _Journal] = {}
         try:
             root.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -232,6 +266,7 @@ class Store:
 
     def delete(self, doc_id: str) -> None:
         shutil.rmtree(self._dir(doc_id))
+        self._journals.pop(doc_id, None)
 
     # -- blobs ------------------------------------------------------------------------
 
@@ -263,26 +298,29 @@ class Store:
 
     # -- the journal --------------------------------------------------------------------
 
-    def append(self, doc_id: str, label: str, text: str, assets: dict[str, bytes | str]
-               ) -> Change:
+    def append(self, doc_id: str, label: str, text: str, assets: dict[str, bytes | str],
+               merge: bool = False) -> Change:
         """Record a change: ``text`` and ``assets`` (bytes to store, or the
-        hash of a blob already stored) become the document's head."""
+        hash of a blob already stored) become the document's head.  With
+        ``merge`` it takes the place of the state before it on the line."""
         manifest = {path: (self.put(doc_id, v) if isinstance(v, bytes) else v)
                     for path, v in sorted(assets.items())}
         return self._write(doc_id, label, self.put(doc_id, text.encode("utf-8"), compress=True),
-                           manifest, CHANGE, None)
+                           manifest, CHANGE, None, merge)
 
     def move(self, doc_id: str, kind: str, label: str, state: Change) -> Change:
         """Record an undo or redo to ``state``, a `change` line."""
         return self._write(doc_id, label, state.text, dict(state.assets), kind, state.seq)
 
     def _write(self, doc_id: str, label: str, text: str, manifest: dict[str, str], kind: str,
-               target: int | None) -> Change:
-        head = self.head(doc_id)
+               target: int | None, merge: bool = False) -> Change:
+        read = self._read(doc_id)
+        head = read.changes[-1] if read.changes else None
         change = Change((head.seq + 1) if head else 1, time.time(), label, text, manifest,
-                        kind, target)
+                        kind, target, merge)
         path = self._dir(doc_id) / "journal.jsonl"
-        size = path.stat().st_size if path.exists() else 0
+        if read.size != read.valid:
+            self._set_aside(path, read.valid)
         try:
             with open(path, "a", encoding="utf-8") as out:
                 out.write(json.dumps(change.to_json()) + "\n")
@@ -291,34 +329,73 @@ class Store:
         except OSError as exc:
             # The line may be in the file already: a change reported refused
             # must not come back as applied after a restart.
+            self._journals.pop(doc_id, None)
             try:
                 with open(path, "r+b") as out:
-                    out.truncate(size)
+                    out.truncate(read.valid)
             except OSError:
                 pass
             raise StoreError(f"cannot write to the history store: {exc}") from exc
+        stat = path.stat()
+        self._journals[doc_id] = _Journal(stat.st_size, stat.st_mtime_ns,
+                                          [*read.changes, change], stat.st_size)
         return change
 
-    def journal(self, doc_id: str) -> list[Change]:
+    def _set_aside(self, path: Path, valid: int) -> None:
+        """Cut ``path`` back to its first ``valid`` bytes, its whole lines,
+        keeping what follows in a `.torn-<ms>` file beside it."""
+        try:
+            with open(path, "r+b") as journal:
+                journal.seek(valid)
+                torn = journal.read()
+                _write_atomic(path.with_name(f"{path.name}.torn-{int(time.time() * 1000)}"),
+                              torn)
+                journal.truncate(valid)
+                journal.flush()
+                os.fsync(journal.fileno())
+        except OSError as exc:
+            raise StoreError(f"cannot repair the history store's journal: {exc}") from exc
+
+    def _read(self, doc_id: str) -> _Journal:
+        """The journal, from memory while the file is as it was read."""
         path = self._dir(doc_id) / "journal.jsonl"
-        if not path.exists():
-            return []
-        out = []
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                out.append(Change.from_json(json.loads(line)))
-            except (ValueError, KeyError):
-                # A line cut short by a crash mid-append: everything before
-                # it was acknowledged, it was not.
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            return _Journal(0, 0, [], 0)
+        cached = self._journals.get(doc_id)
+        if cached is not None and (cached.size, cached.mtime) == (stat.st_size,
+                                                                   stat.st_mtime_ns):
+            return cached
+        data = path.read_bytes()
+        changes: list[Change] = []
+        valid = 0
+        for line in data.splitlines(keepends=True):
+            # A line cut short by a crash mid-append, or one with no end:
+            # everything before it was acknowledged, it was not.
+            if not line.endswith(b"\n"):
                 break
-        return out
+            try:
+                changes.append(Change.from_json(json.loads(line)))
+            except (ValueError, KeyError, TypeError, AttributeError):
+                break
+            valid += len(line)
+        read = _Journal(len(data), stat.st_mtime_ns, changes, valid)
+        self._journals[doc_id] = read
+        return read
+
+    def journal(self, doc_id: str) -> list[Change]:
+        return list(self._read(doc_id).changes)
 
     def head(self, doc_id: str) -> Change | None:
-        journal = self.journal(doc_id)
-        return journal[-1] if journal else None
+        changes = self._read(doc_id).changes
+        return changes[-1] if changes else None
 
     def timeline(self, doc_id: str) -> Timeline:
-        return replay(self.journal(doc_id))
+        read = self._read(doc_id)
+        if read.timeline is None:
+            read.timeline = replay(read.changes)
+        return read.timeline
 
     # -- snapshots ---------------------------------------------------------------------
 
@@ -362,19 +439,12 @@ class Store:
 
     # -- pruning -----------------------------------------------------------------------
 
-    def prune(self, *, keep_days: float, keep_snapshots: int,
-              now: float | None = None) -> list[str]:
-        """Remove documents untouched for ``keep_days`` and every snapshot
-        past a document's newest ``keep_snapshots``.  Returns one line per
-        removal, for the log."""
-        now = time.time() if now is None else now
+    def prune(self, *, keep_snapshots: int) -> list[str]:
+        """Remove every snapshot past a document's newest ``keep_snapshots``.
+        A document itself is never removed but by its owner.  Returns one
+        line per removal, for the log."""
         removed: list[str] = []
         for doc in self.documents():
-            if now - doc["changed"] > keep_days * 86400:
-                self.delete(doc["id"])
-                removed.append(f"{doc['name']} ({doc['id']}): untouched for over "
-                               f"{keep_days:g} days")
-                continue
             snaps = self.snapshots(doc["id"])
             folder = self._dir(doc["id"]) / "snapshots"
             for snap in snaps[:max(0, len(snaps) - keep_snapshots)]:

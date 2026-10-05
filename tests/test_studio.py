@@ -23,7 +23,7 @@ from wfb.studio.bundle import (
     Bundle, BundleError, from_path, inside, missing, read_upload, references, to_zip,
 )
 from wfb.studio.document import Document, FrameKey, StaleVersion, Studio
-from wfb.studio.store import Store
+from wfb.studio.store import Change, Store, replay
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOWCASE = ROOT / "examples/showcase/face.yaml"
@@ -228,6 +228,77 @@ def test_a_journal_line_cut_short_by_a_crash_is_not_the_head(studio):
     with open(studio.store.root / doc.id / "journal.jsonl", "a") as out:
         out.write('{"seq": 2, "time": 1')
     assert studio.store.head(doc.id).seq == 1
+
+
+def test_a_change_after_a_crash_cut_a_line_short_is_kept(tmp_path, studio):
+    # The cut line was never acknowledged; every change after it was, and
+    # must survive a new server, each with its own version.
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    journal = studio.store.root / doc.id / "journal.jsonl"
+    with open(journal, "a") as out:
+        out.write('{"seq": 2, "time": 1, "lab')
+    for i in range(3):
+        doc.commit(bumped(doc, i), {}, f"c{i}", doc.version)
+    assert doc.version == 4
+    fresh = Store(studio.store.root)
+    assert [c.label for c in fresh.journal(doc.id)] == ["new", "c0", "c1", "c2"]
+    assert [c.seq for c in fresh.journal(doc.id)] == [1, 2, 3, 4]
+    # what was cut is kept beside the journal, not destroyed
+    (torn,) = journal.parent.glob("journal.jsonl.torn-*")
+    assert torn.read_text() == '{"seq": 2, "time": 1, "lab'
+
+
+def test_a_whole_last_line_with_no_end_was_not_acknowledged(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    journal = studio.store.root / doc.id / "journal.jsonl"
+    line = journal.read_text().splitlines()[0].replace('"seq": 1', '"seq": 2')
+    with open(journal, "a") as out:
+        out.write(line)                                  # no newline: cut short
+    assert Store(studio.store.root).head(doc.id).seq == 1
+
+
+def test_the_journal_is_read_again_when_the_file_changes(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    store = studio.store
+    assert store.head(doc.id).seq == 1                   # read, and kept
+    other = Store(store.root)                            # another writer
+    other.append(doc.id, "elsewhere", doc.text + "\n", {})
+    assert store.head(doc.id).label == "elsewhere"
+
+
+def test_a_merged_change_takes_the_place_of_the_one_before():
+    def change(seq, kind="change", target=None, merge=False):
+        return Change(seq, 0.0, f"c{seq}", "", {}, kind, target, merge)
+
+    line = replay([change(1), change(2), change(3, merge=True), change(4, merge=True)])
+    assert [c.seq for c in line.states] == [1, 4] and line.cursor == 1
+    # an undo to the state before the burst, then a redo back to its end
+    line = replay([change(1), change(2), change(3, merge=True), change(4, "undo", 1),
+                   change(5, "redo", 3)])
+    assert [c.seq for c in line.states] == [1, 3] and line.cursor == 1
+
+
+def test_a_long_history_replays_in_linear_time():
+    import time as clock
+
+    journal = [Change(i, 0.0, "c", "", {}) for i in range(1, 20001)]
+    start = clock.perf_counter()
+    line = replay(journal)
+    assert len(line.states) == 20000
+    assert clock.perf_counter() - start < 1.0
+
+
+def test_a_summary_lists_the_newest_changes_and_the_history_lists_all(client, studio):
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    document = studio.document(doc["id"])
+    from wfb.studio.document import HISTORY_SHOWN
+    for i in range(HISTORY_SHOWN + 5):
+        document.commit(bumped(document, i), {}, f"c{i}", document.version)
+    summary = client.get(f"/api/documents/{doc['id']}").json()["history"]
+    assert len(summary["states"]) == HISTORY_SHOWN and summary["total"] == HISTORY_SHOWN + 6
+    assert summary["states"][0]["current"] and summary["states"][0]["label"] == f"c{HISTORY_SHOWN + 4}"
+    whole = client.get(f"/api/documents/{doc['id']}/history").json()
+    assert len(whole["states"]) == HISTORY_SHOWN + 6 and whole["states"][-1]["label"].startswith("new")
 
 
 def test_the_directory_is_rebuilt_when_it_goes_missing(studio):
@@ -593,21 +664,20 @@ def test_a_snapshot_opens_as_a_copy(studio):
     assert versions(doc) == "1.0.7"
 
 
-def test_pruning_removes_old_faces_and_old_snapshots(studio):
+def test_pruning_keeps_every_face_and_its_newest_snapshots(studio):
     store = studio.store
     old = studio.create(Bundle("Old", minimal_text()), "new")
     keep = studio.create(Bundle("Keep", minimal_text()), "new")
     for i in range(4):
         keep.commit(bumped(keep, i), {}, f"c{i}", keep.version)
         keep.snapshot("manual", now=1000.0 + i)
-    now = store.head(keep.id).time + 1
-    # `old` is made to look 31 days untouched
+    # `old` is made to look untouched for years: a face is never pruned
     journal = store.root / old.id / "journal.jsonl"
     journal.write_text(journal.read_text().replace(
-        f'"time": {store.head(old.id).time}', f'"time": {now - 31 * 86400}'))
-    removed = store.prune(keep_days=30, keep_snapshots=2, now=now)
-    assert any("Old" in line for line in removed)
-    assert not (store.root / old.id).exists()
+        f'"time": {store.head(old.id).time}', '"time": 1000.0'))
+    removed = store.prune(keep_snapshots=2)
+    assert not any("Old" in line for line in removed)
+    assert (store.root / old.id).exists()
     assert [s.time for s in store.snapshots(keep.id)] == [1002.0, 1003.0]
 
 
@@ -650,12 +720,12 @@ def test_a_download_snapshots_a_version_that_has_none(client):
 
 def test_the_cli_defaults_are_the_studio_defaults():
     from wfb.cli import _parser
-    from wfb.studio import KEEP_DAYS, KEEP_SNAPSHOTS
+    from wfb.studio import KEEP_SNAPSHOTS
     from wfb.studio.document import SNAPSHOT_MINUTES
 
     args = _parser().parse_args(["studio"])
-    assert (args.snapshot_minutes, args.keep_days, args.keep_snapshots) == (
-        SNAPSHOT_MINUTES, KEEP_DAYS, KEEP_SNAPSHOTS)
+    assert (args.snapshot_minutes, args.keep_snapshots) == (SNAPSHOT_MINUTES, KEEP_SNAPSHOTS)
+    assert not hasattr(args, "keep_days")
 
 
 def test_a_frame_is_drawn_on_the_date_asked_for(client):
@@ -707,3 +777,18 @@ def test_the_page_listens_for_every_event_the_server_sends():
     assert listened is not None
     heard = set(re.findall(r'"(\w+)"', listened[1]))
     assert sent and sent == heard, (sent, heard)
+
+
+def test_a_change_is_announced_with_the_tab_that_made_it(studio):
+    app = create_app(studio)
+    heard: list[tuple[str, dict]] = []
+    publish = app.state.events.publish
+    app.state.events.publish = lambda name, data: (heard.append((name, data)), publish(name, data))
+    client = TestClient(app)
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    client.post(f"/api/documents/{doc['id']}/edit?version=1",
+                content=json.dumps({"op": "set", "path": ["face", "version"], "value": "2.0.0"}),
+                headers={"X-Wfb-Tab": "tab-1"})
+    client.post(f"/api/documents/{doc['id']}/undo?version=2")
+    assert [(n, d.get("tab"), d["version"]) for n, d in heard if n == "changed"] == [
+        ("changed", "tab-1", 2), ("changed", None, 3)]

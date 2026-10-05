@@ -5,7 +5,7 @@
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
 import { elementAtLine, flatten, movedBy, together } from "./hit.js";
-import { enqueue, mark, next, saveState } from "./outbox.js";
+import { enqueue, mark, newer, next, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
@@ -48,7 +48,7 @@ import { FacePanel, Inspector } from "./panels.js";
 import { picksParam, typeLabel } from "./values.js";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
 import { deleteOp } from "./tree.js";
-import { sessionLost, watch } from "./session.js";
+import { TAB, sessionLost, watch } from "./session.js";
 import { latestText } from "./textsync.js";
 
 // `text` on the clipboard, or, where the page may not write it (a
@@ -71,7 +71,7 @@ async function copyOrDownload(text, filename) {
 // -- the server --------------------------------------------------------------------
 
 async function api(path, options = {}) {
-  const response = await fetch(path, options);
+  const response = await fetch(path, { ...options, headers: { ...options.headers, "X-Wfb-Tab": TAB } });
   const type = response.headers.get("content-type") || "";
   const body = type.includes("json") ? await response.json() : null;
   // the session cookie is gone (cleared, or expired): `session.js`
@@ -187,9 +187,9 @@ function Home({ onError }) {
         </div>
       </div>
       <div class="card" style="margin-top:16px">
-        <h2>Recent</h2>
+        <h2>Library</h2>
         ${home.documents.length === 0
-          ? html`<div class="dim">Nothing yet. Faces you create or open are kept here, with their history.</div>`
+          ? html`<div class="dim">Nothing yet. Faces you create or open are kept here, with their history, until you delete them.</div>`
           : html`<ul class="recent">
               ${home.documents.map((d) => html`
                 <li>
@@ -198,7 +198,7 @@ function Home({ onError }) {
                   <button class="danger" onClick=${() => remove(d)}>Delete</button>
                 </li>`)}
             </ul>`}
-        <div class="dim" style="margin-top:10px;font-size:12px">History is kept in <code>${home.store}</code></div>
+        <div class="dim" style="margin-top:10px;font-size:12px">Faces and their history are kept in <code>${home.store}</code> until you delete them</div>
         ${home.shared ? null : html`<${AnotherBrowser} />`}
       </div>
     </div>`;
@@ -225,16 +225,10 @@ function AnotherBrowser() {
 
 // -- the editor ----------------------------------------------------------------------
 
-function Missing({ doc, onChanged, onError }) {
+function Missing({ doc, onSend }) {
   if (!doc.missing.length) return null;
-  const add = async (reference, file) => {
-    if (!file) return;
-    try {
-      const updated = await api(
-        `/api/documents/${doc.id}/assets?filename=${enc(file.name)}&reference=${enc(reference)}&version=${doc.version}`,
-        { method: "POST", body: file });
-      onChanged(updated);
-    } catch (e) { onError(e); }
+  const add = (reference, file) => {
+    if (file) onSend({ path: "assets", query: { filename: file.name, reference }, body: file });
   };
   return html`<div class="banner">
     <strong>Missing files:</strong>
@@ -248,16 +242,26 @@ function Missing({ doc, onChanged, onError }) {
   </div>`;
 }
 
-function History({ doc, onChanged, onOpen, onError }) {
+function History({ doc, onChanged, onSend, onOpen, onError }) {
   const h = doc.history;
   const post = async (path) => {
     try { return await api(`/api/documents/${doc.id}/${path}`, { method: "POST" }); }
     catch (e) { onError(e); return null; }
   };
-  const restore = async (s) => {
-    const updated = await post(`snapshots/${s.name}/restore?version=${doc.version}`);
-    if (updated) onChanged(updated);
-  };
+  // the summary lists the newest changes; once asked, all of them, kept
+  // up to date while the tab is open
+  const [wantAll, setWantAll] = useState(false);
+  const [all, setAll] = useState(null);
+  useEffect(() => { setWantAll(false); setAll(null); }, [doc.id]);
+  useEffect(() => {
+    if (!wantAll) return;
+    let live = true;
+    api(`/api/documents/${doc.id}/history`).then((got) => { if (live) setAll(got); }, onError);
+    return () => { live = false; };
+  }, [wantAll, doc.id, doc.version]);
+  const states = all && all.version === doc.version ? all.states : h.states;
+  const total = h.total ?? h.states.length;
+  const restore = (s) => onSend({ path: `snapshots/${s.name}/restore` });
   const copy = async (s) => {
     const created = await post(`snapshots/${s.name}/copy`);
     if (created) onOpen(created.id);
@@ -281,10 +285,13 @@ function History({ doc, onChanged, onOpen, onError }) {
     </ul>` : html`<div class="dim pad">None yet: one is taken every few minutes while the face changes, and on every download.</div>`}
     <div class="sub">Changes</div>
     <ul class="states">
-      ${h.states.map((s) => html`<li class=${(s.current ? "current" : "") + (s.redo ? " redo" : "")}>
+      ${states.map((s) => html`<li class=${(s.current ? "current" : "") + (s.redo ? " redo" : "")}>
         <span class="label">${s.label}</span><span class="dim">${when(s.time)}</span>
       </li>`)}
     </ul>
+    ${states.length < total ? html`<div class="row">
+      <button onClick=${() => setWantAll(true)} title="Only the newest changes are listed">Show all ${total} changes</button>
+    </div>` : null}
   </div>`;
 }
 
@@ -327,7 +334,10 @@ function Editor({ docId, onError, onNotice }) {
   const slots = (doc && doc.globals && doc.globals.slots) || [];
   useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
 
-  const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(setDoc, (e) => {
+  // A face from the server, shown unless it is older than the one shown
+  // (`outbox.newer`): answers can arrive out of order.
+  const accept = useCallback((d) => setDoc((current) => (newer(current, d) ? d : current)), []);
+  const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(accept, (e) => {
     onError(e);
     if (e.status === 404) go(null);
   }), [docId]);
@@ -384,27 +394,19 @@ function Editor({ docId, onError, onNotice }) {
   useEvents((name, data) => {
     if (!doc || data.id !== docId) return;
     if (name === "error") onError(new Error(data.message));
-    else if ((name === "changed" && data.version !== doc.version) || name === "snapshot") loadDoc();
+    // this tab's own change reaches it with the answer to its request
+    else if ((name === "changed" && data.tab !== TAB && data.version > doc.version)
+             || name === "snapshot") loadDoc();
   });
 
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
                           [doc, selected]);
-  const step = useCallback(async (which) => {
-    if (!doc) return;
-    try { setDoc(await saving(api(`/api/documents/${docId}/${which}?version=${doc.version}`, { method: "POST" }))); }
-    catch (e) { onError(e); if (e.status === 409) loadDoc(); }
-  }, [doc]);
   const [tab, setTab] = useState("diagnostics");
   // the Diagnostics tab's severity filter, kept across tabs, reset per face
   const [diagFilter, setDiagFilter] = useState("all");
   useEffect(() => { setDiagFilter("all"); }, [docId]);
-  // Changes on their way: the edits below while their request is out, and
-  // the YAML tab's own state (`YamlPane`'s `onSaving`).
-  const [inflight, setInflight] = useState(0);
-  const saving = useCallback((request) => {
-    setInflight((n) => n + 1);
-    return request.finally(() => setInflight((n) => n - 1));
-  }, []);
+  // The YAML tab's own save state (`YamlPane`'s `onSaving`); every other
+  // change is in the outbox below.
   const [yamlSaving, setYamlSaving] = useState("idle");
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
   // A lost session with work unsaved (`session.js`) is a banner, not a reload.
@@ -421,16 +423,18 @@ function Editor({ docId, onError, onNotice }) {
   // where an inspector edit or a drag writes geometry: "all" (a drag then
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
-  // The outbox (`outbox.js`): gestures from the canvas and the arrow keys,
-  // sent one at a time, each against the version the one before produced,
-  // so the canvas never waits for the server. `ids`: the elements one
-  // gesture drags; several only for a move.
+  // The outbox (`outbox.js`): every change to the face -- gestures from
+  // the canvas and the arrow keys, edits from the panels and the layers,
+  // undo, redo, uploads and restores -- sent one at a time, each against
+  // the version the one before produced, so the canvas never waits for the
+  // server and an edit made while a drag is on its way is not refused as
+  // stale. `ids`: the elements one gesture drags; several only for a move.
   const [queue, setQueue] = useState([]);
   const queued = useRef([]);
   const latest = useRef(null);       // the newest version known, for the next send
   const commit = (q) => { queued.current = q; setQueue(q); };
-  useEffect(() => { if (doc) latest.current = doc.version; }, [doc && doc.version]);
-  useEffect(() => { commit([]); }, [docId]);
+  useEffect(() => { if (doc) latest.current = doc.version; }, [doc && doc.id, doc && doc.version]);
+  useEffect(() => { commit([]); latest.current = null; }, [docId]);
   // a frame showing a gesture's version retires it
   useEffect(() => {
     if (frame) commit(queued.current.filter((e) => !(e.state === "done" && e.done <= frame.version)));
@@ -438,24 +442,34 @@ function Editor({ docId, onError, onNotice }) {
   // the device and scope a gesture is written for, as they were when it was made
   const where = useRef({});
   where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
+  const post = (entry, version) => {
+    if (entry.gesture) {
+      const which = entry.ids.length > 1 ? { elements: entry.ids } : { element: entry.ids[0] };
+      return api(`/api/documents/${docId}/drag?version=${version}`, {
+        method: "POST", body: JSON.stringify({ ...which, gesture: entry.gesture, ...entry.where }),
+      });
+    }
+    const { path, query = {}, body } = entry.request;
+    const q = new URLSearchParams({ ...query, version });
+    return api(`/api/documents/${docId}/${path}?${q}`, { method: "POST", body });
+  };
   const pump = useCallback(async () => {
     const entry = next(queued.current);
     if (!entry || latest.current === null) return;
     commit(mark(queued.current, entry, "sent"));
-    const which = entry.ids.length > 1 ? { elements: entry.ids } : { element: entry.ids[0] };
     try {
-      const updated = await api(`/api/documents/${docId}/drag?version=${latest.current}`, {
-        method: "POST",
-        body: JSON.stringify({ ...which, gesture: entry.gesture, ...entry.where }),
-      });
+      const updated = await post(entry, latest.current);
       latest.current = updated.version;
       commit(mark(queued.current, queued.current.find((e) => e.state === "sent"), "done", updated.version));
-      setDoc(updated);
-      if (!updated.landed) onNotice(`${updated.what}: written as close as its units allow, not exactly on the pixel`);
+      accept(updated);
+      if (entry.gesture && !updated.landed) onNotice(`${updated.what}: written as close as its units allow, not exactly on the pixel`);
+      if (entry.resolve) entry.resolve(updated);
       pump();
     } catch (e) {
       // what was queued behind it was aimed at a face that did not happen
+      const dropped = queued.current.filter((q) => q.state !== "done");
       commit(queued.current.filter((q) => q.state === "done"));
+      for (const q of dropped) if (q.resolve) q.resolve(null);
       onError(e);
       if (e.status === 409) loadDoc();
     }
@@ -464,6 +478,14 @@ function Editor({ docId, onError, onNotice }) {
     commit(enqueue(queued.current, { ids, gesture, ...shown, where: { ...where.current } }));
     pump();
   }, [pump]);
+  // Any other change, `{path, query, body}` under the face's URL: queued
+  // behind what is on its way. Resolves to the face it produced, or null
+  // when it was refused (the refusal is shown).
+  const send = useCallback((request) => new Promise((resolve) => {
+    commit(enqueue(queued.current, { request, resolve }));
+    pump();
+  }), [pump]);
+  const step = useCallback((which) => send({ path: which }), [send]);
   const [left, setLeft] = useState("layers");
   const [pane, setPane] = useState("face");
   // where the YAML tab was, per face, while the editor is open
@@ -487,16 +509,12 @@ function Editor({ docId, onError, onNotice }) {
   // One structural edit from the Layers panel: the server patches the text,
   // checks it and answers with the face and what to select.
   const structure = useCallback(async (op) => {
-    if (!doc) return;
-    try {
-      const updated = await saving(api(`/api/documents/${docId}/structure?version=${doc.version}`,
-                                       { method: "POST", body: JSON.stringify(op) }));
-      setDoc(updated);
-      if (op.op === "delete") setSelected(null);
-      else if (updated.select) setSelected(updated.select);
-      setExtra([]);
-    } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
-  }, [doc]);
+    const updated = await send({ path: "structure", body: JSON.stringify(op) });
+    if (!updated) return;
+    if (op.op === "delete") setSelected(null);
+    else if (updated.select) setSelected(updated.select);
+    setExtra([]);
+  }, [send]);
   // Arrow keys move the selection a pixel, ten with Shift, as a drag would.
   const nudge = useCallback((dx, dy) => {
     const ids = [selected, ...extra].filter(Boolean);
@@ -544,21 +562,13 @@ function Editor({ docId, onError, onNotice }) {
 
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.
-  const edit = useCallback(async (op) => {
-    if (!doc) return;
-    try {
-      setDoc(await saving(api(`/api/documents/${docId}/edit?version=${doc.version}`,
-                              { method: "POST", body: JSON.stringify(op) })));
-    } catch (e) { onError(e); if (e.status === 409) loadDoc(); }
-  }, [doc]);
-  const upload = useCallback(async (file, { font, size, reference }) => {
-    if (!doc) return;
-    const q = new URLSearchParams({ filename: file.name, version: doc.version });
-    if (font) { q.set("font", font); q.set("size", size || "10%r"); }
-    if (reference) q.set("reference", reference);
-    try { setDoc(await saving(api(`/api/documents/${docId}/assets?${q}`, { method: "POST", body: file }))); }
-    catch (e) { onError(e); if (e.status === 409) loadDoc(); }
-  }, [doc]);
+  const edit = useCallback((op) => send({ path: "edit", body: JSON.stringify(op) }), [send]);
+  const upload = useCallback((file, { font, size, reference }) => {
+    const query = { filename: file.name };
+    if (font) { query.font = font; query.size = size || "10%r"; }
+    if (reference) query.reference = reference;
+    return send({ path: "assets", query, body: file });
+  }, [send]);
 
   const drawn = useMemo(() => frame && new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)), [frame]);
   const box = useMemo(() => {
@@ -568,7 +578,7 @@ function Editor({ docId, onError, onNotice }) {
 
   if (!doc) return html`<div class="home dim">Loading…</div>`;
   const set = (key) => (e) => setView({ ...view, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
-  const saved = saveState({ inflight, queue, yaml: yamlSaving });
+  const saved = saveState({ queue, yaml: yamlSaving });
   const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), {});
 
   return html`<div class="editor">
@@ -596,7 +606,7 @@ function Editor({ docId, onError, onNotice }) {
         <button onClick=${copyText} title="The face's text as you last had it, the YAML tab's included">Copy my text</button>
         ${copied ? html`<span class="dim">${copied === "copied" ? "copied" : "downloaded as a file"}</span>` : null}
         <button onClick=${() => location.reload()}>Reload</button></div>` : null}
-      <${Missing} doc=${doc} onChanged=${setDoc} onError=${onError} />
+      <${Missing} doc=${doc} onSend=${send} />
     </div>
     <div class="columns" style=${`grid-template-columns:${panels.left}px auto minmax(0, 1fr) auto ${panels.right}px`}>
       <div class="panel left">
@@ -662,7 +672,7 @@ function Editor({ docId, onError, onNotice }) {
           <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
-          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${setDoc} onError=${onError} onSaving=${setYamlSaving}
+          ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${accept} onError=${onError} onSaving=${setYamlSaving}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
           : html`<div class="canvas-wrap">
               ${busy ? html`<div class="busy">rendering…</div>` : null}
@@ -695,8 +705,8 @@ function Editor({ docId, onError, onNotice }) {
         ${tab === "diagnostics"
           ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected}
                                  filter=${diagFilter} onFilter=${setDiagFilter} />`
-          : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)}
-                             onChanged=${(updated) => updated ? setDoc(updated) : loadDoc()} />`}
+          : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)} onSend=${send}
+                             onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />`}
       </div>
     </div>
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}

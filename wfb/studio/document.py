@@ -48,11 +48,20 @@ from .inspect import GEOMETRY, globals_of, inspect
 from .bundle import FACE, Bundle, asset_path, inside, missing, references
 if TYPE_CHECKING:
     from .builder import Builder
-from .store import OWNER, REDO, UNDO, Change, Snapshot, Store, UnknownDocument
+from .store import CHANGE, OWNER, REDO, UNDO, Change, Snapshot, Store, UnknownDocument
 
 
 class StaleVersion(ValueError):
     """A change asked for against a version that is no longer the head."""
+
+
+#: The YAML tab's label for a change, and how long after the last such
+#: change the next is still the same burst of typing: one step to undo.
+TEXT_EDIT = "edit the text"
+TEXT_MERGE_SECONDS = 10.0
+#: How many of the newest changes a face's summary lists; `history(None)`
+#: lists them all.
+HISTORY_SHOWN = 100
 
 
 @dataclass(frozen=True)
@@ -164,12 +173,13 @@ class Document:
     # -- changes ----------------------------------------------------------------------
 
     def commit(self, text: str, assets: dict[str, bytes | str], label: str,
-               expected: int, loaded: Loaded | None = None) -> Change:
+               expected: int, loaded: Loaded | None = None, merge: bool = False) -> Change:
         """Record a change against version ``expected``; refused when that is
         no longer the head, so two tabs cannot overwrite each other.
-        ``loaded`` is ``text`` as the gate loaded it, reused by the analysis."""
+        ``loaded`` is ``text`` as the gate loaded it, reused by the analysis;
+        ``merge`` makes it take the head's place on the line of history."""
         self._check(expected)
-        change = self._moved(self.studio.store.append(self.id, label, text, assets))
+        change = self._moved(self.studio.store.append(self.id, label, text, assets, merge))
         self._seed = loaded
         return change
 
@@ -226,16 +236,21 @@ class Document:
         return self.commit(store.text(self.id, snap), dict(snap.assets),
                            f"restore the snapshot of {when}", expected)
 
-    def history(self) -> dict[str, Any]:
+    def history(self, limit: int | None = HISTORY_SHOWN) -> dict[str, Any]:
+        """The line of history, its newest ``limit`` states (all of them
+        with `None`; `total` counts them), and every snapshot."""
         store = self.studio.store
         line = store.timeline(self.id)
+        first = 0 if limit is None else max(0, len(line.states) - limit)
         return {
             "version": self.version,
             "can_undo": line.can_undo, "can_redo": line.can_redo,
             # newest first, the states past the cursor marked as redoable
             "states": [{"seq": c.seq, "time": c.time, "label": c.label,
                         "current": i == line.cursor, "redo": i > line.cursor}
-                       for i, c in reversed(list(enumerate(line.states)))],
+                       for i, c in reversed(list(enumerate(line.states)))
+                       if i >= first],
+            "total": len(line.states),
             "snapshots": [{"name": s.name, "time": s.time, "reason": s.reason,
                            "seq": s.seq, "label": s.label, "current": s.seq == self.version}
                           for s in reversed(store.snapshots(self.id))],
@@ -388,7 +403,16 @@ class Document:
             return self.head
         index_for(text)          # Refused when it is not YAML
         loaded = load_text(self.path, text)
-        return self.commit(text, dict(self.head.assets), "edit the text", expected, loaded)
+        return self.commit(text, dict(self.head.assets), TEXT_EDIT, expected, loaded,
+                           merge=self._typing())
+
+    def _typing(self) -> bool:
+        """Whether a text edit now continues the head's burst of typing: the
+        head is a text edit (not an undo or redo to one), made less than
+        `TEXT_MERGE_SECONDS` ago."""
+        head = self.head
+        return (head.kind == CHANGE and head.label == TEXT_EDIT
+                and time.time() - head.time < TEXT_MERGE_SECONDS)
 
     def structure(self, op: dict[str, Any], expected: int) -> tuple[Change, str | None]:
         """One structural edit from the layer tree or the canvas, gated and

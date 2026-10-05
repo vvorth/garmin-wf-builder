@@ -17,7 +17,7 @@ import {
 import { elementAtLine, flatten } from "./hit.js";
 import * as sync from "./textsync.js";
 import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.js";
-import { sessionLost } from "./session.js";
+import { TAB, sessionLost } from "./session.js";
 
 const DEBOUNCE = 300;
 // A change the pane makes itself (a reload, a selection from outside): not
@@ -110,7 +110,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     let answered = false;
     try {
       const response = await fetch(`/api/documents/${s.doc.id}/text?version=${step.version}`,
-                                   { method: "POST", body: step.text });
+                                   { method: "POST", body: step.text, headers: { "X-Wfb-Tab": TAB } });
       // an error page from something between (a proxy) may not be JSON
       const body = await response.json().catch(() => ({}));
       box.sync = sync.answered(box.sync, step.text, response.status, body.version);

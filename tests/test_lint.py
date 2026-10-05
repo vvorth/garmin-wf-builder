@@ -2234,3 +2234,26 @@ def test_format_doc_lists_every_suppressible_code():
         "docs/guide/lints.md does not mention these suppressible codes: "
         + ", ".join(missing)
     )
+
+
+def test_a_missing_symbol_table_is_a_note_and_a_bug_in_a_probe_raises():
+    from wfb.devices import DeviceError
+    from wfb.diagnostics import Bag
+    from wfb.lint import _probe_symbols
+
+    class Device:
+        id = "probe"
+
+    bag = Bag()
+
+    def missing() -> bool:
+        raise DeviceError("probe: missing probe.api.debug.xml")
+
+    assert _probe_symbols(bag, Device(), "api-gated", "API-level gating", missing) is None
+    assert [d.code for d in bag.items] == ["api-gated"]
+
+    def broken() -> bool:
+        raise AttributeError("'NoneType' object has no attribute 'get'")
+
+    with pytest.raises(AttributeError):
+        _probe_symbols(Bag(), Device(), "api-gated", "API-level gating", broken)

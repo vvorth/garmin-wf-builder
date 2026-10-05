@@ -1,17 +1,21 @@
-// The gestures on their way to the server: pure functions, no DOM, so
+// The changes on their way to the server: pure functions, no DOM, so
 // Node can check them (tests/test_studio_frontend.py).
 //
-// The editor sends one gesture at a time, each against the version the
+// The editor sends one change at a time, each against the version the
 // last one produced, and keeps the rest in order behind it, so the canvas
-// takes the next press while the server is still writing the last. An
-// entry is `{ids, gesture, preview, item, moving, where, state, done}`:
+// takes the next press while the server is still writing the last, and an
+// edit made meanwhile (the inspector, the layers, undo) waits its turn
+// instead of being refused as stale. A gesture from the canvas or the
+// arrow keys is an entry `{ids, gesture, preview, item, moving, where,
+// state, done}`; any other change is `{request, state, done}`, `request`
+// being what the editor sends (`app.js`). A gesture's entry is:
 // `gesture` is what is sent, `preview` the same gesture with what the
 // canvas draws it from; `where` the device and scope it is written for; `item` the dragged item and `moving` every element it moves (a
 // group's children included); `state` is "queued", "sent" or "done", and
 // `done` the version the server answered with. Until a frame of that
 // version arrives, the canvas still draws the entry itself.
 
-const isMove = (g) => g.kind === "move" && (g.part || "both") === "both";
+const isMove = (g) => !!g && g.kind === "move" && (g.part || "both") === "both";
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 const sameWhere = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 
@@ -36,19 +40,24 @@ export function next(queue) {
   return queue.find((e) => e.state === "queued") || null;
 }
 
-// `queue` with `entry` marked: "sent", or "done" at `version`.
+// `queue` with `entry` marked: "sent", or "done" at `version`. A change
+// that is not a gesture has nothing for the canvas to draw, so once done
+// it leaves the queue.
 export function mark(queue, entry, state, version = null) {
-  return queue.map((e) => (e === entry ? { ...e, state, done: version } : e));
+  return queue.flatMap((e) => {
+    if (e !== entry) return [e];
+    return state === "done" && !e.gesture ? [] : [{ ...e, state, done: version }];
+  });
 }
 
-// The entries a frame of `version` does not show yet.
+// The gestures a frame of `version` does not show yet.
 export function unshown(queue, version) {
-  return queue.filter((e) => e.state !== "done" || e.done > version);
+  return queue.filter((e) => e.gesture && (e.state !== "done" || e.done > version));
 }
 
-// How far each element of `entries` still has to move, as a Map from
-// element id to [dx, dy]; null when one of them is not a move, which the
-// canvas can only draw as its outline.
+// How far each element of `entries` (gestures) still has to move, as a
+// Map from element id to [dx, dy]; null when one of them is not a move,
+// which the canvas can only draw as its outline.
 export function offsets(entries) {
   const out = new Map();
   for (const e of entries) {
@@ -81,10 +90,18 @@ export function shiftItems(items, by) {
 
 // Whether the face's changes are saved, for the top bar: "unsaved" when
 // the YAML tab holds text the server did not take (its `textsync.plan`
-// kind is "held" or "wait"), "saving" while an edit's request, a gesture
-// or the YAML tab's text is on its way, else "saved".
+// kind is "held" or "wait"), "saving" while a request, a change in the
+// queue or the YAML tab's text is on its way, else "saved".
 export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
   if (yaml === "held" || yaml === "wait") return "unsaved";
   if (inflight > 0 || yaml === "send" || queue.some((e) => e.state !== "done")) return "saving";
   return "saved";
+}
+
+// Whether `incoming`, a face from the server, may replace `current`, the
+// one shown: answers can arrive out of order, and an older face shown over
+// a newer one would aim the next change at a version that is gone. Another
+// face (a different id) always replaces it.
+export function newer(current, incoming) {
+  return !current || incoming.id !== current.id || incoming.version >= current.version;
 }

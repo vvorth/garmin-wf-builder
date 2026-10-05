@@ -50,7 +50,7 @@ from typing import Iterable
 
 from . import kinds
 from .catalog import CATALOG, READERS, Source
-from .devices import Device
+from .devices import Device, DeviceError
 from .ir import CONFIG_SYMBOL, Element, Face, FontSpec, Graph
 from .series import ACQUISITION, Acquisition
 
@@ -415,10 +415,10 @@ def subscreen_element_ids(face: Face) -> frozenset[str]:
 
 def _has(device: Device, symbol: str) -> bool:
     """`device.has_symbol(symbol)`, `False` when its symbol table is missing
-    (`wfb.lint` reports that separately)."""
+    or cannot be read (`wfb.lint` reports that separately)."""
     try:
         return device.has_symbol(symbol)
-    except Exception:
+    except (DeviceError, OSError):
         return False
 
 

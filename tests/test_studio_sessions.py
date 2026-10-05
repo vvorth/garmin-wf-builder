@@ -17,7 +17,7 @@ from wfb.studio.app import Events, create_app
 from wfb.studio.bundle import Bundle
 from wfb.studio.builder import Build
 from wfb.studio.document import Studio
-from wfb.studio.sessions import COOKIE, Sessions
+from wfb.studio.sessions import COOKIE, COOKIE_DAYS, Sessions
 from wfb.studio.store import OWNER, Store
 
 
@@ -30,7 +30,7 @@ def studio(tmp_path, db):
 
 @pytest.fixture
 def sessions(tmp_path):
-    return Sessions(tmp_path / "state", keep_days=30)
+    return Sessions(tmp_path / "state")
 
 
 def browser(app) -> TestClient:
@@ -53,7 +53,7 @@ def test_the_page_starts_a_session_with_a_cookie_only_this_site_sends(studio, se
     cookie = page.headers["set-cookie"]
     assert cookie.startswith(f"{COOKIE}=")
     assert "HttpOnly" in cookie and "SameSite=strict" in cookie and "Path=/" in cookie
-    assert f"Max-Age={30 * 86400}" in cookie
+    assert f"Max-Age={COOKIE_DAYS * 86400}" in cookie
     # the store keeps only the token's hash
     token = client.cookies[COOKIE]
     stored = list((sessions.root / "sessions").glob("*.json"))
@@ -149,7 +149,7 @@ def test_the_startup_link_gives_the_faces_made_before_owners(studio, sessions):
 
 
 def test_single_user_shares_every_face(tmp_path, studio):
-    shared = Sessions(tmp_path / "state", keep_days=30, single_user=True)
+    shared = Sessions(tmp_path / "state", single_user=True)
     app = create_app(studio, sessions=shared)
     one, two = TestClient(app), TestClient(app)
     new_face(one, "Ours")
@@ -197,18 +197,22 @@ def test_a_stream_hears_only_of_its_principals_faces():
     assert ['"a1"' in m for m in heard] == [True, False, True]
 
 
-def test_pruning_drops_stale_sessions_and_principals_with_nothing(tmp_path, studio):
-    sessions = Sessions(tmp_path / "state", keep_days=1)
-    kept, token = sessions.new_browser()
+def test_pruning_forgets_only_idle_sessions_that_reach_no_face(tmp_path, studio):
+    from wfb.studio.sessions import IDLE_DAYS
+
+    sessions = Sessions(tmp_path / "state")
+    seen, token = sessions.new_browser()
     stale, _ = sessions.new_browser()
     owner_of_a_face, _ = sessions.new_browser()
-    later = time.time() + 2 * 86400
-    sessions.principal_of(token)                   # seen now: kept
+    later = time.time() + (IDLE_DAYS + 1) * 86400
     path = next(p for p in (sessions.root / "sessions").glob("*.json")
-                if json.loads(p.read_text())["principal"] == kept)
+                if json.loads(p.read_text())["principal"] == seen)
     data = json.loads(path.read_text())
     data["last_seen"] = later
     path.write_text(json.dumps(data))
     removed = sessions.prune({owner_of_a_face}, now=later)
-    assert sum(r.startswith("session ") for r in removed) == 2
-    assert set(sessions.principals()) == {OWNER, kept, owner_of_a_face}
+    # the browser with a face keeps its session however long it is away
+    assert sum(r.startswith("session ") for r in removed) == 1
+    assert set(sessions.principals()) == {OWNER, seen, owner_of_a_face}
+    assert sessions.principal_of(token) == seen
+

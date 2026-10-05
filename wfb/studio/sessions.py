@@ -15,6 +15,11 @@ the links that join a browser to a principal.
   principal: the startup link's, or one a browser asks for to open its own
   faces in another browser (`CLAIM_SECONDS`).
 
+Faces are kept until their owner deletes them, so a session that reaches
+a face is kept too: pruning forgets only a session whose principal owns
+nothing, once it is unseen for `IDLE_DAYS`. The cookie lasts `COOKIE_DAYS`
+from the last visit, the longest a browser keeps one.
+
 With `single_user`, every request is the owner, as before sessions.
 """
 
@@ -36,6 +41,11 @@ from .store import OWNER, StoreError, _write_atomic
 COOKIE = "wfb_session"
 #: How long a claim link to another browser lasts.
 CLAIM_SECONDS = 600.0
+#: How long the cookie lasts from the last visit: browsers cap a cookie's
+#: lifetime at 400 days.
+COOKIE_DAYS = 400
+#: How long a session that reaches no face is kept unseen.
+IDLE_DAYS = 30.0
 
 
 def _hash(token: str) -> str:
@@ -51,9 +61,8 @@ class Claim:
 class Sessions:
     """Sessions and principals under ``root`` (the store's own root)."""
 
-    def __init__(self, root: Path, *, keep_days: float, single_user: bool = False) -> None:
+    def __init__(self, root: Path, *, single_user: bool = False) -> None:
         self.root = root
-        self.keep_seconds = keep_days * 86400
         self.single_user = single_user
         self._lock = threading.Lock()
         self._claims: dict[str, Claim] = {}
@@ -139,8 +148,9 @@ class Sessions:
     # -- pruning ----------------------------------------------------------------------
 
     def prune(self, owners: set[str], now: float | None = None) -> list[str]:
-        """Remove sessions unseen for `keep_days`, then every anonymous
-        principal with no session and no document (``owners``)."""
+        """Remove sessions unseen for `IDLE_DAYS` whose principal owns no
+        document (``owners``), then every anonymous principal with no
+        session and no document."""
         now = time.time() if now is None else now
         removed: list[str] = []
         bound: set[str] = set()
@@ -151,10 +161,10 @@ class Sessions:
             except (OSError, ValueError, AttributeError):
                 path.unlink(missing_ok=True)
                 continue
-            if now - seen > self.keep_seconds:
+            if str(data.get("principal")) not in owners and now - seen > IDLE_DAYS * 86400:
                 path.unlink(missing_ok=True)
-                removed.append(f"session {path.stem[:8]}: unseen for over "
-                               f"{self.keep_seconds / 86400:g} days")
+                removed.append(f"session {path.stem[:8]}: no face, and unseen for over "
+                               f"{IDLE_DAYS:g} days")
             else:
                 bound.add(str(data.get("principal")))
         for principal in self.principals():

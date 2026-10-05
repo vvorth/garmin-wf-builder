@@ -35,7 +35,7 @@ from ..devices import DeviceError
 from ..edit import Refused
 from .bundle import MAX_UPLOAD_BYTES, Bundle, BundleError, read_upload, to_zip
 from .document import Document, FrameKey, StaleVersion, Studio
-from .sessions import CLAIM_SECONDS, COOKIE, Sessions
+from .sessions import CLAIM_SECONDS, COOKIE, COOKIE_DAYS, Sessions
 from .store import OWNER, StoreError, UnknownDocument, UnknownSnapshot
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -214,8 +214,11 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
     def doc(request: Request) -> Document:
         return studio.document(request.path_params["doc_id"], principal(request))
 
-    def changed(document: Document) -> None:
-        events.publish("changed", {"id": document.id, "version": document.version})
+    def changed(document: Document, request: Request) -> None:
+        """Announce ``document``'s new version, naming the tab whose request
+        made it (its `X-Wfb-Tab`), which has the face from its answer."""
+        events.publish("changed", {"id": document.id, "version": document.version,
+                                   "tab": request.headers.get("x-wfb-tab")})
 
     def home(request: Request, data: bytes) -> Response:
         who = principal(request)
@@ -303,7 +306,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
                                                str(body.get("device", "")),
                                                str(body.get("scope", "auto")),
                                                _int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse({**document.summary(), "landed": landed, "what": change.label})
 
     def add_asset(request: Request, data: bytes) -> Response:
@@ -315,7 +318,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             document.add_asset(filename, data, reference, expected, font)
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
 
     def edit(request: Request, data: bytes) -> Response:
@@ -328,7 +331,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             document.edit(op, _int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
 
     def structure(request: Request, data: bytes) -> Response:
@@ -341,7 +344,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             _, select = document.structure(op, _int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse({**document.summary(), "select": select})
 
     def replace_text(request: Request, data: bytes) -> Response:
@@ -352,7 +355,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             document.replace_text(text, _int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
 
     async def icon_font(request: Request) -> Response:
@@ -448,15 +451,20 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             document.undo(_int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
 
     def redo(request: Request, data: bytes) -> Response:
         with studio.lock:
             document = doc(request)
             document.redo(_int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
+
+    def history(request: Request, data: bytes) -> Response:
+        """The whole line of history, which a summary cuts short."""
+        with studio.lock:
+            return JSONResponse(doc(request).history(None))
 
     def snapshot(request: Request, data: bytes) -> Response:
         with studio.lock:
@@ -470,7 +478,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             document.restore(request.path_params["name"], _int(request, "version"))
-            changed(document)
+            changed(document, request)
             return JSONResponse(document.summary())
 
     def fork(request: Request, data: bytes) -> Response:
@@ -512,10 +520,10 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
 
     def with_session(request: Request, response: Response, token: str) -> Response:
         """``response`` setting the session cookie: the browser keeps it as
-        long as the faces it reaches are kept, renewed on each visit, and
-        sends it only with this site's own requests."""
+        long as it will (`COOKIE_DAYS`), renewed on each visit, and sends it
+        only with this site's own requests."""
         assert sessions is not None
-        response.set_cookie(COOKIE, token, max_age=int(sessions.keep_seconds), path="/",
+        response.set_cookie(COOKIE, token, max_age=COOKIE_DAYS * 86400, path="/",
                             httponly=True, samesite="strict",
                             secure=request.url.scheme == "https")
         return response
@@ -583,6 +591,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
                   methods=["POST"]),
             Route("/api/documents/{doc_id}/undo", _endpoint(undo), methods=["POST"]),
             Route("/api/documents/{doc_id}/redo", _endpoint(redo), methods=["POST"]),
+            Route("/api/documents/{doc_id}/history", _endpoint(history)),
             Route("/api/documents/{doc_id}/snapshots", _endpoint(snapshot), methods=["POST"]),
             Route("/api/documents/{doc_id}/snapshots/{name}/restore", _endpoint(restore),
                   methods=["POST"]),
