@@ -767,11 +767,11 @@ function Editor({ docId, onError, onNotice }) {
           <button class=${left === "layers" ? "on" : ""} onClick=${() => setLeft("layers")}>Layers</button>
           <button class=${left === "face" ? "on" : ""} onClick=${() => setLeft("face")}>Face</button>
         </div>
-        ${left === "layers"
+        <div class="panel-scroll">${left === "layers"
           ? html`<${Layers} doc=${doc} vocab=${vocab} selected=${selected} extra=${extra} drawn=${drawn}
                             onSelect=${select} onStructure=${structure} />`
           : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload}
-                               onSelect=${select} onStructure=${structure} onReveal=${showLines} />`}
+                               onSelect=${select} onStructure=${structure} onReveal=${showLines} />`}</div>
       </div>
       <${Splitter} width=${panels.left} sign=${1} fallback=${280} onWidth=${panelWidth("left")} />
       <div class="stage">
