@@ -2,7 +2,7 @@
 // port of each. A stage with no port reports every case missing; a slice
 // registers its stage's port here when it lands.
 import type { DeviceFiles } from "../src/devices/files.ts";
-import { loadPass } from "./ports/load.ts";
+import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
 import * as text from "./ports/text.ts";
 
@@ -56,6 +56,10 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   patches,
   "load-yaml": loadPass("yaml"),
   "load-validate": loadPass("validate"),
+  "load-lower": loadPass("lower"),
+  "load-desugar": loadPass("desugar"),
+  lowered: documentAfter("lower"),
+  desugared: documentAfter("desugar"),
   data: text.data,
 };
 

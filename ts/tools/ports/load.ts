@@ -5,7 +5,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../../src/devices/node.ts";
 import { Bag, type Diagnostic } from "../../src/diagnostics.ts";
+import { desugar } from "../../src/desugar.ts";
+import { lower } from "../../src/lower.ts";
 import { loadSchema, validate } from "../../src/validate.ts";
+import { oracleData } from "./text.ts";
 import { load } from "../../src/yamlsrc.ts";
 import { PyError } from "../../src/py.ts";
 import type { Case } from "../stages.ts";
@@ -45,6 +48,8 @@ function loadPasses(path: string, text: string, last: Pass): Record<Pass, unknow
   if (doc === null || last === "yaml") return out;
   const steps: [Pass, () => boolean][] = [
     ["validate", () => validate(doc, bag)],
+    ["lower", () => lower(doc, bag)],
+    ["desugar", () => desugar(doc, bag)],
   ];
   for (const [name, step] of steps) {
     const start = bag.items.length;
@@ -67,4 +72,15 @@ export function loadPass(pass: Pass): (input: Case) => unknown {
     what: c.what,
     [pass]: loadPasses(input.path, caseText(input.text, c.splice), pass)[pass],
   }));
+}
+
+/** The port of `lowered` or `desugared`: the document after that pass, as `to_json(ordered(doc.data))`. */
+export function documentAfter(pass: "lower" | "desugar"): (input: Case) => unknown {
+  return (input) => {
+    const bag = new Bag();
+    const doc = load(input.path, bag, input.text);
+    if (doc === null || !validate(doc, bag) || !lower(doc, bag)) return null;
+    if (pass === "desugar" && !desugar(doc, bag)) return null;
+    return oracleData(doc.data);
+  };
 }
