@@ -11,6 +11,8 @@ export interface DeviceFiles {
   file(id: string, name: string): Uint8Array | undefined;
   /** The device's page of the SDK device reference (`.cache/device-reference/devices/<id>.json`), or `undefined`. */
   reference(id: string): unknown;
+  /** Every device the reference has a page for, installed or not. */
+  referenceIds(): string[];
 }
 
 const decoder = new TextDecoder();
@@ -49,5 +51,9 @@ export class MemoryDeviceFiles implements DeviceFiles {
 
   reference(id: string): unknown {
     return this.references.get(id);
+  }
+
+  referenceIds(): string[] {
+    return [...this.references.keys()].sort();
   }
 }

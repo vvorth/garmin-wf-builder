@@ -7,7 +7,10 @@
 // in schema order, so importing it fills the registry.
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
-import type { Element } from "../ir/model.ts";
+import type { Element, Face } from "../ir/model.ts";
+import { ringGroups } from "../ir/rings.ts";
+import type { Placed, Resolver } from "../layout.ts";
+import type { Box } from "../units.ts";
 
 /** Kind names, in schema order. */
 export const NAMES = ["group", "shape", "text", "gauge", "icon", "graph", "data", "hands", "pattern"] as const;
@@ -66,6 +69,42 @@ export abstract class ElementKind<E extends Element = Element> {
   aodRefusal(_key: string, _shape: string | null, _literalText: boolean): Refusal | null {
     return null;
   }
+
+  // -- layout --
+
+  /** Resolve one element for one device, inside its parent's box. */
+  resolve(_r: Resolver, _element: E, _parent: Box, _depth: number): Placed {
+    throw new Error(`${this.name}: resolve`);
+  }
+
+  /** Why this device does not draw `placed` at all, or `null` when it draws. */
+  hiddenReason(_placed: Placed): string | null {
+    return null;
+  }
+
+  /** `[cx, cy, radius]` for a genuinely round element, else `null`. */
+  circularExtent(_placed: Placed): [number, number, number] | null {
+    return null;
+  }
+}
+
+/**
+ * Every width `element` draws a ring at, in first-seen order: its own
+ * `outline:`, a text's `aod: {outline:}`, and its share of each outlined
+ * group it sits in.
+ */
+export function ringWidths(element: Element, face: Face): number[] {
+  const out: number[] = [];
+  const rings = [element.outline];
+  if (element.kind === "text" && element.aod !== null) rings.push(element.aod.outline);
+  for (const outline of rings) if (outline !== null && !out.includes(outline.width)) out.push(outline.width);
+  for (const ring of ringGroups(face.elements)) {
+    if (ring.ids.has(element.id)) {
+      const width = ring.widthOf(element.id);
+      if (!out.includes(width)) out.push(width);
+    }
+  }
+  return out;
 }
 
 const BY_NAME = new Map<string, ElementKind>();

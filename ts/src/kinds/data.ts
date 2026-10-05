@@ -7,7 +7,13 @@ import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type ConfigDataSlot, DataElement, type Element, type Expression, HOLD_AUTO } from "../ir/model.ts";
 import { dataHoldMethod, dataIconMethod } from "../ir/naming.ts";
-import { formatG, repr, str, truthy } from "../py.ts";
+import * as complications from "../complications.ts";
+import * as icons from "../icons.ts";
+import type { Face } from "../ir/model.ts";
+import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, PlacedData, type Resolver } from "../layout.ts";
+import { formatG, repr, roundHalfEven as round, str, truthy } from "../py.ts";
+import * as units from "../units.ts";
+import { Box, IntBox } from "../units.ts";
 import { type Common, ElementKind, type Refusal, register } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
@@ -28,6 +34,38 @@ function checkSlotColorAbsence(b: Builder, node: Node, element: DataElement, key
     });
 }
 
+/** The types this slot can show that the build knows a rule for. */
+function slotChoices(face: Face, element: DataElement): string[] {
+  const slot = face.config_data.get(element.slot);
+  if (slot === undefined) return [];
+  if (slot.choices === "any") return complications.names();
+  return slot.choices.filter((name) => complications.TYPES.has(name));
+}
+
+/** The widest plausible reading: the widest of the choices' readings, and the placeholder. */
+function dataWidest(r: Resolver, element: DataElement): string {
+  const font = r.fontForRef(element.font, element.font_is_custom);
+  let widest = "";
+  for (const name of slotChoices(r.face, element)) {
+    const candidate = complications.widestReading(name, element.unit, element.short);
+    if (!widest || font.width(candidate) > font.width(widest)) widest = candidate;
+  }
+  if (element.absent === "placeholder" && element.placeholder) widest = longer(widest, element.placeholder);
+  return widest;
+}
+
+/** The box the native editor gets with a slot's drawable: the slot's rows, and every column the pair could reach. */
+export function highlightBox(box: IntBox, anchorX: number, align: string, screenWidth: number): IntBox {
+  let left: number, right: number;
+  if (align === "left") [left, right] = [anchorX, screenWidth];
+  else if (align === "right") [left, right] = [0, anchorX];
+  else {
+    const half = Math.max(Math.min(anchorX, screenWidth - anchorX), 0);
+    [left, right] = [anchorX - half, anchorX + half];
+  }
+  return new IntBox(left, box.y, right - left, box.height).union(box);
+}
+
 class DataKind extends ElementKind<DataElement> {
   readonly name = "data";
   readonly irClass = DataElement;
@@ -38,6 +76,42 @@ class DataKind extends ElementKind<DataElement> {
     + "repoint it to a different complication at any time -- a buffer "
     + "filled once would freeze both",
   ] as const;
+
+  override resolve(r: Resolver, element: DataElement, parent: Box, depth: number): Placed {
+    const [cx, cy] = r.point(element.at, parent);
+    const font = r.fontForRef(element.font, element.font_is_custom);
+    const widest = dataWidest(r, element);
+    const textWidth = font.width(widest), lineHeight = font.lineHeight;
+    let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
+    if (element.icon_size !== null) {
+      const slot = r.face.config_data.get(element.slot);
+      let referenceGlyph: string | null = null;
+      if (slot !== undefined) {
+        const mapped = slot.icons;
+        if (mapped.size > 0) {
+          const reference = mapped.get(slot.default) ?? [...mapped.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))[0]!;
+          referenceGlyph = reference.codepoint;
+        }
+      }
+      if (referenceGlyph !== null) {
+        iconPx = units.pixelSize(element.icon_size, r.device.minorRadius);
+        iconFontKey = icons.fontKey(element.icon_size, `slot_${element.slot}`, element.resolved_antialias);
+        const iconFont = r.fonts.get(iconFontKey);
+        iconWidth = iconFont !== undefined ? iconFont.measure(referenceGlyph)[0] : iconPx;
+      }
+    }
+    const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
+    const geometry = dataPairGeometry(element.icon_position, iconWidth, iconPx, textWidth, lineHeight, gapPx);
+    const height = Math.max(geometry.height, 1);
+    // The lint box only: the device centres the real pair on the unshifted anchor at runtime.
+    const [dx, dy] = alignmentShift(geometry.width, height, element.align, element.vertical_align);
+    const rounded = new Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height).rounded();
+    return PlacedData.create({
+      element, box: rounded, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)],
+      font: font.resolved(), widest, icon_font_key: iconFontKey, icon_px: iconPx, icon_position: element.icon_position,
+      icon_gap_px: gapPx, highlight: highlightBox(rounded, round(cx), element.align, r.device.width),
+    });
+  }
 
   build(b: Builder, node: Node, common: Common): Element {
     const slotRaw = node.get("slot");

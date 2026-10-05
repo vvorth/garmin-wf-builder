@@ -66,4 +66,8 @@ export class NodeDeviceFiles implements DeviceFiles {
     const path = join(this.referenceDir, `${id}.json`);
     return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : undefined;
   }
+
+  referenceIds(): string[] {
+    return readdirSync(this.referenceDir).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -5)).sort();
+  }
 }

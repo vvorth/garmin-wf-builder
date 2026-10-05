@@ -11,5 +11,5 @@ import "./data.ts";
 import "./hands.ts";
 import "./pattern.ts";
 
-export { ElementKind, forElement, get, kindOf, names, NAMES, PRIMITIVES, shapeOf } from "./base.ts";
+export { ElementKind, forElement, get, kindOf, names, NAMES, PRIMITIVES, ringWidths, shapeOf } from "./base.ts";
 export type { Common, Refusal, SchemaPath } from "./base.ts";

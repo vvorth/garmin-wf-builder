@@ -4,7 +4,9 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { dedupAppend } from "../ir/builder/state.ts";
 import { type Element, type Expression, HandsElement } from "../ir/model.ts";
-import { repr, str } from "../py.ts";
+import { type Placed, PlacedHands, ResolvedHand, type Resolver, rotatableParts } from "../layout.ts";
+import { repr, roundHalfEven as round, str } from "../py.ts";
+import { Box } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
@@ -19,6 +21,31 @@ class HandsKind extends ElementKind<HandsElement> {
     + "it at whatever it showed on the first frame",
   ] as const;
   override readonly antialiased = true;
+
+  override resolve(r: Resolver, element: HandsElement, parent: Box, depth: number): Placed {
+    const [cx, cy] = r.point(element.at, parent);
+    const handSet = r.face.hands.get(element.hands)!;
+    const resolved = new Map<string, ResolvedHand>();
+    let reach = 0.0;
+    for (const [name, hand] of handSet.hands()) {
+      if (name === "second" && element.seconds === "never") continue; // not drawn
+      const [parts, handReach] = r.resolveParts(hand.parts, `${element.id}.${name}`, element.resolved_min_1px);
+      resolved.set(name, ResolvedHand.create({ parts: rotatableParts(parts, `${element.id}.${name}`) }));
+      reach = Math.max(reach, handReach);
+    }
+    const box = new Box(cx - reach, cy - reach, 2 * reach, 2 * reach);
+    const aodThickness = r.aodExtent(element, "thickness", parent, 1);
+    return PlacedHands.create({
+      element, box: box.rounded(), center: [round(cx), round(cy)], depth,
+      hour: resolved.get("hour") ?? null, minute: resolved.get("minute") ?? null, second: resolved.get("second") ?? null,
+      reach, aod_thickness: aodThickness,
+    });
+  }
+
+  override circularExtent(placed: Placed): [number, number, number] | null {
+    const p = placed as PlacedHands;
+    return [p.center[0], p.center[1], p.reach];
+  }
 
   /** `common.at` is already the axis; the element's extent is the disc it sweeps, computed in layout. */
   build(b: Builder, node: Node, common: Common): Element | null {

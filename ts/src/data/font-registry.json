@@ -1,0 +1,358 @@
+{
+ "sources": {
+  "roboto-condensed-bold": {
+   "sha256": "6a08cf0822ec2b1b584d42e7b27983d0af45e121770bb83ce76cf1be5e0a9d59"
+  },
+  "roboto-condensed-regular": {
+   "sha256": "c462dd3947f0ea2645d797515bb88a68ba3c64695aeed2316eadab285882fec8"
+  },
+  "roboto-condensed-medium": {
+   "sha256": "468aba16d1c69634ac7e0c5c2318efa895a4192f7d687760b6304e4b8d91ac70"
+  },
+  "roboto-regular": {
+   "sha256": "f3edb8058e523f5612bfd99d0745e661568ad85e1b6217bc62f786fabae624c6"
+  },
+  "roboto-medium": {
+   "sha256": "b398bb9c791ddb08f1063d9c874f98e8aadb99132043b2d272a9276cf90c465a"
+  },
+  "roboto-light": {
+   "sha256": "a08729d794801eaa158c53b1558f4cc351c3b1791eb3d22faf7058b2b7df9c8c"
+  },
+  "roboto-bold": {
+   "sha256": "2ca2b3bfc2c2d43fa8f2b7227982d735fd537ecf113a4c56cc2d292bcc3106c8"
+  },
+  "roboto-black": {
+   "sha256": "50f0aab10018fc1892ccf1a371f7bb94dd929210c23b651c96232d5b1779a5b2"
+  },
+  "roboto-italic": {
+   "sha256": "2b4076dd3f5a7fadfca760ef45557a0d437af983284652fc149535c5bd93d493"
+  },
+  "bebas-neue-regular": {
+   "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73"
+  },
+  "rajdhani-medium": {
+   "sha256": "12ff7dcfe4c206e3875ac53b1762eab57de6a2fa7f5a86c26b97b88d6591eac2"
+  },
+  "yantramanav-bold": {
+   "sha256": "682ef4ebc9c8dde1f312c435ade5eca9cafea6ab0c3602e1638c02d3759b135d"
+  },
+  "yantramanav-regular": {
+   "sha256": "823dbb5d9c73a2c192371bf73341a30291b5a416578362eb4607b9c5a5be9821"
+  },
+  "oswald-variable": {
+   "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817"
+  },
+  "noto-sans-variable": {
+   "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d"
+  },
+  "dejavu-sans-bold": {
+   "sha256": "e6476c1b80502924294eed40894c5b18e06c181444ca953e5334262df9c27724"
+  },
+  "dejavu-sans-condensed-bold": {
+   "sha256": "38098d0b8edd8430a0f53fb2831b5d36037563a998a620d3c87a4d7591766d20"
+  }
+ },
+ "fonts": {
+  "roboto-condensed-bold": {
+   "source": "roboto-condensed-bold",
+   "match": "exact"
+  },
+  "roboto-condensed-regular": {
+   "source": "roboto-condensed-regular",
+   "match": "exact"
+  },
+  "roboto-condensed-medium": {
+   "source": "roboto-condensed-medium",
+   "match": "exact"
+  },
+  "roboto-regular": {
+   "source": "roboto-regular",
+   "match": "exact"
+  },
+  "roboto-medium": {
+   "source": "roboto-medium",
+   "match": "exact"
+  },
+  "roboto-light": {
+   "source": "roboto-light",
+   "match": "exact"
+  },
+  "roboto-bold": {
+   "source": "roboto-bold",
+   "match": "family"
+  },
+  "roboto-black": {
+   "source": "roboto-black",
+   "match": "exact"
+  },
+  "roboto-italic": {
+   "source": "roboto-italic",
+   "match": "exact"
+  },
+  "bebas-neue-regular": {
+   "source": "bebas-neue-regular",
+   "match": "exact"
+  },
+  "rajdhani-medium": {
+   "source": "rajdhani-medium",
+   "match": "family"
+  },
+  "yantramanav-bold": {
+   "source": "yantramanav-bold",
+   "match": "exact"
+  },
+  "yantramanav-regular": {
+   "source": "yantramanav-regular",
+   "match": "exact"
+  },
+  "oswald-variable": {
+   "source": "oswald-variable",
+   "match": "family"
+  },
+  "noto-sans-variable": {
+   "source": "noto-sans-variable",
+   "match": "family"
+  },
+  "dejavu-sans-bold": {
+   "source": "dejavu-sans-bold",
+   "match": "substitute"
+  },
+  "dejavu-sans-condensed-bold": {
+   "source": "dejavu-sans-condensed-bold",
+   "match": "family"
+  },
+  "bionic-cond-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "bionic-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "chronos-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "steelfish-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "phelant-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "digi-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  },
+  "digi-narrow-substitute": {
+   "source": "roboto-condensed-bold",
+   "match": "substitute"
+  }
+ },
+ "names": {
+  "RobotoCondensed-Bold": "roboto-condensed-bold",
+  "RobotoCondensedBold": "roboto-condensed-bold",
+  "RobotoCondensed-Regular": "roboto-condensed-regular",
+  "RobotoCondensedRegular": "roboto-condensed-regular",
+  "RobotoCondensed-RegularItalic": "roboto-condensed-regular",
+  "RobotoCondensedRegularItalic": "roboto-condensed-regular",
+  "Roboto-Regular": "roboto-regular",
+  "RobotoRegular": "roboto-regular",
+  "Roboto-Medium": "roboto-medium",
+  "Roboto-Medium-Outdoor": "roboto-medium",
+  "RobotoMedium": "roboto-medium",
+  "Roboto-Black": "roboto-black",
+  "RobotoBlack": "roboto-black",
+  "Roboto-Italic": "roboto-italic",
+  "RobotoItalic": "roboto-italic",
+  "Garmin_Roboto_Bold": "roboto-bold",
+  "Bionic_semibold": "bionic-substitute",
+  "BionicSemiBold": "bionic-substitute",
+  "BionicSemibold": "bionic-substitute",
+  "Bionic_Bold": "bionic-substitute",
+  "BionicBold": "bionic-substitute",
+  "Bionic_Bold_Number_Only": "bionic-substitute",
+  "Bionic_Medium": "rajdhani-medium",
+  "BionicMedium": "rajdhani-medium",
+  "Yantramanav-Regular": "yantramanav-regular",
+  "VENU_BOLD_NUMBER_FONT_6": "roboto-light",
+  "VENU_BOLD_NUMBER_FONT_7": "roboto-light",
+  "DejaVuGarmin_Rec_with_bionic_numbers": "dejavu-sans-bold",
+  "DejaVuSans_Cd_SemiBold_WGL4": "dejavu-sans-condensed-bold"
+ },
+ "patterns": [
+  {
+   "regex": "CDPG_ROBOTO_\\d+M$",
+   "key": "roboto-condensed-medium"
+  },
+  {
+   "regex": "CDPG_ROBOTO_\\d+B$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "CDPG_ROBOTO_\\d+$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTO_BLACK",
+   "key": "roboto-black"
+  },
+  {
+   "regex": "_BOLD_NUMBER_FONT_\\d+$",
+   "key": "roboto-black"
+  },
+  {
+   "regex": "ROBOTO_BC_NUMBER_FONT",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "NUMBER_FONT_BOLD_SMALL$",
+   "key": "roboto-black"
+  },
+  {
+   "regex": "NUMBER_FONT_(XXSMALL|XSMALL|SMALL|MEDIUM|XXLARGE|XLARGE|LARGE|GIGANTIC)$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTO_CONDENSED.*BOLD",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTO_CONDENSED",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTOCONDENSEDBOLD",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTOCONDENSEDREGULAR",
+   "key": "roboto-condensed-regular"
+  },
+  {
+   "regex": "_ROBOTO_(XTINY|TINY_PLUS|TINY|SMALL)_BOLD$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "_ROBOTO_(LARGE_PLUS|LARGE)_BOLD$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "REGULAR_NUMBER_FONT_\\d+$",
+   "key": "roboto-condensed-regular"
+  },
+  {
+   "regex": "FNT_1252_PRO_\\d+$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "ROBOTO_MEDIUM",
+   "key": "roboto-medium"
+  },
+  {
+   "regex": "ROBOTO_BOLD",
+   "key": "roboto-bold"
+  },
+  {
+   "regex": "_ROBOTO_\\d+B$",
+   "key": "roboto-condensed-bold"
+  },
+  {
+   "regex": "_ROBOTO_\\d+M$",
+   "key": "roboto-medium"
+  },
+  {
+   "regex": "_ROBOTO_\\d+$",
+   "key": "roboto-regular"
+  },
+  {
+   "regex": "BIONIC_COND",
+   "key": "bionic-cond-substitute"
+  },
+  {
+   "regex": "BIONIC",
+   "key": "bionic-substitute"
+  },
+  {
+   "regex": "BEBAS_NEUE",
+   "key": "bebas-neue-regular"
+  },
+  {
+   "regex": "_0000_GARMIN_\\d+$",
+   "key": "bebas-neue-regular"
+  },
+  {
+   "regex": "DEJA_?VU_SANS",
+   "key": "dejavu-sans-condensed-bold"
+  },
+  {
+   "regex": "DEJAVU_FITNESS|DEJAVU_REC",
+   "key": "dejavu-sans-bold"
+  },
+  {
+   "regex": "FNT_0000_PRO_\\d+$",
+   "key": "dejavu-sans-bold"
+  },
+  {
+   "regex": "STEELFISH",
+   "key": "steelfish-substitute"
+  },
+  {
+   "regex": "PHELANT",
+   "key": "phelant-substitute"
+  },
+  {
+   "regex": "CHRONOSSEMIBOLDCONDENSED",
+   "key": "chronos-substitute"
+  },
+  {
+   "regex": "DIGI_\\d+N$",
+   "key": "digi-narrow-substitute"
+  },
+  {
+   "regex": "DIGI_\\d+$",
+   "key": "digi-substitute"
+  },
+  {
+   "regex": "OSWALD",
+   "key": "oswald-variable"
+  },
+  {
+   "regex": "YANTRAMANAV",
+   "key": "yantramanav-bold"
+  },
+  {
+   "regex": "^\\d{10}_(BOLD_)?NUMBER_(LARGE|SMALL|XLARGE|XSMALL|XTINY)\\d*$",
+   "key": "yantramanav-bold"
+  },
+  {
+   "regex": "NOTO_SANS_BOLD",
+   "key": "noto-sans-variable"
+  }
+ ],
+ "faces": {
+  "Roboto Condensed": "roboto-condensed-bold",
+  "Roboto": "roboto-regular",
+  "Roboto Black": "roboto-black",
+  "Roboto Medium": "roboto-medium",
+  "Roboto Light": "roboto-light",
+  "Roboto Wide": "roboto-italic",
+  "Bionic": "bionic-substitute",
+  "Chronos": "chronos-substitute",
+  "Steelfish Rg": "steelfish-substitute",
+  "Phelant": "phelant-substitute",
+  "Digi": "digi-substitute",
+  "Digi Narrow": "digi-narrow-substitute",
+  "Rajdhani": "rajdhani-medium",
+  "Yantramanav": "yantramanav-bold",
+  "Bebas Neue Bold": "bebas-neue-regular",
+  "Bebas Neue Bold DJV Glyph ttf": "bebas-neue-regular",
+  "Bebas Neue ttf": "bebas-neue-regular",
+  "Oswald Light": "oswald-variable",
+  "Noto Sans": "noto-sans-variable",
+  "DejaVu Sans Medium Condensed B": "dejavu-sans-condensed-bold",
+  "Garmin": "dejavu-sans-bold",
+  "Garmin Robo Units": "roboto-bold"
+ }
+}

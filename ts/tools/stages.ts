@@ -3,6 +3,7 @@
 // registers its stage's port here when it lands.
 import type { DeviceFiles } from "../src/devices/files.ts";
 import { diagnosticsLoad, face } from "./ports/ir.ts";
+import { layout } from "./ports/layout.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
 import * as text from "./ports/text.ts";
@@ -65,6 +66,7 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   data: text.data,
   face,
   "diagnostics-load": diagnosticsLoad,
+  layout,
 };
 
 /**
@@ -108,7 +110,29 @@ function yamlDiagnostics(value: unknown): unknown {
   });
 }
 
+/** A layout's items hidden by an unavailable vector font, their measured extent set aside. */
+function hiddenByFontExtent(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const face = value as Record<string, unknown>;
+  const hidden = (face["hidden"] ?? {}) as Record<string, string>;
+  const items = face["items"];
+  if (!Array.isArray(items)) return value;
+  return {
+    ...face,
+    items: items.map((item: Record<string, unknown>) => {
+      const id = (item["element"] as Record<string, unknown> | undefined)?.["id"] as string | undefined;
+      return id !== undefined && hidden[id] === "font-unavailable" ? { ...item, box: "<measured>", measured_width: "<measured>" } : item;
+    }),
+  };
+}
+
 export const DEVIATIONS: readonly Deviation[] = [
+  {
+    stages: ["layout"],
+    reason: "a text whose vector font has no face on the device (hidden there) is measured with Pillow's default face's "
+      + "unhinted advances, not FreeType's hinted ones",
+    normalise: hiddenByFontExtent,
+  },
   {
     stages: ["load-yaml", "diagnostics-load"],
     reason: "an invalid text's diagnostic gives the yaml package's message and column, not ruamel's: the line agrees",

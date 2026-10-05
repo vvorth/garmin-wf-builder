@@ -6,7 +6,11 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import * as formatting from "../formatting.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type Element, type Expression, Text, TextSegment } from "../ir/model.ts";
-import { repr, str } from "../py.ts";
+import {
+  HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
+} from "../layout.ts";
+import { repr, roundHalfEven as round, str } from "../py.ts";
+import type { Box } from "../units.ts";
 import type { Reading } from "../template.ts";
 import { type Common, ElementKind, type Refusal, register } from "./base.ts";
 
@@ -113,6 +117,36 @@ function checkUnitField(b: Builder, node: Node, element: Text): void {
   }
 }
 
+function source(value: Expression): catalog.Source | null {
+  return value.sources.length > 0 ? catalog.get(value.sources[0]!) ?? null : null;
+}
+
+/** The widest label `{unit}` can show, or `""` without `units:`. */
+function widestLabel(element: Text): string {
+  let best = "";
+  for (const label of element.unit_labels) if (Array.from(label).length > Array.from(best).length) best = label;
+  return best;
+}
+
+/** The widest string a `fallback:` could render, through the value's own format spec. */
+function fallbackWidest(fallback: Expression, spec: string, unitWidest = ""): string {
+  if (fallback.value.type === "string" && fallback.constant !== null) return str(fallback.constant);
+  return formatting.widest(spec, source(fallback), fallback.value.type, fallback.scale, { unitWidest });
+}
+
+/** The widest string this text can draw: its literal, or its readings, placeholder and fallback. */
+function widestText(element: Text): string {
+  if (element.literal !== null) return element.literal;
+  if (element.value === null) return "";
+  const spec = element.format || "{}";
+  let widest = formatting.widest(spec, source(element.value), element.value.value.type, element.value.scale,
+    { digits: element.unit_digits, unitWidest: widestLabel(element) });
+  for (const [value, moreSpec] of element.segments().slice(1)) widest += formatting.widest(moreSpec, source(value), value.value.type, value.scale);
+  if (element.absent === "placeholder" && element.placeholder) widest = longer(widest, element.placeholder);
+  if (element.absent === "fallback" && element.fallback !== null) widest = longer(widest, fallbackWidest(element.fallback, spec, widestLabel(element)));
+  return widest;
+}
+
 class TextKind extends ElementKind<Text> {
   readonly name = "text";
   readonly irClass = Text;
@@ -168,6 +202,36 @@ class TextKind extends ElementKind<Text> {
     b.checkOtherAbsence(node, element, "color", element.color);
     b.checkReachableSubstitute(node, element, "'color'", element.segments().map(([v]) => v), [element.color]);
     return element;
+  }
+
+  override hiddenReason(placed: Placed): string | null {
+    return (placed as PlacedText).font.available ? null : HIDDEN_BY_FONT;
+  }
+
+  override resolve(r: Resolver, element: Text, parent: Box, depth: number): Placed {
+    const font = r.textFont(element.font, element.font_is_custom, element.curve);
+    const widest = widestText(element);
+    const width = font.width(widest);
+    const lineHeight = font.lineHeight;
+    const [x, y] = r.point(element.at, parent);
+    let curve = resolvedCurve(element.curve);
+    if (element.curve !== null && curve.style === "radial" && element.curve.radius !== null) {
+      curve = replaceFields(curve, {
+        radius_px: round(r.extent(element.curve.radius, parent, "minor", 0, null, element.resolved_min_1px, "curve.radius")),
+      });
+    }
+    // The box holds whichever ring is wider, awake or AOD.
+    const aodRing = element.aod !== null ? element.aod.outline : null;
+    const ringPx = Math.max(...[element.outline, aodRing].map((ring) => (ring !== null ? ring.width : 0)));
+    const box = textInk(x, y, width, lineHeight, element.align, element.vertical_align, {
+      curveStyle: curve.style, angleGarmin: curve.angle_garmin, radiusPx: curve.radius_px, direction: curve.direction,
+      metric: font.metric, pad: ringPx, device: r.device,
+    }).box();
+    return PlacedText.create({
+      element, box: box.rounded(), center: [round(x), round(y)], depth, anchor_point: [round(x), round(y)],
+      justify: justify(element), font: font.resolved(), widest, measured_width: round(width),
+      width_is_estimated: font.baked === null, curve, line_height: lineHeight,
+    });
   }
 
   override aodRefusal(key: string, _shape: string | null, literalText: boolean): Refusal | null {

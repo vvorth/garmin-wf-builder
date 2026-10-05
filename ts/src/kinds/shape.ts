@@ -4,7 +4,10 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";
 import { type Element, Shape } from "../ir/model.ts";
-import { truthy } from "../py.ts";
+import { arcBox, alignmentShift, type Placed, PlacedShape, type Resolver, strokePad } from "../layout.ts";
+import { Position } from "../ir/model.ts";
+import { roundHalfEven as round, truthy } from "../py.ts";
+import { Box } from "../units.ts";
 import { type Common, ElementKind, type Refusal, register, shapeOf } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
@@ -101,6 +104,71 @@ class ShapeKind extends ElementKind<Shape> {
       }
     }
     return element;
+  }
+
+  override resolve(r: Resolver, element: Shape, parent: Box, depth: number): Placed {
+    let [cx, cy] = r.point(element.at, parent);
+    const min1px = element.resolved_min_1px;
+    const pen = Math.max(1, round(r.extent(element.thickness, parent, "minor", 1, null, min1px, "thickness")));
+    const aodThickness = r.aodExtent(element, "thickness", parent, 1);
+    const placed = (box: PlacedShape["box"], x: number, y: number, fields: Partial<PlacedShape> = {}): PlacedShape =>
+      PlacedShape.create({ element, box, center: [round(x), round(y)], depth, thickness: pen, aod_thickness: aodThickness, ...fields });
+
+    if (element.shape === "circle") {
+      const radius = round(r.extent(element.radius, parent, "minor", 0, null, min1px, "radius"));
+      const [dx, dy] = alignmentShift(2 * radius, 2 * radius, element.align, element.vertical_align);
+      cx += dx;
+      cy += dy;
+      const reach = element.filled ? radius : radius + strokePad(pen);
+      return placed(new Box(cx - reach, cy - reach, 2 * reach, 2 * reach).rounded(), cx, cy, { radius });
+    }
+    if (element.shape === "line") {
+      // No `align:` on a line: `at:` and `to:` are its two ends.
+      const [ex, ey] = r.point(element.to ?? new Position(), parent);
+      const box = new Box(Math.min(cx, ex) - pen, Math.min(cy, ey) - pen, Math.abs(ex - cx) + 2 * pen, Math.abs(ey - cy) + 2 * pen);
+      return placed(box.rounded(), cx, cy, { end: [round(ex), round(ey)] });
+    }
+    if (element.shape === "arc") {
+      const radius = round(r.extent(element.radius, parent, "minor", 0, null, min1px, "radius"));
+      const [ink, ax, ay, start, sweep, garminStart, direction] = arcBox(radius, pen, cx, cy, element.align, element.vertical_align,
+        element.start_angle, element.sweep);
+      return placed(ink, ax, ay, { radius, start_angle: start, sweep, garmin_start: garminStart, garmin_direction: direction });
+    }
+    if (element.shape === "polygon") {
+      const points = element.points.map((p): [number, number] => {
+        const [px, py] = r.point(p, parent);
+        return [round(px), round(py)];
+      });
+      if (points.length === 0) {
+        // The builder has already reported it; keep resolving the rest of the design.
+        return PlacedShape.create({ element, box: new Box(cx, cy, 0, 0).rounded(), center: [round(cx), round(cy)], depth });
+      }
+      const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+      const box = new Box(Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+      const centre: [number, number] = [round(xs.reduce((a, b) => a + b, 0) / xs.length), round(ys.reduce((a, b) => a + b, 0) / ys.length)];
+      return PlacedShape.create({ element, box: box.rounded(), center: centre, depth, points });
+    }
+    // rectangle, ellipse: aligned by the declared `size:`, before any outline pad.
+    const [sized, sx, sy] = r.sizedBox(element, parent, cx, cy);
+    if (element.shape === "ellipse") {
+      const rx = round(sized.width / 2), ry = round(sized.height / 2);
+      const pad = element.filled ? 0 : strokePad(pen);
+      const box = new Box(sx - rx - pad, sy - ry - pad, 2 * (rx + pad), 2 * (ry + pad));
+      return placed(box.rounded(), sx, sy, { rx, ry });
+    }
+    const corner = round(r.length(element.corner_radius, parent, "minor", 0));
+    const rect = sized.rounded(min1px);
+    if (element.filled) return placed(rect, sx, sy, { corner_radius: corner });
+    const pad = strokePad(pen);
+    const outer = new Box(rect.x - pad, rect.y - pad, rect.width + 2 * pad, rect.height + 2 * pad).rounded();
+    return placed(outer, sx, sy, { corner_radius: corner, rect });
+  }
+
+  override circularExtent(placed: Placed): [number, number, number] | null {
+    const p = placed as PlacedShape;
+    if (p.element.shape === "arc") return [p.center[0], p.center[1], p.radius + p.thickness / 2.0];
+    if (p.element.shape === "circle") return [p.center[0], p.center[1], p.radius + (p.element.filled ? 0 : p.thickness / 2.0)];
+    return null;
   }
 
   /** Dc has `fillPolygon` and no `drawPolygon`, so `aod: {filled:}` on a polygon has nothing to switch to. */

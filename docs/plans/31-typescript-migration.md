@@ -278,6 +278,39 @@ All taken by the user on 2026-10-05, in `docs/research/32-typescript-stack.md`
   device. Text measurement uses the oracle's baked metrics until slice 5,
   so this slice is exact.
 
+**Built 2026-10-06.** `layout` is equal on 167 of 168 face × device cases,
+1 deviated (below). Also ported: `devices/device.ts` (`Device`,
+`FontMetric`, `DeviceDatabase`, with the symbol queries
+`hasSymbol`/`hasModule`/`hasField`), `visible_area.ts` over a small PNG
+decoder (`png.ts`), and `edit/geometry.ts` with its tests.
+
+- **Font files.** `fonts/files.ts` is the locator (the Garmin font root,
+  then the registry's pinned stand-ins) behind a `FontFiles` interface:
+  Node reads disk (`fonts/node.ts`), and the browser will get files from
+  the server. `fonts/sfnt.ts` reads `head`/`hhea`/`hmtx`/`cmap` directly,
+  and `fonts/cft.ts` decodes Garmin's bitmap container. Both agree with
+  fontTools and `cft.py` on all 567 installed font files: every metric,
+  cmap entry, advance and decoded glyph.
+- **The skin masks** agree with Python on all 33 installed skins (two are
+  16-bit RGBA, whose high byte Pillow keeps).
+- **Trigonometry.** `Math.hypot` differs from Python's in the last bit on
+  a third of inputs, so `py.hypot` computes it exactly (equal on 200 000
+  pairs). `Math.sin`/`cos`/`atan2` differ from glibc's on 2-18% of inputs,
+  but never at a pixel in the corpus; per the user (2026-10-06) they stay
+  as they are, to tune later if a case needs it. Matching glibc would mean
+  porting its FMA build of `s_sin.c`.
+- **Pillow's default face**, which measures a font with no file at all
+  (here, a vector font with no face on the device, so the text is hidden
+  there): its size metrics are matched exactly, its advances are the
+  embedded Aileron's own, where Pillow's are FreeType's hinted ones. The
+  one case this reaches is a recorded deviation, one pixel of width.
+- **Not covered by parity:** the captured test designs have no device
+  stages yet; layout parity is the 40 corpus faces on their devices.
+
+**Departures:** `availability.ts` (the build-wide guards and the
+per-element checks) moves again, to slice 7: its callers are lint and
+codegen, and layout asks it nothing.
+
 ### Slice 5 — the font bake (recorded change)
 
 - `ts/src/fonts/bake.ts`. The pipeline:

@@ -424,3 +424,57 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   if (ka.length !== kb.length) return false;
   return ka.every((k) => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
+
+/** The exact value of a finite double, as `[numerator, power of two]`: `value = n * 2**e`. */
+function dyadic(value: number): [bigint, number] {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  const bits = view.getBigUint64(0);
+  const exponent = Number((bits >> 52n) & 0x7ffn);
+  let mantissa = bits & 0xfffffffffffffn;
+  if (exponent === 0) return [mantissa, -1074];
+  mantissa |= 1n << 52n;
+  return [mantissa, exponent - 1075];
+}
+
+/** The integer square root of `n`, floored. */
+function isqrt(n: bigint): bigint {
+  if (n < 2n) return n;
+  // Newton's method from above: a power of two at least sqrt(n).
+  let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2));
+  for (;;) {
+    const y = (x + n / x) >> 1n;
+    if (y >= x) return x;
+    x = y;
+  }
+}
+
+/**
+ * Python's `math.hypot(x, y)`: the square root of `x*x + y*y` computed
+ * exactly and rounded once, where JavaScript's `Math.hypot` may be a bit
+ * off in the last place.
+ */
+export function hypot(x: number, y: number): number {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return Math.hypot(x, y);
+  if (x === 0) return Math.abs(y);
+  if (y === 0) return Math.abs(x);
+  const [mx, ex] = dyadic(Math.abs(x)), [my, ey] = dyadic(Math.abs(y));
+  // x² + y² = s * 2**(2e), with e the smaller exponent, kept even.
+  let e = Math.min(ex, ey);
+  if (e % 2 !== 0) e -= 1;
+  const s = (mx * mx << BigInt(2 * (ex - e))) + (my * my << BigInt(2 * (ey - e)));
+  // sqrt(s) * 2**e, with 64 extra bits so one rounding at the end is exact.
+  const shifted = s << 128n;
+  const root = isqrt(shifted);
+  const exact = root * root === shifted;
+  // root * 2**(e - 64), rounded half to even to 53 significant bits.
+  const bitsLen = root.toString(2).length;
+  const drop = Math.max(0, bitsLen - 53);
+  let q = root >> BigInt(drop);
+  if (drop > 0) {
+    const rem = root - (q << BigInt(drop));
+    const half = 1n << BigInt(drop - 1);
+    if (rem > half || (rem === half && (!exact || (q & 1n) === 1n))) q += 1n;
+  }
+  return Number(q) * 2 ** (e - 64 + drop);
+}

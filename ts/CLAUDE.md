@@ -52,6 +52,15 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/devices/files.ts` is the `DeviceFiles` interface every stage reads
     devices through: synchronous, filled up front in the browser.
   - `src/devices/node.ts` is the same interface over the SDK's folders.
+  - `src/devices/device.ts` is `Device` and `DeviceDatabase` over it; a
+    database also holds the `FontFiles` its system-font metrics read.
+  - `src/fonts/files.ts` is the `FontFiles` interface (the Garmin font
+    root, then the registry's stand-ins), and `src/fonts/node.ts` the same
+    over disk. `sfnt.ts`, `cft.ts` and `fallback.ts` read and measure the
+    files; `bmfont.ts` is a baked font's data.
+  - `src/layout.ts` is per-device layout; each kind's `resolve` is in
+    `src/kinds/`. Trigonometry is `Math.sin`/`cos`/`atan2`, but `hypot` is
+    `py.hypot`: `Math.hypot` is often a bit off Python's.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point
@@ -64,8 +73,9 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     - Offsets are UTF-16, as JavaScript slices; lines and columns count
       code points, as ruamel's do.
   - `src/edit/` is the patch engine: `spans`, `patch`, `structure`,
-    `colors`, `schemes`, `hands`, `slots`, and `gate`, which loads each
-    patched text through `build.ts`'s `load`.
+    `colors`, `schemes`, `hands`, `slots`, `geometry` (pixel drags, with
+    the font baker passed in), and `gate`, which loads each patched text
+    through `build.ts`'s `load`.
   - `src/ir/` is the IR. `model.ts` keeps the Python dataclasses' field
     names and order, so the oracle's dump compares field for field; a
     class is built with `Class.create({...})`. `builder/` is the semantic

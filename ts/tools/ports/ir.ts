@@ -5,6 +5,8 @@ import { load } from "../../src/build.ts";
 import { Bag, type Diagnostic } from "../../src/diagnostics.ts";
 import { PyFloat, Timestamp } from "../../src/edit/yaml.ts";
 import { Face, FontSpec } from "../../src/ir/model.ts";
+import { Device } from "../../src/devices/device.ts";
+import { BakedFont, type Sheet } from "../../src/fonts/bmfont.ts";
 import { REPO_ROOT } from "../../src/devices/node.ts";
 import { installAssets, repoFileExists } from "../../src/node.ts";
 import { floatRepr } from "../../src/py.ts";
@@ -19,8 +21,15 @@ function number(value: number): unknown {
   return Number.isFinite(value) ? value : { $float: floatRepr(value) };
 }
 
+/** How `irJson` writes a value the IR itself has no JSON form for. */
+export interface JsonHooks {
+  /** A baked font's sheet, an image in Python: `{$image: sha256, mode, size}`. */
+  sheet?: (sheet: Sheet) => unknown;
+}
+
 /** `value` as the oracle's `to_json` writes it: a class instance is its own fields, in declaration order. */
-export function irJson(value: unknown, top = true): unknown {
+export function irJson(value: unknown, top = true, hooks: JsonHooks = {}): unknown {
+  const inner = (v: unknown): unknown => irJson(v, false, hooks);
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean" || typeof value === "string") return value;
   if (typeof value === "number") return number(value);
@@ -28,18 +37,24 @@ export function irJson(value: unknown, top = true): unknown {
   if (value instanceof PyFloat) return number(value.value);
   if (value instanceof Timestamp) return { $timestamp: value.iso };
   if (value instanceof Face && !top) return { $face: value.name };
+  if (value instanceof Device) return { $device: value.id };
+  if (value instanceof BakedFont && value.sheet !== null && hooks.sheet !== undefined) {
+    const out = irJson(Object.assign(Object.create(BakedFont.prototype), value, { sheet: null }), false, hooks) as Record<string, unknown>;
+    out["sheet"] = hooks.sheet(value.sheet);
+    return out;
+  }
   if (value instanceof FontSpec && value.source !== null && value.source.startsWith(REPO_ROOT + "/")) {
     // A path is dumped relative to the repository, as `Path.resolve().relative_to(ROOT)`.
-    return irJson(Object.assign(Object.create(FontSpec.prototype), value, { source: value.source.slice(REPO_ROOT.length + 1) }), top);
+    return irJson(Object.assign(Object.create(FontSpec.prototype), value, { source: value.source.slice(REPO_ROOT.length + 1) }), top, hooks);
   }
-  if (Array.isArray(value)) return value.map((v) => irJson(v, false));
+  if (Array.isArray(value)) return value.map(inner);
   if (value instanceof Map) {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of value) out[String(irJson(k, false))] = irJson(v, false);
+    for (const [k, v] of value) out[String(inner(k))] = inner(v);
     return out;
   }
   if (value instanceof Set) {
-    return [...value].map((v) => irJson(v, false)).sort((a, b) => compare(JSON.stringify(a), JSON.stringify(b)));
+    return [...value].map(inner).sort((a, b) => compare(JSON.stringify(a), JSON.stringify(b)));
   }
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
@@ -47,7 +62,7 @@ export function irJson(value: unknown, top = true): unknown {
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(record)) {
       if (plain && key === "kind" && EXPR_KINDS.has(record[key] as string)) continue;
-      out[key] = irJson(record[key], false);
+      out[key] = inner(record[key]);
     }
     return out;
   }

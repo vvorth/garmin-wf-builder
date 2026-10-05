@@ -8,13 +8,58 @@ import { ABSENCE_IS_NORMAL } from "../ir/builder/absence.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { andPaths, dedupAppend } from "../ir/builder/state.ts";
 import {
-  type AnyHandPart, drawnCopies, type Element, type Expression, PATTERN_LOOP_INDEX, PatternElement, type Position,
+  type AnyHandPart, drawnCopies, type Element, type Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
   ROLE_COLOR, ROLE_PART_VISIBLE,
 } from "../ir/model.ts";
-import { deepEqual, formatG, num } from "../py.ts";
+import type { Device } from "../devices/device.ts";
+import {
+  type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
+} from "../layout.ts";
+import { deepEqual, formatG, num, pyMod, roundHalfEven as round } from "../py.ts";
+import { Box, IntBox } from "../units.ts";
 import { type Common, ElementKind, type Refusal, register } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
+
+/** A text part's per-copy Garmin angle: its local copy-0 angle composed with the copy's own rotation. */
+export class PatternTextAngle {
+  readonly local: number;
+  readonly start: number;
+  readonly step: number;
+
+  constructor(local: number, start: number, step: number) {
+    this.local = local;
+    this.start = start;
+    this.step = step;
+  }
+
+  copyCurveAngle(index: number): number {
+    return pyMod(this.local - (this.start + index * this.step), 360.0);
+  }
+}
+
+/** The whole-pixel anchor of one copy of a text part, rounded half up as the device does. */
+export function patternTextAnchor(part: ResolvedTextPart, ox: number, oy: number, s: number, c: number): [number, number] {
+  return [Math.floor(ox + part.x * c - part.y * s + 0.5), Math.floor(oy + part.x * s + part.y * c + 0.5)];
+}
+
+/** `textInk` for copy `index` of a text part. */
+function patternTextInk(part: ResolvedTextPart, ox: number, oy: number, s: number, c: number, index: number,
+  start: number, step: number, device: Device): Ink {
+  const [ax, ay] = patternTextAnchor(part, ox, oy, s, c);
+  const angle = new PatternTextAngle(part.curve.angle_garmin, start, step).copyCurveAngle(index);
+  return textInk(ax, ay, part.widths.length > 0 ? part.widths[index]! : 0, part.line_height, part.align, part.vertical_align, {
+    curveStyle: part.curve.style, angleGarmin: angle, radiusPx: part.curve.radius_px, direction: part.curve.direction,
+    metric: part.font.metric, pad: part.outline_width, device,
+  });
+}
+
+/** `[minX, minY, maxX, maxY]` of one part's ink for one copy. */
+function patternPartInk(part: ResolvedHandPart, ox: number, oy: number, s: number, c: number, index: number,
+  start: number, step: number, device: Device): [number, number, number, number] {
+  if (part.shape === "text") return patternTextInk(part, ox, oy, s, c, index, start, step, device).bounds();
+  return part.ink(ox, oy, s, c);
+}
 
 /** `step:`/`start:` as `[stepDegrees, startDegrees, stepPosition]`, or `null` once an error is reported. */
 function patternSteps(b: Builder, node: Node, common: Common, count: number): [number, number, Position | null] | null {
@@ -244,6 +289,55 @@ class PatternKind extends ElementKind<PatternElement> {
     });
     checkPatternAbsence(b, node, element);
     return element;
+  }
+
+  override resolve(r: Resolver, element: PatternElement, parent: Box, depth: number): Placed {
+    const [cx, cy] = r.point(element.at, parent);
+    const center: [number, number] = [round(cx), round(cy)];
+    let [parts, reach] = r.resolveParts(element.parts, element.id, element.resolved_min_1px);
+    let start: number, step: number, dx = 0, dy = 0;
+    if (element.pattern === "radial") {
+      [start, step] = [element.start_angle, element.step_angle];
+    } else {
+      start = step = 0.0;
+      reach = 0.0; // only a radial pattern reports a disc
+      const stepPosition = element.step ?? new Position();
+      dx = roundHalfAway(r.length(stepPosition.dx, parent, "x", 0));
+      dy = roundHalfAway(r.length(stepPosition.dy, parent, "y", 0));
+    }
+    const aodThickness = r.aodExtent(element, "thickness", parent, 1);
+    const placed = PlacedPattern.create({
+      element, box: new IntBox(0, 0, 0, 0), center, depth, parts, copies: element.drawnIndices(), start, step, dx, dy,
+      columns: element.columns ?? 0, reach, aod_thickness: aodThickness,
+    });
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, textReach = 0.0;
+    for (const index of placed.copies) {
+      const [ox, oy, s, c] = placed.transform(index);
+      for (const part of parts) {
+        let bounds: [number, number, number, number];
+        if (part.shape === "text") {
+          const ink = patternTextInk(part, ox, oy, s, c, index, start, step, r.device);
+          bounds = ink.bounds();
+          // The real ink's farthest point, not its AABB's corners.
+          if (element.pattern === "radial") textReach = Math.max(textReach, ink.reach(center[0], center[1]));
+        } else {
+          bounds = patternPartInk(part, ox, oy, s, c, index, 0.0, 0.0, r.device);
+        }
+        minX = Math.min(minX, bounds[0]);
+        minY = Math.min(minY, bounds[1]);
+        maxX = Math.max(maxX, bounds[2]);
+        maxY = Math.max(maxY, bounds[3]);
+      }
+    }
+    const box = minX > maxX ? new Box(cx, cy, 0, 0) : new Box(minX, minY, maxX - minX, maxY - minY);
+    placed.box = box.rounded();
+    if (textReach > placed.reach) placed.reach = textReach;
+    return placed;
+  }
+
+  override circularExtent(placed: Placed): [number, number, number] | null {
+    const p = placed as PlacedPattern;
+    return p.element.pattern === "radial" ? [p.center[0], p.center[1], p.reach] : null;
   }
 
   override aodRefusal(key: string): Refusal | null {

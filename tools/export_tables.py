@@ -76,6 +76,34 @@ def tables() -> dict[str, Any]:
             "garmin_weather_condition_icon": plain(icons.GARMIN_WEATHER_CONDITION_ICON),
             "complication_icon": plain(icons.COMPLICATION_ICON),
         },
+        # The system-font registry, less its prose: which free stand-in
+        # (pinned by hash) measures a Garmin font name nobody has locally.
+        "font-registry.json": _font_registry(),
+        # Pillow's bundled default face (Aileron Regular, OFL), which a system
+        # or vector font with no file at all is measured with.
+        "pillow-default-font.json": {"ttf": _pillow_default_font()},
+    }
+
+
+def _pillow_default_font() -> str:
+    import inspect
+    import re as re_
+
+    from PIL import ImageFont
+
+    match = re_.search(r'b"""(.*?)"""', inspect.getsource(ImageFont.load_default), re_.S)
+    assert match is not None, "Pillow's load_default no longer embeds its face"
+    return "".join(match.group(1).split())
+
+
+def _font_registry() -> dict[str, Any]:
+    registry = json.loads((ROOT / "wfb" / "fonts" / "registry.json").read_text(encoding="utf-8"))
+    return {
+        "sources": {k: {"sha256": v["sha256"]} for k, v in registry["sources"].items()},
+        "fonts": {k: {"source": v["source"], "match": v["match"]} for k, v in registry["fonts"].items()},
+        "names": registry["names"],
+        "patterns": [{"regex": p["regex"], "key": p["key"]} for p in registry["patterns"]],
+        "faces": registry["faces"],
     }
 
 

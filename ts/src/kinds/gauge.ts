@@ -7,7 +7,9 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import * as expr from "../expr.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
-import { formatG, isNumber, num, repr, str } from "../py.ts";
+import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
+import { degrees, formatG, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
+import { Box, IntBox } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
 
@@ -165,6 +167,46 @@ function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
   return true;
 }
 
+/** `segments`' cell and step, or `scale`'s pointer and band spans, on the track already placed. */
+function resolveTicked(r: Resolver, element: Gauge, placed: PlacedGauge, parent: Box): void {
+  const min1px = element.resolved_min_1px;
+  const arc = element.geometry === "arc";
+  const length = arc ? placed.sweep : placed.size[0];
+  if (element.style === "segments") {
+    let gap = r.extent(element.gap, parent, "minor", 2, null, min1px, "gap");
+    if (arc) {
+      gap = placed.radius > 0 ? degrees(gap / placed.radius) : 0.0;
+      gap = Math.abs(gap) * (placed.sweep < 0 || Object.is(placed.sweep, -0) ? -1 : 1);
+    }
+    const count = element.count!;
+    placed.cell = (length - (count - 1) * gap) / count;
+    placed.step = placed.cell + gap;
+    return;
+  }
+  placed.pointer = element.pointer !== null
+    ? round(r.extent(element.pointer, parent, "minor", 1, null, min1px, "pointer"))
+    : arc ? placed.thickness : placed.size[1];
+  const spans: [number, number][] = [];
+  let previous = 0.0;
+  for (const [to] of element.bands) {
+    if (arc) spans.push([placed.start_angle + previous * placed.sweep, (to - previous) * placed.sweep]);
+    else spans.push([Math.trunc(length * previous), Math.trunc(length * to)]);
+    previous = to;
+  }
+  placed.band_spans = spans;
+  // The dot reaches past the track: grow the box the lints read, keeping the bar's own rectangle for drawing.
+  const [cx, cy] = placed.center;
+  if (arc) {
+    const reach = placed.radius + Math.max(strokePad(placed.thickness), placed.pointer);
+    placed.box = new Box(cx - reach, cy - reach, 2 * reach, 2 * reach).rounded();
+  } else {
+    const bar = placed.box;
+    placed.rect = bar;
+    const dy = Math.max(0, placed.pointer - Math.floor(bar.height / 2));
+    placed.box = new IntBox(bar.x - placed.pointer, bar.y - dy, bar.width + 2 * placed.pointer, bar.height + 2 * dy);
+  }
+}
+
 class GaugeKind extends ElementKind<Gauge> {
   readonly name = "gauge";
   readonly irClass = Gauge;
@@ -173,6 +215,46 @@ class GaugeKind extends ElementKind<Gauge> {
 
   override ringRefusal(element: Gauge): string | null {
     if (element.style === "segments" || element.style === "scale") return `on a 'style: ${element.style}' gauge is not implemented yet`;
+    return null;
+  }
+
+  override resolve(r: Resolver, element: Gauge, parent: Box, depth: number): Placed {
+    const [cx, cy] = r.point(element.at, parent);
+    const min1px = element.resolved_min_1px;
+    if (element.geometry === "arc") {
+      const radius = round(r.extent(element.radius, parent, "minor", 0, null, min1px, "radius"));
+      const thickness = Math.max(1, round(r.extent(element.thickness, parent, "minor", 1, null, min1px, "thickness")));
+      const [box, ax, ay, start, sweep, garminStart, direction] = arcBox(radius, thickness, cx, cy, element.align, element.vertical_align,
+        element.start_angle, element.sweep);
+      const aodThickness = r.aodExtent(element, "thickness", parent, 1);
+      const placed = PlacedGauge.create({
+        element, box, center: [round(ax), round(ay)], depth, radius, thickness, start_angle: start, sweep,
+        garmin_start: garminStart, garmin_direction: direction, aod_thickness: aodThickness,
+      });
+      if (element.style === "segments" || element.style === "scale") resolveTicked(r, element, placed, parent);
+      return placed;
+    }
+    if (element.style === "needle") {
+      const [parts, reach] = r.resolveParts(element.needle, `${element.id}.needle`, min1px);
+      const disc = new Box(cx - reach, cy - reach, 2 * reach, 2 * reach);
+      return PlacedGauge.create({
+        element, box: disc.rounded(), center: [round(cx), round(cy)], depth,
+        start_angle: element.start_angle!.degrees, sweep: element.sweep!.degrees,
+        needle: rotatableParts(parts, `${element.id}.needle`), reach, aod_thickness: r.aodExtent(element, "thickness", parent, 1),
+      });
+    }
+    const [sized, sx, sy] = r.sizedBox(element, parent, cx, cy);
+    const placed = PlacedGauge.create({
+      element, box: sized.rounded(min1px), center: [round(sx), round(sy)], depth, size: [round(sized.width), round(sized.height)],
+    });
+    if (element.style === "segments" || element.style === "scale") resolveTicked(r, element, placed, parent);
+    return placed;
+  }
+
+  override circularExtent(placed: Placed): [number, number, number] | null {
+    const p = placed as PlacedGauge;
+    if (p.element.geometry === "arc") return [p.center[0], p.center[1], p.radius + Math.max(p.thickness / 2.0, p.pointer)];
+    if (p.element.style === "needle") return [p.center[0], p.center[1], p.reach];
     return null;
   }
 

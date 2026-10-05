@@ -7,7 +7,10 @@ import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, IconElement } from "../ir/model.ts";
 import * as icons from "../icons.ts";
-import { repr, str } from "../py.ts";
+import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
+import { repr, roundHalfEven as round, str } from "../py.ts";
+import * as units from "../units.ts";
+import { Box } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
 
 type Node = Map<DataKey, Data>;
@@ -24,6 +27,30 @@ class IconKind extends ElementKind<IconElement> {
   readonly name = "icon";
   readonly irClass = IconElement;
   override readonly ringed = true;
+
+  override resolve(r: Resolver, element: IconElement, parent: Box, depth: number): Placed {
+    const [cx, cy] = r.point(element.at, parent);
+    // Independent of `parent`: an icon's font is baked once, before any box is resolved.
+    const px = units.pixelSize(element.size, r.device.minorRadius);
+    let glyphKey: string, measureCodepoint: string;
+    if (element.isDynamic) {
+      // The real glyph is chosen on the device; measure the one `bakeSize` used.
+      glyphKey = icons.DYNAMIC_WEATHER_TAG;
+      measureCodepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH;
+    } else {
+      glyphKey = measureCodepoint = element.codepoint;
+    }
+    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias);
+    const font = r.fonts.get(key);
+    const [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
+    // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
+    const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
+    const box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
+    return PlacedIcon.create({
+      element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
+      anchor_point: [round(cx), round(cy)], justify: justify(element),
+    });
+  }
 
   build(b: Builder, node: Node, common: Common): Element {
     const name = node.get("icon");

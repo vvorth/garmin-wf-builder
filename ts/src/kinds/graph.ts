@@ -5,7 +5,9 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";
 import { type Element, type Expression, GRAPH_AREA_MAX_SAMPLES, Graph } from "../ir/model.ts";
-import { isFloat, isInt, isNumber, num, repr, str } from "../py.ts";
+import { type Placed, PlacedGraph, type Resolver } from "../layout.ts";
+import { isFloat, isInt, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
+import type { Box } from "../units.ts";
 import * as series from "../series.ts";
 import type { SeriesDef } from "../series.ts";
 import { Duration, UnitError } from "../units.ts";
@@ -98,6 +100,20 @@ class GraphKind extends ElementKind<Graph> {
     + "once would freeze it at whatever it showed on the first frame",
   ] as const;
   override readonly antialiased = true;
+
+  override resolve(r: Resolver, element: Graph, parent: Box, depth: number): Placed {
+    const [px, py] = r.point(element.at, parent);
+    const min1px = element.resolved_min_1px;
+    const [box, cx, cy] = r.sizedBox(element, parent, px, py);
+    const thickness = Math.max(1, round(r.extent(element.thickness, parent, "minor", 2, null, min1px, "thickness")));
+    const barWidth = Math.max(1, round(r.extent(element.bar_width, parent, "minor", 3, null, min1px, "bar_width")));
+    const aodThickness = r.aodExtent(element, "thickness", parent, 2);
+    const aodBarWidth = r.aodExtent(element, "bar_width", parent, 3);
+    return PlacedGraph.create({
+      element, box: box.rounded(min1px), center: [round(cx), round(cy)], depth, thickness, bar_width: barWidth,
+      size: [round(box.width), round(box.height)], aod_thickness: aodThickness, aod_bar_width: aodBarWidth,
+    });
+  }
 
   build(b: Builder, node: Node, common: Common): Element {
     const name = node.get("series");
