@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 from ..devices import DeviceDatabase
-from .document import SNAPSHOT_MINUTES, Studio
+from .document import KEEP_CHANGES, SNAPSHOT_MINUTES, Studio
 from .sessions import Sessions
 from .store import Store
 
@@ -49,7 +49,7 @@ def allowed_hosts(host: str, extra: list[str]) -> list[str]:
 
 def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
           snapshot_minutes: float = SNAPSHOT_MINUTES,
-          keep_snapshots: int = KEEP_SNAPSHOTS,
+          keep_snapshots: int = KEEP_SNAPSHOTS, keep_changes: int = KEEP_CHANGES,
           single_user: bool = False, allow_hosts: list[str] | None = None) -> None:
     """Run the editor until interrupted."""
     import uvicorn
@@ -57,12 +57,12 @@ def serve(*, host: str, port: int, state_dir: Path, db: DeviceDatabase,
     from .app import create_app
 
     store = Store(state_dir)
-    for line in store.prune(keep_snapshots=keep_snapshots):
+    for line in store.prune(keep_snapshots=keep_snapshots, keep_changes=keep_changes):
         print(f"pruned {line}", flush=True)
     sessions = Sessions(state_dir, single_user=single_user)
     for line in sessions.prune({store.owner(d["id"]) for d in store.documents()}):
         print(f"pruned {line}", flush=True)
-    studio = Studio(store, db, snapshot_minutes=snapshot_minutes)
+    studio = Studio(store, db, snapshot_minutes=snapshot_minutes, keep_changes=keep_changes)
     try:
         app = create_app(studio, sessions=sessions,
                          allowed_hosts=allowed_hosts(host, allow_hosts or []))

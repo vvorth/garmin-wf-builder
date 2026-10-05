@@ -379,6 +379,9 @@ def _parser() -> argparse.ArgumentParser:
                         help="snapshot a changed face this often (default: 5)")
     studio.add_argument("--keep-snapshots", type=int, default=50,
                         help="on start, keep each face's newest N snapshots (default: 50)")
+    studio.add_argument("--keep-changes", type=int, default=500,
+                        help="keep each face's newest N changes to undo; older ones, and the "
+                             "files only they used, are removed (default: 500)")
     studio.add_argument("--single-user", action="store_true",
                         help="every browser sees and edits the same faces, as one person "
                              "(default: each browser has its own)")
@@ -895,7 +898,9 @@ def _studio(args: argparse.Namespace) -> int:
     made, so undo and redo survive a restart, and a changed face is
     snapshotted every `--snapshot-minutes` and on every download. A face is
     kept until it is deleted from the home screen; on start, each keeps its
-    newest `--keep-snapshots` snapshots.
+    newest `--keep-snapshots` snapshots, and its history its newest
+    `--keep-changes` changes (an open face's, too, once it holds twice as
+    many).
 
     A face is opened from the editor's home screen, never from the command
     line. `--host` other than loopback warns, since the server writes files.
@@ -917,12 +922,13 @@ def _studio(args: argparse.Namespace) -> int:
         _error(str(exc))
         return 1
     try:
-        if args.snapshot_minutes <= 0 or args.keep_snapshots < 1:
-            _error("--snapshot-minutes must be positive, --keep-snapshots at least 1")
+        if args.snapshot_minutes <= 0 or args.keep_snapshots < 1 or args.keep_changes < 1:
+            _error("--snapshot-minutes must be positive, --keep-snapshots and "
+                   "--keep-changes at least 1")
             return 1
         serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
               db=db, snapshot_minutes=args.snapshot_minutes,
-              keep_snapshots=args.keep_snapshots,
+              keep_snapshots=args.keep_snapshots, keep_changes=args.keep_changes,
               single_user=args.single_user, allow_hosts=args.allow_host)
     except StoreError as exc:
         _error(str(exc))

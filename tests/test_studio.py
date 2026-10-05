@@ -727,6 +727,73 @@ def test_pruning_keeps_every_face_and_its_newest_snapshots(studio):
     assert [s.time for s in store.snapshots(keep.id)] == [1002.0, 1003.0]
 
 
+def test_compaction_keeps_the_newest_changes_the_version_and_what_a_snapshot_needs(studio):
+    store = studio.store
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    for i in range(1, 4):
+        doc.commit(bumped(doc, i), {}, f"c{i}", doc.version)
+    snap = doc.snapshot("manual")                         # names 1.0.3's text
+    doc.undo(doc.version)
+    doc.commit(bumped(doc, 9), {}, "c9", doc.version)     # drops 1.0.3 from the line
+    for i in range(4, 7):
+        doc.commit(bumped(doc, i), {}, f"c{i}", doc.version)
+    doc.undo(doc.version)                                 # the face is at 1.0.5
+    before = doc.history(None)
+    blobs = store.root / doc.id / "blobs"
+    count = len(list(blobs.iterdir()))
+
+    assert doc.compact(3) > 0
+    after = Studio(Store(store.root), studio.db, scratch=studio.scratch / "again")
+    try:
+        again = after.document(doc.id)
+        line = again.history(None)
+        assert again.version == doc.version == before["version"]
+        assert versions(again) == "1.0.5"
+        # the newest three states, the face still one before the newest
+        assert [s["label"] for s in line["states"]] == ["c6", "c5", "c4"]
+        assert [s["current"] for s in line["states"]] == [False, True, False]
+        assert line["can_undo"] and line["can_redo"]
+        again.undo(again.version)
+        assert versions(again) == "1.0.4" and not again.history(None)["can_undo"]
+        # the dropped states' texts went; the snapshot's stayed and restores
+        assert len(list(blobs.iterdir())) < count
+        again.restore(snap.name, again.version)
+        assert versions(again) == "1.0.3"
+    finally:
+        after.close()
+
+
+def test_a_history_short_enough_is_left_alone(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    doc.commit(bumped(doc, 1), {}, "one", doc.version)
+    journal = studio.store.root / doc.id / "journal.jsonl"
+    text = journal.read_text()
+    assert doc.compact(10) == 0 and journal.read_text() == text
+
+
+def test_the_timer_compacts_an_open_face_whose_history_has_grown(tmp_path, db):
+    s = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "s", keep_changes=2)
+    try:
+        doc = s.create(Bundle("T", minimal_text()), "new")
+        for i in range(1, 5):
+            doc.commit(bumped(doc, i), {}, f"c{i}", doc.version)
+        assert len(s.store.journal(doc.id)) == 5          # past twice two
+        s.tick(doc.last_snapshot[0] + 1)
+        assert [c.label for c in s.store.journal(doc.id)] == ["c3", "c4"]
+        assert doc.version == 5 and versions(doc) == "1.0.4"
+    finally:
+        s.close()
+
+
+def test_pruning_compacts_every_face_on_start(studio):
+    doc = studio.create(Bundle("T", minimal_text()), "new")
+    for i in range(1, 6):
+        doc.commit(bumped(doc, i), {}, f"c{i}", doc.version)
+    removed = studio.store.prune(keep_snapshots=5, keep_changes=2)
+    assert removed == ["T: 4 old history lines, 4 unused files"]
+    assert [c.label for c in studio.store.journal(doc.id)] == ["c4", "c5"]
+
+
 def test_history_over_http(client):
     doc = client.post("/api/documents/upload?filename=face.yaml",
                       content=SHOWCASE.read_bytes()).json()

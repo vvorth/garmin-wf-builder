@@ -260,6 +260,15 @@ class Document:
         self.studio.store.rename(self.id, name)
         self.name = name
 
+    def compact(self, keep: int) -> int:
+        """Cut the history back to its newest ``keep`` changes and remove
+        the files nothing names any more (`Store.compact`); the face and
+        its version are unchanged. Returns how many lines went."""
+        dropped = self.studio.store.compact(self.id, keep)
+        if dropped:
+            self.studio.store.collect(self.id)
+        return dropped
+
     def snapshot(self, reason: str, now: float | None = None) -> Snapshot:
         snap = self.studio.store.snapshot(self.id, self.head, reason, now)
         self.last_snapshot = (snap.time, snap.seq)
@@ -977,6 +986,10 @@ def _children(index: SpanIndex, block: Entry) -> list[dict[str, Any]]:
 SNAPSHOT_MINUTES = 5.0
 #: How many documents no request is using stay open (`Studio._close_idle`).
 MAX_OPEN = 8
+#: `wfb studio --keep-changes`' default: how many changes each face's
+#: history keeps. An open face is compacted back to it once its journal
+#: holds twice as many lines, so compaction is rare.
+KEEP_CHANGES = 500
 
 
 class Studio:
@@ -991,6 +1004,7 @@ class Studio:
 
     def __init__(self, store: Store, db: DeviceDatabase, scratch: Path | None = None, *,
                  snapshot_minutes: float = SNAPSHOT_MINUTES,
+                 keep_changes: int = KEEP_CHANGES,
                  builder: "Builder | None" = None) -> None:
         self.store = store
         self.db = db
@@ -1000,6 +1014,7 @@ class Studio:
         self.lock = threading.RLock()
         self._open: OrderedDict[str, Document] = OrderedDict()
         self.snapshot_seconds = snapshot_minutes * 60
+        self.keep_changes = keep_changes
         self.on_event: Callable[[str, dict[str, Any]], None] = lambda name, data: None
         self._stop = threading.Event()
         self._timer: threading.Thread | None = None
@@ -1018,7 +1033,8 @@ class Studio:
 
     def tick(self, now: float | None = None) -> list[Snapshot]:
         """Snapshot every open document that changed since its last
-        snapshot, once an interval has passed since that one. A document
+        snapshot, once an interval has passed since that one, and compact
+        one whose history has grown past twice `keep_changes`. A document
         whose snapshot fails is reported to its owner (an `error` event
         naming it) and the others are still taken."""
         now = time.time() if now is None else now
@@ -1027,20 +1043,31 @@ class Studio:
             opened = list(self._open.values())
         for doc in opened:
             with self._held(doc):
-                when, seq = doc.last_snapshot
-                if self._open.get(doc.id) is not doc or seq == doc.version \
-                        or now - when < self.snapshot_seconds:
-                    continue
+                if self._open.get(doc.id) is not doc:
+                    continue                    # deleted meanwhile
                 try:
-                    snap = doc.snapshot("timer", now)
+                    if len(self.store.journal(doc.id)) > 2 * self.keep_changes:
+                        doc.compact(self.keep_changes)
                 except Exception as exc:  # the timer must outlive one bad document
+                    self.on_event("error", {"id": doc.id,
+                                            "message": f"cutting the history short failed: {exc}"})
+                try:
+                    snap = self._timed_snapshot(doc, now)
+                except Exception as exc:
                     self.on_event("error", {"id": doc.id,
                                             "message": f"the timed snapshot failed: {exc}"})
                     continue
-                taken.append(snap)
-                self.on_event("snapshot", {"id": doc.id, "name": snap.name,
-                                           "version": doc.version})
+                if snap is not None:
+                    taken.append(snap)
+                    self.on_event("snapshot", {"id": doc.id, "name": snap.name,
+                                               "version": doc.version})
         return taken
+
+    def _timed_snapshot(self, doc: Document, now: float) -> Snapshot | None:
+        when, seq = doc.last_snapshot
+        if seq == doc.version or now - when < self.snapshot_seconds:
+            return None
+        return doc.snapshot("timer", now)
 
     def start_timer(self) -> None:
         """Run `tick` in the background until `close`."""

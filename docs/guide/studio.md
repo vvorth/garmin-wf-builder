@@ -30,6 +30,7 @@ will use ([whose faces](#whose-faces)).
 | `--state-dir` | where every face's history is kept (default `~/.local/state/wfb/studio`, or `$XDG_STATE_HOME/wfb/studio`) |
 | `--snapshot-minutes` | how often a changed face is snapshotted (default 5) |
 | `--keep-snapshots` | on start, each face keeps its newest this many snapshots (default 50); faces themselves are kept until you delete them |
+| `--keep-changes` | each face keeps its newest this many changes to undo (default 500): older ones, and files only they used, are removed on start, and from an open face once it holds twice as many |
 | `--single-user` | every browser sees and edits the same faces, as one person ([whose faces](#whose-faces)) |
 | `--allow-host` | also answer requests addressed to this name, a proxy's or a LAN name (repeatable); see below |
 
@@ -462,7 +463,10 @@ face.
 
 The history lives under `--state-dir`, one directory per face, and is
 kept until you delete the face from the home screen, which deletes its
-history and snapshots with it. A crash while a change was being recorded
+history and snapshots with it. Each face keeps its newest
+`--keep-changes` changes (500 unless you say otherwise): older ones are
+removed, with any file only they used, so a face dragged for hours does
+not grow without end. A snapshot keeps what it needs, however old. A crash while a change was being recorded
 loses at most that change: the editor cuts the half-written line from the
 history and keeps it beside the history as `journal.jsonl.torn-<time>`.
 

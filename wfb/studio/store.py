@@ -35,6 +35,15 @@ The store keeps each journal it has read in memory, checked against the
 file's size and modification time, so a document's head and timeline cost
 nothing to ask for again.
 
+**Compaction** (`compact`) bounds a long history: it rewrites the
+journal as the newest states on the current line, each a `change` line
+under its own `seq`, and, when the document is in an earlier state than
+the newest (after an undo), one move line to it under the head's `seq`.
+Replayed, it gives the same line, cut short, and the same head, so a
+document's version is unchanged.  Redo branches already dropped from the
+line go with it.  `collect` then removes every blob that neither the
+journal nor a snapshot names.
+
 A document's directory is the whole of it: deleting the directory deletes
 the document.
 """
@@ -50,7 +59,7 @@ import tempfile
 import time
 import uuid
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -446,12 +455,67 @@ class Store:
             raise UnknownSnapshot(name)
         return Snapshot.from_json(json.loads(path.read_text()))
 
-    # -- pruning -----------------------------------------------------------------------
+    # -- compaction and pruning ---------------------------------------------------------
 
-    def prune(self, *, keep_snapshots: int) -> list[str]:
-        """Remove every snapshot past a document's newest ``keep_snapshots``.
-        A document itself is never removed but by its owner.  Returns one
-        line per removal, for the log."""
+    def compact(self, doc_id: str, keep: int) -> int:
+        """Rewrite ``doc_id``'s journal as the newest ``keep`` states on its
+        line of history (never cutting the one it is in) and where it is
+        among them; returns how many journal lines that dropped."""
+        read = self._read(doc_id)
+        if not read.changes:
+            return 0
+        line = self.timeline(doc_id)
+        head = read.changes[-1]
+        current = line.states[line.cursor]
+        first = min(max(0, len(line.states) - keep), line.cursor)
+        lines = [replace(state, kind=CHANGE, target=None, merge=False)
+                 for state in line.states[first:]]
+        if head.seq != current.seq:
+            # an undo or redo is the head: the document is in an earlier state
+            lines.append(Change(head.seq, head.time, head.label, current.text,
+                                dict(current.assets), head.kind, current.seq))
+        if len(lines) >= len(read.changes):
+            return 0
+        path = self._dir(doc_id) / "journal.jsonl"
+        if read.size != read.valid:
+            self._set_aside(path, read.valid)
+        try:
+            _write_atomic(path, "".join(json.dumps(c.to_json()) + "\n"
+                                        for c in lines).encode("utf-8"))
+        except OSError as exc:
+            raise StoreError(f"cannot write to the history store: {exc}") from exc
+        self._journals.pop(doc_id, None)
+        return len(read.changes) - len(lines)
+
+    def collect(self, doc_id: str) -> int:
+        """Remove every blob of ``doc_id`` that no journal line and no
+        snapshot names; returns how many.  Nothing is removed while a
+        snapshot cannot be read, since what it names is unknown."""
+        used: set[str] = set()
+        for change in self._read(doc_id).changes:
+            used.add(change.text)
+            used.update(change.assets.values())
+        for path in self._snapshot_files(doc_id):
+            try:
+                snap = Snapshot.from_json(json.loads(path.read_text()))
+            except (OSError, ValueError, KeyError):
+                return 0
+            used.add(snap.text)
+            used.update(snap.assets.values())
+        removed = 0
+        for blob in (self._dir(doc_id) / "blobs").iterdir():
+            sha = blob.name.removesuffix(".z")
+            if _SHA.match(sha) and sha not in used:
+                blob.unlink(missing_ok=True)
+                removed += 1
+        return removed
+
+    def prune(self, *, keep_snapshots: int, keep_changes: int | None = None) -> list[str]:
+        """Remove every snapshot past a document's newest ``keep_snapshots``,
+        and, with ``keep_changes``, compact its history to that many changes
+        and remove the files nothing names any more.  A document itself is
+        never removed but by its owner.  Returns one line per document
+        pruned, for the log."""
         removed: list[str] = []
         for doc in self.documents():
             snaps = self.snapshots(doc["id"])
@@ -459,4 +523,10 @@ class Store:
             for snap in snaps[:max(0, len(snaps) - keep_snapshots)]:
                 (folder / f"{snap.name}.json").unlink()
                 removed.append(f"{doc['name']}: snapshot {snap.name}")
+            if keep_changes is None:
+                continue
+            lines = self.compact(doc["id"], keep_changes)
+            files = self.collect(doc["id"])
+            if lines or files:
+                removed.append(f"{doc['name']}: {lines} old history lines, {files} unused files")
         return removed
