@@ -9,6 +9,13 @@ import { Position } from "../ir/model.ts";
 import { roundHalfEven as round, truthy } from "../py.ts";
 import { Box } from "../units.ts";
 import { type Common, ElementKind, type Refusal, register, shapeOf } from "./base.ts";
+import {
+  AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, type DrawContext, FillPolygon, Grown, IfAod, Lit, type Num, type Op,
+  type Paint, Primitive, RingColor, SetColor, SetPen, Shifted,
+} from "../draw/program.ts";
+import { type AodStyle, constPrefix, McLiteral } from "../emit/monkeyc/common.ts";
+import * as lc from "../emit/monkeyc/layout_constants.ts";
+import { discPerimeterOffsets } from "../ir/model.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -45,6 +52,51 @@ function checkShapeKeys(b: Builder, node: Node, shape: string): void {
           + "'thickness' -- a ring round a filled shape is 'outline:'"],
       });
   }
+}
+
+/** Does this shape's resolved `aod:` flip `filled:`, in a build with AOD code? */
+function shapeFilledOverride(element: Shape, aod: AodStyle): boolean {
+  return aod.on && element.aod !== null && element.aod.filled !== null && element.aod.filled !== element.filled;
+}
+
+/** The shapes with both a `Dc.fill<Name>` and a `Dc.draw<Name>`: the call's name and argument groups. */
+const FILLABLE_SHAPES: ReadonlyMap<string, [string, string[][]]> = new Map([
+  ["rectangle", ["Rectangle", [["X", "Y"], ["WIDTH", "HEIGHT"]]]],
+  ["rounded_rectangle", ["RoundedRectangle", [["X", "Y"], ["WIDTH", "HEIGHT"], ["CORNER"]]]],
+  ["ellipse", ["Ellipse", [["CX", "CY"], ["RX", "RY"]]]],
+  ["circle", ["Circle", [["CX", "CY", "RADIUS"]]]],
+]);
+
+/** Does this shape need a `_THICKNESS` constant: an outline, or an `aod: {filled: false}` override. */
+function needsThicknessConstant(element: Shape): boolean {
+  if (!element.filled) return true;
+  return element.aod !== null && element.aod.filled === false;
+}
+
+/** The shapes whose `outline:` ring is one grown copy of the primitive. */
+const GROWN = new Set(["circle", "rectangle"]);
+
+/** A polygon's `index`-th shifted copy for its `width` px ring. */
+function ringCopy(prefix: string, width: number, index: number): string {
+  return width === 1 ? `${prefix}_RING_${index}` : `${prefix}_RING${width}_${index}`;
+}
+
+/** The one grown copy a filled circle or rectangle rings as. */
+function grown(shape: string, rounded: boolean, c: (suffix: string) => Const, width: number): Primitive {
+  if (shape === "circle") return Primitive("fillCircle", [[c("CX"), c("CY"), Grown(c("RADIUS"), width)]]);
+  const corner: Num = rounded ? Grown(c("CORNER"), width) : Lit(width);
+  return Primitive("fillRoundedRectangle", [
+    [Grown(c("X"), width, -1), Grown(c("Y"), width, -1)],
+    [Grown(c("WIDTH"), width, 2), Grown(c("HEIGHT"), width, 2)],
+    [corner],
+  ]);
+}
+
+/** The pen a stroked shape draws with, when it is the same in every frame; `null` otherwise. */
+function strokePen(element: Shape, flips: boolean, thickness: () => AodPick): AodPick | null {
+  if (element.shape === "line") return thickness();
+  if (FILLABLE_SHAPES.has(element.shape) && !element.filled && !flips) return thickness();
+  return null;
 }
 
 class ShapeKind extends ElementKind<Shape> {
@@ -179,6 +231,110 @@ class ShapeKind extends ElementKind<Shape> {
       ["for an outline, draw the edges as separate 'type: line' elements, and override those instead"]];
     }
     return null;
+  }
+
+  override lower(ctx: DrawContext, placed: Placed): Op[] {
+    const p = placed as PlacedShape;
+    const element = p.element;
+    const aod = ctx.aod;
+    const prefix = constPrefix(p.id);
+    const consts = lc.numericConstants(this.layoutConstants(prefix, p));
+    const c = (suffix: string): Const => Const(`${prefix}_${suffix}`, consts.get(`${prefix}_${suffix}`)!);
+    const flips = shapeFilledOverride(element, aod);
+
+    const thickness = (): AodPick => {
+      const asleep = p.aod_thickness;
+      if (element.shape === "circle") return AodPick(Lit(p.thickness), asleep !== null ? Lit(asleep) : null);
+      return AodPick(c("THICKNESS"), asleep !== null ? c("AOD_THICKNESS") : null);
+    };
+
+    const primitive = (dx = 0, dy = 0, setPen = true): Op[] => {
+      const fillable = FILLABLE_SHAPES.get(element.shape);
+      if (fillable !== undefined) {
+        const [name, groups] = FILLABLE_SHAPES.get(element.rounded ? "rounded_rectangle" : element.shape)!;
+        const first = groups[0]!;
+        const head: Num[] = [Shifted(c(first[0]!), dx), Shifted(c(first[1]!), dy), ...first.slice(2).map(c)];
+        const args = [head, ...groups.slice(1).map((group) => group.map(c))];
+        const filled: Op[] = [Primitive(`fill${name}`, args)];
+        const stroked = (): Op[] => {
+          const body: Op[] = [Primitive(`draw${name}`, args)];
+          return setPen ? [SetPen(thickness()), ...body, SetPen(null)] : body;
+        };
+        const awake = element.filled ? filled : stroked();
+        if (!flips) return awake;
+        return [IfAod(element.filled ? stroked() : filled, awake)];
+      }
+      if (element.shape === "arc") {
+        return [ArcSpan(Shifted(c("CX"), dx), Shifted(c("CY"), dy), c("RADIUS"), thickness(), c("START"), c("SWEEP"))];
+      }
+      if (element.shape === "polygon") return [FillPolygon(`${prefix}_POINTS`, p.points)];
+      const line: Op[] = [Primitive("drawLine", [[Shifted(c("CX"), dx), Shifted(c("CY"), dy), Shifted(c("END_X"), dx), Shifted(c("END_Y"), dy)]])];
+      return setPen ? [SetPen(thickness()), ...line, SetPen(null)] : line;
+    };
+
+    const ops: Op[] = [];
+    const ring = ctx.ring;
+    const outline = element.outline;
+    if (ring !== null || outline !== null) {
+      const paint: Paint = ring !== null ? RingColor() : AodDimmed(element, outline !== null ? outline.color : null);
+      const width = ring !== null ? ring.width : (outline !== null ? outline.width : 1);
+      const offsets = discPerimeterOffsets(width);
+      if (GROWN.has(element.shape) && element.filled && !flips) {
+        ops.push(SetColor(paint), grown(element.shape, element.rounded, c, width));
+      } else if (element.shape === "polygon") {
+        ops.push(SetColor(paint));
+        offsets.forEach(([dx, dy], index) => {
+          ops.push(FillPolygon(ringCopy(prefix, width, index), p.points.map(([x, y]): [number, number] => [x + dx, y + dy])));
+        });
+      } else {
+        const pen = strokePen(element, flips, thickness);
+        if (pen !== null) ops.push(SetPen(pen));
+        ops.push(SetColor(paint));
+        for (const [dx, dy] of offsets) ops.push(...primitive(dx, dy, pen === null));
+        if (pen !== null) ops.push(SetPen(null));
+      }
+      if (ring !== null) return ops;
+      ops.push(Blank());
+    }
+    ops.push(SetColor(AodRestyled(element, "color")));
+    ops.push(...primitive());
+    return ops;
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): lc.Constants {
+    const p = placed as PlacedShape;
+    const element = p.element;
+    const out: lc.Constants = [];
+    if (["circle", "line", "arc", "ellipse"].includes(element.shape)) {
+      out.push([`${prefix}_CX`, p.center[0], ""], [`${prefix}_CY`, p.center[1], ""]);
+    }
+    if (element.shape === "circle") {
+      out.push([`${prefix}_RADIUS`, p.radius, ""]);
+    } else if (element.shape === "line") {
+      out.push([`${prefix}_END_X`, p.end[0], ""], [`${prefix}_END_Y`, p.end[1], ""], [`${prefix}_THICKNESS`, p.thickness, ""]);
+      out.push(...lc.aodThicknessConstant(prefix, p));
+    } else if (element.shape === "arc") {
+      out.push(...lc.arcConstants(prefix, p), ...lc.aodThicknessConstant(prefix, p));
+    } else if (element.shape === "ellipse") {
+      out.push([`${prefix}_RX`, p.rx, "semi-axis along x"], [`${prefix}_RY`, p.ry, "semi-axis along y"]);
+      if (needsThicknessConstant(element)) out.push([`${prefix}_THICKNESS`, p.thickness, "pen width"], ...lc.aodThicknessConstant(prefix, p));
+    } else if (element.shape === "polygon") {
+      const points = p.points.map(([x, y]) => `[${x}, ${y}]`).join(", ");
+      out.push([`${prefix}_POINTS`, new McLiteral("Array<Graphics.Point2D>", `[${points}]`),
+        `${p.points.length} vertices; fillPolygon's own limit is 64`]);
+      for (const width of p.ring_widths) {
+        discPerimeterOffsets(width).forEach(([dx, dy], index) => {
+          const moved = p.points.map(([x, y]) => `[${x + dx}, ${y + dy}]`).join(", ");
+          out.push([ringCopy(prefix, width, index), new McLiteral("Array<Graphics.Point2D>", `[${moved}]`),
+            width > 1 ? `the ${width}px ring's stamp at (${dx}, ${dy})` : `the ring's stamp at (${dx}, ${dy})`]);
+        });
+      }
+    } else {
+      out.push(...lc.boxConstants(prefix, p.rect ?? p.innerBox));
+      if (element.rounded) out.push([`${prefix}_CORNER`, p.corner_radius, ""]);
+      if (needsThicknessConstant(element)) out.push([`${prefix}_THICKNESS`, p.thickness, "pen width"], ...lc.aodThicknessConstant(prefix, p));
+    }
+    return out;
   }
 }
 

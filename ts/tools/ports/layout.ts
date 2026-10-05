@@ -20,7 +20,7 @@ import { irJson } from "./ir.ts";
 let database: DeviceDatabase | null = null;
 
 /** One device database for the whole run, so every case shares its measured faces. */
-function db(input: Case): DeviceDatabase {
+export function deviceDatabase(input: Case): DeviceDatabase {
   if (database === null) database = new DeviceDatabase(input.files, new NodeFontFiles());
   return database;
 }
@@ -53,7 +53,7 @@ export function layout(input: Case): unknown {
   const bag = new Bag();
   const face = load(input.path, bag, input.text, repoFileExists);
   if (face === null) return null;
-  const device = db(input).get(input.device!);
+  const device = deviceDatabase(input).get(input.device!);
   return irJson(resolve(face, device, bakedFonts(input)), true, {
     sheet: (sheet) => ({
       $image: createHash("sha256").update(sheet.bytes).digest("hex"), mode: sheet.mode, size: [sheet.width, sheet.height],
@@ -80,6 +80,6 @@ const sheetJson = (sheet: { mode: string; width: number; height: number; bytes: 
 export function fonts(input: Case): unknown {
   const face = load(input.path, new Bag(), input.text, repoFileExists);
   if (face === null) return null;
-  const baked = bakeFonts(face, db(input).get(input.device!), readFont);
+  const baked = bakeFonts(face, deviceDatabase(input).get(input.device!), readFont);
   return Object.fromEntries([...baked].map(([name, font]) => [name, irJson(font, true, { sheet: sheetJson })]));
 }

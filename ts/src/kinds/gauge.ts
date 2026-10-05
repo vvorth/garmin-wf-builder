@@ -12,6 +12,21 @@ import { degrees, formatG, isNumber, num, repr, roundHalfEven as round, str } fr
 import { Box, IntBox } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
+import {
+  AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv,
+  type DrawContext, FloatLit, For, Grown, If, Let, LetAutoScale, LetSlotPick, Lit, LocalsSet, NotPulsing, type Num, NumLocal,
+  NumPick, type Op, type Paint, PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted,
+} from "../draw/program.ts";
+import { flt } from "../draw/barrel.ts";
+import { colorCode } from "../draw/printer.ts";
+import { constPrefix } from "../emit/monkeyc/common.ts";
+import * as lc from "../emit/monkeyc/layout_constants.ts";
+import { discPerimeterOffsets } from "../ir/model.ts";
+import { configDataIds, configField } from "../ir/naming.ts";
+import type { RotatablePart } from "../layout.ts";
+import { radians } from "../py.ts";
+import { DATA_SAMPLE, SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
+import * as vocab from "../vocab.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -207,6 +222,272 @@ function resolveTicked(r: Resolver, element: Gauge, placed: PlacedGauge, parent:
   }
 }
 
+/** The generated module each slot gauge's scale comes from. */
+export const SLOT_SCALE_MODULE = "SlotScale";
+
+/** Whether `absent: hide` still draws this gauge's value-independent parts; a needle hides whole. */
+export function keepsTrack(element: Gauge): boolean {
+  return element.absent === "hide" && element.style !== "needle";
+}
+
+/** The fallback fill fraction, a Float in 0.0-1.0: a constant bare, anything else clamped on device. */
+function fallbackNum(element: Gauge): Num {
+  const fallback = element.fallback!;
+  if (fallback.isConstant) {
+    const n = expr.asNumber(fallback.constant);
+    return FloatLit(typeof n === "bigint" ? Number(n) : num(n), "f");
+  }
+  return Conv(Call("WfbMath.clamp", [Read(fallback), FloatLit(0.0), FloatLit(1.0)]), "toFloat");
+}
+
+/** `body`, inside `if (<cond>)` when there is one. */
+function wrap(cond: Cond | null, body: Op[]): Op[] {
+  return cond !== null ? [If(cond, body)] : body;
+}
+
+/** One gauge's program: `lower`'s helpers, sharing the placed gauge, its constants and its paints. */
+class Lowering {
+  readonly ctx: DrawContext;
+  readonly placed: PlacedGauge;
+  readonly element: Gauge;
+  readonly prefix: string;
+  readonly consts: Map<string, number | import("../edit/yaml.ts").PyFloat>;
+  readonly color: Paint;
+  readonly track: Paint | null;
+  /** The ring to draw: an outlined group's pass, else the gauge's own. */
+  readonly stamp: [Paint, number] | null = null;
+
+  constructor(ctx: DrawContext, placed: PlacedGauge, kind: GaugeKind) {
+    this.ctx = ctx;
+    this.placed = placed;
+    this.element = placed.element;
+    this.prefix = constPrefix(placed.id);
+    this.consts = lc.numericConstants(kind.layoutConstants(this.prefix, placed));
+    this.color = AodRestyled(this.element, "color");
+    this.track = this.element.track_color !== null ? AodRestyled(this.element, "track_color") : null;
+    if (ctx.ring !== null) this.stamp = [RingColor(), ctx.ring.width];
+    else if (this.element.outline !== null) this.stamp = [AodDimmed(this.element, this.element.outline.color), this.element.outline.width];
+  }
+
+  c(suffix: string): Const {
+    const name = `${this.prefix}_${suffix}`;
+    return Const(name, this.consts.get(name)!);
+  }
+
+  thickness(): AodPick {
+    return AodPick(this.c("THICKNESS"), this.placed.aod_thickness !== null ? this.c("AOD_THICKNESS") : null);
+  }
+
+  ops(): Op[] {
+    const element = this.element;
+    if (element.slot !== null) return this.slotGauge();
+    const probes = [element.value, element.maximum].filter((e): e is Expression => e !== null);
+    if (element.auto_scale !== null) {
+      const ast = element.value!.ast as expr.Ref;
+      const reader = catalog.READERS.get(catalog.CATALOG.get(ast.path)!.reader)!.name;
+      const constant = complications.TYPES.get(element.auto_scale)!.constant;
+      return [
+        Comment(`max: auto -- ${ast.path}'s own scale`),
+        LetAutoScale(reader, SLOT_SCALE_MODULE, constant, element.auto_scale, element.value!),
+        Comment("no scale (an unset goal, no profile, ...) hides the whole gauge"),
+        If(LocalsSet(["scale"]), this.bound(Call("WfbScale.share", [Read(element.value!), NumLocal("scale")]), probes)),
+      ];
+    }
+    const fraction = Bin("/", Call("WfbMath.percent", [Read(element.value!), Read(element.maximum!)]), FloatLit(100.0));
+    return this.bound(fraction, probes);
+  }
+
+  /** A gauge bound to a value: `absent:`'s policy over `fraction`, then each style's drawing. */
+  bound(fraction: Num, probes: Expression[]): Op[] {
+    const element = this.element;
+    const guards = this.ctx.value_guards;
+    const present = keepsTrack(element) && guards.length > 0 ? Present(guards, probes) : null;
+    const ops: Op[] = [];
+    if (element.absent === "fallback" && guards.length > 0) {
+      ops.push(Comment(vocab.absent(element as never)), Let("fraction", fallbackNum(element)),
+        If(Present(guards, probes), [Assign("fraction", fraction)]), Blank());
+      fraction = NumLocal("fraction");
+    }
+    return [...ops, ...this.styles(fraction, present)];
+  }
+
+  /** A gauge on a `config: slots:` slot: the wearer's pick, against its own scale. */
+  slotGauge(): Op[] {
+    const element = this.element;
+    const face = this.ctx.resolved.face;
+    const slot = face.config_data.get(element.slot!);
+    const shown = slot !== undefined ? this.ctx.shown(slot) : null;
+    const sample = shown !== null ? DATA_SAMPLE.get(shown) ?? null : null;
+    const scale = shown !== null ? complications.scaleFor(shown, {
+      goals: SAMPLE_GOALS, heartRateZones: SAMPLE_HEART_RATE_ZONES, sex: SAMPLE_WEARER_SEX, age: SAMPLE_WEARER_AGE, value: sample,
+    }) : null;
+    const reading = NumLocal("reading");
+    const hasReading = LocalsSet(["reading"]);
+    const inner: Op[] = [Let("reading", Call("WfbScale.fraction", [NumLocal("pulled"), NumLocal("scale")]))];
+    if (element.absent === "fallback") {
+      inner.push(Comment(vocab.absent(element as never)), Let("fraction", NumPick(hasReading, reading, fallbackNum(element))),
+        ...this.styles(NumLocal("fraction"), null));
+    } else if (keepsTrack(element)) {
+      inner.push(...this.styles(reading, hasReading));
+    } else {
+      inner.push(If(hasReading, this.styles(reading, null)));
+    }
+    const body: Op[] = [
+      Comment(`slot: ${element.slot} -- the wearer's pick, against its own scale`),
+      LetSlotPick(configField(`data_${element.slot}`), SLOT_SCALE_MODULE, this.ctx.complications_guarded, sample, scale),
+      Comment("a pick with no scale hides the whole gauge, track included"),
+      If(LocalsSet(["scale", "pulled"]), inner),
+    ];
+    return [
+      Comment("the editor is animating this slot -- its drawable draws it (drawSlot)"),
+      If(NotPulsing(configDataIds(face).get(element.slot!)!), body),
+    ];
+  }
+
+  styles(fraction: Num, present: Cond | null): Op[] {
+    const style = this.element.style;
+    if (style === "needle") return this.needle(fraction);
+    if (style === "segments" || style === "scale") return this.ticked(fraction, present);
+    if (style === "arc") return this.arc(fraction, present);
+    return this.bar(fraction, present);
+  }
+
+  arc(fraction: Num, present: Cond | null): Op[] {
+    const c = (s: string): Const => this.c(s);
+    const thickness = this.thickness();
+    const span = (dx = 0, dy = 0): ArcSpan => ArcSpan(Shifted(c("CX"), dx), Shifted(c("CY"), dy), c("RADIUS"), thickness, c("START"), c("SWEEP"));
+    const lit = (dx = 0, dy = 0): ArcProgress =>
+      ArcProgress(Shifted(c("CX"), dx), Shifted(c("CY"), dy), c("RADIUS"), thickness, c("START"), c("SWEEP"), fraction);
+    const ops: Op[] = [];
+    if (this.stamp !== null) {
+      const [paint, width] = this.stamp;
+      const offsets = discPerimeterOffsets(width);
+      if (this.element.track_color !== null) ops.push(SetColor(paint), ...offsets.map(([dx, dy]) => span(dx, dy)));
+      else ops.push(...wrap(present, [SetColor(paint), ...offsets.map(([dx, dy]) => lit(dx, dy))]));
+      if (this.ctx.ring !== null) return ops;
+      ops.push(Blank());
+    }
+    if (this.track !== null) ops.push(Comment("the unfilled track"), SetColor(this.track), span(), Blank());
+    ops.push(Comment(present === null ? "the filled portion"
+      : "the filled portion -- absent: hide, so only while the value is present"));
+    return [...ops, ...wrap(present, [SetColor(this.color), lit()])];
+  }
+
+  bar(fraction: Num, present: Cond | null): Op[] {
+    const c = (s: string): Const => this.c(s);
+    const rect = (width: Num, dx = 0, dy = 0): Primitive => Primitive("fillRectangle", [[Shifted(c("X"), dx), Shifted(c("Y"), dy), width, c("HEIGHT")]]);
+    const grown = (width: Num): Op[] => {
+      const [paint, ring] = this.stamp!;
+      return [SetColor(paint), Primitive("fillRoundedRectangle", [
+        [Grown(c("X"), ring, -1), Grown(c("Y"), ring, -1)],
+        [Grown(width, ring, 2), Grown(c("HEIGHT"), ring, 2)],
+        [Lit(ring)]])];
+    };
+    const ops: Op[] = [];
+    const ringOnly = this.ctx.ring !== null;
+    if (this.stamp !== null && this.element.track_color !== null) {
+      ops.push(...grown(c("WIDTH")));
+      if (ringOnly) return ops;
+      ops.push(Blank());
+    }
+    if (this.track !== null) ops.push(SetColor(this.track), rect(c("WIDTH")), Blank());
+    if (present !== null) ops.push(Comment("the fill -- absent: hide, so only while the value is present"));
+    const filled = NumLocal("filled");
+    const body: Op[] = [Let("filled", Conv(Paren(Bin("*", c("WIDTH"), fraction)), "toNumber"))];
+    if (this.stamp !== null && this.element.track_color === null) {
+      body.push(If(Cmp(">", filled, Lit(0)), grown(filled)));
+      if (ringOnly) return [...ops, ...wrap(present, body)];
+    }
+    body.push(SetColor(this.color), rect(filled));
+    return [...ops, ...wrap(present, body)];
+  }
+
+  ticked(fraction: Num, present: Cond | null): Op[] {
+    const element = this.element, placed = this.placed;
+    const c = (s: string): Const => this.c(s);
+    const arc = element.geometry === "arc";
+    const thickness = arc ? this.thickness() : null;
+    const span = (start: Num, sweep: Num): ArcSpan => ArcSpan(c("CX"), c("CY"), c("RADIUS"), thickness!, start, sweep);
+    const barRect = (x0: Num, x1: Num): Op[] => [Let("x0", x0),
+      Primitive("fillRectangle", [[Bin("+", c("X"), NumLocal("x0")), c("Y"), Bin("-", x1, NumLocal("x0")), c("HEIGHT")]])];
+    const i = NumLocal("i");
+    if (element.style === "segments") {
+      const count = element.count!;
+      const litValue = Conv(Paren(Bin("+", Bin("*", Paren(fraction), Lit(count)), FloatLit(0.5))), "toNumber");
+      const ops: Op[] = present === null ? [Let("lit", litValue)] : [
+        Comment("absent: hide -- every cell draws unlit while the value is absent"),
+        Let("lit", Lit(0)), If(present, [Assign("lit", litValue)])];
+      if (this.track === null) ops.push(SetColor(this.color));
+      const cell: Op[] = [];
+      if (this.track !== null) cell.push(SetColor(PaintPick(Cmp("<", i, NumLocal("lit")), this.color, this.track)));
+      if (arc) cell.push(span(Bin("-", c("START"), Bin("*", i, c("STEP"))), c("CELL")));
+      else cell.push(...barRect(Conv(Paren(Bin("*", i, c("STEP"))), "toNumber"), Conv(Paren(Bin("+", Bin("*", i, c("STEP")), c("CELL"))), "toNumber")));
+      const bound: Num = this.track === null ? NumLocal("lit") : Lit(count);
+      return [...ops, For("i", bound, cell)];
+    }
+    const ops: Op[] = [];
+    if (this.track !== null) {
+      ops.push(Comment("the track"), SetColor(this.track),
+        arc ? span(c("START"), c("SWEEP")) : Primitive("fillRectangle", [[c("X"), c("Y"), c("WIDTH"), c("HEIGHT")]]));
+    }
+    element.bands.forEach(([, bandColor], index) => {
+      const band = `BAND_${index}`;
+      ops.push(Comment(`band ${index}`), SetColor(AodDimmed(element, bandColor)));
+      if (arc) ops.push(span(c(`${band}_START`), c(`${band}_SWEEP`)));
+      else ops.push(Primitive("fillRectangle", [[Bin("+", c("X"), c(`${band}_X0`)), c("Y"), Bin("-", c(`${band}_X1`), c(`${band}_X0`)), c("HEIGHT")]]));
+    });
+    ops.push(Comment(present === null ? "the pointer" : "the pointer -- absent: hide, so only while the value is present"));
+    const pointer: Op[] = [SetColor(this.color)];
+    if (arc) {
+      const angle = NumLocal("angle");
+      const offset = (fn: string): Conv => Conv(Call("Math.round", [Bin("*", c("RADIUS"), Call(fn, [angle]))]), "toNumber");
+      pointer.push(
+        Let("angle", Bin("+", FloatLit(radians(placed.start_angle)), Bin("*", Paren(fraction), FloatLit(radians(placed.sweep))))),
+        Primitive("fillCircle", [[Bin("+", c("CX"), offset("Math.sin"))], [Bin("-", c("CY"), offset("Math.cos"))], [c("POINTER")]]),
+      );
+    } else {
+      pointer.push(Primitive("fillCircle", [
+        [Bin("+", c("X"), Conv(Paren(Bin("*", c("WIDTH"), Paren(fraction))), "toNumber"))],
+        [Bin("+", c("Y"), Bin("/", c("HEIGHT"), Lit(2)))],
+        [c("POINTER")]]));
+    }
+    return [...ops, ...wrap(present, pointer)];
+  }
+
+  needle(fraction: Num): Op[] {
+    const element = this.element, placed = this.placed, prefix = this.prefix;
+    const c = (s: string): Const => this.c(s);
+    const angle = NumLocal("angle");
+    const ops: Op[] = [
+      Let("cx", c("CX")), Let("cy", c("CY")),
+      Let("angle", Bin("+", FloatLit(radians(placed.start_angle)), Bin("*", Paren(fraction), FloatLit(radians(placed.sweep))))),
+      Let("sin", Call("Math.sin", [angle])),
+      Let("cos", Call("Math.cos", [angle])),
+    ];
+    const asleep = placed.aod_thickness !== null ? Const(`${prefix}_AOD_THICKNESS`, placed.aod_thickness) : null;
+    const pen = (partPrefix: string, part: RotatablePart): AodPick =>
+      AodPick(Const(`${partPrefix}_THICKNESS`, "thickness" in part ? part.thickness : 1), asleep);
+    const parts = placed.needle.map((part, index): [string, RotatablePart] => [`${prefix}_NEEDLE_${index}`, part]);
+    if (this.stamp !== null) {
+      const [paint, width] = this.stamp;
+      ops.push(SetColor(paint));
+      for (const [partPrefix, part] of parts) ops.push(Part(part, partPrefix, true, pen(partPrefix, part), { ring: width }));
+      if (this.ctx.ring !== null) return ops;
+    }
+    let current: string | null = null;
+    for (const [partPrefix, part] of parts) {
+      const paint = AodPart(element, part.color);
+      const code = colorCode(paint, this.ctx.aod);
+      if (code !== current) {
+        ops.push(SetColor(paint));
+        current = code;
+      }
+      ops.push(Part(part, partPrefix, true, pen(partPrefix, part)));
+    }
+    return ops;
+  }
+}
+
 class GaugeKind extends ElementKind<Gauge> {
   readonly name = "gauge";
   readonly irClass = Gauge;
@@ -331,6 +612,43 @@ class GaugeKind extends ElementKind<Gauge> {
     b.checkReachableSubstitute(node, element, "'color'/'track_color'", [element.value, element.maximum],
       [element.color, element.track_color]);
     return element;
+  }
+
+  override lower(ctx: DrawContext, placed: Placed): Op[] {
+    return new Lowering(ctx, placed as PlacedGauge, this).ops();
+  }
+
+  override drawsWhileAbsent(element: Gauge): boolean {
+    return keepsTrack(element);
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): lc.Constants {
+    const p = placed as PlacedGauge;
+    const element = p.element;
+    const out: lc.Constants = [[`${prefix}_CX`, p.center[0], ""], [`${prefix}_CY`, p.center[1], ""]];
+    if (element.geometry === "arc") {
+      out.push(...lc.arcConstants(prefix, p), ...lc.aodThicknessConstant(prefix, p));
+    } else if (element.style === "needle") {
+      out.push(...lc.aodThicknessConstant(prefix, p, lc.EVERY_PART_NOTE));
+      p.needle.forEach((part, index) => out.push(...lc.handPartConstants(`${prefix}_NEEDLE_${index}`, "needle", index, part)));
+    } else {
+      out.push(...lc.boxConstants(prefix, p.rect ?? p.innerBox));
+    }
+    if (element.style === "segments") {
+      const unit = element.geometry === "arc" ? "degrees" : "px";
+      out.push([`${prefix}_CELL`, flt(p.cell), `one cell, ${unit}`], [`${prefix}_STEP`, flt(p.step), `cell start to cell start, ${unit}`]);
+    } else if (element.style === "scale") {
+      out.push([`${prefix}_POINTER`, p.pointer, "the value dot's radius"]);
+      p.band_spans.forEach(([a, b], index) => {
+        if (element.geometry === "arc") {
+          out.push([`${prefix}_BAND_${index}_START`, flt(90.0 - a), `${formatG(a)}deg clockwise from 12 o'clock, in Garmin's convention`],
+            [`${prefix}_BAND_${index}_SWEEP`, flt(b), "clockwise-positive degrees"]);
+        } else {
+          out.push([`${prefix}_BAND_${index}_X0`, Math.trunc(a), "px from the bar's left"], [`${prefix}_BAND_${index}_X1`, Math.trunc(b), ""]);
+        }
+      });
+    }
+    return out;
   }
 }
 

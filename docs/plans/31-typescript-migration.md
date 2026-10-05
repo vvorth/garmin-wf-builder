@@ -395,6 +395,43 @@ places with the oracle's fonts, so its parity stays the layout's own.
   union) and the bounding-box offset, so the change is a figure and not a
   judgement.
 
+**Built 2026-10-06.** On the 168 face × device cases, `draw` is equal on 38
+and within its two recorded deviations on 130; `preview` is equal on 37 and
+on the other 131 differs only inside system-font and vector-font runs. Like
+`layout`, both start from the oracle's baked fonts, so a difference is the
+draw program's or the renderer's, not the bake's.
+
+- **Shapes are pixel-exact on every frame.** `raster/pillow.ts` is
+  `raster.js` typed, and a test draws a sweep of every primitive with both
+  and requires the same bytes (and the same refusals).
+- **Face-drawn text is the recorded change.** System and vector faces are
+  rasterised from their outlines (`opentype.js` paths, the slice-5
+  rasteriser); a turned run turns its outlines first. Measured per run on
+  every frame (`docs/research/probes/typescript-stack/text-report.txt`,
+  `ts/tools/text-report.ts`): median ink IoU 0.84 for upright system text,
+  0.86 angled and 0.77 radial vector text, with the ink's box moving under
+  half a device pixel on average. Upright text differs mostly by FreeType's
+  hinting; turned text also loses Pillow's rotation blur and halo.
+- **A third deviation:** a turned part's coordinates come from `Math.sin`
+  and `Math.cos`, a last bit off glibc's now and then, so `draw` compares
+  numbers to 10 significant digits. No pixel moved.
+- **Pulled forward from slice 8:** every kind's `layoutConstants` (lowering
+  names its `Layout` constants), the shared constant blocks, `ReadPlan`'s
+  analysis, guards and declarations, `AodStyle`, `RingPass`, the view's
+  `negated`, and the printer's value spellings (`numCode`, `colorCode`,
+  ...), which lowering compares colours by. `Guards` is a three-field
+  interface until `availability` is ported in slice 7.
+
+**Departures:**
+- **Printing the ops** (`print_ops`, `emit_body`) moves to slice 8 with the
+  view that prints them; parity checks it there, through `project`.
+- **The skin, `--all-styles`, `--heatmap` and the stand-in warning** move to
+  slice 9 with the CLI that offers them. The skin needs Pillow's Lanczos
+  resample, which nothing else uses.
+- **`Rasteriser` is the module, not a class:** functions over an RGBA
+  `Image`. `wfb/studio/static/raster.js` stays until the editor's front end
+  switches to the bundle in slice 9.
+
 ### Slice 7 — lint
 
 - `lint.ts`, every check. The pixel-measured ones (`aod-burn-in`, the

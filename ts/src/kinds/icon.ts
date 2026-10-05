@@ -12,6 +12,14 @@ import { repr, roundHalfEven as round, str } from "../py.ts";
 import * as units from "../units.ts";
 import { Box } from "../units.ts";
 import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
+import {
+  AodDimmed, AodRestyled, Blank, Comment, Const, type DrawContext, Font, Glyph, IconChoice, IfNotNull, LoadFont, type Op,
+  type Paint, RingColor, SetColor, Shifted, type Str, StrLit,
+} from "../draw/program.ts";
+import { constPrefix, fontField } from "../emit/monkeyc/common.ts";
+import type { Constants } from "../emit/monkeyc/layout_constants.ts";
+import { discPerimeterOffsets } from "../ir/model.ts";
+import { bakedRing, bakedRingLocal } from "./text.ts";
 
 type Node = Map<DataKey, Data>;
 type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align">;
@@ -105,6 +113,41 @@ class IconKind extends ElementKind<IconElement> {
     if (typeof name !== "string") throw new Error("the schema requires 'icon:'");
     const codepoint = b.resolveIconName(name, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
     return IconElement.create({ ...common, icon: name, codepoint, ...placement });
+  }
+
+  override lower(ctx: DrawContext, placed: Placed): Op[] {
+    const p = placed as PlacedIcon;
+    const element = p.element;
+    const prefix = constPrefix(p.id);
+    const font = Font("font", { baked: p.font_key });
+    const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
+    let glyph: Str;
+    if (element.value_for !== null) {
+      ops.push(Comment(`${repr(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
+      glyph = IconChoice(element.value_for);
+    } else {
+      ops.push(Comment(repr(element.icon)));
+      glyph = StrLit(element.codepoint);
+    }
+    const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
+    const draw = (face: Font, dx = 0, dy = 0): Glyph =>
+      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
+    const ringOps = (paint: Paint, width: number): Op[] => {
+      const baked = bakedRing(element, ctx.resolved.face, width);
+      if (baked === null) return [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(font, dx, dy))];
+      const local = bakedRingLocal(width);
+      return [LoadFont(local, `_${fontField(baked)}`, { onNull: "none" }), IfNotNull(local, [SetColor(paint), draw(Font(local, { baked }))])];
+    };
+    if (ctx.ring !== null) return [...ops, ...ringOps(RingColor(), ctx.ring.width)];
+    if (element.outline !== null) ops.push(...ringOps(AodDimmed(element, element.outline.color), element.outline.width), Blank());
+    return [...ops, SetColor(AodRestyled(element, "color")), draw(font)];
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): Constants {
+    const p = placed as PlacedIcon;
+    const isDefault = p.element.align === "center" && p.element.vertical_align === "center";
+    const note = isDefault ? "" : "the anchor drawText justifies the glyph from, not its centre";
+    return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 }
 

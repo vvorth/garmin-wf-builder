@@ -2,6 +2,7 @@
 // port of each. A stage with no port reports every case missing; a slice
 // registers its stage's port here when it lands.
 import type { DeviceFiles } from "../src/devices/files.ts";
+import { draw, faceRuns, lastBits, outsideText, preview } from "./ports/draw.ts";
 import { diagnosticsLoad, face } from "./ports/ir.ts";
 import { fonts, layout } from "./ports/layout.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
@@ -68,6 +69,8 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   "diagnostics-load": diagnosticsLoad,
   layout,
   fonts,
+  draw,
+  preview,
 };
 
 /**
@@ -148,6 +151,23 @@ function iconSizing(value: unknown): unknown {
 }
 
 export const DEVIATIONS: readonly Deviation[] = [
+  {
+    stages: ["draw"],
+    reason: "a system-font or vector-font run's glyphs are rasterised from their outlines by our coverage rasteriser, "
+      + "not by FreeType (and, turned, not by rotating a bitmap): its tiles and their offsets differ",
+    normalise: faceRuns,
+  },
+  {
+    stages: ["draw"],
+    reason: "a turned part's coordinates come from JavaScript's Math.sin/Math.cos, which can differ from glibc's in the last bit: "
+      + "compared to 10 significant digits",
+    normalise: lastBits,
+  },
+  {
+    stages: ["preview"],
+    reason: "the frame differs only inside system-font and vector-font runs, rasterised from their outlines",
+    normalise: outsideText,
+  },
   {
     stages: ["fonts"],
     reason: "an icon's nominal size is searched by its unhinted ink height, where Python measures FreeType's hinted box: "

@@ -1,0 +1,21 @@
+# The TS preview's face-drawn text against Python's (Pillow's), per run: ts/tools/text-report.ts, 2026-10-06.
+# Every oracle frame (2x previews); ink is a pixel with a channel >= 128 inside the run's box grown 4 device px.
+# Offset: distance between the two ink bounding boxes' centres, in preview pixels (half a device pixel each).
+
+kind                runs   mean IoU  median IoU  min IoU   mean offset  max offset (preview px)
+system upright       583      0.782       0.840    0.250         0.90        4.12
+vector angled        262      0.814       0.857    0.496         0.63        2.83
+vector radial        244      0.719       0.769    0.286         0.69        6.40
+vector upright       180      0.590       0.571    0.187         1.27        3.61
+
+lowest overlap:
+  0.187  tests/fixtures/outline_text/face @ fenix847mm: upright_vector "UPRIGHT" (vector upright)
+  0.187  tests/fixtures/outline_text/face @ fenix847mm: upright_vector "UPRIGHT" (vector upright)
+  0.187  tests/fixtures/outline_text/face @ fenix847mm: upright_vector "UPRIGHT" (vector upright)
+  0.187  tests/fixtures/outline_text/face @ fenix847mm: upright_vector "UPRIGHT" (vector upright)
+  0.187  tests/fixtures/outline_text/face @ fenix847mm: upright_vector "UPRIGHT" (vector upright)
+  0.250  examples/dashboard/face @ fr955: weather_now "--°" (system upright)
+  0.250  examples/dashboard/face @ fr955: weather_today_high "--°" (system upright)
+  0.250  examples/dashboard/face @ fr955: weather_today_low "--°" (system upright)
+  0.250  examples/showcase/face @ fenix8solar47mm: weather_now "--°" (system upright)
+  0.268  examples/dashboard/face @ fenix8solar47mm: weather_now "--°" (system upright)

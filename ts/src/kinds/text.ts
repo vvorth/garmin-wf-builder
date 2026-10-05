@@ -12,7 +12,18 @@ import {
 import { repr, roundHalfEven as round, str } from "../py.ts";
 import type { Box } from "../units.ts";
 import type { Reading } from "../template.ts";
-import { type Common, ElementKind, type Refusal, register, TextRun } from "./base.ts";
+import { type Common, ElementKind, type Refusal, register, ringFont, TextRun } from "./base.ts";
+import {
+  AodDimmed, AodPaint, AodRestyled, AodStr, Blank, Color, Comment, Concat, Const, type DrawContext, Font,
+  IfAod, IfAwake, IfNotNull, LetText, LoadFont, Local, type Op, type Paint, Reading as ReadingOp, RingColor, SetColor, Shifted,
+  type Str, StrLit, Text as DrawText,
+} from "../draw/program.ts";
+import { flt } from "../draw/barrel.ts";
+import { type AodStyle, aodFontField, constPrefix, fontField } from "../emit/monkeyc/common.ts";
+import type { Constants } from "../emit/monkeyc/layout_constants.ts";
+import { aodOutlineChoice, discPerimeterOffsets, type Face, type Outline } from "../ir/model.ts";
+import { formatG } from "../py.ts";
+import * as vocab from "../vocab.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -172,6 +183,23 @@ function textGlyphs(element: Text): [Set<string>, Set<string>] {
   return [glyphs, aodGlyphs];
 }
 
+/** `aodOutlineChoice` for this element's AOD frame; `[null, "awake"]` when it is not drawn in AOD. */
+function aodRing(element: Text, dimSet: boolean): [Outline | null, string] {
+  if (element.aod === null) return [null, "awake"];
+  return aodOutlineChoice(element.outline, element.aod, dimSet);
+}
+
+/** The ring font this element draws its `width` px ring with, or `null` when it stamps. */
+export function bakedRing(element: Element, face: Face, width: number): string | null {
+  const found = ringFont(element, face, width);
+  return found !== null ? found[0] : null;
+}
+
+/** The local a `width` px ring font is read into. */
+export function bakedRingLocal(width: number): string {
+  return width === 1 ? "ringFont" : `ringFont${width}`;
+}
+
 class TextKind extends ElementKind<Text> {
   readonly name = "text";
   readonly irClass = Text;
@@ -280,6 +308,141 @@ class TextKind extends ElementKind<Text> {
   override aodRefusal(key: string, _shape: string | null, literalText: boolean): Refusal | null {
     if (key === "text" && literalText) return ["format", "'aod: {text:}' restyles a placeholder, and this text is fixed", []];
     return null;
+  }
+
+  override lower(ctx: DrawContext, placed: Placed): Op[] {
+    const p = placed as PlacedText;
+    const element = p.element;
+    const aod = ctx.aod;
+    const prefix = constPrefix(p.id);
+    const ops: Op[] = [];
+    const text = TextKind.text(ctx, element, ops);
+    const x = Const(`${prefix}_X`, p.anchor_point[0]), y = Const(`${prefix}_Y`, p.anchor_point[1]);
+    const curve = p.curve;
+    const angle = curve.style !== null ? Const(`${prefix}_ANGLE`, flt(curve.angle_garmin)) : null;
+    const radius = curve.style === "radial" ? Const(`${prefix}_RADIUS`, curve.radius_px) : null;
+    const main = TextKind.font(ctx, p, ops);
+    const draw = (font: Font, dx = 0, dy = 0): DrawText => {
+      const interior = dx === 0 && dy === 0 && font === main;
+      return DrawText(Shifted(x, dx), Shifted(y, dy), font, text, p.justify, element.vertical_align, {
+        align: element.align, style: curve.style, angle, radius, direction: curve.direction, box: interior ? p.innerBox : null,
+      });
+    };
+    const ringOps = (paint: Paint, width: number): Op[] => {
+      const baked = p.font.is_vector ? null : bakedRing(element, ctx.resolved.face, width);
+      if (baked === null) return [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(main, dx, dy))];
+      const local = bakedRingLocal(width);
+      const ring = Font(local, { baked, metric: p.font.metric });
+      return [LoadFont(local, `_${fontField(baked)}`, { onNull: "none" }), IfNotNull(local, [SetColor(paint), draw(ring)])];
+    };
+    const body: Op[] = [];
+    if (ctx.ring !== null) {
+      body.push(...ringOps(RingColor(), ctx.ring.width));
+    } else {
+      body.push(...TextKind.ring(element, aod, ringOps));
+      body.push(SetColor(AodRestyled(element, "color")), draw(main));
+    }
+    if (p.font.is_vector) {
+      ops.push(LoadFont("font", `_${fontField(p.font.reference)}`, { onNull: "none" }), IfNotNull("font", body));
+    } else {
+      ops.push(...body);
+    }
+    return ops;
+  }
+
+  /** The string drawn, appending the `placeholder:`/`fallback:` local it needs to `ops`. */
+  private static text(ctx: DrawContext, element: Text, ops: Op[]): Str {
+    if (element.literal !== null) return StrLit(element.literal);
+    const value = element.value!;
+    const unit = element.unit_label;
+    const segments = element.segments();
+    const first = ReadingOp(element.format || "{}", value, unit);
+    let text: Str = segments.length === 1 ? first : Concat([first, ...segments.slice(1).map(([v, spec]) => ReadingOp(spec, v))]);
+    if (ctx.aod.on && element.aod !== null && element.aod.format !== null) {
+      text = AodStr(ReadingOp(element.aod.format, value, unit), text);
+    }
+    if ((element.absent === "placeholder" || element.absent === "fallback") && ctx.value_guards.length > 0) {
+      let initial: Str;
+      ops.push(Comment(vocab.absent(element as never)));
+      if (element.absent === "placeholder") initial = StrLit(element.placeholder ?? "");
+      else initial = ReadingOp(element.format || "{}", element.fallback!, unit);
+      ops.push(LetText(initial, text, ctx.value_guards), Blank());
+      return Local("text");
+    }
+    return text;
+  }
+
+  /** The font every draw names, appending its loading to `ops`. */
+  private static font(ctx: DrawContext, placed: PlacedText, ops: Op[]): Font {
+    const element = placed.element;
+    const aod = ctx.aod;
+    const metric = placed.font.metric;
+    if (placed.font.is_vector) return Font("font", { metric, vector: true });
+    let overrideCode: string | null = null;
+    let asleep: Font | null = null;
+    if (aod.on && element.aod !== null && element.aod.font !== null) {
+      const override = element.aod.font;
+      if (!element.aod.font_is_custom) {
+        overrideCode = `Graphics.${override}`;
+        asleep = Font(overrideCode, { metric: ctx.resolved.device.systemFonts.get(override) ?? null });
+      } else {
+        const spec = ctx.resolved.face.fonts.get(override);
+        if (spec !== undefined && !spec.isVector && override !== placed.font.reference) {
+          overrideCode = `_${aodFontField(override)}`;
+          asleep = Font(overrideCode, { baked: override });
+        }
+      }
+    }
+    if (!placed.font.is_custom) {
+      const code = aod.value(overrideCode, `Graphics.${placed.font.reference}`);
+      return Font(code, { metric, asleep: asleep !== null ? { ...asleep, code } : null });
+    }
+    const field = `_${fontField(placed.font.reference)}`;
+    if (overrideCode !== null) {
+      const final = "fontFinal";
+      ops.push(LoadFont("font", field, { onNull: "none" }),
+        LoadFont(final, `_aod ? ${overrideCode} : font`, { note: "no font resource for this frame" }), Blank());
+      return Font(final, { baked: placed.font.reference, metric, asleep: { ...asleep!, code: final } });
+    }
+    ops.push(LoadFont("font", field), Blank());
+    return Font("font", { baked: placed.font.reference, metric });
+  }
+
+  /** The `outline:` ring ahead of the interior, for the awake frame and the always-on one. */
+  private static ring(element: Text, aod: AodStyle, ringOps: (paint: Paint, width: number) => Op[]): Op[] {
+    const awake = element.outline;
+    if (!aod.on || element.aod === null) return awake !== null ? [...ringOps(Color(awake.color), awake.width), Blank()] : [];
+    const [asleep, choice] = aodRing(element, aod.dim !== null);
+    if (awake === null && asleep === null) return [];
+    if (awake === null || asleep === null) {
+      const only = (asleep ?? awake)!;
+      const drawn = ringOps(Color(only.color), only.width);
+      return [awake === null ? IfAod(drawn) : IfAwake(drawn), Blank()];
+    }
+    if (asleep.width !== awake.width) {
+      return [IfAod(ringOps(Color(asleep.color), asleep.width), ringOps(Color(awake.color), awake.width)), Blank()];
+    }
+    const paint: Paint = choice === "override" ? AodPaint(Color(asleep.color), Color(awake.color)) : AodDimmed(element, awake.color);
+    return [...ringOps(paint, awake.width), Blank()];
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): Constants {
+    const p = placed as PlacedText;
+    let note = `widest rendering "${p.widest}" is ${p.measured_width} px`;
+    if (p.width_is_estimated) note += " (estimated)";
+    const out: Constants = [
+      [`${prefix}_X`, p.anchor_point[0], ""],
+      [`${prefix}_Y`, p.anchor_point[1], ""],
+      [`${prefix}_WIDTH`, p.measured_width, note],
+    ];
+    if (p.curve.style !== null) {
+      const authorNote = p.curve.style === "radial"
+        ? `${formatG(p.curve.angle_degrees)}deg clockwise from 12 o'clock`
+        : `${formatG(p.curve.angle_degrees)}deg clockwise rotation from upright`;
+      out.push([`${prefix}_ANGLE`, flt(p.curve.angle_garmin), `${authorNote}, in Garmin's convention`]);
+      if (p.curve.style === "radial") out.push([`${prefix}_RADIUS`, p.curve.radius_px, ""]);
+    }
+    return out;
   }
 }
 

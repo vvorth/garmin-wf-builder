@@ -8,8 +8,19 @@ import { type Placed, PlacedHands, ResolvedHand, type Resolver, rotatableParts }
 import { repr, roundHalfEven as round, str } from "../py.ts";
 import { Box } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
+import {
+  AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, type DrawContext, HandAngle, If, Let, type Num, NumLocal,
+  NotSleeping, type Op, type Paint, Part, RingColor, SetColor,
+} from "../draw/program.ts";
+import { colorCode } from "../draw/printer.ts";
+import { constPrefix } from "../emit/monkeyc/common.ts";
+import * as lc from "../emit/monkeyc/layout_constants.ts";
+import type { RotatablePart } from "../layout.ts";
 
 type Node = Map<DataKey, Data>;
+
+/** Each hand's `WfbHands` angle function, in drawing order. */
+const HAND_ANGLE_FUNCTIONS: readonly (readonly [string, string])[] = [["hour", "hourAngle"], ["minute", "minuteAngle"], ["second", "secondAngle"]];
 
 class HandsKind extends ElementKind<HandsElement> {
   readonly name = "hands";
@@ -85,6 +96,65 @@ class HandsKind extends ElementKind<HandsElement> {
       for (const part of hand.parts) dedupAppend(colors, part.color);
     }
     return HandsElement.create({ ...common, hands: name, seconds, colors });
+  }
+
+  override lower(ctx: DrawContext, placed: Placed): Op[] {
+    const p = placed as PlacedHands;
+    const element = p.element;
+    const prefix = constPrefix(p.id);
+    const override = p.aod_thickness !== null ? Const(`${prefix}_AOD_THICKNESS`, p.aod_thickness) : null;
+    let stamp: [Paint, number] | null = null;
+    if (ctx.ring !== null) stamp = [RingColor(), ctx.ring.width];
+    else if (element.outline !== null) stamp = [AodDimmed(element, element.outline.color), element.outline.width];
+    const ops: Op[] = [Let("cx", Const(`${prefix}_CX`, p.center[0])), Let("cy", Const(`${prefix}_CY`, p.center[1]))];
+    let declared = false;
+    for (const [handName, angleFn] of HAND_ANGLE_FUNCTIONS) {
+      const hand = (p as unknown as Record<string, ResolvedHand | null>)[handName]!;
+      if (hand === null) continue;
+      const gated = handName === "second" && element.seconds === "awake";
+      const angle = NumLocal("angle");
+      const assign = (name: string, value: Num): Op => (declared ? Assign(name, value) : Let(name, value));
+      const body: Op[] = [
+        assign("angle", HandAngle(angleFn, handName)),
+        assign("sin", Call("Math.sin", [angle])),
+        assign("cos", Call("Math.cos", [angle])),
+      ];
+      const parts = hand.parts.map((part, index): [string, RotatablePart] => [`${prefix}_${handName.toUpperCase()}_${index}`, part]);
+      const pen = (partPrefix: string, part: RotatablePart): AodPick =>
+        AodPick(Const(`${partPrefix}_THICKNESS`, "thickness" in part ? part.thickness : 1), override);
+      if (stamp !== null) {
+        body.push(SetColor(stamp[0]));
+        for (const [partPrefix, part] of parts) body.push(Part(part, partPrefix, true, pen(partPrefix, part), { ring: stamp[1] }));
+      }
+      if (ctx.ring === null) {
+        let current: string | null = null;
+        for (const [partPrefix, part] of parts) {
+          const paint = AodPart(element, part.color);
+          const code = colorCode(paint, ctx.aod);
+          if (code !== current) {
+            body.push(SetColor(paint));
+            current = code;
+          }
+          body.push(Part(part, partPrefix, true, pen(partPrefix, part)));
+        }
+      }
+      ops.push(Blank(), Comment(handName + (gated ? " -- seconds: awake" : "")));
+      if (gated) ops.push(If(NotSleeping(), body)); else ops.push(...body);
+      declared = true;
+    }
+    return ops;
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): lc.Constants {
+    const p = placed as PlacedHands;
+    const out: lc.Constants = [[`${prefix}_CX`, p.center[0], "the axis"], [`${prefix}_CY`, p.center[1], ""]];
+    out.push(...lc.aodThicknessConstant(prefix, p, lc.EVERY_PART_NOTE));
+    for (const handName of ["hour", "minute", "second"]) {
+      const hand = (p as unknown as Record<string, ResolvedHand | null>)[handName]!;
+      if (hand === null) continue;
+      hand.parts.forEach((part, index) => out.push(...lc.handPartConstants(`${prefix}_${handName.toUpperCase()}_${index}`, `${handName} hand`, index, part)));
+    }
+    return out;
   }
 }
 

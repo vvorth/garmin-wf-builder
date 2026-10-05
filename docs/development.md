@@ -635,9 +635,15 @@ cd ts && npm run parity -- --allow-missing         # tolerate stages not ported 
 cd ts && npm test && npm run typecheck             # ts/'s own tests, tsc --noEmit
 ```
 
-The table counts each stage's cases as equal, differ, failed or missing,
-then shows the first differences by JSON path. Rerun the oracle after a
-change to `wfb/`: its `index.json` records the commit it came from.
+The table counts each stage's cases as equal, deviated (equal once a
+recorded deviation in `ts/tools/stages.ts` is applied), differ, failed or
+missing, then shows the first differences by JSON path. Rerun the oracle
+after a change to `wfb/`: its `index.json` records the commit it came from.
+Two deviations are text rendered from outlines rather than by FreeType, and
+two reports put a figure on them: `node tools/bake-report.ts` (baked glyphs,
+per font) and `node tools/text-report.ts` (the preview's system-font and
+vector-font runs, as ink overlap and offset), both saved under
+`docs/research/probes/typescript-stack/`.
 
 Golden-file tests over the generated Monkey C are the primary compiler test, and
 they run with **no Garmin toolchain** — which matters, because the device files

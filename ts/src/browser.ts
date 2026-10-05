@@ -28,3 +28,8 @@ export * as geometry from "./edit/geometry.ts";
 export * as bake from "./fonts/bake.ts";
 export * as resources from "./emit/resources.ts";
 export * as png from "./png.ts";
+export * as draw from "./draw/index.ts";
+export * as jsonform from "./draw/jsonform.ts";
+export * as layers from "./draw/layers.ts";
+export * as preview from "./preview.ts";
+export * as raster from "./raster/pillow.ts";

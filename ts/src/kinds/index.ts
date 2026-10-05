@@ -12,7 +12,7 @@ import "./hands.ts";
 import "./pattern.ts";
 
 export {
-  ElementKind, faceTextRuns, forElement, get, IconFont, kindOf, names, NAMES, PRIMITIVES, ringFont, ringFontName, ringFonts,
+  ElementKind, faceTextRuns, forElement, forPlaced, get, IconFont, kindOf, names, NAMES, PRIMITIVES, ringFont, ringFontName, ringFonts,
   ringWidths, shapeOf, TextRun,
 } from "./base.ts";
 export type { Common, Refusal, SchemaPath } from "./base.ts";

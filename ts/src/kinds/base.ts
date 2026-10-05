@@ -13,6 +13,8 @@ import type { Placed, Resolver } from "../layout.ts";
 import type { Span } from "../diagnostics.ts";
 import type { Curve } from "../ir/model.ts";
 import type { Box, Length } from "../units.ts";
+import type { DrawContext, Op } from "../draw/program.ts";
+import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 
 /** How to bake a synthetic icon font: its declared size, its glyphs, the glyph its size is measured on, and anti-aliasing. */
 export class IconFont {
@@ -138,6 +140,28 @@ export abstract class ElementKind<E extends Element = Element> {
   circularExtent(_placed: Placed): [number, number, number] | null {
     return null;
   }
+
+  // -- drawing --
+
+  /** The element's drawing as one draw program (`draw/`); a group does not lower. */
+  lower(_ctx: DrawContext, _placed: Placed): Op[] {
+    throw new Error(`${this.name}: lower`);
+  }
+
+  /** Whether `absent: hide` still draws the value-independent parts, the program guarding the value itself. */
+  drawsWhileAbsent(_element: E): boolean {
+    return false;
+  }
+
+  /** The element's own `Layout` constants on one device. */
+  layoutConstants(_prefix: string, _placed: Placed): Constants {
+    return [];
+  }
+}
+
+/** The kind that handles a placed element. */
+export function forPlaced(placed: Placed): ElementKind {
+  return forElement(placed.element);
 }
 
 /**

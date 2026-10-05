@@ -12,6 +12,13 @@ import * as series from "../series.ts";
 import type { SeriesDef } from "../series.ts";
 import { Duration, UnitError } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
+import {
+  AodPick, AodRestyled, Blank, Comment, Const, Conv, type DrawContext, type Num, NumLocal, type Op, Paren, Read, SeriesDraw,
+  SeriesRebuild, SetColor,
+} from "../draw/program.ts";
+import { constPrefix } from "../emit/monkeyc/common.ts";
+import * as lc from "../emit/monkeyc/layout_constants.ts";
+import { graphBuiltField, graphMaxField, graphMinField, graphRebuildMethod, graphSeriesField } from "../ir/naming.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -90,6 +97,13 @@ function graphBound(b: Builder, node: Node, key: string): [Expression | null, bo
 
 /** Python's `isinstance(x, (int, float))` of a folded constant. */
 const isPyNumber = (value: unknown): boolean => isNumber(value) || typeof value === "bigint" || isFloat(value);
+
+/** A deterministic stand-in series of `n` samples, one deliberately absent (index `n // 3`, from 6 samples). */
+export function syntheticSeries(n: number): (number | null)[] {
+  if (n <= 0) return [];
+  const gap = n >= 6 ? Math.floor(n / 3) : -1;
+  return Array.from({ length: n }, (_, i) => (i === gap ? null : 50.0 + 40.0 * Math.sin(i * 0.6)));
+}
 
 class GraphKind extends ElementKind<Graph> {
   readonly name = "graph";
@@ -196,6 +210,45 @@ class GraphKind extends ElementKind<Graph> {
       align,
       vertical_align: verticalAlign,
     });
+  }
+
+  override lower(_ctx: DrawContext, placed: Placed): Op[] {
+    const p = placed as PlacedGraph;
+    const element = p.element;
+    const prefix = constPrefix(p.id);
+    const seriesField = graphSeriesField(element.id);
+    const minimum = graphMinField(element.id), maximum = graphMaxField(element.id);
+    const lo: Num = element.min_auto || element.min === null ? Conv(NumLocal(minimum), "toFloat") : Conv(Paren(Read(element.min)), "toFloat");
+    const hi: Num = element.max_auto || element.max === null ? Conv(NumLocal(maximum), "toFloat") : Conv(Paren(Read(element.max)), "toFloat");
+    let width: Num | null = null;
+    if (element.style === "line") {
+      width = AodPick(Const(`${prefix}_THICKNESS`, p.thickness), p.aod_thickness !== null ? Const(`${prefix}_AOD_THICKNESS`, p.aod_thickness) : null);
+    } else if (element.style === "bars") {
+      width = AodPick(Const(`${prefix}_BAR_WIDTH`, p.bar_width), p.aod_bar_width !== null ? Const(`${prefix}_AOD_BAR_WIDTH`, p.aod_bar_width) : null);
+    }
+    const box = p.box;
+    return [
+      Comment("the sample interval here is minutes, so rebuilding more often than"),
+      Comment("once a minute could not show anything new (WfbSeries.mc's docstring)"),
+      SeriesRebuild(graphBuiltField(element.id), graphRebuildMethod(element.id), seriesField, minimum, maximum,
+        syntheticSeries(Math.max(0, element.sample_count)), element.min_auto, element.max_auto),
+      Blank(),
+      SetColor(AodRestyled(element, "color")),
+      SeriesDraw(element.style, Const(`${prefix}_X`, box.x), Const(`${prefix}_Y`, box.y), Const(`${prefix}_WIDTH`, box.width),
+        Const(`${prefix}_HEIGHT`, box.height), width, seriesField, lo, hi),
+    ];
+  }
+
+  override layoutConstants(prefix: string, placed: Placed): lc.Constants {
+    const p = placed as PlacedGraph;
+    const out: lc.Constants = [...lc.boxConstants(prefix, p.box)];
+    if (p.element.style === "line") {
+      out.push([`${prefix}_THICKNESS`, p.thickness, "pen width"], ...lc.aodThicknessConstant(prefix, p));
+    } else if (p.element.style === "bars") {
+      out.push([`${prefix}_BAR_WIDTH`, p.bar_width, "centred in each slot"]);
+      if (p.aod_bar_width !== null) out.push([`${prefix}_AOD_BAR_WIDTH`, p.aod_bar_width, "aod: bar_width override"]);
+    }
+    return out;
   }
 }
 

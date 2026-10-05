@@ -359,3 +359,8 @@ export function inkHeight(source: FontFile, ch: string, size: number): number {
   const b = bounds(flatten(commands(p, ch, Math.max(1, size), 0)));
   return b === null ? 0 : Math.max(0, Math.ceil(b[3]) - Math.floor(b[1]));
 }
+
+/** `ch`'s outline at `size` px per em, its pen at the origin on the baseline, y down. */
+export function glyphOutline(source: FontFile, ch: string, size: number): PathCommand[] {
+  return commands(load(source), ch, size, 0);
+}

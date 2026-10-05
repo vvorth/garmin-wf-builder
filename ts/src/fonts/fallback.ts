@@ -14,7 +14,7 @@
 import type { FontMetric } from "../devices/device.ts";
 import { roundHalfEven } from "../py.ts";
 import { type CftFont, loadCft } from "./cft.ts";
-import { type FontFiles, locate } from "./files.ts";
+import { type FontFile, type FontFiles, locate } from "./files.ts";
 import pillowFont from "../data/pillow-default-font.json" with { type: "json" };
 import { readSfnt, type Sfnt } from "./sfnt.ts";
 
@@ -29,8 +29,11 @@ export const CRUDE_WIDTH_RATIO = 0.55;
  */
 let pillowSfnt: Sfnt | null | undefined;
 
+/** Pillow's default face's file. */
+export const PILLOW_DEFAULT_FILE: FontFile = { path: "<Pillow default>", bytes: base64Bytes(pillowFont.ttf) };
+
 function pillowDefault(): Sfnt | null {
-  if (pillowSfnt === undefined) pillowSfnt = readSfnt(base64Bytes(pillowFont.ttf));
+  if (pillowSfnt === undefined) pillowSfnt = readSfnt(PILLOW_DEFAULT_FILE.bytes);
   return pillowSfnt;
 }
 
@@ -60,10 +63,13 @@ export class SystemFace {
   readonly scale: number;
   readonly bitmap: CftFont | null;
   readonly sfnt: Sfnt | null;
+  /** The outline file glyphs are drawn from, and the pixel size they are drawn at (the exact em, scaled). */
+  readonly file: FontFile | null;
+  readonly drawSize: number;
 
   constructor(fields: {
     lineHeight: number; baseline: number | null; match: string; path?: string | null; layoutEm?: number | null;
-    scale?: number; bitmap?: CftFont | null; sfnt?: Sfnt | null;
+    scale?: number; bitmap?: CftFont | null; sfnt?: Sfnt | null; file?: FontFile | null; drawSize?: number;
   }) {
     this.lineHeight = fields.lineHeight;
     this.baselinePx = fields.baseline;
@@ -73,6 +79,8 @@ export class SystemFace {
     this.scale = fields.scale ?? 1.0;
     this.bitmap = fields.bitmap ?? null;
     this.sfnt = fields.sfnt ?? null;
+    this.file = fields.file ?? null;
+    this.drawSize = fields.drawSize ?? 0;
   }
 
   /** Where the baseline sits, down from the line box's top. */
@@ -131,7 +139,7 @@ export class FontMeasure {
       return new SystemFace({
         lineHeight: roundHalfEven(lineHeightPx * scale),
         baseline: roundHalfEven((ascent / Math.max(1, ascent + descent)) * lineHeightPx * scale),
-        match, layoutEm: size, sfnt,
+        match, layoutEm: size, sfnt, file: PILLOW_DEFAULT_FILE, drawSize: size,
       });
     };
     const [file, match] = locate(this.files, metric.font, metric.face || null);
@@ -155,7 +163,7 @@ export class FontMeasure {
     const baselinePx = metric.ascent_px !== null ? metric.ascent_px : roundHalfEven(em * ascent / upm);
     return new SystemFace({
       lineHeight: roundHalfEven(lineHeightPx * scale), baseline: roundHalfEven(baselinePx * scale), match,
-      path: file.path, layoutEm: Math.max(1, roundHalfEven(em)), scale, sfnt,
+      path: file.path, layoutEm: Math.max(1, roundHalfEven(em)), scale, sfnt, file, drawSize: em * scale,
     });
   }
 

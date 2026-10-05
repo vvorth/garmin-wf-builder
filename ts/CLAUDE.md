@@ -64,6 +64,18 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/layout.ts` is per-device layout; each kind's `resolve` is in
     `src/kinds/`. Trigonometry is `Math.sin`/`cos`/`atan2`, but `hypot` is
     `py.hypot`: `Math.hypot` is often a bit off Python's.
+  - `src/draw/` is the draw program: `program.ts` its values and ops
+    (plain objects tagged `t`, built by functions named as Python's
+    classes), each kind's `lower` and `layoutConstants`, `evaluator.ts`
+    (Monkey C's arithmetic: a number keeps Python's int/float split, an
+    integral float being a `PyFloat`), `jsonform.ts` and `layers.ts`.
+    `src/emit/monkeyc/` holds the codegen pieces lowering reads:
+    `ReadPlan`, `AodStyle`, the constant blocks.
+  - `src/preview.ts` renders a frame: shapes through `src/raster/pillow.ts`
+    (Pillow's primitives, byte for byte), baked text from its sheets, and
+    system and vector faces from their outlines through `fonts/raster.ts`,
+    a turned run turning its outlines. `src/sample.ts` is the sample
+    readings.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point
