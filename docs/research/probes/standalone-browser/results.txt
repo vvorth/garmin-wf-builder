@@ -1,0 +1,58 @@
+2026-10-05, Linux container, Node 22.22.1, pyodide 314.0.7 (CPython 3.14.2,
+packages from cdn.jsdelivr.net/pyodide/v314.0.7/full/), native CPython
+3.14.4 with Pillow 12.3.0 from .venv.
+
+== probe.mjs: ruamel round-trip parse, showcase, best of five ==
+startup ms 2834                         (loadPyodide, cold, no packages)
+wasm ruamel rt parse showcase ms 203
+native ruamel rt parse ms 101
+
+== parity.mjs + native.py + compare.py: wfb preview, every example face but
+   the dashboard, every target (96 PNGs), second run of each side ==
+pyodide: {"startup_ms":2890,"packages_ms":497}   (first run, packages fetched: 1436)
+pyodide: {"pillow": "12.2.0", "freetype2": true, "raqm": false, "zlib": true}
+pyodide: {"import_wfb_ms": 1658}    native: {"import_wfb_ms": 1385}
+
+examples/analog-custom                   native  1060 ms  wasm  1472 ms  x1.4  identical
+examples/enduro                          native   268 ms  wasm   490 ms  x1.8  identical
+examples/features/align                  native   399 ms  wasm   740 ms  x1.9  identical
+examples/features/analog                 native   129 ms  wasm   264 ms  x2.0  identical
+examples/features/aod                    native   276 ms  wasm   510 ms  x1.8  identical
+examples/features/complications          native   228 ms  wasm   407 ms  x1.8  identical
+examples/features/config                 native   137 ms  wasm   293 ms  x2.1  identical
+examples/features/gauge                  native   143 ms  wasm   284 ms  x2.0  identical
+examples/features/graph                  native    97 ms  wasm   206 ms  x2.1  identical
+examples/features/grid                   native   141 ms  wasm   279 ms  x2.0  identical
+examples/features/instinct               native   259 ms  wasm   479 ms  x1.8  identical
+examples/features/outline                native   996 ms  wasm   846 ms  x0.8  identical
+examples/features/patterns               native   228 ms  wasm   399 ms  x1.8  identical
+examples/features/profile                native   396 ms  wasm   788 ms  x2.0  identical
+examples/features/progress               native   139 ms  wasm   277 ms  x2.0  identical
+examples/features/rings                  native   198 ms  wasm   391 ms  x2.0  identical
+examples/features/shapes                 native   122 ms  wasm   211 ms  x1.7  identical
+examples/features/slot-gauge             native   211 ms  wasm   369 ms  x1.7  identical
+examples/features/slots                  native   398 ms  wasm   503 ms  x1.3  identical
+examples/features/styles                 native   161 ms  wasm   289 ms  x1.8  identical
+examples/features/sun                    native   116 ms  wasm   221 ms  x1.9  identical
+examples/features/units                  native   135 ms  wasm   272 ms  x2.0  identical
+examples/features/vector-text            native   574 ms  wasm   603 ms  x1.1  identical
+examples/generated_by_skill/navy-classic native   226 ms  wasm   476 ms  x2.1  identical
+examples/generated_by_skill/trail-utility native  1566 ms  wasm  1338 ms  x0.9  identical
+examples/showcase                        native  2525 ms  wasm  2127 ms  x0.8  identical
+examples/system-fonts/numbers            native   158 ms  wasm   310 ms  x2.0  identical
+examples/system-fonts/numbers-large      native   142 ms  wasm   308 ms  x2.2  identical
+examples/system-fonts/text               native   215 ms  wasm   434 ms  x2.0  identical
+
+96/96 images pixel-identical; total native 11643 ms, wasm 15586 ms (x1.34)
+
+Exit codes and stderr (every diagnostic) identical on every face.
+
+== payload, bytes over the wire (Accept-Encoding: gzip, br) ==
+pyodide.asm.wasm      9 598 218 raw, 3 438 516 compressed
+python_stdlib.zip     2 545 637 raw, 2 505 313
+pillow wheel          1 037 806
+fonttools wheel       1 152 647
+ruamel_yaml wheel       118 102
+rpds_py wheel           115 722
+jsonschema wheel         55 406
+wfb/*.py              2 100 462 raw (uncompressed source)

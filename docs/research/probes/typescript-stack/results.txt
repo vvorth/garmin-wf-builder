@@ -1,0 +1,49 @@
+2026-10-05, Linux container, Node 22.22.1; yaml 2.9.1, ajv 8.20.0, opentype.js 2.0.0,
+@napi-rs/canvas 1.0.10 (Skia), against CPython 3.14.4 with ruamel.yaml, jsonschema,
+Pillow 12.3.0. Run from the repository root; each .mjs needs those packages installed
+beside it (npm install yaml ajv opentype.js @napi-rs/canvas).
+
+== yaml.mjs (dump_spans.py) ==
+showcase parse: yaml 13.5 ms (best of 5); ruamel 104.4 ms (one run)
+{"files":31,"cst_roundtrip":31,"tostring_roundtrip":4,"data":31,"entries":6821,"key":6821,"value":6821,"end":6810}
+examples/dashboard/face.yaml elements.date: end 6637 vs ruamel 6668
+examples/dashboard/face.yaml elements.notification_count: end 15051 vs ruamel 15133
+examples/enduro/face.yaml elements: end 8714 vs ruamel 10308
+examples/features/analog/face.yaml layouts.sport.elements.sport_hands: end 9130 vs ruamel 9193
+examples/features/aod/face.yaml elements.clock: end 5440 vs ruamel 5439
+examples/features/aod/face.yaml elements.clock.aod: end 5407 vs ruamel 5439
+examples/showcase/face.yaml resources: end 10531 vs ruamel 10326
+examples/showcase/face.yaml resources.hand_sets: end 10531 vs ruamel 10326
+examples/showcase/face.yaml resources.hand_sets.vintage: end 10531 vs ruamel 10326
+examples/showcase/face.yaml resources.hand_sets.vintage.second: end 10224 vs ruamel 10326
+examples/showcase/face.yaml layouts.digital.static: end 20434 vs ruamel 20821
+
+== schema.mjs (dump_schema.py) ==
+compile 250 ms
+{"cases":1230,"validity_agree":1230,"leaf_sets_equal":1229,"jsonschema_leaves_all_in_ajv":1230,"ajv_ms_total":1042,"jsonschema_ms_total":37641}
+
+== shapes.mjs (dump_ring_ops.py; the simulator capture from ../ring-on-device) ==
+cells: 20; pixels differing from the simulator capture
+model                                circle rectangle   rounded       bar      part      total
+pillow                                  388         4        52        82       388        914
+skia-threshold off=0 r+0                328         0         2        82       328        740
+skia-aa off=0 r+0                       855        16       299       186       855       2211
+skia-threshold off=0 r+0.5              392         0         2       130       392        916
+skia-aa off=0 r+0.5                     982        16       299       244       982       2523
+skia-threshold off=0.5 r+0               11         0         2         0        11         24
+skia-aa off=0.5 r+0                     816        16       299       155       816       2102
+skia-threshold off=0.5 r+0.5            444         0         2        84       444        974
+skia-aa off=0.5 r+0.5                   832        16       299       164       832       2143
+js-coverage 16x16 off=0.5 r+0            32         0         0         8        32         72
+
+== fonts.mjs (dump_bakes.py) ==
+Per baker and antialias setting: glyphs identical to Pillow's; glyphs whose box and
+offsets agree; differing pixels as a share of Pillow's ink (all glyphs, then only
+glyphs whose box agrees). An anti-aliased pixel differs past 8 levels of 255.
+outline+pillowbox aa=false   identical 390/788  same box 713  diff 2.00%  within same box 0.62%  worst 155 px ChivoMono-Bold.ttf 61px aa=false '@'
+outline+area aa=false        identical 327/788  same box 713  diff 2.08%  within same box 0.72%  worst 154 px ChivoMono-Bold.ttf 61px aa=false '@'
+native fillText aa=false     identical 324/788  same box 706  diff 2.21%  within same box 0.73%  worst 149 px ChivoMono-Bold.ttf 61px aa=false '@'
+outline+pillowbox aa=true    identical 288/788  same box 713  diff 9.76%  within same box 7.11%  worst 507 px ChivoMono-Bold.ttf 61px aa=true '@'
+outline+area aa=true         identical 193/788  same box 713  diff 9.58%  within same box 6.90%  worst 503 px ChivoMono-Bold.ttf 61px aa=true '@'
+native fillText aa=true      identical 190/788  same box 706  diff 10.31  within same box 7.47%  worst 503 px ChivoMono-Bold.ttf 61px aa=true '@'
+metrics: {"bakes":18,"base":18,"line":18,"glyphs":1576,"adv":1572}
