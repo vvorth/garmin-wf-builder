@@ -27,7 +27,8 @@ def run(script: str) -> object:
               f"import * as outbox from {json.dumps((STATIC / 'outbox.js').as_uri())};\n"
               f"import * as textsync from {json.dumps((STATIC / 'textsync.js').as_uri())};\n"
               f"import * as session from {json.dumps((STATIC / 'session.js').as_uri())};\n"
-              f"import * as linediff from {json.dumps((STATIC / 'linediff.js').as_uri())};\n{script}")
+              f"import * as linediff from {json.dumps((STATIC / 'linediff.js').as_uri())};\n"
+              f"import * as keys from {json.dumps((STATIC / 'keys.js').as_uri())};\n{script}")
     out = subprocess.run(["node", "--input-type=module", "-e", source],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -56,6 +57,28 @@ def test_select_all_and_a_shift_range_let_a_group_stand_for_its_children():
     assert result["inside"] == ["g1", "g2"]
     assert result["noAnchor"] == ["c"]
     assert result["outer"] == ["g", "c"]
+
+
+def test_each_shortcut_names_its_action_and_typing_is_left_alone():
+    result = run("""
+      const k = (key, mods = {}) => keys.shortcutFor({key, ...mods});
+      console.log(JSON.stringify({
+        undo: k("z", {ctrlKey: true}), redoShift: k("Z", {metaKey: true, shiftKey: true}),
+        redoY: k("y", {ctrlKey: true}), dup: k("d", {metaKey: true}), all: k("a", {ctrlKey: true}),
+        other: k("s", {ctrlKey: true}), plainZ: k("z"),
+        left: k("ArrowLeft"), downTen: k("ArrowDown", {shiftKey: true}), alt: k("ArrowUp", {altKey: true}),
+        del: k("Delete"), back: k("Backspace"),
+        typing: keys.typingIn({closest: (sel) => sel.includes("input") ? {} : null}),
+        notTyping: keys.typingIn({closest: () => null}), nothing: keys.typingIn(null),
+      }));
+    """)
+    assert result == {
+        "undo": ["undo"], "redoShift": ["redo"], "redoY": ["redo"], "dup": ["duplicate"],
+        "all": ["selectAll"], "other": None, "plainZ": None,
+        "left": ["nudge", -1, 0], "downTen": ["nudge", 0, 10], "alt": None,
+        "del": ["remove"], "back": ["remove"],
+        "typing": True, "notTyping": False, "nothing": False,
+    }
 
 
 def test_topmost_picks_the_last_drawn_layer_with_ink():

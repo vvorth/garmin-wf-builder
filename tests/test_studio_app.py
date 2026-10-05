@@ -53,6 +53,16 @@ def page(face: dict, route: str, body: str) -> list:
       document.querySelector = () => null;
       document.documentElement = document.createElement("html");   // CodeMirror reads it on import
       globalThis.window = globalThis;
+      // the page's own listeners on the window, so a test can press keys
+      const listeners = {{}};
+      globalThis.addEventListener = (t, f) => {{ (listeners[t] ||= []).push(f); }};
+      globalThis.removeEventListener = (t, f) => {{ listeners[t] = (listeners[t] || []).filter((g) => g !== f); }};
+      const press = (key, mods = {{}}) => {{
+        const event = {{ key, ...mods, target: {{ closest: () => null }}, prevented: false,
+                         preventDefault() {{ this.prevented = true; }} }};
+        for (const f of listeners.keydown || []) f(event);
+        return event.prevented;
+      }};
       globalThis.location = {{ hash: {json.dumps(route)}, href: "http://studio/", reload() {{}} }};
       globalThis.EventSource = class {{ addEventListener() {{}} close() {{}} }};
       const summary = {json.dumps(face["summary"])};
@@ -119,6 +129,11 @@ def test_the_editor_folds_its_controls_away_and_names_what_undo_takes_back(face)
       out(states.map((b) => b.textContent.split(/\\d/)[0].trim()));
       await click(states[states.length - 1]);
       out(requests.filter(([m]) => m === "POST").map(([m, u]) => u.split("/").pop().split("&")[0]));
+      // one keyboard listener for the editor's life: Ctrl+Z undoes, an
+      // arrow with nothing selected is the browser's
+      out([(listeners.keydown || []).length, press("z", { ctrlKey: true }), press("ArrowLeft")]);
+      await settle();
+      out(requests.filter(([m]) => m === "POST").map(([m, u]) => u.split("/").pop().split("?")[0]));
       // the error count opens Diagnostics on the errors
       await click(find((e) => e.localName === "button" && cls(e) === "errors")[0]);
       out(app.textContent.includes("errors only"));
@@ -132,5 +147,9 @@ def test_the_editor_folds_its_controls_away_and_names_what_undo_takes_back(face)
     assert printed[3][0] == "edit the text" and printed[3][-1].startswith("new")
     seq = doc["history"]["states"][-1]["seq"]
     assert printed[4] == [f"goto?seq={seq}"]
-    assert printed[5] is True
-    assert "props-folded" in printed[6]
+    _, undo_prevented, arrow_prevented = printed[5]
+    assert undo_prevented is True and arrow_prevented is False
+    # one Ctrl+Z is one undo: a listener left behind by a render would send two
+    assert printed[6] == ["goto", "undo"]
+    assert printed[7] is True
+    assert "props-folded" in printed[8]

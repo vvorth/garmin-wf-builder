@@ -408,14 +408,16 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             return JSONResponse(doc(request).inspect(
                 element, request.query_params.get("device") or None))
 
-    installed: list[dict[str, Any]] = []
+    #: The installed devices that can run a face, and those whose files
+    #: could not be read, read once.
+    installed: dict[str, Any] = {}
 
     def vocabulary(request: Request, data: bytes) -> Response:
         from .inspect import devices, vocabulary as words
         with studio.lock:
             if not installed:
-                installed.extend(devices(studio.db))
-            return JSONResponse({**words(), "devices": installed})
+                installed["devices"], installed["unreadable_devices"] = devices(studio.db)
+            return JSONResponse({**words(), **installed})
 
     skins: dict[tuple[str, int], dict[str, Any]] = {}
 
@@ -444,7 +446,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         with studio.lock:
             document = doc(request)
             who = document.owner
-            document._check(_int(request, "version"))
+            document.check(_int(request, "version"))
             device = studio.db.get(device_id)
             if not device.supports_watchface:
                 raise Refused(f"{device_id} cannot run a watch face")

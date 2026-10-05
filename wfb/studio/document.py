@@ -24,7 +24,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, cast
 
@@ -178,7 +178,7 @@ class Document:
         no longer the head, so two tabs cannot overwrite each other.
         ``loaded`` is ``text`` as the gate loaded it, reused by the analysis;
         ``merge`` makes it take the head's place on the line of history."""
-        self._check(expected)
+        self.check(expected)
         change = self._moved(self.studio.store.append(self.id, label, text, assets, merge))
         self._seed = loaded
         return change
@@ -189,7 +189,9 @@ class Document:
             self._loaded.text == self.text else None
         return Gate(self.path, self.text, before)
 
-    def _check(self, expected: int) -> None:
+    def check(self, expected: int) -> None:
+        """Refuse a change asked for against ``expected`` unless that is the
+        version the face is at (`StaleVersion`)."""
         if expected != self.version:
             raise StaleVersion(f"the face is at version {self.version}, not {expected}: "
                                "reload it to see the newer change")
@@ -206,7 +208,7 @@ class Document:
     # -- history ----------------------------------------------------------------------
 
     def undo(self, expected: int) -> Change:
-        self._check(expected)
+        self.check(expected)
         line = self.studio.store.timeline(self.id)
         if not line.can_undo:
             raise Refused("there is nothing to undo")
@@ -215,7 +217,7 @@ class Document:
             self.id, UNDO, f"undo {undone.label}", line.states[line.cursor - 1]))
 
     def redo(self, expected: int) -> Change:
-        self._check(expected)
+        self.check(expected)
         line = self.studio.store.timeline(self.id)
         if not line.can_redo:
             raise Refused("there is nothing to redo")
@@ -227,7 +229,7 @@ class Document:
         an undo of every change after it, or a redo of every change up to
         it, recorded as one journal line. Like an undo it moves along the
         line without dropping anything, so every state stays reachable."""
-        self._check(expected)
+        self.check(expected)
         line = self.studio.store.timeline(self.id)
         at = next((i for i, c in enumerate(line.states) if c.seq == seq), None)
         if at is None:
@@ -257,7 +259,7 @@ class Document:
 
     def restore(self, name: str, expected: int) -> Change:
         """Make a snapshot the head, as one change: undoable like any other."""
-        self._check(expected)
+        self.check(expected)
         store = self.studio.store
         snap = store.get_snapshot(self.id, name)
         when = time.strftime("%Y-%m-%d %H:%M", time.localtime(snap.time))
@@ -294,7 +296,7 @@ class Document:
         missing file added, or a font's file replaced), or declare it as a
         new font ``font`` = (name, size). A replaced file nothing else
         refers to leaves the bundle. Each patch passes the gate."""
-        self._check(expected)
+        self.check(expected)
         assets: dict[str, bytes | str] = dict(self.head.assets)
         rel = asset_path(assets, filename)
         assets[rel] = data
@@ -361,66 +363,33 @@ class Document:
         such as `["at", "dy"]`) is written to the source ``scope`` names on
         ``device``: "all" (the element's own key), "device" or "shape" (its
         override, created when missing)."""
-        self._check(expected)
+        self.check(expected)
         kind = op.get("op")
-        if kind not in ("set", "remove", "rename", "use_color", "add_swatch", "set_swatch",
-                        "remove_unused") and kind not in _COMPOUND_EDITS:
+        handler = _EDITS.get(kind) if isinstance(kind, str) else None
+        if handler is None:
             raise Refused(f"unknown edit {kind!r}")
-        index = index_for(self.text)
-        if kind in _COMPOUND_EDITS:
-            patch = _COMPOUND_EDITS[kind](index, op)
-            after = self._gate().check(patch)
-            return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
-        if kind in ("add_swatch", "set_swatch", "remove_unused"):
-            if kind == "add_swatch":
-                patch, _ = add_swatch(index, str(op.get("value", "")))
-            elif kind == "set_swatch":
-                patch = set_swatch(index, str(op.get("name", "")), str(op.get("value", "")))
-            else:
-                patch = remove_unused(index)
-            after = self._gate().check(patch)
-            return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
-        path = _path(op.get("path"))
-        if op.get("element") is not None:
-            element = _path(op["element"])
-            scope = op.get("scope", "all")
-            if scope not in ("all", "device", "shape"):
-                raise Refused(f"scope {scope!r} is not all, device or shape")
-            if scope != "all" and (not path or path[0] not in GEOMETRY):
-                raise Refused(f"{'.'.join(map(str, path))} cannot be overridden per "
-                              "device; only at:, size:, radius: and align: can")
-            device = self.studio.db.get(str(op.get("device"))) if scope != "all" else None
-            path = (target(index, element, path, device, scope) if device is not None
-                    else element + path)
-        shown = ".".join(str(p) for p in path)
-        if kind == "set":
-            value = op.get("value")
-            patch = set_value(index, path, value)
-            label = f"set {shown} to {_shown_value(value)}"
-        elif kind == "use_color":
-            patch = use_color(index, path, str(op.get("value", "")))
-            label = patch.what
-        elif kind == "remove":
-            if index.get(path) is None:
-                raise Refused(f"{shown} is not set")
-            patch = (remove_slot(index, str(path[2]))
-                     if len(path) == 3 and path[:2] == ("config", "slots") else remove(index, path))
-            label = f"remove {shown}"
-        else:
-            to = str(op.get("to", "")).strip()
-            prefix = str(op.get("prefix", ""))
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", to):
-                raise Refused(f"{to!r} is not a name: letters, digits and _, "
-                              "not starting with a digit")
-            if len(path) == 3 and path[:2] == ("config", "slots"):
-                patch = rename_slot(index, str(path[2]), to)
-            elif prefix:
-                patch = rename_reference(index, path, to, prefix)
-            else:
-                patch = rename_key(index, path, to)
-            label = f"rename {shown} to {to}"
+        patch = handler(self, index_for(self.text), op)
         after = self._gate().check(patch)
-        return self.commit(patch.text, dict(self.head.assets), label, expected, after)
+        return self.commit(patch.text, dict(self.head.assets), patch.what, expected, after)
+
+    def edit_path(self, index: SpanIndex, op: dict[str, Any]) -> tuple[str | int, ...]:
+        """The key an edit's `path` names: as written, or, for an element's
+        key (`element` given), that element's key or, for a geometry key,
+        its override on `device` that `scope` names."""
+        path = _path(op.get("path"))
+        if op.get("element") is None:
+            return path
+        element = _path(op["element"])
+        scope = op.get("scope", "all")
+        if scope not in ("all", "device", "shape"):
+            raise Refused(f"scope {scope!r} is not all, device or shape")
+        if scope == "all":
+            return element + path
+        if not path or path[0] not in GEOMETRY:
+            raise Refused(f"{'.'.join(map(str, path))} cannot be overridden per "
+                          "device; only at:, size:, radius: and align: can")
+        device = self.studio.db.get(str(op.get("device")))
+        return target(index, element, path, device, scope)
 
     def replace_text(self, text: str, expected: int) -> Change:
         """The whole text as the author typed it in the YAML tab, against
@@ -429,7 +398,7 @@ class Document:
         typing passes through broken states, and the YAML tab is where they
         are mended, with the diagnostics beside the text. Text that is not
         YAML at all is refused, not recorded, so the author keeps typing."""
-        self._check(expected)
+        self.check(expected)
         if text == self.text:
             return self.head
         index_for(text)          # Refused when it is not YAML
@@ -461,7 +430,7 @@ class Document:
             move_to_block, ungroup,
         )
 
-        self._check(expected)
+        self.check(expected)
         index = index_for(self.text)
         kind = op.get("op")
         select: str | None = None
@@ -736,7 +705,7 @@ class Document:
         from ..edit import View, move, resize, turn
         from .drag import describe
 
-        self._check(expected)
+        self.check(expected)
         if scope not in ("auto", "all", "device", "shape"):
             raise Refused(f"scope {scope!r} is not auto, all, device or shape")
         device = self.studio.db.get(device_id)
@@ -748,22 +717,25 @@ class Document:
         part = gesture.get("part", "both")
         if part not in ("both", "at", "to"):
             raise Refused(f"part {part!r} is not both, at or to")
+        if kind not in ("move", "resize", "turn"):
+            raise Refused(f"unknown gesture {kind!r}")
+        # The gesture's values are read first, on their own: a refusal from
+        # the move itself (`Refused` is a `ValueError`) keeps its reason.
         try:
             if kind == "move":
-                converted = move(view, element_id, int(gesture["dx"]), int(gesture["dy"]),
-                                 where, part=cast(Part, part))
+                dx, dy = int(gesture["dx"]), int(gesture["dy"])
             elif kind == "resize":
-                converted = resize(view, element_id, tuple(gesture["key"]),
-                                   int(gesture["delta"]), where)
-            elif kind == "turn":
-                converted = turn(view, element_id, str(gesture["key"]),
-                                 float(gesture["degrees"]), where)
+                size_key, delta = tuple(gesture["key"]), int(gesture["delta"])
             else:
-                raise Refused(f"unknown gesture {kind!r}")
-        except Refused:
-            raise
+                angle_key, degrees = str(gesture["key"]), float(gesture["degrees"])
         except (KeyError, TypeError, ValueError) as exc:
             raise Refused(f"a {kind} gesture needs its values: {exc}") from None
+        if kind == "move":
+            converted = move(view, element_id, dx, dy, where, part=cast(Part, part))
+        elif kind == "resize":
+            converted = resize(view, element_id, size_key, delta, where)
+        else:
+            converted = turn(view, element_id, angle_key, degrees, where)
         after = self._gate().check(converted.patch, view.tried)
         change = self.commit(converted.patch.text, dict(self.head.assets),
                              describe(gesture, element_id, device_id), expected, after)
@@ -780,7 +752,7 @@ class Document:
         from ..ir import Group
         from .drag import describe
 
-        self._check(expected)
+        self.check(expected)
         if scope not in ("auto", "all", "device", "shape"):
             raise Refused(f"scope {scope!r} is not auto, all, device or shape")
         ids = list(dict.fromkeys(element_ids))
@@ -869,24 +841,80 @@ def _text(op: dict[str, Any], key: str) -> str:
     return str(op.get(key) or "").strip()
 
 
-#: The compound edits (`wfb.edit.schemes`, `wfb.edit.hands`), each from
-#: its op's fields.
-_COMPOUND_EDITS: dict[str, Callable[[SpanIndex, dict[str, Any]], Patch]] = {
-    "make_switchable": lambda i, op: schemes.make_switchable(
+def _dotted(path: tuple[str | int, ...]) -> str:
+    return ".".join(str(p) for p in path)
+
+
+def _is_slot(path: tuple[str | int, ...]) -> bool:
+    return len(path) == 3 and path[:2] == ("config", "slots")
+
+
+def _set(doc: Document, index: SpanIndex, op: dict[str, Any]) -> Patch:
+    path = doc.edit_path(index, op)
+    value = op.get("value")
+    return replace(set_value(index, path, value),
+                   what=f"set {_dotted(path)} to {_shown_value(value)}")
+
+
+def _remove(doc: Document, index: SpanIndex, op: dict[str, Any]) -> Patch:
+    """A key back to its default; a slot only while nothing draws it."""
+    path = doc.edit_path(index, op)
+    if index.get(path) is None:
+        raise Refused(f"{_dotted(path)} is not set")
+    patch = remove_slot(index, str(path[2])) if _is_slot(path) else remove(index, path)
+    return replace(patch, what=f"remove {_dotted(path)}")
+
+
+def _rename(doc: Document, index: SpanIndex, op: dict[str, Any]) -> Patch:
+    """A declared name and every reference to it: `prefix` and the name
+    (`color.<name>`), or a slot's `slot:` keys."""
+    path = doc.edit_path(index, op)
+    to = str(op.get("to", "")).strip()
+    prefix = str(op.get("prefix", ""))
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", to):
+        raise Refused(f"{to!r} is not a name: letters, digits and _, "
+                      "not starting with a digit")
+    if _is_slot(path):
+        patch = rename_slot(index, str(path[2]), to)
+    elif prefix:
+        patch = rename_reference(index, path, to, prefix)
+    else:
+        patch = rename_key(index, path, to)
+    return replace(patch, what=f"rename {_dotted(path)} to {to}")
+
+
+#: Every edit `Document.edit` takes, each from its op's fields: one patch,
+#: labelled (`Patch.what`) as the history lists it.
+_EDITS: dict[str, Callable[[Document, SpanIndex, dict[str, Any]], Patch]] = {
+    "set": _set,
+    "remove": _remove,
+    "rename": _rename,
+    "use_color": lambda d, i, op: use_color(i, d.edit_path(i, op), str(op.get("value", ""))),
+    # the palette itself (`wfb.edit.colors`)
+    "add_swatch": lambda _, i, op: add_swatch(i, str(op.get("value", "")))[0],
+    "set_swatch": lambda _, i, op: set_swatch(i, str(op.get("name", "")),
+                                              str(op.get("value", ""))),
+    "remove_unused": lambda _, i, op: remove_unused(i),
+    # schemes (`wfb.edit.schemes`)
+    "make_switchable": lambda _, i, op: schemes.make_switchable(
         i, [str(n) for n in op.get("names") or []], _text(op, "scheme")),
-    "add_scheme": lambda i, op: schemes.add_scheme(i, _text(op, "name"),
-                                                   _text(op, "like") or None),
-    "rename_scheme": lambda i, op: schemes.rename_scheme(i, _text(op, "name"), _text(op, "to")),
-    "delete_scheme": lambda i, op: schemes.delete_scheme(i, _text(op, "name")),
-    "remove_theme": lambda i, op: schemes.remove_theme(i, _text(op, "keep")),
-    "add_role": lambda i, op: schemes.add_role(i, _text(op, "name"), op.get("value")),
-    "rename_role": lambda i, op: schemes.rename_role(i, _text(op, "name"), _text(op, "to")),
-    "delete_role": lambda i, op: schemes.delete_role(i, _text(op, "name")),
-    "add_slot": lambda i, op: slots.add_slot(i, _text(op, "name"), _text(op, "default")),
-    "add_hand_set": lambda i, op: hands.add_hand_set(i, _text(op, "name"), _text(op, "preset")),
-    "duplicate_hand_set": lambda i, op: hands.duplicate_hand_set(i, _text(op, "name")),
-    "rename_hand_set": lambda i, op: hands.rename_hand_set(i, _text(op, "name"), _text(op, "to")),
-    "delete_hand_set": lambda i, op: hands.delete_hand_set(i, _text(op, "name")),
+    "add_scheme": lambda _, i, op: schemes.add_scheme(i, _text(op, "name"),
+                                                      _text(op, "like") or None),
+    "rename_scheme": lambda _, i, op: schemes.rename_scheme(i, _text(op, "name"),
+                                                            _text(op, "to")),
+    "delete_scheme": lambda _, i, op: schemes.delete_scheme(i, _text(op, "name")),
+    "remove_theme": lambda _, i, op: schemes.remove_theme(i, _text(op, "keep")),
+    "add_role": lambda _, i, op: schemes.add_role(i, _text(op, "name"), op.get("value")),
+    "rename_role": lambda _, i, op: schemes.rename_role(i, _text(op, "name"), _text(op, "to")),
+    "delete_role": lambda _, i, op: schemes.delete_role(i, _text(op, "name")),
+    # slots (`wfb.edit.slots`) and hand sets (`wfb.edit.hands`)
+    "add_slot": lambda _, i, op: slots.add_slot(i, _text(op, "name"), _text(op, "default")),
+    "add_hand_set": lambda _, i, op: hands.add_hand_set(i, _text(op, "name"),
+                                                        _text(op, "preset")),
+    "duplicate_hand_set": lambda _, i, op: hands.duplicate_hand_set(i, _text(op, "name")),
+    "rename_hand_set": lambda _, i, op: hands.rename_hand_set(i, _text(op, "name"),
+                                                              _text(op, "to")),
+    "delete_hand_set": lambda _, i, op: hands.delete_hand_set(i, _text(op, "name")),
 }
 
 

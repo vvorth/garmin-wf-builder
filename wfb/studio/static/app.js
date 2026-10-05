@@ -2,11 +2,13 @@
 // face's text and runs the compiler, so nothing here decides what a face
 // looks like: every image comes from the server's renderer.
 
-import { html, render, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo }
+import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
+import { api, enc } from "./api.js";
+import { clockNow, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
 import { AddName, InlineName, Popover } from "./ui.js";
-import { enqueue, mark, newer, next, saveState } from "./outbox.js";
+import { newer, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
@@ -23,13 +25,6 @@ const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
 const PANEL_MIN = 180;
 const PANEL_MAX = 720;
 const clampPanel = (w) => Math.round(Math.min(PANEL_MAX, Math.max(PANEL_MIN, w)));
-// This computer's time and date, as the time and date inputs write them.
-function clockNow() {
-  const d = new Date();
-  const two = (n) => String(n).padStart(2, "0");
-  return { time: `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`,
-           date: `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}` };
-}
 const storedPanels = () => ({ left: clampPanel(stored("wfb-panel-left", 280)),
                               right: clampPanel(stored("wfb-panel-right", 340)) });
 
@@ -46,10 +41,10 @@ function Splitter({ width, sign, fallback, onWidth }) {
     onDblClick=${() => onWidth(fallback, true)}></div>`;
 }
 import { FacePanel, Inspector } from "./panels.js";
-import { picksParam, typeLabel } from "./values.js";
+import { typeLabel } from "./values.js";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
 import { deleteOp } from "./tree.js";
-import { TAB, sessionLost, watch } from "./session.js";
+import { TAB, watch } from "./session.js";
 import { latestText } from "./textsync.js";
 
 // `text` on the clipboard, or, where the page may not write it (a
@@ -69,23 +64,6 @@ async function copyOrDownload(text, filename) {
   }
 }
 
-// -- the server --------------------------------------------------------------------
-
-async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { ...options.headers, "X-Wfb-Tab": TAB } });
-  const type = response.headers.get("content-type") || "";
-  const body = type.includes("json") ? await response.json() : null;
-  // the session cookie is gone (cleared, or expired): `session.js`
-  if (response.status === 401) sessionLost();
-  if (!response.ok) {
-    const error = new Error((body && body.error) || `${response.status} ${response.statusText}`);
-    error.status = response.status;
-    throw error;
-  }
-  return body;
-}
-
-const enc = encodeURIComponent;
 
 function route() {
   const m = location.hash.match(/^#\/face\/([0-9a-f]{32})$/);
@@ -344,25 +322,29 @@ function DownloadMenu({ doc }) {
 
 function Editor({ docId, onError, onNotice }) {
   const [doc, setDoc] = useState(null);
-  const [frame, setFrame] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState(null);
+  // more elements selected with Ctrl/Cmd (or Shift on the face), for
+  // moving, deleting or grouping together
+  const [extra, setExtra] = useState([]);
   const [view, setView] = useState({ device: null, style: "", time: "", date: "", now: false, asleep: false,
                                      aod: false, skin: false, zoom: storedZoom() });
-  // "now": the frame follows this computer's clock; the time and date it
-  // was drawn at, moved on a second after each frame arrives
-  const [clock, setClock] = useState(clockNow());
-  const time = view.now ? clock.time : view.time;
-  const date = view.now ? clock.date : view.date;
   // the server draws at a whole scale; the browser shows it at the zoom
   const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
   const [dialog, setDialog] = useState(null);           // "build" | "calibrate"
-  const [skin, setSkin] = useState(null);
   const [vocab, setVocab] = useState({});
-  // the face's slots, which the "showing" control picks a type for
+  // the face's slots, which the Preview popover picks a type for
   const slots = (doc && doc.globals && doc.globals.slots) || [];
   useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
+  const [left, setLeft] = useState("layers");
+  const [pane, setPane] = useState("face");
+  const [tab, setTab] = useState("diagnostics");
+  // the Diagnostics tab's severity filter, kept across tabs, reset per face
+  const [diagFilter, setDiagFilter] = useState("all");
+  const [fold, setFolded] = useFold();
+  // where an inspector edit or a drag writes geometry: "all" (a drag then
+  // writes where the viewed device reads it), the device, or its shape
+  const [scope, setScope] = useState("all");
 
   // A face from the server, shown unless it is older than the one shown
   // (`outbox.newer`): answers can arrive out of order.
@@ -371,7 +353,7 @@ function Editor({ docId, onError, onNotice }) {
     onError(e);
     if (e.status === 404) go(null);
   }), [docId]);
-  useEffect(() => { setDoc(null); setFrame(null); setSelected(null); loadDoc(); }, [docId]);
+  useEffect(() => { setDoc(null); setSelected(null); setExtra([]); setDiagFilter("all"); loadDoc(); }, [docId]);
 
   // The device defaults to the first target, and is kept while it stays one.
   useEffect(() => {
@@ -379,40 +361,8 @@ function Editor({ docId, onError, onNotice }) {
       setView((v) => ({ ...v, device: doc.targets[0] }));
     }
   }, [doc]);
-
-  useEffect(() => {
-    if (!doc || !view.device || !doc.targets.includes(view.device)) { setFrame(null); return; }
-    let live = true;
-    setBusy(true);
-    const q = new URLSearchParams({ device: view.device, scale });
-    if (view.style) q.set("style", view.style);
-    if (time) q.set("time", time);
-    if (date) q.set("date", date);
-    if (view.asleep) q.set("asleep", "1");
-    if (view.aod) q.set("aod", "1");
-    const picks = picksParam(view.picks, slots);
-    if (picks) q.set("picks", picks);
-    api(`/api/documents/${docId}/frame?${q}`)
-      .then((f) => { if (live) setFrame(f); }, onError)
-      .finally(() => { if (live) setBusy(false); });
-    return () => { live = false; };
-  }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, time, date,
-      view.asleep, view.aod, scale, picksParam(view.picks, slots)]);
-
-  // the watch's skin, at the frame's scale, when asked for and it has one
   const deviceInfo = (vocab.devices || []).find((d) => d.id === view.device);
-  useEffect(() => {
-    if (!view.skin || !deviceInfo || !deviceInfo.skin) { setSkin(null); return; }
-    let live = true;
-    api(`/api/skin?device=${enc(view.device)}&scale=${scale}`).then((s) => { if (live) setSkin(s); }, onError);
-    return () => { live = false; };
-  }, [view.skin, view.device, scale, deviceInfo && deviceInfo.skin]);
-  // the next tick waits for the frame, so a slow one is never queued behind
-  useEffect(() => {
-    if (!view.now || busy) return;
-    const timer = setTimeout(() => setClock(clockNow()), 1000 - (Date.now() % 1000) + 5);
-    return () => clearTimeout(timer);
-  }, [view.now, busy, clock]);
+  const { frame, busy, skin, clock, setClock, time, date, picks } = useFrame({ docId, doc, view, scale, deviceInfo, onError });
   const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
   // the slider's steps are hundredths; real size is set exactly
   const setZoom = (z, exact = false) => {
@@ -420,6 +370,30 @@ function Editor({ docId, onError, onNotice }) {
     try { localStorage.setItem("wfb-zoom", String(zoom)); } catch (_) { /* private mode */ }
     setView((v) => ({ ...v, zoom }));
   };
+
+  // the device and scope a gesture is written for, as they were when it was made
+  const where = useRef({});
+  where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
+  const { queue, queued, onDrag, send } = useOutbox({ docId, doc, frame, where, accept, reload: loadDoc, onError, onNotice });
+  const step = useCallback((which) => send({ path: which }), [send]);
+  // One edit from the inspector or the Face panel: the server patches the
+  // text, checks it and answers with the face; a refusal says why.
+  const edit = useCallback((op) => send({ path: "edit", body: JSON.stringify(op) }), [send]);
+  const upload = useCallback((file, { font, size, reference }) => {
+    const query = { filename: file.name };
+    if (font) { query.font = font; query.size = size || "10%r"; }
+    if (reference) query.reference = reference;
+    return send({ path: "assets", query, body: file });
+  }, [send]);
+  // One structural edit from the Layers panel: the server patches the text,
+  // checks it and answers with the face and what to select.
+  const structure = useCallback(async (op) => {
+    const updated = await send({ path: "structure", body: JSON.stringify(op) });
+    if (!updated) return;
+    if (op.op === "delete") setSelected(null);
+    else if (updated.select) setSelected(updated.select);
+    setExtra([]);
+  }, [send]);
 
   // the face was deleted (in another tab): editing it can no longer be saved
   const [gone, setGone] = useState(false);
@@ -436,14 +410,12 @@ function Editor({ docId, onError, onNotice }) {
 
   const element = useMemo(() => doc && selected && flatten(doc.tree).find((n) => n.id === selected),
                           [doc, selected]);
-  const [tab, setTab] = useState("diagnostics");
-  // the Diagnostics tab's severity filter, kept across tabs, reset per face
-  const [diagFilter, setDiagFilter] = useState("all");
-  useEffect(() => { setDiagFilter("all"); }, [docId]);
   // The YAML tab's own save state (`YamlPane`'s `onSaving`); every other
-  // change is in the outbox below.
+  // change is in the outbox.
   const [yamlSaving, setYamlSaving] = useState("idle");
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
+  // where the YAML tab was, per face, while the editor is open
+  const yamlMemory = useRef({});
   // A lost session with work unsaved (`session.js`) is a banner, not a reload.
   const [lost, setLost] = useState(false);
   const [copied, setCopied] = useState(null);
@@ -455,76 +427,6 @@ function Editor({ docId, onError, onNotice }) {
   const unsavedNow = useRef(() => false);
   unsavedNow.current = () => yamlSaving !== "idle" || queued.current.some((e) => e.state !== "done");
   useEffect(() => watch(() => unsavedNow.current(), () => setLost(true)), []);
-  // where an inspector edit or a drag writes geometry: "all" (a drag then
-  // writes where the viewed device reads it), the device, or its shape
-  const [scope, setScope] = useState("all");
-  // The outbox (`outbox.js`): every change to the face -- gestures from
-  // the canvas and the arrow keys, edits from the panels and the layers,
-  // undo, redo, uploads and restores -- sent one at a time, each against
-  // the version the one before produced, so the canvas never waits for the
-  // server and an edit made while a drag is on its way is not refused as
-  // stale. `ids`: the elements one gesture drags; several only for a move.
-  const [queue, setQueue] = useState([]);
-  const queued = useRef([]);
-  const latest = useRef(null);       // the newest version known, for the next send
-  const commit = (q) => { queued.current = q; setQueue(q); };
-  useEffect(() => { if (doc) latest.current = doc.version; }, [doc && doc.id, doc && doc.version]);
-  useEffect(() => { commit([]); latest.current = null; }, [docId]);
-  // a frame showing a gesture's version retires it
-  useEffect(() => {
-    if (frame) commit(queued.current.filter((e) => !(e.state === "done" && e.done <= frame.version)));
-  }, [frame && frame.version]);
-  // the device and scope a gesture is written for, as they were when it was made
-  const where = useRef({});
-  where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
-  const post = (entry, version) => {
-    if (entry.gesture) {
-      const which = entry.ids.length > 1 ? { elements: entry.ids } : { element: entry.ids[0] };
-      return api(`/api/documents/${docId}/drag?version=${version}`, {
-        method: "POST", body: JSON.stringify({ ...which, gesture: entry.gesture, ...entry.where }),
-      });
-    }
-    const { path, query = {}, body } = entry.request;
-    const q = new URLSearchParams({ ...query, version });
-    return api(`/api/documents/${docId}/${path}?${q}`, { method: "POST", body });
-  };
-  const pump = useCallback(async () => {
-    const entry = next(queued.current);
-    if (!entry || latest.current === null) return;
-    commit(mark(queued.current, entry, "sent"));
-    try {
-      const updated = await post(entry, latest.current);
-      latest.current = updated.version;
-      commit(mark(queued.current, queued.current.find((e) => e.state === "sent"), "done", updated.version));
-      accept(updated);
-      if (entry.gesture && !updated.landed) onNotice(`${updated.what}: written as close as its units allow, not exactly on the pixel`);
-      if (entry.resolve) entry.resolve(updated);
-      pump();
-    } catch (e) {
-      // what was queued behind it was aimed at a face that did not happen
-      const dropped = queued.current.filter((q) => q.state !== "done");
-      commit(queued.current.filter((q) => q.state === "done"));
-      for (const q of dropped) if (q.resolve) q.resolve(null);
-      onError(e);
-      if (e.status === 409) loadDoc();
-    }
-  }, [docId]);
-  const onDrag = useCallback((ids, gesture, shown) => {
-    commit(enqueue(queued.current, { ids, gesture, ...shown, where: { ...where.current } }));
-    pump();
-  }, [pump]);
-  // Any other change, `{path, query, body}` under the face's URL: queued
-  // behind what is on its way. Resolves to the face it produced, or null
-  // when it was refused (the refusal is shown).
-  const send = useCallback((request) => new Promise((resolve) => {
-    commit(enqueue(queued.current, { request, resolve }));
-    pump();
-  }), [pump]);
-  const step = useCallback((which) => send({ path: which }), [send]);
-  const [left, setLeft] = useState("layers");
-  const [pane, setPane] = useState("face");
-  // where the YAML tab was, per face, while the editor is open
-  const yamlMemory = useRef({});
   const [panels, setPanels] = useState(storedPanels());
   // `save`: the drag is over, so the browser keeps the width
   const panelWidth = (side) => (w, save) => {
@@ -534,9 +436,7 @@ function Editor({ docId, onError, onNotice }) {
   // lines the YAML tab is asked to select, from a link elsewhere
   const [reveal, setReveal] = useState(null);
   const showLines = useCallback((line, end) => { setReveal({ line, end, at: Date.now() }); setPane("yaml"); }, []);
-  // more elements selected with Ctrl/Cmd (or Shift on the face), for
-  // moving, deleting or grouping together
-  const [extra, setExtra] = useState([]);
+
   // `mode`: falsy selects `id` alone; "range" (Shift in the layers) selects
   // every element from the selection to it; anything else toggles it in
   // the selection
@@ -550,146 +450,32 @@ function Editor({ docId, onError, onNotice }) {
     } else { setSelected(id); setExtra([]); }
   }, [selected, doc]);
   const deselect = useCallback(() => { setSelected(null); setExtra([]); }, []);
-  // One structural edit from the Layers panel: the server patches the text,
-  // checks it and answers with the face and what to select.
-  const structure = useCallback(async (op) => {
-    const updated = await send({ path: "structure", body: JSON.stringify(op) });
-    if (!updated) return;
-    if (op.op === "delete") setSelected(null);
-    else if (updated.select) setSelected(updated.select);
-    setExtra([]);
-  }, [send]);
-  // Arrow keys move the selection a pixel, ten with Shift, as a drag would.
-  const nudge = useCallback((dx, dy) => {
-    const ids = [selected, ...extra].filter(Boolean);
-    if (!ids.length || !frame || !doc) return false;
-    const item = ids.length > 1 ? together(frame.items, ids) : frame.items.find((i) => i.id === ids[0]);
-    if (!item || !item.box) return false;
-    const gesture = { kind: "move", part: "both", dx, dy };
-    onDrag(ids, gesture, { item, moving: movedBy(doc.tree, ids), preview: gesture });
-    return true;
-  }, [selected, extra, frame, doc, onDrag]);
-  useEffect(() => {
-    const onKey = (e) => {
-      if (!(e.ctrlKey || e.metaKey) || e.target.closest("input, textarea, select, .cm-editor")) return;
-      const key = e.key.toLowerCase();
-      if (key === "z" && !e.shiftKey) { e.preventDefault(); step("undo"); }
-      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); step("redo"); }
-      else if (key === "d" && element) { e.preventDefault(); structure({ op: "duplicate", path: element.path }); }
-      else if (key === "a" && pane === "face" && frame && doc) {
-        // Select All: everything the frame shows, a group for its children
-        e.preventDefault();
-        const ids = selectAll(doc.tree, new Set(frame.items.map((i) => i.id)));
-        setSelected(ids[0] || null); setExtra(ids.slice(1));
-      }
-    };
-    addEventListener("keydown", onKey);
-    // the arrows nudge, while the face is shown and nothing is being typed
-    const onArrow = (e) => {
-      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-      if (!step || pane !== "face" || e.ctrlKey || e.metaKey || e.altKey
-          || e.target.closest("input, textarea, select, .cm-editor")) return;
-      const n = e.shiftKey ? 10 : 1;
-      if (nudge(step[0] * n, step[1] * n)) e.preventDefault();
-    };
-    addEventListener("keydown", onArrow);
-    // Delete: the whole selection, as one change; no modifier, and not
-    // while typing
-    const onDelete = (e) => {
-      if ((e.key === "Delete" || e.key === "Backspace") && !e.ctrlKey && !e.metaKey && element &&
-          !e.target.closest("input, textarea, select, .cm-editor")) {
-        e.preventDefault();
-        const op = deleteOp(doc.tree, [selected, ...extra]);
-        if (op) structure(op);
-      }
-    };
-    addEventListener("keydown", onDelete);
-    return () => {
-      removeEventListener("keydown", onKey); removeEventListener("keydown", onArrow);
-      removeEventListener("keydown", onDelete);
-    };
-  }, [step, structure, element, nudge, pane, doc, frame, selected, extra]);
+  const chosen = [selected, ...extra].filter(Boolean);
+  const onFace = pane === "face" && frame && doc;
+  useShortcuts({
+    undo: () => step("undo"),
+    redo: () => step("redo"),
+    duplicate: element ? () => structure({ op: "duplicate", path: element.path }) : null,
+    // everything the frame shows, a group standing for its children
+    selectAll: onFace ? () => {
+      const ids = selectAll(doc.tree, new Set(frame.items.map((i) => i.id)));
+      setSelected(ids[0] || null); setExtra(ids.slice(1));
+    } : null,
+    // a pixel, ten with Shift, written as a drag would be
+    nudge: onFace && chosen.length ? (dx, dy) => {
+      const item = chosen.length > 1 ? together(frame.items, chosen) : frame.items.find((i) => i.id === chosen[0]);
+      if (!item || !item.box) return false;
+      const gesture = { kind: "move", part: "both", dx, dy };
+      onDrag(chosen, gesture, { item, moving: movedBy(doc.tree, chosen), preview: gesture });
+      return true;
+    } : null,
+    // the whole selection, as one change
+    remove: element ? () => { const op = deleteOp(doc.tree, chosen); if (op) structure(op); } : null,
+  });
 
-  // The right column's two sections, each folded or open, as this browser
-  // last left them: the selection's Properties, and Diagnostics/History.
-  const [fold, setFold] = useState(() => {
-    try { return { props: false, lower: false, ...JSON.parse(localStorage.getItem("wfb-fold") || "{}") }; }
-    catch (_) { return { props: false, lower: false }; }
-  });
-  const folded = (which, value) => setFold((f) => {
-    const next = { ...f, [which]: value };
-    try { localStorage.setItem("wfb-fold", JSON.stringify(next)); } catch (_) { /* private mode */ }
-    return next;
-  });
   // the top bar's error count: Diagnostics, open, showing the errors
-  const showErrors = () => { setTab("diagnostics"); setDiagFilter("error"); folded("lower", false); };
-
-  // Ctrl/Cmd + wheel zooms about the pointer; dragging the space round
-  // the watch, the middle button anywhere, or any button with Space held,
-  // pans; a click on that space selects nothing.
-  const wrap = useRef(null);
-  const anchor = useRef(null);       // the watch pixel kept under the pointer
-  const onWheel = (e) => {
-    if (!(e.ctrlKey || e.metaKey) || !frame) return;
-    e.preventDefault();
-    const canvas = wrap.current && wrap.current.querySelector(".canvas img.frame");
-    if (canvas) {
-      const r = canvas.getBoundingClientRect();
-      anchor.current = { cx: e.clientX, cy: e.clientY,
-                         px: (e.clientX - r.left) / view.zoom, py: (e.clientY - r.top) / view.zoom };
-    }
-    setZoom(view.zoom * Math.exp(-e.deltaY * 0.002));
-  };
-  useLayoutEffect(() => {
-    const a = anchor.current, el = wrap.current;
-    anchor.current = null;
-    const canvas = el && el.querySelector(".canvas img.frame");
-    if (!a || !canvas) return;
-    const r = canvas.getBoundingClientRect();
-    el.scrollLeft += r.left + a.px * view.zoom - a.cx;
-    el.scrollTop += r.top + a.py * view.zoom - a.cy;
-  }, [view.zoom]);
-  const space = useRef(false);
-  useEffect(() => {
-    // Space on a control still presses it
-    const typing = (e) => e.target.closest && e.target.closest("input, textarea, select, button, .cm-editor");
-    const down = (e) => { if (e.code === "Space" && !typing(e) && pane === "face") { space.current = true; e.preventDefault(); } };
-    const up = (e) => { if (e.code === "Space") space.current = false; };
-    addEventListener("keydown", down); addEventListener("keyup", up);
-    return () => { removeEventListener("keydown", down); removeEventListener("keyup", up); };
-  }, [pane]);
-  const pan = useRef(null);
-  const panDown = (e) => {
-    const background = e.target === wrap.current;
-    if (!(e.button === 1 || space.current || (e.button === 0 && background))) return;
-    e.preventDefault(); e.stopPropagation();
-    wrap.current.setPointerCapture && wrap.current.setPointerCapture(e.pointerId);
-    pan.current = { x: e.clientX, y: e.clientY, moved: false, background: background && e.button === 0 && !space.current };
-  };
-  const panMove = (e) => {
-    const p = pan.current;
-    if (!p) return;
-    const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (!p.moved && Math.hypot(dx, dy) < 3) return;
-    p.moved = true;
-    wrap.current.scrollLeft -= dx; wrap.current.scrollTop -= dy;
-    p.x = e.clientX; p.y = e.clientY;
-  };
-  const panUp = () => {
-    const p = pan.current;
-    pan.current = null;
-    if (p && p.background && !p.moved) deselect();
-  };
-
-  // One edit from the inspector or the Face panel: the server patches the
-  // text, checks it and answers with the face; a refusal says why.
-  const edit = useCallback((op) => send({ path: "edit", body: JSON.stringify(op) }), [send]);
-  const upload = useCallback((file, { font, size, reference }) => {
-    const query = { filename: file.name };
-    if (font) { query.font = font; query.size = size || "10%r"; }
-    if (reference) query.reference = reference;
-    return send({ path: "assets", query, body: file });
-  }, [send]);
+  const showErrors = () => { setTab("diagnostics"); setDiagFilter("error"); setFolded("lower", false); };
+  const panZoom = usePanZoom({ zoom: view.zoom, setZoom, active: pane === "face", onBackground: deselect });
 
   const drawn = useMemo(() => frame && new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)), [frame]);
   const box = useMemo(() => {
@@ -737,7 +523,7 @@ function Editor({ docId, onError, onNotice }) {
               <${Changes} states=${h.states} when=${when}
                 onGoto=${(st) => { close(); send({ path: "goto", query: { seq: st.seq } }); }} />
               ${(h.total ?? h.states.length) > h.states.length ? html`<button class="more" onClick=${() => {
-                close(); setTab("history"); folded("lower", false); }}>
+                close(); setTab("history"); setFolded("lower", false); }}>
                 ${h.total - h.states.length} older in the History tab</button>` : null}`}
           </${Popover}>
         </span>
@@ -835,9 +621,7 @@ function Editor({ docId, onError, onNotice }) {
         ${pane === "yaml"
           ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${accept} onError=${onError} onSaving=${setYamlSaving}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
-          : html`<div class="canvas-wrap" ref=${wrap} onWheel=${onWheel}
-                      onPointerDownCapture=${panDown} onPointerMove=${panMove} onPointerUp=${panUp}
-                      onPointerCancel=${() => { pan.current = null; }}>
+          : html`<div class="canvas-wrap" ref=${panZoom.wrap} ...${panZoom.handlers}>
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
                                         extra=${extra} tree=${doc.tree} queue=${queue}
@@ -846,13 +630,13 @@ function Editor({ docId, onError, onNotice }) {
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
-        <${Strip} doc=${doc} view=${{ ...view, time, date }} picks=${picksParam(view.picks, slots)}
+        <${Strip} doc=${doc} view=${{ ...view, time, date }} picks=${picks}
                   onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
       <${Splitter} width=${panels.right} sign=${-1} fallback=${340} onWidth=${panelWidth("right")} />
       <div class=${"panel right" + (fold.props ? " props-folded" : "") + (fold.lower ? " lower-folded" : "")}>
         <section class="props-section">
-          <h3 class="fold" onClick=${() => folded("props", !fold.props)} aria-expanded=${!fold.props}
+          <h3 class="fold" onClick=${() => setFolded("props", !fold.props)} aria-expanded=${!fold.props}
               title=${fold.props ? "Show the selection's properties" : "Fold the properties away"}>
             ${fold.props ? "▸" : "▾"} Properties${extra.length ? html` <span class="dim">· ${extra.length + 1} selected</span>` : null}</h3>
           ${fold.props ? null : html`<div class="section-scroll">
@@ -869,11 +653,11 @@ function Editor({ docId, onError, onNotice }) {
         <section class="lower-section">
           <div class="tabs">
             <button class=${tab === "diagnostics" && !fold.lower ? "on" : ""}
-                    onClick=${() => { setTab("diagnostics"); folded("lower", false); }}>
+                    onClick=${() => { setTab("diagnostics"); setFolded("lower", false); }}>
               ${diagnosticsLabel(doc.diagnostics, diagFilter)}</button>
             <button class=${tab === "history" && !fold.lower ? "on" : ""}
-                    onClick=${() => { setTab("history"); folded("lower", false); }}>History</button>
-            <button class="fold-button" onClick=${() => folded("lower", !fold.lower)} aria-expanded=${!fold.lower}
+                    onClick=${() => { setTab("history"); setFolded("lower", false); }}>History</button>
+            <button class="fold-button" onClick=${() => setFolded("lower", !fold.lower)} aria-expanded=${!fold.lower}
                     title=${fold.lower ? "Show Diagnostics and History" : "Fold Diagnostics and History away"}>
               ${fold.lower ? "▴" : "▾"}</button>
           </div>

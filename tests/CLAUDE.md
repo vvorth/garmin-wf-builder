@@ -45,7 +45,9 @@ Loaded automatically when working under `tests/`.
   Starlette's client; `test_studio_frontend.py` runs the front end's pure
   modules in Node (skipped without `node`), and `test_studio_panels.py`
   renders the panels with preact over a minimal DOM (`studio_dom.mjs`) and
-  clicks their controls, checking the edits they send. `test_studio_raster.py` holds
+  clicks their controls, checking the edits they send; `test_studio_app.py`
+  renders the whole page (`app.js`) the same way against a stand-in server
+  answering from a real summary, and presses its keys. `test_studio_raster.py` holds
   the browser's rasteriser (`raster.js`) to Pillow byte for byte, and
   **fails** without Node, being that rasteriser's only guard. Nothing here
   drives a browser: the pages are checked by hand.

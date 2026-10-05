@@ -267,3 +267,16 @@ def test_text_versions_are_stored_compressed_and_old_blobs_still_read(studio):
     # a store written before compression: a plain blob, still read
     plain = store.put(doc.id, b"plain bytes")
     assert (blobs / plain).exists() and store.get(doc.id, plain) == b"plain bytes"
+
+
+def test_a_gesture_without_its_values_and_a_refused_gesture_say_different_things(studio):
+    doc = studio.create(Bundle("T", starters.instantiate("minimal", "T")), "new")
+    with pytest.raises(Refused, match="needs its values"):
+        doc.drag("clock", {"kind": "move", "dx": "far"}, "fr955", "auto", doc.version)
+    # a refusal from the move itself keeps its own reason
+    with pytest.raises(Refused) as refused:
+        doc.drag("no_such_element", {"kind": "move", "dx": 1, "dy": 0}, "fr955", "auto",
+                 doc.version)
+    assert "needs its values" not in str(refused.value)
+    with pytest.raises(Refused, match="unknown gesture"):
+        doc.drag("clock", {"kind": "spin"}, "fr955", "auto", doc.version)

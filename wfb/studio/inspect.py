@@ -22,8 +22,8 @@ from pathlib import Path as FilePath
 from typing import Any
 
 from .. import catalog, complications, icon_catalog
-from ..devices import Device, DeviceDatabase
-from ..edit import colors, hands
+from ..devices import Device, DeviceDatabase, DeviceError
+from ..edit import Refused, colors, hands
 from ..edit.geometry import selector_paths
 from ..edit.spans import Path, SpanIndex, index_for
 from ..palette import MIP64_NAMED, Color, ColorError
@@ -231,10 +231,21 @@ def _slots(index: SpanIndex) -> list[dict[str, Any]]:
 
 
 def _automatic(name: str, value: Any) -> bool:
+    """Whether ``name`` is the editor's own name for ``value``; a value that
+    is no colour has none (`_problem` says so)."""
     try:
         return colors.is_automatic(name, value)
-    except Exception:
+    except Refused:
         return False
+
+
+def _problem(value: Any) -> str | None:
+    """Why a palette entry's value is no colour, or `None`."""
+    try:
+        colors.hex_of(value)
+    except Refused as exc:
+        return str(exc)
+    return None
 
 
 def _axes(data: dict[str, Any]) -> dict[str, Any]:
@@ -267,11 +278,13 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
         return {}
     targets = list((data.get("build") or {}).get("targets") or [])
     devices = []
+    # a target the device database cannot give, and why: the panel says so
+    target_problems: dict[str, str] = {}
     for target in targets:
         try:
             devices.append(db.get(str(target)))
-        except Exception:
-            continue
+        except DeviceError as exc:
+            target_problems[str(target)] = str(exc)
     resources = data.get("resources") or {}
     palette = []
     for name, entry in (resources.get("palette") or {}).items():
@@ -281,6 +294,7 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
                         "long": isinstance(entry, dict), "dithers_on": _legal_on(value, devices),
                         "used_by": colors.user_names(index, str(name)),
                         "automatic": _automatic(str(name), value),
+                        "problem": _problem(value),
                         "launcher": name in colors.LAUNCHER})
     schemes = (data.get("theme") or {}).get("schemes") or {}
     roles: list[str] = []
@@ -311,6 +325,7 @@ def globals_of(text: str, db: DeviceDatabase) -> dict[str, Any]:
         "hand_sets": list((resources.get("hand_sets") or {})),
         "hands": hands.summary(index),
         "targets": targets,
+        "target_problems": target_problems,
     }
 
 
@@ -348,16 +363,19 @@ def vocabulary() -> dict[str, Any]:
     }
 
 
-def devices(db: DeviceDatabase) -> list[dict[str, Any]]:
-    """Every installed device that can run a face, for the targets list."""
+def devices(db: DeviceDatabase) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Every installed device that can run a face, for the targets list,
+    and every installed device whose files could not be read, with why."""
     from ..emit.manifest import BASE_API_LEVEL
     from ..devices import version_key
 
     out = []
+    unreadable: list[dict[str, str]] = []
     for device_id in db.ids():
         try:
             device = db.get(device_id)
-        except Exception:
+        except (DeviceError, OSError, ValueError) as exc:
+            unreadable.append({"id": device_id, "reason": str(exc)})
             continue
         if not device.supports_watchface or \
                 version_key(device.api_level) < version_key(BASE_API_LEVEL):
@@ -373,4 +391,4 @@ def devices(db: DeviceDatabase) -> list[dict[str, Any]]:
                     "ppi": float(ppi) if isinstance(ppi, (int, float)) and ppi > 0 else None,
                     "skin": has_skin(device), "display": device.display_type,
                     "fonts": list(device.system_fonts)})
-    return sorted(out, key=lambda d: d["name"].lower())
+    return sorted(out, key=lambda d: d["name"].lower()), unreadable

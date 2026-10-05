@@ -556,6 +556,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
     <${Section} title=${`Targets (${(g.targets || []).length})`}>
       <ul class="rows">${(g.targets || []).map((t) => html`<li>
         <span>${(devices.find((d) => d.id === t) || {}).name || t}</span> <code class="dim">${t}</code>
+        ${(g.target_problems || {})[t] ? html`<span class="warn" title=${g.target_problems[t]}>⚠ not available here</span>` : null}
         <button class="reset" title="remove this target" onClick=${() => onEdit({ op: "set", path: ["build", "targets"], value: g.targets.filter((x) => x !== t) })}>×</button>
       </li>`)}</ul>
       <div class="row">
@@ -565,6 +566,11 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         </select>
         <button disabled=${!adding} onClick=${() => { onEdit({ op: "set", path: ["build", "targets"], value: [...(g.targets || []), adding] }); setAdding(""); }}>Add</button>
       </div>
+      ${(vocab.unreadable_devices || []).length ? html`<div class="note warn"
+          title=${vocab.unreadable_devices.map((d) => `${d.id}: ${d.reason}`).join("\n")}>
+        ⚠ ${vocab.unreadable_devices.length} installed watch${vocab.unreadable_devices.length > 1 ? "es" : ""}
+        could not be read, so ${vocab.unreadable_devices.length > 1 ? "they are" : "it is"} not offered
+        (${vocab.unreadable_devices.map((d) => d.id).join(", ")})</div>` : null}
     </${Section}>
 
     <${Section} title=${`Colours (${palette.length})`}>
@@ -575,6 +581,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
             title=${p.used_by.length ? `changes ${p.used_by.length} use${p.used_by.length > 1 ? "s" : ""}: ${p.used_by.join(", ")}` : "not used yet"}
             onPick=${(v) => onEdit({ op: "set_swatch", name: p.name, value: v })} />
           ${p.dithers_on.length ? html`<span class="warn" title=${`dithers on ${p.dithers_on.join(", ")}`}>⚠</span>` : null}
+          ${p.problem ? html`<span class="warn" title=${p.problem}>⚠ not a colour</span>` : null}
           ${p.automatic ? html`<span class="tag" title="named after its colour: renamed when its colour changes, removed when nothing uses it">auto</span>` : null}
           <button class="reset" title="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
           <div class="note">${p.used_by.length ? html`used by ${users(p.used_by)}`

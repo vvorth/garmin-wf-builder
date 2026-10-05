@@ -358,3 +358,33 @@ def test_the_last_slot_deleted_takes_its_config_block_with_it(studio):
     assert list(slots(doc)) == ["bottom"]
     doc.edit({"op": "remove", "path": ["config", "slots", "bottom"]}, doc.version)
     assert "config" not in SpanIndex(doc.text).data and doc.analysis().face is not None
+
+
+def test_a_target_not_installed_and_a_value_that_is_no_colour_are_noted(db):
+    text = starters.instantiate("minimal", "T").replace(
+        "targets: [", "targets: [nosuchwatch, ").replace('bg: "#000000"', 'bg: "#00GG00"')
+    assert "nosuchwatch" in text and "#00GG00" in text
+    g = globals_of(text, db)
+    assert "nosuchwatch" in g["target_problems"]
+    assert set(g["target_problems"]) == {"nosuchwatch"}
+    bg = next(p for p in g["palette"] if p["name"] == "bg")
+    assert bg["problem"] and not bg["automatic"]
+    assert all(p["problem"] is None for p in g["palette"] if p["name"] != "bg")
+
+
+def test_an_installed_watch_that_cannot_be_read_is_listed_with_why(db, monkeypatch):
+    from wfb.devices import DeviceError
+    from wfb.studio.inspect import devices
+
+    real = db.get
+    broken = db.ids()[0]
+
+    def get(device_id):
+        if device_id == broken:
+            raise DeviceError(f"{device_id}: compiler.json is not JSON")
+        return real(device_id)
+
+    monkeypatch.setattr(db, "get", get)
+    listed, unreadable = devices(db)
+    assert unreadable == [{"id": broken, "reason": f"{broken}: compiler.json is not JSON"}]
+    assert broken not in [d["id"] for d in listed]
