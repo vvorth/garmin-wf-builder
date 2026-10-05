@@ -32,7 +32,7 @@ from ..ir.model import Position, Shape
 from ..layout import Placed, ResolvedFace, Resolver
 from ..units import Axis, Box, Length, UnitError
 from .gate import Loaded, load_text
-from .patch import Patch, number, set_value
+from .patch import Patch, number, set_scalars, set_value
 
 if TYPE_CHECKING:
     from ..emit.resources import BakeMemo
@@ -282,6 +282,12 @@ class _Key:
 
 
 def _apply(index: SpanIndex, keys: list[_Key], level: int) -> Patch:
+    whats = ", ".join(dotted(k.write) for k in keys)
+    values = [(k.write, k.spelling.write(k.values[min(level, len(k.values) - 1)])) for k in keys]
+    # keys already written are rewritten in place, with no index between them
+    together = set_scalars(index, values)
+    if together is not None:
+        return Patch(together.text, together.expected, f"set {whats}")
     patch: Patch | None = None
     current = index
     for key in keys:
@@ -289,7 +295,6 @@ def _apply(index: SpanIndex, keys: list[_Key], level: int) -> Patch:
         patch = set_value(current, key.write, value)
         current = index_for(patch.text)
     assert patch is not None
-    whats = ", ".join(dotted(k.write) for k in keys)
     return Patch(patch.text, patch.expected, f"set {whats}")
 
 

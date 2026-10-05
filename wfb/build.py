@@ -19,6 +19,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from . import desugar, lint, lower, validate, yamlsrc
 from . import devices as devices_mod
@@ -123,10 +124,11 @@ class Toolchain:
 # stages 1-3: no Garmin toolchain required
 
 
-def load(path: Path, bag: Bag, text: str | None = None) -> Face | None:
+def load(path: Path, bag: Bag, text: str | None = None, node: Any = None) -> Face | None:
     """Parse and validate a design file into an IR, or report why not.
-    ``text`` stands in for the file's contents (`yamlsrc.load`)."""
-    doc = yamlsrc.load(path, bag, text)
+    ``text`` stands in for the file's contents, and ``node`` is it already
+    composed (`yamlsrc.load`)."""
+    doc = yamlsrc.load(path, bag, text, node)
     if doc is None:
         return None
     # The schema checks the author's own document, on their own lines; then

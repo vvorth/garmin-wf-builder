@@ -24,6 +24,8 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, cast
@@ -110,6 +112,12 @@ class Document:
         self.head: Change = head
         self.text = store.text(doc_id, head)
         self.directory = studio.scratch / doc_id
+        #: Held for every request on this face (`Studio.using`), so one
+        #: face's slow drag never waits on another's.
+        self.lock = threading.RLock()
+        #: How many requests hold it, or wait to: a face in use is never
+        #: closed (`Studio._close_idle`).
+        self.users = 0
         self._analysis: Analysis | None = None
         #: Frames, layers and thumbnails of this version, by what and key.
         self._frames: OrderedDict[tuple[str, FrameKey], Any] = OrderedDict()
@@ -967,12 +975,16 @@ def _children(index: SpanIndex, block: Entry) -> list[dict[str, Any]]:
 
 #: `wfb studio --snapshot-minutes`'s default.
 SNAPSHOT_MINUTES = 5.0
+#: How many documents no request is using stay open (`Studio._close_idle`).
+MAX_OPEN = 8
 
 
 class Studio:
     """Every document this server has open, over one store and one device
-    database.  One lock serialises the pipeline: it is CPU-bound, and the
-    memo and caches are shared.
+    database.  Each document has its own lock (`using`), so a request on one
+    face never waits on another's pipeline; `lock` guards only which are
+    open, and the font-bake memo they share has its own.  At most
+    `MAX_OPEN` idle documents stay open: the store rebuilds any of them.
 
     ``on_event(name, data)`` is told what the server did on its own (a
     snapshot taken by the timer), for the event stream."""
@@ -986,7 +998,7 @@ class Studio:
         self._own_scratch = scratch is None
         self.scratch = scratch or Path(tempfile.mkdtemp(prefix="wfb-studio-"))
         self.lock = threading.RLock()
-        self._open: dict[str, Document] = {}
+        self._open: OrderedDict[str, Document] = OrderedDict()
         self.snapshot_seconds = snapshot_minutes * 60
         self.on_event: Callable[[str, dict[str, Any]], None] = lambda name, data: None
         self._stop = threading.Event()
@@ -1012,9 +1024,12 @@ class Studio:
         now = time.time() if now is None else now
         taken = []
         with self.lock:
-            for doc in list(self._open.values()):
+            opened = list(self._open.values())
+        for doc in opened:
+            with self._held(doc):
                 when, seq = doc.last_snapshot
-                if seq == doc.version or now - when < self.snapshot_seconds:
+                if self._open.get(doc.id) is not doc or seq == doc.version \
+                        or now - when < self.snapshot_seconds:
                     continue
                 try:
                     snap = doc.snapshot("timer", now)
@@ -1044,14 +1059,53 @@ class Studio:
     def document(self, doc_id: str, principal: str | None = None) -> Document:
         """The document ``doc_id``; with ``principal``, only when it is
         theirs. Someone else's is as unknown as one that never existed, so
-        a request cannot learn that it does."""
-        doc = self._open.get(doc_id)
-        if doc is None:
-            doc = Document(self, doc_id)
-            self._open[doc_id] = doc
-        if principal is not None and doc.owner != principal:
-            raise UnknownDocument(doc_id)
-        return doc
+        a request cannot learn that it does.  A request works on it inside
+        `using`, which holds its lock."""
+        with self.lock:
+            doc = self._open.get(doc_id)
+            if doc is None:
+                doc = Document(self, doc_id)
+                self._open[doc_id] = doc
+            self._open.move_to_end(doc_id)
+            if principal is not None and doc.owner != principal:
+                raise UnknownDocument(doc_id)
+            return doc
+
+    @contextmanager
+    def using(self, doc_id: str, principal: str | None = None) -> Iterator[Document]:
+        """The document ``doc_id`` (as `document` gives it), its lock held
+        for the block: what every request on one face goes through."""
+        with self.lock:
+            doc = self.document(doc_id, principal)
+            doc.users += 1
+        with self._released(doc), doc.lock:
+            yield doc
+
+    @contextmanager
+    def _held(self, doc: Document) -> Iterator[None]:
+        """``doc``'s lock, for one already open."""
+        with self.lock:
+            doc.users += 1
+        with self._released(doc), doc.lock:
+            yield
+
+    @contextmanager
+    def _released(self, doc: Document) -> Iterator[None]:
+        try:
+            yield
+        finally:
+            with self.lock:
+                doc.users -= 1
+                self._close_idle()
+
+    def _close_idle(self) -> None:
+        """Close the least recently used documents past `MAX_OPEN` that no
+        request holds, with their frames and directories: each keeps up to
+        48 frames, and the store can open it again."""
+        idle = [d for d in self._open.values() if d.users == 0]
+        for doc in idle[:max(0, len(self._open) - MAX_OPEN)]:
+            del self._open[doc.id]
+            shutil.rmtree(doc.directory, ignore_errors=True)
 
     def create(self, bundle: Bundle, label: str,
                moved: dict[str, str] | None = None, owner: str = OWNER) -> Document:
@@ -1078,6 +1132,7 @@ class Studio:
                            owner=source.owner)
 
     def delete(self, doc_id: str) -> None:
-        self._open.pop(doc_id, None)
+        with self.lock:
+            self._open.pop(doc_id, None)
         shutil.rmtree(self.scratch / doc_id, ignore_errors=True)
         self.store.delete(doc_id)

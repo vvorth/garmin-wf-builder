@@ -549,6 +549,33 @@ def set_value(index: SpanIndex, path: Path, value: Any, *, block: bool = False) 
     return _ended_patch(index, _set_value, path, value, block)
 
 
+def set_scalars(index: SpanIndex, values: list[tuple[Path, Any]]) -> Patch | None:
+    """Several `set_value`s as one patch on ``index``'s own text, when each
+    path holds a scalar already (not empty) and each value is one: every
+    rewrite is in place, so none moves another's span and the text needs
+    no index between them. ``None`` when one is not, for `set_value` in
+    turn instead."""
+    expected = _with(index)
+    spans = []
+    for path, value in values:
+        entry = index.get(tuple(path))
+        if entry is None or isinstance(value, (dict, list)):
+            return None
+        node = entry.value
+        if not isinstance(node, ScalarNode) or (node.value == "" and node.style is None):
+            return None
+        _data_at(expected, tuple(path)[:-1])[path[-1]] = value
+        new = scalar(value, node.style if node.style in ("'", '"') else None)
+        spans.append((node.start_mark.index, node.end_mark.index, new))
+    spans.sort(reverse=True)
+    if any(a[0] < b[1] for a, b in zip(spans, spans[1:])):
+        return None
+    text = index.text
+    for start, end, new in spans:
+        text = text[:start] + new + text[end:]
+    return Patch(text, expected, "set " + ", ".join(dotted(p) for p, _ in values))
+
+
 def remove(index: SpanIndex, path: Path) -> Patch:
     """Remove the key at ``path``. The last entry of a block mapping takes
     its mapping's key with it."""

@@ -118,10 +118,15 @@ class YamlDocument:
         return span
 
 
-def load(path: Path, bag: Bag, text: str | None = None) -> YamlDocument | None:
+def load(path: Path, bag: Bag, text: str | None = None,
+         node: Any = None) -> YamlDocument | None:
     """Parse ``path``, or ``text`` in its place when given -- an editor's
     unsaved text, reported and resolved (relative font paths) as if it were
-    the file.  Reports a diagnostic and returns ``None`` on failure."""
+    the file.  Reports a diagnostic and returns ``None`` on failure.
+
+    ``node`` is ``text`` already composed (the editor's `SpanIndex` root),
+    which is then only constructed, not scanned again: scanning is nearly
+    all of a load's time.  Its marks give the same ``lc`` positions."""
     if text is None:
         try:
             text = path.read_text(encoding="utf-8")
@@ -132,7 +137,10 @@ def load(path: Path, bag: Bag, text: str | None = None) -> YamlDocument | None:
 
     yaml = YAML()  # round-trip mode: preserves order, comments and anchors
     try:
-        data = yaml.load(io.StringIO(text))
+        if node is not None:
+            data = yaml.constructor.construct_document(node)
+        else:
+            data = yaml.load(io.StringIO(text))
     except MarkedYAMLError as exc:
         mark = exc.problem_mark
         span = Span(path, mark.line + 1, mark.column + 1) if mark else None

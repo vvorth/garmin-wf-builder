@@ -3,7 +3,8 @@ asks, and one server-sent event stream for what the server announces.
 Every message is JSON a `curl` can read.
 
 Each endpoint's work is a plain function run in Starlette's thread pool
-(`_endpoint`), with `Studio.lock` serialising the pipeline behind them.  An
+(`_endpoint`), holding the lock of the one face it works on
+(`Studio.using`), so requests on different faces run side by side.  An
 upload is the request's raw body, read on the event loop first, with the
 file name in the query: no multipart parser.
 """
@@ -16,6 +17,7 @@ import json
 import re
 import threading
 from collections.abc import AsyncIterator, Awaitable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -215,8 +217,9 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             raise NoSession()
         return found
 
-    def doc(request: Request) -> Document:
-        return studio.document(request.path_params["doc_id"], principal(request))
+    def using(request: Request) -> AbstractContextManager[Document]:
+        """The face the request names, its lock held (`Studio.using`)."""
+        return studio.using(request.path_params["doc_id"], principal(request))
 
     def changed(document: Document, request: Request) -> None:
         """Announce ``document``'s new version, naming the tab whose request
@@ -226,84 +229,80 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
 
     def home(request: Request, data: bytes) -> Response:
         who = principal(request)
-        with studio.lock:
-            return JSONResponse({
-                "templates": [{"name": n, "blurb": starters.TEMPLATE_BLURB.get(n, "")}
-                              for n in starters.names()],
-                "documents": studio.store.documents(owner=who),
-                "store": str(studio.store.root),
-                "shared": sessions is None or sessions.single_user,
-            })
+        return JSONResponse({
+            "templates": [{"name": n, "blurb": starters.TEMPLATE_BLURB.get(n, "")}
+                          for n in starters.names()],
+            "documents": studio.store.documents(owner=who),
+            "store": str(studio.store.root),
+            "shared": sessions is None or sessions.single_user,
+        })
 
     def new(request: Request, data: bytes) -> Response:
         template = request.query_params.get("template", "minimal")
         name = request.query_params.get("name", "").strip() or "My Face"
         who = principal(request)
-        with studio.lock:
-            document = studio.create(Bundle(name, starters.instantiate(template, name)),
-                                     f"new from the {template} template", owner=who)
+        created = studio.create(Bundle(name, starters.instantiate(template, name)),
+                                f"new from the {template} template", owner=who)
+        with studio.using(created.id) as document:
             return JSONResponse(document.summary())
 
     def upload(request: Request, data: bytes) -> Response:
         filename = request.query_params.get("filename", "")
         who = principal(request)
         bundle = read_upload(filename, data)
-        with studio.lock:
-            document = studio.create(bundle, f"open {filename}", owner=who)
+        created = studio.create(bundle, f"open {filename}", owner=who)
+        with studio.using(created.id) as document:
             return JSONResponse(document.summary())
 
     def summary(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            return JSONResponse(doc(request).summary())
+        with using(request) as document:
+            return JSONResponse(document.summary())
 
     def delete(request: Request, data: bytes) -> Response:
         doc_id = request.path_params["doc_id"]
-        with studio.lock:
-            owner = doc(request).owner
+        with using(request) as document:
+            owner = document.owner
             studio.delete(doc_id)
         # every tab with it open hears that it is gone
         events.publish("deleted", {"id": doc_id}, owner=owner)
         return JSONResponse({"deleted": doc_id})
 
     def rename(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.rename(request.query_params.get("name", ""))
             events.publish("renamed", {"id": document.id, "name": document.name})
             return JSONResponse({"id": document.id, "name": document.name})
 
     def cover(request: Request, data: bytes) -> Response:
         """The face on its first target, for the library."""
-        with studio.lock:
-            png = doc(request).cover()
+        with using(request) as document:
+            png = document.cover()
         if png is None:
             return _error(404, "the face does not load, so it has no picture")
         return Response(png, media_type="image/png",
                         headers={"Cache-Control": "private, max-age=86400"})
 
     def goto(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.goto(_int(request, "seq"), _int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
 
     def frame(request: Request, data: bytes) -> Response:
         key = _frame_key(request)
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             return JSONResponse(document.frame(key))
 
     def thumbnail(request: Request, data: bytes) -> Response:
         key = _frame_key(request, scale=1)
-        with studio.lock:
-            png = doc(request).thumbnail(key)
+        with using(request) as document:
+            png = document.thumbnail(key)
         return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
     def hand_set(request: Request, data: bytes) -> Response:
         scale = _int(request, "scale") if "scale" in request.query_params else 1
-        with studio.lock:
-            png = doc(request).hand_set_image(request.query_params.get("name", ""),
+        with using(request) as document:
+            png = document.hand_set_image(request.query_params.get("name", ""),
                                              request.query_params.get("device", ""), scale)
         return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
@@ -320,8 +319,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
                                      or gesture.get("kind") != "move"
                                      or gesture.get("part", "both") != "both"):
             raise Refused("several elements can only be moved together")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             if elements is not None:
                 try:
                     dx, dy = int(gesture["dx"]), int(gesture["dy"])
@@ -345,8 +343,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         font_name = request.query_params.get("font") or None
         font = (font_name, request.query_params.get("size") or "10%r") if font_name else None
         expected = _int(request, "version")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.add_asset(filename, data, reference, expected, font)
             changed(document, request)
             return JSONResponse(document.summary())
@@ -358,8 +355,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             raise Refused("the edit is not JSON") from None
         if not isinstance(op, dict):
             raise Refused("the edit is a JSON object")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.edit(op, _int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
@@ -371,8 +367,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             raise Refused("the edit is not JSON") from None
         if not isinstance(op, dict):
             raise Refused("the edit is a JSON object")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             _, select = document.structure(op, _int(request, "version"))
             changed(document, request)
             return JSONResponse({**document.summary(), "select": select})
@@ -382,8 +377,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             text = data.decode("utf-8")
         except UnicodeDecodeError:
             raise Refused("the text is not UTF-8") from None
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.replace_text(text, _int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
@@ -404,17 +398,18 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             element = json.loads(request.query_params.get("element", "null"))
         except ValueError:
             raise Refused("element is a JSON list") from None
-        with studio.lock:
-            return JSONResponse(doc(request).inspect(
+        with using(request) as document:
+            return JSONResponse(document.inspect(
                 element, request.query_params.get("device") or None))
 
     #: The installed devices that can run a face, and those whose files
     #: could not be read, read once.
     installed: dict[str, Any] = {}
+    read_once = threading.Lock()
 
     def vocabulary(request: Request, data: bytes) -> Response:
         from .inspect import devices, vocabulary as words
-        with studio.lock:
+        with read_once:
             if not installed:
                 installed["devices"], installed["unreadable_devices"] = devices(studio.db)
             return JSONResponse({**words(), **installed})
@@ -443,8 +438,7 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
         from .builder import BuildBusy
 
         device_id = request.query_params.get("device", "")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             who = document.owner
             document.check(_int(request, "version"))
             device = studio.db.get(device_id)
@@ -480,49 +474,44 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
                             filename=done.name, headers={"Cache-Control": "no-store"})
 
     def undo(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.undo(_int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
 
     def redo(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.redo(_int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
 
     def history(request: Request, data: bytes) -> Response:
         """The whole line of history, which a summary cuts short."""
-        with studio.lock:
-            return JSONResponse(doc(request).history(None))
+        with using(request) as document:
+            return JSONResponse(document.history(None))
 
     def snapshot(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             snap = document.snapshot("manual")
             events.publish("snapshot", {"id": document.id, "name": snap.name,
                                         "version": document.version})
             return JSONResponse(document.history())
 
     def restore(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             document.restore(request.path_params["name"], _int(request, "version"))
             changed(document, request)
             return JSONResponse(document.summary())
 
     def fork(request: Request, data: bytes) -> Response:
-        with studio.lock:
-            doc(request)
-            copy = studio.fork(request.path_params["doc_id"], request.path_params["name"])
-            return JSONResponse(copy.summary())
+        with using(request) as document:
+            copy = studio.fork(document.id, request.path_params["name"])
+        with studio.using(copy.id) as forked:
+            return JSONResponse(forked.summary())
 
     def download(request: Request, data: bytes) -> Response:
         form = request.query_params.get("form", "auto")
-        with studio.lock:
-            document = doc(request)
+        with using(request) as document:
             bundle = document.bundle()
             # Every download is a point in time worth going back to, unless
             # that version already has a snapshot.

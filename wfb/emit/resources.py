@@ -13,6 +13,7 @@ Two things here are worth more than they look:
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -139,42 +140,52 @@ class BakeMemo:
     its own arguments.  An edit changes none of a bake's inputs unless it
     touches the font, which is what makes the memo pay: on the showcase it
     takes a re-run from 893 to 250 ms with identical pixels (research 28
-    §4).  The oldest entries are dropped past ``size``."""
+    §4).  The oldest entries are dropped past ``size``.  Its tables are
+    locked, so documents loading in parallel may share it; a bake itself
+    runs unlocked, and two threads asking for the same new sheet at once
+    may both bake it."""
 
     def __init__(self, size: int = 256) -> None:
         self.size = size
+        self._lock = threading.Lock()
         self._bakes: OrderedDict[tuple[Any, ...], tuple[BakedFont, Image.Image]] = OrderedDict()
         self._dilated: OrderedDict[tuple[Any, ...],
                                    tuple[BakedFont, tuple[BakedFont, Image.Image]]] = OrderedDict()
 
     def _keep(self, table: "OrderedDict[tuple[Any, ...], Any]", key: tuple[Any, ...],
               value: Any) -> None:
-        table[key] = value
-        while len(table) > self.size:
-            table.popitem(last=False)
+        with self._lock:
+            table[key] = value
+            while len(table) > self.size:
+                table.popitem(last=False)
+
+    def _hit(self, table: "OrderedDict[tuple[Any, ...], Any]", key: tuple[Any, ...]) -> Any:
+        with self._lock:
+            hit = table.get(key)
+            if hit is not None:
+                table.move_to_end(key)
+            return hit
 
     def bake(self, source: Path, **kwargs: Any) -> tuple[BakedFont, Image.Image]:
         stat = Path(source).stat()
         key = (str(source), stat.st_mtime_ns, stat.st_size, tuple(sorted(kwargs.items())))
-        hit = self._bakes.get(key)
+        hit: tuple[BakedFont, Image.Image] | None = self._hit(self._bakes, key)
         if hit is None:
             hit = bake(source, **kwargs)
             self._keep(self._bakes, key, hit)
-        else:
-            self._bakes.move_to_end(key)
         return hit
 
     def dilate(self, base: BakedFont, **kwargs: Any) -> tuple[BakedFont, Image.Image]:
         key = (id(base), tuple(sorted(kwargs.items())))
-        hit = self._dilated.get(key)
+        hit = self._hit(self._dilated, key)
         # The base is held beside the result, so its id cannot be reused by
         # another font while the entry lives; the identity check is the guard.
         if hit is None or hit[0] is not base:
             result = dilate(base, **kwargs)
             self._keep(self._dilated, key, (base, result))
             return result
-        self._dilated.move_to_end(key)
-        return hit[1]
+        found: tuple[BakedFont, Image.Image] = hit[1]
+        return found
 
 
 def bake_fonts(face: Face, device: Device, memo: BakeMemo | None = None) -> dict[str, BakedFont]:

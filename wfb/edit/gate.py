@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ..diagnostics import Bag, Diagnostic
 from ..ir import Face
@@ -43,8 +44,22 @@ def load_text(path: Path, text: str) -> Loaded:
     from ..build import load
 
     bag = Bag()
-    face = load(path, bag, text)
+    face = load(path, bag, text, _composed(text))
     return Loaded(text, face, bag)
+
+
+def _composed(text: str) -> Any:
+    """``text``'s node tree from its shared index (`index_for`), which an
+    edit has composed already, so the load does not scan the text again;
+    ``None`` when the load must parse it itself: text that is not YAML,
+    whose error the load reports, or text with a merge key, whose node the
+    index's own construction has already merged away."""
+    if "<<" in text:
+        return None
+    try:
+        return index_for(text).root
+    except Refused:
+        return None
 
 
 def _error_keys(loaded: Loaded) -> Counter[tuple[str, str]]:

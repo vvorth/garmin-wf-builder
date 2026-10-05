@@ -630,6 +630,52 @@ def test_the_timer_snapshots_a_changed_face_once_per_interval(tmp_path, db):
     s.close()
 
 
+def test_a_request_on_one_face_never_waits_on_another(studio):
+    import threading
+    a = studio.create(Bundle("A", minimal_text()), "new")
+    b = studio.create(Bundle("B", minimal_text()), "new")
+    inside, release = threading.Event(), threading.Event()
+
+    def slow() -> None:
+        with studio.using(a.id):
+            inside.set()
+            release.wait(10)
+
+    worker = threading.Thread(target=slow)
+    worker.start()
+    assert inside.wait(10)
+    got: list[str] = []
+    other = threading.Thread(target=lambda: got.append(studio.using(b.id).__enter__().name))
+    other.start()
+    other.join(2)
+    blocked_same = threading.Thread(target=lambda: studio.using(a.id).__enter__())
+    blocked_same.daemon = True
+    blocked_same.start()
+    blocked_same.join(0.3)
+    try:
+        assert got == ["B"]                    # B answers while A is busy
+        assert blocked_same.is_alive()         # A's own next request waits its turn
+    finally:
+        release.set()
+        worker.join(10)
+
+
+def test_idle_faces_close_past_the_limit_and_one_in_use_stays(studio, monkeypatch):
+    import wfb.studio.document as document_mod
+    monkeypatch.setattr(document_mod, "MAX_OPEN", 2)
+    docs = [studio.create(Bundle(f"F{i}", minimal_text()), "new") for i in range(4)]
+    with studio.using(docs[0].id) as held:
+        for d in docs[1:]:
+            with studio.using(d.id):
+                pass
+        assert held.id in studio._open                       # in use: never closed
+        assert set(studio._open) == {docs[0].id, docs[3].id}
+        assert not (studio.scratch / docs[1].id).exists()     # its frames and directory go
+    # the store opens a closed face again, as it was
+    with studio.using(docs[1].id) as again:
+        assert again is not docs[1] and again.text == docs[1].text and again.analysis().face is not None
+
+
 def test_a_restore_is_one_change_and_can_be_undone(studio):
     doc = studio.create(Bundle("T", minimal_text()), "new")
     doc.commit(bumped(doc, 1), {}, "one", doc.version)

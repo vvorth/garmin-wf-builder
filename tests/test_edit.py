@@ -18,8 +18,8 @@ from wfb.edit import (
 )
 from wfb.edit.structure import add, element_types, group, move_to_block, ungroup
 from wfb.edit.geometry import candidates, px_per_unit
-from wfb.edit.patch import DEFAULTS, face_color
-from wfb.edit.spans import ordered
+from wfb.edit.patch import DEFAULTS, face_color, set_scalars
+from wfb.edit.spans import index_for, ordered
 from wfb.units import Axis, Box, Length
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -286,6 +286,34 @@ def test_the_index_data_is_exactly_what_the_text_parses_to(path):
 def test_invalid_yaml_is_refused_not_raised():
     with pytest.raises(Refused, match="not valid YAML"):
         SpanIndex("a: [1, 2\n")
+
+
+def test_a_load_reuses_the_index_and_still_sees_a_merge_key(tmp_path):
+    # the load constructs from the index's nodes, which the index's own
+    # construction has merged a `<<` key out of: such a text is parsed again
+    path = tmp_path / "face.yaml"
+    merged = minimal("elements:\n  a: &a\n    type: circle\n    at: { dx: 10, dy: 10 }\n    radius: 5\n"
+                     "    color: color.fg\n  b:\n    <<: *a\n    at: { dx: 20, dy: 20 }\n")
+    plain = merged.replace("    <<: *a\n", "    type: circle\n    radius: 5\n    color: color.fg\n")
+    index_for(merged)
+    a, b = load_text(path, merged), load_text(path, plain)
+    assert not a.errors and not b.errors
+    assert [(e.id, type(e).__name__) for e in a.face.walk()] == \
+        [(e.id, type(e).__name__) for e in b.face.walk()]
+
+
+def test_scalars_already_written_are_set_together_in_place():
+    text = minimal("elements:\n  a:\n    type: circle\n    at: { dx: 10, dy: '20' }\n    radius: 5\n")
+    index = SpanIndex(text)
+    patch = set_scalars(index, [(("elements", "a", "at", "dx"), 12), (("elements", "a", "at", "dy"), 31)])
+    assert patch is not None and "at: { dx: 12, dy: 31 }" in patch.text
+    assert ordered(parse(patch.text)) == ordered(patch.expected)
+    one = set_value(index, ("elements", "a", "at", "dx"), 12)
+    both = set_value(SpanIndex(one.text), ("elements", "a", "at", "dy"), 31)
+    assert patch.text == both.text
+    # a key not written yet is added by `set_value`, not here
+    assert set_scalars(index, [(("elements", "a", "at", "dx"), 1),
+                               (("elements", "a", "fill"), True)]) is None
 
 
 def test_diagnostics_name_the_design_not_a_scratch_file(tmp_path):
