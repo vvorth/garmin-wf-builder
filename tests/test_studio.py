@@ -792,3 +792,67 @@ def test_a_change_is_announced_with_the_tab_that_made_it(studio):
     client.post(f"/api/documents/{doc['id']}/undo?version=2")
     assert [(n, d.get("tab"), d["version"]) for n, d in heard if n == "changed"] == [
         ("changed", "tab-1", 2), ("changed", None, 3)]
+
+
+def test_goto_moves_to_any_change_in_one_step_and_back(client, studio):
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    document = studio.document(doc["id"])
+    for i in range(4):
+        document.commit(bumped(document, i), {}, f"c{i}", document.version)
+    url = f"/api/documents/{doc['id']}"
+    states = client.get(url).json()["history"]["states"]       # newest first
+    first = states[-1]["seq"]
+    back = client.post(f"{url}/goto?seq={first}&version={document.version}").json()
+    assert back["history"]["redo"] == "c0" and not back["history"]["can_undo"]
+    assert versions(document) == "1.0.0"
+    assert back["history"]["states"][0]["label"] == "c3"          # nothing dropped
+    last = states[0]["seq"]
+    ahead = client.post(f"{url}/goto?seq={last}&version={back['version']}").json()
+    assert versions(document) == "1.0.3" and not ahead["history"]["can_redo"]
+    assert ahead["history"]["undo"] == "c3"
+    # undo and redo step along the line from wherever the face now is
+    undone = client.post(f"{url}/undo?version={ahead['version']}").json()
+    assert versions(document) == "1.0.2" and undone["history"]["redo"] == "c3"
+    current = next(s["seq"] for s in undone["history"]["states"] if s["current"])
+    assert client.post(f"{url}/goto?seq={current}&version={undone['version']}").status_code == 400
+    assert client.post(f"{url}/goto?seq=999&version={undone['version']}").status_code == 400
+
+
+def test_a_face_is_renamed_and_the_library_and_its_tabs_hear(studio):
+    app = create_app(studio)
+    heard: list[tuple[str, dict]] = []
+    publish = app.state.events.publish
+    app.state.events.publish = lambda name, data, owner=None: (
+        heard.append((name, data)), publish(name, data, owner))
+    client = TestClient(app)
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    url = f"/api/documents/{doc['id']}"
+    assert client.post(f"{url}/rename?name=%20Morning%20%20Run%20").json()["name"] == "Morning Run"
+    assert client.get(url).json()["name"] == "Morning Run"
+    assert client.get("/api/home").json()["documents"][0]["name"] == "Morning Run"
+    assert Store(studio.store.root).meta(doc["id"])["name"] == "Morning Run"
+    assert client.post(f"{url}/rename?name=%20").status_code == 400
+    assert ("renamed", {"id": doc["id"], "name": "Morning Run"}) in heard
+    # the history is not touched by a rename
+    assert client.get(url).json()["version"] == doc["version"]
+
+
+def test_a_delete_is_announced_to_the_faces_owner(studio):
+    app = create_app(studio)
+    heard: list[tuple[str, dict, str | None]] = []
+    app.state.events.publish = lambda name, data, owner=None: heard.append((name, data, owner))
+    client = TestClient(app)
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    client.delete(f"/api/documents/{doc['id']}")
+    assert heard[-1] == ("deleted", {"id": doc["id"]}, "owner")
+
+
+def test_the_library_shows_each_face_on_its_first_target(client):
+    doc = client.post("/api/documents/new?template=minimal&name=D").json()
+    cover = client.get(f"/api/documents/{doc['id']}/cover")
+    assert cover.status_code == 200 and cover.content.startswith(b"\x89PNG")
+    from PIL import Image
+    image = Image.open(io.BytesIO(cover.content))
+    assert image.size == (260, 260)                               # the watch's own pixels
+    broken = client.post("/api/documents/upload?filename=b.yaml", content=b"format: 2\n").json()
+    assert client.get(f"/api/documents/{broken['id']}/cover").status_code == 404

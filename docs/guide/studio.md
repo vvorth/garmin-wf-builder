@@ -76,9 +76,12 @@ The home screen offers:
 - **New face**: from one of `wfb new`'s templates, with a name; its watches
   are set in the Face tab.
 - **Open**: drop or choose a `.zip` or a `.yaml`.
-- **Library**: every face the editor holds, with its history. A face
-  stays until you **Delete** it, which removes its history and snapshots
-  with it.
+- **Library**: every face the editor holds, each pictured on its first
+  watch, with its history. Click the picture or the name to open it;
+  **Rename** changes the name it is listed and downloaded under (not part
+  of its text, so not a change in its history). A face stays until you
+  **Delete** it, which removes its history and snapshots with it; a tab
+  that has it open then says so, and offers to copy its text.
 
 A face travels as a **bundle**: a `.zip` with the design at its root
 (`face.yaml` by convention) and its font files beneath it, by convention
@@ -105,19 +108,30 @@ first.
 
 Drag the edge between a side panel and the centre to widen or narrow
 the panel; a double click on the edge puts its width back. The browser
-remembers both widths.
+remembers both widths. The right column's two parts fold away, each on
+its own: click **Properties**, or the **▾** at the end of the tabs. The
+browser remembers which are folded. The face's name in the top bar is
+renamed by clicking it, as in the library.
+
+Messages (a refused change's reason, a notice) show for a few seconds at
+the bottom. **Messages**, in the bottom right corner, keeps every one,
+newest first, and counts those you have not seen.
 
 **Diagnostics** are the compiler's errors, warnings and notes, most severe
 first; the tab counts each kind, and when there is more than one kind,
 chips above the list show one at a time. The chosen kind stays chosen when
 you visit History and come back, and the tab says so (**· warnings
-only**). Clicking a diagnostic selects the element it is about.
+only**). Clicking a diagnostic selects the element it is about. When the
+face has errors, the top bar counts them; click the count to see them.
 
-The bar above the centre picks the watch, the style, what each slot
-shows, the time, asleep, always-on and the skin, and the zoom. A slot is
-drawn showing its first type until you pick another of its choices there:
-the watch draws whatever the wearer picks, so check each choice fits. The faces in the strip under it
-switch the watch on a click.
+The bar above the centre picks the watch, the style and the zoom.
+**Preview ▾** holds the rest of what the face is drawn at: the time and
+date, what each slot shows, asleep, always-on and the skin; its label
+lists whatever is not the default, and **Back to the sample moment**
+resets them. A slot is drawn showing its first type until you pick
+another of its choices there: the watch draws whatever the wearer picks,
+so check each choice fits. The faces in the strip under it switch the
+watch on a click.
 
 **Time** and **Date** set the moment the face is drawn at; left empty,
 it is a sample one (10:09:42 on Wed 3 Sep). **now** draws it at this
@@ -137,6 +151,10 @@ inch, which is right on some screens and not others. **⚙** calibrates it:
 hold a bank card to the screen and drag until the box matches; the
 browser keeps the result. The editor remembers the zoom too.
 
+**Ctrl** (or **Cmd**) and the mouse wheel zoom about the pointer. To pan
+a face larger than the space, drag the space around the watch, drag with
+the middle button, or hold **Space** and drag; the wheel scrolls too.
+
 **Skin** draws the watch round its screen, as the simulator does, at the
 same zoom; some watches' files have no skin, and the box is then off.
 
@@ -154,8 +172,14 @@ it. Its handles resize it:
 
 A polygon has no handles; its `points:` are edited in the YAML.
 
-**Moving several at once.** Ctrl-, Cmd- or Shift-click more elements, on
-the face or in the layers. A group, or a selection of several, shows a
+**Selecting.** Click an element to select it; a click on the space
+around the watch, or **Escape**, selects nothing. Ctrl-, Cmd- or
+Shift-click more elements on the face to add them (or take them out
+again); in the layers, Ctrl- or Cmd-click does that, and Shift-click
+selects every row from the selection to the one clicked. **Ctrl+A**
+selects everything the face shows; a group stands for what is in it.
+
+**Moving several at once.** Select them as above. A group, or a selection of several, shows a
 **move handle** on the middle of its top edge (a disc with four arrows): drag it, or any
 selected element, and they all move together, as one change that one
 **Undo** takes back. A group moves with everything in it. Pressing an
@@ -240,8 +264,8 @@ go.
 - Drag a row onto another to put it before (upper half) or after (lower
   half) it; onto a group's middle to put it inside; onto a block's name to
   put it at the end.
-- **Group**: Ctrl-, Cmd- or Shift-click more elements beside the first,
-  then Group. The new group has no position or size of its own, so nothing
+- **Group**: select more elements beside the first (Ctrl-, Cmd- or
+  Shift-click), then Group. The new group has no position or size of its own, so nothing
   moves on the screen. **Ungroup** puts its children back where it was;
   it is refused for a group with other keys (`at:`, `visible:`, ...),
   whose children take something from it.
@@ -322,14 +346,21 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
   - A ticked type's icon button picks its icon for this slot: any
     catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
     the type's own.
-  - **Rename** (every `slot:` naming it follows), **×** deletes it (refused
+  - Click its name to rename it (every `slot:` naming it follows), **×** deletes it (refused
     while an element draws it), **menu title** is its title in the settings
     menu of a watch without the native editor, and **drawn by** lists the
     elements drawing it (click one to select it).
   - **+ Slot** asks what the new slot shows first, then its name, and adds
     a data element drawing it, as one change.
-- **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**,
-  delete ([fonts](fonts.md)).
+- **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**
+  (then its name), delete ([fonts](fonts.md)).
+
+A name is always edited in place: click it, type, then **Enter** (or
+click away) to rename and **Escape** to keep it. A new name (a scheme, a
+role, a style, a slot, a hand set, a font) is typed in the same way where
+its button was, with a suggestion where there is one; **✓** or **Enter**
+adds it. A name that is not letters, digits and `_` (not starting with a
+digit) is marked and not sent.
 
 ### The colour picker
 
@@ -412,9 +443,16 @@ text the editor could not record; click it to open the YAML tab, where
 the reason is under the text or in a banner above it. The status's
 tooltip gives the face's version, the number a refused change names.
 **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; in the YAML tab
-these undo your typing) work across restarts. A change after an undo
-ends the redo line, as in any editor. The History tab lists the newest
-100 changes; **Show all** lists the rest.
+these undo your typing) work across restarts; each one's tooltip names
+the change it would take back or bring back. A change after an undo
+ends the redo line, as in any editor.
+
+**▾** beside them lists the changes, newest first: click one to go back,
+or forward, to it in one step. The changes listed in the History tab
+work the same way. Either is one move along the line, as one undo or
+redo is, so nothing is lost: every change stays in the list to go back
+to. The History tab lists the newest 100 changes; **Show all** lists the
+rest.
 
 A **snapshot** is a point in time to go back to. One is taken every few
 minutes while the face changes, on every download, and on **Snapshot

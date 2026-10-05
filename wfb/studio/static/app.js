@@ -2,9 +2,10 @@
 // face's text and runs the compiler, so nothing here decides what a face
 // looks like: every image comes from the server's renderer.
 
-import { html, render, useState, useEffect, useRef, useCallback, useMemo }
+import { html, render, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
-import { elementAtLine, flatten, movedBy, together } from "./hit.js";
+import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
+import { AddName, InlineName, Popover } from "./ui.js";
 import { enqueue, mark, newer, next, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
@@ -100,7 +101,7 @@ function useEvents(onEvent) {
   handler.current = onEvent;
   useEffect(() => {
     const source = new EventSource("/api/events");
-    for (const name of ["changed", "snapshot", "error"]) {
+    for (const name of ["changed", "snapshot", "error", "deleted", "renamed"]) {
       source.addEventListener(name, (e) => handler.current(name, JSON.parse(e.data)));
     }
     return () => source.close();
@@ -127,6 +128,14 @@ function Home({ onError }) {
 
   const load = useCallback(() => api("/api/home").then(setHome, onError), []);
   useEffect(() => { load(); }, []);
+  // another tab deleted or renamed a face
+  useEvents((name) => { if (name === "deleted" || name === "renamed") load(); });
+  const [renaming, setRenaming] = useState(null);
+  const rename = async (doc, to) => {
+    setRenaming(null);
+    try { await api(`/api/documents/${doc.id}/rename?name=${enc(to)}`, { method: "POST" }); load(); }
+    catch (e) { onError(e); }
+  };
 
   const create = async () => {
     setBusy(true);
@@ -193,8 +202,19 @@ function Home({ onError }) {
           : html`<ul class="recent">
               ${home.documents.map((d) => html`
                 <li>
-                  <span class="name" onClick=${() => go(d.id)}>${d.name}</span>
-                  <span class="dim">v${d.version} · ${ago(d.changed)}${d.snapshots ? ` · ${d.snapshots} snapshot${d.snapshots > 1 ? "s" : ""}` : ""}</span>
+                  <span class="cover" onClick=${() => go(d.id)} title="Open">
+                    <img src=${`/api/documents/${d.id}/cover?v=${d.version}`} alt="" loading="lazy"
+                         onError=${(e) => { e.currentTarget.style.visibility = "hidden"; }} /></span>
+                  <span class="about">
+                    ${renaming === d.id
+                      ? html`<${AddName} label="name" placeholder="the face's name" startOpen=${true}
+                          suggest=${() => d.name} valid=${(t) => t.length > 0}
+                          onAdd=${(to) => rename(d, to)} onCancel=${() => setRenaming(null)} />`
+                      : html`<span class="name" onClick=${() => go(d.id)} title="Open">${d.name}</span>`}
+                    <span class="dim">v${d.version} · ${ago(d.changed)}${d.snapshots ? ` · ${d.snapshots} snapshot${d.snapshots > 1 ? "s" : ""}` : ""}</span>
+                  </span>
+                  <button onClick=${() => go(d.id)}>Open</button>
+                  <button onClick=${() => setRenaming(d.id)} disabled=${renaming === d.id}>Rename</button>
                   <button class="danger" onClick=${() => remove(d)}>Delete</button>
                 </li>`)}
             </ul>`}
@@ -242,6 +262,21 @@ function Missing({ doc, onSend }) {
   </div>`;
 }
 
+// The line of history, newest first: the current change marked, those
+// past it (redo) dimmed; a click goes back or forward to that change in
+// one step (`goto`).
+function Changes({ states, onGoto, when }) {
+  return html`<ul class="states">
+    ${states.map((s) => html`<li class=${(s.current ? "current" : "") + (s.redo ? " redo" : "")}>
+      <button class="state" disabled=${s.current} onClick=${() => onGoto(s)}
+              title=${s.current ? "the face is here" : s.redo ? "go forward to this change" : "go back to this change"}>
+        <span class="label">${s.label}</span><span class="dim">${when(s.time)}</span></button>
+    </li>`)}
+  </ul>`;
+}
+
+const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+
 function History({ doc, onChanged, onSend, onOpen, onError }) {
   const h = doc.history;
   const post = async (path) => {
@@ -267,7 +302,6 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
     if (created) onOpen(created.id);
   };
   const snapshotNow = async () => { if (await post("snapshots")) onChanged(null); };
-  const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
   return html`<div class="history">
     <div class="row">
       <button onClick=${snapshotNow} title="Keep this version as a point in time">Snapshot now</button>
@@ -284,11 +318,7 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
       </li>`)}
     </ul>` : html`<div class="dim pad">None yet: one is taken every few minutes while the face changes, and on every download.</div>`}
     <div class="sub">Changes</div>
-    <ul class="states">
-      ${states.map((s) => html`<li class=${(s.current ? "current" : "") + (s.redo ? " redo" : "")}>
-        <span class="label">${s.label}</span><span class="dim">${when(s.time)}</span>
-      </li>`)}
-    </ul>
+    <${Changes} states=${states} when=${when} onGoto=${(s) => onSend({ path: "goto", query: { seq: s.seq } })} />
     ${states.length < total ? html`<div class="row">
       <button onClick=${() => setWantAll(true)} title="Only the newest changes are listed">Show all ${total} changes</button>
     </div>` : null}
@@ -391,9 +421,14 @@ function Editor({ docId, onError, onNotice }) {
     setView((v) => ({ ...v, zoom }));
   };
 
+  // the face was deleted (in another tab): editing it can no longer be saved
+  const [gone, setGone] = useState(false);
+  useEffect(() => { setGone(false); }, [docId]);
   useEvents((name, data) => {
     if (!doc || data.id !== docId) return;
     if (name === "error") onError(new Error(data.message));
+    else if (name === "deleted") setGone(true);
+    else if (name === "renamed") setDoc((d) => (d && d.id === data.id ? { ...d, name: data.name } : d));
     // this tab's own change reaches it with the answer to its request
     else if ((name === "changed" && data.tab !== TAB && data.version > doc.version)
              || name === "snapshot") loadDoc();
@@ -499,13 +534,22 @@ function Editor({ docId, onError, onNotice }) {
   // lines the YAML tab is asked to select, from a link elsewhere
   const [reveal, setReveal] = useState(null);
   const showLines = useCallback((line, end) => { setReveal({ line, end, at: Date.now() }); setPane("yaml"); }, []);
-  // more elements selected with Ctrl/Cmd/Shift, for grouping
+  // more elements selected with Ctrl/Cmd (or Shift on the face), for
+  // moving, deleting or grouping together
   const [extra, setExtra] = useState([]);
-  const select = useCallback((id, additive) => {
-    if (additive && selected && id !== selected) {
+  // `mode`: falsy selects `id` alone; "range" (Shift in the layers) selects
+  // every element from the selection to it; anything else toggles it in
+  // the selection
+  const select = useCallback((id, mode) => {
+    if (mode === "range" && selected && doc) {
+      const ids = rangeIds(doc.tree, selected, id);
+      const first = ids.includes(selected) ? selected : ids[0];
+      setSelected(first || null); setExtra(ids.filter((x) => x !== first));
+    } else if (mode && selected && id !== selected) {
       setExtra((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
     } else { setSelected(id); setExtra([]); }
-  }, [selected]);
+  }, [selected, doc]);
+  const deselect = useCallback(() => { setSelected(null); setExtra([]); }, []);
   // One structural edit from the Layers panel: the server patches the text,
   // checks it and answers with the face and what to select.
   const structure = useCallback(async (op) => {
@@ -532,6 +576,12 @@ function Editor({ docId, onError, onNotice }) {
       if (key === "z" && !e.shiftKey) { e.preventDefault(); step("undo"); }
       else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); step("redo"); }
       else if (key === "d" && element) { e.preventDefault(); structure({ op: "duplicate", path: element.path }); }
+      else if (key === "a" && pane === "face" && frame && doc) {
+        // Select All: everything the frame shows, a group for its children
+        e.preventDefault();
+        const ids = selectAll(doc.tree, new Set(frame.items.map((i) => i.id)));
+        setSelected(ids[0] || null); setExtra(ids.slice(1));
+      }
     };
     addEventListener("keydown", onKey);
     // the arrows nudge, while the face is shown and nothing is being typed
@@ -558,7 +608,78 @@ function Editor({ docId, onError, onNotice }) {
       removeEventListener("keydown", onKey); removeEventListener("keydown", onArrow);
       removeEventListener("keydown", onDelete);
     };
-  }, [step, structure, element, nudge, pane, doc, selected, extra]);
+  }, [step, structure, element, nudge, pane, doc, frame, selected, extra]);
+
+  // The right column's two sections, each folded or open, as this browser
+  // last left them: the selection's Properties, and Diagnostics/History.
+  const [fold, setFold] = useState(() => {
+    try { return { props: false, lower: false, ...JSON.parse(localStorage.getItem("wfb-fold") || "{}") }; }
+    catch (_) { return { props: false, lower: false }; }
+  });
+  const folded = (which, value) => setFold((f) => {
+    const next = { ...f, [which]: value };
+    try { localStorage.setItem("wfb-fold", JSON.stringify(next)); } catch (_) { /* private mode */ }
+    return next;
+  });
+  // the top bar's error count: Diagnostics, open, showing the errors
+  const showErrors = () => { setTab("diagnostics"); setDiagFilter("error"); folded("lower", false); };
+
+  // Ctrl/Cmd + wheel zooms about the pointer; dragging the space round
+  // the watch, the middle button anywhere, or any button with Space held,
+  // pans; a click on that space selects nothing.
+  const wrap = useRef(null);
+  const anchor = useRef(null);       // the watch pixel kept under the pointer
+  const onWheel = (e) => {
+    if (!(e.ctrlKey || e.metaKey) || !frame) return;
+    e.preventDefault();
+    const canvas = wrap.current && wrap.current.querySelector(".canvas img.frame");
+    if (canvas) {
+      const r = canvas.getBoundingClientRect();
+      anchor.current = { cx: e.clientX, cy: e.clientY,
+                         px: (e.clientX - r.left) / view.zoom, py: (e.clientY - r.top) / view.zoom };
+    }
+    setZoom(view.zoom * Math.exp(-e.deltaY * 0.002));
+  };
+  useLayoutEffect(() => {
+    const a = anchor.current, el = wrap.current;
+    anchor.current = null;
+    const canvas = el && el.querySelector(".canvas img.frame");
+    if (!a || !canvas) return;
+    const r = canvas.getBoundingClientRect();
+    el.scrollLeft += r.left + a.px * view.zoom - a.cx;
+    el.scrollTop += r.top + a.py * view.zoom - a.cy;
+  }, [view.zoom]);
+  const space = useRef(false);
+  useEffect(() => {
+    // Space on a control still presses it
+    const typing = (e) => e.target.closest && e.target.closest("input, textarea, select, button, .cm-editor");
+    const down = (e) => { if (e.code === "Space" && !typing(e) && pane === "face") { space.current = true; e.preventDefault(); } };
+    const up = (e) => { if (e.code === "Space") space.current = false; };
+    addEventListener("keydown", down); addEventListener("keyup", up);
+    return () => { removeEventListener("keydown", down); removeEventListener("keyup", up); };
+  }, [pane]);
+  const pan = useRef(null);
+  const panDown = (e) => {
+    const background = e.target === wrap.current;
+    if (!(e.button === 1 || space.current || (e.button === 0 && background))) return;
+    e.preventDefault(); e.stopPropagation();
+    wrap.current.setPointerCapture && wrap.current.setPointerCapture(e.pointerId);
+    pan.current = { x: e.clientX, y: e.clientY, moved: false, background: background && e.button === 0 && !space.current };
+  };
+  const panMove = (e) => {
+    const p = pan.current;
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.moved && Math.hypot(dx, dy) < 3) return;
+    p.moved = true;
+    wrap.current.scrollLeft -= dx; wrap.current.scrollTop -= dy;
+    p.x = e.clientX; p.y = e.clientY;
+  };
+  const panUp = () => {
+    const p = pan.current;
+    pan.current = null;
+    if (p && p.background && !p.moved) deselect();
+  };
 
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.
@@ -580,22 +701,49 @@ function Editor({ docId, onError, onNotice }) {
   const set = (key) => (e) => setView({ ...view, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   const saved = saveState({ queue, yaml: yamlSaving });
   const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), {});
+  const h = doc.history;
+  // what the Preview button's label says is set: whatever is not the default
+  const previewed = [
+    view.now ? "now" : [time && time.slice(0, 5), date].filter(Boolean).join(" "),
+    ...slots.filter((sl) => (view.picks || {})[sl.name] && view.picks[sl.name] !== sl.default)
+      .map((sl) => typeLabel(vocab, view.picks[sl.name])),
+    view.asleep && "asleep", view.aod && "AOD", view.skin && "skin",
+  ].filter(Boolean);
 
   return html`<div class="editor">
     <div>
       <div class="topbar">
         <button onClick=${() => go(null)} title="All faces">← Faces</button>
-        <span class="title">${doc.name}</span>
+        <span class="title"><${InlineName} value=${doc.name} className="name" valid=${(t) => t.length > 0}
+          why="a face's name cannot be empty" title="click to rename the face"
+          onRename=${async (to) => {
+            try { const r = await api(`/api/documents/${doc.id}/rename?name=${enc(to)}`, { method: "POST" });
+                  setDoc((d) => ({ ...d, name: r.name })); }
+            catch (e) { onError(e); }
+          }} /></span>
         <span role="status">${saved === "unsaved"
           ? html`<button class="save unsaved" onClick=${() => setPane("yaml")}
                          title=${`the YAML tab's text is not saved: open it to see why · version ${doc.version}`}>not saved</button>`
           : html`<span class=${"save " + saved}
                        title=${`changes are recorded as you make them · version ${doc.version}`}>
               ${saved === "saving" ? "saving…" : "saved"}</span>`}</span>
-        <button disabled=${!doc.history.can_undo} onClick=${() => step("undo")} title="Undo (Ctrl+Z)">↶ Undo</button>
-        <button disabled=${!doc.history.can_redo} onClick=${() => step("redo")} title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+        <span class="undo-group">
+          <button disabled=${!h.can_undo} onClick=${() => step("undo")}
+                  title=${h.can_undo ? `Undo: ${h.undo} (Ctrl+Z)` : "Nothing to undo"}>↶ Undo</button>
+          <button disabled=${!h.can_redo} onClick=${() => step("redo")}
+                  title=${h.can_redo ? `Redo: ${h.redo} (Ctrl+Shift+Z)` : "Nothing to redo"}>↷ Redo</button>
+          <${Popover} label="▾" title="Go back or forward to any change" className="history-menu">
+            ${(close) => html`<div class="pop-title">Changes, newest first</div>
+              <${Changes} states=${h.states} when=${when}
+                onGoto=${(st) => { close(); send({ path: "goto", query: { seq: st.seq } }); }} />
+              ${(h.total ?? h.states.length) > h.states.length ? html`<button class="more" onClick=${() => {
+                close(); setTab("history"); folded("lower", false); }}>
+                ${h.total - h.states.length} older in the History tab</button>` : null}`}
+          </${Popover}>
+        </span>
         <span class="spacer"></span>
-        ${counts.error ? html`<span class="error-text">${counts.error} error${counts.error > 1 ? "s" : ""}</span>` : null}
+        ${counts.error ? html`<button class="errors" onClick=${showErrors} title="Show the errors in Diagnostics">
+            ${counts.error} error${counts.error > 1 ? "s" : ""}</button>` : null}
         <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
                 onClick=${() => setDialog("build")}>Build…</button>
         <${DownloadMenu} doc=${doc} />
@@ -606,6 +754,11 @@ function Editor({ docId, onError, onNotice }) {
         <button onClick=${copyText} title="The face's text as you last had it, the YAML tab's included">Copy my text</button>
         ${copied ? html`<span class="dim">${copied === "copied" ? "copied" : "downloaded as a file"}</span>` : null}
         <button onClick=${() => location.reload()}>Reload</button></div>` : null}
+      ${gone ? html`<div class="banner lost" role="alert">
+        <strong>This face was deleted</strong> (in another tab), so changes to it can no longer be saved.
+        <button onClick=${copyText} title="The face's text as you last had it, the YAML tab's included">Copy my text</button>
+        ${copied ? html`<span class="dim">${copied === "copied" ? "copied" : "downloaded as a file"}</span>` : null}
+        <button onClick=${() => go(null)}>Back to the faces</button></div>` : null}
       <${Missing} doc=${doc} onSend=${send} />
     </div>
     <div class="columns" style=${`grid-template-columns:${panels.left}px auto minmax(0, 1fr) auto ${panels.right}px`}>
@@ -636,27 +789,35 @@ function Editor({ docId, onError, onNotice }) {
               <option value="">default</option>
               ${doc.styles.map((s) => html`<option value=${s.name}>${s.label}</option>`)}
             </select></label>` : null}
-          ${slots.map((s) => html`<label title=${`what the slot ${s.name} is drawn showing; the wearer picks it on the watch`}>${s.name}
-            <select value=${(view.picks || {})[s.name] || s.default}
-                    onChange=${(e) => setView({ ...view, picks: { ...(view.picks || {}), [s.name]: e.target.value } })}>
-              ${(Array.isArray(s.choices) ? s.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
-                .map((t) => html`<option value=${t}>${t === s.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
-            </select></label>`)}
-          <label>Time <input type="time" step="1" value=${time} disabled=${view.now} onChange=${set("time")} /></label>
-          <label title="the day the date is drawn at; empty, a sample day">Date
-            <input type="date" value=${date} disabled=${view.now} onChange=${set("date")} /></label>
-          <label title="draw the face at this computer's time and date, as it goes on">
-            <input type="checkbox" checked=${view.now}
-                   onChange=${(e) => {
-                     // switched off, the face stays at the moment it last drew
-                     if (e.target.checked) { setClock(clockNow()); setView({ ...view, now: true }); }
-                     else setView({ ...view, now: false, time: clock.time, date: clock.date });
-                   }} /> now</label>
-          <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
-          <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
-          <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
-            <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
-                   onChange=${set("skin")} /> skin</label>
+          <${Popover} label=${html`Preview${previewed.length ? html`<span class="set"> · ${previewed.join(" · ")}</span>` : null} ▾`}
+                      title="What the face is drawn at: the time and date, each slot's reading, asleep, AOD, the skin"
+                      className="preview">
+            <div class="preview-grid">
+              <label>Time <input type="time" step="1" value=${time} disabled=${view.now} onChange=${set("time")} /></label>
+              <label title="the day the date is drawn at; empty, a sample day">Date
+                <input type="date" value=${date} disabled=${view.now} onChange=${set("date")} /></label>
+              <label title="draw the face at this computer's time and date, as it goes on">
+                <input type="checkbox" checked=${view.now}
+                       onChange=${(e) => {
+                         // switched off, the face stays at the moment it last drew
+                         if (e.target.checked) { setClock(clockNow()); setView({ ...view, now: true }); }
+                         else setView({ ...view, now: false, time: clock.time, date: clock.date });
+                       }} /> now</label>
+              ${slots.map((sl) => html`<label title=${`what the slot ${sl.name} is drawn showing; the wearer picks it on the watch`}>${sl.name}
+                <select value=${(view.picks || {})[sl.name] || sl.default}
+                        onChange=${(e) => setView({ ...view, picks: { ...(view.picks || {}), [sl.name]: e.target.value } })}>
+                  ${(Array.isArray(sl.choices) ? sl.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
+                    .map((t) => html`<option value=${t}>${t === sl.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
+                </select></label>`)}
+              <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
+              <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
+              <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
+                <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
+                       onChange=${set("skin")} /> skin</label>
+              ${previewed.length ? html`<button class="reset-preview" onClick=${() => setView({ ...view, time: "", date: "", now: false,
+                  picks: {}, asleep: false, aod: false, skin: false })}>Back to the sample moment</button>` : null}
+            </div>
+          </${Popover}>
           <label class="zoom">Zoom
             <input type="range" min=${MIN_ZOOM} max=${MAX_ZOOM} step="0.01" value=${view.zoom}
                    list="zoom-notches" onInput=${(e) => setZoom(Number(e.target.value))} />
@@ -674,12 +835,14 @@ function Editor({ docId, onError, onNotice }) {
         ${pane === "yaml"
           ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${accept} onError=${onError} onSaving=${setYamlSaving}
                               onSelect=${(id) => { setSelected(id); setExtra([]); }} />`
-          : html`<div class="canvas-wrap">
+          : html`<div class="canvas-wrap" ref=${wrap} onWheel=${onWheel}
+                      onPointerDownCapture=${panDown} onPointerMove=${panMove} onPointerUp=${panUp}
+                      onPointerCancel=${() => { pan.current = null; }}>
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
                                         extra=${extra} tree=${doc.tree} queue=${queue}
                                         zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
-                                        onPick=${select} onDrag=${onDrag} />`
+                                        onPick=${select} onDrag=${onDrag} onEscape=${deselect} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
@@ -687,26 +850,39 @@ function Editor({ docId, onError, onNotice }) {
                   onDevice=${(d) => setView({ ...view, device: d })} />
       </div>
       <${Splitter} width=${panels.right} sign=${-1} fallback=${340} onWidth=${panelWidth("right")} />
-      <div class="panel right">
-        <h3>Properties</h3>
-        ${element ? html`<div class="body dim where">
-            in <code>${element.path.slice(0, -1).join(".")}</code>, line ${element.line}
-            ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
-            ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
-          </div>` : null}
-        <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
-                      scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError}
-                      onReveal=${showLines} onSelect=${select} />
-        <div class="tabs">
-          <button class=${tab === "diagnostics" ? "on" : ""} onClick=${() => setTab("diagnostics")}>
-            ${diagnosticsLabel(doc.diagnostics, diagFilter)}</button>
-          <button class=${tab === "history" ? "on" : ""} onClick=${() => setTab("history")}>History</button>
-        </div>
-        ${tab === "diagnostics"
-          ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected}
-                                 filter=${diagFilter} onFilter=${setDiagFilter} />`
-          : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)} onSend=${send}
-                             onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />`}
+      <div class=${"panel right" + (fold.props ? " props-folded" : "") + (fold.lower ? " lower-folded" : "")}>
+        <section class="props-section">
+          <h3 class="fold" onClick=${() => folded("props", !fold.props)} aria-expanded=${!fold.props}
+              title=${fold.props ? "Show the selection's properties" : "Fold the properties away"}>
+            ${fold.props ? "▸" : "▾"} Properties${extra.length ? html` <span class="dim">· ${extra.length + 1} selected</span>` : null}</h3>
+          ${fold.props ? null : html`<div class="section-scroll">
+            ${element ? html`<div class="body dim where">
+                in <code>${element.path.slice(0, -1).join(".")}</code>, line ${element.line}
+                ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
+                ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
+              </div>` : null}
+            <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
+                          scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError}
+                          onReveal=${showLines} onSelect=${select} />
+          </div>`}
+        </section>
+        <section class="lower-section">
+          <div class="tabs">
+            <button class=${tab === "diagnostics" && !fold.lower ? "on" : ""}
+                    onClick=${() => { setTab("diagnostics"); folded("lower", false); }}>
+              ${diagnosticsLabel(doc.diagnostics, diagFilter)}</button>
+            <button class=${tab === "history" && !fold.lower ? "on" : ""}
+                    onClick=${() => { setTab("history"); folded("lower", false); }}>History</button>
+            <button class="fold-button" onClick=${() => folded("lower", !fold.lower)} aria-expanded=${!fold.lower}
+                    title=${fold.lower ? "Show Diagnostics and History" : "Fold Diagnostics and History away"}>
+              ${fold.lower ? "▴" : "▾"}</button>
+          </div>
+          ${fold.lower ? null : html`<div class="section-scroll">${tab === "diagnostics"
+            ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected}
+                                   filter=${diagFilter} onFilter=${setDiagFilter} />`
+            : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)} onSend=${send}
+                               onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />`}</div>`}
+        </section>
       </div>
     </div>
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
@@ -721,9 +897,29 @@ function Editor({ docId, onError, onNotice }) {
 
 // -- the app -------------------------------------------------------------------------
 
+// Every message the editor has shown, newest first: a toast goes after a
+// few seconds, and a newer one replaces it, so a refusal's reason stays
+// readable here. The badge counts those not seen yet.
+function MessageLog({ log, unseen, onOpen, onClear }) {
+  if (!log.length) return null;
+  const time = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return html`<div class="log-badge">
+    <${Popover} align="right" onOpen=${onOpen}
+      label=${html`Messages${unseen ? html` <span class=${"count" + (log.some((m, i) => i < unseen && m.kind === "error") ? " error" : "")}>${unseen}</span>` : null}`}
+      title="Every message shown, newest first">
+      <div class="pop-title">Messages, newest first</div>
+      <ul class="log">${log.map((m) => html`<li class=${m.kind}>
+        <span class="dim">${time(m.at)}</span> ${m.message}</li>`)}</ul>
+      <button class="more" onClick=${onClear}>Clear</button>
+    </${Popover}>
+  </div>`;
+}
+
 function App() {
   const [docId, setDocId] = useState(route());
   const [toast, setToast] = useState(null);       // {message, kind}
+  const [log, setLog] = useState([]);              // [{message, kind, at}], newest first
+  const [unseen, setUnseen] = useState(0);
   const toastTimer = useRef(null);
   useEffect(() => {
     const onHash = () => setDocId(route());
@@ -734,6 +930,8 @@ function App() {
   const show = useCallback((message, kind) => {
     clearTimeout(toastTimer.current);
     setToast({ message, kind });
+    setLog((l) => [{ message, kind, at: Date.now() }, ...l].slice(0, 100));
+    setUnseen((n) => n + 1);
     toastTimer.current = setTimeout(() => setToast(null), kind === "error" ? 6000 : 4000);
   }, []);
   const onError = useCallback((e) => show(e.message || String(e), "error"), [show]);
@@ -742,7 +940,9 @@ function App() {
     ${docId ? html`<${Editor} docId=${docId} onError=${onError} onNotice=${onNotice} />`
             : html`<${Home} onError=${onError} />`}
     ${toast ? html`<div class=${"toast " + toast.kind} role=${toast.kind === "error" ? "alert" : "status"}
-                        onClick=${() => setToast(null)}>${toast.message}</div>` : null}`;
+                        onClick=${() => setToast(null)}>${toast.message}</div>` : null}
+    <${MessageLog} log=${log} unseen=${unseen} onOpen=${() => setUnseen(0)}
+                   onClear=${() => { setLog([]); setUnseen(0); }} />`;
 }
 
 render(html`<${App} />`, document.getElementById("app"));

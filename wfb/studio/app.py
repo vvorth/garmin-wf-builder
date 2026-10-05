@@ -54,11 +54,15 @@ class Events:
         self._subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue[str],
                                       str | None]] = []
 
-    def publish(self, event: str, data: dict[str, Any]) -> None:
+    def publish(self, event: str, data: dict[str, Any], owner: str | None = None) -> None:
+        """Send ``event`` to every stream that may hear of it: ``owner``'s,
+        or, without one, the owner of the document `data["id"]` names
+        (given when that document is gone, as after a delete)."""
         message = f"event: {event}\ndata: {json.dumps(data)}\n\n"
         with self._lock:
             subscribers = list(self._subscribers)
-        owner = self._owner_of(str(data["id"])) if "id" in data else None
+        if owner is None and "id" in data:
+            owner = self._owner_of(str(data["id"]))
         for loop, queue, principal in subscribers:
             if principal is None or owner is None or principal == owner:
                 loop.call_soon_threadsafe(queue.put_nowait, message)
@@ -253,10 +257,36 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             return JSONResponse(doc(request).summary())
 
     def delete(request: Request, data: bytes) -> Response:
+        doc_id = request.path_params["doc_id"]
         with studio.lock:
-            doc(request)
-            studio.delete(request.path_params["doc_id"])
-        return JSONResponse({"deleted": request.path_params["doc_id"]})
+            owner = doc(request).owner
+            studio.delete(doc_id)
+        # every tab with it open hears that it is gone
+        events.publish("deleted", {"id": doc_id}, owner=owner)
+        return JSONResponse({"deleted": doc_id})
+
+    def rename(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            document.rename(request.query_params.get("name", ""))
+            events.publish("renamed", {"id": document.id, "name": document.name})
+            return JSONResponse({"id": document.id, "name": document.name})
+
+    def cover(request: Request, data: bytes) -> Response:
+        """The face on its first target, for the library."""
+        with studio.lock:
+            png = doc(request).cover()
+        if png is None:
+            return _error(404, "the face does not load, so it has no picture")
+        return Response(png, media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=86400"})
+
+    def goto(request: Request, data: bytes) -> Response:
+        with studio.lock:
+            document = doc(request)
+            document.goto(_int(request, "seq"), _int(request, "version"))
+            changed(document, request)
+            return JSONResponse(document.summary())
 
     def frame(request: Request, data: bytes) -> Response:
         key = _frame_key(request)
@@ -592,6 +622,9 @@ def create_app(studio: Studio, *, sessions: Sessions | None = None,
             Route("/api/documents/{doc_id}/undo", _endpoint(undo), methods=["POST"]),
             Route("/api/documents/{doc_id}/redo", _endpoint(redo), methods=["POST"]),
             Route("/api/documents/{doc_id}/history", _endpoint(history)),
+            Route("/api/documents/{doc_id}/goto", _endpoint(goto), methods=["POST"]),
+            Route("/api/documents/{doc_id}/rename", _endpoint(rename), methods=["POST"]),
+            Route("/api/documents/{doc_id}/cover", _endpoint(cover)),
             Route("/api/documents/{doc_id}/snapshots", _endpoint(snapshot), methods=["POST"]),
             Route("/api/documents/{doc_id}/snapshots/{name}/restore", _endpoint(restore),
                   methods=["POST"]),

@@ -5,9 +5,10 @@
 
 import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
 import {
-  ANGLE_UNITS, LENGTH_UNITS, afterRemovingSchemes, at, colorName, formatQuantity, isIdentifier,
+  ANGLE_UNITS, LENGTH_UNITS, afterRemovingSchemes, at, colorName, formatQuantity,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.js";
+import { AddName, InlineName } from "./ui.js";
 
 const ALIGN = [["top_left", "top", "top_right"], ["left", "center", "right"],
                ["bottom_left", "bottom", "bottom_right"]];
@@ -261,13 +262,6 @@ function Section({ title, children, open = true }) {
   </div>`;
 }
 
-function askName(what, current) {
-  const name = prompt(`${what} name (letters, digits and _):`, current || "");
-  if (name == null) return null;
-  if (!isIdentifier(name.trim())) { alert(`"${name}" is not a valid name.`); return null; }
-  return name.trim();
-}
-
 // A catalogue icon drawn with the icon font (`/api/icon-font`), or its
 // name when the catalogue has no such icon.
 export function Glyph({ name, vocab }) {
@@ -334,11 +328,8 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }) {
   const setIcon = (name, icon) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
   return html`<div class="slot-card">
     <div class="slot-head">
-      <b>${slot.name}</b>
-      <button title="rename (every slot: naming it follows)" onClick=${() => {
-        const n = askName("Slot", slot.name);
-        if (n && n !== slot.name) onEdit({ op: "rename", path, to: n });
-      }}>Rename</button>
+      <b><${InlineName} value=${slot.name} title="click to rename (every slot: naming it follows)"
+        onRename=${(n) => onEdit({ op: "rename", path, to: n })} /></b>
       <button class="reset" title="delete (refused while an element draws it)"
         onClick=${() => onEdit({ op: "remove", path })}>×</button>
     </div>
@@ -395,32 +386,31 @@ function Schemes({ schemes, palette, styles, ctx, onEdit }) {
       <div class="axis-choices">${palette.map((p) => { const v = parseHex(p.value); return html`<label>
         <input type="checkbox" checked=${picked.includes(p.name)} onChange=${() => toggle(p.name)} />
         <span class="chip" style=${v ? `background:${toHex(v)}` : ""}></span>${p.name}</label>`; })}</div>
-      <button disabled=${!picked.length} onClick=${() => {
-        const n = askName("First scheme", "dark"); if (!n) return;
-        onEdit({ op: "make_switchable", names: picked, scheme: n }); setPicked([]);
-      }}>Make switchable…</button>`;
+      <${AddName} label="Make switchable…" disabled=${!picked.length} suggest=${() => "dark"}
+        placeholder="the first scheme's name" title="the ticked colours move into a first scheme, named here"
+        onAdd=${(n) => { onEdit({ op: "make_switchable", names: picked, scheme: n }); setPicked([]); }} />`;
   }
   const keepName = keep || schemes.names[0];
   const outcome = afterRemovingSchemes(styles.entries);
   return html`<table class="schemes">
       <tr><th></th>${schemes.names.map((s) => html`<th>
-        <span class="name" title="rename (every style naming it follows)" onClick=${() => {
-          const n = askName("Scheme", s); if (n && n !== s) onEdit({ op: "rename_scheme", name: s, to: n }); }}>${s}</span>
+        <${InlineName} value=${s} title="click to rename (every style naming it follows)"
+          onRename=${(n) => onEdit({ op: "rename_scheme", name: s, to: n })} />
         <button class="reset" title="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
       </th>`)}</tr>
       ${schemes.roles.map((r) => html`<tr><td>
-        <span class="name" title=${`rename (every color.${r} follows)`} onClick=${() => {
-          const n = askName("Role", r); if (n && n !== r) onEdit({ op: "rename_role", name: r, to: n }); }}>${r}</span>
+        <${InlineName} value=${r} title=${`click to rename (every color.${r} follows)`}
+          onRename=${(n) => onEdit({ op: "rename_role", name: r, to: n })} />
         <button class="reset" title="delete this role (refused while something uses it)" onClick=${() => onEdit({ op: "delete_role", name: r })}>×</button>
       </td>${schemes.names.map((s) => html`<td>
         <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
           onPick=${(v) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
     </table>
     <div class="row">
-      <button title="a copy of the first scheme, and the styles that reach it" onClick=${() => {
-        const n = askName("New scheme"); if (n) onEdit({ op: "add_scheme", name: n }); }}>+ Scheme</button>
-      <button title="a role in every scheme, white until you set it" onClick=${() => {
-        const n = askName("New role"); if (n) onEdit({ op: "add_role", name: n, value: "#FFFFFF" }); }}>+ Role</button>
+      <${AddName} label="+ Scheme" placeholder="scheme name" title="a copy of the first scheme, and the styles that reach it"
+        onAdd=${(n) => onEdit({ op: "add_scheme", name: n })} />
+      <${AddName} label="+ Role" placeholder="role name" title="a role in every scheme, white until you set it"
+        onAdd=${(n) => onEdit({ op: "add_role", name: n, value: "#FFFFFF" })} />
     </div>
     <div class="row">
       <select value=${keepName} title="the scheme whose colours become palette colours" onChange=${(e) => setKeep(e.target.value)}>
@@ -488,19 +478,14 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
   const presets = ctx.vocab.hand_presets || [];
   const [preset, setPreset] = useState("");
   const device = (doc.targets || [])[0] || "";
-  const add = () => {
-    const taken = new Set(sets.map((s) => s.name));
-    const name = askName("Hand set", taken.has(preset) ? `${preset}_2` : preset);
-    if (name) onEdit({ op: "add_hand_set", name, preset });
-    setPreset("");
-  };
+  const taken = new Set(sets.map((s) => s.name));
   return html`${sets.length ? html`<ul class="rows">${sets.map((s) => html`<li class="hand-set">
       <img class="hand-thumb" alt=${s.name} title="drawn alone at 10:09:42"
         src=${`/api/documents/${doc.id}/handset?${new URLSearchParams({ name: s.name, device, scale: 1, v: doc.version })}`} />
       <div class="hand-body">
         <div class="slot-head">
-          <span class="name" title="rename (every set: naming it follows)" onClick=${() => {
-            const n = askName("Hand set", s.name); if (n && n !== s.name) onEdit({ op: "rename_hand_set", name: s.name, to: n }); }}>${s.name}</span>
+          <${InlineName} value=${s.name} title="click to rename (every set: naming it follows)"
+            onRename=${(n) => onEdit({ op: "rename_hand_set", name: s.name, to: n })} />
           <button title="a copy, to change without touching this one" onClick=${() => onEdit({ op: "duplicate_hand_set", name: s.name })}>Duplicate</button>
           <button class="reset" title="delete (refused while an element places it)" onClick=${() => onEdit({ op: "delete_hand_set", name: s.name })}>×</button>
         </div>
@@ -523,7 +508,10 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
         <option value="">from a preset…</option>
         ${presets.map((p) => html`<option value=${p}>${p}</option>`)}
       </select>
-      <button disabled=${!preset} title=${sets.some((s) => s.placed_by.length) ? "" : "also places it at the centre"} onClick=${add}>+ Hand set</button>
+      <${AddName} label="+ Hand set" disabled=${!preset} placeholder="hand set name"
+        title=${sets.some((s) => s.placed_by.length) ? "" : "also places it at the centre"}
+        suggest=${() => (taken.has(preset) ? `${preset}_2` : preset)}
+        onAdd=${(name) => { onEdit({ op: "add_hand_set", name, preset }); setPreset(""); }} />
     </div>`;
 }
 
@@ -539,12 +527,9 @@ function NewSlot({ vocab, taken, onEdit }) {
         ${types.filter((t) => t.category === group).map((t) => html`<option value=${t.name}>${t.label}</option>`)}
       </optgroup>`)}
     </select>
-    <button disabled=${!first} onClick=${() => {
-      const base = first.split("_")[0];
-      const suggested = taken.includes(base) ? `${base}_2` : base;
-      const n = askName("Slot", suggested); if (!n) return;
-      onEdit({ op: "add_slot", name: n, default: first }); setFirst("");
-    }}>+ Slot</button>
+    <${AddName} label="+ Slot" disabled=${!first} placeholder="slot name"
+      suggest=${() => { const base = first.split("_")[0]; return taken.includes(base) ? `${base}_2` : base; }}
+      onAdd=${(n) => { onEdit({ op: "add_slot", name: n, default: first }); setFirst(""); }} />
   </div>`;
 }
 
@@ -555,6 +540,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
   const styles = g.styles || { entries: [] };
   const devices = vocab.devices || [];
   const [adding, setAdding] = useState("");
+  // a font file chosen and waiting for its name
+  const [newFont, setNewFont] = useState(null);
   const fontFile = useRef(null);
   const replaceFor = useRef(null);
   const replaceFile = useRef(null);
@@ -582,7 +569,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
 
     <${Section} title=${`Colours (${palette.length})`}>
       <ul class="rows">${palette.map((p) => html`<li class="swatch-row">
-          <span class="name" title="rename (every color.${p.name} follows)" onClick=${() => { const n = askName("Colour", p.name); if (n && n !== p.name) onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." }); }}>${p.name}</span>
+          <${InlineName} value=${p.name} title=${`click to rename (every color.${p.name} follows)`}
+            onRename=${(n) => onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." })} />
           <${ColorPop} value=${p.value} ctx=${ctx} faceGroup=${false}
             title=${p.used_by.length ? `changes ${p.used_by.length} use${p.used_by.length > 1 ? "s" : ""}: ${p.used_by.join(", ")}` : "not used yet"}
             onPick=${(v) => onEdit({ op: "set_swatch", name: p.name, value: v })} />
@@ -626,13 +614,13 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
           <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select>` : null}
         <button class="reset" title="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
       </li>`)}</ul>` : html`<div class="dim">${g.layouts.length || schemes.names.length ? "No styles yet." : "Styles pair a layout with a colour scheme; this face has neither yet."}</div>`}
-      ${g.layouts.length || schemes.names.length ? html`<button onClick=${() => {
-        const n = askName("New style"); if (!n) return;
-        const entry = newStyleEntry(styles.entries, g.layouts, schemes.names);
-        onEdit(styles.entries.length
-          ? { op: "set", path: ["config", "style", "choices", n], value: entry }
-          : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
-      }}>+ Style</button>` : null}
+      ${g.layouts.length || schemes.names.length ? html`<${AddName} label="+ Style" placeholder="style name"
+        onAdd=${(n) => {
+          const entry = newStyleEntry(styles.entries, g.layouts, schemes.names);
+          onEdit(styles.entries.length
+            ? { op: "set", path: ["config", "style", "choices", n], value: entry }
+            : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
+        }} />` : null}
       ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
     </${Section}>
 
@@ -656,11 +644,14 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         ${f.source ? html`<button title="replace the font file" onClick=${() => { replaceFor.current = f.source; replaceFile.current.click(); }}>Replace…</button>` : null}
         <button class="reset" title="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "fonts", f.name] })}>×</button>
       </li>`)}</ul>
-      <button onClick=${() => fontFile.current.click()}>+ Font from a file…</button>
+      ${newFont ? html`<div class="row"><span class="dim">${newFont.name} as</span>
+          <${AddName} key=${newFont.name} label="font name" placeholder="font name" startOpen=${true}
+            suggest=${() => newFont.name.replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9_]/g, "_").replace(/^(\d)/, "_$1").toLowerCase()}
+            onAdd=${(n) => { onUpload(newFont, { font: n, size: "10%r" }); setNewFont(null); }}
+            onCancel=${() => setNewFont(null)} /></div>`
+        : html`<button onClick=${() => fontFile.current.click()}>+ Font from a file…</button>`}
       <input type="file" accept=".ttf,.otf" style="display:none" ref=${fontFile} onChange=${(e) => {
-        const file = e.target.files[0]; e.target.value = ""; if (!file) return;
-        const n = askName("Font", file.name.replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9_]/g, "_").replace(/^(\d)/, "_$1").toLowerCase());
-        if (n) onUpload(file, { font: n, size: "10%r" });
+        const file = e.target.files[0]; e.target.value = ""; if (file) setNewFont(file);
       }} />
       <input type="file" accept=".ttf,.otf" style="display:none" ref=${replaceFile} onChange=${(e) => {
         const file = e.target.files[0]; e.target.value = ""; if (file) onUpload(file, { reference: replaceFor.current });

@@ -55,6 +55,13 @@ def render(summary: dict, body: str) -> list:
       const within = (e, c) => {{ for (let p = e.parentNode; p; p = p.parentNode) if (cls(p) === c) return true; return false; }};
       const settle = () => new Promise((r) => setTimeout(r, 5));
       const click = async (e) => {{ e.click(); await settle(); }};
+      // a name typed into the open inline input, then Enter
+      const typeName = async (value) => {{
+        const inputs = find((e) => e.localName === "input" && cls(e).startsWith("inline-name"));
+        const input = inputs[inputs.length - 1];
+        input.value = value; input.dispatch("input", {{ target: input }}); await settle();
+        input.dispatch("keydown", {{ key: "Enter", target: input }}); await settle();
+      }};
       const out = (v) => console.log(JSON.stringify(v));
       {body}
     """
@@ -147,14 +154,16 @@ def test_a_scheme_cell_picks_through_use_color(summary):
 def test_colours_are_made_switchable_from_the_schemes_section(summary):
     text = summary(starters.instantiate("minimal", "T"))
     printed = render(text, """
-      globalThis.prompt = () => "night";
       const boxes = find((e) => e.localName === "input" && e.attributes.type === "checkbox");
       boxes[0].dispatch("change"); await settle();           // bg
       boxes[1].dispatch("change"); await settle();           // text
       await click(find((e) => e.localName === "button" && e.textContent === "Make switchable…")[0]);
+      out(find((e) => cls(e).startsWith("inline-name"))[0].attributes.value);   // suggested
+      await typeName("night");
       out(edits);
     """)
-    assert printed[0] == [{"op": "make_switchable", "names": ["bg", "text"], "scheme": "night"}]
+    assert printed[0] == "dark"
+    assert printed[1] == [{"op": "make_switchable", "names": ["bg", "text"], "scheme": "night"}]
 
 
 def test_the_schemes_table_adds_renames_and_removes(summary):
@@ -163,15 +172,20 @@ def test_the_schemes_table_adds_renames_and_removes(summary):
         "    light:\n      colors: { ink: color.bg }\n"
         "\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark }, l: { scheme: light } }\n"))
     printed = render(text, """
-      const answers = ["dusk", "hot", "day", "pen"];
-      globalThis.prompt = () => answers.shift();
       let asked = "";
       globalThis.confirm = (m) => { asked = m; return true; };
       const button = (label) => find((e) => e.localName === "button" && e.textContent === label)[0];
-      await click(button("+ Scheme"));
-      await click(button("+ Role"));
-      await click(find((e) => cls(e) === "name" && e.textContent === "light")[0]);
-      await click(find((e) => cls(e) === "name" && e.textContent === "ink")[0]);
+      const name = (text) => find((e) => cls(e) === "name renamable" && e.textContent === text)[0];
+      await click(button("+ Scheme")); await typeName("dusk");
+      await click(button("+ Role")); await typeName("hot");
+      await click(name("light")); await typeName("day");
+      await click(name("ink")); await typeName("pen");
+      // Escape keeps the name, and an invalid one is not sent
+      await click(name("dark"));
+      let input = find((e) => cls(e).startsWith("inline-name"))[0];
+      input.value = "night"; input.dispatch("keydown", { key: "Escape", target: input }); await settle();
+      input.dispatch("blur", { target: input }); await settle();
+      await click(name("dark")); await typeName("2nd");
       await click(button("Remove schemes…"));
       out(edits);
       out(asked);
@@ -212,7 +226,6 @@ def test_a_styles_label_is_set_and_cleared(summary):
 def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
     text = summary(starters.instantiate("analog", "T"))
     printed = render(text, """
-      globalThis.prompt = (q, d) => d;
       const thumb = find((e) => e.localName === "img" && cls(e) === "hand-thumb")[0];
       out(thumb.attributes.src.split("?")[1].split("&").slice(0, 2));
       out(root.textContent.includes("placed by"));
@@ -220,6 +233,7 @@ def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
       const select = find((e) => e.localName === "select" && e.textContent.startsWith("from a preset"))[0];
       select.value = "baton"; select.dispatch("change", { target: select }); await settle();
       await click(find((e) => e.localName === "button" && e.textContent === "+ Hand set")[0]);
+      await typeName(find((e) => cls(e).startsWith("inline-name"))[0].attributes.value);
       await click(find((e) => e.localName === "button" && e.textContent === "Duplicate")[0]);
       out(edits);
     """)
@@ -262,10 +276,10 @@ def test_a_slot_card_ticks_stars_and_opens_to_every_type(summary):
 def test_a_new_slot_asks_what_it_shows_first(summary):
     text = summary(starters.instantiate("minimal", "T"))
     printed = render(text, """
-      globalThis.prompt = (q, d) => d;
       const select = find((e) => e.localName === "select" && e.textContent.startsWith("a new slot"))[0];
       select.value = "heart_rate"; select.dispatch("change"); await settle();
       await click(find((e) => e.localName === "button" && e.textContent === "+ Slot")[0]);
+      await typeName(find((e) => cls(e).startsWith("inline-name"))[0].attributes.value);
       out(edits);
     """)
     assert printed[0] == [{"op": "add_slot", "name": "heart", "default": "heart_rate"}]

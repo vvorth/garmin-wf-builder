@@ -33,6 +33,31 @@ def run(script: str) -> object:
     return json.loads(out.stdout)
 
 
+def test_select_all_and_a_shift_range_let_a_group_stand_for_its_children():
+    result = run("""
+      const el = (id, children = []) => ({kind: "element", id, children});
+      const tree = [{kind: "block", children: [el("a"), el("g", [el("g1"), el("g2")]), el("b")]},
+                    {kind: "block", children: [el("c"), el("hidden")]}];
+      console.log(JSON.stringify({
+        all: hit.selectAll(tree, new Set(["a", "g", "g1", "g2", "b", "c"])),
+        ungrouped: hit.selectAll(tree, new Set(["a", "g1", "b"])),
+        down: hit.rangeIds(tree, "a", "b"),
+        up: hit.rangeIds(tree, "b", "g1"),
+        inside: hit.rangeIds(tree, "g1", "g2"),
+        noAnchor: hit.rangeIds(tree, "zz", "c"),
+        outer: hit.outermost(tree, ["g2", "g", "c"]),
+      }));
+    """)
+    # a group stands for its children; what the frame does not show is left out
+    assert result["all"] == ["a", "g", "b", "c"]
+    assert result["ungrouped"] == ["a", "g1", "b"]
+    assert result["down"] == ["a", "g", "b"]
+    assert result["up"] == ["g1", "g2", "b"]
+    assert result["inside"] == ["g1", "g2"]
+    assert result["noAnchor"] == ["c"]
+    assert result["outer"] == ["g", "c"]
+
+
 def test_topmost_picks_the_last_drawn_layer_with_ink():
     result = run("""
       const layers = [

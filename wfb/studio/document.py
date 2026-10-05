@@ -222,6 +222,34 @@ class Document:
         state = line.states[line.cursor + 1]
         return self._moved(self.studio.store.move(self.id, REDO, f"redo {state.label}", state))
 
+    def goto(self, seq: int, expected: int) -> Change:
+        """Move to the state ``seq`` on the line of history in one step:
+        an undo of every change after it, or a redo of every change up to
+        it, recorded as one journal line. Like an undo it moves along the
+        line without dropping anything, so every state stays reachable."""
+        self._check(expected)
+        line = self.studio.store.timeline(self.id)
+        at = next((i for i, c in enumerate(line.states) if c.seq == seq), None)
+        if at is None:
+            raise Refused(f"version {seq} is not on the line of history")
+        if at == line.cursor:
+            raise Refused("the face is already at that change")
+        state = line.states[at]
+        kind, verb = (UNDO, "undo") if at < line.cursor else (REDO, "redo")
+        return self._moved(self.studio.store.move(self.id, kind, f"{verb} to {state.label}",
+                                                  state))
+
+    def rename(self, name: str) -> None:
+        """Give the face the display name ``name`` (not part of its text,
+        so not a change in its history)."""
+        name = " ".join(name.split())
+        if not name:
+            raise Refused("a face's name cannot be empty")
+        if len(name) > 120:
+            raise Refused("a face's name is at most 120 characters")
+        self.studio.store.rename(self.id, name)
+        self.name = name
+
     def snapshot(self, reason: str, now: float | None = None) -> Snapshot:
         snap = self.studio.store.snapshot(self.id, self.head, reason, now)
         self.last_snapshot = (snap.time, snap.seq)
@@ -245,6 +273,9 @@ class Document:
         return {
             "version": self.version,
             "can_undo": line.can_undo, "can_redo": line.can_redo,
+            # what Undo and Redo would take back or bring back
+            "undo": line.states[line.cursor].label if line.can_undo else None,
+            "redo": line.states[line.cursor + 1].label if line.can_redo else None,
             # newest first, the states past the cursor marked as redoable
             "states": [{"seq": c.seq, "time": c.time, "label": c.label,
                         "current": i == line.cursor, "redo": i > line.cursor}
@@ -677,6 +708,12 @@ class Document:
         while len(self._hand_sets) > 32:
             self._hand_sets.pop(next(iter(self._hand_sets)))
         return out
+
+    def cover(self) -> bytes | None:
+        """The face on its first target, at the watch's own size, for the
+        library; `None` when it does not load or targets nothing."""
+        targets = list(self.analysis().resolved)
+        return self.thumbnail(FrameKey(device=targets[0], scale=1)) if targets else None
 
     def thumbnail(self, key: FrameKey) -> bytes:
         """The frame as a PNG file, for the strip of targets."""

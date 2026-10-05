@@ -1,5 +1,6 @@
 // The Layers panel: the face's element tree, its structure edited in place.
-// Click selects, Ctrl/Cmd/Shift-click adds to the selection; a row dragged
+// Click selects, Ctrl/Cmd-click adds to the selection or takes a row out
+// of it, Shift-click selects every row from the selection to it; a row dragged
 // onto another goes before it, onto a group's middle into the group, onto
 // a block's label to the block's end. Every change is one structural edit
 // the server patches into the text, checks and records.
@@ -28,7 +29,7 @@ function Row({ node, next, ctx, depth }) {
     <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") +
                  (drawn && node.type !== "group" && !drawn.has(node.id) ? " undrawn" : "")}
          draggable="true" title=${`line ${node.line}`}
-         onClick=${(e) => ctx.onSelect(node.id, e.ctrlKey || e.metaKey || e.shiftKey)}
+         onClick=${(e) => ctx.onSelect(node.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey)}
          onDragStart=${(e) => { e.dataTransfer.setData(PATH_TYPE, JSON.stringify(node.path)); e.dataTransfer.effectAllowed = "move"; }}
          onDragOver=${(e) => { e.preventDefault(); if (carriesPath(e.dataTransfer.types)) setOver(zone(e).where); }}
          onDragLeave=${() => setOver(null)}

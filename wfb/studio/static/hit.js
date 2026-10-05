@@ -88,3 +88,40 @@ export function moveHandle(items, ids, inset = 0) {
   const t = together(items, ids);
   return { x: t.center[0], y: Math.max(t.box[1], inset) };
 }
+
+// `ids` without any whose group is among them too: a group carries its
+// children, so selecting both would name a child twice.
+export function outermost(blocks, ids) {
+  const want = new Set(ids);
+  const out = [];
+  const walk = (nodes, inside) => nodes.forEach((n) => {
+    const chosen = n.kind === "element" && want.has(n.id);
+    if (chosen && !inside) out.push(n.id);
+    walk(n.children || [], inside || chosen);
+  });
+  walk(blocks, false);
+  return out;
+}
+
+// Select All: every element the frame shows (`shown`, a Set of ids: its
+// drawn elements and authored groups), a group standing for its children.
+export function selectAll(blocks, shown) {
+  const out = [];
+  const walk = (nodes) => nodes.forEach((n) => {
+    if (n.kind === "element" && shown.has(n.id)) out.push(n.id);
+    else walk(n.children || []);
+  });
+  walk(blocks);
+  return out;
+}
+
+// A Shift-click's range in the layers: every element from `from` to `to`
+// in the tree's order, both included, a group standing for its children.
+// With `from` not in the tree, just `to`.
+export function rangeIds(blocks, from, to) {
+  const order = flatten(blocks).map((n) => n.id);
+  const a = order.indexOf(from), b = order.indexOf(to);
+  if (b < 0) return [];
+  if (a < 0) return [to];
+  return outermost(blocks, order.slice(Math.min(a, b), Math.max(a, b) + 1));
+}

@@ -241,6 +241,15 @@ class Store:
         data: dict[str, Any] = json.loads((self._dir(doc_id) / "meta.json").read_text())
         return data
 
+    def rename(self, doc_id: str, name: str) -> None:
+        """Give ``doc_id`` the display name ``name``."""
+        meta = self.meta(doc_id)
+        meta["name"] = name
+        try:
+            _write_atomic(self._dir(doc_id) / "meta.json", json.dumps(meta).encode())
+        except OSError as exc:
+            raise StoreError(f"cannot write to the history store: {exc}") from exc
+
     def owner(self, doc_id: str) -> str:
         """The principal ``doc_id`` belongs to."""
         return str(self.meta(doc_id).get("owner") or OWNER)
