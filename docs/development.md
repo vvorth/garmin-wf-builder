@@ -652,8 +652,13 @@ vector-font runs, as ink overlap and offset), both saved under
 
 Golden-file tests over the generated Monkey C are the primary compiler test, and
 they run with **no Garmin toolchain** — which matters, because the device files
-are the scarce resource. Regenerate them after an intentional change with
-`pytest tests/test_golden.py --update-golden` and read the diff.
+are the scarce resource (`ts/test/golden-monkeyc.test.ts`, the files in
+`ts/test/goldens/monkeyc/`). `ts/test/goldens.test.ts` freezes the rest: every
+diagnostic of the corpus of small designs the tests wrote
+(`ts/test/corpus/designs.json.gz`), and every example's and fixture's
+diagnostics, generated project and previews, by hash. Regenerate them after an
+intentional change with `WFB_UPDATE_GOLDENS=1 npm test` (in `ts/`) and read the
+diff of `ts/test/goldens/`.
 
 **Snapshots, for a refactor that claims "no output change".** The golden files
 cover a few fixtures; `tools/snapshot.py` covers everything the tool produces.

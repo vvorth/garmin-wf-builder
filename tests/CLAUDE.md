@@ -67,8 +67,9 @@ Loaded automatically when working under `tests/`.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture
   fails rather than skips, because a skip once silently turned the goldens off.
-- `tests/golden/` holds generated Monkey C the user reviews. A golden diff is
-  a real output change: explain it, do not just regenerate.
+- `ts/test/goldens/` holds the frozen output (`ts/test/goldens.test.ts`) and,
+  in `monkeyc/`, generated Monkey C the user reviews. A golden diff is a real
+  output change: explain it, do not just regenerate.
 - **Drive every new diagnostic red** against violating input before trusting
   it, and cut the whole path so a second branch cannot quietly answer.
 - **A test must be able to fail against a knowingly broken implementation.**

@@ -2,7 +2,7 @@
 # bound to the step goal, and one icon.  Deliberately minimal -- it exists to
 # prove the whole path from YAML to a sideloadable .prg, not to be a good design.
 #
-# A test fixture, not an example: the golden files in `tests/golden/`, the
+# A test fixture, not an example: the golden files in `ts/test/goldens/monkeyc/`, the
 # build and preview tests, and every test that needs a real TTF (its Open Sans)
 # read it from here.  Changing it changes the goldens.
 #

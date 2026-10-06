@@ -2,8 +2,8 @@
 # baked-font clock (proving a baked font and a vector font coexist in one
 # face), an upright vector-font text, and one of each curve style.
 #
-# A test fixture, not an example: tests/test_vector_text_golden.py's goldens
-# in tests/golden/ (vector_text__*) read it, and it is what
+# A test fixture, not an example: ts/test/golden-monkeyc.test.ts's goldens
+# in ts/test/goldens/monkeyc/ (vector_text__*) read it, and it is what
 # tests/test_vector_text_codegen.py resolves and generates from directly.
 #
 # Build it with:  ./wfb.py build tests/fixtures/vector_text/face.yaml

@@ -3,7 +3,7 @@
 layout-only and a colour-only-adjacent entry, a hold target with a layout,
 and a `low_power` element inside a layout.
 
-A full golden file is not needed here (`tests/golden/` already pins the
+A full golden file is not needed here (`ts/test/goldens/monkeyc/` already pins the
 byte-identical, no-`layouts:` case): this asserts on the specific shapes
 `layouts:` promises -- `resolveStyle`'s combined colour/layout blocks, the
 guarded `onUpdate`/`onPartialUpdate`/`renderStatic` call sequences, and the

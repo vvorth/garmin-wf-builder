@@ -469,7 +469,7 @@ def test_static_content_does_not_blit_in_the_aod_branch(write_design, db, tmp_pa
 def test_a_face_with_nothing_static_generates_exactly_what_it_did_before(write_design, db, tmp_path):
     """The feature must cost nothing to a design that does not use it.
 
-    `tests/golden/` is the real guarantee here -- no golden design declares
+    `ts/test/goldens/monkeyc/` is the real guarantee here -- no golden design declares
     `static:` -- but this states it locally too, because a stray field or an
     always-emitted helper is exactly the kind of regression a golden file would
     catch only after someone noticed the diff.

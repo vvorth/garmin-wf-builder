@@ -17,8 +17,8 @@
 # (judged on the ring against the backdrop, per `wfb.lint.check_contrast`'s
 # own docstring) rather than an accident of picking any old visible colour.
 #
-# A test fixture, not an example: tests/test_text_outline_golden.py's
-# goldens in tests/golden/ (outline_text__*) read it, and it is what
+# A test fixture, not an example: ts/test/golden-monkeyc.test.ts's
+# goldens in ts/test/goldens/monkeyc/ (outline_text__*) read it, and it is what
 # tests/test_text_outline_codegen.py-equivalent assertions generate from
 # directly.
 #
