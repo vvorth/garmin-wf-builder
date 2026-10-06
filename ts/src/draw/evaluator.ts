@@ -13,7 +13,8 @@ import * as icons from "../icons.ts";
 import type { Expression } from "../ir/model.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import type { Renderer, RGB } from "../preview.ts";
-import { arc as pillowArcDraw, polygon, primitive as pillowPrimitive } from "../raster/pillow.ts";
+import { drawArc, fillPolygon } from "../raster/garmin.ts";
+import { primitive as pillowPrimitive } from "../raster/pillow.ts";
 import { str, truthy } from "../py.ts";
 import { SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
 import type { BakedFont, GlyphBox } from "../fonts/bmfont.ts";
@@ -328,7 +329,7 @@ export class Evaluator {
       case "SetPen": this.pen = op.width !== null ? Math.trunc(this.n(op.width)) : 1; break;
       case "Primitive": this.primitive(op); break;
       case "FillPolygon":
-        if (op.points.length >= 3) polygon(r.image, op.points.map(([x, y]): [number, number] => [x * r.scale, y * r.scale]), this.color);
+        if (op.points.length >= 3) fillPolygon(r.image, op.points, this.color, r.scale);
         break;
       case "ArcSpan":
         this.arc(op, barrel.drawSpan(this.n(op.start), this.n(op.sweep)));
@@ -393,10 +394,7 @@ export class Evaluator {
     const r = this.renderer;
     const radius = this.n(op.radius);
     if (radius <= 0 || call === null) return;
-    const s = r.scale;
-    const cx = this.n(op.cx) * s, cy = this.n(op.cy) * s, rr = radius * s;
-    const [start, end] = barrel.pillowArc(call);
-    pillowArcDraw(r.image, [cx - rr, cy - rr, cx + rr, cy + rr], start, end, this.color, Math.max(1, Math.trunc(this.n(op.pen)) * s));
+    drawArc(r.image, this.n(op.cx), this.n(op.cy), radius, this.n(op.pen), call, this.color, r.scale);
   }
 
   private text(op: Text): void {

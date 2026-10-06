@@ -72,8 +72,9 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     integral float being a `PyFloat`), `jsonform.ts` and `layers.ts`.
     `src/emit/monkeyc/` holds the codegen pieces lowering reads:
     `ReadPlan`, `AodStyle`, the constant blocks.
-  - `src/preview.ts` renders a frame: shapes through `src/raster/pillow.ts`
-    (Pillow's primitives, byte for byte), baked text from its sheets, and
+  - `src/preview.ts` renders a frame: shapes through `src/raster/garmin.ts`
+    (Garmin's own rules, fitted to simulator captures) and
+    `src/raster/pillow.ts` (Pillow's primitives, byte for byte, for the rest), baked text from its sheets, and
     system and vector faces from their outlines through `fonts/raster.ts`,
     a turned run turning its outlines. `src/sample.ts` is the sample
     readings.

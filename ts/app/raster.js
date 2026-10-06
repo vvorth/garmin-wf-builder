@@ -1,5 +1,5 @@
-// Pillow's drawing primitives, in JavaScript, pixel for pixel (circles by
-// Garmin's rule instead): the shapes
+// Pillow's drawing primitives, in JavaScript, pixel for pixel (most shapes
+// by Garmin's own rules instead, below): the shapes
 // the editor's draw program uses, and the pasting of its text's and icons'
 // tiles, so a layer's JSON (`wfb.draw.jsonform`) can be drawn in the
 // browser exactly as `jsonform.rasterise`, and so the preview, draws it.
@@ -20,7 +20,7 @@
 // roundings (`ROUND_UP`/`ROUND_DOWN`, `lround`) round half away from zero.
 // Python's `round()` (in `rounded_rectangle`) rounds half to even. Pure
 // functions, no DOM: ts/test/draw.test.ts holds them equal to
-// src/raster/, which also draws circles by Garmin's own rule (below).
+// src/raster/, which draws most shapes by Garmin's own rules (below).
 
 const F = Math.fround;
 
@@ -604,15 +604,6 @@ export const OPS = Object.freeze([
 
 const num = (n) => (typeof n === "object" ? n.value + n.add : n);
 
-// `wfb.draw.barrel.pillow_arc`: `dc.drawArc`'s Garmin (start, end,
-// clockwise) as Pillow's (start, end), clockwise from 3 o'clock.
-function pillowArc([start, end, clockwise]) {
-  if (start === end) return [-start, -start + 360];
-  let [a, b] = clockwise ? [-start, -end] : [-end, -start];
-  while (b <= a) b += 360;
-  return [a, b];
-}
-
 // A run's tiles from the op's anchor: `floor(x * scale), floor(y * scale)`.
 function pasteRun(im, op, tiles, scale, color) {
   const ax = Math.floor(num(op.x) * scale), ay = Math.floor(num(op.y) * scale);
@@ -635,14 +626,11 @@ export function drawOps(im, ops, tiles, scale) {
     if (name === "color") color = op.rgb;
     else if (name === "pen") pen = Math.trunc(num(op.width));
     else if (name === "fillPolygon") {
-      if (op.points.length >= 3) polygon(im, op.points.map(([x, y]) => [x * s, y * s]), color);
+      if (op.points.length >= 3) garmin.fillPolygon(im, op.points, color, s);
     } else if (name === "arc") {
       const radius = num(op.radius);
       if (op.call === null || radius <= 0) continue;
-      const cx = num(op.cx) * s, cy = num(op.cy) * s, rr = radius * s;
-      const [start, end] = pillowArc(op.call);
-      arc(im, [cx - rr, cy - rr, cx + rr, cy + rr], start, end, color,
-          Math.max(1, Math.trunc(num(op.pen)) * s));
+      garmin.drawArc(im, num(op.cx), num(op.cy), radius, num(op.pen), op.call, color, s);
     } else if (name === "glyph" || name === "text") {
       pasteRun(im, op, tiles, s, color);
     } else {
@@ -655,18 +643,20 @@ export function drawOps(im, ops, tiles, scale) {
         const [x, y, w, h] = v;
         if (w <= 0 || h <= 0) continue;
         const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
-        if (shape === "Rectangle") rectangle(im, rect, style);
+        if (name === "drawRectangle") garmin.drawRectangle(im, x, y, w, h, pen, color, s);
+        else if (name === "fillRoundedRectangle") garmin.fillRoundedRectangle(im, x, y, w, h, v[4], color, s);
+        else if (shape === "Rectangle") rectangle(im, rect, style);
         else roundedRectangle(im, rect, v[4] * s, style);
       } else if (name === "fillCircle") {
-        garminFillCircle(im, v[0], v[1], v[2], color, s);
+        garmin.fillCircle(im, v[0], v[1], v[2], color, s);
       } else if (name === "drawCircle") {
-        garminDrawCircle(im, v[0], v[1], v[2], pen, color, s);
+        garmin.drawCircle(im, v[0], v[1], v[2], pen, color, s);
       } else if (shape === "Circle" || shape === "Ellipse") {
         const [cx, cy] = v;
         const [rx, ry] = shape === "Circle" ? [v[2], v[2]] : [v[2], v[3]];
         ellipse(im, [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s], style);
       } else if (name === "drawLine") {
-        line(im, [v[0] * s, v[1] * s, v[2] * s, v[3] * s], color, width);
+        garmin.drawLine(im, v[0], v[1], v[2], v[3], pen, color, s);
       } else {
         throw new Error(`no rasterisation for ${name}`);
       }
@@ -674,35 +664,116 @@ export function drawOps(im, ops, tiles, scale) {
   }
 }
 
-// -- Garmin's own rules: src/raster/garmin.ts, kept equal by ts/test/draw.test.ts ---------
+// -- Garmin's own rules: src/raster/garmin.ts with its types stripped (esbuild), kept -----
+// -- equal by ts/test/draw.test.ts -------------------------------------------------------
 // ponytail: a copy of the TypeScript module; bundle src/raster/ for the page to drop it
 
-function inDisc(x, y, radius) {
-  return x * x + y * y <= radius * radius && !(y === 0 && x === radius) && !(x === 0 && Math.abs(y) === radius);
-}
-
-function paintRuns(im, cx, cy, extent, lit, color, s) {
-  for (let y = -extent; y <= extent; y++) {
-    for (let x = -extent; x <= extent; x++) {
-      if (!lit(x, y)) continue;
-      let end = x;
-      while (end + 1 <= extent && lit(end + 1, y)) end++;
-      rectangle(im, [(cx + x) * s, (cy + y) * s, (cx + end + 1) * s - 1, (cy + y + 1) * s - 1], { fill: color });
-      x = end;
+const garmin = (() => {
+  function inDisc(x, y, radius) {
+    return x * x + y * y <= radius * radius && !(y === 0 && x === radius) && !(x === 0 && Math.abs(y) === radius);
+  }
+  function paint(im, cx, cy, extent, lit, color, s) {
+    for (let y = -extent; y <= extent; y++) {
+      for (let x = -extent; x <= extent; x++) {
+        if (!lit(x, y)) continue;
+        let end = x;
+        while (end + 1 <= extent && lit(end + 1, y)) end++;
+        rectangle(im, [(cx + x) * s, (cy + y) * s, (cx + end + 1) * s - 1, (cy + y + 1) * s - 1], { fill: color });
+        x = end;
+      }
     }
   }
-}
-
-function garminFillCircle(im, cx, cy, r, color, s) {
-  const radius = Math.trunc(r);
-  paintRuns(im, Math.trunc(cx), Math.trunc(cy), radius, (x, y) => inDisc(x, y, radius), color, s);
-}
-
-function garminDrawCircle(im, cx, cy, r, pen, color, s) {
-  const radius = Math.trunc(r), half = Math.max(1, pen) / 2;
-  paintRuns(im, Math.trunc(cx), Math.trunc(cy), Math.ceil(radius + half),
-    (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half), color, s);
-}
+  const whole = (v) => Math.trunc(v);
+  function fillCircle(im, cx, cy, r, color, s) {
+    const radius = whole(r);
+    paint(im, whole(cx), whole(cy), radius, (x, y) => inDisc(x, y, radius), color, s);
+  }
+  function drawCircle(im, cx, cy, r, pen, color, s) {
+    const radius = whole(r), half = Math.max(1, pen) / 2;
+    paint(
+      im,
+      whole(cx),
+      whole(cy),
+      Math.ceil(radius + half),
+      (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half),
+      color,
+      s
+    );
+  }
+  const brush = (pen) => {
+    const p = Math.max(1, Math.trunc(pen));
+    return [Math.floor(p / 2), p - 1 - Math.floor(p / 2)];
+  };
+  function drawRectangle(im, x, y, w, h, pen, color, s) {
+    [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
+    const [a, b] = brush(pen);
+    const [l, t, r, btm] = [x - a, y - a, x + w - 1 + b, y + h - 1 + b];
+    const fill = (x0, y0, x1, y1) => {
+      if (x1 >= x0 && y1 >= y0) rectangle(im, [x0 * s, y0 * s, (x1 + 1) * s - 1, (y1 + 1) * s - 1], { fill: color });
+    };
+    const [hl, ht, hr, hb] = [x + b + 1, y + b + 1, x + w - 2 - a, y + h - 2 - a];
+    if (hl > hr || ht > hb) return fill(l, t, r, btm);
+    fill(l, t, r, ht - 1);
+    fill(l, hb + 1, r, btm);
+    fill(l, ht, hl - 1, hb);
+    fill(hr + 1, ht, r, hb);
+  }
+  function fillRoundedRectangle(im, x, y, w, h, r, color, s) {
+    [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
+    const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+    for (let py = y; py < y + h; py++) {
+      const qy = py + 0.5;
+      const dy = qy < y + radius ? y + radius - qy : qy > y + h - radius ? qy - (y + h - radius) : 0;
+      const inset = dy > 0 ? radius - Math.sqrt(Math.max(0, radius * radius - dy * dy)) : 0;
+      const left = Math.ceil(x + inset - 0.5), right = Math.floor(x + w - inset - 0.5);
+      if (right >= left) rectangle(im, [left * s, py * s, (right + 1) * s - 1, (py + 1) * s - 1], { fill: color });
+    }
+  }
+  function drawLine(im, x0, y0, x1, y1, pen, color, s) {
+    [x0, y0, x1, y1] = [whole(x0), whole(y0), whole(x1), whole(y1)];
+    const [a, b] = brush(pen);
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let x = x0, y = y0, ix = 0, iy = 0;
+    for (; ; ) {
+      rectangle(im, [(x - a) * s, (y - a) * s, (x + b + 1) * s - 1, (y + b + 1) * s - 1], { fill: color });
+      if (ix === dx && iy === dy) return;
+      if (iy === dy || ix < dx && (1 + 2 * ix) * dy < (1 + 2 * iy) * dx) {
+        x += sx;
+        ix++;
+      } else {
+        y += sy;
+        iy++;
+      }
+    }
+  }
+  function fillPolygon(im, points, color, s) {
+    polygon(im, points.map(([x, y]) => [x * s, y * s]), color);
+    points.forEach(([x, y], i) => {
+      const [nx, ny] = points[(i + 1) % points.length];
+      drawLine(im, x, y, nx, ny, 1, color, s);
+    });
+  }
+  function drawArc(im, cx, cy, r, pen, [start, end, clockwise], color, s) {
+    const radius = whole(r) - 0.5, half = Math.max(1, Math.trunc(pen)) / 2;
+    const lo = clockwise ? end : start;
+    const length = ((clockwise ? start - end : end - start) % 360 + 360) % 360 || 360;
+    const inSpan = (x, y) => {
+      if (length === 360) return true;
+      const theta = Math.atan2(-y, x) * 180 / Math.PI;
+      return ((theta - lo) % 360 + 360) % 360 <= length;
+    };
+    paint(
+      im,
+      whole(cx),
+      whole(cy),
+      Math.ceil(radius + half),
+      (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half) && inSpan(x, y),
+      color,
+      s
+    );
+  }
+  return { fillCircle, drawCircle, drawRectangle, fillRoundedRectangle, drawLine, fillPolygon, drawArc };
+})();
 
 // -- what the canvas reads ---------------------------------------------------------------
 

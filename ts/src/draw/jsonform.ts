@@ -15,7 +15,8 @@ import { PyFloat } from "../edit/yaml.ts";
 import type { Placed } from "../layout.ts";
 import type { Renderer, RGB } from "../preview.ts";
 import { deepEqual } from "../py.ts";
-import { arc, type Image, type JsonNum, type JsonOp, paste, polygon, primitive, rectangle, type RunItem, type Tile } from "../raster/pillow.ts";
+import { drawArc, fillPolygon } from "../raster/garmin.ts";
+import { type Image, type JsonNum, type JsonOp, paste, primitive, rectangle, type RunItem, type Tile } from "../raster/pillow.ts";
 import { IntBox } from "../units.ts";
 import * as barrel from "./barrel.ts";
 import { val } from "./barrel.ts";
@@ -304,14 +305,12 @@ export function rasterise(ops: readonly JsonOp[], tiles: Tiles, image: Image, sc
       pen = Math.trunc(value(op["width"] as JsonNum));
     } else if (name === "fillPolygon") {
       const points = op["points"] as [number, number][];
-      if (points.length >= 3) polygon(image, points.map(([x, y]): [number, number] => [x * s, y * s]), color);
+      if (points.length >= 3) fillPolygon(image, points, color, s);
     } else if (name === "arc") {
       const radius = value(op["radius"] as JsonNum);
       const call = op["call"] as barrel.ArcCall | null;
       if (call === null || radius <= 0) continue;
-      const cx = value(op["cx"] as JsonNum) * s, cy = value(op["cy"] as JsonNum) * s, rr = radius * s;
-      const [start, end] = barrel.pillowArc(call);
-      arc(image, [cx - rr, cy - rr, cx + rr, cy + rr], start, end, color, Math.max(1, Math.trunc(value(op["pen"] as JsonNum)) * s));
+      drawArc(image, value(op["cx"] as JsonNum), value(op["cy"] as JsonNum), radius, value(op["pen"] as JsonNum), call, color, s);
     } else if (name === "glyph" || name === "text") {
       pasteRun(op["run"] as RunItem[], anchorOf(op, s), tiles, image, color);
     } else {

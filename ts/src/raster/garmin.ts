@@ -4,7 +4,7 @@
 // rules are exact on the MIP verification devices (fenix8solar47mm,
 // fenix8solar51mm, fr955); the AMOLED fenix847mm anti-aliases its edges
 // instead, which they do not model.
-import { type Image, rectangle, type Rgb } from "./pillow.ts";
+import { type Image, polygon, rectangle, type Rgb } from "./pillow.ts";
 
 /**
  * Whether `(x, y)`, from the centre, is inside Garmin's disc of radius
@@ -42,4 +42,104 @@ export function drawCircle(im: Image, cx: number, cy: number, r: number, pen: nu
   const radius = whole(r), half = Math.max(1, pen) / 2;
   paint(im, whole(cx), whole(cy), Math.ceil(radius + half),
     (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half), color, s);
+}
+
+/** Where a `p` px pen's square brush reaches either side of a 1 px path: `[before, after]`, leaning left and up. */
+const brush = (pen: number): [number, number] => {
+  const p = Math.max(1, Math.trunc(pen));
+  return [Math.floor(p / 2), p - 1 - Math.floor(p / 2)];
+};
+
+/** `dc.drawRectangle` with a `pen` px pen: the brush stamped along the 1 px outline of x..x+w-1, y..y+h-1. Exact at pens 1-4. */
+export function drawRectangle(im: Image, x: number, y: number, w: number, h: number, pen: number, color: Rgb, s: number): void {
+  [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
+  const [a, b] = brush(pen);
+  const [l, t, r, btm] = [x - a, y - a, x + w - 1 + b, y + h - 1 + b];
+  const fill = (x0: number, y0: number, x1: number, y1: number): void => {
+    if (x1 >= x0 && y1 >= y0) rectangle(im, [x0 * s, y0 * s, (x1 + 1) * s - 1, (y1 + 1) * s - 1], { fill: color });
+  };
+  // The hole is what no edge's brush reaches: inside x + b .. x + w - 1 - a, exclusive.
+  const [hl, ht, hr, hb] = [x + b + 1, y + b + 1, x + w - 2 - a, y + h - 2 - a];
+  if (hl > hr || ht > hb) return fill(l, t, r, btm);
+  fill(l, t, r, ht - 1);
+  fill(l, hb + 1, r, btm);
+  fill(l, ht, hl - 1, hb);
+  fill(hr + 1, ht, r, hb);
+}
+
+/**
+ * `dc.fillRoundedRectangle`: the pixels whose centre lies in the rectangle
+ * x..x+w, y..y+h with corners of radius r. Exact at r 2, 3 and 5 on 20x14
+ * and 20x16.
+ */
+export function fillRoundedRectangle(im: Image, x: number, y: number, w: number, h: number, r: number, color: Rgb, s: number): void {
+  [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
+  // ponytail: a radius past half the short side is clamped to it, as Pillow does; unprobed
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  for (let py = y; py < y + h; py++) {
+    // Each row's inset from the corner arc it crosses, if any: centres at x + radius, y + radius and their mirrors.
+    const qy = py + 0.5;
+    const dy = qy < y + radius ? y + radius - qy : qy > y + h - radius ? qy - (y + h - radius) : 0;
+    const inset = dy > 0 ? radius - Math.sqrt(Math.max(0, radius * radius - dy * dy)) : 0;
+    // A pixel is in when its centre px + 0.5 >= x + inset, and px + 0.5 <= x + w - inset.
+    const left = Math.ceil(x + inset - 0.5), right = Math.floor(x + w - inset - 0.5);
+    if (right >= left) rectangle(im, [left * s, py * s, (right + 1) * s - 1, (py + 1) * s - 1], { fill: color });
+  }
+}
+
+/**
+ * `dc.drawLine` with a `pen` px pen: a 4-connected path from end to end
+ * (one x or one y step at a time, whichever stays nearer the true line; a
+ * tie steps y first), both ends drawn, with the square brush stamped on
+ * every pixel. Exact at pens 1 and 3 from 0 to 90 degrees, and at 2 and 4
+ * horizontal or vertical; a 2 or 4 px diagonal is a few pixels off along
+ * each side.
+ */
+// ponytail: fitted on lines drawn up and to the right only; another direction's tie may differ
+export function drawLine(im: Image, x0: number, y0: number, x1: number, y1: number, pen: number, color: Rgb, s: number): void {
+  [x0, y0, x1, y1] = [whole(x0), whole(y0), whole(x1), whole(y1)];
+  const [a, b] = brush(pen);
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let x = x0, y = y0, ix = 0, iy = 0;
+  for (;;) {
+    rectangle(im, [(x - a) * s, (y - a) * s, (x + b + 1) * s - 1, (y + b + 1) * s - 1], { fill: color });
+    if (ix === dx && iy === dy) return;
+    // The step that lands nearer the line: (ix + 1/2) / dx against (iy + 1/2) / dy, cross-multiplied.
+    if (iy === dy || (ix < dx && (1 + 2 * ix) * dy < (1 + 2 * iy) * dx)) { x += sx; ix++; } else { y += sy; iy++; }
+  }
+}
+
+/**
+ * `dc.fillPolygon`: Pillow's scanline fill, and every edge drawn as a 1 px
+ * `drawLine`, which lights the right and bottom edges Pillow leaves out.
+ * One pixel off over six shapes (triangles, a quad, a thin one, a sliver).
+ */
+// ponytail: probed on whole-pixel points only; a rotated hand's fractional points are truncated for its edges, unverified
+export function fillPolygon(im: Image, points: readonly (readonly [number, number])[], color: Rgb, s: number): void {
+  polygon(im, points.map(([x, y]): [number, number] => [x * s, y * s]), color);
+  points.forEach(([x, y], i) => {
+    const [nx, ny] = points[(i + 1) % points.length]!;
+    drawLine(im, x, y, nx, ny, 1, color, s);
+  });
+}
+
+/**
+ * `dc.drawArc` as the barrel calls it (`[start, end, clockwise]` in Garmin's
+ * degrees, counter-clockwise from 3 o'clock): `drawCircle`'s ring of radius
+ * r - 1/2, cut to the pixels whose angle from the centre lies in the span,
+ * both ends included. Within 0-5 pixels a shape, all at the ends, over
+ * pens 1 and 3, sweeps 30 and 135 degrees and four start angles.
+ */
+export function drawArc(im: Image, cx: number, cy: number, r: number, pen: number, [start, end, clockwise]: [number, number, boolean], color: Rgb, s: number): void {
+  const radius = whole(r) - 0.5, half = Math.max(1, Math.trunc(pen)) / 2;
+  // The span counter-clockwise from `lo`, `length` degrees; start == end is the whole circle.
+  const lo = clockwise ? end : start;
+  const length = ((((clockwise ? start - end : end - start) % 360) + 360) % 360) || 360;
+  const inSpan = (x: number, y: number): boolean => {
+    if (length === 360) return true;
+    const theta = (Math.atan2(-y, x) * 180) / Math.PI;
+    return ((((theta - lo) % 360) + 360) % 360) <= length;
+  };
+  paint(im, whole(cx), whole(cy), Math.ceil(radius + half),
+    (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half) && inSpan(x, y), color, s);
 }

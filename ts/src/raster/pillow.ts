@@ -18,8 +18,8 @@
 // roundings (`ROUND_UP`/`ROUND_DOWN`, `lround`) round half away from zero.
 // Python's `round()` (in `rounded_rectangle`) rounds half to even.
 //
-// `primitive` draws a `Dc` call through Garmin's own rule instead where
-// one is pinned down (`garmin.ts`).
+// `primitive` and `drawOps` draw a `Dc` call through Garmin's own rule
+// instead where one is pinned down (`garmin.ts`).
 
 import * as garmin from "./garmin.ts";
 
@@ -659,15 +659,6 @@ export const OPS = Object.freeze([
 
 const num = (n: JsonNum): number => (typeof n === "object" ? n.value + n.add : n);
 
-// `wfb.draw.barrel.pillow_arc`: `dc.drawArc`'s Garmin (start, end,
-// clockwise) as Pillow's (start, end), clockwise from 3 o'clock.
-function pillowArc([start, end, clockwise]: [number, number, boolean]): [number, number] {
-  if (start === end) return [-start, -start + 360];
-  let [a, b] = clockwise ? [-start, -end] : [-end, -start];
-  while (b <= a) b += 360;
-  return [a, b];
-}
-
 // A run's tiles from the op's anchor: `floor(x * scale), floor(y * scale)`.
 function pasteRun(im: Image, op: JsonOp, tiles: Record<string, Tile>, scale: number, color: Rgb): void {
   const ax = Math.floor(num(op["x"] as JsonNum) * scale), ay = Math.floor(num(op["y"] as JsonNum) * scale);
@@ -693,14 +684,12 @@ export function drawOps(im: Image, ops: readonly JsonOp[], tiles: Record<string,
       pen = Math.trunc(num(op["width"] as JsonNum));
     } else if (name === "fillPolygon") {
       const points = op["points"] as [number, number][];
-      if (points.length >= 3) polygon(im, points.map(([x, y]): [number, number] => [x * s, y * s]), color);
+      if (points.length >= 3) garmin.fillPolygon(im, points, color, s);
     } else if (name === "arc") {
       const radius = num(op["radius"] as JsonNum);
       const call = op["call"] as [number, number, boolean] | null;
       if (call === null || radius <= 0) continue;
-      const cx = num(op["cx"] as JsonNum) * s, cy = num(op["cy"] as JsonNum) * s, rr = radius * s;
-      const [start, end] = pillowArc(call);
-      arc(im, [cx - rr, cy - rr, cx + rr, cy + rr], start, end, color, Math.max(1, Math.trunc(num(op["pen"] as JsonNum)) * s));
+      garmin.drawArc(im, num(op["cx"] as JsonNum), num(op["cy"] as JsonNum), radius, num(op["pen"] as JsonNum), call, color, s);
     } else if (name === "glyph" || name === "text") {
       pasteRun(im, op, tiles, s, color);
     } else {
@@ -719,7 +708,9 @@ export function primitive(im: Image, name: string, v: readonly number[], color: 
     const [x, y, w, h] = v as [number, number, number, number];
     if (w <= 0 || h <= 0) return; // `Dc` draws nothing
     const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
-    if (shape === "Rectangle") rectangle(im, rect, style);
+    if (name === "drawRectangle") garmin.drawRectangle(im, x, y, w, h, pen, color, s);
+    else if (shape === "Rectangle") rectangle(im, rect, style);
+    else if (name === "fillRoundedRectangle") garmin.fillRoundedRectangle(im, x, y, w, h, v[4]!, color, s);
     else roundedRectangle(im, rect, v[4]! * s, style);
   } else if (name === "fillCircle") {
     garmin.fillCircle(im, v[0]!, v[1]!, v[2]!, color, s);
@@ -730,7 +721,7 @@ export function primitive(im: Image, name: string, v: readonly number[], color: 
     const [rx, ry] = shape === "Circle" ? [v[2]!, v[2]!] : [v[2]!, v[3]!];
     ellipse(im, [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s], style);
   } else if (name === "drawLine") {
-    line(im, [v[0]! * s, v[1]! * s, v[2]! * s, v[3]! * s], color, width);
+    garmin.drawLine(im, v[0]!, v[1]!, v[2]!, v[3]!, pen, color, s);
   } else {
     throw new Error(`no rasterisation for dc.${name}`);
   }

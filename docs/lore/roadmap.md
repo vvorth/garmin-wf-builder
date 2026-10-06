@@ -112,10 +112,10 @@ or AOD-related has been observed on a watch or in the simulator.
   barrel's arithmetic transcribed, and a frame is per-element layers with
   the program as JSON (`wfb.draw.layers`, `wfb.draw.jsonform`): text and
   icons as placed tiles, which the editor's browser draws itself
-  (`ts/app/raster.js`, Pillow's primitives, and Garmin's own rule for
-  circles). A grown outline ring is drawn grown in the preview as on the
-  watch (research 28 §7). Garmin's other shapes are not matched yet
-  (`docs/limitations.md`).
+  (`ts/app/raster.js`, the preview's rasteriser: Garmin's own rules where
+  captures pin them, Pillow's elsewhere). A grown outline ring is drawn
+  grown in the preview as on the watch (research 28 §7). What still
+  differs from the watch is in `docs/limitations.md`.
   `docs/development.md`, "Element kinds".
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`

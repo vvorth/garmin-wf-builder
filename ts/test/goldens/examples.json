@@ -106,24 +106,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "ef008351a31a2440cb99b003563055da",
-    "fenix8solar51mm": "de46cc0ea7989f864c5154c165bcc862",
-    "fr955": "ef008351a31a2440cb99b003563055da"
+    "fenix8solar47mm": "5725404a5fab9ca0fb27112fab6dd498",
+    "fenix8solar51mm": "74b61d07b2a8634df0081c97de9091ed",
+    "fr955": "5725404a5fab9ca0fb27112fab6dd498"
    },
    "asleep": {
-    "fenix8solar47mm": "7b9c123b1c5f050fd066575d56a34dad",
-    "fenix8solar51mm": "079a0fbae37e45b704647a6175b4a631",
-    "fr955": "7b9c123b1c5f050fd066575d56a34dad"
+    "fenix8solar47mm": "65f223aa96884a01efb1a337717db514",
+    "fenix8solar51mm": "225c2905d92bc8485a6288ae05f5b921",
+    "fr955": "65f223aa96884a01efb1a337717db514"
    },
    "time": {
-    "fenix8solar47mm": "914b7a55032f9a65b668036e2c139b4c",
-    "fenix8solar51mm": "a0c475bab1f84e5f2835108287a217d2",
-    "fr955": "914b7a55032f9a65b668036e2c139b4c"
+    "fenix8solar47mm": "d44dea289e0ee5f8459b243eb2885709",
+    "fenix8solar51mm": "09ffa5066114fb1b93158309b9eb5f05",
+    "fr955": "d44dea289e0ee5f8459b243eb2885709"
    },
    "all-styles": {
-    "fenix8solar47mm": "64c1c7b8f12aa214da5cef5e11a4168e",
-    "fenix8solar51mm": "08af59081521a1dada4936660316b5df",
-    "fr955": "64c1c7b8f12aa214da5cef5e11a4168e"
+    "fenix8solar47mm": "19846800fe27daf6d04edbf2dfa9d195",
+    "fenix8solar51mm": "e903bc1bc7c2c0fb67be6e2026364bbb",
+    "fr955": "19846800fe27daf6d04edbf2dfa9d195"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -434,32 +434,32 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "117e5a721b26a390d8e8d60b2f7a9401",
-    "fenix8solar51mm": "94da9d4a01099cffe690e8bd4a228b8c",
-    "fr955": "482a02521c9987bc999c490ac75b7e83",
-    "fr255": "fbc3dc6bdf5c465f629cf970e833a8b7",
-    "fenix6": "fbc3dc6bdf5c465f629cf970e833a8b7"
+    "fenix8solar47mm": "f447b3d11788e78a90bfd6206415c829",
+    "fenix8solar51mm": "b9810494c09f6286be7244c3dba8030e",
+    "fr955": "db1f8933c29b625ff0a49a689c3d6c92",
+    "fr255": "3286a06f1a4d8110585e111e1233c6ed",
+    "fenix6": "3286a06f1a4d8110585e111e1233c6ed"
    },
    "asleep": {
-    "fenix8solar47mm": "117e5a721b26a390d8e8d60b2f7a9401",
-    "fenix8solar51mm": "94da9d4a01099cffe690e8bd4a228b8c",
-    "fr955": "482a02521c9987bc999c490ac75b7e83",
-    "fr255": "fbc3dc6bdf5c465f629cf970e833a8b7",
-    "fenix6": "fbc3dc6bdf5c465f629cf970e833a8b7"
+    "fenix8solar47mm": "f447b3d11788e78a90bfd6206415c829",
+    "fenix8solar51mm": "b9810494c09f6286be7244c3dba8030e",
+    "fr955": "db1f8933c29b625ff0a49a689c3d6c92",
+    "fr255": "3286a06f1a4d8110585e111e1233c6ed",
+    "fenix6": "3286a06f1a4d8110585e111e1233c6ed"
    },
    "time": {
-    "fenix8solar47mm": "61e4756d9d977b45e689cbc1c76c3ef0",
-    "fenix8solar51mm": "6aa43e607006e6d017ebbe4f4b0a09c8",
-    "fr955": "e43467430e623bd8694995ae1d98475d",
-    "fr255": "d767b36ef1012aa1a508cd78c154bf12",
-    "fenix6": "d767b36ef1012aa1a508cd78c154bf12"
+    "fenix8solar47mm": "9ffca8e6cf2ce634c0d57dbd1b526686",
+    "fenix8solar51mm": "d6918d7a1e7715af9ac50adb6210dcc3",
+    "fr955": "2fcbe08221684c5b685b250c769ec9b1",
+    "fr255": "818f3f4870fa1ac181a8840355a1d31e",
+    "fenix6": "818f3f4870fa1ac181a8840355a1d31e"
    },
    "all-styles": {
-    "fenix8solar47mm": "bdcc0c5f0d6c320490635ddf1c6be84b",
-    "fenix8solar51mm": "1886f94c3b852454ec5dbba9ee0c5812",
-    "fr955": "7990c38f2347f38b03a152f6faaa0519",
-    "fr255": "32e135fa19fc557765abca6db919875f",
-    "fenix6": "32e135fa19fc557765abca6db919875f"
+    "fenix8solar47mm": "09f118c6dd30e1073ececf90bb5807be",
+    "fenix8solar51mm": "62698906bae2fbdd767ed7e3d603bd54",
+    "fr955": "bebfabeea78b2554e2780b2377fac5d9",
+    "fr255": "88727bafa0952ddf7d63b63815c1e07d",
+    "fenix6": "88727bafa0952ddf7d63b63815c1e07d"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -573,24 +573,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "65c29e6454975ae0ed1acc2a3e3b1a17",
-    "fenix8solar51mm": "f164cb322b1cf21d58211f65d8828f69",
-    "fr955": "7c959f1ec92afb89553191cfdfccbfdd"
+    "fenix8solar47mm": "c84c949f920a412a84e2ea62ebec56a2",
+    "fenix8solar51mm": "c421ca0a6b5ba58b0d6e32dc249397db",
+    "fr955": "69d1ea37d30fb2602726f4dcac2aa080"
    },
    "asleep": {
-    "fenix8solar47mm": "65c29e6454975ae0ed1acc2a3e3b1a17",
-    "fenix8solar51mm": "f164cb322b1cf21d58211f65d8828f69",
-    "fr955": "7c959f1ec92afb89553191cfdfccbfdd"
+    "fenix8solar47mm": "c84c949f920a412a84e2ea62ebec56a2",
+    "fenix8solar51mm": "c421ca0a6b5ba58b0d6e32dc249397db",
+    "fr955": "69d1ea37d30fb2602726f4dcac2aa080"
    },
    "time": {
-    "fenix8solar47mm": "f8685a5eb2d0d6936053082a71ed4cdf",
-    "fenix8solar51mm": "3d5dc4b204d140b3802ec2c0ca9703dd",
-    "fr955": "f100f09f915d29473b8982abf6485be0"
+    "fenix8solar47mm": "24b73f3c0a65a768c8dc44aa1b7c51aa",
+    "fenix8solar51mm": "9d2b7e8e0f45db6501c6772e40495c2b",
+    "fr955": "8b35505722c70b922372c67d2ec88d21"
    },
    "all-styles": {
-    "fenix8solar47mm": "b63fd44d4e4b1a0fe036a43eea784530",
-    "fenix8solar51mm": "8bcf8b832036b08aba135f25b9bd91cb",
-    "fr955": "997246fc2547b219c418a6c84970bcd8"
+    "fenix8solar47mm": "a526d4447971d7a6b7556444ac066b0a",
+    "fenix8solar51mm": "abedb7255fe0d3ef13ed77b7b4926146",
+    "fr955": "60aa67f600b8922ed2fe267f8afe6dd6"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -601,7 +601,7 @@
   }
  },
  "examples/features/align/face.yaml": {
-  "diagnostics": "examples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n  144 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n  144 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n  144 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above\n\nexamples/features/align/face.yaml:246:3: note[aod-burn-in]: venusq2: with the pixel mask (phase 3, dx=0 dy=1), the AOD frame lights 0.2% of pixels and 0.2% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: main_hands (100.0%)\n  246 |   main_hands:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 271 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 230,400 B of the 2,097,152 B graphics pool (11.0%) on venusq2\n  144 | static:\n        ^\n      note: 320x360 pixels at the display's own 16 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "examples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n  144 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n  144 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n  144 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above\n\nexamples/features/align/face.yaml:246:3: note[aod-burn-in]: venusq2: with the pixel mask (phase 1, dx=1 dy=0), the AOD frame lights 0.3% of pixels and 0.3% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: main_hands (100.0%)\n  246 |   main_hands:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 306 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 230,400 B of the 2,097,152 B graphics pool (11.0%) on venusq2\n  144 | static:\n        ^\n      note: 320x360 pixels at the display's own 16 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "8e472ea168e36613e8dfc85929ace4ef",
@@ -777,22 +777,22 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "7d973f0f2b02d9720caf07a8a9ea3f41",
-    "fenix8solar51mm": "42daff19c887036a5acc50278e3cd71b",
-    "fr955": "3082790193a4f7ba1a6edd3510148e53",
-    "venusq2": "ef09bb1f83c7f08936a7e4971414288f"
+    "fenix8solar47mm": "ee62c44603bbb7e41d34dab3e3800ba7",
+    "fenix8solar51mm": "c03e8bf7e5352fe04bbff6585f8ed20c",
+    "fr955": "c5768d29bddb0afdb69187d36085ad6a",
+    "venusq2": "6e19b89e52345797d09f6e20de6f0996"
    },
    "asleep": {
-    "fenix8solar47mm": "7d973f0f2b02d9720caf07a8a9ea3f41",
-    "fenix8solar51mm": "42daff19c887036a5acc50278e3cd71b",
-    "fr955": "3082790193a4f7ba1a6edd3510148e53",
-    "venusq2": "ef09bb1f83c7f08936a7e4971414288f"
+    "fenix8solar47mm": "ee62c44603bbb7e41d34dab3e3800ba7",
+    "fenix8solar51mm": "c03e8bf7e5352fe04bbff6585f8ed20c",
+    "fr955": "c5768d29bddb0afdb69187d36085ad6a",
+    "venusq2": "6e19b89e52345797d09f6e20de6f0996"
    },
    "time": {
-    "fenix8solar47mm": "8e182f0e61c4d2d74e400344818745ff",
-    "fenix8solar51mm": "533bbf3087b51cb7fd50acbbec06e12d",
-    "fr955": "bdc6819d0991dcbe2c774ab947ea0e8a",
-    "venusq2": "b8d3440d481fafc78524846f75e320b4"
+    "fenix8solar47mm": "c4695dd48996eaf8df95423c11cbe9fb",
+    "fenix8solar51mm": "3019e35f9002ef088d5af9c5c00277a6",
+    "fr955": "c36b63c2660406b73fec8cf46aa0b86b",
+    "venusq2": "f02ebcc64467114df71c73fae47af86b"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Align' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -801,10 +801,10 @@
     "venusq2": "refused: 'Feature Align' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "6fab05eb60b41b05a01eab78a3feeb9d"
+    "fenix847mm": "206b5feb6300ffdcd7a475185ebdb4a3"
    },
    "aod-minute-7": {
-    "fenix847mm": "ae2b752d24a6fca2364fd0b082b43efe"
+    "fenix847mm": "8b0b5bcbd83821ffa0c8d66e4525e2a6"
    }
   }
  },
@@ -888,24 +888,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "4644b74576006d08d03a6cd3e396ef4d",
-    "fenix8solar51mm": "6a8113634654b802acc5d3bfcc15a87e",
-    "fr955": "4644b74576006d08d03a6cd3e396ef4d"
+    "fenix8solar47mm": "3e0b135e5fd148e624deb79e58ee7cdc",
+    "fenix8solar51mm": "edef12b61a6f04d855a890e9e793b30e",
+    "fr955": "3e0b135e5fd148e624deb79e58ee7cdc"
    },
    "asleep": {
-    "fenix8solar47mm": "c06b3333db186d7fb87be95ce6de710a",
-    "fenix8solar51mm": "147d2730927daf33896db3ec73a1770c",
-    "fr955": "c06b3333db186d7fb87be95ce6de710a"
+    "fenix8solar47mm": "2710d4f00c5064b1b8e2cc061fb283f6",
+    "fenix8solar51mm": "af155bd17d03938ea7a4ede2494e2e08",
+    "fr955": "2710d4f00c5064b1b8e2cc061fb283f6"
    },
    "time": {
-    "fenix8solar47mm": "81592e26f886c1757d439d21a21518f0",
-    "fenix8solar51mm": "6f2ee15c67d4a18f35ae7455a14482ed",
-    "fr955": "81592e26f886c1757d439d21a21518f0"
+    "fenix8solar47mm": "e60f846fab98503c7d6caec52fecfdc3",
+    "fenix8solar51mm": "afb590528b17b7363128ed4e62825f65",
+    "fr955": "e60f846fab98503c7d6caec52fecfdc3"
    },
    "all-styles": {
-    "fenix8solar47mm": "7a0978367ecb7c40f6247856b9301390",
-    "fenix8solar51mm": "49a0c3f8238da36fa726501c4a31973d",
-    "fr955": "7a0978367ecb7c40f6247856b9301390"
+    "fenix8solar47mm": "de15de14c0d972b956e9a2b8f1f9989e",
+    "fenix8solar51mm": "ab343c8777224400ba750542de43e754",
+    "fr955": "de15de14c0d972b956e9a2b8f1f9989e"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -916,7 +916,7 @@
   }
  },
  "examples/features/aod/face.yaml": {
-  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.1% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (69.4%), battery_ring (29.4%), accent_dot (1.3%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,743 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.1% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (68.6%), battery_ring (30.2%), accent_dot (1.2%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,763 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "b77f7b7c9c21362da85207f965aabfa8",
@@ -984,22 +984,22 @@
   },
   "previews": {
    "default": {
-    "fenix847mm": "d78c3210e3ddc375e3ebd52cae6bdccf",
-    "fenix8solar47mm": "58cf585af18561d2bc44dad0a5feb052",
-    "fenix8solar51mm": "cce0206c806d90f6f0a56bef7ad19f61",
-    "fr955": "957c0a32bc1f3ece9f0769705660f8e2"
+    "fenix847mm": "3ceb115f6424490ce45a0a0f9084ee19",
+    "fenix8solar47mm": "97b088728c3bb61f8710333d20e97779",
+    "fenix8solar51mm": "45d29a9ad4138b4a48ff3b15f8515265",
+    "fr955": "bbfdbe638dc7cbdc93233520b3df12cc"
    },
    "asleep": {
-    "fenix847mm": "d78c3210e3ddc375e3ebd52cae6bdccf",
-    "fenix8solar47mm": "58cf585af18561d2bc44dad0a5feb052",
-    "fenix8solar51mm": "cce0206c806d90f6f0a56bef7ad19f61",
-    "fr955": "957c0a32bc1f3ece9f0769705660f8e2"
+    "fenix847mm": "3ceb115f6424490ce45a0a0f9084ee19",
+    "fenix8solar47mm": "97b088728c3bb61f8710333d20e97779",
+    "fenix8solar51mm": "45d29a9ad4138b4a48ff3b15f8515265",
+    "fr955": "bbfdbe638dc7cbdc93233520b3df12cc"
    },
    "time": {
-    "fenix847mm": "7d558323b90bcf3e974cd6bb743e8d96",
-    "fenix8solar47mm": "ff557cabf14b40134fff9846c43d1af9",
-    "fenix8solar51mm": "7fd3a802e473ee55aa14ca05469ae8ee",
-    "fr955": "4dc8769d9a80af175be9115c77eb4269"
+    "fenix847mm": "faf87d9cfc6af979c02f01a40d515135",
+    "fenix8solar47mm": "e6ba59c8a0dffeeaa7b03836fc3dbddc",
+    "fenix8solar51mm": "4d4c6149e0fcd1c004f5e211e5addc5c",
+    "fr955": "88ef0058a46281ac4aab1066303b1631"
    },
    "all-styles": {
     "fenix847mm": "refused: 'Feature AOD' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -1008,10 +1008,10 @@
     "fr955": "refused: 'Feature AOD' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "b476d26b162e8fbf63b177f22bf05d06"
+    "fenix847mm": "6800e6665103ae5419d7adeb063b75f9"
    },
    "aod-minute-7": {
-    "fenix847mm": "78891065a65a7d81e7758b9efee4d9c6"
+    "fenix847mm": "a95863698df97ee73e77c335207f443a"
    }
   }
  },
@@ -1263,24 +1263,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "48e04136f5364cf566e46ff60168d2c2",
-    "fenix8solar51mm": "6bd3f9c5f29f7ff5768c1aed3d561cf9",
-    "fr955": "c29d48cfbf7c45ffe26249a0ce25e10c"
+    "fenix8solar47mm": "612dcaf40ef03727a8e651ff4f596700",
+    "fenix8solar51mm": "58a1feeb7f3edbe39f3e665d7d149d2b",
+    "fr955": "38c1648d39d596ae3e0bd7fcc823d565"
    },
    "asleep": {
-    "fenix8solar47mm": "48e04136f5364cf566e46ff60168d2c2",
-    "fenix8solar51mm": "6bd3f9c5f29f7ff5768c1aed3d561cf9",
-    "fr955": "c29d48cfbf7c45ffe26249a0ce25e10c"
+    "fenix8solar47mm": "612dcaf40ef03727a8e651ff4f596700",
+    "fenix8solar51mm": "58a1feeb7f3edbe39f3e665d7d149d2b",
+    "fr955": "38c1648d39d596ae3e0bd7fcc823d565"
    },
    "time": {
-    "fenix8solar47mm": "cee0d04beaf50400967f0ba96404d8b9",
-    "fenix8solar51mm": "350b293bb2f78dd849fa0d19914ec0c1",
-    "fr955": "108ed29d6f3e333b6cc86391b8f3d169"
+    "fenix8solar47mm": "533561cd314d9e6cf499e7055ea83743",
+    "fenix8solar51mm": "84ee6c5fa1b35ec15ab9bb0703e0750d",
+    "fr955": "c8ceeefab47a55c0395cec6fa26c3ab4"
    },
    "all-styles": {
-    "fenix8solar47mm": "104f1ca89fd3bf7bc1b2a0f88ecd4788",
-    "fenix8solar51mm": "57a7f67a7fbfcfe7be8491c03fed4203",
-    "fr955": "30db7c9567ec9f97136a929440defb72"
+    "fenix8solar47mm": "708971fcad858204f2ff4edcdda4087a",
+    "fenix8solar51mm": "9175f286c121c90433957b808eb0a73a",
+    "fr955": "5d5fcd2911464fb59e19aaa43a6fd7f3"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -1353,19 +1353,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "d3abffc8ff163266181b89ef744ed8d0",
-    "fenix8solar51mm": "faa1d82fc74f8fd63586b5498a00ccce",
-    "fr955": "b09f06cef2761b61f543289d4980d796"
+    "fenix8solar47mm": "efe87ef219535005756367fadeb0a0e1",
+    "fenix8solar51mm": "bf4249ae797e3f95f53b8a272f3b8392",
+    "fr955": "2cf669b9f4290c449baf980f07ac9dd0"
    },
    "asleep": {
-    "fenix8solar47mm": "d3abffc8ff163266181b89ef744ed8d0",
-    "fenix8solar51mm": "faa1d82fc74f8fd63586b5498a00ccce",
-    "fr955": "b09f06cef2761b61f543289d4980d796"
+    "fenix8solar47mm": "efe87ef219535005756367fadeb0a0e1",
+    "fenix8solar51mm": "bf4249ae797e3f95f53b8a272f3b8392",
+    "fr955": "2cf669b9f4290c449baf980f07ac9dd0"
    },
    "time": {
-    "fenix8solar47mm": "d3abffc8ff163266181b89ef744ed8d0",
-    "fenix8solar51mm": "faa1d82fc74f8fd63586b5498a00ccce",
-    "fr955": "b09f06cef2761b61f543289d4980d796"
+    "fenix8solar47mm": "efe87ef219535005756367fadeb0a0e1",
+    "fenix8solar51mm": "bf4249ae797e3f95f53b8a272f3b8392",
+    "fr955": "2cf669b9f4290c449baf980f07ac9dd0"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature gauge' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -1440,19 +1440,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "35f85391046039c42db63fddda793a82",
-    "fenix8solar51mm": "1514d3339f100048a7b8e0e2e225af60",
-    "fr955": "e0de95540fe5f1a521c07f1621f2d7d4"
+    "fenix8solar47mm": "d9ffc33213b5c815f207cadcf7e1261b",
+    "fenix8solar51mm": "1611ccb29f75b55159e2db33a3e228e7",
+    "fr955": "dce881d06d280550d8e2ec30f6bb41d8"
    },
    "asleep": {
-    "fenix8solar47mm": "35f85391046039c42db63fddda793a82",
-    "fenix8solar51mm": "1514d3339f100048a7b8e0e2e225af60",
-    "fr955": "e0de95540fe5f1a521c07f1621f2d7d4"
+    "fenix8solar47mm": "d9ffc33213b5c815f207cadcf7e1261b",
+    "fenix8solar51mm": "1611ccb29f75b55159e2db33a3e228e7",
+    "fr955": "dce881d06d280550d8e2ec30f6bb41d8"
    },
    "time": {
-    "fenix8solar47mm": "1575aca5717254c7aea6038bbf7c0d90",
-    "fenix8solar51mm": "7a38b813e80de4a579df4189aa754b10",
-    "fr955": "6e63f3f05fbe3330a8d3f7353ced172e"
+    "fenix8solar47mm": "fb8c9f494e0119323090b40fe4af5907",
+    "fenix8solar51mm": "5fc1d3c2869fc790b8705f0108ac81ac",
+    "fr955": "192fe4b05d6519ae1cac2d05036e30db"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Graph' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -1615,22 +1615,22 @@
   },
   "previews": {
    "default": {
-    "instinct2": "a8245e4efd1c45bdb5f9253579e026ec",
-    "instinct2x": "a8245e4efd1c45bdb5f9253579e026ec",
-    "instinct3solar45mm": "8254e3abf3e886fc991d49895ce5dccc",
-    "instincte45mm": "8254e3abf3e886fc991d49895ce5dccc"
+    "instinct2": "a49157f3924f39b53cecc021ff744488",
+    "instinct2x": "a49157f3924f39b53cecc021ff744488",
+    "instinct3solar45mm": "b1588497a5e909c68f73dcee8ae4ce77",
+    "instincte45mm": "b1588497a5e909c68f73dcee8ae4ce77"
    },
    "asleep": {
-    "instinct2": "a8245e4efd1c45bdb5f9253579e026ec",
-    "instinct2x": "a8245e4efd1c45bdb5f9253579e026ec",
-    "instinct3solar45mm": "8254e3abf3e886fc991d49895ce5dccc",
-    "instincte45mm": "8254e3abf3e886fc991d49895ce5dccc"
+    "instinct2": "a49157f3924f39b53cecc021ff744488",
+    "instinct2x": "a49157f3924f39b53cecc021ff744488",
+    "instinct3solar45mm": "b1588497a5e909c68f73dcee8ae4ce77",
+    "instincte45mm": "b1588497a5e909c68f73dcee8ae4ce77"
    },
    "time": {
-    "instinct2": "77a64253dc87e245a79856e681a05be7",
-    "instinct2x": "77a64253dc87e245a79856e681a05be7",
-    "instinct3solar45mm": "fcdf77f703dee9795ebec51f0dee64b4",
-    "instincte45mm": "fcdf77f703dee9795ebec51f0dee64b4"
+    "instinct2": "fecb51c43c0d1f604726971b745ced04",
+    "instinct2x": "fecb51c43c0d1f604726971b745ced04",
+    "instinct3solar45mm": "39bc8d53218bd06609c53b4d3207c271",
+    "instincte45mm": "39bc8d53218bd06609c53b4d3207c271"
    },
    "all-styles": {
     "instinct2": "refused: 'Feature Instinct' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -1865,19 +1865,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "f09218d2505b81f7610fe1024ee3ae93",
-    "fenix8solar51mm": "735ba216a0137b7c3441e4f4a66a0dea",
-    "fr955": "cf80bc8c70ae83934a14ee6dd1839c76"
+    "fenix8solar47mm": "66e7fdedf69575291769de25851eb13d",
+    "fenix8solar51mm": "85bb7985e87cc1f4774172d6fb743742",
+    "fr955": "e4c202ca61eab1b8b529a21ea35842d2"
    },
    "asleep": {
-    "fenix8solar47mm": "f09218d2505b81f7610fe1024ee3ae93",
-    "fenix8solar51mm": "735ba216a0137b7c3441e4f4a66a0dea",
-    "fr955": "cf80bc8c70ae83934a14ee6dd1839c76"
+    "fenix8solar47mm": "66e7fdedf69575291769de25851eb13d",
+    "fenix8solar51mm": "85bb7985e87cc1f4774172d6fb743742",
+    "fr955": "e4c202ca61eab1b8b529a21ea35842d2"
    },
    "time": {
-    "fenix8solar47mm": "35bacf671de00269361a3343519ed0a2",
-    "fenix8solar51mm": "0220a10327900594f65f79ec4d08d48f",
-    "fr955": "bcc4059e27136d6168bb8ed8d3598cb0"
+    "fenix8solar47mm": "9fd0d57a104aa509e758b040460fc107",
+    "fenix8solar51mm": "21842e2f9c26ebe9f77462096dce447c",
+    "fr955": "975cc60ea145f7d592e6d29ff68a65d5"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Patterns' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2152,24 +2152,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "dd5210e290377914388861fb9f075712",
-    "fenix8solar51mm": "c10d7289a2dfa5d2b29cc1cfda86e2c3",
-    "fr955": "aedfbd6f2eda92cf0ac2a0a5dc39758e"
+    "fenix8solar47mm": "d2cd956e895a9366b625ac62cd82f564",
+    "fenix8solar51mm": "085a5791b1b06df6252d939c3187f965",
+    "fr955": "4f345bff2362c0c991a3a09a00ee1e1c"
    },
    "asleep": {
-    "fenix8solar47mm": "dd5210e290377914388861fb9f075712",
-    "fenix8solar51mm": "c10d7289a2dfa5d2b29cc1cfda86e2c3",
-    "fr955": "aedfbd6f2eda92cf0ac2a0a5dc39758e"
+    "fenix8solar47mm": "d2cd956e895a9366b625ac62cd82f564",
+    "fenix8solar51mm": "085a5791b1b06df6252d939c3187f965",
+    "fr955": "4f345bff2362c0c991a3a09a00ee1e1c"
    },
    "time": {
-    "fenix8solar47mm": "0aa639af04d9c0d26c6e26f047109817",
-    "fenix8solar51mm": "575ad8eb2d6feb5942174d169a226e07",
-    "fr955": "8042bab98f60cc11ce597db2ca19fc70"
+    "fenix8solar47mm": "0bd7c940a144bf7c460336ec3a92045f",
+    "fenix8solar51mm": "c31a10aab549d8338af2ad4a41fa2c8d",
+    "fr955": "45502fe11535fa00d4e3604b9612d130"
    },
    "all-styles": {
-    "fenix8solar47mm": "659f435088197b6aa9d5f392612039e4",
-    "fenix8solar51mm": "1bbbd60aa4a7411a7a500c4242fc350d",
-    "fr955": "271484164614a84f4e272b6f20a08957"
+    "fenix8solar47mm": "a9a9da84eca2ab3d44827de340a687b0",
+    "fenix8solar51mm": "989da0a45617e5e7a17a10b5d9bab30a",
+    "fr955": "0fbc13aaf294d4c0370975a502a3a37c"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -2242,19 +2242,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "51a5f1cc11267163e6595c2c535bb613",
-    "fenix8solar51mm": "4c3fdda0cf10907eaf0653d21d69a54c",
-    "fr955": "51a5f1cc11267163e6595c2c535bb613"
+    "fenix8solar47mm": "7fd87473a2ce6400cf8af565dcbc376f",
+    "fenix8solar51mm": "41b400b87ccbdf2331c4ecacd83eb8f1",
+    "fr955": "7fd87473a2ce6400cf8af565dcbc376f"
    },
    "asleep": {
-    "fenix8solar47mm": "51a5f1cc11267163e6595c2c535bb613",
-    "fenix8solar51mm": "4c3fdda0cf10907eaf0653d21d69a54c",
-    "fr955": "51a5f1cc11267163e6595c2c535bb613"
+    "fenix8solar47mm": "7fd87473a2ce6400cf8af565dcbc376f",
+    "fenix8solar51mm": "41b400b87ccbdf2331c4ecacd83eb8f1",
+    "fr955": "7fd87473a2ce6400cf8af565dcbc376f"
    },
    "time": {
-    "fenix8solar47mm": "51a5f1cc11267163e6595c2c535bb613",
-    "fenix8solar51mm": "4c3fdda0cf10907eaf0653d21d69a54c",
-    "fr955": "51a5f1cc11267163e6595c2c535bb613"
+    "fenix8solar47mm": "7fd87473a2ce6400cf8af565dcbc376f",
+    "fenix8solar51mm": "41b400b87ccbdf2331c4ecacd83eb8f1",
+    "fr955": "7fd87473a2ce6400cf8af565dcbc376f"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature progress' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2425,19 +2425,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "1109ebda85b6045e653d32baf3108678",
-    "fenix8solar51mm": "e92720663c312c4f8144693cfa51a1db",
-    "fr955": "1109ebda85b6045e653d32baf3108678"
+    "fenix8solar47mm": "fe55467ffd1782946cf69a9458c4d563",
+    "fenix8solar51mm": "fca803d95a95824afb0788e0a76a0c37",
+    "fr955": "fe55467ffd1782946cf69a9458c4d563"
    },
    "asleep": {
-    "fenix8solar47mm": "4ffd66c4eaef89c9afab0814cf5f0cd5",
-    "fenix8solar51mm": "c09b6a2e14634c189e46a625fd998f48",
-    "fr955": "4ffd66c4eaef89c9afab0814cf5f0cd5"
+    "fenix8solar47mm": "db5fd9efa7d3dcd4dadfac30ec9c1311",
+    "fenix8solar51mm": "107cae0b49ca57390627abf7fdd9eb06",
+    "fr955": "db5fd9efa7d3dcd4dadfac30ec9c1311"
    },
    "time": {
-    "fenix8solar47mm": "8f5425bb80562384e702b745149e891c",
-    "fenix8solar51mm": "e0403887ccea3aa6b17c37b04980a1d9",
-    "fr955": "8f5425bb80562384e702b745149e891c"
+    "fenix8solar47mm": "ab22d57f7b03bb14650a250933704b84",
+    "fenix8solar51mm": "7cb9b27101d047029e4289e42264a8b8",
+    "fr955": "ab22d57f7b03bb14650a250933704b84"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Rings' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2512,19 +2512,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "04d80d97185cac3095e8cbcb86672717",
-    "fenix8solar51mm": "8f5d8c30682400b7d217a2967fea14ab",
-    "fr955": "41e767f1512a6f0d9f1ff06466276d1b"
+    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
+    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
+    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
    },
    "asleep": {
-    "fenix8solar47mm": "04d80d97185cac3095e8cbcb86672717",
-    "fenix8solar51mm": "8f5d8c30682400b7d217a2967fea14ab",
-    "fr955": "41e767f1512a6f0d9f1ff06466276d1b"
+    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
+    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
+    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
    },
    "time": {
-    "fenix8solar47mm": "04d80d97185cac3095e8cbcb86672717",
-    "fenix8solar51mm": "8f5d8c30682400b7d217a2967fea14ab",
-    "fr955": "41e767f1512a6f0d9f1ff06466276d1b"
+    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
+    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
+    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Shapes' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2685,19 +2685,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "6dbf66a478dd49465ca6ae98f46b5e14",
-    "fenix8solar51mm": "8588f559062d25dce3f78f13a4f4ff9c",
-    "fr955": "95855da35f36d2a3e1f1840b5cbb186e"
+    "fenix8solar47mm": "f272a181a754258a9f4b9c3105c15689",
+    "fenix8solar51mm": "499ad70e794498fe4e2f6c37fcbc71d2",
+    "fr955": "1bdd1114e60a0b8d5c2a7698ebdcdbdb"
    },
    "asleep": {
-    "fenix8solar47mm": "6dbf66a478dd49465ca6ae98f46b5e14",
-    "fenix8solar51mm": "8588f559062d25dce3f78f13a4f4ff9c",
-    "fr955": "95855da35f36d2a3e1f1840b5cbb186e"
+    "fenix8solar47mm": "f272a181a754258a9f4b9c3105c15689",
+    "fenix8solar51mm": "499ad70e794498fe4e2f6c37fcbc71d2",
+    "fr955": "1bdd1114e60a0b8d5c2a7698ebdcdbdb"
    },
    "time": {
-    "fenix8solar47mm": "eeba90828f2da0a943a318edc7a27e8b",
-    "fenix8solar51mm": "f54ec2a7973fd2e3b38eb992c9ec283c",
-    "fr955": "e242350cb88ff05dd5b9a3bbe4a1cd63"
+    "fenix8solar47mm": "600907cb4465aac3c1b65776b26274fb",
+    "fenix8solar51mm": "00e6953679ae9f7b3b7f0d0276b4f1c8",
+    "fr955": "576acbb62757b699165b202440821ad4"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Slot Gauge' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2917,24 +2917,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "de7745f416c406695adf02521b7689e9",
-    "fenix8solar51mm": "563b23384336741a73579aeae3f94cef",
-    "fr955": "19c7068bb5be2aa5cdafdcd6b1bacc95"
+    "fenix8solar47mm": "f8dea9c048862b409f8a1eda8a0594a1",
+    "fenix8solar51mm": "acc6844e8f7b4ff567b60a26c44b7960",
+    "fr955": "13f6df589ceb9415100171e4e376f400"
    },
    "asleep": {
-    "fenix8solar47mm": "de7745f416c406695adf02521b7689e9",
-    "fenix8solar51mm": "563b23384336741a73579aeae3f94cef",
-    "fr955": "19c7068bb5be2aa5cdafdcd6b1bacc95"
+    "fenix8solar47mm": "f8dea9c048862b409f8a1eda8a0594a1",
+    "fenix8solar51mm": "acc6844e8f7b4ff567b60a26c44b7960",
+    "fr955": "13f6df589ceb9415100171e4e376f400"
    },
    "time": {
-    "fenix8solar47mm": "bc164b79014224188975d165aca87514",
-    "fenix8solar51mm": "5ef00f93031f172de44bbcb0a054dc4d",
-    "fr955": "27d54dc188681f171d9dac894f9fe396"
+    "fenix8solar47mm": "9cc305803d72fa0e939f5f0a3b3f5e3a",
+    "fenix8solar51mm": "3892a47f8dd40fefca1ff47fdebc9f4a",
+    "fr955": "4798fdec08e8d258f71ed6a16a2d2c88"
    },
    "all-styles": {
-    "fenix8solar47mm": "f065c9a79bee058a0e0dda925349d4d7",
-    "fenix8solar51mm": "5729cbc79c31e3a3112afc8bb91d6cc6",
-    "fr955": "d68ce88b73fe8a46ffcb03491283cc7a"
+    "fenix8solar47mm": "a9729fe51c2c6a5a2bc4fa2067542cc3",
+    "fenix8solar51mm": "7641acdcae269231c53bae5274883354",
+    "fr955": "103f5dc08f92985fa5c0b1300c241cfe"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -3100,19 +3100,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "53dbf35c5f141df43e1f30fc16ae991e",
-    "fenix8solar51mm": "e3eb7bfe0c6670f5dfafd454c2eba557",
-    "fr955": "53dbf35c5f141df43e1f30fc16ae991e"
+    "fenix8solar47mm": "4c87104ca0985a42ab08df7aa227f2df",
+    "fenix8solar51mm": "0abb77257c20b4c0c7da97a3fad4c561",
+    "fr955": "4c87104ca0985a42ab08df7aa227f2df"
    },
    "asleep": {
-    "fenix8solar47mm": "53dbf35c5f141df43e1f30fc16ae991e",
-    "fenix8solar51mm": "e3eb7bfe0c6670f5dfafd454c2eba557",
-    "fr955": "53dbf35c5f141df43e1f30fc16ae991e"
+    "fenix8solar47mm": "4c87104ca0985a42ab08df7aa227f2df",
+    "fenix8solar51mm": "0abb77257c20b4c0c7da97a3fad4c561",
+    "fr955": "4c87104ca0985a42ab08df7aa227f2df"
    },
    "time": {
-    "fenix8solar47mm": "53dbf35c5f141df43e1f30fc16ae991e",
-    "fenix8solar51mm": "e3eb7bfe0c6670f5dfafd454c2eba557",
-    "fr955": "53dbf35c5f141df43e1f30fc16ae991e"
+    "fenix8solar47mm": "4c87104ca0985a42ab08df7aa227f2df",
+    "fenix8solar51mm": "0abb77257c20b4c0c7da97a3fad4c561",
+    "fr955": "4c87104ca0985a42ab08df7aa227f2df"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Sun' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -3352,19 +3352,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "8b9d4f5c7f2abe089bf429dba20392a9",
-    "fenix8solar51mm": "0faea669b73e274a8334f535056bc69b",
-    "fr955": "a056ec9d2be9e07409bd0482d4129c0b"
+    "fenix8solar47mm": "60929389cf58c20d9e132f06cd7893e6",
+    "fenix8solar51mm": "a962f80dd5d9e37838b72553dcdc2bc8",
+    "fr955": "efde1bf0f5f9e8903d0b7884e73bdae4"
    },
    "asleep": {
-    "fenix8solar47mm": "28c34b2f25c5214b38aeb786f1caecac",
-    "fenix8solar51mm": "7b3cf72479e004453be0b767fb4244c8",
-    "fr955": "18f4cddbd8e664ff1d06927e72478197"
+    "fenix8solar47mm": "149afe10a8e6d9c9d75d776c6d5b3071",
+    "fenix8solar51mm": "182ef978e455b22b574876020a71ff06",
+    "fr955": "92f01421e3aeb9bd7b12d8e16fb1d3f7"
    },
    "time": {
-    "fenix8solar47mm": "24eb383963bb38f32a8b70b3f3eef805",
-    "fenix8solar51mm": "d252c0b28f2900c42ca96f54623a9b68",
-    "fr955": "1a826a9b7643f0f6a01a45e2d565e5a3"
+    "fenix8solar47mm": "ee85f41933c39f9c0030b46bfedbb2ba",
+    "fenix8solar51mm": "b6a5fa52acec0d9d2e4cfef1929d76e5",
+    "fr955": "ac9d0f0cbb77aaee037faf189d2ac8dc"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -3520,19 +3520,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "cf0c6ff4ff688864964b2cbdf97d40c2",
-    "fenix8solar51mm": "0153556dce2de606b02c1103fc8c1714",
-    "fr955": "63e2342eee6a5c01f88a9f81d50f6cc4"
+    "fenix8solar47mm": "4a483cd34a42f388bce5bca33e813536",
+    "fenix8solar51mm": "3bc16ee4522f1e1cf80719c65ae20681",
+    "fr955": "12644367fe039db0d61a2d638afaf559"
    },
    "asleep": {
-    "fenix8solar47mm": "cf0c6ff4ff688864964b2cbdf97d40c2",
-    "fenix8solar51mm": "0153556dce2de606b02c1103fc8c1714",
-    "fr955": "63e2342eee6a5c01f88a9f81d50f6cc4"
+    "fenix8solar47mm": "4a483cd34a42f388bce5bca33e813536",
+    "fenix8solar51mm": "3bc16ee4522f1e1cf80719c65ae20681",
+    "fr955": "12644367fe039db0d61a2d638afaf559"
    },
    "time": {
-    "fenix8solar47mm": "8a77bbbde662b912b2aa0d712cf08461",
-    "fenix8solar51mm": "e3bf304c50242a12c3e71ba54a566d5f",
-    "fr955": "c705f1ddae8661fc1a0b0af072580296"
+    "fenix8solar47mm": "90ee3c98764eecccf031be627fbcccd2",
+    "fenix8solar51mm": "0599b150fe1fdda3c5a4a906de235f4e",
+    "fr955": "3af200f308d50c95b66abab9d05bb068"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Trail Utility' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -3765,24 +3765,24 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "af616ba0e8963d68bca5b6f0ddbb77a8",
-    "fenix8solar51mm": "2890406354d233b51f7bcdbd0951b4f4",
-    "fr955": "81621b7c2adb051e4be361bc1c34bdb6"
+    "fenix8solar47mm": "232e422da11bb9aac04ddeddad250217",
+    "fenix8solar51mm": "af3fef054003231bd5ef9f7632e9c0ac",
+    "fr955": "9d5c54e4de2bde5dea9877aff3c8469d"
    },
    "asleep": {
-    "fenix8solar47mm": "af616ba0e8963d68bca5b6f0ddbb77a8",
-    "fenix8solar51mm": "2890406354d233b51f7bcdbd0951b4f4",
-    "fr955": "81621b7c2adb051e4be361bc1c34bdb6"
+    "fenix8solar47mm": "232e422da11bb9aac04ddeddad250217",
+    "fenix8solar51mm": "af3fef054003231bd5ef9f7632e9c0ac",
+    "fr955": "9d5c54e4de2bde5dea9877aff3c8469d"
    },
    "time": {
-    "fenix8solar47mm": "8ab777d9e52258e0da838ae1b54d72aa",
-    "fenix8solar51mm": "f8c961c815eded68ac98facdda465d4f",
-    "fr955": "78da54abad37d34cb93ffbf97922aea4"
+    "fenix8solar47mm": "3a6065df2a0779e7338c7e92c952714d",
+    "fenix8solar51mm": "58f44050710179398b97a374ef332ea2",
+    "fr955": "b94f08408b5f2d7f3a01310648a2d0af"
    },
    "all-styles": {
-    "fenix8solar47mm": "2abce5269d491040150344645f3fe876",
-    "fenix8solar51mm": "a3485f3f8e442759b4654b47de9d7b70",
-    "fr955": "a159de78f89097f373281284bd258165"
+    "fenix8solar47mm": "bde883ed8e216751a4148eb4f05a441a",
+    "fenix8solar51mm": "8041a3d2e0f0e734ba32b90d52dcb69c",
+    "fr955": "a951ac0ddc687f24bf3fd39f4abd34d2"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
@@ -4134,19 +4134,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "13d017b59ccdd6bd51a1dd5d7cb10e4c",
-    "fenix8solar51mm": "748a722caa3dd6e8fb799b241ea1229d",
-    "fr955": "a22f2bc74027b924da07001f3e68383a"
+    "fenix8solar47mm": "129768d6fc6c2cc9502a38bb801aa1bb",
+    "fenix8solar51mm": "2413bd409e86a839b9a03ef63f8bb85d",
+    "fr955": "cf3018f26f3f3464e79caa33e72e1283"
    },
    "asleep": {
-    "fenix8solar47mm": "13d017b59ccdd6bd51a1dd5d7cb10e4c",
-    "fenix8solar51mm": "748a722caa3dd6e8fb799b241ea1229d",
-    "fr955": "a22f2bc74027b924da07001f3e68383a"
+    "fenix8solar47mm": "129768d6fc6c2cc9502a38bb801aa1bb",
+    "fenix8solar51mm": "2413bd409e86a839b9a03ef63f8bb85d",
+    "fr955": "cf3018f26f3f3464e79caa33e72e1283"
    },
    "time": {
-    "fenix8solar47mm": "9f526f75a395f269f2da684d074493c1",
-    "fenix8solar51mm": "01befd600644621e5ae58bb801b20c8c",
-    "fr955": "12bf00ffd687b77aa9f1b42a2db79ddd"
+    "fenix8solar47mm": "28d955c6cfaf3723c3aabf7dcd886e89",
+    "fenix8solar51mm": "3c38a78c208952a686c8319d5750c3eb",
+    "fr955": "f73c3fa6c6114af1662b4851f48fc7d1"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'OutlineGroup' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -4227,19 +4227,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "20569ea2b9b17d80211f969ab2e3281e",
-    "fenix8solar51mm": "97ecfa6b2b00f278d63a678f85d385f7",
-    "fr955": "20569ea2b9b17d80211f969ab2e3281e"
+    "fenix8solar47mm": "f6dd0377608c2c1e0fbd102017ac7595",
+    "fenix8solar51mm": "0451034f57ec5094e9cf9c6b27fcbddf",
+    "fr955": "f6dd0377608c2c1e0fbd102017ac7595"
    },
    "asleep": {
-    "fenix8solar47mm": "dc72b2da103201b60a55b42d5459820c",
-    "fenix8solar51mm": "f2fb2748f51deec9c0d66bfe28d0985c",
-    "fr955": "dc72b2da103201b60a55b42d5459820c"
+    "fenix8solar47mm": "83818832001e23f40fb8d0014dddbe0e",
+    "fenix8solar51mm": "566d6d7107623625e5a46e448ededb33",
+    "fr955": "83818832001e23f40fb8d0014dddbe0e"
    },
    "time": {
-    "fenix8solar47mm": "1ad0c6abb12c0afbfc17fbc483878af2",
-    "fenix8solar51mm": "a0c4d5eafa9f27db9d8615f96d4b2a04",
-    "fr955": "1ad0c6abb12c0afbfc17fbc483878af2"
+    "fenix8solar47mm": "1cb55a5275e7728b6d6669a6c97d5427",
+    "fenix8solar51mm": "9ffc4283582cfb3c15ea1acf1925b30e",
+    "fr955": "1cb55a5275e7728b6d6669a6c97d5427"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'OutlineHands' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -4326,19 +4326,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "9209013fd204e8986e2f629f0ce76d32",
-    "fenix8solar51mm": "19ad479175f9dcda558b66030790298b",
-    "fr955": "ff67933b958c16d8de19aff13cb029a8"
+    "fenix8solar47mm": "dbeaab82ca71d06f4b7974649cc6cf10",
+    "fenix8solar51mm": "5690c10e9ae680028b1a25a59cfd38d1",
+    "fr955": "259fd236391edeabd0534f00bc11ff7d"
    },
    "asleep": {
-    "fenix8solar47mm": "9209013fd204e8986e2f629f0ce76d32",
-    "fenix8solar51mm": "19ad479175f9dcda558b66030790298b",
-    "fr955": "ff67933b958c16d8de19aff13cb029a8"
+    "fenix8solar47mm": "dbeaab82ca71d06f4b7974649cc6cf10",
+    "fenix8solar51mm": "5690c10e9ae680028b1a25a59cfd38d1",
+    "fr955": "259fd236391edeabd0534f00bc11ff7d"
    },
    "time": {
-    "fenix8solar47mm": "9209013fd204e8986e2f629f0ce76d32",
-    "fenix8solar51mm": "19ad479175f9dcda558b66030790298b",
-    "fr955": "ff67933b958c16d8de19aff13cb029a8"
+    "fenix8solar47mm": "dbeaab82ca71d06f4b7974649cc6cf10",
+    "fenix8solar51mm": "5690c10e9ae680028b1a25a59cfd38d1",
+    "fr955": "259fd236391edeabd0534f00bc11ff7d"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'OutlinePatternGauge' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -4458,19 +4458,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "e248ced61a3662e7cb7d427e2aa36ac3",
-    "fenix8solar51mm": "516feacac81e2da831821a89f10a76d5",
-    "fr955": "e248ced61a3662e7cb7d427e2aa36ac3"
+    "fenix8solar47mm": "b8cce33e8e023bf07d20b190d7396382",
+    "fenix8solar51mm": "3410510619c99fa71c2f7786f60c17fd",
+    "fr955": "b8cce33e8e023bf07d20b190d7396382"
    },
    "asleep": {
-    "fenix8solar47mm": "e248ced61a3662e7cb7d427e2aa36ac3",
-    "fenix8solar51mm": "516feacac81e2da831821a89f10a76d5",
-    "fr955": "e248ced61a3662e7cb7d427e2aa36ac3"
+    "fenix8solar47mm": "b8cce33e8e023bf07d20b190d7396382",
+    "fenix8solar51mm": "3410510619c99fa71c2f7786f60c17fd",
+    "fr955": "b8cce33e8e023bf07d20b190d7396382"
    },
    "time": {
-    "fenix8solar47mm": "e248ced61a3662e7cb7d427e2aa36ac3",
-    "fenix8solar51mm": "516feacac81e2da831821a89f10a76d5",
-    "fr955": "e248ced61a3662e7cb7d427e2aa36ac3"
+    "fenix8solar47mm": "b8cce33e8e023bf07d20b190d7396382",
+    "fenix8solar51mm": "3410510619c99fa71c2f7786f60c17fd",
+    "fr955": "b8cce33e8e023bf07d20b190d7396382"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'OutlineShapes' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -4770,19 +4770,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "658cc38d01ede7aed1a212bf4c9af01f",
-    "fenix8solar51mm": "adb5f8f4f686830cb56a92115db6ee32",
-    "fr955": "658cc38d01ede7aed1a212bf4c9af01f"
+    "fenix8solar47mm": "94cb51f0917ca2c308117eb72ca0fd74",
+    "fenix8solar51mm": "59c2c66000a5fd5a322550eaa9af35cc",
+    "fr955": "94cb51f0917ca2c308117eb72ca0fd74"
    },
    "asleep": {
-    "fenix8solar47mm": "658cc38d01ede7aed1a212bf4c9af01f",
-    "fenix8solar51mm": "adb5f8f4f686830cb56a92115db6ee32",
-    "fr955": "658cc38d01ede7aed1a212bf4c9af01f"
+    "fenix8solar47mm": "94cb51f0917ca2c308117eb72ca0fd74",
+    "fenix8solar51mm": "59c2c66000a5fd5a322550eaa9af35cc",
+    "fr955": "94cb51f0917ca2c308117eb72ca0fd74"
    },
    "time": {
-    "fenix8solar47mm": "d28d2ab9e977784347d42cc63e6daa73",
-    "fenix8solar51mm": "303f852df09b5ffa398d628d4a956491",
-    "fr955": "d28d2ab9e977784347d42cc63e6daa73"
+    "fenix8solar47mm": "df5cbe15041fbe83556f828682591928",
+    "fenix8solar51mm": "44646b7c47c16005668a3c4d321d1a8d",
+    "fr955": "df5cbe15041fbe83556f828682591928"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Slice' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",

@@ -61,19 +61,19 @@ How a capture maps onto the watch, VERIFIED on the 28 captures of
 
 ## Findings (2026-10-06)
 
-Differing pixels in the central square, on `fr955` (the two fēnix 8 Solar
-captures agree with it to the pixel; `fenix847mm` is the same geometry with
-grey edges, below):
+Differing pixels in the central square on `fr955`, before and after the
+fitted rules below (the two fēnix 8 Solar captures agree with it to the
+pixel; `fenix847mm` is the same geometry with grey edges, below):
 
-| Family | Lit in both | Preview only | Simulator only | What differs |
-|---|---:|---:|---:|---|
-| circles | 3088 | 0 | 0 | none since the fit (before: 484 and 420) |
-| arcs | 465 | 135 | 195 | below |
-| lines | 1287 | 52 | 553 | below |
-| polygons | 795 | 0 | 88 | below |
-| rects | 2774 | 314 | 450 | below |
-| text | 2392 | 0 | 0 | only anti-aliased edge greys |
-| swatches | 9825 | 0 | 0 | colour only (the profile, above) |
+| Family | Before the fit (preview only, simulator only) | After |
+|---|---|---:|
+| circles | 484, 420 | 0 |
+| arcs | 135, 195 | 27 |
+| lines | 52, 553 | 224 |
+| polygons | 0, 88 | 1 |
+| rects | 314, 450 | 312 |
+| text | 0, 0 | 0 |
+| swatches | 0, 0 | colour only (the profile, above) |
 
 What each primitive did differently from the preview's Pillow
 conventions, read off the diff images. Each is VERIFIED as a difference;
@@ -103,19 +103,44 @@ the capture:
 
 ## Fitted rules
 
-Each rule below reproduces every probe pixel on the three MIP devices
-(VERIFIED: 0 pixels off, on 2026-10-06's captures), and the preview draws
-by it (`ts/src/raster/garmin.ts`). A device pixel's capture block reads
+`ts/test/garmin-raster.test.ts` holds each family's count on `fr955` at
+or under the table's. The preview draws by these rules
+(`ts/src/raster/garmin.ts`), each
+VERIFIED on 2026-10-06's captures on the three MIP devices to the pixel
+counts given. A device pixel's capture block reads
 175-255 when lit and at most 56 when not, so the threshold is 110.
 
-- **`fillCircle(cx, cy, r)`** lights every pixel with x² + y² <= r² from the
+- **`fillCircle(cx, cy, r)`** (exact) lights every pixel with x² + y² <= r² from the
   centre, except the right, top and bottom axis points `(r, 0)`, `(0, ±r)`;
   the left one, `(-r, 0)`, stays lit. Radii 1-12.
-- **`drawCircle(cx, cy, r)` with pen p** lights the `fillCircle` disc of
+- **`drawCircle(cx, cy, r)` with pen p** (exact) lights the `fillCircle` disc of
   radius r + p/2 less the disc of r - p/2, the same axis exceptions
   applying at a whole radius. So an odd pen is centred on r, and an even
   pen's ring sits half a pixel out on the left. Radii 8 and 9, pens 1-4.
 
-The AMOLED `fenix847mm` misses both rules by its grey edges (14-42 px a
-shape): it needs a coverage model. Lines, arcs, polygons and rectangles
-are not fitted yet.
+- **`drawRectangle(x, y, w, h)` with pen p**, and every other stroke below,
+  stamps a p x p square brush on each pixel of the 1 px path, reaching
+  ⌊p/2⌋ left and up and p - 1 - ⌊p/2⌋ right and down. Pens 1-4.
+- **`fillRoundedRectangle(x, y, w, h, r)`** lights the pixels whose centre
+  lies in the rectangle x..x+w, y..y+h with corners of radius r. Radii 2, 3
+  and 5. The probe's 21x15 shapes came out 20x16 after layout, so odd sizes
+  are unprobed.
+- **`drawLine`**'s 1 px path is 4-connected: one x or one y step at a time,
+  whichever lands nearer the true line, a tie stepping y first, both ends
+  drawn (|dx| + |dy| + 1 pixels). With the brush this is exact at widths 1
+  and 3 at 0-90 degrees, and at widths 2 and 4 horizontally and
+  vertically. A 2 or 4 px diagonal is off by about 25 pixels: the
+  simulator's extra row runs below and right of the path, where the brush
+  puts it above and left, and no single offset fits.
+- **`fillPolygon`** is the scanline fill plus every edge drawn as that
+  1 px line: one pixel off over six shapes. Its edges run every way, so
+  this also checks the line's tie rule beyond up-and-right.
+- **`drawArc`** is `drawCircle`'s ring at radius r - 1/2, cut to the
+  pixels whose angle from the centre lies in the span, both ends in: 0-5
+  pixels a shape, all at the ends, where the r ring missed 10-43 a shape.
+- **Not fitted:** `drawRoundedRectangle` (only a 2 px pen was probed; the
+  brush over the fill's boundary still misses 10-28 pixels a shape, so a
+  1 px probe is needed first), and 2 and 4 px diagonal lines.
+
+The AMOLED `fenix847mm` misses every rule by its grey edges: it needs a
+coverage model.

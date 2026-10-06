@@ -287,8 +287,8 @@ its `stamps` is a list (`wfb.preview.Stamp`), and a frame's layers share one
 `jsonform.rasterise` is the reference reader of that JSON: for every
 lowered element it paints exactly what the evaluator paints. The editor's
 browser reader, `ts/app/raster.js`, draws as the TypeScript preview's
-rasteriser does (`ts/src/raster/`: Pillow's primitives and paste, and
-Garmin's own rule for circles), held equal by `ts/test/draw.test.ts`.
+rasteriser does (`ts/src/raster/`: Garmin's own rules in `garmin.ts`
+where simulator captures pin them, Pillow's primitives and paste elsewhere), held equal by `ts/test/draw.test.ts`.
 The editor's frame (`ts/src/studio/document.ts`, `Document.frame`) carries its
 layers this way: `layers(..., paint_all=False)` paints only a layer with an
 op outside `BROWSER_OPS` (an outlined group's ring), and the browser draws

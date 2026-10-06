@@ -122,7 +122,7 @@ export function overlay(family: string, deviceId: string): { width: number; heig
     for (let dy = 0; dy < SCALE; dy++) {
       for (let dx = 0; dx < SCALE; dx++) {
         const i = ((screen.y0 + y * SCALE + dy) * capture.width + screen.x0 + x * SCALE + dx) * 4;
-        for (let k = 0; k < 3; k++) out[k] += capture.pixels[i + k]! / (SCALE * SCALE);
+        for (let k = 0; k < 3; k++) out[k]! += capture.pixels[i + k]! / (SCALE * SCALE);
       }
     }
     return out.map(Math.round) as Rgb;
@@ -131,6 +131,15 @@ export function overlay(family: string, deviceId: string): { width: number; heig
 }
 
 export const lit = (c: Rgb): boolean => Math.max(...c) > 127;
+
+/** The pixels lit in one of the capture and the preview but not the other, in the central square. */
+export function misses(family: string, deviceId: string): number {
+  const { width, height, prev, sim } = overlay(family, deviceId)!;
+  const left = Math.floor((width - SQUARE) / 2), top = Math.floor((height - SQUARE) / 2);
+  let n = 0;
+  for (let y = top; y < top + SQUARE; y++) for (let x = left; x < left + SQUARE; x++) if (lit(prev(x, y)) !== lit(sim(x, y))) n++;
+  return n;
+}
 
 function compare(family: string, deviceId: string): string {
   const o = overlay(family, deviceId);
