@@ -9,6 +9,7 @@
 // every `text` and `glyph` op carries its `run`, the tiles the renderer would
 // paste, each at a whole-pixel offset from the op's anchor. The tiles live
 // once each in a `Tiles` store.
+import { zlibSync } from "fflate";
 import type { FontMetric } from "../devices/device.ts";
 import { PyFloat } from "../edit/yaml.ts";
 import type { Placed } from "../layout.ts";
@@ -45,6 +46,34 @@ export class Tiles {
       this.images.set(found, tile);
     }
     return found;
+  }
+
+  /**
+   * Every tile as RGBA bytes, one after another, zlib-compressed, and their
+   * index `{id: [offset, width, height, kind]}`. A mask is its coverage in
+   * alpha over white. Raw bytes, not a PNG: a browser canvas premultiplies
+   * alpha, which would lose a translucent RGBA tile's colour.
+   */
+  pack(): [Uint8Array, Record<string, [number, number, number, "mask" | "rgba"]>] {
+    const index: Record<string, [number, number, number, "mask" | "rgba"]> = {};
+    let size = 0;
+    for (const tile of this.images.values()) size += tile.width * tile.height * 4;
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const [id, tile] of this.images) {
+      index[id] = [at, tile.width, tile.height, tile.kind];
+      const n = tile.width * tile.height * 4;
+      if (tile.kind === "mask") {
+        for (let i = 0; i < n; i += 4) {
+          out[at + i] = out[at + i + 1] = out[at + i + 2] = 255;
+          out[at + i + 3] = tile.data[i + 3]!;
+        }
+      } else {
+        out.set(tile.data.subarray(0, n), at);
+      }
+      at += n;
+    }
+    return [zlibSync(out, { level: 6 }), index];
   }
 }
 

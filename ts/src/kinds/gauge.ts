@@ -10,7 +10,7 @@ import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "..
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
 import { degrees, formatG, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
-import { type Common, type ContrastSubject, ElementKind, register } from "./base.ts";
+import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
 import {
   AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv,
@@ -620,6 +620,17 @@ class GaugeKind extends ElementKind<Gauge> {
 
   override drawsWhileAbsent(element: Gauge): boolean {
     return keepsTrack(element);
+  }
+
+  override liveHandle(placed: Placed, handle: LiveHandleInput): LiveHandle | null {
+    const element = placed.element as Gauge;
+    if (element.style !== "arc") return null;
+    const prefix = constPrefix(placed.id);
+    const key = (Array.isArray(handle.key) ? handle.key : [handle.key]).join(".");
+    if (handle.kind === "angle") return { angle: key === "start_angle" ? `${prefix}_START` : `${prefix}_SWEEP` };
+    const centred = (element.align ?? "center") === "center" && (element.vertical_align ?? "center") === "center";
+    if (handle.kind === "size" && key === "radius" && centred) return { consts: { [`${prefix}_RADIUS`]: 1 } };
+    return null;
   }
 
   override layoutConstants(prefix: string, placed: Placed): lc.Constants {

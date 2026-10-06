@@ -109,6 +109,11 @@ export function splitlines(text: string): string[] {
   return out;
 }
 
+/** Python's `str.splitlines()`: the lines without their ends. */
+export function lines(text: string): string[] {
+  return splitlines(text).map((line) => line.replace(/(\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029])$/, ""));
+}
+
 /**
  * Python's `f"{value:.{digits}f}"`: the exact binary value rounded half to
  * even, where JavaScript's `toFixed` rounds an exact tie away from zero

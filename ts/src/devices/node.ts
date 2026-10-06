@@ -5,7 +5,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DeviceError } from "./device.ts";
 import type { DeviceFiles } from "./files.ts";
+
+export { DeviceError };
 
 /** The repository root: `ts/src/devices/` is three levels below it. */
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "../../../..");
@@ -18,7 +21,8 @@ export const DEFAULT_DEVICE_ROOTS = [
   join(homedir(), "Library", "Application Support", "Garmin", "ConnectIQ", "Devices"),
 ];
 
-export class DeviceError extends Error {}
+/** The SDK device reference has not been generated yet. */
+export class DeviceReferenceMissing extends DeviceError {}
 
 export class NodeDeviceFiles implements DeviceFiles {
   readonly root: string;
@@ -34,7 +38,7 @@ export class NodeDeviceFiles implements DeviceFiles {
     const candidates = [override, process.env["WFB_DEVICES"], ...DEFAULT_DEVICE_ROOTS]
       .filter((path): path is string => Boolean(path));
     if (!existsSync(referenceDir)) {
-      throw new DeviceError(
+      throw new DeviceReferenceMissing(
         `no SDK device reference at ${referenceDir}.  It is generated from the installed SDK: ` +
         "run ./tools/setup-env.sh, or tools/extract-device-reference.py on its own.",
       );

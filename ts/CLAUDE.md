@@ -10,7 +10,7 @@ shipping compiler until the port is complete.
 npm test                    # node:test over test/**/*.test.ts
 npm run typecheck           # tsc --noEmit, strict
 npm run parity -- <stage>   # a ported stage against tools/oracle.py's dump
-npm run bundle              # dist/wfb.js, the browser bundle (not committed)
+npm run bundle              # dist/wfb.js and dist/worker.js, the browser bundles (not committed)
 ```
 
 Node runs the `.ts` sources directly (type stripping), so there is no build
@@ -85,6 +85,17 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
   - `src/lint.ts` is every lint check; `src/availability.ts` what each
     target lacks; `src/build.ts` loads a design, selects its devices and
     resolves and lints each (`resolveAll`, the bake passed in).
+  - `src/cli.ts` is `wfb` (`node src/cli.ts …`) over `argparse.ts`, a
+    port of the part of Python's argparse it uses, so help, errors and
+    exit codes read as before; `term.ts` and `textwrap.ts` likewise.
+  - `src/studio/` is the editor's back end: `worker.ts` (the browser's
+    Web Worker, which the server bundles when it starts) answers the page's
+    requests through `router.ts`, over `document.ts`, `store.ts`
+    (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` and
+    `drag.ts`; `server.ts` (Node) sends the app, the devices' digest, a
+    device's skin and font files, and builds. `app/` is the page, plain ES
+    modules served as they are; `test/studio-client.ts` runs the worker's
+    router in Node for the studio tests.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point

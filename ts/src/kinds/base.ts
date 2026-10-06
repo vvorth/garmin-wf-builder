@@ -92,6 +92,15 @@ export type Common = Pick<Element, "id" | "kind" | "at" | "modes" | "sleep_updat
 export type SchemaPath = readonly (string | number)[];
 
 /** One element kind's behaviour; every method has a default meaning "nothing to do here". */
+/** A drag handle, as `liveHandle` reads it. */
+export interface LiveHandleInput {
+  kind: string;
+  key?: string | string[];
+  gain?: number;
+}
+
+export type LiveHandle = { consts: Record<string, number> } | { angle: string };
+
 export abstract class ElementKind<E extends Element = Element> {
   /** The schema's own discriminator (`type: <name>`). */
   abstract readonly name: string;
@@ -161,6 +170,18 @@ export abstract class ElementKind<E extends Element = Element> {
   /** The element's own `Layout` constants on one device. */
   layoutConstants(_prefix: string, _placed: Placed): Constants {
     return [];
+  }
+
+  /**
+   * What the editor may redraw by itself while `handle` (one of
+   * `studio/drag.ts`'s handles) is dragged: `{consts: {name: perPx}}`, each
+   * `Layout` constant moving by `perPx` for every pixel the extent grows, or
+   * `{angle: name}`, the arc constant a turn sets. `null` wherever the
+   * outcome depends on layout the editor does not have; it then draws an
+   * outline. Every declaration must predict the edit exactly.
+   */
+  liveHandle(_placed: Placed, _handle: LiveHandleInput): LiveHandle | null {
+    return null;
   }
 
   // -- lint --

@@ -112,7 +112,7 @@ or AOD-related has been observed on a watch or in the simulator.
   barrel's arithmetic transcribed, and a frame is per-element layers with
   the program as JSON (`wfb.draw.layers`, `wfb.draw.jsonform`): text and
   icons as placed tiles, which the editor's browser draws itself
-  (`wfb/studio/static/raster.js`, Pillow's primitives byte for byte). A grown outline ring is drawn grown in the preview
+  (`ts/app/raster.js`, Pillow's primitives byte for byte). A grown outline ring is drawn grown in the preview
   as on the watch (research 28 §7). Garmin's circle and rounded-corner
   rasterisation is not matched (`docs/limitations.md`).
   `docs/development.md`, "Element kinds".
@@ -120,35 +120,35 @@ or AOD-related has been observed on a watch or in the simulator.
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
   screen with one warning. `docs/guide/preview-and-cli.md`.
-- **The editor** (`wfb studio`) — a local web app: new from a template,
+- **The editor** (`wfb studio`) — a web app run in the browser, compiler
+  and all, over a small Node server that sends the watches' files and fonts
+  and builds (`ts/src/studio/`, `ts/app/`): new from a template,
   open and download a bundle (`.zip` with `face.yaml` and `assets/`, or a
   plain `.yaml`), the canvas's drags (move, resize, an arc's angles, a
   line's ends, snapping) written in the author's units to the key the
   viewed watch reads, every key in an inspector, targets, colours (a
   picker over the face's colours, the 64 named MIP colours and custom
-  ones, each picked colour a named swatch, `wfb/edit/colors.py`), the
+  ones, each picked colour a named swatch, `ts/src/edit/colors.ts`), the
   accent and data colour settings as explicit lists, schemes (made,
   added, renamed and removed with their roles and styles as one patch
-  each, `wfb/edit/schemes.py`), hand sets (from four presets, drawn
-  alone, renamed with every `set:`, `wfb/edit/hands.py`; parts in the
+  each, `ts/src/edit/schemes.ts`), hand sets (from four presets, drawn
+  alone, renamed with every `set:`, `ts/src/edit/hands.ts`; parts in the
   YAML), slots (one card in the Face tab and on the element drawing it,
-  types labelled and grouped in `wfb.complications`, the face drawn
-  showing any one choice, `PreviewOptions.picks`), styles and fonts,
-  faces per browser (a cookie bound to a principal that owns documents,
-  one-time claim links, `--single-user`, a `Host` allowlist;
-  `wfb/studio/sessions.py`), structure (add any type, reorder, static and
+  types labelled and grouped, the face drawn showing any one choice,
+  `PreviewOptions.picks`), styles and fonts,
+  faces kept per browser in its own storage (IndexedDB), structure (add any type, reorder, static and
   dynamic, groups; Layers listed front to back), copy and paste of
-  elements as YAML between faces (`wfb/edit/structure.py` `paste`),
-  keyboard shortcuts with a "?" list (`static/keys.js`), a YAML tab with
-  the schema, a history with undo and snapshots that survives restarts
-  and keeps each face's newest `--keep-changes` changes, Build for one watch (`wfb build` as a
-  subprocess, the `.prg` downloaded), a continuous zoom with real size
+  elements as YAML between faces (`ts/src/edit/structure.ts` `paste`),
+  keyboard shortcuts with a "?" list (`ts/app/keys.js`), a YAML tab with
+  the schema, a history with undo and snapshots that survives reloads
+  and keeps each face's newest 500 changes, Build for one watch (on the
+  server, the `.prg` downloaded), a continuous zoom with real size
   from the device's ppi (calibrated in the browser), and the skin. Every edit but typed text is a
-  patch of the text checked by the full load (`wfb/edit/`). The browser
+  patch of the text checked by the full load (`ts/src/edit/`). The browser
   draws the frame's layers from their JSON (`raster.js`), hit-tests by
   their ink, redraws a move from them, and draws a resize or an angle
   live where the kind declares the result exact
-  (`ElementKind.live_handle`); it decides nothing. `docs/guide/studio.md`.
+  (`ElementKind.liveHandle`); it decides nothing. `docs/guide/studio.md`.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 

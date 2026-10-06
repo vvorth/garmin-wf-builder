@@ -372,22 +372,6 @@ def _parser() -> argparse.ArgumentParser:
                         help="the address to listen on (default: 127.0.0.1, loopback only)")
     studio.add_argument("-p", "--port", type=int, default=8765,
                         help="the port to listen on (default: 8765)")
-    studio.add_argument("--state-dir", type=Path,
-                        help="where the history of every face is kept (default: "
-                             "$XDG_STATE_HOME/wfb/studio, or ~/.local/state/wfb/studio)")
-    studio.add_argument("--snapshot-minutes", type=float, default=5.0,
-                        help="snapshot a changed face this often (default: 5)")
-    studio.add_argument("--keep-snapshots", type=int, default=50,
-                        help="on start, keep each face's newest N snapshots (default: 50)")
-    studio.add_argument("--keep-changes", type=int, default=500,
-                        help="keep each face's newest N changes to undo; older ones, and the "
-                             "files only they used, are removed (default: 500)")
-    studio.add_argument("--single-user", action="store_true",
-                        help="every browser sees and edits the same faces, as one person "
-                             "(default: each browser has its own)")
-    studio.add_argument("--allow-host", action="append", default=[], metavar="NAME",
-                        help="also answer requests addressed to NAME (a proxy's or a LAN "
-                             "name); repeatable. Loopback names are always answered")
     studio.add_argument("--devices-dir")
     studio.add_argument("--fonts", dest="fonts_dir",
                         help="Garmin ConnectIQ Fonts directory, as for `wfb preview`")
@@ -892,50 +876,31 @@ def _studio(args: argparse.Namespace) -> int:
     download it to save. In the container, publish the port to the host's
     loopback (`docs/container.md`).
 
-    Every face's history is kept under `--state-dir`, outside the
-    temporary directories the editor builds faces in, so closing the tab
-    or stopping the server loses nothing: every change is recorded as it is
-    made, so undo and redo survive a restart, and a changed face is
-    snapshotted every `--snapshot-minutes` and on every download. A face is
-    kept until it is deleted from the home screen; on start, each keeps its
-    newest `--keep-snapshots` snapshots, and its history its newest
-    `--keep-changes` changes (an open face's, too, once it holds twice as
-    many).
+    The editor runs in the browser, compiler and all. Every face and its
+    history are kept in that browser's own storage, so closing the tab or
+    stopping the server loses nothing, and undo and redo survive a reload.
+    A changed face is snapshotted every few minutes and on every download.
+    Each browser has its own faces: to edit one in another browser, download
+    it and open it there.
 
-    A face is opened from the editor's home screen, never from the command
-    line. `--host` other than loopback warns, since the server writes files.
-
-    Each browser has its own faces, kept by a cookie. The address printed
-    on start carries a one-time claim: the browser that opens it gets every
-    face made before faces had owners. Another
-    browser joins with a link from **Use my faces in another browser** on
-    the home screen. `--single-user` gives every browser the same faces.
-    Only requests addressed to a loopback name, `--host` or an
-    `--allow-host` name are answered.
+    The server sends the device files and fonts the editor reads, and builds
+    a .prg with `monkeyc` when the editor's Build asks. `--host` other than
+    loopback warns, since anyone who can reach the port can run builds.
     """
-    from .studio import serve
-    from .studio.store import StoreError, default_root
-
+    # The editor is TypeScript (ts/src/studio/): this command runs it.
+    command = ["node", str(Path(__file__).resolve().parent.parent / "ts" / "src" / "cli.ts"), "studio",
+               "--host", args.host, "--port", str(args.port)]
+    if args.devices_dir:
+        command += ["--devices-dir", args.devices_dir]
+    if args.fonts_dir:
+        command += ["--fonts", args.fonts_dir]
     try:
-        db = DeviceDatabase.discover(args.devices_dir, fonts_root=args.fonts_dir)
-    except DeviceError as exc:
-        _error(str(exc))
-        return 1
-    try:
-        if args.snapshot_minutes <= 0 or args.keep_snapshots < 1 or args.keep_changes < 1:
-            _error("--snapshot-minutes must be positive, --keep-snapshots and "
-                   "--keep-changes at least 1")
-            return 1
-        serve(host=args.host, port=args.port, state_dir=args.state_dir or default_root(),
-              db=db, snapshot_minutes=args.snapshot_minutes,
-              keep_snapshots=args.keep_snapshots, keep_changes=args.keep_changes,
-              single_user=args.single_user, allow_hosts=args.allow_host)
-    except StoreError as exc:
-        _error(str(exc))
+        return subprocess.run(command, check=False).returncode
+    except FileNotFoundError:
+        _error("wfb studio needs Node: run tools/setup-env.sh")
         return 1
     except KeyboardInterrupt:
-        pass
-    return 0
+        return 0
 
 
 def _new(args: argparse.Namespace) -> int:

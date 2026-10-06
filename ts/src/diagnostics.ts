@@ -1,11 +1,31 @@
-// Diagnostics carrying YAML source spans. Port of wfb/diagnostics.py's
-// data; rendering for a terminal comes with the CLI.
+// Diagnostics carrying YAML source spans, and their rendering for a
+// terminal. Port of wfb/diagnostics.py.
 //
 // ADR 0002 requires every error to point at the author's YAML, with file,
 // line and column, not at an internal representation. ADR 0008 requires
 // each diagnostic to carry a severity and, where the check rests on
 // estimation, to say so.
 import { getCloseMatches } from "./difflib.ts";
+import { lines as splitLines } from "./py.ts";
+import { SEVERITY_STYLE, style } from "./term.ts";
+import { wrap } from "./textwrap.ts";
+
+/** Visible width of the "      note: " label, which continuation lines hang under. */
+const NOTE_PREFIX = "      note: ";
+const NOTE_INDENT = " ".repeat(NOTE_PREFIX.length);
+
+/** `Bag.render` order: notes, warnings, then errors, so the most important sit next to the summary. */
+const RENDER_ORDER: Record<Severity, number> = { note: 0, warning: 1, error: 2 };
+
+export interface RenderOptions {
+  color?: boolean;
+  /** Wrap prose notes to this width; `null` leaves every note one line. */
+  width?: number | null;
+  /** Replaces the notes with one collapsed line reading this. */
+  notesAs?: string | null;
+  /** The header line alone. */
+  brief?: boolean;
+}
 
 export type Severity = "error" | "warning" | "note";
 
@@ -50,6 +70,44 @@ export class Diagnostic {
     this.notes = notes;
     this.confidence = confidence;
   }
+
+  /** Render one diagnostic; plain text with the defaults. */
+  render(sources: ReadonlyMap<string, string[]> | null = null,
+    { color = false, width = null, notesAs = null, brief = false }: RenderOptions = {}): string {
+    const sevStyles = SEVERITY_STYLE[this.severity]!;
+    const head = this.span ? `${style(this.span.path, ["bold"], color)}:${this.span.line}:${this.span.col}: ` : "";
+    const out = [`${head}${style(this.severity, sevStyles, color)}${style(`[${this.code}]`, ["dim"], color)}: ${style(this.message, ["bold"], color)}`];
+    if (brief) return out[0]!;
+    if (this.span && sources) {
+      const lines = sources.get(this.span.path);
+      if (lines && this.span.line > 0 && this.span.line <= lines.length) {
+        const gutter = `${String(this.span.line).padStart(5)} | `;
+        out.push(`${style(gutter, ["dim"], color)}${lines[this.span.line - 1]!}`);
+        out.push(" ".repeat(gutter.length) + " ".repeat(this.span.col - 1) + style("^", sevStyles, color));
+      }
+    }
+    if (notesAs !== null) {
+      out.push(`      ${style("note:", ["bold", "cyan"], color)} ${notesAs}`);
+    } else {
+      for (const note of this.notes) out.push(...renderNote(note, color, width));
+      if (this.confidence) out.push(`      ${style("confidence:", ["dim"], color)} ${this.confidence}`);
+    }
+    return out.join("\n");
+  }
+}
+
+/** One `note:` entry: a note with its own newlines printed as is, prose wrapped under its label. */
+function renderNote(note: string, color: boolean, width: number | null): string[] {
+  const label = style("note:", ["bold", "cyan"], color);
+  let lines: string[];
+  if (note.includes("\n") || !width) {
+    lines = splitLines(note);
+    if (lines.length === 0) lines = [""];
+  } else {
+    lines = wrap(note, Math.max(1, width - NOTE_PREFIX.length));
+    if (lines.length === 0) lines = [""];
+  }
+  return [`      ${label} ${lines[0]!}`, ...lines.slice(1).map((line) => NOTE_INDENT + line)];
 }
 
 /** Collects diagnostics across a build and decides whether it may proceed. */
@@ -59,7 +117,7 @@ export class Bag {
   sources = new Map<string, string[]>();
 
   registerSource(path: string, text: string): void {
-    this.sources.set(path, text.split(/\r\n|\r|\n/));
+    this.sources.set(path, splitLines(text));
   }
 
   add(diag: Diagnostic): Diagnostic {
@@ -93,6 +151,46 @@ export class Bag {
 
   ok(): boolean {
     return this.errors.length === 0;
+  }
+
+  /**
+   * Every diagnostic, notes first and errors last. Without `verbose`, notes
+   * are their header lines alone, as one block. A diagnostic repeating an
+   * earlier one's `(code, notes, confidence)` collapses its notes to one
+   * "same notes as" line.
+   */
+  render({ color = false, width = null, verbose = true }: { color?: boolean; width?: number | null; verbose?: boolean } = {}): string {
+    const ordered = this.items.map((d, i) => [d, i] as const)
+      .sort((a, b) => RENDER_ORDER[a[0].severity] - RENDER_ORDER[b[0].severity] || a[1] - b[1]).map(([d]) => d);
+    const seen = new Set<string>();
+    const pieces: string[] = [];
+    const brief = verbose ? [] : ordered.filter((d) => d.severity === "note");
+    if (brief.length > 0) {
+      const lines = brief.map((d) => d.render(null, { color, brief: true }));
+      if (brief.some((d) => d.notes.length > 0 || d.confidence || d.span)) {
+        lines.push(style("      (-v shows the notes in full)", ["dim"], color));
+      }
+      pieces.push(lines.join("\n"));
+    }
+    for (const d of ordered) {
+      if (brief.length > 0 && d.severity === "note") continue;
+      const key = JSON.stringify([d.code, d.notes, d.confidence]);
+      let notesAs: string | null = null;
+      if ((d.notes.length > 0 || d.confidence) && seen.has(key)) notesAs = `same notes as the earlier [${d.code}] above`;
+      else seen.add(key);
+      pieces.push(d.render(this.sources, { color, width, notesAs }));
+    }
+    return pieces.join("\n\n");
+  }
+
+  /** "N errors, N warnings, N notes", or "no diagnostics". */
+  summary({ color = false }: { color?: boolean } = {}): string {
+    const parts: string[] = [];
+    for (const severity of ["error", "warning", "note"] as const) {
+      const n = this.items.filter((d) => d.severity === severity).length;
+      if (n) parts.push(style(`${n} ${severity}${n !== 1 ? "s" : ""}`, SEVERITY_STYLE[severity]!, color));
+    }
+    return parts.length > 0 ? parts.join(", ") : "no diagnostics";
   }
 }
 

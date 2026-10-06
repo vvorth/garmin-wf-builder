@@ -166,25 +166,21 @@ What each command needs mounted:
 
 `wfb studio` serves the visual editor. Inside the container it listens on
 all of the container's interfaces (the entrypoint adds `--host 0.0.0.0`), so
-**publish the port to the host's loopback only**, and keep its history in a
-volume at `/state`:
+**publish the port to the host's loopback only**:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-studio:/state \
   -v wfb-keys:/keys \
   garmin-wf-builder studio
 ```
 
-Then open the address the container prints, `http://127.0.0.1:8765/?claim=…`,
-in a browser on the host: it gives that browser the faces kept in `/state`
-([whose faces](guide/studio.md#whose-faces)). Faces go in by
-upload and come out by download, so the editor needs no `/work` mount. Its
-Build signs with the key at `/keys`, as `build` does.
-Without the `/state` volume every face's history ends with the container,
-and the entrypoint says so. The server writes files, so never publish the
-port beyond `127.0.0.1`.
+Then open `http://127.0.0.1:8765/` in a browser on the host. The faces and
+their history are kept in that browser ([where the faces
+are](guide/studio.md#where-the-faces-are)), and go in by upload and come out
+by download, so the editor needs no `/work` mount. Its Build signs with the
+key at `/keys`, as `build` does. Whoever reaches the port can run builds, so
+never publish it beyond `127.0.0.1`.
 
 ---
 

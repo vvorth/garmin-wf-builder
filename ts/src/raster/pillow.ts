@@ -1,7 +1,7 @@
 // Pillow's drawing primitives, pixel for pixel: the shapes a draw program
 // uses and the pasting of its text's and icons' tiles, so a layer's JSON
 // (`draw/jsonform.ts`) draws exactly as Pillow draws it, in Node and in
-// any browser. Port of wfb/studio/static/raster.js, itself a transcription
+// any browser. Port of ts/app/raster.js, itself a transcription
 // of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc, line,
 // polygon, rounded_rectangle), `src/libImaging/Draw.c` (the scanline
 // polygon, Bresenham lines, the integer ellipse and its clipped arcs and

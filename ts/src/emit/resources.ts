@@ -93,19 +93,36 @@ export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): M
 }
 
 /** Rasterise every declared font, every icon font and every ring font, at this device's size. */
-export function bakeFonts(face: Face, device: Device, read: FontReader): Map<string, BakedFont> {
+/**
+ * Baked sheets kept across bakes, by font file bytes and bake options: an
+ * editor re-resolves the same face after every edit, and most edits leave
+ * every sheet as it was.
+ */
+export type BakeMemo = WeakMap<Uint8Array, Map<string, BakedFont>>;
+
+function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<typeof bake>[1]): BakedFont {
+  if (memo === null) return bake(source, options);
+  let sheets = memo.get(source.bytes);
+  if (sheets === undefined) memo.set(source.bytes, sheets = new Map());
+  const key = JSON.stringify([source.path, options.name, options.size, options.glyphs, options.antialias ?? false, options.monospace ?? false, options.align ?? "center"]);
+  let baked = sheets.get(key);
+  if (baked === undefined) sheets.set(key, baked = bake(source, options));
+  return baked;
+}
+
+export function bakeFonts(face: Face, device: Device, read: FontReader, memo: BakeMemo | null = null): Map<string, BakedFont> {
   const sets = glyphSet(face);
   const baked = new Map<string, BakedFont>();
   for (const [name, spec] of face.fonts) {
     if (spec.isVector) continue; // drawn from the device's own resident face
-    baked.set(name, bake(read(spec.source!), {
+    baked.set(name, memoBake(memo, read(spec.source!), {
       name, size: spec.pixelSize(device.minorRadius), glyphs: sets.get(name) || "0123456789",
       antialias: spec.antialias, monospace: spec.monospace, align: spec.align,
     }));
   }
   const specs = [...kinds.faceTextRuns(face)].some(([, run]) => run.icon !== null) ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map();
   for (const [name, spec] of specs) {
-    baked.set(name, bake(read(spec.source!), { name, size: spec.pixelSize(device.minorRadius), glyphs: spec.glyphs!, antialias: spec.antialias }));
+    baked.set(name, memoBake(memo, read(spec.source!), { name, size: spec.pixelSize(device.minorRadius), glyphs: spec.glyphs!, antialias: spec.antialias }));
   }
   // Last: each ring font is dilated from its base's own sheet.
   for (const [name, [base, glyphs, width]] of kinds.ringFonts(face)) {

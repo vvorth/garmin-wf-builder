@@ -53,13 +53,14 @@ Loaded automatically when working under `tests/`.
   `resolved_example`, read-only). Reach for these before writing a new
   private copy.
 - **The editor** (`wfb studio`): `test_edit.py` runs the patch engine over
-  the example corpus; `test_studio*.py` test the server through
-  Starlette's client; `test_studio_frontend.py` runs the front end's pure
+  the example corpus; the editor's worker and server are tested in
+  `ts/test/studio*.test.ts`. `test_studio_frontend.py` runs the page's pure
   modules in Node (skipped without `node`), and `test_studio_panels.py`
   renders the panels with preact over a minimal DOM (`studio_dom.mjs`) and
   clicks their controls, checking the edits they send; `test_studio_app.py`
-  renders the whole page (`app.js`) the same way against a stand-in server
-  answering from a real summary, and presses its keys. `test_studio_raster.py` holds
+  renders the whole page (`ts/app/app.js`) the same way against a stand-in
+  worker answering from a real summary (`ts/tools/summary.ts`), and presses
+  its keys. `test_studio_raster.py` holds
   the browser's rasteriser (`raster.js`) to Pillow byte for byte, and
   **fails** without Node, being that rasteriser's only guard. Nothing here
   drives a browser: the pages are checked by hand.

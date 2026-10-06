@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vendor the `wfb studio` front end's libraries into wfb/studio/static/vendor/.
+# Vendor the `wfb studio` front end's libraries into ts/app/vendor/.
 #
 # A maintainer step, run deliberately when a pinned version changes: it needs
 # npm and the network. Contributors and users never run it; the vendored
@@ -19,7 +19,7 @@ set -euo pipefail
 HTM_VERSION=3.1.1
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-out="$root/wfb/studio/static/vendor"
+out="$root/ts/app/vendor"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 

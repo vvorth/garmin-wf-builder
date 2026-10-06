@@ -21,7 +21,7 @@ reader needs no font, alignment or layout rule.
 canvas with plain Pillow calls, and pastes runs, and nothing else.  It is
 the contract a browser canvas implements: for every lowered element, its
 pixels equal the evaluator's (`tests/test_draw_layers.py`), and the
-browser's `wfb/studio/static/raster.js` equals it byte for byte
+browser's `ts/app/raster.js` equals it byte for byte
 (`tests/test_studio_raster.py`).
 """
 

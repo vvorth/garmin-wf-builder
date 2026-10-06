@@ -45,7 +45,7 @@ LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
 #: the darker as `dark_green`), in that page's order: white to black, one
 #: channel stepping at a time.  `wfb new -t palette` and
 #: `docs/guide/mip-palette.md` list the same rows (`tests/test_palette.py`),
-#: and the editor offers them by name (`wfb.studio.inspect.vocabulary`).
+#: and the editor offers them by name (`ts/src/studio/inspect.ts`'s vocabulary).
 MIP64_NAMED: tuple[tuple[str, str, str], ...] = (
     ("white", "#FFFFFF", "White"),
     ("shalimar", "#FFFFAA", "Shalimar"),

@@ -8,7 +8,7 @@ import { arcBox, alignmentShift, type Placed, PlacedShape, type Resolver, stroke
 import { Position } from "../ir/model.ts";
 import { roundHalfEven as round, truthy } from "../py.ts";
 import { Box } from "../units.ts";
-import { type Common, ElementKind, type Refusal, register, shapeOf } from "./base.ts";
+import { type Common, ElementKind, type LiveHandle, type LiveHandleInput, type Refusal, register, shapeOf } from "./base.ts";
 import {
   AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, type DrawContext, FillPolygon, Grown, IfAod, Lit, type Num, type Op,
   type Paint, Primitive, RingColor, SetColor, SetPen, Shifted,
@@ -299,6 +299,25 @@ class ShapeKind extends ElementKind<Shape> {
     ops.push(SetColor(AodRestyled(element, "color")));
     ops.push(...primitive());
     return ops;
+  }
+
+  override liveHandle(placed: Placed, handle: LiveHandleInput): LiveHandle | null {
+    const element = placed.element as Shape;
+    const prefix = constPrefix(placed.id);
+    const key = (Array.isArray(handle.key) ? handle.key : [handle.key]).join(".");
+    if (handle.kind === "angle" && element.shape === "arc") return { angle: key === "start_angle" ? `${prefix}_START` : `${prefix}_SWEEP` };
+    if (handle.kind !== "size") return null;
+    if (key === "radius") {
+      const centred = element.align === "center" && element.vertical_align === "center";
+      return (element.shape === "circle" || element.shape === "arc") && centred ? { consts: { [`${prefix}_RADIUS`]: 1 } } : null;
+    }
+    if (element.shape === "rectangle" && (handle.gain === 1 || handle.gain === -1)) {
+      const [extent, edge] = key === "size.width" ? ["WIDTH", "X"] : ["HEIGHT", "Y"];
+      const consts: Record<string, number> = { [`${prefix}_${extent}`]: 1 };
+      if (handle.gain === -1) consts[`${prefix}_${edge}`] = -1;
+      return { consts };
+    }
+    return null;
   }
 
   override layoutConstants(prefix: string, placed: Placed): lc.Constants {

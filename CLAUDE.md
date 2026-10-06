@@ -55,8 +55,9 @@ Where things live: `wfb/` is the compiler, being ported stage by stage to
 TypeScript in `ts/`, held equal to Python by `tools/oracle.py` and `npm run
 parity` (`ts/CLAUDE.md`). `runtime-lib/` is the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
-`wfb/studio/` is the editor (`wfb studio`), over the patch engine in
-`wfb/edit/`. `docs/guide/` is the format reference, `docs/limitations.md` records the
+The editor (`wfb studio`) is TypeScript: `ts/app/` the page,
+`ts/src/studio/` its worker and server, over the patch engine in
+`ts/src/edit/`; the CLI is `ts/src/cli.ts`. `docs/guide/` is the format reference, `docs/limitations.md` records the
 platform and linter limits, and `docs/container.md` covers the Docker image.
 `README.md` is the short landing page with a feature gallery, and
 `docs/README.md` is the documentation hub indexing the `docs/guide/`

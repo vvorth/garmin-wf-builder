@@ -1,4 +1,4 @@
-"""The editor front end's pure functions (`wfb/studio/static/hit.js`,
+"""The editor front end's pure functions (`ts/app/hit.js`,
 `outbox.js`, `textsync.js`, `session.js` and the rest without a DOM),
 run in Node when it is installed. The UI itself is checked by hand: there
 is no headless browser here."""
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parent.parent / "wfb/studio/static"
+STATIC = Path(__file__).resolve().parent.parent / "ts/app"
 HIT = STATIC / "hit.js"
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
@@ -723,8 +723,8 @@ def test_a_conflict_shows_what_the_other_change_did():
                                    "removed 3 lines", "left the text as it was"]
 
 
-def test_a_lost_session_copies_the_text_the_author_last_had():
-    """The lost-session banner copies the YAML tab's text while it is open,
+def test_a_deleted_face_copies_the_text_the_author_last_had():
+    """The deleted-face banner copies the YAML tab's text while it is open,
     else the text it closed on unsaved, else the face as last heard of."""
     result = run("""
       const doc = {text: "face\\n"};
@@ -786,21 +786,6 @@ def test_the_top_bar_says_whether_the_face_is_saved():
       ]));
     """)
     assert result == ["saved", "saving", "saving", "saved", "saving", "unsaved", "unsaved"]
-
-
-def test_a_lost_session_with_unsaved_work_asks_rather_than_reloads():
-    """A reload would start a session that does not own the face, losing
-    what is unsaved; without unsaved work it reloads, at most once in ten
-    seconds."""
-    result = run("""
-      const now = 100000;
-      console.log(JSON.stringify([
-        session.onLost({unsaved: true, lastReload: 0, now}),
-        session.onLost({unsaved: false, lastReload: 0, now}),
-        session.onLost({unsaved: false, lastReload: now - 5000, now}),
-      ]));
-    """)
-    assert result == ["banner", "reload", "nothing"]
 
 
 def test_diagnostics_are_counted_and_filtered_most_severe_first():

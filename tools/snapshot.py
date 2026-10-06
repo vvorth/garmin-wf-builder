@@ -10,6 +10,7 @@ minutes).
     ./tools/snapshot.py save DIR              # run every case, save to DIR
     ./tools/snapshot.py diff OLD NEW          # compare two saved snapshots
     ./tools/snapshot.py compare OLD           # save to a temp dir, then diff
+    ./tools/snapshot.py save DIR --wfb 'node ts/src/cli.ts'   # drive another CLI
 
 Run from the repo root (or anywhere -- paths are resolved against this
 file's own location, the same way `tools/docs-shots.py` does).
@@ -113,6 +114,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -172,8 +174,13 @@ class Case:
     run: Callable[[Path, dict], tuple[int, dict[str, Path], str | None]]
 
 
+#: The command a case runs `wfb` as; `--wfb` replaces it (e.g. the
+#: TypeScript CLI, `node ts/src/cli.ts`).
+WFB_COMMAND = [sys.executable, str(WFB)]
+
+
 def run_wfb(args: list[str], *, env: dict, timeout: float = 240.0) -> subprocess.CompletedProcess:
-    cmd = [sys.executable, str(WFB), *args]
+    cmd = [*WFB_COMMAND, *args]
     return subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True,
                           timeout=timeout, check=False)
 
@@ -628,6 +635,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="overwrite DIR even if it exists and is non-empty")
     save.add_argument("--no-garmin-fonts", action="store_true",
                       help="set WFB_NO_GARMIN_FONTS=1 for every subprocess")
+    save.add_argument("--wfb", help="the command to run wfb as, e.g. 'node ts/src/cli.ts' "
+                                    "(default: this Python's wfb.py)")
 
     diff = sub.add_parser("diff", help="compare two saved snapshots")
     diff.add_argument("old", type=Path)
@@ -642,10 +651,13 @@ def main(argv: list[str] | None = None) -> int:
     compare.add_argument("--keep", type=Path, default=None,
                          help="save the new snapshot here instead of a throwaway temp dir")
     compare.add_argument("--no-garmin-fonts", action="store_true")
+    compare.add_argument("--wfb", help="as for save")
     compare.add_argument("--context", type=int, default=3)
     compare.add_argument("--max-lines", type=int, default=60)
 
     args = parser.parse_args(argv)
+    if getattr(args, "wfb", None):
+        WFB_COMMAND[:] = shlex.split(args.wfb)
 
     if args.command == "save":
         return do_save(args.dir, jobs=args.j, only=args.only, force=args.force,

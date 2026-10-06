@@ -6,6 +6,7 @@
 // (`loadPresets`) so this module runs in the browser too. Their `color.fg`
 // and `color.accent` stand for the face's main colour and its accent, and
 // are rewritten to colours the face has, so an added set loads.
+import handSets from "../data/hand-sets.json" with { type: "json" };
 import { deepCopy, get, item, or, repr } from "../py.ts";
 import { roles, swatches } from "./colors.ts";
 import { chain, endedPatch, patch, type Patch, pyKey, remove, renameKey, repointOn, setValue } from "./patch.ts";
@@ -18,7 +19,7 @@ export const HANDS = ["hour", "minute", "second"] as const;
 
 let presetData: Map<DataKey, Data> | undefined;
 
-/** Read the presets file's text (`wfb/templates/hands/sets.yaml`). */
+/** Read a presets file's text; the bundled `wfb/templates/hands/sets.yaml` is read when nothing else was. */
 export function loadPresets(text: string): void {
   const data = parse(text);
   presetData = data instanceof Map ? data : new Map();
@@ -26,8 +27,8 @@ export function loadPresets(text: string): void {
 
 /** Every preset by name, as written in the presets file. */
 export function presets(): Map<DataKey, Data> {
-  if (presetData === undefined) throw new Error("hand-set presets not loaded: call loadPresets first");
-  return presetData;
+  if (presetData === undefined) loadPresets(handSets.text);
+  return presetData!;
 }
 
 function sets(index: SpanIndex): Map<DataKey, Data> {

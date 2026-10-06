@@ -38,6 +38,10 @@ export const ICON_FONT = join(REPO_ROOT, "wfb", "assets", "icons", "SymbolsNerdF
 
 /** Read the icon font's best character map and hand it to `icons.fontHas`. */
 export function installIconFont(path = ICON_FONT): void {
+  if (!existsSync(path)) {
+    setIconFontGlyphs(`the icon font is not installed (${path}); run tools/setup-env.sh, or python3 tools/fetch-icon-font.py`);
+    return;
+  }
   const bytes = readFileSync(path);
   const font = opentype.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   const map = (font.tables["cmap"] as { glyphIndexMap: Record<string, number> }).glyphIndexMap;

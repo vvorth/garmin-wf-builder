@@ -24,7 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from wfb import catalog, complications, icon_catalog, icons  # noqa: E402
+from wfb import catalog, complications, icon_catalog, icons, starters  # noqa: E402
 
 OUT = ROOT / "ts" / "src" / "data"
 
@@ -86,6 +86,12 @@ def tables() -> dict[str, Any]:
         # so the browser build has it without a file system.
         "runtime-lib.json": {path.name: path.read_text(encoding="utf-8")
                              for path in sorted((ROOT / "runtime-lib").glob("*.mc"))},
+        # The face templates `wfb new` and the editor's New start from.
+        "templates.json": {name: {"blurb": starters.TEMPLATE_BLURB.get(name, ""),
+                                  "text": (starters.TEMPLATE_DIR / f"{name}.yaml").read_text(encoding="utf-8")}
+                           for name in starters.names()},
+        # The hand presets the editor's hands panel offers.
+        "hand-sets.json": {"text": (starters.TEMPLATE_DIR / "hands" / "sets.yaml").read_text(encoding="utf-8")},
     }
 
 

@@ -23,6 +23,10 @@ whole `docker run …` line ([Step 2: install](getting-started.md#step-2-install
 holds your face, because the container sees only the directory mounted at
 `/work`.
 
+`node ts/src/cli.ts …` is the same CLI in TypeScript, with the same
+commands, flags, output and exit codes; `wfb studio` runs the editor
+through it.
+
 ## Commands
 
 `wfb help <command>` (or `wfb <command> help`, or `wfb <command> --help`) is

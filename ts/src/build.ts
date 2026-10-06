@@ -99,3 +99,9 @@ export function resolveAll(face: Face, devices: readonly Device[], bag: Bag, bak
   lint.checkSharedViewTargets(resolved, bag);
   return [resolved, baked];
 }
+
+/** A design name as a file name: lower case, every other character a single dash. */
+export function slug(name: string): string {
+  const cleaned = Array.from(name, (c) => (/[\p{L}\p{N}]/u.test(c) ? c.toLowerCase() : "-")).join("");
+  return cleaned.replace(/-+/g, "-").replace(/^-+|-+$/g, "") || "face";
+}

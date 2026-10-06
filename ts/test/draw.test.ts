@@ -11,8 +11,8 @@ import { Bin, Const, FloatLit, Lit, Paren } from "../src/draw/program.ts";
 import { PyFloat } from "../src/edit/yaml.ts";
 import * as pillow from "../src/raster/pillow.ts";
 
-// wfb/studio/static/raster.js is checked pixel for pixel against Pillow itself (tests/test_studio_raster.py).
-const reference = await import(pathToFileURL(join(REPO_ROOT, "wfb/studio/static/raster.js")).href) as {
+// ts/app/raster.js is checked pixel for pixel against Pillow itself (tests/test_studio_raster.py).
+const reference = await import(pathToFileURL(join(REPO_ROOT, "ts", "app", "raster.js")).href) as {
   image(w: number, h: number, ground?: number[]): pillow.Image;
   drawOps(im: pillow.Image, ops: unknown[], tiles: Record<string, unknown>, scale: number): void;
 };

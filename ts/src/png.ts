@@ -117,16 +117,16 @@ function chunk(type: string, body: Uint8Array): Uint8Array {
 }
 
 /**
- * An 8-bit greyscale (`L`) or RGBA image as a PNG: no filter, zlib at level
+ * An 8-bit greyscale (`L`), RGB or RGBA image as a PNG: no filter, zlib at level
  * 9, no metadata, so the same pixels give the same bytes everywhere.
  */
-export function encodePng(width: number, height: number, pixels: Uint8Array, channels: 1 | 4 = 1): Uint8Array {
+export function encodePng(width: number, height: number, pixels: Uint8Array, channels: 1 | 3 | 4 = 1): Uint8Array {
   const header = new Uint8Array(13);
   const view = new DataView(header.buffer);
   view.setUint32(0, width);
   view.setUint32(4, height);
   header[8] = 8;
-  header[9] = channels === 1 ? 0 : 6;
+  header[9] = channels === 1 ? 0 : channels === 3 ? 2 : 6;
   const stride = width * channels;
   const raw = new Uint8Array((stride + 1) * height);
   for (let y = 0; y < height; y++) raw.set(pixels.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);

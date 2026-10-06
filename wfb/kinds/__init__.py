@@ -379,7 +379,7 @@ class ElementKind(Generic[E, P]):
 
     def live_handle(self, placed: P, handle: dict[str, Any]) -> dict[str, Any] | None:
         """What an editor may redraw by itself while ``handle`` (one of
-        `wfb.studio.drag.handles`) is dragged, before the server has placed
+        `ts/src/studio/drag.ts`'s handles) is dragged, before the server has placed
         the edit: ``{"consts": {name: per_px}}``, each `Layout` constant
         moving by ``per_px`` device pixels for every pixel the extent
         grows, or ``{"angle": name}``, the arc constant a turn sets.

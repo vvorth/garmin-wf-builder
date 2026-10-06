@@ -13,26 +13,36 @@ from pathlib import Path
 import pytest
 
 from wfb import starters
-from wfb.studio.bundle import Bundle
-from wfb.studio.document import Studio
-from wfb.studio.inspect import vocabulary
-from wfb.studio.store import Store
 
 HERE = Path(__file__).resolve().parent
-STATIC = HERE.parent / "wfb/studio/static"
+STATIC = HERE.parent / "ts/app"
+SUMMARY = HERE.parent / "ts/tools/summary.ts"
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 
+#: The editor's vocabulary, from the last summary made (`ts/tools/summary.ts`).
+VOCABULARY: dict = {}
+
+
+def summarise(text: str) -> dict:
+    """``text`` opened as the editor's worker opens it: its summary."""
+    done = subprocess.run(["node", str(SUMMARY)], input=text, capture_output=True, text=True,
+                          cwd=SUMMARY.parent.parent, check=True)
+    out = json.loads(done.stdout)
+    VOCABULARY.update(out["vocabulary"])
+    return out["summary"]
+
+
+def vocabulary() -> dict:
+    if not VOCABULARY:
+        summarise(starters.instantiate("minimal", "T"))
+    return VOCABULARY
+
+
 @pytest.fixture
-def summary(tmp_path, db):
-    def make(text: str) -> dict:
-        studio = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "scratch")
-        try:
-            return studio.create(Bundle("T", text), "new").summary()
-        finally:
-            studio.close()
-    return make
+def summary():
+    return summarise
 
 
 def render(summary: dict, body: str) -> list:
@@ -227,7 +237,7 @@ def test_hand_sets_are_listed_added_and_shown_in_the_yaml(summary):
     text = summary(starters.instantiate("analog", "T"))
     printed = render(text, """
       const thumb = find((e) => e.localName === "img" && cls(e) === "hand-thumb")[0];
-      out(thumb.attributes.src.split("?")[1].split("&").slice(0, 2));
+      out(thumb.attributes["data-path"].split("?")[1].split("&").slice(0, 2));
       out(root.textContent.includes("placed by"));
       await click(find((e) => e.localName === "a" && e.textContent === "Edit in YAML")[0]);
       const select = find((e) => e.localName === "select" && e.textContent.startsWith("from a preset"))[0];
@@ -365,13 +375,13 @@ def test_the_thumbnails_wait_for_the_face_to_settle():
       const show = (version, view = {{}}) => render(html`<${{Strip}} doc=${{doc(version)}} view=${{{{ device: "a", ...view }}}}
                                                                picks=${{null}} onDevice=${{() => {{}}}} />`, root);
       const versions = () => root.all((e) => e.localName === "img")
-        .map((e) => new URLSearchParams(e.attributes.src.split("?")[1]).get("v"));
+        .map((e) => new URLSearchParams(e.attributes["data-path"].split("?")[1]).get("v"));
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const out = [];
       show(1); await wait(5); out.push(versions());
       show(2); await wait(5); show(3); await wait(5); out.push(versions());       // a run of drags
       show(3, {{ style: "night" }}); await wait(5);
-      out.push(root.all((e) => e.localName === "img")[0].attributes.src.includes("style=night"));
+      out.push(root.all((e) => e.localName === "img")[0].attributes["data-path"].includes("style=night"));
       await wait(STRIP_SETTLE_MS + 100); out.push(versions());
       console.log(JSON.stringify(out));
     """

@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join } from "node:path";
-import { REPO_ROOT } from "../devices/node.ts";
+import { DEVICE_REFERENCE, REPO_ROOT } from "../devices/node.ts";
 import { expectedSha, type FontFile, type FontFiles } from "./files.ts";
 
 /** The Garmin font root: the first existing, non-empty candidate; with `WFB_NO_GARMIN_FONTS=1` only `override`. */
@@ -75,10 +75,42 @@ export class NodeFontFiles implements FontFiles {
     return index;
   }
 
-  garmin(name: string, suffixes: readonly string[]): FontFile | undefined {
+  /** Where `garmin` would read from, without reading it. */
+  garminPath(name: string, suffixes: readonly string[]): string | undefined {
     if (this.root === null) return undefined;
-    const path = (this.stems().get(name.toLowerCase()) ?? []).find((p) => suffixes.includes(extname(p).toLowerCase()));
+    return (this.stems().get(name.toLowerCase()) ?? []).find((p) => suffixes.includes(extname(p).toLowerCase()));
+  }
+
+  garmin(name: string, suffixes: readonly string[]): FontFile | undefined {
+    const path = this.garminPath(name, suffixes);
     return path === undefined ? undefined : read(path);
+  }
+
+  /** `garminAnyFile`'s lookup, as a path: `wfb doctor` asks of hundreds of names. */
+  garminAnyPath(name: string): string | undefined {
+    let found = this.garminPath(name, [".ttf", ".otf"]) ?? this.garminPath(name, [".cft"]);
+    if (found === undefined && !name.toUpperCase().startsWith("FNT_")) found = this.garminPath(`FNT_${name}`, [".cft"]);
+    return found;
+  }
+
+  /** `"installed"` or `"cached"`: where a registry stand-in matching its pin is, or `null`. */
+  tierFor(key: string): "installed" | "cached" | null {
+    const expected = expectedSha(key);
+    if (expected === null) return null;
+    for (const [tier, base] of [["installed", SYSTEM_FONTS_DEST], ["cached", cacheDir()]] as const) {
+      const path = join(base, `${key}.ttf`);
+      if (existsSync(path) && statSync(path).isFile() && this.sha(path) === expected) return tier;
+    }
+    return null;
+  }
+
+  private sha(path: string): string {
+    let sha = this.hashes.get(path);
+    if (sha === undefined) {
+      sha = createHash("sha256").update(readFileSync(path)).digest("hex");
+      this.hashes.set(path, sha);
+    }
+    return sha;
   }
 
   registry(key: string): FontFile | undefined {
@@ -97,4 +129,40 @@ export class NodeFontFiles implements FontFiles {
     }
     return undefined;
   }
+}
+
+/**
+ * Every `[name, face]` a device needs a system font for: the installed
+ * device's `simulator.json` `ww` font set (no face), else the device
+ * reference's default-language `fixed` table. First occurrence of a name kept.
+ */
+export function deviceNeededNames(deviceId: string, devicesRoot: string | null, referenceDir: string = DEVICE_REFERENCE): [string, string | null][] {
+  const firstPerName = (pairs: [unknown, unknown][]): [string, string | null][] => {
+    const out = new Map<string, string | null>();
+    for (const [name, face] of pairs) {
+      if (typeof name === "string" && name && !out.has(name)) out.set(name, typeof face === "string" ? face : null);
+    }
+    return [...out];
+  };
+  type Json = Record<string, unknown>;
+  if (devicesRoot !== null) {
+    const sim = join(devicesRoot, deviceId, "simulator.json");
+    if (existsSync(sim)) {
+      const data = JSON.parse(readFileSync(sim, "utf8")) as Json;
+      const pairs: [unknown, unknown][] = [];
+      for (const block of (data["fonts"] as Json[] | undefined) ?? []) {
+        if (block["fontSet"] !== "ww") continue;
+        for (const entry of (block["fonts"] as Json[] | undefined) ?? []) pairs.push([entry["filename"], null]);
+      }
+      const names = firstPerName(pairs);
+      if (names.length > 0) return names;
+    }
+  }
+  const scraped = join(referenceDir, `${deviceId}.json`);
+  if (existsSync(scraped)) {
+    const data = JSON.parse(readFileSync(scraped, "utf8")) as Json;
+    const fixed = (((data["fonts"] as Json | undefined)?.["default"] as Json | undefined)?.["fixed"] as Record<string, Json> | undefined) ?? {};
+    return firstPerName(Object.values(fixed).map((entry) => [entry["font"], entry["face"]]));
+  }
+  return [];
 }

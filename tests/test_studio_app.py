@@ -14,31 +14,29 @@ from pathlib import Path
 import pytest
 
 from wfb import starters
-from wfb.studio.bundle import Bundle
-from wfb.studio.document import Studio
-from wfb.studio.inspect import vocabulary
-from wfb.studio.store import Store
 
 HERE = Path(__file__).resolve().parent
-STATIC = HERE.parent / "wfb/studio/static"
+STATIC = HERE.parent / "ts/app"
+SUMMARY = HERE.parent / "ts/tools/summary.ts"
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 
 @pytest.fixture
-def face(tmp_path, db):
-    """A face with three changes and an error, its summary and the home list."""
-    studio = Studio(Store(tmp_path / "state"), db, scratch=tmp_path / "scratch")
-    try:
-        doc = studio.create(Bundle("Morning", starters.instantiate("minimal", "Morning")), "new")
-        for v in ("1.0.1", "1.0.2"):
-            doc.edit({"op": "set", "path": ["face", "version"], "value": v}, doc.version)
-        doc.replace_text(doc.text.replace("color: color.dim", "color: color.nope"), doc.version)
-        return {"summary": doc.summary(), "home": {
-            "templates": [{"name": "minimal", "blurb": ""}], "store": "/state", "shared": True,
-            "documents": studio.store.documents()}}
-    finally:
-        studio.close()
+def face():
+    """A face with three changes and an error, its summary and the home list,
+    from the editor's worker (`ts/tools/summary.ts`)."""
+    text = starters.instantiate("minimal", "Morning")
+    steps = [{"edit": {"op": "set", "path": ["face", "version"], "value": v}} for v in ("1.0.1", "1.0.2")]
+    final = text.replace("version: 1.0.0", "version: 1.0.2")
+    steps.append({"text": final.replace("color: color.dim", "color: color.nope")})
+    done = subprocess.run(["node", str(SUMMARY), json.dumps(steps)], input=text, capture_output=True,
+                          text=True, cwd=SUMMARY.parent.parent, check=True)
+    out = json.loads(done.stdout)
+    out["summary"]["name"] = "Morning"
+    return {"summary": out["summary"], "vocabulary": out["vocabulary"], "home": {
+        "templates": [{"name": "minimal", "blurb": ""}], "store": "this browser", "shared": True,
+        "documents": [{**d, "name": "Morning"} for d in out["documents"]]}}
 
 
 def page(face: dict, route: str, body: str) -> list:
@@ -64,23 +62,30 @@ def page(face: dict, route: str, body: str) -> list:
         return event.prevented;
       }};
       globalThis.location = {{ hash: {json.dumps(route)}, href: "http://studio/", reload() {{}} }};
-      globalThis.EventSource = class {{ addEventListener() {{}} close() {{}} }};
+      globalThis.BroadcastChannel = class {{ close() {{}} postMessage() {{}} }};
       const summary = {json.dumps(face["summary"])};
       const answers = {{
         "/api/home": {json.dumps(face["home"])},
-        "/api/vocabulary": {json.dumps({**vocabulary(), "devices": []})},
+        "/api/vocabulary": {json.dumps({**face["vocabulary"], "devices": []})},
       }};
       answers[`/api/documents/${{summary.id}}`] = summary;
       const requests = [];
-      globalThis.fetch = async (url, options = {{}}) => {{
+      // the editor's worker, answering from the face's summary; a test
+      // replaces `respond` to answer differently
+      let respond = (request, reply) => {{
+        const url = request.url;
         const path = url.split("?")[0];
-        requests.push([options.method || "GET", url]);
+        requests.push([request.method, url]);
         let body = answers[path];
         if (path.endsWith("/goto")) body = summary;
         if (path.endsWith("/rename")) body = {{ id: summary.id, name: new URLSearchParams(url.split("?")[1]).get("name") }};
-        if (body === undefined) return new Promise(() => {{}});      // a frame: never drawn here
-        return {{ ok: true, status: 200, statusText: "OK", headers: {{ get: () => "application/json" }},
-                  json: async () => body }};
+        if (body !== undefined) reply({{ status: 200, json: body }});   // a frame: never drawn here
+      }};
+      const bodyOf = (request) => JSON.parse(new TextDecoder().decode(request.body));
+      globalThis.Worker = class {{
+        postMessage({{ id, request }}) {{
+          respond(request, (response) => setTimeout(() => this.onmessage({{ data: {{ id, response }} }}), 0));
+        }}
       }};
       await import({json.dumps((STATIC / 'app.js').as_uri())});
       const settle = () => new Promise((r) => setTimeout(r, 10));
@@ -101,7 +106,7 @@ def page(face: dict, route: str, body: str) -> list:
 def test_the_library_shows_each_face_with_its_picture_and_renames_it(face):
     printed = page(face, "#/", """
       const img = find((e) => e.localName === "img" && e.parentNode && cls(e.parentNode) === "cover")[0];
-      out(img.attributes.src.split("?")[0].endsWith("/cover"));
+      out(img.attributes["data-path"].split("?")[0].endsWith("/cover"));
       await click(button("Rename"));
       const input = find((e) => e.localName === "input" && cls(e).startsWith("inline-name"))[0];
       out(input.attributes.value);
@@ -161,14 +166,12 @@ def _deferred_fetch() -> str:
     version on, anything else refuses)."""
     return """
       const held = [];
-      const serve = globalThis.fetch;
-      globalThis.fetch = (url, options = {}) => {
-        if ((options.method || "GET") !== "POST") return serve(url, options);
-        requests.push(["POST", url]);
-        return new Promise((resolve) => held.push((status) => resolve({
-          ok: status === 200, status, statusText: "", headers: { get: () => "application/json" },
-          json: async () => status === 200 ? { ...summary, version: summary.version + 1 }
-                                           : { error: "refused for the test" } })));
+      const serve = respond;
+      respond = (request, reply) => {
+        if (request.method !== "POST") return serve(request, reply);
+        requests.push(["POST", request.url]);
+        held.push((status) => reply({ status, json: status === 200 ? { ...summary, version: summary.version + 1 }
+                                                                   : { error: "refused for the test" } }));
       };
       const release = async (i, status = 200) => { held[i](status); await settle(); await settle(); };
     """
@@ -213,14 +216,11 @@ def test_shortcuts_group_open_the_list_and_copy_and_paste_elements_as_yaml(face)
     doc = face["summary"]
     printed = page(face, f"#/face/{doc['id']}", """
       const sent = [];
-      const serve = globalThis.fetch;
-      globalThis.fetch = (url, options = {}) => {
-        if (url.includes("/structure")) {
-          sent.push(JSON.parse(options.body));
-          return Promise.resolve({ ok: true, status: 200, statusText: "OK",
-                                   headers: { get: () => "application/json" }, json: async () => summary });
-        }
-        return serve(url, options);
+      const serve = respond;
+      respond = (request, reply) => {
+        if (!request.url.includes("/structure")) return serve(request, reply);
+        sent.push(bodyOf(request));
+        reply({ status: 200, json: summary });
       };
       const row = (id) => find((e) => cls(e).startsWith("item") && e.textContent.startsWith(id))[0];
       await click(row("clock"));

@@ -58,17 +58,20 @@ export function nameForCodepoint(character: string): string | null {
   return null;
 }
 
-let available: ReadonlySet<string> | undefined;
+/** The icon font is not installed; the message names the fix. */
+export class IconFontMissing extends Error {}
 
-/** The icon font's character map, as characters. */
-export function setIconFontGlyphs(glyphs: ReadonlySet<string>): void {
+let available: ReadonlySet<string> | string | undefined;
+
+/** The icon font's character map, as characters, or why there is none (the `IconFontMissing` message). */
+export function setIconFontGlyphs(glyphs: ReadonlySet<string> | string): void {
   available = glyphs;
 }
 
 /** Is this character in the icon font's own character map? */
 export function fontHas(character: string): boolean {
-  if (available === undefined) {
-    throw new Error("the icon font is not installed (or not handed in): run tools/setup-env.sh, or python3 tools/fetch-icon-font.py");
+  if (available === undefined || typeof available === "string") {
+    throw new IconFontMissing(available ?? "the icon font is not installed: run tools/setup-env.sh, or python3 tools/fetch-icon-font.py");
   }
   return available.has(character);
 }

@@ -53,6 +53,16 @@ function pillowDefaultAt(pixelHeight: number): [Sfnt, number, number, number] | 
   return [sfnt, size, ...metrics(size)];
 }
 
+/** Pillow's default face with its line box nearest `pixelHeight` tall, for a caption with no device font to use. */
+export function fontForHeight(pixelHeight: number): SystemFace | null {
+  const found = pillowDefaultAt(pixelHeight);
+  if (found === null) return null;
+  const [sfnt, size, ascent, descent] = found;
+  return new SystemFace({
+    lineHeight: ascent + descent, baseline: ascent, match: "none", layoutEm: size, sfnt, file: PILLOW_DEFAULT_FILE, drawSize: size,
+  });
+}
+
 /** A system font, ready to measure: one of an outline face, a bitmap face or Pillow's default. */
 export class SystemFace {
   readonly lineHeight: number;

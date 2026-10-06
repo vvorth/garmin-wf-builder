@@ -20,55 +20,25 @@ wfb studio                      # then open the address it prints
 Faces are opened in the editor itself, from its home screen
 ([faces in and out](#faces-in-and-out)), not named on the command line.
 
-The address it prints ends in `?claim=…`: open it once, in the browser you
-will use ([whose faces](#whose-faces)).
-
 | Flag | What it does |
 |---|---|
 | `-p`, `--port` | the port (default 8765) |
-| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since the editor writes files |
-| `--state-dir` | where every face's history is kept (default `~/.local/state/wfb/studio`, or `$XDG_STATE_HOME/wfb/studio`) |
-| `--snapshot-minutes` | how often a changed face is snapshotted (default 5) |
-| `--keep-snapshots` | on start, each face keeps its newest this many snapshots (default 50); faces themselves are kept until you delete them |
-| `--keep-changes` | each face keeps its newest this many changes to undo (default 500): older ones, and files only they used, are removed on start, and from an open face once it holds twice as many |
-| `--single-user` | every browser sees and edits the same faces, as one person ([whose faces](#whose-faces)) |
-| `--allow-host` | also answer requests addressed to this name, a proxy's or a LAN name (repeatable); see below |
+| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since whoever reaches the port can run builds |
+| `--devices-dir` | the device definitions, as for `wfb build` |
+| `--fonts` | Garmin's own font files, as for `wfb preview` |
 
-In the Docker image, publish the port to your computer only and keep the
-history in a volume ([the container guide](../container.md#the-editor)):
+In the Docker image, publish the port to your computer only
+([the container guide](../container.md#the-editor)).
 
-```sh
-docker run --rm -it -p 127.0.0.1:8765:8765 \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-studio:/state -v wfb-keys:/keys garmin-wf-builder studio
-```
+## Where the faces are
 
-## Whose faces
-
-Each browser has its own faces. The editor knows a browser by a cookie,
-renewed on every visit and kept 400 days from the last (the longest a
-browser keeps one); another browser, or one whose cookies were cleared,
-starts with none. The editor forgets a browser that holds no face once it
-has been away 30 days; one that holds a face is never forgotten.
-If the cookie goes while a face is open, the page reloads into a new
-session; when something is not saved yet, it says so instead and waits.
-**Copy my text** puts the face's text as you last had it, unsaved typing
-included, on the clipboard (or downloads it, where the browser will not
-let the page write the clipboard); then **Reload**.
-
-- **The address `wfb studio` prints** carries a one-time claim. The browser
-  that opens it gets every face the editor kept from before faces
-  belonged to a browser.
-- **Use my faces in another browser**, on the home screen, gives a link
-  for the other browser: it works once, within 10 minutes, and from then
-  on both see the same faces.
-- **`--single-user`** turns this off: every browser sees every face, as
-  before.
-
-The editor answers only requests addressed to `127.0.0.1`, `localhost`,
-`[::1]`, the `--host` it listens on, or an `--allow-host` name. A web page
-elsewhere cannot reach it by pointing its own name at this computer, and
-the cookie travels only with the editor's own requests.
+The editor runs in the browser, compiler and all: the server sends the
+watches' files and fonts, and builds a `.prg` when you ask. Every face,
+with its history and snapshots, is kept in that browser's own storage
+(IndexedDB), so closing the tab or stopping the server loses nothing.
+Each browser has its own faces: to edit one in another browser, download
+it there and open it. Clearing the browser's site data deletes them, so
+download a face you want to keep elsewhere.
 
 ## Faces in and out
 
@@ -483,14 +453,11 @@ now** in the History tab. **Restore** brings one back as an ordinary
 change, so it too can be undone; **Open copy** opens it as a separate
 face.
 
-The history lives under `--state-dir`, one directory per face, and is
-kept until you delete the face from the home screen, which deletes its
-history and snapshots with it. Each face keeps its newest
-`--keep-changes` changes (500 unless you say otherwise): older ones are
-removed, with any file only they used, so a face dragged for hours does
-not grow without end. A snapshot keeps what it needs, however old. A crash while a change was being recorded
-loses at most that change: the editor cuts the half-written line from the
-history and keeps it beside the history as `journal.jsonl.torn-<time>`.
+The history is kept with the face in the browser until you delete the
+face from the home screen, which deletes its history and snapshots with
+it. Each face keeps its newest 500 changes: older ones are removed, with
+any file only they used, so a face dragged for hours does not grow
+without end. A snapshot keeps what it needs, however old.
 
 ## What it does not do
 
@@ -500,7 +467,7 @@ history and keeps it beside the history as `journal.jsonl.torn-<time>`.
   except in the YAML tab.
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
-- Log in: a browser is who you are (above).
+- Share faces between browsers: each keeps its own (above).
 
 The editor's checks and gestures are tested without a browser; the pages
 themselves are checked by hand ([limitations](../limitations.md)).

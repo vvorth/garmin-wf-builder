@@ -531,6 +531,47 @@ reports nothing.
   - `test_studio_frontend.py` and `test_studio_panels.py` unchanged in
     spirit.
 
+**Built 2026-10-06.** `tools/snapshot.py save --wfb 'node ts/src/cli.ts'`
+drives the TypeScript CLI through every snapshot case. Of the 71 `cli/`
+cases, 66 are identical; the other five are expected: `doctor` names Node
+where Python named its interpreter and packages, `studio` has its new
+flags, and `validate` shows the recorded `burnInFigures` deviation. Of
+all 551 cases, the 181 that differ are the recorded deviations (the
+re-baselined font sheets and the PNGs drawn from them, the layout width
+constant, the burn-in figures). The editor's worker passed an end-to-end
+run under Node against the live server: create, frame, drag, skin and a
+real `monkeyc` build. No browser could be downloaded in the sandbox, so
+the page itself still needs a check by hand.
+
+- `ts/src/cli.ts` is `wfb` with every command, over a port of the part of
+  argparse it uses (`argparse.ts`: usage, help layout, errors and exit
+  codes), Python's `textwrap` (`textwrap.ts`), `term.ts` and diagnostic
+  rendering (`Bag.render`, `Bag.summary`). `wfb.py studio` runs it.
+- The preview gained `--all-styles`, `--heatmap`, `--skin` (Lanczos in
+  floating point, a recorded difference of a level at a skin's edges),
+  and the stand-in, mono and skin warnings. `simulate.ts` is the
+  simulator driver.
+- The editor runs in a Web Worker (`ts/src/studio/worker.ts`, bundled to
+  `dist/worker.js`): `router.ts` answers the page's requests on the same
+  paths as before, over `document.ts`, `store.ts` (IndexedDB, the
+  journal's records unchanged), `bundle.ts` (fflate), `inspect.ts` and
+  `drag.ts`. The page (`ts/app/`, moved from `wfb/studio/static/`) asks the
+  worker through `api.js`, its images through `objectUrl`, and hears
+  changes on a `BroadcastChannel`.
+- The server (`ts/src/studio/server.ts`) sends the app, a digest of every
+  device (its JSON files and the `api.debug.xml` tags the compiler reads),
+  each device's skin and the font files the compiler looks up for it
+  (recorded by running the real lookups), and builds a `.prg`. Device files
+  are cached by HTTP, not the Cache API.
+- Removed: sessions, claims, the event stream, the `Host` allowlist, the
+  state directory and its flags, and the Python studio with its server
+  tests. Every server test was ported to `ts/test/studio*.test.ts`
+  except those of the removed features and of the journal file's crash
+  recovery, which IndexedDB's transactions replace.
+- **Found by the ported tests:** a JSON object `set` from the page reached
+  the patch engine as a plain object, and a structure `add` passed its
+  `choice` as the element id.
+
 ### Slice 10 — the Garmin pixel model (needs captures; can run last)
 
 - **Probe faces** from one generator,

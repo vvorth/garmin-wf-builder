@@ -8,7 +8,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { load, resolveAll, selectDevices } from "./build.ts";
+import { load, resolveAll, selectDevices, slug } from "./build.ts";
+
+export { slug };
 import type { Device, DeviceDatabase } from "./devices/device.ts";
 import { DEVICE_REFERENCE } from "./devices/node.ts";
 import type { Bag } from "./diagnostics.ts";
@@ -122,11 +124,34 @@ export interface BuildResult {
   sdk_version: string | null;
 }
 
-/** A design name as a file name: lower case, every other character a single dash. */
-export function slug(name: string): string {
-  const cleaned = Array.from(name, (c) => (/[\p{L}\p{N}]/u.test(c) ? c.toLowerCase() : "-")).join("");
-  return cleaned.replace(/-+/g, "-").replace(/^-+|-+$/g, "") || "face";
+/** A path as Python's `pathlib` prints it: no `.` components, no doubled or trailing slashes. */
+export function pathStr(path: string): string {
+  if (path === "") return ".";
+  const absolute = path.startsWith("/");
+  const parts = path.split("/").filter((p) => p !== "" && p !== ".");
+  const joined = parts.join("/");
+  return absolute ? "/" + joined : joined || ".";
 }
+
+/** What Python's `OSError.strerror` says for a Node error code. */
+const STRERROR: Record<string, string> = {
+  ENOENT: "No such file or directory", EISDIR: "Is a directory", EACCES: "Permission denied", ENOTDIR: "Not a directory",
+};
+
+/** A design file read from disk and loaded, or `null` with the reason in `bag`. */
+export function loadDesign(path: string, bag: Bag): Face | null {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? "";
+    bag.error("io", `cannot read ${path}: ${STRERROR[code] ?? (error as Error).message}`);
+    return null;
+  }
+  bag.registerSource(path, text);
+  return load(path, bag, text, cwdFileExists);
+}
+
 
 /** How many `monkeyc`s to run at once: one per device, at most one per CPU and `MAX_DEFAULT_JOBS`. */
 export function defaultJobs(devices: number): number {
@@ -153,11 +178,8 @@ export async function build(given: string, { output, bag, devicesOnly = null, db
   clean?: boolean; profile?: number | null; jobs?: number | null; read?: FontReader;
 }): Promise<BuildResult | null> {
   const started = performance.now();
-  // Relative to the working directory, as every path a diagnostic or a header names.
-  const path = relative(process.cwd(), resolve(given));
-  const text = readFileSync(path, "utf8");
-  bag.registerSource(path, text);
-  const face = load(path, bag, text, cwdFileExists);
+  const path = pathStr(given);
+  const face = loadDesign(path, bag);
   if (face === null) return null;
   const devices = selectDevices(face, db, bag, devicesOnly);
   if (devices.length === 0 || !bag.ok()) return null;

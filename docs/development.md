@@ -192,11 +192,7 @@ wfb/                  the compiler
   edit/                 the editor's patch engine: the span index, text patches, the
                         gate, pixel drags written in the author's units, and
                         structure (blocks, groups, new elements)
-  studio/               `wfb studio`: bundles in and out, the history store, open
-                        documents, the HTTP endpoints, and static/ (the front end;
-                        its vendor/ files built by tools/vendor-studio-frontend.sh,
-                        CodeMirror from tools/studio-frontend/)
-  starters.py           the face templates in templates/, for `wfb new` and the editor
+  starters.py           the face templates in templates/, for `wfb new`
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`
@@ -204,6 +200,10 @@ ts/                   the compiler, being ported to TypeScript stage by stage
                       (ts/CLAUDE.md): one package for the browser and Node
   src/                  the port, module for module beside wfb/; browser.ts is the
                         browser bundle's entry (npm run bundle -> dist/wfb.js);
+                        cli.ts is `wfb` (node ts/src/cli.ts; wfb.py studio runs it);
+                        studio/ the editor's worker (the history store, open
+                        documents, the requests; npm run bundle -> dist/worker.js)
+                        and its server (devices, fonts, builds);
                         edit/yaml.ts reproduces ruamel's node tree and data
                         from the yaml package; py.ts holds Python's semantics
                         (rounding, repr, json.dumps) where output depends on them
@@ -211,6 +211,9 @@ ts/                   the compiler, being ported to TypeScript stage by stage
                         stages.ts (the stage table and each stage's port)
   test/                 node:test tests (npm test); cases/ holds inputs the oracle
                         dumps beside the faces (yaml/: YAML edge cases)
+  app/                  the editor's page (wfb studio): plain ES modules, its
+                        vendor/ files built by tools/vendor-studio-frontend.sh,
+                        CodeMirror from tools/studio-frontend/
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
 examples/             example faces; `examples/README.md` is the index
@@ -283,10 +286,10 @@ its `stamps` is a list (`wfb.preview.Stamp`), and a frame's layers share one
 `jsonform.Tiles` store, which packs to raw RGBA bytes for a browser.
 `jsonform.rasterise` is the reference reader of that JSON: for every
 lowered element it paints exactly what the evaluator paints. The editor's
-browser reader, `wfb/studio/static/raster.js`, reproduces Pillow's
+browser reader, `ts/app/raster.js`, reproduces Pillow's
 primitives and its paste byte for byte, and equals `rasterise` on every
 element of the examples (`tests/test_studio_raster.py`, which needs Node).
-The editor's frame (`wfb.studio.document.Document.frame`) carries its
+The editor's frame (`ts/src/studio/document.ts`, `Document.frame`) carries its
 layers this way: `layers(..., paint_all=False)` paints only a layer with an
 op outside `BROWSER_OPS` (an outlined group's ring), and the browser draws
 the rest, works out where each leaves ink for hit-testing (`raster.inkOf`,
@@ -613,7 +616,7 @@ baseline records them, and a failure names any that differ.
 cannot run `.ts` files (a distribution build may lack type stripping), and
 prepends it to `PATH`.
 - `tests/test_studio_raster.py` holds the browser's rasteriser
-  (`wfb/studio/static/raster.js`) to Pillow byte for byte.
+  (`ts/app/raster.js`) to Pillow byte for byte.
 - `tests/test_ts.py` runs `ts/`'s own tests and its type check.
 
 Both fail rather than skip without Node.
