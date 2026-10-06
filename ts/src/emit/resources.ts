@@ -1,8 +1,16 @@
-// What a build bakes: every declared font at the device's size, every icon
-// font the design needs, and every ring font. The baking half of
-// wfb/emit/resources.py; the resource bundle comes with codegen.
+// Resource generation: every declared font baked at the device's size,
+// every icon and ring font, the fonts' resource entries, the strings, the
+// launcher icon and the native editor's config. Port of
+// wfb/emit/resources.py.
 import type { Device } from "../devices/device.ts";
-import { bake, dilate, inkHeight } from "../fonts/bake.ts";
+import { bake, dilate, inkHeight, toFnt } from "../fonts/bake.ts";
+import * as complications from "../complications.ts";
+import { CONFIG_SYMBOL } from "../ir/model.ts";
+import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
+import { Color } from "../palette.ts";
+import { encodePng } from "../png.ts";
+import { ellipse, type Image, image as newImage, line } from "../raster/pillow.ts";
+import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
 import * as icons from "../icons.ts";
@@ -104,4 +112,192 @@ export function bakeFonts(face: Face, device: Device, read: FontReader): Map<str
     baked.set(name, dilate(baked.get(base)!, { name, glyphs: [...glyphs].sort(comparePoints).join(""), width }));
   }
   return baked;
+}
+
+/** Everything written under one device's resource directory. */
+export interface ResourceBundle {
+  device_id: string;
+  directory: string;
+  /** Relative path to text. */
+  files: Map<string, string>;
+  fonts: Map<string, BakedFont>;
+  /** Relative path to an RGBA image. */
+  images: Map<string, RgbaImage>;
+}
+
+/** An RGBA image: `data` straight-alpha bytes. */
+export interface RgbaImage {
+  width: number;
+  height: number;
+  data: Uint8Array;
+}
+
+/** A ring font's resource entry: its base font's spec under its own name, holding just its ringed glyphs. */
+function ringFontSpecs(face: Face, specs: ReadonlyMap<string, FontSpec>): Map<string, FontSpec> {
+  return new Map([...kinds.ringFonts(face)].map(([name, [base, glyphs]]) =>
+    [name, FontSpec.create({ ...specs.get(base)!, name, glyphs: [...glyphs].sort(comparePoints).join("") })]));
+}
+
+const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+
+/** One device's resource bundle: its fonts' entries, the launcher icon at its size, and the native editor's config. */
+export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<string, BakedFont>, read: FontReader): ResourceBundle {
+  const bundle: ResourceBundle = { device_id: device.id, directory: `resources-${device.id}`, files: new Map(), fonts: new Map(), images: new Map() };
+  const sets = glyphSet(face);
+  const hasIcons = [...kinds.faceTextRuns(face)].some(([, run]) => run.icon !== null);
+  const specs = new Map<string, FontSpec>([...face.fonts, ...(hasIcons ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map<string, FontSpec>())]);
+  for (const [name, spec] of ringFontSpecs(face, specs)) specs.set(name, spec);
+  if (baked.size > 0) {
+    const lines = [`<fonts ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`];
+    for (const [name, font] of baked) {
+      const spec = specs.get(name)!;
+      const rawChars = sets.get(name) ?? spec.glyphs ?? "";
+      lines.push(`    <!-- ${name}: ${basename(spec.source!)} at ${font.size}px, ${font.glyphs.size} glyphs -->`);
+      if ([...rawChars].some((c) => c.codePointAt(0)! >= 0x10000)) {
+        lines.push(`    <!-- filter omitted: ${name} needs a glyph above U+FFFF, which the resource compiler's filter parsing cannot represent -->`);
+        lines.push(`    <font id="${spec.resourceId}" filename="${font.fnt_name}" antialias="${spec.antialias ? "true" : "false"}" />`);
+      } else {
+        const chars = escape(rawChars, { '"': "&quot;" });
+        lines.push(`    <font id="${spec.resourceId}" filename="${font.fnt_name}" filter="${chars}" antialias="${spec.antialias ? "true" : "false"}" />`);
+      }
+    }
+    lines.push("</fonts>");
+    bundle.files.set("fonts/fonts.xml", lines.join("\n") + "\n");
+    bundle.fonts = new Map(baked);
+  }
+  const icon = (device.compiler["launcherIcon"] as { width: number; height: number } | undefined) ?? { width: 40, height: 40 };
+  bundle.images.set("drawables/launcher_icon.png", launcherIcon(face, Math.trunc(Number(icon.width)), Math.trunc(Number(icon.height))));
+  bundle.files.set("drawables/drawables.xml",
+    `<drawables ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">\n`
+    + `    <!-- generated at ${icon.width}x${icon.height}, the size ${device.id} asks for -->\n`
+    + '    <bitmap id="LauncherIcon" filename="launcher_icon.png" />\n'
+    + "</drawables>\n");
+  if (face.hasConfig) {
+    let supported: boolean;
+    try {
+      supported = device.hasSymbol(CONFIG_SYMBOL);
+    } catch {
+      supported = false;
+    }
+    if (supported) bundle.files.set("configs/watchface.xml", configResource(face));
+  }
+  return bundle;
+}
+
+/** `resources-<device>/configs/watchface.xml`, for a device with the native editor. */
+export function configResource(face: Face): string {
+  const lines = [`<resources ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`, "    <watchface-config>"];
+  if (face.config_style !== null) {
+    lines.push("        <styles>");
+    face.config_style.entries.forEach((entry, index) => {
+      let attrs = ` id="${index}"`;
+      if (entry.name === face.config_style!.default) attrs += ' default="true"';
+      if (face.styleLabel(entry) !== null) attrs += ` label="@Strings.${configStyleLabelId(index)}"`;
+      lines.push(`            <style${attrs}/>`);
+    });
+    lines.push("        </styles>");
+  }
+  if (face.config_data.size > 0) {
+    lines.push("        <data>");
+    for (const [name, slotId] of configDataIds(face)) {
+      const slot = face.config_data.get(name)!;
+      if (slot.choices === "any") {
+        lines.push(`            <complication id="${slotId}" allowAny="true"/>`);
+        continue;
+      }
+      lines.push(`            <complication id="${slotId}">`);
+      for (const choice of slot.choices) {
+        const attrs = choice === slot.default ? ' default="true"' : "";
+        lines.push(`                <type${attrs}>Complications.${complications.TYPES.get(choice)!.constant}</type>`);
+      }
+      lines.push("            </complication>");
+    }
+    lines.push("        </data>");
+  }
+  for (const [name, axis] of face.config) {
+    const tag = axis.axis.resource_tag;
+    if (axis.choices === "any") {
+      lines.push(`        <${tag} allowAny="true"/>`);
+      continue;
+    }
+    lines.push(`        <${tag}>`);
+    axis.choices.forEach((option, index) => {
+      let attrs = "";
+      if (option.color.equals(axis.default)) attrs += ' default="true"';
+      if (option.label !== null) attrs += ` label="@Strings.${configLabelId(name, index)}"`;
+      lines.push(`            <color${attrs}>${option.color.asMonkeyc()}</color>`);
+    });
+    lines.push(`        </${tag}>`);
+  }
+  lines.push("    </watchface-config>");
+  lines.push("</resources>");
+  return lines.join("\n") + "\n";
+}
+
+/** `[string id, label]` for every labelled `config:` choice and every style entry with a label. */
+export function configLabelStrings(face: Face): [string, string][] {
+  const out: [string, string][] = [];
+  if (face.config_style !== null) {
+    face.config_style.entries.forEach((entry, index) => {
+      const label = face.styleLabel(entry);
+      if (label !== null) out.push([configStyleLabelId(index), label]);
+    });
+  }
+  for (const [name, axis] of face.config) {
+    if (axis.choices === "any") continue;
+    axis.choices.forEach((option, index) => {
+      if (option.label !== null) out.push([configLabelId(name, index), option.label]);
+    });
+  }
+  return out;
+}
+
+export function sharedStrings(face: Face): string {
+  const lines = [`<strings ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`, `    <string id="AppName">${escape(face.name)}</string>`];
+  for (const [stringId, text] of configLabelStrings(face)) lines.push(`    <string id="${stringId}">${escape(text)}</string>`);
+  lines.push("</strings>");
+  return lines.join("\n") + "\n";
+}
+
+/** A plain mark in the design's own colours, at the device's icon size: drawn as Pillow draws it. */
+export function launcherIcon(face: Face, width: number, height: number): RgbaImage {
+  const background = face.palette.get("bg") ?? new Color(0, 0, 0);
+  const accent = ["accent", "text", "fg"].map((n) => face.palette.get(n)).find((c) => c !== undefined) ?? new Color(0xff, 0xff, 0xff);
+  const inset = Math.max(1, Math.floor(width / 10));
+  const stroke = Math.max(2, Math.floor(width / 12));
+  const cx = width / 2, cy = height / 2;
+  const ink: [number, number, number] = [accent.r, accent.g, accent.b];
+  const draw = (im: Image, fill: [number, number, number], outline: [number, number, number]): void => {
+    ellipse(im, [inset, inset, width - inset - 1, height - inset - 1], { outline, fill, width: stroke });
+    line(im, [cx, cy, cx, inset + stroke + 1], outline, Math.max(1, Math.floor(stroke / 2)));
+    line(im, [cx, cy, width - inset - stroke - 1, cy], outline, Math.max(1, Math.floor(stroke / 2)));
+  };
+  const colour = newImage(width, height, [0, 0, 0]);
+  draw(colour, [background.r, background.g, background.b], ink);
+  // Every shape is opaque, so a pixel is opaque wherever any shape reached it;
+  // an outline in the fill's own colour is not drawn at all, as Pillow skips it.
+  const coverage = newImage(width, height, [0, 0, 0]);
+  draw(coverage, [255, 255, 255], background.equals(accent) ? [255, 255, 255] : [255, 255, 254]);
+  const data = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i++) {
+    if (coverage.data[i * 4] === 0) continue;
+    data[i * 4] = colour.data[i * 4]!;
+    data[i * 4 + 1] = colour.data[i * 4 + 1]!;
+    data[i * 4 + 2] = colour.data[i * 4 + 2]!;
+    data[i * 4 + 3] = 255;
+  }
+  return { width, height, data };
+}
+
+/** Every file of a bundle, by path relative to the project: text, or PNG bytes. */
+export function bundleFiles(bundle: ResourceBundle): Map<string, string | Uint8Array> {
+  const out = new Map<string, string | Uint8Array>();
+  for (const [relative, text] of bundle.files) out.set(`${bundle.directory}/${relative}`, text);
+  for (const [relative, image] of bundle.images) out.set(`${bundle.directory}/${relative}`, encodePng(image.width, image.height, image.data, 4));
+  for (const font of bundle.fonts.values()) {
+    if (font.sheet === null) continue;
+    out.set(`${bundle.directory}/fonts/${font.fnt_name}`, toFnt(font));
+    out.set(`${bundle.directory}/fonts/${font.png_name}`, encodePng(font.sheet.width, font.sheet.height, font.sheet.bytes, 1));
+  }
+  return out;
 }

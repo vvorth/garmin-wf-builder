@@ -6,6 +6,8 @@
 // element's own guards (`visible:`, absence, `antialias:`) around it.
 import * as catalog from "../catalog.ts";
 import { AodStyle, type RingPass } from "../emit/monkeyc/common.ts";
+import type { Writer } from "../emit/writer.ts";
+import { printOps } from "./printer.ts";
 import { ReadPlan } from "../emit/monkeyc/readplan.ts";
 import { negated } from "../emit/monkeyc/view.ts";
 import { localName } from "../ir/naming.ts";
@@ -108,4 +110,12 @@ export function drawnText(resolved: ResolvedFace, placed: Placed, values: Values
     return [false, null];
   };
   return walk(ops)[1];
+}
+
+/** The printed `draw<Id>` body (or a `ring<Id>` pass), after its reads. */
+export function emitBody(w: Writer, resolved: ResolvedFace, placed: Placed, plan: ReadPlan, aod: AodStyle,
+  ring: RingPass | null = null, antialiasDefault: boolean | null = null): void {
+  const guards = kinds.forPlaced(placed).name === "data" ? [] : plan.valueGuards(placed);
+  const ctx = new DrawContext(resolved, aod, guards, ring, { complicationsGuarded: plan.device_guards.complications });
+  printOps(w, program(ctx, placed, plan, antialiasDefault), aod);
 }

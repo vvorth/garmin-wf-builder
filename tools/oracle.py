@@ -49,7 +49,7 @@ Stages, in pipeline order:
 | `layout` | device | the `ResolvedFace`: every placed element and box |
 | `draw` | device | each layer's `jsonform` ops and fonts |
 | `preview` | device | `wfb.preview.render` with default options: `preview.png` and its hash |
-| `project` | design | every generated file (`wfb.emit.project.generate`): text, or a hash for binaries |
+| `project` | design | every generated file (`wfb.emit.project.generate`): text, a PNG's RGBA pixels' hash and size, or a hash for other binaries |
 
 Values are JSON by one generic walk (`to_json`):
 - a dataclass is an object of its fields, in declaration order;
@@ -112,7 +112,7 @@ CAPTURED = ROOT / ".cache" / "test-designs"
 CAPTURED_STAGES = frozenset({"nodes", "spans", "data", "lowered", "desugared", "face", "diagnostics-load",
                              "diagnostics-lint", "fonts"})
 #: Bumped when the dump's shape changes, so parity refuses a stale cache.
-FORMAT = 5
+FORMAT = 6
 
 
 def to_json(value: Any, *, top: bool = True, seen: tuple[int, ...] = ()) -> Any:
@@ -335,6 +335,13 @@ def dump_design(path: Path, stages: set[str], db: DeviceDatabase) -> dict[str, A
                     continue
                 data = file.read_bytes()
                 name = file.relative_to(Path(tmp) / "project").as_posix()
+                if name.endswith(".png"):
+                    # By its pixels: the bytes are the encoder's choice.
+                    with Image.open(file) as png:
+                        rgba = png.convert("RGBA")
+                    files[name] = {"png": hashlib.sha256(rgba.tobytes()).hexdigest(),
+                                   "size": list(rgba.size)}
+                    continue
                 try:
                     files[name] = {"text": data.decode("utf-8")}
                 except UnicodeDecodeError:

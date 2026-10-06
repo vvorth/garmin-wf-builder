@@ -470,6 +470,32 @@ examples alone fired 9 lint codes, the captured designs 32.
   verification devices plus `fenix847mm` warning-free with the
   TypeScript-generated projects.
 
+**Built 2026-10-06.** `project` is byte-identical on 39 of the 40 designs
+(every example and fixture), PNGs compared by their pixels, and the
+40th differs only by the recorded layout deviation's width constant. The
+slow test (`tests/test_ts.py`) builds `examples/showcase` and
+`examples/features/aod` with the TypeScript compiler on the three
+verification devices and `fenix847mm`: every device builds, and `monkeyc`
+reports nothing.
+
+- Every emitter is ported: the view, the delegate, the app, `Layout.mc`,
+  the data, graph, config-menu, slot-scale and profiling pieces, the
+  manifest, the jungle, the resources (font entries, strings, the
+  launcher icon drawn as Pillow draws it, the editor config) and the
+  project assembler with its shared-source and string-label checks.
+  `printer.ts` gained the op printer.
+- `node_build.ts` is the Node build: `monkeyc` run per device through
+  `child_process`, a timed-out run's whole process group killed, memory
+  measured from `--build-stats`. `tools/build.ts` drives it.
+- The runtime library is exported as data (`ts/src/data/runtime-lib.json`,
+  `tools/export_tables.py`), so a browser build has it without a file
+  system.
+- The oracle's format is 6: a generated PNG is dumped by its RGBA pixels'
+  hash, since the bytes are the encoder's choice.
+- **Found by parity:** Python's float `%` gives a zero the divisor's sign,
+  where JavaScript's kept `-0`, which printed `-0.0` into a pattern's
+  angle; `py.pyMod` now matches.
+
 ### Slice 9 — the Node server, the CLI and the browser editor
 
 - **CLI.** `ts/src/cli.ts`: `build`, `validate`, `preview`, `simulate`,

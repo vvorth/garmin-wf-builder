@@ -8,6 +8,7 @@ import { burnInFigures, diagnosticsLint } from "./ports/lint.ts";
 import { fonts, layout } from "./ports/layout.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
+import { estimatedWidths, project } from "./ports/project.ts";
 import * as text from "./ports/text.ts";
 
 /** Stages of the whole design, in pipeline order. */
@@ -20,7 +21,7 @@ export const STAGES = [...DESIGN_STAGES, ...DEVICE_STAGES] as const;
 export type Stage = (typeof STAGES)[number];
 
 /** The dump format this runner reads: tools/oracle.py's `FORMAT`. */
-export const ORACLE_FORMAT = 5;
+export const ORACLE_FORMAT = 6;
 
 /**
  * Stages read out of another stage's dump: each pass of `load-cases`
@@ -69,6 +70,7 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   face,
   "diagnostics-load": diagnosticsLoad,
   "diagnostics-lint": diagnosticsLint,
+  project,
   layout,
   fonts,
   draw,
@@ -170,6 +172,12 @@ export const DEVIATIONS: readonly Deviation[] = [
     reason: "aod-burn-in measures rendered frames, whose system-font and vector-font text is rasterised from outlines: "
       + "its percentages, worst time and phase, and contributor shares move; its severity does not",
     normalise: burnInFigures,
+  },
+  {
+    stages: ["project"],
+    reason: "a text whose vector font has no face on the device is measured with Pillow's default face's unhinted advances "
+      + "(the layout deviation): its estimated width constant moves; layout parity compares every width",
+    normalise: estimatedWidths,
   },
   {
     stages: ["preview"],

@@ -53,3 +53,23 @@ def test_the_exported_tables_match_wfb() -> None:
     result = subprocess.run([sys.executable, str(TS.parent / "tools" / "export_tables.py"), "--check"],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+#: The verification devices, plus the AMOLED target.
+BUILD_DEVICES = ("fenix8solar47mm", "fenix8solar51mm", "fr955", "fenix847mm")
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("design", ["examples/showcase/face.yaml", "examples/features/aod/face.yaml"])
+def test_the_typescript_compiler_builds_warning_free(design: str, toolchain, tmp_path: Path) -> None:
+    """The TypeScript compiler's own project, through the real `monkeyc`:
+    every device builds, and `monkeyc` reports nothing."""
+    args = [node(), str(TS / "tools" / "build.ts"), design, "-o", str(tmp_path)]
+    for device in BUILD_DEVICES:
+        args += ["-d", device]
+    result = subprocess.run(args, cwd=TS.parent, capture_output=True, text=True)
+    output = result.stdout + result.stderr
+    assert "[monkeyc]" not in output, output
+    assert not any(line.startswith("error:") for line in output.splitlines()), output
+    for device in BUILD_DEVICES:
+        assert f"built {device}:" in output, output

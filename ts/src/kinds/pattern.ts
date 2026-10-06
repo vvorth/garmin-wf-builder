@@ -574,6 +574,20 @@ class PatternKind extends ElementKind<PatternElement> {
       return [`${p.id}.parts[${index}]`, part.color, outline ?? ring, part.shape !== "text"];
     });
   }
+
+  override describe(placed: Placed): string {
+    const p = placed as PlacedPattern;
+    const element = p.element;
+    const total = element.count;
+    const drawnCount = p.copies.length;
+    const note = drawnCount === total ? "" : ` (${drawnCount} drawn)`;
+    if (element.pattern === "radial") return `a radial pattern: ${total} copies, ${formatG(element.step_angle)} degrees apart${note}`;
+    const step = element.step ?? new Position();
+    const offsets = ([["dx", step.dx], ["dy", step.dy]] as const).filter(([, length]) => length !== null).map(([axis, length]) => `${axis} ${length}`);
+    const stepDesc = offsets.length > 0 ? offsets.join(", ") : "0px";
+    if (element.pattern === "grid") return `a grid pattern: ${total} copies in rows of ${element.columns}, step ${stepDesc}${note}`;
+    return `a linear pattern: ${total} copies, step ${stepDesc}${note}`;
+  }
 }
 
 register(new PatternKind());

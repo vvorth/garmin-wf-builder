@@ -19,7 +19,7 @@ import {
 } from "../draw/program.ts";
 import { flt } from "../draw/barrel.ts";
 import { colorCode } from "../draw/printer.ts";
-import { constPrefix } from "../emit/monkeyc/common.ts";
+import { article, constPrefix } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
@@ -656,6 +656,10 @@ class GaugeKind extends ElementKind<Gauge> {
     if (p.element.style !== "needle") return super.contrastSubjects(placed);
     const ring = p.element.outline !== null ? p.element.outline.color : null;
     return p.needle.map((part, index): ContrastSubject => [`${p.id}.needle[${index}]`, part.color, ring, true]);
+  }
+
+  override describe(placed: Placed): string {
+    return article(`${(placed as PlacedGauge).element.style} gauge`);
   }
 }
 

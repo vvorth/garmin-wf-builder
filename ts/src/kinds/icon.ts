@@ -153,6 +153,12 @@ class IconKind extends ElementKind<IconElement> {
   override ringDraws(element: IconElement, face: Face): number {
     return bakedRing(element, face, 1) !== null ? 1 : super.ringDraws(element, face);
   }
+
+  override describe(placed: Placed): string {
+    const element = (placed as PlacedIcon).element;
+    if (element.value_for !== null) return `an icon chosen at runtime from ${repr(element.value_for.text)}`;
+    return `the ${repr(element.icon)} icon`;
+  }
 }
 
 register(new IconKind());

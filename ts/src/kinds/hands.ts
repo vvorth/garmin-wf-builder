@@ -13,7 +13,7 @@ import {
   NotSleeping, type Op, type Paint, Part, RingColor, SetColor,
 } from "../draw/program.ts";
 import { colorCode } from "../draw/printer.ts";
-import { constPrefix } from "../emit/monkeyc/common.ts";
+import { andList, constPrefix } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import type { RotatablePart } from "../layout.ts";
 
@@ -167,6 +167,14 @@ class HandsKind extends ElementKind<HandsElement> {
       resolved.parts.forEach((part, index) => out.push([`${p.id}.${hand}.parts[${index}]`, part.color, ring, true]));
     }
     return out;
+  }
+
+  override describe(placed: Placed): string {
+    const p = placed as PlacedHands;
+    const element = p.element;
+    const drawn = ["hour", "minute", "second"].filter((n) => (p as unknown as Record<string, unknown>)[n] !== null);
+    const secondsNote = element.seconds ? `, seconds: ${element.seconds}` : "";
+    return `analog hands (hands.${element.hands}): ${andList(drawn)}${secondsNote}`;
   }
 }
 

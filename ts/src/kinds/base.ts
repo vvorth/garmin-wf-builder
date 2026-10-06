@@ -143,6 +143,11 @@ export abstract class ElementKind<E extends Element = Element> {
 
   // -- drawing --
 
+  /** A short phrase for generated doc comments. */
+  describe(placed: Placed): string {
+    return placed.element.kind;
+  }
+
   /** The element's drawing as one draw program (`draw/`); a group does not lower. */
   lower(_ctx: DrawContext, _placed: Placed): Op[] {
     throw new Error(`${this.name}: lower`);

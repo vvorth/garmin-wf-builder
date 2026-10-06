@@ -82,6 +82,10 @@ def tables() -> dict[str, Any]:
         # Pillow's bundled default face (Aileron Regular, OFL), which a system
         # or vector font with no file at all is measured with.
         "pillow-default-font.json": {"ttf": _pillow_default_font()},
+        # The support barrel a generated project copies in what it calls of,
+        # so the browser build has it without a file system.
+        "runtime-lib.json": {path.name: path.read_text(encoding="utf-8")
+                             for path in sorted((ROOT / "runtime-lib").glob("*.mc"))},
     }
 
 

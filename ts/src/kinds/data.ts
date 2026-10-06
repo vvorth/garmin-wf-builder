@@ -466,6 +466,10 @@ class DataKind extends ElementKind<DataElement> {
     if (p.element.icon_gap !== null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
     return out;
   }
+
+  override describe(placed: Placed): string {
+    return `a native Data-axis slot (\`slot: ${(placed as PlacedData).element.slot}\`)`;
+  }
 }
 
 register(new DataKind());

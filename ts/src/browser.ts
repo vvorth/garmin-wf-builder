@@ -36,3 +36,5 @@ export * as raster from "./raster/pillow.ts";
 export * as lint from "./lint.ts";
 export * as availability from "./availability.ts";
 export { resolveAll, selectDevices } from "./build.ts";
+export * as project from "./emit/project.ts";
+export * as manifest from "./emit/manifest.ts";

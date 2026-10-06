@@ -76,6 +76,12 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     system and vector faces from their outlines through `fonts/raster.ts`,
     a turned run turning its outlines. `src/sample.ts` is the sample
     readings.
+  - `src/emit/` is codegen: `monkeyc/` the Monkey C sources (the view, the
+    delegate, `Layout.mc` and the rest), `resources.ts`, `manifest.ts`,
+    `jungle.ts` and `project.ts`, which assembles them in memory. The
+    support barrel comes from `src/data/runtime-lib.json`. Writing and
+    compiling a project is `src/node_build.ts` (Node only), which
+    `tools/build.ts` drives.
   - `src/lint.ts` is every lint check; `src/availability.ts` what each
     target lacks; `src/build.ts` loads a design, selects its devices and
     resolves and lints each (`resolveAll`, the bake passed in).

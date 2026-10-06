@@ -448,6 +448,10 @@ class TextKind extends ElementKind<Text> {
   override ringDraws(element: Text, face: Face): number {
     return bakedRing(element, face, 1) !== null ? 1 : super.ringDraws(element, face);
   }
+
+  override describe(placed: Placed): string {
+    return (placed as PlacedText).element.value !== null ? "text" : "fixed text";
+  }
 }
 
 register(new TextKind());

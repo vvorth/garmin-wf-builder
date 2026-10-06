@@ -9,6 +9,7 @@ import { type Element, type Expression, HandsElement, Text } from "../../ir/mode
 import { localName } from "../../ir/naming.ts";
 import type { Placed, ResolvedFace } from "../../layout.ts";
 import { type Guards, NO_GUARDS } from "../../availability.ts";
+import type { Writer } from "../writer.ts";
 
 /**
  * Decides which reader locals each element needs, and hoists the reads.
@@ -130,6 +131,27 @@ export class ReadPlan {
 
   readersForModeOf(mode: string): string[] {
     return [...(this.readersForMode.get(mode) ?? [])];
+  }
+
+  /**
+   * `var <reader> = <call>;` for each of `readers`; a module some target
+   * lacks is read behind one `has<Module>` local. `declared` holds the
+   * `has<Module>` locals an enclosing scope already declared. Returns every
+   * one in scope after.
+   */
+  emitPulls(w: Writer, readers: readonly string[], declared: ReadonlySet<string> = new Set()): Set<string> {
+    const guarded = [...new Set(readers.map((name) => READERS.get(name)!.requires_module).filter((m): m is string => m !== null))]
+      .filter((m) => this.device_guards.modules.has(m)).sort();
+    for (const module of guarded) if (!declared.has(module)) w.line(`var has${module} = Toybox has :${module};`);
+    for (const name of readers) {
+      const reader = READERS.get(name)!;
+      if (reader.requires_module !== null && guarded.includes(reader.requires_module)) {
+        w.line(`var ${reader.name} = has${reader.requires_module} ? ${reader.call} : null;`);
+      } else {
+        w.line(`var ${reader.name} = ${reader.call};`);
+      }
+    }
+    return new Set([...declared, ...guarded]);
   }
 
   /** The readers `placed`'s draw method takes, in parameter order. */

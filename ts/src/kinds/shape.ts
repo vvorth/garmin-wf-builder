@@ -13,7 +13,7 @@ import {
   AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, type DrawContext, FillPolygon, Grown, IfAod, Lit, type Num, type Op,
   type Paint, Primitive, RingColor, SetColor, SetPen, Shifted,
 } from "../draw/program.ts";
-import { type AodStyle, constPrefix, McLiteral } from "../emit/monkeyc/common.ts";
+import { type AodStyle, article, constPrefix, McLiteral } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 
@@ -339,6 +339,14 @@ class ShapeKind extends ElementKind<Shape> {
 
   override ringDraws(element: Shape, face: Face): number {
     return GROWN.has(element.shape) && element.filled ? 1 : super.ringDraws(element, face);
+  }
+
+  override describe(placed: Placed): string {
+    const element = (placed as PlacedShape).element;
+    if (element.shape === "polygon") return `a polygon of ${element.points.length} points`;
+    const noun = article(element.rounded ? "rounded rectangle" : element.shape);
+    if (["rectangle", "circle", "ellipse"].includes(element.shape) && !element.filled) return `${noun}, outlined`;
+    return noun;
   }
 }
 

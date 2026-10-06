@@ -16,7 +16,7 @@ import {
   AodPick, AodRestyled, Blank, Comment, Const, Conv, type DrawContext, type Num, NumLocal, type Op, Paren, Read, SeriesDraw,
   SeriesRebuild, SetColor,
 } from "../draw/program.ts";
-import { constPrefix } from "../emit/monkeyc/common.ts";
+import { article, constPrefix } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import { graphBuiltField, graphMaxField, graphMinField, graphRebuildMethod, graphSeriesField } from "../ir/naming.ts";
 
@@ -249,6 +249,11 @@ class GraphKind extends ElementKind<Graph> {
       if (p.aod_bar_width !== null) out.push([`${prefix}_AOD_BAR_WIDTH`, p.aod_bar_width, "aod: bar_width override"]);
     }
     return out;
+  }
+
+  override describe(placed: Placed): string {
+    const element = (placed as PlacedGraph).element;
+    return `${article(`${element.style} graph`)} of ${element.series}`;
   }
 }
 

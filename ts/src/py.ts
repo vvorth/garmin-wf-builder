@@ -282,7 +282,8 @@ export function reEscape(text: string): string {
 export function pyMod(a: number, b: number): number {
   if (b === 0) throw new PyError("ZeroDivisionError", "modulo by zero");
   const r = a % b;
-  return r !== 0 && (r < 0) !== (b < 0) ? r + b : r;
+  if (r === 0) return b < 0 ? -0 : 0; // a zero takes the divisor's sign, as Python's float % does
+  return (r < 0) !== (b < 0) ? r + b : r;
 }
 
 /** Python's `a // b`. */
