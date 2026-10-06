@@ -2,14 +2,14 @@
 services:
   garmin-wf-builder:
     container_name: garmin-wf-builder
+    image: garmin-wf-builder:latest
     build:
       context: .
       dockerfile: Dockerfile
-    # image: garmin-wf-builder
     pull_policy: build
     user: 1000:1000
     restart: unless-stopped
-    command: ["studio", "--host=0.0.0.0", "--port=8765", "--allow-host=localhost,127.0.0.1"]
+    command: ["studio", "--host=0.0.0.0", "--port=8765"]
     ports:
       - 8765:8765
     volumes:
