@@ -621,15 +621,17 @@ Both fail rather than skip without Node.
 **The TypeScript port is held to the Python compiler stage by stage.**
 `tools/oracle.py` dumps what Python produces at each stage boundary for
 every design in `examples/` and `tests/fixtures/`, on its targets and the
-AMOLED `fenix847mm`. It also dumps the load stages of every design the fast
-test suite loads, which `tools/capture_designs.py` captures (thousands of
-small designs, most written to hit one diagnostic). `npm run parity` in
+AMOLED `fenix847mm`. It also dumps the load stages, the lint and the baked
+fonts of every design the fast test suite loads, which
+`tools/capture_designs.py` captures (thousands of small designs, most
+written to hit one diagnostic). `npm run parity` in
 `ts/` runs each ported stage over the same cases and compares:
 
 ```sh
 ./.venv/bin/python tools/capture_designs.py        # the suite's designs, about 6 min
 ./.venv/bin/python tools/oracle.py                 # all stages
 ./.venv/bin/python tools/oracle.py --stage spans   # one stage
+./.venv/bin/python tools/oracle.py --captured      # the captured designs alone
 cd ts && npm run parity -- spans data              # these stages; exit 0 = equal
 cd ts && npm run parity -- --allow-missing         # tolerate stages not ported yet
 cd ts && npm test && npm run typecheck             # ts/'s own tests, tsc --noEmit

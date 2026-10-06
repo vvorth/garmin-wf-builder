@@ -42,13 +42,22 @@ interface Parsed {
 
 const parsed = new Map<string, Parsed>();
 
+/** A font file the bake cannot read. */
+export class FontFileError extends Error {}
+
 function load(source: FontFile): Parsed {
   let found = parsed.get(source.path);
   if (found === undefined) {
     const bytes = source.bytes;
-    const font = opentype.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    // FreeType's own words for a file that is not a font, which a build reports as is.
     const sfnt = readSfnt(bytes);
-    if (sfnt === null) throw new Error(`${source.path}: not a TrueType or OpenType font`);
+    if (sfnt === null) throw new FontFileError("unknown file format");
+    let font: Font;
+    try {
+      font = opentype.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    } catch {
+      throw new FontFileError("unknown file format");
+    }
     const stem = source.path.slice(source.path.lastIndexOf("/") + 1).replace(/\.[^.]*$/, "");
     found = { font, upm: sfnt.unitsPerEm, ascent: sfnt.ascent, descent: sfnt.descent, face: nameRecord(bytes, 1) ?? stem };
     parsed.set(source.path, found);

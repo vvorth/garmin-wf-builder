@@ -8,7 +8,7 @@ import * as formatting from "../../formatting.ts";
 import { type Element, type Expression, HandsElement, Text } from "../../ir/model.ts";
 import { localName } from "../../ir/naming.ts";
 import type { Placed, ResolvedFace } from "../../layout.ts";
-import { type Guards, NO_GUARDS } from "./common.ts";
+import { type Guards, NO_GUARDS } from "../../availability.ts";
 
 /**
  * Decides which reader locals each element needs, and hoists the reads.

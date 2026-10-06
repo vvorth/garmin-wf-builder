@@ -438,6 +438,27 @@ draw program's or the renderer's, not the bake's.
   heatmap, safe area) read slice 6's frames.
 - **Parity:** `diagnostics` after lint, on the corpus × devices.
 
+**Built 2026-10-06.** `diagnostics-lint` is equal on 2 291 of 2 386 designs
+and within one recorded deviation on the other 95. The oracle now dumps
+`diagnostics-lint`, and the `fonts` it reads, for the captured test-suite
+designs as well (`tools/oracle.py --captured`, about 2 minutes): the
+examples alone fired 9 lint codes, the captured designs 32.
+
+- `lint.ts` is every check, in Python's order, with Python's wording;
+  `availability.ts` (`computeGuards` and the per-device gaps) replaces the
+  three-field `Guards`; `build.ts` gained `selectDevices` and `resolveAll`,
+  which take the bake as a function so parity can hand in the oracle's
+  fonts. Each kind gained `contrastSubjects` and `ringDraws`.
+- **The deviation:** `aod-burn-in` measures rendered frames, so outline-drawn
+  text moves its percentages, worst time, mask phase and contributor
+  shares. Its severity agrees on every case.
+- **A file that is not a font** fails the bake with FreeType's own words,
+  `unknown file format`, which a build reports as is: the captured tests
+  check that message.
+- Not exercised by the corpus: `config-unsupported`, `api-gated-unguardable`
+  and `hold-overlap` (they need fenix5-class or overlapping-hold designs the
+  tests build in code, not YAML).
+
 ### Slice 8 — codegen and the build
 
 - `emit/*` (Monkey C, resources, manifest, jungle, writer), each kind's

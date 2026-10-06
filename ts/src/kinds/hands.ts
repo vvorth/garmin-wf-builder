@@ -7,7 +7,7 @@ import { type Element, type Expression, HandsElement } from "../ir/model.ts";
 import { type Placed, PlacedHands, ResolvedHand, type Resolver, rotatableParts } from "../layout.ts";
 import { repr, roundHalfEven as round, str } from "../py.ts";
 import { Box } from "../units.ts";
-import { type Common, ElementKind, register } from "./base.ts";
+import { type Common, type ContrastSubject, ElementKind, register } from "./base.ts";
 import {
   AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, type DrawContext, HandAngle, If, Let, type Num, NumLocal,
   NotSleeping, type Op, type Paint, Part, RingColor, SetColor,
@@ -153,6 +153,18 @@ class HandsKind extends ElementKind<HandsElement> {
       const hand = (p as unknown as Record<string, ResolvedHand | null>)[handName]!;
       if (hand === null) continue;
       hand.parts.forEach((part, index) => out.push(...lc.handPartConstants(`${prefix}_${handName.toUpperCase()}_${index}`, `${handName} hand`, index, part)));
+    }
+    return out;
+  }
+
+  override contrastSubjects(placed: Placed): ContrastSubject[] {
+    const p = placed as PlacedHands;
+    const ring = p.element.outline !== null ? p.element.outline.color : null;
+    const out: ContrastSubject[] = [];
+    for (const hand of ["hour", "minute", "second"]) {
+      const resolved = (p as unknown as Record<string, ResolvedHand | null>)[hand]!;
+      if (resolved === null) continue;
+      resolved.parts.forEach((part, index) => out.push([`${p.id}.${hand}.parts[${index}]`, part.color, ring, true]));
     }
     return out;
   }

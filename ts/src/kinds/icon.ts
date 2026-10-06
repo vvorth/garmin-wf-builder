@@ -5,7 +5,7 @@ import * as catalog from "../catalog.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
-import { type Element, IconElement } from "../ir/model.ts";
+import { type Element, type Face, IconElement } from "../ir/model.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
 import { repr, roundHalfEven as round, str } from "../py.ts";
@@ -148,6 +148,10 @@ class IconKind extends ElementKind<IconElement> {
     const isDefault = p.element.align === "center" && p.element.vertical_align === "center";
     const note = isDefault ? "" : "the anchor drawText justifies the glyph from, not its centre";
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
+  }
+
+  override ringDraws(element: IconElement, face: Face): number {
+    return bakedRing(element, face, 1) !== null ? 1 : super.ringDraws(element, face);
   }
 }
 

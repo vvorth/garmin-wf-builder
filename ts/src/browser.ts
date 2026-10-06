@@ -33,3 +33,6 @@ export * as jsonform from "./draw/jsonform.ts";
 export * as layers from "./draw/layers.ts";
 export * as preview from "./preview.ts";
 export * as raster from "./raster/pillow.ts";
+export * as lint from "./lint.ts";
+export * as availability from "./availability.ts";
+export { resolveAll, selectDevices } from "./build.ts";

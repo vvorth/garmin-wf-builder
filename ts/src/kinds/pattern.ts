@@ -17,7 +17,7 @@ import {
 } from "../layout.ts";
 import { deepEqual, formatG, num, pyMod, roundHalfEven as round } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
-import { type Common, ElementKind, type Refusal, register, TextRun } from "./base.ts";
+import { type Common, type ContrastSubject, ElementKind, type Refusal, register, TextRun } from "./base.ts";
 import {
   AnyOf, AodDimmed, AodPart, AodPick, ArcSpan, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Continue, type DrawContext,
   FloatLit, Font, FontDrop, For, If, IfNotNull, Let, Lit, LoadFont, type Num, NumLocal, type Op, type Paint, Paren, Part,
@@ -564,6 +564,15 @@ class PatternKind extends ElementKind<PatternElement> {
     out.push(...lc.aodThicknessConstant(prefix, p, lc.EVERY_PART_NOTE));
     p.parts.forEach((part, index) => out.push(...lc.handPartConstants(`${prefix}_${index}`, "template", index, part)));
     return out;
+  }
+
+  override contrastSubjects(placed: Placed): ContrastSubject[] {
+    const p = placed as PlacedPattern;
+    const ring = p.element.outline !== null ? p.element.outline.color : null;
+    return p.parts.map((part, index): ContrastSubject => {
+      const outline = part.shape === "text" ? part.outline_color : null;
+      return [`${p.id}.parts[${index}]`, part.color, outline ?? ring, part.shape !== "text"];
+    });
   }
 }
 

@@ -7,9 +7,9 @@
 // in schema order, so importing it fills the registry.
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
-import type { Element, Face } from "../ir/model.ts";
+import { discPerimeterOffsets, type Element, type Expression, type Face } from "../ir/model.ts";
 import { ringGroups } from "../ir/rings.ts";
-import type { Placed, Resolver } from "../layout.ts";
+import type { Placed, PlacedPattern, ResolvedFont, Resolver } from "../layout.ts";
 import type { Span } from "../diagnostics.ts";
 import type { Curve } from "../ir/model.ts";
 import type { Box, Length } from "../units.ts";
@@ -157,7 +157,33 @@ export abstract class ElementKind<E extends Element = Element> {
   layoutConstants(_prefix: string, _placed: Placed): Constants {
     return [];
   }
+
+  // -- lint --
+
+  /** How many extra draws of the element its widest ring costs: one per stamp offset, 1 for a grown copy or ring font. */
+  ringDraws(element: E, face: Face): number {
+    const widths = ringWidths(element, face);
+    return discPerimeterOffsets(widths.length > 0 ? Math.max(...widths) : 1).length;
+  }
+
+  /**
+   * Every `[label, colour, ring, allowBackdropMatch]` this element draws,
+   * for the contrast lint: by default its own ink (or ring), then a data
+   * element's icon colour. A gauge's track is decoration and not judged.
+   */
+  contrastSubjects(placed: Placed): ContrastSubject[] {
+    const nonAod = placed.element.colorRoles().filter((r) => !r.aod);
+    const ink = nonAod.find((r) => r.role === "ink");
+    const ring = nonAod.find((r) => r.role === "ring");
+    const allow = ink !== undefined ? !ink.is_glyph : placed.kind === "shape";
+    const out: ContrastSubject[] = [[placed.id, ink?.expression ?? null, ring?.expression ?? null, allow]];
+    for (const r of nonAod) if (r.role === "icon") out.push([`${placed.id}.icon.color`, r.expression, null, false]);
+    return out;
+  }
 }
+
+/** One colour a contrast check judges: `[label, colour, ring, allowBackdropMatch]`. */
+export type ContrastSubject = [string, Expression | null, Expression | null, boolean];
 
 /** The kind that handles a placed element. */
 export function forPlaced(placed: Placed): ElementKind {
@@ -242,4 +268,19 @@ export function ringFonts(face: Face): Map<string, [string, Set<string>, number]
     }
   }
   return out;
+}
+
+/** Every `[placed, run]` of one device's placed items, in draw order. */
+export function placedTextRuns(items: readonly Placed[], face: Face): [Placed, TextRun][] {
+  return items.flatMap((placed) => forElement(placed.element).textRuns(placed.element, face).map((run): [Placed, TextRun] => [placed, run]));
+}
+
+/** The `ResolvedFont` layout decided for `run` on this device: a pattern part's, or the element's own. */
+export function placedFont(placed: Placed, run: TextRun): ResolvedFont {
+  if (run.part_index !== null) {
+    const part = (placed as PlacedPattern).parts[run.part_index]!;
+    if (part.shape !== "text") throw new Error(run.label);
+    return part.font;
+  }
+  return (placed as unknown as { font: ResolvedFont }).font;
 }

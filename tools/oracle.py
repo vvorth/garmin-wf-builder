@@ -17,7 +17,8 @@ Writes `.cache/oracle/` (gitignored):
 A design is every `*.yaml` under `examples/`, `tests/fixtures/` and
 `ts/test/cases/`, and every design the fast test suite loads, captured by
 `tools/capture_designs.py` into `.cache/test-designs/` (its load stages
-alone, `CAPTURED_STAGES`), named by its path without the suffix, as
+and lint stages, with the fonts the lint reads, alone: `CAPTURED_STAGES`),
+named by its path without the suffix, as
 `tools/snapshot.py` names them. `ts/test/cases/` holds YAML edge cases the
 faces do not exercise (empty values, block scalars, comment placement, no
 final newline, invalid text). They are not faces, so only their text stages
@@ -108,7 +109,8 @@ STAGES = DESIGN_STAGES + DEVICE_STAGES
 #: The designs the fast test suite loads (`tools/capture_designs.py`), and
 #: the stages dumped for them: the load stages alone, as most never load.
 CAPTURED = ROOT / ".cache" / "test-designs"
-CAPTURED_STAGES = frozenset({"nodes", "spans", "data", "lowered", "desugared", "face", "diagnostics-load"})
+CAPTURED_STAGES = frozenset({"nodes", "spans", "data", "lowered", "desugared", "face", "diagnostics-load",
+                             "diagnostics-lint", "fonts"})
 #: Bumped when the dump's shape changes, so parity refuses a stale cache.
 FORMAT = 5
 
@@ -357,11 +359,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--stage", nargs="+", choices=STAGES, default=list(STAGES))
     parser.add_argument("--design", nargs="+", default=[], help="design ids, e.g. examples/showcase/face")
+    parser.add_argument("--captured", action="store_true", help="only the captured test-suite designs")
     args = parser.parse_args(argv)
     stages = set(args.stage)
 
-    paths = designs(args.design)
-    if not args.design and stages == set(STAGES) and OUT.exists():
+    paths = sorted(captured()) if args.captured else designs(args.design)
+    if not args.design and not args.captured and stages == set(STAGES) and OUT.exists():
         shutil.rmtree(OUT)
     db = DeviceDatabase.discover()
     index_path = OUT / "index.json"

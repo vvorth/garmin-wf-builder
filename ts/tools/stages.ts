@@ -4,6 +4,7 @@
 import type { DeviceFiles } from "../src/devices/files.ts";
 import { draw, faceRuns, lastBits, outsideText, preview } from "./ports/draw.ts";
 import { diagnosticsLoad, face } from "./ports/ir.ts";
+import { burnInFigures, diagnosticsLint } from "./ports/lint.ts";
 import { fonts, layout } from "./ports/layout.ts";
 import { documentAfter, loadPass } from "./ports/load.ts";
 import { patches } from "./ports/patches.ts";
@@ -67,6 +68,7 @@ export const PORTS: Partial<Record<Stage, Port>> = {
   data: text.data,
   face,
   "diagnostics-load": diagnosticsLoad,
+  "diagnostics-lint": diagnosticsLint,
   layout,
   fonts,
   draw,
@@ -162,6 +164,12 @@ export const DEVIATIONS: readonly Deviation[] = [
     reason: "a turned part's coordinates come from JavaScript's Math.sin/Math.cos, which can differ from glibc's in the last bit: "
       + "compared to 10 significant digits",
     normalise: lastBits,
+  },
+  {
+    stages: ["diagnostics-lint"],
+    reason: "aod-burn-in measures rendered frames, whose system-font and vector-font text is rasterised from outlines: "
+      + "its percentages, worst time and phase, and contributor shares move; its severity does not",
+    normalise: burnInFigures,
   },
   {
     stages: ["preview"],

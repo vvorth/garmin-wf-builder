@@ -6,18 +6,7 @@ import { elementConstPrefix } from "../../ir/naming.ts";
 import { Color } from "../../palette.ts";
 import { floatRepr } from "../../py.ts";
 
-/** What a build's target devices lack, as far as the code reading them goes: `wfb.availability.Guards`. */
-export interface Guards {
-  /** `Toybox.Complications` is absent on some target. */
-  complications: boolean;
-  /** Bare fields some target lacks. */
-  fields: ReadonlySet<string>;
-  /** Whole modules some target lacks. */
-  modules: ReadonlySet<string>;
-}
-
-/** The "nothing is missing" `Guards`. */
-export const NO_GUARDS: Guards = { complications: false, fields: new Set(), modules: new Set() };
+export { type Guards, NO_GUARDS } from "../../availability.ts";
 
 /** A layout constant whose value is not a plain number: a polygon's point array. */
 export class McLiteral {

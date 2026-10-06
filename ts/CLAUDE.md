@@ -76,6 +76,9 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     system and vector faces from their outlines through `fonts/raster.ts`,
     a turned run turning its outlines. `src/sample.ts` is the sample
     readings.
+  - `src/lint.ts` is every lint check; `src/availability.ts` what each
+    target lacks; `src/build.ts` loads a design, selects its devices and
+    resolves and lints each (`resolveAll`, the bake passed in).
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point
@@ -110,7 +113,8 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
 - `test/cases/` holds inputs the oracle dumps beside the example faces:
   `yaml/` has YAML edge cases the faces do not exercise.
 - The oracle also dumps every design the fast test suite loads, captured
-  by `../tools/capture_designs.py` into `../.cache/test-designs/` (load
-  stages only): thousands of small faces, most written to hit one
-  diagnostic. Rerun the capture when tests change, then the oracle.
+  by `../tools/capture_designs.py` into `../.cache/test-designs/` (its load
+  stages, its lint and the fonts the lint reads): thousands of small faces,
+  most written to hit one diagnostic. Rerun the capture when tests change,
+  then the oracle.
 - `test/` holds the `node:test` files.

@@ -3,7 +3,7 @@
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";
-import { type Element, Shape } from "../ir/model.ts";
+import { type Element, type Face, Shape } from "../ir/model.ts";
 import { arcBox, alignmentShift, type Placed, PlacedShape, type Resolver, strokePad } from "../layout.ts";
 import { Position } from "../ir/model.ts";
 import { roundHalfEven as round, truthy } from "../py.ts";
@@ -335,6 +335,10 @@ class ShapeKind extends ElementKind<Shape> {
       if (needsThicknessConstant(element)) out.push([`${prefix}_THICKNESS`, p.thickness, "pen width"], ...lc.aodThicknessConstant(prefix, p));
     }
     return out;
+  }
+
+  override ringDraws(element: Shape, face: Face): number {
+    return GROWN.has(element.shape) && element.filled ? 1 : super.ringDraws(element, face);
   }
 }
 

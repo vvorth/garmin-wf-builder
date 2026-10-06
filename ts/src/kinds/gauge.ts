@@ -10,7 +10,7 @@ import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "..
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
 import { degrees, formatG, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
-import { type Common, ElementKind, register } from "./base.ts";
+import { type Common, type ContrastSubject, ElementKind, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
 import {
   AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv,
@@ -649,6 +649,13 @@ class GaugeKind extends ElementKind<Gauge> {
       });
     }
     return out;
+  }
+
+  override contrastSubjects(placed: Placed): ContrastSubject[] {
+    const p = placed as PlacedGauge;
+    if (p.element.style !== "needle") return super.contrastSubjects(placed);
+    const ring = p.element.outline !== null ? p.element.outline.color : null;
+    return p.needle.map((part, index): ContrastSubject => [`${p.id}.needle[${index}]`, part.color, ring, true]);
   }
 }
 
