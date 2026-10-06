@@ -75,8 +75,8 @@
 # steps bars move correctly at midnight -- there is no simulator and no
 # watch in this container.
 #
-# Build it with:     ./wfb.py build examples/features/align/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/align/face.yaml
+# Build it with:     ./wfb build examples/features/align/face.yaml
+# Preview it with:   ./wfb preview examples/features/align/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

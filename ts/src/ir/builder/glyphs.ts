@@ -1,7 +1,6 @@
 // Fonts, icons and the text decorations shared by `text` elements and
 // pattern text parts: `outline:`, `curve:`, `unsupported:`, icon names and
-// glyphs, and the per-`shape:`/`style:` foreign-key check. Port of
-// wfb/ir/builder/glyphs.py.
+// glyphs, and the per-`shape:`/`style:` foreign-key check..
 import type { Span } from "../../diagnostics.ts";
 import * as icons from "../../icons.ts";
 import { isNumber, num, repr, str } from "../../py.ts";
@@ -179,7 +178,7 @@ export class GlyphHelpers extends AbsenceChecks {
         notes: [
           "the catalogue has: " + icons.names().join(", "),
           "for a glyph the catalogue does not name, write its codepoint, "
-          + "'icon: \"U+XXXX\"' -- see wfb/assets/icons/README.md",
+          + "'icon: \"U+XXXX\"' -- see ts/assets/icons/README.md",
         ],
       });
     }

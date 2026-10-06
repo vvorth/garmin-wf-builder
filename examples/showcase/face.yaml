@@ -10,8 +10,8 @@
 # entries, both colour axes, and the Data axis (the two registers). fr955
 # has no native editor, so it offers them from the generated settings menu.
 #
-# Build it:    ./wfb.py build examples/showcase/face.yaml
-# Preview it:  ./wfb.py preview examples/showcase/face.yaml --all-styles
+# Build it:    ./wfb build examples/showcase/face.yaml
+# Preview it:  ./wfb preview examples/showcase/face.yaml --all-styles
 #
 # yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
 
@@ -568,7 +568,7 @@ layouts:
 
       # `weather.*` has no documented value range in the catalogue, so the
       # text-overflow lint sizes its box from the format's conservative
-      # 5-digit fallback ("88888°", `wfb/formatting.py`'s `DEFAULT_DIGITS`)
+      # 5-digit fallback ("88888°", `ts/src/formatting.ts`'s `DEFAULT_DIGITS`)
       # rather than a realistic temperature -- centring it, rather than
       # offsetting it with `dx:`, keeps that oversized box symmetric and
       # well inside the round bezel regardless.
@@ -809,13 +809,13 @@ layouts:
       # (root CLAUDE.md constraint 15). The chained ternary over `copy` is
       # how a roman numeral is picked: the expression language has string
       # literals and nested ternaries, no arrays or lookup tables
-      # (`wfb/expr.py`) -- verbose on purpose, reads as a table.
+      # (`ts/src/expr.ts`) -- verbose on purpose, reads as a table.
       #
       # Size and radius (26%r, -69%r) were tuned by rendering, not
       # asserted: a first try (22%r/-78%r)
       # tripped `safe-area` on fenix8solar47mm and fr955 because the ring's
       # ink reached past the round panel's own visible disc
-      # (`wfb.layout.BEZEL_MARGIN`, a 2% inset). 26%r/-69%r is
+      # (`BEZEL_MARGIN` in `ts/src/layout.ts`, a 2% inset). 26%r/-69%r is
       # warning-free on all three targets and reads as big and vintage
       # rather than cramped; the minute hand's own tip (-64%r, `hand_sets:
       # vintage:` below) sits just inside the ring's inner edge, which is

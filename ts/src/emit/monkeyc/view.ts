@@ -1,5 +1,5 @@
 // `<Face>View.mc`: the generated view's fields, lifecycle methods and one
-// method per drawn element. Port of wfb/emit/monkeyc/view.py.
+// method per drawn element.
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import { READERS } from "../../catalog.ts";
 import * as complications from "../../complications.ts";

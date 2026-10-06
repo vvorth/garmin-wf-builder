@@ -12,7 +12,7 @@
 #   * there is no drawPolygon, only fillPolygon, so `filled: false` is rejected
 #     on a polygon and an outline has to be drawn as `type: line` edges.
 #
-# Build it with:  ./wfb.py build examples/features/shapes/face.yaml
+# Build it with:  ./wfb build examples/features/shapes/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

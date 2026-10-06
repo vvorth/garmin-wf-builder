@@ -1,6 +1,5 @@
 // Registry of per-element-kind behaviour: importing this module registers
-// all nine kinds, in schema order. Port of wfb/kinds/__init__.py's
-// registry; the interface is ./base.ts.
+// all nine kinds, in schema order. The interface is ./base.ts.
 import "./group.ts";
 import "./shape.ts";
 import "./text.ts";

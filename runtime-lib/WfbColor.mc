@@ -13,12 +13,12 @@ module WfbColor {
     //! build-time-constant colour (a bare hex literal, or a `palette.<name>`
     //! reference) is never routed through this call at all: it is
     //! pre-dimmed into a second literal in Python instead
-    //! (`wfb.emit.monkeyc.common._dim_color_code`), because there is nothing
+    //! (`dimColorCode` in ts/src/emit/monkeyc/common.ts), because there is nothing
     //! left to compute once the device is running.
     //!
-    //! Plain integer arithmetic throughout, never a Float: `wfb.palette.
-    //! dim_channel` computes this exact formula in Python for the
-    //! build-time half, and `wfb.preview` for the host-rendered half, and
+    //! Plain integer arithmetic throughout, never a Float: ts/src/palette.ts
+    //! computes this exact formula for the build-time half, and the
+    //! preview for the host-rendered half, and
     //! all three must agree bit for bit. A channel times `dim` landing near
     //! a `.5` boundary would be free to round differently under Python's
     //! banker's rounding, this platform's own `Math.round`, and 32-bit vs.

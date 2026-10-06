@@ -1,6 +1,6 @@
 // The single draw program: each element is lowered once into a list of
 // drawing ops, which a printer writes as Monkey C and an evaluator paints on
-// the host. Port of wfb/draw/__init__.py.
+// the host.
 //
 // Every kind that draws overrides `ElementKind.lower`. `program` puts the
 // element's own guards (`visible:`, absence, `antialias:`) around it.

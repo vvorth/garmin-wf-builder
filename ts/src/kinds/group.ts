@@ -1,5 +1,5 @@
 // `type: group`: draws nothing itself; a positioning box for its children.
-// Port of wfb/kinds/group.py's build half.
+//
 import type { Builder } from "../ir/builder/index.ts";
 import { type Element, Group } from "../ir/model.ts";
 import { staticGroupMethod } from "../ir/naming.ts";

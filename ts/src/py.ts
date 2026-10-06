@@ -186,25 +186,6 @@ export function floatHex(value: number): string {
   return `${sign}0x${lead}.${mantissa.toString(16).padStart(13, "0")}p${e >= 0 ? "+" : ""}${e}`;
 }
 
-/**
- * tools/oracle_patches.py's `canonical`: one string for YAML data that
- * Python writes identically, for hashing intended data across languages.
- */
-export function canonical(data: Data): string {
-  if (data instanceof PyFloat) return canonical(data.value);
-  if (data === null) return "n";
-  if (data === true) return "t";
-  if (data === false) return "f";
-  if (typeof data === "number") {
-    if (Number.isFinite(data) && Number.isInteger(data) && Math.abs(data) < 2 ** 53) return `i${data}`;
-    return `x${floatHex(data)}`;
-  }
-  if (typeof data === "string") return asciiJson(data);
-  if (data instanceof Timestamp) return `T${data.iso}`;
-  if (data instanceof Map) return `{${[...data].map(([k, v]) => `${canonical(k)}:${canonical(v)}`).join(",")}}`;
-  return `[${data.map(canonical).join(",")}]`;
-}
-
 /** Python's `json.dumps(text, ensure_ascii=True)`. */
 function asciiJson(text: string): string {
   let out = "\"";

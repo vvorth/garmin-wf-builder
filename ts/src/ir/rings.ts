@@ -1,5 +1,5 @@
 // Outlined groups: which leaves an outlined `group`'s ring goes round, and
-// how far each is dilated. Port of wfb/ir/rings.py.
+// how far each is dilated.
 //
 // A group's ring is the union of its members' dilations, drawn just before
 // the group's first member. A member's dilation includes its own ring and

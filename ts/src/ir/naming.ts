@@ -1,6 +1,6 @@
 // Generated-symbol derivation: how a data source path, an element id or a
 // `config:` axis name becomes a Monkey C local, field, method or resource
-// id. Port of wfb/ir/naming.py; every symbol an id can produce is derived
+// id. Every symbol an id can produce is derived
 // here, so the builder's collision check sees them all in one place.
 
 /** The generated local holding one source's value: `activity.step_goal` → `activityStepGoal`. */

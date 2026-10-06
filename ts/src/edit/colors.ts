@@ -1,5 +1,4 @@
-// Colour edits: a picked colour becomes a named palette swatch. Port of
-// wfb/edit/colors.py.
+// Colour edits: a picked colour becomes a named palette swatch..
 //
 // The editor's picker offers the face's own swatches and roles, the 64
 // named MIP colours and any custom colour. Whatever is picked, the element

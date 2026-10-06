@@ -1,6 +1,4 @@
-// The per-element-kind interface and its registry. Port of the build half
-// of wfb/kinds/__init__.py; the stages after the IR (layout, draw, emit,
-// lint) add their methods as they are ported.
+// The per-element-kind interface and its registry.
 //
 // Every element kind is one `ElementKind` subclass in its own module, which
 // registers an instance here (`register`). `./index.ts` imports all nine,

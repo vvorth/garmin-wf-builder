@@ -21,8 +21,8 @@
 #   axis, drawn after the pointer), so it turns with it and costs nothing
 #   extra.
 #
-# Build it with:     ./wfb.py build examples/features/gauge/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/gauge/face.yaml
+# Build it with:     ./wfb build examples/features/gauge/face.yaml
+# Preview it with:   ./wfb preview examples/features/gauge/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

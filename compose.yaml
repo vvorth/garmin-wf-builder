@@ -15,7 +15,6 @@ services:
     volumes:
       - ./vendor/devices:/devices:ro
       - ./vendor/fonts:/fonts:ro
-      - ./.cache/data:/state:rw
       - wfb-keys:/keys:rw
 
     # deploy:

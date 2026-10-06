@@ -1,6 +1,5 @@
 // What generated Monkey C actually calls: runtime-lib barrel modules and
-// `Toybox` modules, read straight off the emitted source text. Port of
-// wfb/emit/usage.py.
+// `Toybox` modules, read straight off the emitted source text..
 //
 // The generated source is the one complete record of what the code calls:
 // a barrel call is as often built inline as a string (from an expression,

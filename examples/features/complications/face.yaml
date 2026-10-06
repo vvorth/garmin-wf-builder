@@ -3,7 +3,7 @@
 # `complication.*` bindings, and `on_hold: auto` resolving a launch target
 # from an element's own value.
 #
-# Build it with:  ./wfb.py build examples/features/complications/face.yaml
+# Build it with:  ./wfb build examples/features/complications/face.yaml
 #
 # `complication.*` is always read through Toybox.Complications; every other
 # path here (`heart_rate.current`, `activity.*`, `system.battery`) is always
@@ -51,7 +51,7 @@ elements:
 
   # -- heart rate: a direct read, with on_hold: auto ------------------------
   # 'heart_rate.current' has a conventional launch target (`heart_rate`,
-  # wfb.catalog.Source.launch_complication) -- 'auto' below resolves it, so
+  # `Source.launch_complication` in `ts/src/catalog.ts`) -- 'auto' below resolves it, so
   # a hold on this text opens the heart-rate glance without naming it by hand.
   hr_icon:
     type: icon

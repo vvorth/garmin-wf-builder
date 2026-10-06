@@ -1,10 +1,9 @@
 // The IR's data model: constants, every element and value class, `Face`,
-// and the tree and draw-order helpers that read it. Port of
-// wfb/ir/model.py; the semantic pass that builds it is ./builder/.
+// and the tree and draw-order helpers that read it; the semantic pass that
+// builds it is ./builder/.
 //
-// The classes keep the Python dataclasses' field names (snake_case) and
-// declaration order, so the IR compares field for field with the oracle's
-// dump. A class is built with `Class.create({...})`: its defaults first,
+// Field names are snake_case, as the IR's JSON and the goldens spell
+// them. A class is built with `Class.create({...})`: its defaults first,
 // then the given fields, as a dataclass's constructor does.
 import * as catalog from "../catalog.ts";
 import * as complications from "../complications.ts";

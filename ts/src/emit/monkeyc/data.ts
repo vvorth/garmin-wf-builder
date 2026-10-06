@@ -1,6 +1,5 @@
 // A data element's on-device config-editor plumbing, its reading module and
-// its hold and icon helpers; its drawing is the data kind's `lower`. Port of
-// wfb/emit/monkeyc/data.py.
+// its hold and icon helpers; its drawing is the data kind's `lower`..
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
 import type { Face } from "../../ir/model.ts";
@@ -204,7 +203,7 @@ export function emitSlotText(face: Face): SourceFile {
   const w = new Writer();
   w.doc(header(face)).blank();
   w.lines("import Toybox.Complications;", "import Toybox.Lang;", "import Toybox.System;").blank();
-  w.doc("A `data` element's reading as the text it draws: one rule per\ncomplication type, generated from wfb.complications.READING.");
+  w.doc("A `data` element's reading as the text it draws: one rule per\ncomplication type, generated from the complication table's readings (ts/src/complications.ts).");
   w.block(`module ${SLOT_TEXT_MODULE}`, () => {
     w.doc("The pulled complication `c`, of type `t`, as display text, or null when\nit has no reading.  `unit` and `short` are the element's own keys.");
     w.block("function reading(t as Complications.Type, c as Complications.Complication,\n                     unit as Boolean, short as Boolean) as String?", () => {

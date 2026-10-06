@@ -1,8 +1,8 @@
 // Hand-set edits: `resources: hand_sets:` entries added from a preset,
 // duplicated, renamed with every element's `set:` following, and deleted
-// while nothing places them. Port of wfb/edit/hands.py.
+// while nothing places them.
 //
-// The presets are `wfb/templates/hands/sets.yaml`, handed in as text
+// The presets are `ts/templates/hands/sets.yaml`, handed in as text
 // (`loadPresets`) so this module runs in the browser too. Their `color.fg`
 // and `color.accent` stand for the face's main colour and its accent, and
 // are rewritten to colours the face has, so an added set loads.
@@ -19,7 +19,7 @@ export const HANDS = ["hour", "minute", "second"] as const;
 
 let presetData: Map<DataKey, Data> | undefined;
 
-/** Read a presets file's text; the bundled `wfb/templates/hands/sets.yaml` is read when nothing else was. */
+/** Read a presets file's text; the bundled `ts/templates/hands/sets.yaml` is read when nothing else was. */
 export function loadPresets(text: string): void {
   const data = parse(text);
   presetData = data instanceof Map ? data : new Map();

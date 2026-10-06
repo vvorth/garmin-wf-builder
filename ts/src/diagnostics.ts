@@ -1,5 +1,5 @@
 // Diagnostics carrying YAML source spans, and their rendering for a
-// terminal. Port of wfb/diagnostics.py.
+// terminal.
 //
 // ADR 0002 requires every error to point at the author's YAML, with file,
 // line and column, not at an internal representation. ADR 0008 requires

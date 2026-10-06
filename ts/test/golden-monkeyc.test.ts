@@ -18,7 +18,7 @@ const GOLDEN = join(ROOT, "ts", "test", "goldens", "monkeyc");
 const update = process.env["WFB_UPDATE_GOLDENS"] === "1";
 
 function generated(design: string): GeneratedProject {
-  const path = `tests/fixtures/${design}/face.yaml`;
+  const path = `ts/test/fixtures/${design}/face.yaml`;
   const text = readFileSync(join(ROOT, path), "utf8");
   const bag = new Bag();
   const exists = (p: string): boolean => existsSync(join(ROOT, p));

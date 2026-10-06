@@ -98,8 +98,8 @@ module WfbGeom {
     //! left edge of the screen (an author-placed or lint-flagged, not
     //! build-rejected, case -- `docs/limitations.md`'s "off-screen" lint is
     //! suppressible, not a hard error), so this is reachable on a real
-    //! design, not merely a theoretical corner. `wfb.layout.
-    //! pattern_text_anchor`, the preview's own twin, uses
+    //! design, not merely a theoretical corner. `patternTextAnchor`
+    //! (ts/src/kinds/pattern.ts), the preview's own twin, uses
     //! `math.floor(v + 0.5)`; without this the two disagree by one pixel
     //! for exactly the negative, non-half-integer inputs above, and the
     //! device draws one pixel off from what `wfb preview` shows.
@@ -115,17 +115,17 @@ module WfbGeom {
     //! loop, which every other helper in this file avoids by taking plain
     //! `Number`/`Decimal` scalars. Splitting the rotate-the-point step from
     //! the draw keeps every argument a scalar and adds no allocation: the
-    //! caller (`wfb.emit.monkeyc.rotated`) passes `rotatedX`/`rotatedY`'s
+    //! caller (ts/src/emit/monkeyc/rotated.ts) passes `rotatedX`/`rotatedY`'s
     //! results straight into `dc.drawText` as its own `x`/`y`, exactly the
     //! anchor this used to compute internally. Each axis still rounds half
-    //! up, matching `wfb.layout.pattern_text_anchor`'s per-axis `math.
-    //! floor(v + 0.5)` pixel for pixel (see the "Round half up" note
+    //! up, matching `patternTextAnchor`'s per-axis `Math.floor(v +
+    //! 0.5)` pixel for pixel (see the "Round half up" note
     //! above for the `Math.floor` fix that makes this actually true for a
     //! negative anchor too), so the preview and the device still agree.
     //!
     //! `text` is typed `String` rather than `drawText`'s own wider `Object`
     //! because every caller here already has a `String`, from a literal or
-    //! from `wfb.formatting.emit`'s own `.format(...)`/`.toString()` output
+    //! from ts/src/formatting.ts's `emit`'s own `.format(...)`/`.toString()` output
     //! (`docs/lore/monkeyc.md`'s narrowest-type rule).  `justify` keeps
     //! `Dc.drawText`'s own union type: a bitwise-OR'd pair of
     //! `Graphics.TEXT_JUSTIFY_*` flags typechecks as `Lang.Number`, not

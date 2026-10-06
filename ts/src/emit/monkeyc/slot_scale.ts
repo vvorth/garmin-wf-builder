@@ -1,5 +1,5 @@
 // `source/SlotScale.mc`: a gauge's automatic scale for the complication
-// type it shows. Port of wfb/emit/monkeyc/slot_scale.py.
+// type it shows.
 import * as complications from "../../complications.ts";
 import { type Face, Gauge } from "../../ir/model.ts";
 import { floatRepr } from "../../py.ts";
@@ -37,10 +37,10 @@ export function slotScaleText(names: Iterable<string>, apps: boolean, headerText
   const imports = ["import Toybox.Complications;", "import Toybox.Lang;"];
   if (byKind.has("goal")) imports.unshift("import Toybox.ActivityMonitor;");
   w.lines(...imports).blank();
-  w.doc("A gauge's automatic scale for the complication type it shows,\ngenerated from wfb.complications.SCALE.");
+  w.doc("A gauge's automatic scale for the complication type it shows,\ngenerated from the complication table's scales (ts/src/complications.ts).");
   w.block(`module ${SLOT_SCALE_MODULE}`, () => {
     if (byKind.has("vo2max")) {
-      w.doc("WfbProfileScale.vo2max's table, from wfb.complications.VO2MAX_RATINGS.");
+      w.doc("WfbProfileScale.vo2max's table, from the complication table's VO2 max ratings.");
       w.line(`const VO2MAX_ENDS = [${vo2maxEnds().map((v) => floatRepr(v)).join(", ")}] as Array<Float>;`);
       w.blank();
     }

@@ -1,6 +1,6 @@
 // Null handling and `format:`: the platform makes absence normal
 // (constraint 8), so a nullable binding must say what to draw without it.
-// Port of wfb/ir/builder/absence.py.
+//
 import * as catalog from "../../catalog.ts";
 import type { Span } from "../../diagnostics.ts";
 import * as formatting from "../../formatting.ts";

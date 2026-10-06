@@ -1,5 +1,5 @@
 // Structural patches: elements moved between blocks, grouped and
-// ungrouped, and new elements of every type. Port of wfb/edit/structure.py.
+// ungrouped, and new elements of every type.
 //
 // An element block is an id-keyed mapping: the top level's and a layout's
 // `static:` and `elements:`, and a group's `children:`. Moving an element

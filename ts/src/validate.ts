@@ -1,5 +1,5 @@
 // Stage 1 validation: the JSON Schema, reported against the YAML source.
-// Port of wfb/validate.py.
+//
 //
 // jsonschema reports failures against an instance path. The YAML document
 // carries spans for every node, so the two are joined here and the author

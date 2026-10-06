@@ -79,4 +79,4 @@ maintainers and curious readers; you don't need them to build a face.
 | [`lore/`](lore/) | Maintainer notes: platform constraints, toolchain, compiler quirks, roadmap, working agreement |
 
 The screenshots in these docs come from `wfb preview` on a fēnix 8 Solar
-47 mm. To regenerate them, run `./.venv/bin/python tools/docs-shots.py`.
+47 mm. To regenerate them, run `node ts/tools/docs-shots.ts`.

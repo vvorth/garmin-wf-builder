@@ -7,7 +7,7 @@
 # * `top_reading` has an explicit `choices:` list (steps, heart rate,
 #   calories) and `icon: {size:}`, so its icon is chosen **on-device** from
 #   `Complications.Id.getType()` -- a generated `switch` maps the wearer's
-#   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`, all 42 native
+#   pick to a catalogue name (`COMPLICATION_ICON` in `ts/src/icons.ts`, all 42 native
 #   types since 2026-09-13), and `IconGlyphs.glyph()` turns that name into the
 #   drawn character, the same "which name, then which glyph" split a dynamic
 #   weather icon already uses.
@@ -36,7 +36,7 @@
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
 #   complication picker -- and still declares `icon: {size:}`. Every native
 #   complication type has a catalogue icon, so `any` resolves against the whole of
-#   `wfb.icons.COMPLICATION_ICON`: all 42 icons are baked, and a Connect IQ
+#   `COMPLICATION_ICON` in `ts/src/icons.ts`: all 42 icons are baked, and a Connect IQ
 #   app's own complication, which the compiler cannot know, draws its reading
 #   with no icon. (Building this exposed a monkeyc crash on two string
 #   literals with the same Java hash, such as the `distance` and
@@ -88,7 +88,7 @@
 # the expected layout, and that none of it crashes a device with no editor
 # (`fr955`).
 #
-# Build it with:  ./wfb.py build examples/features/slots/face.yaml
+# Build it with:  ./wfb build examples/features/slots/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

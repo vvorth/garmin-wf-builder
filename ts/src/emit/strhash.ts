@@ -1,5 +1,4 @@
-// Find string literals `monkeyc` would give the same assembler label. Port
-// of wfb/emit/strhash.py.
+// Find string literals `monkeyc` would give the same assembler label.
 //
 // `monkeyc` 9.2.0 names each distinct string constant's data label
 // `str___<N>`, `N` the string's Java `String.hashCode()`, so two different

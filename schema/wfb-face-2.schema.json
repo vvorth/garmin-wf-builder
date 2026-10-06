@@ -253,7 +253,7 @@
         },
         "radius": {
           "$ref": "#/$defs/length",
-          "description": "'radial' only: the circle's own radius, the same unit rules 'at:'/'radius:' already use elsewhere. Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled' -- parsed here rather than turned away as an unknown key, so the compiler can name the actual mistake (an angled line has no circle for it to describe) instead of jsonschema's generic message, the same 'text-antialias' precedent 'wfb.ir.builder' already follows."
+          "description": "'radial' only: the circle's own radius, the same unit rules 'at:'/'radius:' already use elsewhere. Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled' -- parsed here rather than turned away as an unknown key, so the compiler can name the actual mistake (an angled line has no circle for it to describe) instead of jsonschema's generic message, the same 'text-antialias' precedent '`ts/src/ir/builder/index.ts`' already follows."
         },
         "direction": {
           "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
@@ -473,7 +473,7 @@
         },
         "radius": {
           "$ref": "#/$defs/handLength",
-          "description": "'radial' only: the circle's own radius, px or %r only (a pattern part's frame has no parent box for '%' and no font in scope for 'pt'). Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent 'wfb.ir.builder' already follows elsewhere."
+          "description": "'radial' only: the circle's own radius, px or %r only (a pattern part's frame has no parent box for '%' and no font in scope for 'pt'). Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent '`ts/src/ir/builder/index.ts`' already follows elsewhere."
         },
         "direction": {
           "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",

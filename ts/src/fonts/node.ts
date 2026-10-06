@@ -1,4 +1,4 @@
-// Font files from disk, found where wfb/fonts/fetch_system.py finds them:
+// Font files from disk:
 // the Garmin font root (`--fonts`, `WFB_FONTS`, `vendor/fonts/`, the SDK
 // Manager's folders) and the registry's installed or cached stand-ins.
 // Node only: the browser bundle never imports this module.
@@ -33,7 +33,7 @@ export function garminFontRoot(override: string | null = null): string | null {
 }
 
 /** Where a prefetch installs the registry's stand-ins, and the runtime cache. */
-export const SYSTEM_FONTS_DEST = join(REPO_ROOT, "wfb", "assets", "system-fonts");
+export const SYSTEM_FONTS_DEST = join(REPO_ROOT, "ts", "assets", "system-fonts");
 
 export function cacheDir(): string {
   const base = process.env["XDG_CACHE_HOME"] || join(homedir(), ".cache");

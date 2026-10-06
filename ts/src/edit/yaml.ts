@@ -1,4 +1,4 @@
-// YAML as ruamel's safe loader reads it (wfb/edit/spans.py `_composed`):
+// YAML as ruamel's safe loader reads it:
 // the composed node tree, with ruamel's marks, tags and scalar values, and
 // the plain data constructed from it.
 //

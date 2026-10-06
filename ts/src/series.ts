@@ -1,11 +1,10 @@
 // The `series:` a `graph` element may plot, and how each is read on the
-// device, and why a quantity it cannot plot is unavailable. Port of
-// wfb/series.py.
+// device, and why a quantity it cannot plot is unavailable.
 //
 // Every field name and "or Null" was checked against the SDK's own docs
 // (`Toybox/ActivityMonitor.html`, `.../ActivityMonitor/History.html`,
 // `.../ActivityMonitor/ActiveMinutes.html`, `Toybox/Weather/HourlyForecast.html`,
-// `Toybox/Weather/DailyForecast.html`), as wfb/series.py records.
+// `Toybox/Weather/DailyForecast.html`).
 
 import { Catalogue } from "./diagnostics.ts";
 

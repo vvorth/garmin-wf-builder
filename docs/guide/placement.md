@@ -184,7 +184,7 @@ the box is the full circle, not the swept span. Changing `thickness:` or
 | `gauge` arc | `2·radius` × `2·radius`, same as `type: arc` |
 | `graph` | `size:` |
 | `icon` | the measured glyph box (the font's own extent for the drawn codepoint) |
-| `data` | the icon+reading pair's box, from `wfb.layout.complication_slot_pair_geometry` — estimated at build time, measured on the device |
+| `data` | the icon+reading pair's box, from `ts/src/layout.ts` — estimated at build time, measured on the device |
 | a hand or pattern `rectangle` part | `size:`, in the part's own frame |
 | a hand or pattern `circle` part | `2·radius` × `2·radius`, in the part's own frame |
 

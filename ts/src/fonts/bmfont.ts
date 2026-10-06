@@ -1,6 +1,5 @@
 // A baked font: a BMFont sheet's glyph boxes and line metrics, which layout
-// places text with. The data half of wfb/fonts/bmfont.py; rasterising and
-// writing the sheet come with the bake.
+// places text with. Rasterising and writing the sheet are `bake.ts`.
 import { make } from "../ir/model.ts";
 
 export class GlyphBox {

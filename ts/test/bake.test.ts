@@ -8,7 +8,7 @@ import { REPO_ROOT } from "../src/devices/node.ts";
 import { bake, dilate, toFnt } from "../src/fonts/bake.ts";
 import { decodePng, encodePng } from "../src/png.ts";
 
-const OPEN_SANS = "tests/fixtures/slice/assets/OpenSans-Regular.ttf";
+const OPEN_SANS = "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf";
 const file = (path: string) => {
   const bytes = readFileSync(join(REPO_ROOT, path));
   return { path, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) };

@@ -65,7 +65,7 @@ function AlignPicker({ value, onCommit }) {
 // (its swatches, then its roles where a role is allowed), the 64 named MIP
 // colours, and a custom colour. A swatch or role is picked as
 // `color.<name>`; one of the 64 or a custom colour as its hex, which the
-// server turns into the swatch holding it (`wfb.edit.colors`).
+// server turns into the swatch holding it (`src/edit/colors.ts`).
 export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
@@ -375,7 +375,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }) {
 
 // `theme: schemes:`: with none, which colours should follow the wearer's
 // style; with some, the roles × schemes table. Every change is one of the
-// compound edits of `wfb.edit.schemes`, so it never leaves the schemes out
+// compound edits of `src/edit/schemes.ts`, so it never leaves the schemes out
 // of step.
 function Schemes({ schemes, palette, styles, ctx, onEdit }) {
   const [picked, setPicked] = useState([]);

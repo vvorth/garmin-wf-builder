@@ -1,8 +1,6 @@
 // The four tables of a TrueType/OpenType font that measuring text needs:
 // `head` (units per em), `hhea` (ascent, descent), `hmtx` (each glyph's
-// advance) and `cmap` (character to glyph). Read directly from the bytes,
-// the way wfb/devices.py's `_sfnt_head_hhea` reads the first two and
-// fontTools the rest for wfb/fonts/fallback.py.
+// advance) and `cmap` (character to glyph). Read directly from the bytes.
 
 /** What a font says about laying a line out. */
 export interface Sfnt {

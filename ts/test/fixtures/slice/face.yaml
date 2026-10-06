@@ -1,0 +1,89 @@
+# The Phase 2 vertical slice: a background, the time in a custom font, one arc
+# bound to the step goal, and one icon.  Deliberately minimal -- it exists to
+# prove the whole path from YAML to a sideloadable .prg, not to be a good design.
+#
+# A test fixture, not an example: the golden files in `ts/test/goldens/monkeyc/`, the
+# build and preview tests, and every test that needs a real TTF (its Open Sans)
+# read it from here.  Changing it changes the goldens.
+#
+# Build it with:  ./wfb build ts/test/fixtures/slice/face.yaml
+#
+# yaml-language-server: $schema=../../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Slice
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+# Every colour is one the 64-colour MIP panel can show without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.  The linter checks this.
+resources:
+  fonts:
+    clock:
+      source: assets/OpenSans-Regular.ttf
+      # 52.3076923077%r is the exact equivalent of the old bare 'size: 68' --
+      # 68px on the smallest target (130px minor radius), expressed as a
+      # fraction of the screen's minor radius so it scales per device on its
+      # own (68 / 130 * 100).
+      size: 52.3076923077%r
+  palette:
+    bg: "#000000"
+    text: "#FFFFFF"
+    accent: "#FF5500"
+    track: "#555555"
+
+# 'glyphs' is omitted on purpose: the compiler derives the set from the
+# format specs below, so the sheet carries eleven glyphs, not a charset.
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  # setPenWidth + drawArc.  Garmin has no filled-sector primitive, so this is a
+  # stroked ring: 'thickness' is a pen width, and there is no inner/outer radius.
+  step_ring:
+    type: gauge
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 90%r          # 90% of the screen's minor radius
+    thickness: 10px
+    start_angle: 180deg     # 6 o'clock, measured clockwise from 12
+    sweep: 340deg           # clockwise, stopping just short of a full circle
+    color: color.accent
+    track_color: color.track
+    absent: hide            # required: both bindings are nullable
+
+  clock:
+    type: text
+    text: "{time.clock:%h:%M}" # %h follows the watch's own 12/24-hour setting
+    font: font.clock
+    at: { anchor: center, dy: -4% }
+    color: color.text
+
+  steps_icon:
+    type: icon
+    icon: steps
+    at: { anchor: center, dy: 16% }
+    size: 30px
+    color: color.accent
+
+  steps_value:
+    type: text
+    text: "{activity.steps:d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 30% }
+    color: color.text
+    absent: "--"

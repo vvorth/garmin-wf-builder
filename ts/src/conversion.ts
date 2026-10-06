@@ -1,5 +1,4 @@
-// Unit conversion for a `text` element's `units:` (ADR 0005 §4). Port of
-// wfb/conversion.py.
+// Unit conversion for a `text` element's `units:` (ADR 0005 §4)..
 //
 // The builder rewrites the bound value into an ordinary expression over the
 // source and one `device.<quantity>_units` setting (`convertedText`), then

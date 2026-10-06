@@ -1,6 +1,5 @@
 // `type: icon`: one glyph drawn from a baked icon font, static or chosen at
-// runtime from a bound value (`icon: {for:}`). Port of wfb/kinds/icon.py's
-// build half.
+// runtime from a bound value (`icon: {for:}`): its build half.
 import * as catalog from "../catalog.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
@@ -87,7 +86,7 @@ class IconKind extends ElementKind<IconElement> {
           "or is any codepoint in the icon font, written 'U+XXXX' -- for "
           + "the ~10,000 glyphs the catalogue does not name",
           "or is {for: <expression>}, choosing one at runtime from a "
-          + "bound value -- see wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
+          + "bound value -- see WEATHER_CONDITION_SOURCES in ts/src/catalog.ts for what it accepts"],
       });
     }
     const size = b.bakedSizeLength(node, "size", { code: "icon", label: "icon size", note: ICON_SIZE_NOTE });

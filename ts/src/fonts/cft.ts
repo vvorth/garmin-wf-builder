@@ -1,5 +1,4 @@
-// Garmin's `.cft` bitmap-font container. Port of wfb/fonts/cft.py, itself a
-// port of the decode logic in markw65/monkeyc-optimizer's `src/cftinfo.ts`
+// Garmin's `.cft` bitmap-font container. A port of the decode logic in markw65/monkeyc-optimizer's `src/cftinfo.ts`
 // (commit cea919a92da74de1f5d277064caa6f7920554af7, MIT), credited in
 // README.md.
 //

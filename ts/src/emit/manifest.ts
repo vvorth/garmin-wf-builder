@@ -1,4 +1,4 @@
-// `manifest.xml` generation. Port of wfb/emit/manifest.py.
+// `manifest.xml` generation.
 //
 // The permission set is derived from the bindings: a missing permission
 // fails silently on the watch (the API returns null), the most common

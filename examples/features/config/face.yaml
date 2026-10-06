@@ -29,7 +29,7 @@
 # there is no simulator in this container and no watch.  What is verified:
 # the design compiles warning-free on all three targets, and what it costs.
 #
-# Build it with:  ./wfb.py build examples/features/config/face.yaml
+# Build it with:  ./wfb build examples/features/config/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

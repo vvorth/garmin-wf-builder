@@ -340,7 +340,7 @@ that are not numbers: `copy == 0 ? "M" : copy == 1 ? "T" : ...`.
 On the watch the compiled placeholder is evaluated once per copy, like a
 `copy` colour. The host evaluates the same expression only to measure,
 subset the font and draw the preview. **Write `%` with a non-negative left
-side**: `(copy + 11) % 12 + 1` rather than `(copy - 1) % 12`. Python and
+side**: `(copy + 11) % 12 + 1` rather than `(copy - 1) % 12`. The preview and
 Monkey C may disagree about the sign of `%` on a negative number, which is
 unverified and applies to every expression, not only this one.
 

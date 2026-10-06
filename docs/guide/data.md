@@ -119,7 +119,7 @@ heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
 other catalogue path is *always* a direct API read.** No exceptions, no
 overlap. All 42 real `COMPLICATION_TYPE_*` values are exposed
 (`COMPLICATION_TYPE_INVALID` is not a real value and is excluded), generated
-from one table, `wfb/complications.py`'s `TYPES` — transcribed verbatim from
+from one table, `ts/src/complications.ts`'s `TYPES` — transcribed verbatim from
 `Toybox/Complications.html`'s own Type table, not hand-copied, so it cannot
 silently drift from what the platform actually offers. `wfb complications`
 prints all 42, the Monkey C constant each compiles to, and the API level it
@@ -157,7 +157,7 @@ a per-feature bump would lock out any target that never touches the
 feature -- see [What each device does with it](configuration.md#what-each-device-does-with-it)); a target device that
 lacks `Toybox.Complications` instead gets the read guarded at runtime and
 warned about ([`api-gated`](configuration.md#lint)) rather than being excluded from the build.
-`wfb/emit/monkeyc/view.py` also emits one
+`ts/src/emit/monkeyc/view.ts` also emits one
 `WfbComplications.subscribe(...)` per bound type in `onLayout`, whose whole
 job is `WatchUi.requestUpdate()` on change — this is *not* a cache (see "How
 data is read", below), it exists only so a value that changes after the first
@@ -223,7 +223,7 @@ already cached on *its* side -- `Toybox/Weather.html` describes
 `getCurrentConditions()` as "get the **most recently cached** weather
 conditions", not "fetch weather conditions" -- so a second cache inside the
 128 KB watch-face budget would buy nothing but code and memory.
-`wfb/emit/monkeyc/readplan.py`'s `ReadPlan` hoists one read per distinct
+`ts/src/emit/monkeyc/readplan.ts`'s `ReadPlan` hoists one read per distinct
 reader per frame (two elements sharing `weather.getDailyForecast()` share
 one call, not one each), and makes it where the frame needs it: what shared
 content draws with at the top of the frame, and what only one layout's
@@ -249,7 +249,7 @@ If a value you want is missing, check the underlying Garmin API page:
 `Toybox/Weather/*.html`, `Toybox/UserProfile/Profile.html` and
 `Toybox/Complications.html` are where the current catalogue draws from, and
 each has more fields than are exposed today -- adding one is a
-`wfb/catalog.py` entry (path, type, nullability, permission, the SDK field it
+`ts/src/catalog.ts` entry (path, type, nullability, permission, the SDK field it
 reads), not a schema change. Before adding one, check the field's own
 "Supported Devices" list in the SDK doc against the three targets by name --
 several fields on these pages are gated per device even though the class

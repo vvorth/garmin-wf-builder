@@ -1,5 +1,5 @@
 // `type: text`: a bound or literal string, optionally curved onto a
-// `face:` (vector) font. Port of wfb/kinds/text.py's build half.
+// `face:` (vector) font.
 import * as catalog from "../catalog.ts";
 import * as conversion from "../conversion.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";

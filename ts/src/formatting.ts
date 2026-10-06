@@ -1,5 +1,4 @@
-// Format specs: what they compile to, and how wide they can get. Port of
-// wfb/formatting.py.
+// Format specs: what they compile to, and how wide they can get..
 //
 // ADR 0005 §4: `format:` uses Python-style specs. Two jobs come out of one
 // declaration: the Monkey C that renders the value, and the widest

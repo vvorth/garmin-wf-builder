@@ -1,6 +1,5 @@
 // `config:`: the four on-device configuration axes -- Styles (`style:`),
-// Data (`slots:`) and the two colours (`accent_color`, `data_color`). Port
-// of wfb/ir/builder/config.py.
+// Data (`slots:`) and the two colours (`accent_color`, `data_color`).
 import * as complications from "../../complications.ts";
 import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";

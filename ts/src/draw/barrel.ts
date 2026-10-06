@@ -1,5 +1,4 @@
-// The barrel's arithmetic, transcribed from `runtime-lib/*.mc`. Port of
-// wfb/draw/barrel.py.
+// The barrel's arithmetic, transcribed from `runtime-lib/*.mc`..
 //
 // The evaluator computes what a barrel call draws with these functions, so
 // the preview draws what the watch draws by construction. Each keeps Monkey

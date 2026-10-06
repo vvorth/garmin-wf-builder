@@ -1,6 +1,5 @@
 // The front end of a build: a design's text through every load pass to its
-// IR, the devices it builds for, and each one resolved and linted. Port of
-// wfb/build.py's `load`, `select_devices` and `resolve_all`.
+// IR, the devices it builds for, and each one resolved and linted..
 import type { Bag } from "./diagnostics.ts";
 import { compareVersions, type Device, type DeviceDatabase, DeviceError } from "./devices/device.ts";
 import { FontFileError } from "./fonts/bake.ts";
@@ -56,7 +55,7 @@ export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: re
     }
     if (compareVersions(device.apiLevel, BASE_API_LEVEL) < 0) {
       bag.error("target", `${deviceId} is below the ${BASE_API_LEVEL} floor this compiler requires (its own ConnectIQ ceiling is ${device.apiLevel})`, null, {
-        notes: [`every generated manifest declares minApiLevel="${BASE_API_LEVEL}" (wfb/emit/manifest.py's BASE_API_LEVEL); a device below `
+        notes: [`every generated manifest declares minApiLevel="${BASE_API_LEVEL}" (BASE_API_LEVEL); a device below `
           + "that floor cannot build at all, whether or not the design uses anything that floor actually needs"],
       });
       continue;

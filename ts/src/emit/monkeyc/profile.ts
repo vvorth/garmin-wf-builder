@@ -1,5 +1,5 @@
 // `wfb build --profile`: draw-time instrumentation for the active frame.
-// Port of wfb/emit/monkeyc/profile.py.
+//
 //
 // Each frame times one entry, drawn `reps` times in a row, and accumulates
 // the milliseconds and the repetitions across frames; the average per call

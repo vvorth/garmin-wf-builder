@@ -24,8 +24,8 @@ styles the wearer switches between on the watch.*
 ## Quick start
 
 ```sh
-./tools/setup-env.sh              # SDK, signing key, fonts, .venv (Linux or macOS)
-alias wfb="$PWD/wfb.py"
+./tools/setup-env.sh              # SDK, signing key, fonts, Node (Linux or macOS)
+alias wfb="$PWD/wfb"
 wfb new "My Face"                 # a working face from a template
 wfb preview my-face.yaml --watch  # a PNG that redraws every time you save
 wfb build my-face.yaml            # one signed .prg per watch
@@ -95,16 +95,16 @@ font isn't in the repository; setup downloads it with its licence.
 Previews and width/height estimates for Garmin's own system fonts use free
 stand-ins — Roboto, DejaVu, Bebas Neue, Rajdhani, and others, each an
 `exact`/`family`/`substitute` match recorded in
-[`wfb/fonts/registry.json`](wfb/fonts/registry.json) with its own pinned
+[`ts/src/data/font-registry.json`](ts/src/data/font-registry.json) with its own pinned
 source, licence (mostly Apache-2.0 or OFL-1.1) and rationale.
 None of them is in the repository either; setup (or
-`tools/fetch-system-fonts.py`) downloads whichever ones your installed devices
+`ts/tools/fetch-system-fonts.ts`) downloads whichever ones your installed devices
 need, each with a licence file alongside it. If you have Garmin's own font
 files — from the SDK Manager's `Fonts` directory — they take priority over
 these stand-ins; put them at `vendor/fonts/` (gitignored, like
 `vendor/devices/`: it's your own licensed copy, never committed) or point
 `WFB_FONTS` at them. Decoding those files' own `.cft` bitmap format
-([`wfb/fonts/cft.py`](wfb/fonts/cft.py)) is a port of the decode logic in
+([`ts/src/fonts/cft.ts`](ts/src/fonts/cft.ts)) is a port of the decode logic in
 [`markw65/monkeyc-optimizer`](https://github.com/markw65/monkeyc-optimizer)
 (`src/cftinfo.ts`, MIT licence), pinned at commit
 `cea919a92da74de1f5d277064caa6f7920554af7`.

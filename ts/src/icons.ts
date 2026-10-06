@@ -1,5 +1,5 @@
 // Icons: the catalogue's names, codepoint spellings, and the weather and
-// complication icon tables. Port of wfb/icons.py's build-time half; baking
+// complication icon tables. Baking
 // and measuring a glyph come with the font stage. The tables are
 // `data/icons.json`, exported by tools/export_tables.py.
 //
@@ -71,7 +71,7 @@ export function setIconFontGlyphs(glyphs: ReadonlySet<string> | string): void {
 /** Is this character in the icon font's own character map? */
 export function fontHas(character: string): boolean {
   if (available === undefined || typeof available === "string") {
-    throw new IconFontMissing(available ?? "the icon font is not installed: run tools/setup-env.sh, or python3 tools/fetch-icon-font.py");
+    throw new IconFontMissing(available ?? "the icon font is not installed: run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts");
   }
   return available.has(character);
 }

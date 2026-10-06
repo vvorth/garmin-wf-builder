@@ -1,5 +1,4 @@
-// wfb -- build a Garmin Connect IQ watch face from a YAML design. Port of
-// wfb/cli.py: the same commands, flags, output and exit codes. Node only.
+// wfb -- build a Garmin Connect IQ watch face from a YAML design. Node only.
 //
 //     wfb validate design.yaml     # schema + semantic checks, no toolchain
 //     wfb preview  design.yaml     # render to a PNG, with no simulator
@@ -666,7 +665,7 @@ function doctorSystemFonts(deviceIds: string[], devicesRoot: string, fonts: Node
   }
   const shown = lacking.slice(0, 4).join(", ") + (lacking.length > 4 ? " ..." : "");
   out(`${absent} system fonts     ${lacking.length} of ${deviceIds.length} devices lack a stand-in: ${shown}`);
-  hint(`(${summary} font names) -- run python3 tools/fetch-system-fonts.py;`, "not blocking, falls back to a substitute face at build time");
+  hint(`(${summary} font names) -- run node ts/tools/fetch-system-fonts.ts;`, "not blocking, falls back to a substitute face at build time");
 }
 
 function doctorCommand(args: Namespace): number {
@@ -691,11 +690,11 @@ function doctorCommand(args: Namespace): number {
 
   const haveReference = existsSync(DEVICE_REFERENCE) && statSync(DEVICE_REFERENCE).isDirectory();
   out(`${haveReference ? ok : missing} device reference ${dirname(DEVICE_REFERENCE)}`);
-  if (!haveReference) fail("generate the SDK device reference", ["run tools/setup-env.sh, or python3 tools/extract-device-reference.py"]);
+  if (!haveReference) fail("generate the SDK device reference", ["run tools/setup-env.sh, or node ts/tools/extract-device-reference.ts"]);
 
   const haveIcons = existsSync(ICON_FONT);
   out(`${haveIcons ? ok : missing} icon font        ${ICON_FONT}`);
-  if (!haveIcons) fail("install the icon font", ["run tools/setup-env.sh, or python3 tools/fetch-icon-font.py"]);
+  if (!haveIcons) fail("install the icon font", ["run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts"]);
 
   // Garmin's own font files: optional, and never downloaded here.
   const fontsDir = (args["fonts_dir"] as string | null) ?? null;
@@ -744,7 +743,7 @@ function doctorCommand(args: Namespace): number {
     const extracted = referenceSdkVersion();
     if (extracted !== null && extracted !== toolchain.version) {
       out(`${missing} device reference extracted from SDK ${extracted}`);
-      fail("extract the device reference from this SDK", ["run tools/setup-env.sh, or python3 tools/extract-device-reference.py"], false);
+      fail("extract the device reference from this SDK", ["run tools/setup-env.sh, or node ts/tools/extract-device-reference.ts"], false);
     }
     const keyDir = dirname(toolchain.key);
     canCompile = true;

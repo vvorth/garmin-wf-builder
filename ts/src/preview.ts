@@ -1,5 +1,4 @@
-// Host-side preview: a resolved design rendered to an image. Port of
-// wfb/preview.py.
+// Host-side preview: a resolved design rendered to an image..
 //
 // The preview consumes the same resolved IR the code generator does (ADR
 // 0004), so preview and device cannot disagree about position. Shapes are

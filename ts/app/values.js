@@ -77,7 +77,7 @@ export function at(data, path) {
   return path.reduce((d, k) => (d == null ? undefined : d[k]), data);
 }
 
-// The name the editor gives a colour it adds (`wfb.edit.colors`): its MIP
+// The name the editor gives a colour it adds (`src/edit/colors.ts`): its MIP
 // name when it is one of the 64 (`mip`, the vocabulary's table), else `c`
 // and its hex.
 export function automaticName(rgb, mip) {
@@ -96,7 +96,7 @@ export function swatchFor(rgb, palette, mip) {
 
 // sRGB channel -> linear, and the 2-colour rule: nearer white above the
 // luminance where contrast with black equals contrast with white
-// (`wfb.palette.MONO_CROSSOVER`).
+// (`src/palette.ts's MONO_CROSSOVER`).
 function linear(c) {
   const s = c / 255;
   return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
@@ -117,7 +117,7 @@ export function safeOn(rgb, displays) {
 }
 
 // What removing the schemes does to the style entries
-// (`wfb.edit.schemes.remove_theme`): an entry naming only a scheme goes, one
+// (`src/edit/schemes.ts's removeTheme`): an entry naming only a scheme goes, one
 // naming a layout stays, and a kept entry whose layout an earlier one has
 // already is a duplicate the author resolves.
 export function afterRemovingSchemes(entries) {

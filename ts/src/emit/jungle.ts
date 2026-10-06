@@ -1,4 +1,4 @@
-// `monkey.jungle` generation. Port of wfb/emit/jungle.py.
+// `monkey.jungle` generation.
 //
 // Directories are keyed by device id, not `deviceFamily`: two devices of
 // one family can differ in system-font metrics and API level, so their

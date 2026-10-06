@@ -1,4 +1,4 @@
-// A tiny indentation-aware source writer. Port of wfb/emit/writer.py.
+// A tiny indentation-aware source writer.
 //
 // Generated Monkey C is read by humans: it is what the author debugs when a
 // face misbehaves on the wrist. Getting the indentation right by

@@ -109,7 +109,7 @@ outer_arc:
 Angles are the format's own convention -- 12 o'clock is 0 and clockwise is
 positive -- converted to Garmin's (3 o'clock is 0, counter-clockwise) at build
 time. It is **exactly** the conversion a `gauge` with `style: arc` uses; both
-call `wfb.layout.garmin_arc` and both draw through the same
+call `garminArc` in `ts/src/layout.ts` and both draw through the same
 `WfbArc.drawSpan`, so the two arcs cannot drift apart.
 
 Use `type: arc` for a fixed decorative span and `type: gauge` /

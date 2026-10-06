@@ -1,5 +1,4 @@
-// Spelling helpers for the plain drawing primitives. Port of the parts of
-// wfb/emit/monkeyc/shapes.py the printer and view read.
+// Spelling helpers for the plain drawing primitives the printer and view read.
 import { discPerimeterOffsets } from "../../ir/model.ts";
 import type { PlacedGauge, PlacedShape } from "../../layout.ts";
 import type { Writer } from "../writer.ts";

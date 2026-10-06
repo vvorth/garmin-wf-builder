@@ -1,6 +1,5 @@
 // `type: pattern`: one template drawn `count:` times, turned about `at:`
-// (radial), stepped along `{dx, dy}` (linear) or in rows (grid). Port of
-// wfb/kinds/pattern.py's build half.
+// (radial), stepped along `{dx, dy}` (linear) or in rows (grid)..
 import type { Data, DataKey } from "../edit/yaml.ts";
 import * as expr from "../expr.ts";
 import * as formatting from "../formatting.ts";

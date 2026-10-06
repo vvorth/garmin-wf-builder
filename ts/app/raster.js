@@ -1,7 +1,7 @@
 // Pillow's drawing primitives, in JavaScript, pixel for pixel (most shapes
 // by Garmin's own rules instead, below): the shapes
 // the editor's draw program uses, and the pasting of its text's and icons'
-// tiles, so a layer's JSON (`wfb.draw.jsonform`) can be drawn in the
+// tiles, so a layer's JSON (`src/draw/jsonform.ts`) can be drawn in the
 // browser exactly as `jsonform.rasterise`, and so the preview, draws it.
 //
 // Follows Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc,
@@ -582,7 +582,7 @@ export function paste(im, tile, x, y, color) {
   }
 }
 
-// The tile store `wfb.draw.jsonform.Tiles.pack` sends, once inflated: the
+// The tile store `Tiles.pack in src/draw/jsonform.ts` sends, once inflated: the
 // RGBA bytes of every tile one after another, and their index
 // `{id: [offset, width, height, kind]}`.
 export function unpackTiles(bytes, index) {
@@ -593,9 +593,9 @@ export function unpackTiles(bytes, index) {
   return tiles;
 }
 
-// -- the JSON form: `wfb.draw.jsonform.rasterise` ------------------------------------------
+// -- the JSON form: `src/draw/jsonform.ts's rasterise` ------------------------------------------
 
-// Every op `drawOps` draws: `wfb.draw.jsonform.BROWSER_OPS`, checked equal.
+// Every op `drawOps` draws: `src/draw/jsonform.ts's BROWSER_OPS`, checked equal.
 export const OPS = Object.freeze([
   "color", "pen", "fillPolygon", "arc", "text", "glyph",
   "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",
@@ -824,7 +824,7 @@ export function translateOps(ops, dx, dy) {
 
 // Where a layer's ops leave ink: drawn on black and on white, a pixel is
 // ink where the grounds' difference, as luma, falls short of 255 -- the
-// coverage `wfb.draw.layers.matte` takes (Pillow's "RGB" to "L":
+// coverage `src/draw/layers.ts's matte` takes (Pillow's "RGB" to "L":
 // (r * 19595 + g * 38470 + b * 7471 + 0x8000) >> 16).
 // `{box: [x0, y0, x1, y1] | null, mask}`: frame pixels, `mask` one byte a
 // pixel over the box (exclusive ends).
@@ -861,7 +861,7 @@ export function composite(im, rgba, x, y) {
 
 // -- live handles ------------------------------------------------------------------------
 
-// `WfbArc.drawSpan` (`wfb.draw.barrel.draw_span`): the `dc.drawArc` call an
+// `WfbArc.drawSpan` (`src/draw/barrel.ts's drawSpan`): the `dc.drawArc` call an
 // arc of `start` (Garmin degrees) and `sweep` (clockwise-positive) makes,
 // as [start, end, clockwise], or null for none. Monkey C's toNumber
 // truncates, its % keeps the dividend's sign.
@@ -880,7 +880,7 @@ export function drawSpan(startDegrees, sweepDegrees) {
   return [start, end, sweep > 0];
 }
 
-// `WfbArc.drawProgress` (`wfb.draw.barrel.draw_progress`): `fraction` of
+// `WfbArc.drawProgress` (`src/draw/barrel.ts's drawProgress`): `fraction` of
 // the sweep through `drawSpan`, nothing at or below zero, the whole sweep
 // above one.
 export function drawProgress(startDegrees, sweepDegrees, fraction) {

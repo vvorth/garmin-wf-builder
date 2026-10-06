@@ -1,5 +1,5 @@
 // `static:` subtrees: marking, checking and ranking the elements drawn once
-// into a buffer. Port of wfb/ir/builder/static.py.
+// into a buffer.
 import * as kinds from "../../kinds/index.ts";
 import { repr } from "../../py.ts";
 import { authoredDrawOrder, type Element, PatternElement, walkElements } from "../model.ts";

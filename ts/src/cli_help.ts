@@ -215,7 +215,7 @@ types are also readable directly as \`complication.<name>\` data sources
 
 Printed for each, grouped as the editor lists them: the name a design
 writes, its name for people, the catalogue icon a \`data\` element's
-\`icon:\` draws for it by default (\`wfb.icons.COMPLICATION_ICON\`; a slot's
+\`icon:\` draws for it by default (\`ts/src/icons.ts\`; a slot's
 \`choices:\` mapping-form entry can override this per design), the Monkey C
 constant it compiles to, and the API level, when it is later than the
 others'. An API level is not a promise the watch has it; a hold on a
@@ -230,7 +230,7 @@ automatically, the same way a data binding derives its own
 requirements. A \`config: slots:\` slot does too, even though it reads no
 catalogue source directly. A target that lacks \`Toybox.Complications\`
 (fenix6 and fr245, among the installed devices) has the generated code
-guard every use of it at runtime (\`wfb.availability\`), so the binding
+guard every use of it at runtime (\`ts/src/availability.ts\`), so the binding
 simply reads as absent there.`,
   series: `list the time-series catalogue: every \`series:\` a \`graph\` element may plot
 

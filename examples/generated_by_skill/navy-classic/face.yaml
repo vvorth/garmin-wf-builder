@@ -3,8 +3,8 @@
 # The original's brand wordmarks and shield are left out; the face's own
 # name sits where the model name was.
 #
-# Preview:  ./wfb.py preview faces/navy-classic/face.yaml --time 10:10:37
-# Build:    ./wfb.py build faces/navy-classic/face.yaml
+# Preview:  ./wfb preview faces/navy-classic/face.yaml --time 10:10:37
+# Build:    ./wfb build faces/navy-classic/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

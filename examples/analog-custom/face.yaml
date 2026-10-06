@@ -10,8 +10,8 @@
 # fr955 has no native editor, so it picks the style from the generated
 # settings menu instead.
 #
-# Build it:    ./wfb.py build examples/analog-custom/face.yaml
-# Preview it:  ./wfb.py preview examples/analog-custom/face.yaml --time 10:09:42
+# Build it:    ./wfb build examples/analog-custom/face.yaml
+# Preview it:  ./wfb preview examples/analog-custom/face.yaml --time 10:09:42
 #
 # yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
 

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Entry point: `/path/to/wfb build design.yaml`, from any directory, directly
+# or through a symlink. Runs the TypeScript CLI (ts/src/cli.ts) under the
+# Node on PATH, which must strip types (an official Node 22.18+ or 24;
+# ./tools/setup-env.sh installs one when the system's cannot).
+self=$0
+while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *) self=$(dirname "$self")/$link ;;
+    esac
+done
+here=$(cd "$(dirname "$self")" && pwd -P)
+exec node "$here/ts/src/cli.ts" "$@"

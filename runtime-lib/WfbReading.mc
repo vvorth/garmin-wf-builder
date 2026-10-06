@@ -3,8 +3,8 @@ import Toybox.Complications;
 
 //! A `data` element's reading as display text: the arithmetic behind the
 //! generated `SlotText.reading`, which picks one of these per complication
-//! type.  Each function has a Python twin in `wfb/complications.py`
-//! (`format_reading` and its helpers), which the host preview draws with.
+//! type.  Each function has a host twin in ts/src/complications.ts
+//! (`formatReading` and its helpers), which the preview draws with.
 //!
 //! Only the slot calls these, so a face that reads `complication.*` through
 //! an ordinary `text` element does not carry them.
@@ -53,7 +53,7 @@ module WfbReading {
     //! `Complication.unit` as a suffix, for a type with no rule of its own
     //! (an app's complication): a String is used as written, the SDK's
     //! `Unit` enum through its documented meaning, anything else as "".
-    //! `wfb.complications.UNIT_SUFFIX` is the Python twin.
+    //! `UNIT_SUFFIX` in ts/src/complications.ts is the host twin.
     function unitSuffix(unit as Complications.Unit or Lang.String or Null) as String {
         if (unit == null) {
             return "";

@@ -6,7 +6,7 @@ the research file so the evidence is traceable.
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-host-language-python.md) | Host language: **Python** | Accepted |
+| [0001](0001-host-language-python.md) | Host language: **Python**; amended 2026-10-06 to **TypeScript on Node** | Accepted, amended |
 | [0002](0002-authoring-interface.md) | Authoring: **YAML canonical, GUI as lossless editor**; the GUI is a local web app (amended 2026-10-01), client-driven and editing every key (amended 2026-10-02); built as `wfb studio` | Accepted |
 | [0003](0003-compilation-strategy.md) | Compilation: **code generation**, with a small support barrel | Accepted |
 | [0004](0004-element-model-and-coordinates.md) | Element model; **anchors + relative/polar units**, per-device overrides | Accepted |
@@ -41,7 +41,7 @@ Three Phase 0 findings drive most of what follows:
   no phone settings, no `.SET` writer (0006 tenth and eleventh amendments,
   2026-09-27). This reverses the 2026-09-04 "no generated menu" decision,
   whose premise (phone settings reach a sideload) was false.
-- **Host language:** Python (0001).
+- **Host language:** TypeScript on Node (0001, amended; first Python).
 - **Format 2 (2026-09-28, plan 22):** one designed revision of the YAML
   format -- one `color.` namespace, author-shaped names, one spelling per
   idea, a grouped top level -- migrated once by `wfb migrate` rather than

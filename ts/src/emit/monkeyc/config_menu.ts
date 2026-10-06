@@ -1,6 +1,6 @@
 // The `config:` settings menu: the native editor's axes, offered from the
 // watch's Watch Face menu (`AppBase.getSettingsView`) on a device with no
-// native editor. Port of wfb/emit/monkeyc/config_menu.py.
+// native editor.
 //
 // Which editor a device uses is decided at runtime (`Application has
 // :WatchFaceConfig`). Every axis is one menu item whose sub-label is the

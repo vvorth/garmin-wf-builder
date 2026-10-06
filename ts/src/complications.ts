@@ -1,5 +1,5 @@
 // The SDK's complication types, how a `data` element draws each one's
-// reading, and a gauge's scale for each. Port of wfb/complications.py; the
+// reading, and a gauge's scale for each. The
 // tables are `data/complications.json`, exported by tools/export_tables.py
 // from the SDK's own Type table ($CIQ_SDK/doc/Toybox/Complications.html).
 import data from "./data/complications.json" with { type: "json" };

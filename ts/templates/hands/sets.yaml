@@ -1,0 +1,76 @@
+# Hand sets the editor offers under "+ Hand set" (`ts/src/edit/hands.ts`). Each is
+# a `resources: hand_sets:` entry as an author would write it: every hand
+# drawn pointing at 12 o'clock, measured from the axis, `dy` negative
+# upwards (docs/guide/analog-hands.md).
+#
+# `color.fg` and `color.accent` here stand for "the face's main colour" and
+# "its accent"; the editor rewrites them to colours the face has when it
+# adds a set.
+
+classic:
+  hour:
+    color: color.fg
+    parts:
+      - type: polygon
+        points:
+          - { dx: -3%r, dy: 8%r } # a short tail behind the axis
+          - { dx: -2%r, dy: -40%r }
+          - { dy: -46%r } # the tip
+          - { dx: 2%r, dy: -40%r }
+          - { dx: 3%r, dy: 8%r }
+  minute:
+    color: color.fg
+    parts:
+      - { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
+  second:
+    color: color.accent
+    parts:
+      - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
+      - { type: circle, at: { dy: 15%r }, radius: 3%r } # counterweight
+
+baton:
+  hour:
+    color: color.fg
+    parts:
+      - { type: rectangle, at: { dy: -20%r }, size: { width: 5%r, height: 50%r } }
+  minute:
+    color: color.fg
+    parts:
+      - { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
+      - { type: circle, radius: 4%r } # hub
+  second:
+    color: color.accent
+    parts:
+      - { type: line, at: { dy: 12%r }, to: { dy: -86%r }, thickness: 1px }
+      - { type: circle, radius: 2%r }
+
+dauphine:
+  hour:
+    color: color.fg
+    parts:
+      - type: polygon # a long diamond, widest a third of the way out
+        points:
+          - { dy: 5%r }
+          - { dx: -5%r, dy: -14%r }
+          - { dy: -48%r }
+          - { dx: 5%r, dy: -14%r }
+  minute:
+    color: color.fg
+    parts:
+      - type: polygon
+        points:
+          - { dy: 5%r }
+          - { dx: -4%r, dy: -20%r }
+          - { dy: -80%r }
+          - { dx: 4%r, dy: -20%r }
+  second:
+    color: color.accent
+    parts:
+      - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 1px }
+      - { type: circle, radius: 3%r }
+
+subdial: # a small seconds hand only, for a hands element placed off-centre
+  second:
+    color: color.fg
+    parts:
+      - { type: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }

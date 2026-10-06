@@ -1,5 +1,5 @@
 // How a generated comment spells an IR value the author wrote as a key.
-// Port of wfb/vocab.py.
+//
 
 /**
  * An element's absence policy as the author writes it: `absent: hide`,

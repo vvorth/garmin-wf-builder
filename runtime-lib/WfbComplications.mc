@@ -23,7 +23,7 @@ import Toybox.System;
 //!
 //! Both `subscribe` and `valueOf` can fail simply because this hardware does
 //! not support the type -- a device's own ConnectIQ ceiling can sit below a
-//! complication's `Since` level; see wfb/catalog.py's `activity.sleep_score`
+//! complication's `Since` level; see ts/src/data/catalog.json's `activity.sleep_score`
 //! for a concrete case -- and Toybox/Complications.html documents the failure
 //! two different ways depending on the call: `subscribeToUpdates` returns
 //! `false` if the type could not be subscribed to, or throws

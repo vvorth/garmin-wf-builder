@@ -53,8 +53,8 @@
 # no simulator and no watch in this container. `wfb preview` draws the same
 # resolved geometry through the same transform, without anti-aliasing.
 #
-# Build it with:     ./wfb.py build examples/features/patterns/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/patterns/face.yaml
+# Build it with:     ./wfb build examples/features/patterns/face.yaml
+# Preview it with:   ./wfb preview examples/features/patterns/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

@@ -1,6 +1,6 @@
 // One installed device, read through `DeviceFiles`: its screen, display,
-// limits, symbol table and system-font metrics. Port of wfb/devices.py's
-// `Device`, `FontMetric` and `DeviceDatabase`.
+// limits, symbol table and system-font metrics (`Device`, `FontMetric` and
+// `DeviceDatabase`).
 import { FontMeasure } from "../fonts/fallback.ts";
 import { garminAnyFile, type FontFiles } from "../fonts/files.ts";
 import { headHhea } from "../fonts/sfnt.ts";

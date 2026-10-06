@@ -1,5 +1,4 @@
-// Backend 1: a draw program as the Monkey C body of `draw<Id>`. Port of
-// wfb/draw/printer.py. It writes through the emitter's own `Writer`, so
+// Backend 1: a draw program as the Monkey C body of `draw<Id>`. It writes through the emitter's own `Writer`, so
 // wrapping and spacing come out as the rest of the view's.
 import * as formatting from "../formatting.ts";
 import { localName } from "../ir/naming.ts";

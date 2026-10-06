@@ -1,5 +1,5 @@
 // Colour-scheme edits: each changes every place a scheme or a role is
-// written, as one patch. Port of wfb/edit/schemes.py.
+// written, as one patch.
 //
 // A scheme edit one key at a time is refused by the gate, rightly: every
 // scheme must declare the same roles, a style entry names its scheme, and a

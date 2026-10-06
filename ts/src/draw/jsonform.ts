@@ -1,5 +1,5 @@
 // Backend 3: a draw program as JSON for one frame, and the reference
-// rasteriser of that JSON. Port of wfb/draw/jsonform.py.
+// rasteriser of that JSON.
 //
 // `toJson` partly evaluates an element's program for the frame being
 // painted: every reading, colour, string and always-on choice is folded to

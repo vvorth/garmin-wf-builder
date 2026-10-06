@@ -1,6 +1,5 @@
 // Geometry edits on one device: a drag in device pixels written back in the
-// author's own units, to the key that sets it on that device. Port of
-// wfb/edit/geometry.py.
+// author's own units, to the key that sets it on that device..
 //
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,

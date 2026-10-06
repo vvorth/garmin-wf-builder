@@ -407,10 +407,10 @@ bounds-checked way `weather.condition_today`/`_tomorrow` already are.
 *duration* — a time-binned series, where a bucket can genuinely have no
 sample in it. Naming it on anything else is a build error pointing at the
 series that would silently have ignored it. Default 40. It cannot be
-derived from the element's resolved width: `wfb/emit/project.py` generates
+derived from the element's resolved width: `ts/src/emit/project.ts` generates
 one view shared across every target device, so a per-device pixel width can
 never become a build-time constant in it — the same constraint
-`wfb.icons.font_key`'s docstring records for a font's declared, rather than
+`fontKey` in `ts/src/icons.ts`'s docstring records for a font's declared, rather than
 resolved, size.
 
 **A bucket, or a day/hour with no reading, does not draw** rather than
@@ -437,7 +437,7 @@ skipping gaps. Two fixed bounds with `min >= max` is a build error.
 
 **The series is cached in a private view field and rebuilt only when the
 clock minute changes** — one `Number` comparison a frame, not the TTL cache
-this project deleted (`wfb/catalog.py`'s module docstring): that deletion
+this project deleted (`ts/src/catalog.ts`'s module docstring): that deletion
 was about re-caching a value Garmin already caches on its own side, and a
 graph's own computation over a source whose sample interval is minutes
 cannot produce new information by recomputing it every second. **CPU cost

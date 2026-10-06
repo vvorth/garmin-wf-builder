@@ -25,7 +25,7 @@ lore here, not to `CLAUDE.md`.
   a passing test suite means nothing about the fix.
 - **The bar for a real build is warning-free, not merely successful.** A
   `monkeyc` run that exits 0 with a warning still failed this project's own
-  standard; `wfb/build.py` turns each `WARNING:` line into a diagnostic
+  standard; `ts/src/build.ts` turns each `WARNING:` line into a diagnostic
   specifically so this is checkable in an assertion, not eyeballed.
 - **The obvious test can fail to exercise the thing it is meant to test.**
   `"00:00"` vs `"11:11"` cannot detect a broken monospace-font implementation,
@@ -42,7 +42,7 @@ lore here, not to `CLAUDE.md`.
   config)` gated the entire configuration feature in nine places across
   three modules; adding an axis that was not a `ConfigColor` would have
   silently produced no `<watchface-config>` for a design using only the new
-  axis, had it not been routed through one shared `Face.has_config` first.)
+  axis, had it not been routed through one shared `Face.hasConfig` first.)
 - **Parallel work in one shared tree must edit files, never run git commands
   that touch the working tree.** `git stash`/`git reset` are repo-wide and
   ignore file ownership; one has already wiped another agent's in-flight

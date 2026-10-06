@@ -31,7 +31,7 @@ learned along the way that a future session needs.
 | Where | Plans | Research (and probes) |
 |---|---|---|
 | `limitations.md`, `lore/*.md` | never | yes, as the evidence for a stated fact |
-| code comments and docstrings (`wfb/`, `runtime-lib/`, `tests/`, `tools/`) | never | only where the code does something surprising because the platform forces it (a `monkeyc` workaround, a measured firmware behaviour), so nobody "fixes" it back; never as a bare tag on a feature name |
+| code comments and docstrings (`ts/`, `runtime-lib/`, `tools/`) | never | only where the code does something surprising because the platform forces it (a `monkeyc` workaround, a measured firmware behaviour), so nobody "fixes" it back; never as a bare tag on a feature name |
 | `guide/`, the schema, diagnostics (lint/error text), READMEs, example faces, every `CLAUDE.md` | never | never: point to the guide or `limitations.md` instead |
 
 Wherever a research citation is allowed, the doc still states the fact in
@@ -39,7 +39,7 @@ its own words -- the citation is the evidence, not the explanation. A
 reader must never have to open a plan or a research file to understand a
 doc. Plans are never cited anywhere outside the records: no "plan 14 §4.3",
 "slice 2", decision ids (D3, R2.1, A5), `docs/plans/` links or `git show`
-of a deleted plan. Records may point at docs freely. `tests/test_docs_citations.py`
+of a deleted plan. Records may point at docs freely. `ts/test/doc-citations.test.ts`
 fails on a plan citation outside the records and on a research citation
 where none is allowed; decision ids it cannot tell from ordinary names, so
 those are on the writer.

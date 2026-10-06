@@ -1,6 +1,5 @@
 // A preview frame as layers: each drawn element alone on a transparent
-// ground, plus one layer per outlined group's ring, in draw order. Port of
-// wfb/draw/layers.py.
+// ground, plus one layer per outlined group's ring, in draw order..
 //
 // The editor stacks them, and moves or hides one without redrawing the
 // rest. The whole-frame steps (the black ground, the AOD mask, the palette,

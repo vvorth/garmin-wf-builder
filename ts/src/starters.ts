@@ -1,6 +1,5 @@
 // The face templates a new design starts from: `wfb new` and the editor's
-// New both copy one through `instantiate`, so they cannot drift. Port of
-// wfb/starters.py.
+// New both copy one through `instantiate`, so they cannot drift..
 import { repr } from "./py.ts";
 import templates from "./data/templates.json" with { type: "json" };
 

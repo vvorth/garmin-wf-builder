@@ -23,11 +23,11 @@
 # shapes -- short enough that even FONT_LARGE's row (the widest of the five
 # once a row is pushed this close to the bezel) stays inside
 # fr955's/fenix8solar47mm's 260px round bezel and fenix8solar51mm's 280px
-# one: every row's four box corners (`wfb.layout.inside_visible_area`'s own
+# one: every row's four box corners (`insideVisibleArea` in `ts/src/layout.ts`'s own
 # check, run ahead of time here) land inside the round screen's visible
 # disc, with at least ~5px of slack on the tightest row on the tightest
 # target. Computed from this project's own font metrics
-# (`wfb.devices.Device.system_fonts`, `wfb.fonts.fallback.measure`, the same
+# (`Device.systemFonts` in `ts/src/devices/device.ts`, `measure` in `ts/src/fonts/fallback.ts`, the same
 # numbers `wfb build`'s `safe-area`/`text-overflow` lints already check
 # against).
 #
@@ -37,8 +37,8 @@
 # line height, baseline position or glyph width is what the
 # screenshots calibrate.
 #
-# Build it with:     ./wfb.py build examples/system-fonts/text/face.yaml
-# Preview it with:   ./wfb.py preview examples/system-fonts/text/face.yaml
+# Build it with:     ./wfb build examples/system-fonts/text/face.yaml
+# Preview it with:   ./wfb preview examples/system-fonts/text/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

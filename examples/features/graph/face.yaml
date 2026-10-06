@@ -1,7 +1,7 @@
 # A worked example for `type: graph` -- a time series drawn as a line, a
 # filled area, or bars, over a data source and a range the author declares.
 #
-# Build it with:  ./wfb.py build examples/features/graph/face.yaml
+# Build it with:  ./wfb build examples/features/graph/face.yaml
 #
 # All three drawing styles, over three of the four series families a watch
 # face may plot (`wfb series` lists all of them): a 4-hour heart-rate line,

@@ -113,7 +113,7 @@ export function exampleDesigns(): string[] {
     }
   };
   walk("examples");
-  walk("tests/fixtures");
+  walk("ts/test/fixtures");
   return out;
 }
 

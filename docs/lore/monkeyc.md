@@ -18,7 +18,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   `pulled.value` must be captured into a local first, every time. A vector
   font's own null check is the same rule again: `var font =
   _fontBezel;` before `if (font != null)`, never `if (_fontBezel != null) {
-  ... _fontBezel ... }` (`wfb.kinds.text.TextKind.lower`).
+  ... _fontBezel ... }` (`TextKind.lower` in `ts/src/kinds/text.ts`).
 - Monkey C has **no explicitly-typed local**: `var x as String? = null` is
   rejected outright.
 - An unused **parameter** does not warn; an unused **member variable** does.
@@ -69,7 +69,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   a *parameter declared `Float`* that a `Decimal`-typed value cannot narrow
   into, not `Float` values in general.
 - **A nullable local's early-return narrowing survives *inside* a `for`
-  loop body**, not just a straight-line method tail. `wfb.emit.monkeyc`'s
+  loop body**, not just a straight-line method tail. `ts/src/emit/monkeyc/view.ts`'s
   pattern codegen (2026-09-15, `absent: hide` + per-copy part
   `visible:`) declares a nullable source's local once, guards it with
   `if (x == null) { return; }` **before** the copy loop, then reads that
@@ -88,7 +88,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   :Complications)`. A value that needs a runtime guard before it can be
   built therefore has to be declared nullable and left `null` at the field,
   with the guarded construction moved into the constructor body instead
-  (`wfb/emit/monkeyc/view.py`'s `_emit_config_fields`/`_emit_initialize`,
+  (`ts/src/emit/monkeyc/view.ts`'s `_emit_config_fields`/`_emit_initialize`,
   2026-09-15, for a `config: data:` slot's `Complications.Id` on a target
   lacking `Toybox.Complications`). Obvious in hindsight, easy to reach for
   the field-initialiser spelling out of habit and get a construction-time
@@ -113,7 +113,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   rounded scalar axis that the caller feeds straight into `dc.drawText`;
   folding parameters together (e.g. `cx`/`cy` into a `Point2D`) was rejected
   instead, since it would allocate a pair on every call inside a pattern's
-  per-copy draw loop. `tests/test_parameter_limits.py` scans every
+  per-copy draw loop. `ts/test/parameter-limits.test.ts` scans every
   `runtime-lib/*.mc` function and, for a few representative examples, every
   function the emitter generates, so a future helper cannot grow a 10th
   parameter unnoticed.
@@ -121,7 +121,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   used for a function or field** (`$CIQ_SDK/doc/docs/Monkey_C/
   Functions.html`'s own example, `Toybox has :Magnetometer`) — no special
   syntax for "does this module exist at all" versus "does this symbol on an
-  object I already have exist". `wfb.devices.Device.has_module` mirrors the
+  object I already have exist". `Device.hasModule` in `ts/src/devices/device.ts` mirrors the
   same check at build time, off a device's `<dataEntry type="module">` rows
   rather than `<functionEntry>`/`<symbolTable>` (`docs/research/probes/
   api-gating/`, 2026-09-15). UNVERIFIED at runtime on real hardware that
@@ -132,7 +132,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   `7 % -3` into `1`, so the remainder takes the dividend's sign, unlike
   Python's floor modulo. That is the compiler, not an observed VM. Under
   `-l 3`, either operand being a `Float` is a compile error ("Cannot perform
-  operation 'mod' on types ..."), so `wfb.expr.check` refuses it up front.
+  operation 'mod' on types ..."), so `check` in `ts/src/expr.ts` refuses it up front.
   **`Math.round` of a negative exact half is UNVERIFIED.** The SDK says only
-  ".5 will be rounded up", so -2.5 could be -2 or -3. `wfb.expr` never
+  ".5 will be rounded up", so -2.5 could be -2 or -3. `ts/src/expr.ts` never
   constant-folds that one input, and leaves the call for the device.

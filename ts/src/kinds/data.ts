@@ -1,6 +1,5 @@
 // `type: data`: the element half of the native Data axis, drawing whatever
-// complication the wearer picked for a `config: slots:` slot. Port of
-// wfb/kinds/data.py's build half.
+// complication the wearer picked for a `config: slots:` slot..
 import type { Span } from "../diagnostics.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";

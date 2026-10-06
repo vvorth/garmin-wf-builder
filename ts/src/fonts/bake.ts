@@ -1,13 +1,12 @@
 // Baking a font: each glyph's outline rasterised at 16x by our own
 // coverage rasteriser, cropped to its ink, area-averaged down as Pillow's
 // BOX filter does, and thresholded at 128 for a 1-bit sheet; then packed
-// and written as a BMFont. Port of wfb/fonts/bmfont.py's `bake` and
-// `dilate`, with FreeType replaced, so a sheet differs from Python's at
-// edge pixels (a recorded change).
+// and written as a BMFont. Not FreeType: a sheet can differ from a
+// FreeType-rendered one at edge pixels.
 //
 // Rasterising large and averaging down recovers per-pixel coverage before
 // the threshold, which keeps a symmetric glyph symmetric at small sizes;
-// 16x is the measured knee (wfb/fonts/bmfont.py's `SUPERSAMPLE`). Outlines
+// 16x is the measured knee (`SUPERSAMPLE`). Outlines
 // come from opentype.js, used nowhere else.
 import opentype, { type Command, type Font } from "opentype.js";
 import { discPerimeterOffsets } from "../ir/model.ts";

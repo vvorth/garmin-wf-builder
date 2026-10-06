@@ -1,6 +1,5 @@
 // `Layout.mc`'s per-device constants, the blocks every kind builds its own
-// from. Port of the shared helpers of wfb/emit/monkeyc/layout_constants.py;
-// the module itself is written with the rest of codegen.
+// from: the shared helpers.
 import type { PyNum } from "../../draw/program.ts";
 import { flt } from "../../draw/barrel.ts";
 import { type Guards, NO_GUARDS, vectorFontFace } from "../../availability.ts";
@@ -214,7 +213,7 @@ export function emitLayout(resolved: ResolvedFace, guards: Guards = NO_GUARDS, p
         + "this build fails to publish -- the shared view (identical on every\n"
         + "device) reads it to decide whether to even attempt construction here,\n"
         + "so every device's own Layout.mc has to define it once any device\n"
-        + "needs it (wfb.availability.Guards.vector_fonts).");
+        + "needs it (computeGuards' vector_fonts).");
       for (const name of vectorFonts) {
         w.blank();
         w.doc(`\`font.${name}\``);

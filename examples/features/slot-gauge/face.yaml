@@ -36,7 +36,7 @@
 # What is verified: this design builds warning-free on all three targets.
 # How the editor's highlight and taps behave on a watch is not.
 #
-# Build it with:  ./wfb.py build examples/features/slot-gauge/face.yaml
+# Build it with:  ./wfb build examples/features/slot-gauge/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

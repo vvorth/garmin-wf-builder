@@ -1,5 +1,4 @@
-// Shared small helpers and types for the Monkey C generation. Port of the
-// parts of wfb/emit/monkeyc/common.py the draw program reads.
+// Shared small helpers and types for the Monkey C generation.
 import type { Element, Expression, Face } from "../../ir/model.ts";
 import { aodColorChoice, DataElement, slotOf } from "../../ir/model.ts";
 import { configDataIds, elementConstPrefix } from "../../ir/naming.ts";

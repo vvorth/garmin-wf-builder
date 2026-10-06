@@ -3,7 +3,7 @@ import Toybox.Lang;
 
 //! A 2px or 3px `outline:` ring for a polygon, line or outlined circle
 //! (research 19): `WfbRing`'s 1px functions, walking the build's
-//! `Layout.OUTLINE_OFFSETS_<W>` table (`wfb.ir.disc_perimeter_offsets`) for
+//! `Layout.OUTLINE_OFFSETS_<W>` table (`discPerimeterOffsets`) for
 //! the points instead of spelling four out.  Its own module, so a face
 //! whose rings are all 1px compiles none of it.
 //!

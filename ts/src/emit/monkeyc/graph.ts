@@ -1,5 +1,5 @@
 // A `graph`'s cached-series fields and rebuild methods; its drawing is the
-// graph kind's `lower`. Port of wfb/emit/monkeyc/graph.py.
+// graph kind's `lower`.
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import type { Graph } from "../../ir/model.ts";
 import { graphBuiltField, graphMaxField, graphMinField, graphRebuildMethod, graphSeriesField } from "../../ir/naming.ts";

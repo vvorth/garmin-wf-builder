@@ -1,7 +1,7 @@
 # 31 — The compiler, the editor and the server in TypeScript
 
-**Status: proposed (2026-10-05). Every decision is taken (§1); nothing is
-built.** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
+**Status: slices 1-9 and 11 built; slice 10 mostly built (2026-10-06).
+Every decision is taken (§1).** Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 Work happens on the `typescript` branch. The last all-Python state is the
 tag `v0.3`: the Python server, with a heavily server-dependent GUI.
 
@@ -613,6 +613,17 @@ Python is going) writes the seven faces under
 session. Waiting on: the captures, then `garmin.ts`, the compare script
 and the switch.
 
+**Mostly built 2026-10-06.** The user's 28 captures arrived; `compare.ts`
+overlays each on the preview (the screen is exactly 2x, the device pixel read
+as its 2x2 block's mean). `ts/src/raster/garmin.ts` holds the fitted rules
+and the preview draws by them: `fillCircle`, `drawCircle`, `drawRectangle`
+and `fillRoundedRectangle` exact, `fillPolygon` 1 px off, `drawArc` 27 px
+over 16 arcs, lines exact at odd widths. `ts/test/garmin-raster.test.ts`
+pins each family's count. Left, each needing a new capture: a 1 px
+`drawRoundedRectangle` (its stroke is not pinned by a 2 px pen alone), even
+widths of diagonal lines, lines drawn down or left, and an AMOLED coverage
+model for `fenix847mm`'s grey edges.
+
 ### Slice 11 — delete Python
 
 - **Port or retire every remaining test.** The pure-logic ones should
@@ -636,6 +647,19 @@ and the switch.
     user tests it.
   - Until then, no slice builds or tests the image (user decision,
     2026-10-05). Slice 1's Node stage stays as written.
+
+**Built 2026-10-06.** Goldens replace the oracle (the 2 820-design corpus,
+every example's and fixture's diagnostics, projects and previews); the
+hand-written tests for logic the goldens do not pin are ported (expressions,
+formatting, units, palette, the edit engine, layout, diagnostics, the CLI,
+availability, the barrel transcriptions, the page's 52 tests, the parameter
+limit, kind registration and doc citations); the slow suite builds every
+design with `monkeyc`. Every Python tool is ported to `ts/tools/` (the three
+setup fetchers byte-identical to Python's output, the SDK fetch, docs-shots,
+gen-profile-face, export-data) or retired with the oracle. `wfb/`, `wfb.py`
+(now the `./wfb` launcher), `tests/`, the requirements and `mypy.ini` are
+deleted; ADR 0001 is amended; the image is Node and a JRE. Waiting on: the
+user's test of the Docker image.
 
 ### Close-out
 

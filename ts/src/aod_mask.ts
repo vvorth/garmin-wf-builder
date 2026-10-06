@@ -1,5 +1,5 @@
 // The host twin of `runtime-lib/WfbAodMask.mc`: the moving 2x2 pixel mask
-// over the AOD frame. Port of wfb/aod_mask.py.
+// over the AOD frame.
 //
 // In minute `m`, `m mod 4` picks `(dx, dy)` from `PHASES`; device pixel
 // `(x, y)` keeps its colour iff `x mod 2 == dx` and `y mod 2 == dy`, and

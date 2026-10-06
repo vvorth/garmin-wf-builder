@@ -1,7 +1,6 @@
 // The build, end to end, on a host with the Connect IQ SDK: the design
 // loaded, resolved and linted, the project generated and written, and each
-// device compiled by `monkeyc`, its memory measured. Port of the Node half
-// of wfb/build.py and wfb/process.py. Node only.
+// device compiled by `monkeyc`, its memory measured. Node only.
 //
 //     YAML -> schema -> IR -> per-device resolve -> lint -> generate -> monkeyc
 import { spawn } from "node:child_process";
@@ -75,14 +74,14 @@ export function referenceSdkVersion(reference: string = DEVICE_REFERENCE): strin
 export function checkSdk(toolchain: Toolchain, bag: Bag, reference: string = DEVICE_REFERENCE): string {
   const version = toolchain.version;
   const extracted = referenceSdkVersion(reference);
-  const notes = ["run ./tools/setup-env.sh, or python3 tools/extract-device-reference.py, to extract it again"];
+  const notes = ["run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts, to extract it again"];
   if (extracted === null) {
     bag.note("sdk", `the device reference does not record its SDK, so it cannot be checked against SDK ${version}`, null, { notes });
   } else if (extracted !== version) {
     bag.warning("sdk", `the device reference was extracted from SDK ${extracted}, and this build compiles with SDK ${version}`, null, {
       notes: [
         "font metrics and palette sizes come from the reference, so text placement may not match what this SDK's devices measure",
-        "run ./tools/setup-env.sh, or python3 tools/extract-device-reference.py, to extract it from this SDK",
+        "run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts, to extract it from this SDK",
       ],
     });
   }

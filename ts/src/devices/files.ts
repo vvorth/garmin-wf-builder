@@ -1,5 +1,5 @@
 // Where a device's files come from. The compiler reads them synchronously,
-// as wfb/devices.py does: in Node from the SDK's device folders
+// in Node from the SDK's device folders
 // (`./node.ts`), in the browser from a store the editor fills from the
 // server before it compiles (`MemoryDeviceFiles`).
 

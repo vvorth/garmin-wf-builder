@@ -11,8 +11,8 @@ out" — see its own paragraph below.
 ## At a glance
 
 Twenty-three codes are suppressible. One line each, derived from this chapter,
-[`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
-messages; see `wfb/lint.py` if unsure.
+[`docs/limitations.md`](../limitations.md) §3 and `ts/src/lint.ts`'s own
+messages; see `ts/src/lint.ts` if unsure.
 
 | Code | Meaning |
 |---|---|
@@ -82,7 +82,7 @@ device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-sc
 `error` instead, the same failure is a **hard build error and never
 suppressible**: an author who wants leniency switches to `hide` outright
 rather than silencing a face that will never draw.
-`wfb/lint.py`'s `SUPPRESSIBLE` is
+`ts/src/lint.ts`'s `SUPPRESSIBLE` is
 the normative list; check there if the two ever disagree. **A code that is not one of them is a
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
 suggestion) versus a real code that is deliberately unsuppressible (with the

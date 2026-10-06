@@ -1,7 +1,6 @@
 // Resource generation: every declared font baked at the device's size,
 // every icon and ring font, the fonts' resource entries, the strings, the
-// launcher icon and the native editor's config. Port of
-// wfb/emit/resources.py.
+// launcher icon and the native editor's config..
 import type { Device } from "../devices/device.ts";
 import { bake, dilate, inkHeight, toFnt } from "../fonts/bake.ts";
 import * as complications from "../complications.ts";
@@ -24,7 +23,7 @@ import * as units from "../units.ts";
 export type FontReader = (path: string) => FontFile;
 
 /** The icon font, relative to the repository. */
-export const ICON_FONT = "wfb/assets/icons/SymbolsNerdFont-Regular.ttf";
+export const ICON_FONT = "ts/assets/icons/SymbolsNerdFont-Regular.ttf";
 
 /** The characters each declared baked font must hold: its `glyphs:` if written, else what the design draws with it. */
 export function glyphSet(face: Face): Map<string, string> {

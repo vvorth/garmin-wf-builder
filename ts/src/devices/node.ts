@@ -1,5 +1,5 @@
-// Device files from the SDK's folders on disk, found the way
-// wfb/devices.py's `DeviceDatabase.discover` finds them. Node only: the
+// Device files from the SDK's folders on disk (`NodeDeviceFiles.discover`).
+// Node only: the
 // browser bundle never imports this module.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -40,7 +40,7 @@ export class NodeDeviceFiles implements DeviceFiles {
     if (!existsSync(referenceDir)) {
       throw new DeviceReferenceMissing(
         `no SDK device reference at ${referenceDir}.  It is generated from the installed SDK: ` +
-        "run ./tools/setup-env.sh, or tools/extract-device-reference.py on its own.",
+        "run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts on its own.",
       );
     }
     for (const path of candidates) {

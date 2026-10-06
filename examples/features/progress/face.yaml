@@ -17,8 +17,8 @@
 # Ticks round a scale are a radial `pattern` (docs/guide/patterns.md),
 # sharing its start angle and sweep -- a scale draws no ticks of its own.
 #
-# Build it with:     ./wfb.py build examples/features/progress/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/progress/face.yaml
+# Build it with:     ./wfb build examples/features/progress/face.yaml
+# Preview it with:   ./wfb preview examples/features/progress/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

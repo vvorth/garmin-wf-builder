@@ -1,5 +1,5 @@
 // Check what the schema cannot in a format 2 document, before the builder.
-// Port of wfb/lower.py.
+//
 //
 // The builder reads the author's keys as written; this pass, between the
 // schema and `desugar`, checks the format 2 semantics a JSON Schema cannot

@@ -1,4 +1,4 @@
-// The typed data-source catalogue (ADR 0005). Port of wfb/catalog.py; the
+// The typed data-source catalogue (ADR 0005). The
 // tables themselves are `data/catalog.json`, exported from wfb/ by
 // tools/export_tables.py, each entry with its SDK page in `source_ref`.
 //

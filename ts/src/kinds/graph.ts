@@ -1,5 +1,4 @@
-// `type: graph`: a time series over a data source and a range. Port of
-// wfb/kinds/graph.py's build half.
+// `type: graph`: a time series over a data source and a range..
 import * as catalog from "../catalog.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";

@@ -1,9 +1,0 @@
-# Empty values, at the end of a block, mid-block, and nested.
-a:
-b: 1
-c:
-  d:
-  e: two
-f: ~
-g: null
-h:

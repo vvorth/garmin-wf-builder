@@ -1,5 +1,5 @@
 // `type: rectangle`, `circle`, `ellipse`, `line`, `arc`, `polygon`: the
-// drawing primitives. Port of wfb/kinds/shape.py's build half.
+// drawing primitives.
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";

@@ -103,7 +103,7 @@ There is no `scale:` key.
   an `icon`'s `size:` is: an icon draws one glyph on its own, where ink height
   is the whole of what a size can mean, while a typeface's characters are drawn
   against a shared baseline and their relative proportions are the point.
-  See `wfb/icons.py`'s `bake_size` docstring for the full reasoning.
+  See `ts/src/icons.ts`'s `bake_size` docstring for the full reasoning.
 
 ### `monospace:` stops a clock from jittering
 

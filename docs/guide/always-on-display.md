@@ -241,14 +241,14 @@ it would turn every undimmed colour black, which is indistinguishable from
 
 **Where the arithmetic runs.** A colour fixed at build time — a bare hex
 literal, or a swatch — is pre-dimmed into a second
-literal in Python, once, at compile time: no runtime cost at all. A colour
+literal once, at compile time: no runtime cost at all. A colour
 that follows a role at runtime (the wearer's own
 on-device pick) cannot be precomputed the same way, since its value is not
 known until the device resolves it; that case is dimmed on-device instead,
 by a small generated helper (`WfbColor.dim`, `runtime-lib/WfbColor.mc`) doing
 plain integer channel arithmetic — the exact same rounding formula, so a
 colour dims to the identical value whichever path codegen took for it, and
-`wfb preview --aod` (below) renders that same value a third time, in Python,
+`wfb preview --aod` (below) renders that same value a third time, on the host,
 for the same reason.
 
 **The alpha route stays unverified.** AMOLED supports `alphaBlendingSupport`
@@ -322,7 +322,7 @@ off first (`dc has :setAntiAlias`, the same guard `applyAntiAlias` uses) so
 the 1px strips land on exact pixels.
 
 **Applied by both preview and the burn-in lint.** `wfb preview --aod`,
-`--minute` and `--heatmap` all show the masked frame (`wfb.aod_mask.apply`,
+`--minute` and `--heatmap` all show the masked frame (`apply` in `ts/src/aod_mask.ts`,
 using each frame's own clock minute), and `aod-burn-in` scores the masked
 frame too, worst case over all four phases (below) — see "Preview" and
 "Lints" below for the details of each. `aod: {mask: false}` turns all three
@@ -340,7 +340,7 @@ moments:
   `onUpdate` branch are emitted at all only when **some target in the
   build is AMOLED**. A face whose targets are all MIP generates the exact
   same source with or without `aod:` keys present — checked by a
-  byte-identical test (`tests/test_aod.py`).
+  byte-identical test.
 - **Runtime:** with a mixed target list (an AMOLED device alongside MIP
   ones, since the generated view is shared across every target in one
   build), the same generated code runs on every device, and
@@ -409,14 +409,14 @@ colour, thickness, filled, font (baked or system, non-vector only) and
 format all apply — with every `awake`-only second hand hidden (AOD only
 ever runs asleep). A design with no `aod:` anywhere renders blank under the
 face default (`hide`). `dim:` applies with the exact same formula and
-rounding codegen uses (`wfb.palette.dim_channel`, shared by both), so a
+rounding codegen uses (`dimChannel` in `ts/src/palette.ts`, shared by both), so a
 colour that this preview draws and a colour the generated `WfbColor.dim`
 computes on the device agree to the pixel.
 
 The moving pixel mask (above) applies last, over the frame's own clock
 minute — `--time`/`--minute` when given, otherwise the sample clock's own
 minute (10:09) — exactly the way `WfbAodMask.apply` masks the device's own
-frame (`wfb.aod_mask.apply`, ADR 0004's shared-renderer stance
+frame (`apply` in `ts/src/aod_mask.ts`, ADR 0004's shared-renderer stance
 extended to this too). `aod: {mask: false}` renders the plain unmasked
 frame instead.
 
@@ -459,7 +459,7 @@ does (potentially 100% on a static pixel).
 - **`aod-burn-in`** — is the rendered
   AOD frame within Garmin's rule of thumb? *Measured*, not estimated: it
   renders the resolved `aod:` set the same way `wfb preview --aod` does
-  (`wfb.preview.render`), at device resolution, with the round bezel
+  (`render` in `ts/src/preview.ts`), at device resolution, with the round bezel
   excluded from both sides of the fraction on a round screen, and scores
   two things over that rendered frame:
 
@@ -469,7 +469,7 @@ does (potentially 100% on a static pixel).
     non-`(0, 0, 0)` pixel, never a brightness threshold of this compiler's
     own invention.
   - **luminance fraction** — the mean relative luminance across the same
-    pixels (`wfb.palette.Color.relative_luminance`, WCAG-style: Rec. 709
+    pixels (`Color.relativeLuminance` in `ts/src/palette.ts`, WCAG-style: Rec. 709
     primaries over sRGB-decoded channels), already a 0–1 fraction of full
     white by construction. Garmin's own integral is unpublished — this is a stated, reused choice (the same formula the
     contrast lint already uses), not a claim of matching Garmin's firmware
@@ -484,7 +484,7 @@ does (potentially 100% on a static pixel).
 
   **Worst case, not every frame.** The AOD frame depends on the clock and
   on data, so this renders at two sample times, `10:08` and `20:08`, with
-  full battery (`wfb.preview.SAMPLE`'s other defaults unchanged), and
+  full battery (`SAMPLE` in `ts/src/preview.ts`'s other defaults unchanged), and
   reports the worse of the two — a cheap stand-in for scanning every
   minute, which is what the simulator's own Screen Heat Map does
   and is unreachable in this environment.
@@ -492,8 +492,8 @@ does (potentially 100% on a static pixel).
   **With the pixel mask on (the default), the figures are the masked
   frame's, worst of all four mask phases at each sample time — 8
   renderings scored, not 2.** Each sample time is rendered once unmasked
-  and then `wfb.aod_mask.apply` is applied for each phase in turn
-  (`wfb.lint.check_aod_burn_in`), since a design's real risk is whichever
+  and then `apply` in `ts/src/aod_mask.ts` is applied for each phase in turn
+  (`checkAodBurnIn` in `ts/src/lint.ts`), since a design's real risk is whichever
   phase turns out worst, not just whichever phase the sample minute's own
   clock happens to land on — every phase recurs every hour regardless. The
   message names the phase the worst figures came from (`phase N, dx=.. dy=..`),

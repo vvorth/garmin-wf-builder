@@ -5,11 +5,11 @@
 # Builds a YAML design into a signed, sideloadable Connect IQ .prg.  See
 # docs/container.md for the full story; three things are worth knowing up front:
 #
-#   * The Connect IQ SDK downloads freely and is baked in, pruned to the ~26 MB
+#   * The Connect IQ SDK downloads freely and is baked in, pruned to the ~24 MB
 #     the compiler actually needs.  The Nerd Fonts icon font and the
 #     registry's system-font stand-ins are downloaded the same way
-#     (tools/fetch-icon-font.py, tools/fetch-system-fonts.py); neither is
-#     part of the repository.
+#     (ts/tools/fetch-icon-font.ts, ts/tools/fetch-system-fonts.ts); neither
+#     is part of the repository.
 #   * The **device definitions cannot be downloaded** -- api.gcs.garmin.com
 #     returns HTTP 401 behind Garmin SSO -- so they are mounted at run time.
 #     They are also the user's own licensed copy of Garmin's files, which is a
@@ -30,11 +30,10 @@
 #     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
 #     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro" \
 #     -v wfb-keys:/keys \
-#     garmin-wf-builder build examples/graph/face.yaml
+#     garmin-wf-builder build examples/features/graph/face.yaml
 #
 #   The /fonts mount is optional -- see docs/container.md.
 
-ARG PYTHON_VERSION=3.13
 ARG NODE_VERSION=24.21.0
 ARG DEBIAN_SUITE=trixie
 
@@ -45,68 +44,9 @@ ARG EXTRA_CA_CERT_B64=""
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 -- fetch the SDK and strip it to what `monkeyc` actually needs, and
-# fetch the icon font and the registry's system-font stand-ins.
-#
-# docker/fetch-sdk.py does the SDK work and explains the pruning;
-# tools/fetch-icon-font.py downloads the pinned icon font and checks its hashes;
-# tools/fetch-system-fonts.py (which loads wfb/fonts/fetch_system.py by file
-# path, stdlib-only, no `wfb` import) does the same for
-# wfb/fonts/registry.json's fonts. All three run on the same Python base as
-# the runtime stage, so this stage installs no packages at all and proxy
-# settings are picked up from the standard environment variables.
-# ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-${DEBIAN_SUITE} AS sdk
-
-ARG SDK_VERSION=9.2.0
-ARG SDK_FILE=connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip
-ARG SDK_BASE_URL=https://developer.garmin.com/downloads/connect-iq/sdks
-ARG WFB_NERD_FONTS_BASE_URL=https://github.com/ryanoasis/nerd-fonts/releases/download
-ARG WFB_FONTS_MIRROR=""
-ARG EXTRA_CA_CERT_B64
-
-COPY docker/fetch-sdk.py /tmp/fetch-sdk.py
-COPY tools/fetch-icon-font.py /tmp/fetch-icon-font.py
-# fetch-system-fonts.py loads wfb/fonts/fetch_system.py by file path next to
-# it, and that module loads registry.json the same way, so all three are
-# copied preserving the same relative layout as the repo.  The device
-# definitions are not here (they mount at run time), so the needed font names
-# come from the SDK device reference, extracted from the SDK just downloaded
-# into the same relative place (.cache/device-reference/) -- without it the
-# script finds nothing to fetch, exits 0 and creates no directory.  The
-# pruning deletes the SDK's doc/ tree, so fetch-sdk.py sets the reference
-# pages aside in /tmp/sdk-doc first and the extractor reads them there.
-COPY tools/fetch-system-fonts.py tools/extract-device-reference.py /tmp/tools/
-COPY wfb/fonts/fetch_system.py wfb/fonts/registry.json /tmp/wfb/fonts/
-
-RUN set -eux; \
-    if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
-        echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
-    fi; \
-    python /tmp/fetch-sdk.py "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq \
-        --device-reference /tmp/sdk-doc; \
-    rm /tmp/fetch-sdk.py; \
-    echo "${SDK_VERSION}" > /opt/ciq/SDK_VERSION; \
-    test -x /opt/ciq/bin/monkeyc; \
-    WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" \
-        python /tmp/fetch-icon-font.py /opt/icons; \
-    rm /tmp/fetch-icon-font.py; \
-    python /tmp/tools/extract-device-reference.py --sdk /tmp/sdk-doc \
-        --sdk-version "$(cat /opt/ciq/bin/version.txt)"; \
-    test -n "$(ls -A /tmp/.cache/device-reference/devices)"; \
-    cp -R /tmp/.cache/device-reference /opt/device-reference; \
-    WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \
-        python /tmp/tools/fetch-system-fonts.py --all /opt/system-fonts; \
-    test -n "$(ls -A /opt/system-fonts)"; \
-    rm -rf /tmp/tools /tmp/wfb /tmp/.cache /tmp/sdk-doc
-
-
-# ---------------------------------------------------------------------------
-# Stage 2 -- the TypeScript package in ts/ (being ported from wfb/), with its
-# npm dependencies installed from the lock file.  It runs on the official Node
-# image so the runtime stage below needs no package manager: it copies the
-# node binary and the installed package.  Node runs the .ts sources directly
-# (type stripping), so nothing is compiled here.
+# Stage 1 -- the TypeScript package in ts/, with its npm dependencies
+# installed from the lock file.  Node runs the .ts sources directly (type
+# stripping), so nothing is compiled.
 # ---------------------------------------------------------------------------
 FROM node:${NODE_VERSION}-${DEBIAN_SUITE}-slim AS ts
 
@@ -124,14 +64,51 @@ COPY ts/ ./
 
 
 # ---------------------------------------------------------------------------
+# Stage 2 -- fetch the SDK and strip it to what `monkeyc` needs, extract the
+# SDK device reference from its pages, and fetch the icon font and the
+# registry's system-font stand-ins, with the tools in ts/tools/.  The device
+# definitions are not here (they mount at run time), so the needed font
+# names come from the device reference: `--all` fetches for every device in
+# it.
+# ---------------------------------------------------------------------------
+FROM ts AS sdk
+
+# Node's fetch honours https_proxy and no_proxy only when asked to.
+ENV NODE_USE_ENV_PROXY=1
+
+ARG SDK_VERSION=9.2.0
+ARG SDK_FILE=connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip
+ARG SDK_BASE_URL=https://developer.garmin.com/downloads/connect-iq/sdks
+ARG WFB_NERD_FONTS_BASE_URL=https://github.com/ryanoasis/nerd-fonts/releases/download
+ARG WFB_FONTS_MIRROR=""
+ARG EXTRA_CA_CERT_B64
+
+RUN set -eux; \
+    if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
+        echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
+        export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt; \
+    fi; \
+    node tools/fetch-sdk.ts "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq --device-reference /tmp/sdk-doc; \
+    echo "${SDK_VERSION}" > /opt/ciq/SDK_VERSION; \
+    test -x /opt/ciq/bin/monkeyc; \
+    WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" node tools/fetch-icon-font.ts /opt/icons; \
+    node tools/extract-device-reference.ts --sdk /tmp/sdk-doc \
+        --sdk-version "$(cat /opt/ciq/bin/version.txt)" --out /opt/wfb/.cache/device-reference; \
+    test -n "$(ls -A /opt/wfb/.cache/device-reference/devices)"; \
+    WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" node tools/fetch-system-fonts.ts --all /opt/system-fonts; \
+    test -n "$(ls -A /opt/system-fonts)"; \
+    rm -rf /tmp/sdk-doc
+
+
+# ---------------------------------------------------------------------------
 # Stage 3 -- the runtime image.
 #
 # Composed rather than installed: the JRE is copied from an official Temurin
-# image and Python comes from the base, so no package manager runs here.  That
-# keeps the build reproducible and working on networks where the distribution
-# mirrors are not reachable.
+# image onto the Node base, so no package manager runs here.  That keeps the
+# build reproducible and working on networks where the distribution mirrors
+# are not reachable.
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-${DEBIAN_SUITE}
+FROM node:${NODE_VERSION}-${DEBIAN_SUITE}-slim
 
 ARG EXTRA_CA_CERT_B64
 
@@ -143,17 +120,10 @@ LABEL org.opencontainers.image.title="garmin-wf-builder" \
 # and nothing is compiled from Java source.
 COPY --from=eclipse-temurin:21-jre-noble /opt/java/openjdk /opt/java/openjdk
 COPY --from=sdk /opt/ciq /opt/ciq
-# Node, for ts/: the one binary, from the stage above (same Debian suite, so
-# the same glibc and libstdc++).
-COPY --from=ts /usr/local/bin/node /usr/local/bin/node
 
 ENV JAVA_HOME=/opt/java/openjdk \
     CIQ_SDK=/opt/ciq \
     PATH=/opt/java/openjdk/bin:/opt/ciq/bin:$PATH \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
     WFB_DEVICES=/devices \
     WFB_FONTS=/fonts \
     WFB_KEY=/keys/developer_key.der \
@@ -164,38 +134,30 @@ RUN set -eux; \
         echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
     fi; \
     java -version; \
-    node --version; \
-    openssl version
+    node --version
 
 WORKDIR /opt/wfb
 
-# Dependencies first, so editing a source file does not re-resolve them.
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
-
-COPY wfb/ ./wfb/
-COPY --from=sdk /opt/icons/ ./wfb/assets/icons/
-COPY --from=sdk /opt/system-fonts/ ./wfb/assets/system-fonts/
+COPY --from=ts /opt/wfb/ts/ ./ts/
+COPY --from=sdk /opt/icons/ ./ts/assets/icons/
+COPY --from=sdk /opt/system-fonts/ ./ts/assets/system-fonts/
 COPY runtime-lib/ ./runtime-lib/
 COPY schema/ ./schema/
 COPY examples/ ./examples/
-COPY tests/ ./tests/
-COPY --from=ts /opt/wfb/ts/ ./ts/
 # The SDK device reference: the only source for each panel's real palette size
 # (64 colours, not the 256 that bitsPerPixel implies) and for per-device
 # system-font pixel metrics.  Extracted from the SDK in the stage above; wfb
 # refuses to load devices without it.
-COPY --from=sdk /opt/device-reference/ ./.cache/device-reference/
-COPY pytest.ini wfb.py README.md ./
+COPY --from=sdk /opt/wfb/.cache/device-reference/ ./.cache/device-reference/
+COPY wfb README.md ./
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN set -eux; \
-    chmod +x /usr/local/bin/entrypoint.sh; \
-    printf '#!/bin/sh\nexec python /opt/wfb/wfb.py "$@"\n' > /usr/local/bin/wfb; \
-    chmod +x /usr/local/bin/wfb; \
+    chmod +x /usr/local/bin/entrypoint.sh /opt/wfb/wfb; \
+    ln -s /opt/wfb/wfb /usr/local/bin/wfb; \
     mkdir -p /devices /fonts /keys /work; \
     chmod 1777 /keys /work; \
-    useradd --uid 1000 --create-home --shell /bin/bash wfb; \
+    # The Node image's own uid 1000 is `node`; the image runs as uid 1000.
     # `monkeyc` regenerates bin/default.jungle on every run, so the SDK tree has
     # to be writable by whoever runs the container.  Giving the default uid
     # ownership covers the common case without making anything world-writable;

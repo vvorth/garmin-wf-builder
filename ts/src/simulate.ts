@@ -1,4 +1,4 @@
-// Driving the Connect IQ simulator. Port of wfb/simulate.py. Node only.
+// Driving the Connect IQ simulator. Node only.
 //
 // The simulator is a GUI application. On macOS it is the SDK's
 // `ConnectIQ.app` bundle, started with `open`; on Linux it is the bare

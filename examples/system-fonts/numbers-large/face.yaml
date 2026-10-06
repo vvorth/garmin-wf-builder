@@ -9,11 +9,11 @@
 # fenix8solar47mm/51mm/fr955 and FONT_NUMBER_HOT is 99/107/79px -- between
 # them, on fenix8solar51mm's own worst case, 107+129 = 236px, on a 280px
 # round screen whose safe band (the framebuffer minus the bezel crop
-# `wfb.layout.BEZEL_MARGIN` accounts for) is well under that once either
+# `BEZEL_MARGIN` in `ts/src/layout.ts` accounts for) is well under that once either
 # row needs *any* horizontal room at all. All four number sizes stacked on
 # one screen -- verified by literally computing every row's own box against
 # every target's round-screen visible-area check
-# (`wfb.layout.inside_visible_area`) before writing this file -- has no
+# (`insideVisibleArea` in `ts/src/layout.ts`) before writing this file -- has no
 # feasible common left x on any of the three targets. Splitting the four
 # sizes across two faces, is what
 # makes both halves buildable warning-free.
@@ -52,8 +52,8 @@
 # from this repo) on a real target, screenshot it, and compare pixel-for-
 # pixel against `wfb preview`'s PNG for the same target.
 #
-# Build it with:     ./wfb.py build examples/system-fonts/numbers-large/face.yaml
-# Preview it with:   ./wfb.py preview examples/system-fonts/numbers-large/face.yaml
+# Build it with:     ./wfb build examples/system-fonts/numbers-large/face.yaml
+# Preview it with:   ./wfb preview examples/system-fonts/numbers-large/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

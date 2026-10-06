@@ -1,4 +1,4 @@
-// Colour parsing and the palette rules. Port of wfb/palette.py.
+// Colour parsing and the palette rules.
 //
 // On a 64-colour panel each channel must be one of 0x00, 0x55, 0xAA or
 // 0xFF; anything else is dithered by the firmware and looks grainy. The

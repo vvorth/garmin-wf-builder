@@ -1,6 +1,5 @@
 // A slot added with the element that draws it, as one change: the wearer
-// picks what a slot shows, but a slot nothing draws shows nothing. Port of
-// wfb/edit/slots.py.
+// picks what a slot shows, but a slot nothing draws shows nothing..
 import * as complications from "../complications.ts";
 import { repr } from "../py.ts";
 import { chain, type Patch, patch, setValue } from "./patch.ts";

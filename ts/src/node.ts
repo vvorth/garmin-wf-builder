@@ -33,13 +33,13 @@ export function readFontFile(path: string): FontFile {
   return file;
 }
 
-/** The icon font's file, fetched by tools/fetch-icon-font.py. */
-export const ICON_FONT = join(REPO_ROOT, "wfb", "assets", "icons", "SymbolsNerdFont-Regular.ttf");
+/** The icon font's file, fetched by ts/tools/fetch-icon-font.ts. */
+export const ICON_FONT = join(REPO_ROOT, "ts", "assets", "icons", "SymbolsNerdFont-Regular.ttf");
 
 /** Read the icon font's best character map and hand it to `icons.fontHas`. */
 export function installIconFont(path = ICON_FONT): void {
   if (!existsSync(path)) {
-    setIconFontGlyphs(`the icon font is not installed (${path}); run tools/setup-env.sh, or python3 tools/fetch-icon-font.py`);
+    setIconFontGlyphs(`the icon font is not installed (${path}); run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts`);
     return;
   }
   const bytes = readFileSync(path);

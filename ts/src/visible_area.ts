@@ -1,5 +1,4 @@
-// A screen's visible area, read from the simulator skin. Port of
-// wfb/visible_area.py.
+// A screen's visible area, read from the simulator skin..
 //
 // The skin PNG a device's `simulator.json` names is transparent exactly
 // where the panel shows through: inside `display.location`, alpha 0 is lit

@@ -1,5 +1,5 @@
 // YAML loading that keeps source spans attached to the parsed document.
-// Port of wfb/yamlsrc.py.
+//
 //
 // ruamel's round-trip loader annotates every mapping and sequence with an
 // `lc` object: the 0-based line and column of the collection, and of each

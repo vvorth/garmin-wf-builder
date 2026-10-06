@@ -1,6 +1,6 @@
 // What a design's catalogue bindings and features need from a target
 // device, checked against that device's own symbol table, never an API
-// level. Port of wfb/availability.py.
+// level.
 //
 // Codegen needs the aggregate over a build's targets (`computeGuards`: which
 // guards the one shared view must carry); the lint needs the per-element,

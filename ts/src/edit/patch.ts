@@ -1,5 +1,5 @@
 // Text patches: every edit the editor makes, as characters rewritten in
-// the design's own text. Port of wfb/edit/patch.py.
+// the design's own text.
 //
 // Each function takes a `SpanIndex` and returns a `Patch`: the new text and
 // the plain data it must parse to. The data is computed from the original

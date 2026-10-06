@@ -1,10 +1,7 @@
 // Stage 3: a device-independent design resolved to absolute pixels on one
 // device (ADR 0004). Nothing relative survives into generated Monkey C, and
-// the preview draws from the same resolved geometry the device does. Port
-// of wfb/layout.py; each kind's own `resolve` is in `kinds/`.
-//
-// The placed classes keep the Python dataclasses' field names and order,
-// so the oracle's dump compares field for field.
+// the preview draws from the same resolved geometry the device does. Each
+// kind's own `resolve` is in `kinds/`.
 import { Device, FontMetric } from "./devices/device.ts";
 import type { Span } from "./diagnostics.ts";
 import type { BakedFont } from "./fonts/bmfont.ts";

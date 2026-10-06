@@ -53,7 +53,7 @@ exactly one layout by being written inside that layout's own `static:`/
 `elements:`, or to every layout by being written in the design's ordinary,
 top-level `static:`/`elements:` instead. At build time each layout's
 `static:`/`elements:` are folded into two synthetic groups appended to the
-top-level `elements:` (`wfb/desugar.py`), so a layout's own content is
+top-level `elements:` (`ts/src/desugar.ts`), so a layout's own content is
 written exactly like `elements:` and the top-level `static:`: a mapping
 keyed by id.
 

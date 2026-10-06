@@ -1,7 +1,6 @@
 // Where a system font's real file comes from: the user's own Garmin font
-// root first, then a pinned free stand-in from the registry. Port of
-// wfb/fonts/fetch_system.py's lookup (`resolve`, `garmin_any_file`,
-// `locate`); downloading a stand-in is the host's job, not the compiler's.
+// root first, then a pinned free stand-in from the registry. Downloading a
+// stand-in is `tools/fetch-system-fonts.ts`'s job, not the compiler's.
 import registry from "../data/font-registry.json" with { type: "json" };
 
 /** A located font file. */

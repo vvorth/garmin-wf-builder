@@ -43,8 +43,8 @@
 # has to ask for it. `aod-burn-in`'s own note now scores the masked frame
 # (1.0% lit, 0.1% luminance, down from 4.0%/0.3% unmasked).
 #
-# Build it with:     ./wfb.py build examples/features/aod/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
+# Build it with:     ./wfb build examples/features/aod/face.yaml
+# Preview it with:   ./wfb preview examples/features/aod/face.yaml --aod
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

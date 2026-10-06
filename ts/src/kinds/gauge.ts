@@ -1,6 +1,5 @@
 // `type: gauge`: a value's fraction of a range, as an arc, a bar, a needle,
-// segments or a scale, or the reading of a `config: slots:` slot. Port of
-// wfb/kinds/gauge.py's build half.
+// segments or a scale, or the reading of a `config: slots:` slot..
 import * as catalog from "../catalog.ts";
 import * as complications from "../complications.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";

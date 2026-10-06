@@ -1,5 +1,5 @@
 // Which elements a frame draws: one answer for the generated view, its read
-// plan and the preview. Port of wfb/draw/frames.py.
+// plan and the preview.
 //
 // The awake and low-power frames draw an element whose `modes` name them;
 // the always-on frame draws every element whose resolved `aod:` is set. A

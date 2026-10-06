@@ -33,7 +33,7 @@ These are the findings that shaped every decision. Full detail and citations in
 
    So the budget spans **48 KB to 1 MB, a factor of 21**, and a design that
    fits comfortably on a fēnix 8 can be impossible on the 21 devices at or
-   below 64 KB. `Device.watchface_memory_limit` (`wfb/devices.py`) already
+   below 64 KB. `Device.watchfaceMemoryLimit` (`ts/src/devices/device.ts`) already
    reads the real figure out of each `compiler.json`; nothing should hardcode
    131 072.
 
@@ -103,22 +103,22 @@ These are the findings that shaped every decision. Full detail and citations in
    (ConnectIQ 3.4.5) back to `examples/dashboard/face.yaml`'s `targets:`
    (`docs/research/probes/api-gating/README.md`): `fenix6` and `fr245` lack
    the `Toybox.Complications` **module** entirely (`<dataEntry
-   type="module">`, `wfb.devices.Device.has_module`, new), not merely one
+   type="module">`, `Device.hasModule` in `ts/src/devices/device.ts`, new), not merely one
    function in it, and `fenix6` separately lacks the **field**
    `ActivityMonitor.Info.stressScore` (`fr245` lacks `floorsClimbed`,
    `floorsClimbedGoal`, `batteryInDays`, `ambientPressure`) — a class field
    lives in the device's `<symbolTable>` as a bare `<entry field="true"
    symbol="…"/>`, with no owning class recorded, so absence is exact but
    presence is only approximate (two unrelated classes could share a field
-   name; `wfb.devices.Device.has_field`'s own docstring). Separately,
+   name; `Device.hasField` in `ts/src/devices/device.ts`'s own docstring). Separately,
    `manifest.xml`'s `minApiLevel` is **one number for the whole build**,
    shared by every target device in `<iq:products>` — it cannot say "4.2.0
    for this device, 3.2.0 for that one," so a feature that raised it would
    lock out *every* target below that level in the same build, including one
    that never touches the feature. So the floor stays fixed at the generator's base level always
-   (`wfb/emit/manifest.py::BASE_API_LEVEL`, `3.1.0`) and gates the module and
+   (`ts/src/emit/manifest.ts::BASE_API_LEVEL`, `3.1.0`) and gates the module and
    the fields at runtime instead (`Toybox has :Complications`, `x has
-   :stressScore`), aggregated over every target by `wfb.availability.
+   :stressScore`), aggregated over every target by `ts/src/availability.ts.
    compute_guards` so the one shared generated view emits a guard only when
    at least one target actually needs it. **The symbol table over-
    approximates presence**, the same way `has_symbol` already does for
@@ -215,7 +215,7 @@ These are the findings that shaped every decision. Full detail and citations in
       `getFontHeight`, `getVectorFont`, `Text.setFont` and `TextArea.setFont`.
 
     So an author's typeface is always baked at build time
-    (`wfb/fonts/bmfont.py`). **`Graphics.getVectorFont`** (API 4.2.1,
+    (`ts/src/fonts/bmfont.ts`). **`Graphics.getVectorFont`** (API 4.2.1,
     `:face` + `:size` in pixels, returns null when unavailable) draws
     scalable text from **Garmin's own device-resident faces only** — roughly
     14 Latin faces, of which only `RobotoCondensedBold`/`Regular` is close to

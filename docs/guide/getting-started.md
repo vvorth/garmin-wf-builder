@@ -21,8 +21,8 @@ on the file `wfb new` writes for you here.
 
 | | |
 |---|---|
-| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3.11 or newer with `venv` (or `uv`), and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first. |
-| **macOS** | `tools/setup-env.sh` runs natively. Install SDK 9.2.0 and your devices with Garmin's SDK Manager first (step 1): the script uses both where the SDK Manager put them. You need Python 3.11 or newer (the one macOS ships is too old: `brew install python@3.13`) and Java 21 or newer (`brew install --cask temurin@21`). The Docker image works too, tested with [OrbStack](https://orbstack.dev). |
+| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first, and installs Node 24 itself when yours cannot run TypeScript. |
+| **macOS** | `tools/setup-env.sh` runs natively. Install SDK 9.2.0 and your devices with Garmin's SDK Manager first (step 1): the script uses both where the SDK Manager put them. You need Java 21 or newer (`brew install --cask temurin@21`); the script installs Node 24 itself when yours cannot run TypeScript. The Docker image works too, tested with [OrbStack](https://orbstack.dev). |
 | **Windows** | Not tested. |
 | **A Garmin account** | Needed once, to download the device definitions (step 1). |
 | **A watch** | any Connect IQ watch that can run a watch face ([which watches](#which-watches)), and its USB cable. |
@@ -63,14 +63,13 @@ Docker) — `wfb doctor` says which one a build would use.
 **Linux or macOS:**
 
 ```sh
-./tools/setup-env.sh                # SDK, signing key, device files, icon + system fonts, .venv
-alias wfb="$PWD/wfb.py"             # put this in your shell profile
+./tools/setup-env.sh                # SDK, signing key, device files, icon + system fonts, Node
+alias wfb="$PWD/wfb"             # put this in your shell profile
 ```
 
 The script is safe to re-run. On Linux it downloads the SDK; on macOS it
 finds the one the SDK Manager installed. It also prints two `export` lines
-(`CIQ_SDK` and `PATH`); add them to your shell profile too. `wfb.py` runs
-under the project's `.venv` on its own, so you don't need to activate it. Run
+(`CIQ_SDK` and `PATH`); add them to your shell profile too. Run
 `wfb doctor` to check that everything is in place.
 
 **Docker (macOS shown):**

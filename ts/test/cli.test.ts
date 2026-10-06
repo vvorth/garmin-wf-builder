@@ -202,7 +202,7 @@ elements:
     assert.ok(warned.stderr.includes("drawn with a stand-in"), warned.stderr);
     const root = join(dir, "fonts");
     mkdirSync(root);
-    writeFileSync(join(root, "Bionic_semibold.ttf"), readFileSync(join(REPO_ROOT, "tests/fixtures/slice/assets/OpenSans-Regular.ttf")));
+    writeFileSync(join(root, "Bionic_semibold.ttf"), readFileSync(join(REPO_ROOT, "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf")));
     const quiet = wfb(["preview", design, "-d", "fenix8solar47mm", "-o", "-", "--fonts", root]);
     assert.ok(quiet.code === 0 && !quiet.stderr.includes("warning:"), quiet.stderr);
   });

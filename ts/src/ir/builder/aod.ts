@@ -1,7 +1,6 @@
 // The always-on display: the face-wide `aod:` defaults, each node's own
 // `aod:` (`hide`/`show`/an override block), and resolution down the tree
-// (element > nearest ancestor group > face default). Port of
-// wfb/ir/builder/aod.py.
+// (element > nearest ancestor group > face default)..
 import * as kinds from "../../kinds/index.ts";
 import type { Refusal } from "../../kinds/base.ts";
 import { isNumber, num, repr, str, truthy } from "../../py.ts";

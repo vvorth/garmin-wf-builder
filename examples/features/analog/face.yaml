@@ -54,8 +54,8 @@
 # so the face default -- hide -- would render nothing at all; see
 # `examples/features/aod/face.yaml` for that instead.)
 #
-# Build it with:     ./wfb.py build examples/features/analog/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/analog/face.yaml --time 10:09:42
+# Build it with:     ./wfb build examples/features/analog/face.yaml
+# Preview it with:   ./wfb preview examples/features/analog/face.yaml --time 10:09:42
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

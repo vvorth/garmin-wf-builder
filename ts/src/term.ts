@@ -1,5 +1,5 @@
 // Terminal presentation: whether to colour a stream, and the styles used.
-// Port of wfb/term.py.
+//
 //
 // Colour is decided per stream, so `wfb build 2>log` still colours stdout on
 // a terminal while the log stays plain. The precedence, highest first:

@@ -1,5 +1,5 @@
 // JSON Schema validation as python-jsonschema 4.26 (Draft 2020-12) does
-// it, for the keywords this project's schema uses. wfb/validate.py turns
+// it, for the keywords this project's schema uses. `validate.ts` turns
 // jsonschema's errors into diagnostics using their whole shape (the
 // keyword, the failing subschema, each `oneOf` branch's errors as
 // `context`, the paths, even the message's length to break a tie), so this

@@ -1,5 +1,5 @@
 // `<Face>App.mc`, `Palette.mc` and `IconGlyphs.mc`: the shared,
-// device-independent sources. Port of wfb/emit/monkeyc/app.py.
+// device-independent sources.
 import type { Guards } from "../../availability.ts";
 import * as icons from "../../icons.ts";
 import type { Face } from "../../ir/model.ts";
@@ -114,8 +114,8 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
   w.doc("Catalogue name (or a per-choice 'icon: U+XXXX' override's canonical\n"
     + "spelling) -> drawn glyph, for a dynamic (`icon: {for:}`) icon.\n"
     + "\n"
-    + "Generated directly from wfb.icon_catalog.CATALOG (plus any per-choice\n"
-    + "override) -- see wfb/icons.py's module docstring for why this table,\n"
+    + "Generated directly from the icon catalogue (ts/src/data/icons.json) (plus any per-choice\n"
+    + "override) -- see ts/src/icons.ts for why this table,\n"
     + "rather than WfbWeather.mc, is where a name becomes a character.");
   w.block("module IconGlyphs", () => {
     w.block("function glyph(name as String) as String", () => {
@@ -123,7 +123,7 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
         for (const key of codePointSorted(entries.keys())) {
           if (viaChar.has(key)) {
             w.comment("built at runtime: as a literal, this glyph would share monkeyc's");
-            w.comment("str___<hash> label with another string (wfb/emit/strhash.py)");
+            w.comment("str___<hash> label with another string (ts/src/emit/strhash.ts)");
             w.line(`case "${key}": return (0x${entries.get(key)!.codePointAt(0)!.toString(16)}).toChar().toString();`);
           } else {
             w.line(`case "${key}": return "${entries.get(key)}";`);

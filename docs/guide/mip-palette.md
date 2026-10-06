@@ -13,7 +13,7 @@ To start a face with the whole palette already in it, run
 `wfb new -t palette` ([Getting started](getting-started.md)). The editor's
 colour picker offers the same 64 by name, and adds the one you pick to the
 face ([the editor](studio.md#the-colour-picker)). The table itself is
-`MIP64_NAMED` in `wfb/palette.py`; this page and the template are checked
+`MIP64_NAMED` in `ts/src/palette.ts`; this page and the template are checked
 against it.
 
 ## Copy into a face

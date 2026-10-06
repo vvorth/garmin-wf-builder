@@ -9,7 +9,7 @@ import { REPO_ROOT } from "../src/devices/node.ts";
 import { join } from "node:path";
 import { db, face, resolved } from "./designs.ts";
 
-const OPEN_SANS = "tests/fixtures/slice/assets/OpenSans-Regular.ttf";
+const OPEN_SANS = "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf";
 const find = (r: ResolvedFace, id: string): any => r.items.find((p) => p.id === id)! as Placed & Record<string, any>;
 
 const DESIGN = `

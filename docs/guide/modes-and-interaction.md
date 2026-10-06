@@ -159,7 +159,7 @@ prevent.
 **A `data` element's `on_hold: auto` does not go through any of this.**
 It is the *only* value that element's `on_hold:` accepts (a fixed name is a
 build error — see "The Data axis"), and it is never resolved to a fixed
-`wfb.complications.TYPES` name at build time at all: the wearer can repoint
+`TYPES` in `ts/src/complications.ts` name at build time at all: the wearer can repoint
 the slot at any moment, so the generated code reads the slot's own current
 `Complications.Id` field fresh on every hold instead. `Source.
 launch_complication` and `hold-auto-unresolved`/`hold-auto-ambiguous` never

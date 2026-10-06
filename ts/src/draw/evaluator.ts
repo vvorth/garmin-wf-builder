@@ -1,5 +1,4 @@
-// Backend 2: a draw program painted on the host. Port of
-// wfb/draw/evaluator.py.
+// Backend 2: a draw program painted on the host..
 //
 // It emulates the `Dc` calls a program makes on the preview's own
 // `Renderer`: its canvas, its glyph sources and its sample readings. A

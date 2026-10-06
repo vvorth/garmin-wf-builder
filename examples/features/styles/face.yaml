@@ -13,7 +13,7 @@
 #   (the dim full ring underneath) is static -- drawn once -- while the
 #   *fill* (`steps_arc`, `type: gauge`) is drawn fresh every frame on top
 #   of it, the same "static furniture, dynamic reading" split
-#   `tests/fixtures/slice/face.yaml` uses for one ring, done here per layout.
+#   `ts/test/fixtures/slice/face.yaml` uses for one ring, done here per layout.
 #   Both layouts' own content draws *above* the shared content, in its own
 #   layer, by the fixed z rule (`docs/guide/styles-and-layouts.md`) --
 #   there is nothing to interleave here, but nothing stops it looking that
@@ -54,9 +54,9 @@
 # verified: the same resolved geometry the generated code draws from,
 # rendered with no simulator.
 #
-# Build it with:  ./wfb.py build examples/features/styles/face.yaml
-# Preview one style with:  ./wfb.py preview examples/features/styles/face.yaml --style compact_dark
-# Preview every style with:  ./wfb.py preview examples/features/styles/face.yaml --all-styles
+# Build it with:  ./wfb build examples/features/styles/face.yaml
+# Preview one style with:  ./wfb preview examples/features/styles/face.yaml --style compact_dark
+# Preview every style with:  ./wfb preview examples/features/styles/face.yaml --all-styles
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

@@ -1,5 +1,5 @@
 // Lengths and angles, and the rules for resolving them to device pixels.
-// Port of wfb/units.py.
+//
 //
 // ADR 0004: absolute pixels are not the primary model. A length is one of
 //

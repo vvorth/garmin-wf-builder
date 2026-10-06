@@ -1,6 +1,6 @@
 // The named top-level blocks other than `fonts:` and `config:`:
 // `layouts:`, `palette:` and `theme: schemes:`, and the expression scope
-// every block binds. Port of wfb/ir/builder/blocks.py.
+// every block binds.
 import * as catalog from "../../catalog.ts";
 import { layoutIds } from "../../desugar.ts";
 import type { Span } from "../../diagnostics.ts";

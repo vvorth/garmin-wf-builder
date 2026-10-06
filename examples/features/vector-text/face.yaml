@@ -58,8 +58,8 @@
 #   catalogue -- but it is why this design chose `BionicSemiBold` for the
 #   badge rather than a face every target happens to share.
 #
-# Build it with:    ./wfb.py build examples/features/vector-text/face.yaml
-# Preview it with:  ./wfb.py preview examples/features/vector-text/face.yaml
+# Build it with:    ./wfb build examples/features/vector-text/face.yaml
+# Preview it with:  ./wfb preview examples/features/vector-text/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

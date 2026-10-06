@@ -1,5 +1,5 @@
 // `visible:`: an element's own condition, conjoined with every enclosing
-// group's. Port of wfb/ir/builder/visibility.py.
+// group's.
 import * as expr from "../../expr.ts";
 import { type Element, Expression, type Group } from "../model.ts";
 import { GlyphHelpers } from "./glyphs.ts";

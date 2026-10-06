@@ -13,7 +13,7 @@ verification devices plus `wfb preview`. Nothing config-, hands-, pattern-
 or AOD-related has been observed on a watch or in the simulator.
 
 - **Format 2** — the only format the compiler reads, and the builder reads
-  its keys as written; `wfb/lower.py` checks what the schema cannot.
+  its keys as written; `ts/src/lower.ts` checks what the schema cannot.
   `docs/guide/design-file.md`.
 - **Every element type** — `group`, `text`, `icon`, `data`, the six
   primitives (`rectangle`, `circle`, `ellipse`, `arc`, `polygon`, `line`),
@@ -29,10 +29,10 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
-  element, `wfb.template.segments`, `Text.more`), `absent:`;
+  element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`;
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
-  `wfb/conversion.py`) and duration formats on a number of seconds
-  (`wfb.formatting.DURATION_CODES`, `WfbTime.durationPart`).
+  `ts/src/conversion.ts`) and duration formats on a number of seconds
+  (`DURATION_CODES` in `ts/src/formatting.ts`, `WfbTime.durationPart`).
   `docs/guide/data.md`.
 - **Interactivity** — `on_hold:` (including `on_hold: auto`) on every
   element; `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
@@ -45,19 +45,19 @@ or AOD-related has been observed on a watch or in the simulator.
   paces, rounded temperatures, hours, `K` counts and condition names,
   following the watch's units and clock; `unit:` adds each type's unit and
   `short:` keeps to seven characters; a weather slot's icon follows the
-  condition (`wfb.complications.READING`, generated `SlotText.mc`,
+  condition (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **The `config:` settings menu** — on a watch without the native editor
   but with `getSettingsView` (fr955), the `config:` axes as one list per
-  axis (`wfb.emit.monkeyc.config_menu`), a data slot titled by its
+  axis (`ts/src/emit/monkeyc/config_menu.ts`), a data slot titled by its
   optional `label:`; stored as `Application.Properties`
   indices; `choices: any` offers the palette or every complication type
   the device has (per-device `Layout` arrays). `config-unsupported` fires
   only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on
   `fr955`; the `config:` menu itself not yet. `docs/guide/configuration.md`.
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
-  friendly error (`wfb.build.select_devices`); complication, weather and
-  field touches are `has`-guarded (`wfb/availability.py`); lints
+  friendly error (`selectDevices` in `ts/src/build.ts`); complication, weather and
+  field touches are `has`-guarded (`ts/src/availability.ts`); lints
   `api-gated` and `api-gated-unguardable`. UNVERIFIED on a real pre-4.2.0
   device: that a guarded reference to an absent module is harmless at load
   time.
@@ -73,17 +73,17 @@ or AOD-related has been observed on a watch or in the simulator.
   stamped otherwise. `docs/guide/outlines.md`.
 - **Gauge styles** — `arc`, `bar`, `needle` (a hand's `parts:` turned
   to `start_angle + fraction × sweep`; `Builder.build_hand_part`),
-  `segments` and `scale` (`wfb.lint.check_progress_segments`); `absent:
-  hide` keeps the track (`wfb.kinds.gauge.keeps_track`).
+  `segments` and `scale` (`checkProgressSegments` in `ts/src/lint.ts`); `absent:
+  hide` keeps the track (`keepsTrack` in `ts/src/kinds/gauge.ts`).
   `docs/guide/progress-and-graphs.md`.
 - **Gauges on a slot, and `max: auto`** (research 24) — `slot:` on a gauge
   shows the wearer's pick against its own scale, and `max: auto` on a bare
-  `complication.<type>` takes the same: `wfb.complications.SCALE` (0-100,
+  `complication.<type>` takes the same: `SCALE` in `ts/src/complications.ts` (0-100,
   the watch's goals, a day, the wearer's heart-rate zones and VO2 max row),
   generated into `SlotScale.mc` over `runtime-lib/WfbScale.mc` and
   `WfbProfileScale.mc`; a pick with no scale hides the gauge whole. The
   editor treats a slot as every element drawing it
-  (`wfb.emit.monkeyc.common.editor_slots`). Zone colouring by a metric's
+  (`editorSlots` in `ts/src/emit/monkeyc/common.ts`). Zone colouring by a metric's
   own bands is not built. `docs/guide/progress-and-graphs.md`.
 - **Always-on display** — `aod:` overrides resolved element > group >
   face default, restyled by inline ternaries; `dim:`; the pixel `mask:`
@@ -97,20 +97,20 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Per-device `overrides:`** (ADR 0004 §4) -- an element's `at:`,
   `size:`, `radius:` and `align:` patched per device id or `shape:<s>`,
   deep-merged (device over shape over the element), parsed in
-  `ElementTree._build_overrides` into `Element.overrides` and applied per
+  `buildOverrides` into `Element.overrides` and applied per
   device by `Resolver.for_device`, so only `Layout.mc` changes; the
   selectors are checked by `lint.check_override_selectors` (an unknown
   device is an error, `override-unreachable` a warning).
   `docs/guide/placement.md`.
 - **SDK version recorded** (ADR 0009 §4) -- the device reference records
   its SDK (`sdk-version.txt`); `wfb build` warns on a mismatch
-  (`wfb.build.check_sdk`) and writes `build-info.json`; `wfb doctor`
+  (`ts/src/build.ts`) and writes `build-info.json`; `wfb doctor`
   reports it. `docs/guide/getting-started.md`.
 - **One draw program** — each element is lowered once into a program of
   drawing steps over `Layout` constants and readings (`wfb/draw/`), its
   guards included: the view prints it, the preview evaluates it with the
   barrel's arithmetic transcribed, and a frame is per-element layers with
-  the program as JSON (`wfb.draw.layers`, `wfb.draw.jsonform`): text and
+  the program as JSON (`ts/src/draw/layers.ts`, `ts/src/draw/jsonform.ts`): text and
   icons as placed tiles, which the editor's browser draws itself
   (`ts/app/raster.js`, the preview's rasteriser: Garmin's own rules where
   captures pin them, Pillow's elsewhere). A grown outline ring is drawn
@@ -119,7 +119,7 @@ or AOD-related has been observed on a watch or in the simulator.
   `docs/development.md`, "Element kinds".
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
-  (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
+  (`frameInSkin` in `ts/src/preview.ts`); a device without a skin renders the bare
   screen with one warning. `docs/guide/preview-and-cli.md`.
 - **The editor** (`wfb studio`) — a web app run in the browser, compiler
   and all, over a small Node server that sends the watches' files and fonts
@@ -197,14 +197,14 @@ built.
 6. Catalogue generation from the SDK (ADR 0005 §1).
 7. `catalog.Source.requires` is set on no source. ADR 0008's check 2 is
    otherwise built (`api-gated`: modules, fields, complication types); the
-   hook is read by `wfb.availability.source_unavailable` for a future
+   hook is read by `sourceUnavailable` in `ts/src/availability.ts` for a future
    source whose read needs an extra function.
 8. Sideloading from the editor (`wfb studio`): it builds and downloads a
    watch's `.prg`; copying it to the watch is by hand (as `wfb install`,
    item 10, is unbuilt).
-9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
-   its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
-   its baseline (`tests/mypy-baseline.txt`) is empty.
+9. CI does not exist. The fast suite, the type check and the slow suite
+   (`npm test`, `npm run typecheck`, `npm run test:slow` in `ts/`) run by
+   hand.
 10. `wfb install`, `package`.
 11. A `pattern`'s or `data` element's own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and

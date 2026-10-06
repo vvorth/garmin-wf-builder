@@ -1,7 +1,6 @@
 // The readings a host frame draws at: plausible values, so a preview shows a
-// face mid-life rather than at zero. Port of the sample tables of
-// wfb/preview.py and wfb/kinds/data.py, apart so the kinds can read them
-// without importing the preview.
+// face mid-life rather than at zero. Apart from the preview, so the kinds
+// can read them without importing it.
 import { PyFloat } from "./edit/yaml.ts";
 import type { ExprValue } from "./expr.ts";
 

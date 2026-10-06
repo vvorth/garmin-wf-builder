@@ -1,7 +1,7 @@
 // The semantic pass's shared state and the small helpers every layer of it
 // uses: `NamedRegistry` (the declared/accepted/rejected bookkeeping a named
 // top-level block keeps), `dedupAppend`, `andPaths` and a node's own `lint:`
-// suppression. Port of wfb/ir/builder/state.py.
+// suppression.
 import type { Bag, Span } from "../../diagnostics.ts";
 import type { Data, DataKey } from "../../edit/yaml.ts";
 import * as expr from "../../expr.ts";

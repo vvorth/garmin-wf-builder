@@ -1,5 +1,5 @@
 // Assemble a complete, compilable Connect IQ project from a resolved design.
-// Port of wfb/emit/project.py; writing it to disk is the Node host's job.
+// Writing it to disk is the Node host's job.
 import { computeGuards } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";

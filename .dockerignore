@@ -1,12 +1,7 @@
 # Keep the build context small and reproducible.  Everything the image needs is
 # listed explicitly in the Dockerfile's COPY lines.
 .git/
-.venv/
 build/
-__pycache__/
-**/__pycache__/
-*.py[cod]
-.pytest_cache/
 # ts/'s dependencies are installed in the image build (npm ci), never copied.
 ts/node_modules/
 ts/dist/
@@ -21,7 +16,9 @@ vendor/
 *.bundle
 
 # The icon font is fetched in the image build, never copied from the host.
-wfb/assets/icons/SymbolsNerdFont-Regular.ttf
-wfb/assets/icons/LICENSE-nerd-fonts.txt
+ts/assets/icons/SymbolsNerdFont-Regular.ttf
+ts/assets/icons/LICENSE-nerd-fonts.txt
+# So are the system fonts.
+ts/assets/system-fonts/
 # The SDK device reference is extracted from the SDK in the image build.
 .cache/

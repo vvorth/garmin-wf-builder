@@ -1,6 +1,6 @@
 // Reading one key of a node: expressions, colours, lengths, angles,
 // positions, sizes, alignment and font references, each reporting its own
-// error on the author's line. Port of wfb/ir/builder/reading.py.
+// error on the author's line.
 import * as catalog from "../../catalog.ts";
 import { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";

@@ -2,8 +2,7 @@
 // JavaScript gives a different answer, so the test fails against it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Timestamp } from "../src/edit/yaml.ts";
-import { canonical, floatHex, formatFixed, jsonString, repr, roundHalfEven, splitlines, truthy } from "../src/py.ts";
+import { floatHex, formatFixed, jsonString, repr, roundHalfEven, splitlines, truthy } from "../src/py.ts";
 
 test("f'{x:.6f}' rounds the exact binary value half to even, where toFixed rounds a tie away", () => {
   assert.equal((1 / 128).toFixed(6), "0.007813");
@@ -48,7 +47,3 @@ test("float.hex() matches Python's", () => {
   assert.equal(floatHex(5e-324), "0x0.0000000000001p-1022");
 });
 
-test("canonical data: 1 and 1.0 are one value, other floats are exact, mappings keep order", () => {
-  const data = new Map<string | number, unknown>([["b", 1], ["a", [0.5, "é", null, true]], [2, new Timestamp("2026-10-05")]]);
-  assert.equal(canonical(data as never), "{\"b\":i1,\"a\":[x0x1.0000000000000p-1,\"\\u00e9\",n,t],i2:T2026-10-05}");
-});

@@ -1,5 +1,4 @@
-// Author text as Monkey C source: a string literal, and a comment. Port of
-// wfb/mcsource.py.
+// Author text as Monkey C source: a string literal, and a comment..
 //
 // Author text reaches generated source as string literals (what is drawn)
 // and in comments (a widest rendering, a menu label). A quote or a

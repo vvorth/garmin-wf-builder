@@ -23,8 +23,8 @@
 # all four targets, and `wfb preview` renders it. What is not: how it looks
 # on a real Instinct -- there is no simulator here, and the user owns none.
 #
-# Build it with:     ./wfb.py build examples/features/instinct/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/instinct/face.yaml
+# Build it with:     ./wfb build examples/features/instinct/face.yaml
+# Preview it with:   ./wfb preview examples/features/instinct/face.yaml
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

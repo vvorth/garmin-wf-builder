@@ -11,12 +11,14 @@
 #   - Garmin's own font files     -> ~/.Garmin/ConnectIQ/Fonts (Linux: copied
 #                                    from vendor/fonts/, if present -- optional;
 #                                    macOS: read in place, like the devices)
-#   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
-#   - the system fonts registry   -> wfb/assets/system-fonts/ (downloaded,
-#                                    hash-checked; docs/lore/toolchain.md)
 #   - Node 24 (if no Node on PATH -> ~/.local/share/wfb/node-v<version>
 #     strips TypeScript types)       (downloaded, checked against SHASUMS256),
 #                                    and ts/'s npm dependencies
+#   - the SDK device reference    -> .cache/device-reference/ (extracted from
+#                                    the SDK's own pages)
+#   - the Nerd Fonts icon font    -> ts/assets/icons/ (downloaded, hash-checked)
+#   - the system fonts registry   -> ts/assets/system-fonts/ (downloaded,
+#                                    hash-checked; docs/lore/toolchain.md)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -28,9 +30,6 @@ SDK_VERSION="9.2.0"
 SDK_FILE="connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip"
 SDK_URL="https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}"
 KEY_DER="${HOME}/ciq/developer_key.der"
-# The Python the compiler needs: mypy.ini's python_version. macOS ships an
-# older /usr/bin/python3, so a newer one is looked for by name as well.
-PY_MIN="3.11"
 
 # Where the SDK Manager keeps its downloads, and so where monkeyc looks for
 # device definitions. On macOS the SDK Manager owns that tree, so this script
@@ -74,15 +73,6 @@ done
 # macOS has a /usr/bin/java stub even with no Java installed, so the check
 # has to run it rather than find it.
 java -version >/dev/null 2>&1 || missing+=("java")
-PY=""
-for cand in python3 python3.14 python3.13 python3.12 python3.11; do
-    if command -v "${cand}" >/dev/null 2>&1 &&
-       "${cand}" -c "import sys; sys.exit(sys.version_info < tuple(map(int, '${PY_MIN}'.split('.'))))" 2>/dev/null; then
-        PY="$(command -v "${cand}")"
-        break
-    fi
-done
-[ -n "${PY}" ] || missing+=("python${PY_MIN}+")
 if [ "${#missing[@]}" -gt 0 ]; then
     if [ "${IS_MAC}" = true ]; then
         cat >&2 <<EOF
@@ -90,11 +80,9 @@ ERROR: missing required tools: ${missing[*]}
 
 Install them with Homebrew (https://brew.sh) and re-run this script:
 
-  brew install python@3.13
   brew install --cask temurin@21
 
-java runs Garmin's compiler (monkeyc); Java 21 or newer is tested. The
-python3 that ships with macOS is too old: wfb needs Python ${PY_MIN} or newer.
+java runs Garmin's compiler (monkeyc); Java 21 or newer is tested.
 EOF
     else
         cat >&2 <<EOF
@@ -102,15 +90,14 @@ ERROR: missing required tools: ${missing[*]}
 
 Install them with your package manager and re-run this script. On Debian/Ubuntu:
 
-  sudo apt-get install -y curl unzip openssl python3 python3-venv openjdk-21-jre-headless
+  sudo apt-get install -y curl unzip openssl openjdk-21-jre-headless
 
-java runs Garmin's compiler (monkeyc); Java 21 or newer is tested. wfb needs
-Python ${PY_MIN} or newer.
+java runs Garmin's compiler (monkeyc); Java 21 or newer is tested.
 EOF
     fi
     exit 1
 fi
-echo "found: ${tools[*]} java ${PY}"
+echo "found: ${tools[*]} java"
 
 # ---------------------------------------------------------------- SDK --------
 say "Connect IQ SDK ${SDK_VERSION}"
@@ -269,7 +256,7 @@ say "Garmin font files (optional)"
 VENDOR_FONTS="${REPO_ROOT}/vendor/fonts"
 if [ "${IS_MAC}" = true ]; then
     # wfb reads vendor/fonts/ and the SDK Manager's Fonts folder in place
-    # (wfb.fonts.fetch_system.garmin_font_root), so nothing is copied.
+    # (ts/src/fonts/node.ts's garminFontRoot), so nothing is copied.
     echo "read in place: vendor/fonts/ first, then ${FONTS_DEST}"
 elif [ -d "${VENDOR_FONTS}" ] && [ -n "$(ls -A "${VENDOR_FONTS}" 2>/dev/null)" ]; then
     mkdir -p "${FONTS_DEST}"
@@ -307,79 +294,6 @@ if [ -n "$(ls -A "${VENDOR_FONTS}" 2>/dev/null)" ] || [ -n "$(ls -A "${FONTS_DES
 else
     echo "preview fidelity: stand-in typefaces for any face the registry has no exact match for; see wfb doctor"
 fi
-
-# --------------------------------------------- SDK device reference ---------
-# Derived data, never committed: extracted from the SDK's own
-# doc/docs/Device_Reference pages into .cache/device-reference/. wfb reads each
-# panel's palette size and per-font pixel metrics from it, and the system-fonts
-# step below reads which font names each device needs. Regenerated only when
-# missing or extracted from a different SDK (source.txt names the one it came
-# from, sdk-version.txt its release, which wfb build compares).
-say "SDK device reference"
-REF_DEST="${REPO_ROOT}/.cache/device-reference"
-REF_SRC="$(cd "${SDK_ROOT}/doc/docs/Device_Reference" 2>/dev/null && pwd -P || true)"
-if [ -z "${REF_SRC}" ]; then
-    echo "ERROR: no doc/docs/Device_Reference in ${SDK_ROOT}; the device reference is extracted from it." >&2
-    exit 1
-fi
-if [ -f "${REF_DEST}/source.txt" ] && [ "$(cat "${REF_DEST}/source.txt")" = "${REF_SRC}" ] \
-        && [ -f "${REF_DEST}/sdk-version.txt" ]; then
-    echo "up to date: $(count "${REF_DEST}/devices") devices, from ${REF_SRC}"
-else
-    "${PY}" "${REPO_ROOT}/tools/extract-device-reference.py" --sdk "${SDK_ROOT}"
-fi
-
-# -------------------------------------------------------- icon font ---------
-say "icon font"
-"${PY}" "${REPO_ROOT}/tools/fetch-icon-font.py"
-
-# ------------------------------------------------------ system fonts --------
-say "system fonts"
-"${PY}" "${REPO_ROOT}/tools/fetch-system-fonts.py"
-
-# ------------------------------------------------------------- env ----------
-say "environment"
-if [ "${IS_MAC}" = false ] && [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
-    grep -qF "CIQ_SDK=${SDK_ROOT}" "${PERSIST}" 2>/dev/null || {
-        echo "export CIQ_SDK=${SDK_ROOT}" >> "${PERSIST}"
-        echo "export PATH=\$PATH:${SDK_ROOT}/bin" >> "${PERSIST}"
-        echo "appended CIQ_SDK and PATH to ${PERSIST}"
-    }
-    echo "CIQ_SDK and PATH are set in ${PERSIST}"
-else
-    # Quoted: the macOS SDK path has a space in it.
-    echo "Add these two lines to your shell profile (~/.zshrc or ~/.bashrc):"
-    echo ""
-    echo "  export CIQ_SDK=\"${SDK_ROOT}\""
-    echo "  export PATH=\"\$PATH:${SDK_ROOT}/bin\""
-fi
-
-# --------------------------------------------------------- python -----------
-say "python environment"
-VENV="${REPO_ROOT}/.venv"
-if [ -x "${VENV}/bin/python" ]; then
-    echo "already present at ${VENV}"
-else
-    if command -v uv >/dev/null 2>&1; then
-        uv venv --python "${PY}" "${VENV}" >/dev/null
-    else
-        # Debian/Ubuntu split ensurepip out of the stdlib package.
-        "${PY}" -m venv "${VENV}" 2>/dev/null || {
-            echo "could not create ${VENV} with ${PY}" >&2
-            [ "${IS_MAC}" = true ] ||
-                echo "python3-venv is probably missing; install it with: sudo apt-get install -y python3-venv" >&2
-            exit 1
-        }
-    fi
-    echo "created ${VENV}"
-fi
-if command -v uv >/dev/null 2>&1; then
-    VIRTUAL_ENV="${VENV}" uv pip install -q -r "${REPO_ROOT}/requirements-dev.txt"
-else
-    "${VENV}/bin/pip" install -q --upgrade pip
-    "${VENV}/bin/pip" install -q -r "${REPO_ROOT}/requirements-dev.txt"
-fi
-echo "installed host dependencies"
 
 # ----------------------------------------------------------- node -----------
 say "node"
@@ -452,27 +366,72 @@ fi
 (cd "${REPO_ROOT}/ts" && PATH="${NODE_BIN}:${PATH}" npm ci --silent --no-audit --no-fund)
 echo "installed ts/ dependencies"
 
+# --------------------------------------------- SDK device reference ---------
+# Derived data, never committed: extracted from the SDK's own
+# doc/docs/Device_Reference pages into .cache/device-reference/. wfb reads each
+# panel's palette size and per-font pixel metrics from it, and the system-fonts
+# step below reads which font names each device needs. Regenerated only when
+# missing or extracted from a different SDK (source.txt names the one it came
+# from, sdk-version.txt its release, which wfb build compares).
+say "SDK device reference"
+REF_DEST="${REPO_ROOT}/.cache/device-reference"
+REF_SRC="$(cd "${SDK_ROOT}/doc/docs/Device_Reference" 2>/dev/null && pwd -P || true)"
+if [ -z "${REF_SRC}" ]; then
+    echo "ERROR: no doc/docs/Device_Reference in ${SDK_ROOT}; the device reference is extracted from it." >&2
+    exit 1
+fi
+if [ -f "${REF_DEST}/source.txt" ] && [ "$(cat "${REF_DEST}/source.txt")" = "${REF_SRC}" ] \
+        && [ -f "${REF_DEST}/sdk-version.txt" ]; then
+    echo "up to date: $(count "${REF_DEST}/devices") devices, from ${REF_SRC}"
+else
+    "${NODE}" "${REPO_ROOT}/ts/tools/extract-device-reference.ts" --sdk "${SDK_ROOT}"
+fi
+
+# -------------------------------------------------------- icon font ---------
+say "icon font"
+"${NODE}" "${REPO_ROOT}/ts/tools/fetch-icon-font.ts"
+
+# ------------------------------------------------------ system fonts --------
+say "system fonts"
+"${NODE}" "${REPO_ROOT}/ts/tools/fetch-system-fonts.ts"
+
+# ------------------------------------------------------------- env ----------
+say "environment"
+if [ "${IS_MAC}" = false ] && [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
+    grep -qF "CIQ_SDK=${SDK_ROOT}" "${PERSIST}" 2>/dev/null || {
+        echo "export CIQ_SDK=${SDK_ROOT}" >> "${PERSIST}"
+        echo "export PATH=\$PATH:${SDK_ROOT}/bin" >> "${PERSIST}"
+        echo "appended CIQ_SDK and PATH to ${PERSIST}"
+    }
+    echo "CIQ_SDK and PATH are set in ${PERSIST}"
+else
+    # Quoted: the macOS SDK path has a space in it.
+    echo "Add these two lines to your shell profile (~/.zshrc or ~/.bashrc):"
+    echo ""
+    echo "  export CIQ_SDK=\"${SDK_ROOT}\""
+    echo "  export PATH=\"\$PATH:${SDK_ROOT}/bin\""
+fi
+
 # ---------------------------------------------------------- verify ----------
 say "verify"
 "${SDK_ROOT}/bin/monkeyc" --version 2>&1 | grep -v JAVA_TOOL_OPTIONS || true
 echo "devices: $(ls "${DEVICES_DEST}" | tr '\n' ' ')"
 
-"${VENV}/bin/python" -c "import ruamel.yaml, jsonschema, PIL, fontTools; print('host deps ok')"
 (cd "${REPO_ROOT}/ts" && PATH="${NODE_BIN}:${PATH}" npm run --silent typecheck) && echo "ts/ typechecks"
 
 cat <<EOF
 
 Setup complete. Build an example end to end:
 
-  ./wfb.py build examples/features/graph/face.yaml
+  ./wfb build examples/features/graph/face.yaml
 
 Expected: three signed .prg files and a measured memory figure per device, with
 no warnings. Then:
 
-  ./wfb.py preview examples/features/graph/face.yaml    # PNG in build/preview/, no toolchain
-  ./wfb.py doctor                              # what is installed, and what is missing
+  ./wfb preview examples/features/graph/face.yaml    # PNG in build/preview/, no toolchain
+  ./wfb doctor                              # what is installed, and what is missing
 
 To run \`wfb\` from any folder, add this alias to your shell profile:
 
-  alias wfb="${REPO_ROOT}/wfb.py"
+  alias wfb="${REPO_ROOT}/wfb"
 EOF

@@ -33,7 +33,7 @@ $CIQ_SDK/bin/monkeydo out.prg fenix8solar47mm   # push to a RUNNING simulator
 
 `monkeyc` runs fine on **OpenJDK 25**. No Java version pinning was needed.
 
-**Driving the simulator (`wfb/simulate.py`).** On macOS the simulator is
+**Driving the simulator (`ts/src/simulate.ts`).** On macOS the simulator is
 `bin/ConnectIQ.app`, and `bin/connectiq` is just `open -a` on it; on Linux it
 is the bare `bin/simulator` binary. Either way it listens on the first free
 TCP port of 127.0.0.1:1234–1238, and that range is exactly what `monkeydo`
@@ -105,14 +105,14 @@ glitch.
   timeout kills only the script, so a hung build used to leave its JVM
   (`-Xms1g`) running after wfb reported it stopped; the editor, which runs
   `wfb build`, left `monkeyc` itself behind too. Both run their command
-  through `wfb.process.run`, which starts it in its own process group and
+  through `run` in `ts/src/node_build.ts`, which starts it in its own process group and
   kills the group on a timeout or an interrupt. A process that left the
   group (`setsid`) survives that kill and may hold the output pipes open,
   so the wait for them after the kill is bounded (5 s) rather than
   unbounded.
 - Compiling a `<watchface-config>` makes this SDK's JVM print a four-line
   `sun.misc.Unsafe` notice using `monkeyc`'s own bare `WARNING:` prefix.
-  `wfb/build.py` strips exactly that line shape and nothing else — this is
+  `ts/src/build.ts` strips exactly that line shape and nothing else — this is
   the one thing that could silently defeat this project's warning-free bar,
   so it is driven red both ways (a real warning must still surface; the
   notice must not).
@@ -139,8 +139,8 @@ glitch.
     colliding glyph, and the substitution that "avoided" it dropped
     `distance`. The label number recurring across unrelated projects was
     the clue, because it is the hash of the string, not of the project.
-  - **What the compiler does about it** (`wfb/emit/strhash.py`): after
-    generating a project, `wfb.emit.project` hashes every string literal in
+  - **What the compiler does about it** (`ts/src/emit/strhash.ts`): after
+    generating a project, `ts/src/emit/project.ts` hashes every string literal in
     the generated sources and the copied barrel. A colliding glyph in
     `IconGlyphs.mc` is emitted as `(0xf050f).toChar().toString()` instead
     of a literal (`Lang.Number.toChar`, API 1.3.0, in `api.debug.xml`), so
@@ -175,14 +175,14 @@ glitch.
   summed over every function is `--build-stats`' code figure to within a byte
   (`examples/features/profile/`, fr955: 10,792 against 10,793). Method names
   are XML-escaped and wrapped, as in `<globals/FooView/<>drawBar>`.
-  `wfb.build.method_code_sizes` reads it, and `wfb build --profile` prints it
+  `ts/src/build.ts` reads it, and `wfb build --profile` prints it
   per element. Data (the `Layout` constants, the offset tables) is not in it.
 - **2026-09-29: the only clock a face can read is `System.getTimer()`, in
   whole milliseconds** (`$CIQ_SDK/doc/Toybox/System.html`). No per-call cost
   is exposed. The partial-update budget is reported only once it is exceeded
   (`WatchFacePowerInfo.executionTimeAverage`/`executionTimeLimit`, in
   `onPowerBudgetExceeded`). So `--profile` times `REPS` draws of one element
-  per frame and averages across frames (`wfb.emit.monkeyc.profile`).
+  per frame and averages across frames (`ts/src/emit/monkeyc/profile.ts`).
 
 ## 8. Useful SDK paths
 
@@ -225,13 +225,14 @@ why each part matters:
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
-| SDK device reference | `.cache/device-reference/` | Derived, never committed: `tools/extract-device-reference.py` scrapes the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 164 on SDK 9.2.0). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `tools/fetch-system-fonts.py` prefetches, so it is generated before the fonts. Rebuilt only when missing, when `source.txt` names a different SDK, or when `sdk-version.txt` (the SDK release, from its `bin/version.txt`, or `--sdk-version` in the Docker build, which keeps only the doc pages) is absent; regenerating it on 9.2.0 is byte-identical. `wfb build` compares `sdk-version.txt` with the SDK it compiles with (`wfb.build.check_sdk`: a `sdk` warning when they differ, a note when the reference records none) and writes both into `build-info.json` in the build directory. `wfb` refuses to load devices without it (`DeviceReferenceMissing`). |
-| System-font registry stand-ins | `wfb/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `tools/fetch-system-fonts.py`. |
+| SDK device reference | `.cache/device-reference/` | Derived, never committed: `ts/tools/extract-device-reference.ts` scrapes the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 164 on SDK 9.2.0). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `ts/tools/fetch-system-fonts.ts` prefetches, so it is generated before the fonts. Rebuilt only when missing, when `source.txt` names a different SDK, or when `sdk-version.txt` (the SDK release, from its `bin/version.txt`, or `--sdk-version` in the Docker build, which keeps only the doc pages) is absent; regenerating it on 9.2.0 is byte-identical. `wfb build` compares `sdk-version.txt` with the SDK it compiles with (`ts/src/build.ts`: a `sdk` warning when they differ, a note when the reference records none) and writes both into `build-info.json` in the build directory. `wfb` refuses to load devices without it (`DeviceReferenceMissing`). |
+| System-font registry stand-ins | `ts/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `ts/tools/fetch-system-fonts.ts`. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
-| Python venv | `.venv/` | `ruamel.yaml`, `jsonschema`, `pillow`, `fonttools`, `pytest`. |
+| Node 24 | `~/.local/share/wfb/node-v<version>`, when the `node` on `PATH` cannot run `.ts` files | An official build, checked against `SHASUMS256.txt`, prepended to `PATH`; then `npm ci` in `ts/` (`yaml`, `fflate`, `opentype.js`; `typescript` and `esbuild` for development). |
 
-On Debian/Ubuntu, `python3 -m venv` needs `python3-venv` installed separately;
-the script says so and falls back to `uv venv` when `uv` is available.
+The icon font, the device reference and the system fonts are fetched by the
+tools in `ts/tools/`, which need `ts/`'s npm dependencies, so Node is set up
+before them.
 
 ### The one thing that is genuinely gated: device definitions
 
@@ -268,9 +269,8 @@ manifest floor (`3.2.0`) sitting above `fenix5`'s own ceiling, a negative
 control (`Weather`/`solarIntensity`) that was not actually universal, and 22
 installed `ww` font filenames unmapped in the registry -- all three closed
 by lowering `BASE_API_LEVEL` to 3.1.0 and auditing every unguarded API
-against `fenix5`'s own `api.debug.xml` (`wfb/emit/manifest.py`,
-`wfb.build.select_devices`, `wfb/fonts/registry.json`; see `tests/CLAUDE.md`
-for what was pre-existing before that fix). Re-run `setup-env.sh` after
+against `fenix5`'s own `api.debug.xml` (`ts/src/emit/manifest.ts`,
+`selectDevices` in `ts/src/build.ts`, `ts/src/data/font-registry.json`). Re-run `setup-env.sh` after
 `vendor/devices/` gains a device, or the device builds as `unknown device`.
 
 `vendor/devices/` is **gitignored on purpose** — it is the user's own licensed
@@ -290,33 +290,26 @@ cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
 
 ### System fonts: registry fetch, cache, and Garmin's own font root
 
-`wfb/fonts/fetch_system.py` is deliberately
-**stdlib-only, no `wfb`/Pillow import** — it must load by
-file path (`importlib.util.spec_from_file_location`) before `.venv` exists,
-in the Docker SDK stage, and from `wfb doctor` without a rasteriser.
+**The compiler never downloads a font.** It reads a stand-in that is
+already on disk, in `ts/assets/system-fonts/` (what a prefetch fills) or
+the cache `${XDG_CACHE_HOME:-~/.cache}/wfb/fonts/`, and only when the
+file matches its pinned SHA-256 (`NodeFontFiles` in `ts/src/fonts/node.ts`;
+`wfb doctor` reports which of the two held each key). A missing stand-in
+falls back to a substitute face at build time, with a note.
 
-**Name resolution** (`resolve(name, face=None)`) is pure and reads only
-`wfb/fonts/registry.json`: an exact `names` hit, then the first matching
-`patterns` regex, then, only with `face` given, the `faces` table — the
-same order `tests/test_font_registry.py`'s own resolver checks the
-committed registry against.
+**Name resolution** (`resolveRegistryKey` in `ts/src/fonts/files.ts`) is
+pure and reads only `ts/src/data/font-registry.json`: an exact `names` hit,
+then the first matching `patterns` regex, then, only with a face given, the
+`faces` table.
 
-**Fetch/cache.** `ensure(key)` downloads a font-key's pinned TTF into
-`${XDG_CACHE_HOME:-~/.cache}/wfb/fonts/<key>.ttf` on demand, checking the
-whole download and (for an archive source) every extracted member against
-`registry.json`'s pinned SHA-256 before writing anything — one bad hash
-refuses the *whole* archive group, not just the one member, so nothing
-partial is left behind. An archive shared by several font-keys (the Roboto
-release backs nine of them, including every `*-substitute` alias) is
-downloaded once per process and every key that needs a member of it is
-materialised in the same pass. `path_for(key)`/`tier_for(key)` are the
-no-network reads (`wfb doctor` uses these, never `ensure`); `install(keys,
-dest)` is the prefetch entry point `tools/fetch-system-fonts.py` and
-`setup-env.sh`/the Dockerfile call. `WFB_OFFLINE=1` stops any of this from
-reaching the network at all — `tests/conftest.py` sets it for the whole
-test session, so a test that needs the online path must `monkeypatch.delenv`
-it back off. `WFB_FONTS_MIRROR` overrides every source URL's host, for an
-internal mirror that reproduces the same paths.
+**Prefetch.** `ts/tools/fetch-system-fonts.ts` (run by `setup-env.sh` and
+the Dockerfile) resolves every name the devices need and downloads each
+key's pinned source, checking the download and (for an archive source)
+the extracted member against the pinned SHA-256 before writing anything.
+An archive shared by several font-keys (the Roboto release backs nine of
+them, including every `*-substitute` alias) is downloaded once per run.
+`WFB_FONTS_MIRROR` overrides every source URL's host, for an internal
+mirror that reproduces the same paths.
 
 **Garmin's own font files rank above the registry**: the SDK
 Manager's `Fonts` directory (next to `Devices`) is the user's own licensed
@@ -337,7 +330,7 @@ entirely, picked for a similar role -- most of Bionic's own weights have
 no free release at all and resolve this way absent the root) and `"none"`
 (Pillow's own bundled default) actually change what a preview draws.
 `wfb preview` records every distinct face a run resolved
-(`wfb.preview.render`'s own `used_faces` parameter) and prints one warning
+(`render` in `ts/src/preview.ts`'s own `used_faces` parameter) and prints one warning
 to stderr, naming each `"substitute"`/`"none"` font and what was drawn
 instead, whenever any were -- never suppressed by `-q`/`-o -`, since it is
 a correctness warning, not progress. `wfb doctor`'s `Garmin fonts` line
@@ -345,9 +338,9 @@ states the same consequence next to the root it did or did not find. Both
 commands take `--fonts DIR` as a one-off override, same as `WFB_FONTS`.
 
 **One root serves measuring, deriving and drawing.** The font root is
-owned by `wfb.devices.DeviceDatabase` (`DeviceDatabase.discover(...,
+owned by `DeviceDatabase` in `ts/src/devices/device.ts` (`DeviceDatabase.discover(...,
 fonts_root=...)`) and carried by every `Device` it builds
-(`Device.fonts_root`). `wfb.layout` measures system and vector text with it
+(`Device.fonts_root`). `ts/src/layout.ts` measures system and vector text with it
 (`fallback.measure`/`line_height`/`ascent`), `Device.system_fonts`' derived
 loop locates the fenix 9 family's files with it, and `wfb preview --fonts
 DIR` passes the same value to both the database and `PreviewOptions`, so a
@@ -360,7 +353,7 @@ The directory is flat: `.ttf`, `.cft` and `.md5` files, each named exactly
 after the `simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
 `FNT_FENIX6_CDPG_ROBOTO_20B.cft`). `garmin_any_file` matches the stem
 case-insensitively: `.ttf`/`.otf` first, then `.cft` (decoded by
-`wfb/fonts/cft.py`, `docs/research/10-system-fonts.md` §10), then
+`ts/src/fonts/cft.ts`, `docs/research/10-system-fonts.md` §10), then
 `"FNT_" + name` for scraped-only names. `locate(name, face=None,
 fonts_root=None)` is the one lookup that puts Garmin's root ahead of the
 registry. `WFB_NO_GARMIN_FONTS=1` makes discovery ignore everything but an

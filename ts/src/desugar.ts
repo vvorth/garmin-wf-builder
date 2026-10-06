@@ -1,5 +1,5 @@
 // Rewrite a lowered design's element blocks into the one shape the IR
-// builder reads. Port of wfb/desugar.py.
+// builder reads.
 //
 // Three rewrites live here. The first turns an element mapping, keyed by
 // id, into the list the builder walks, the key injected as the element's

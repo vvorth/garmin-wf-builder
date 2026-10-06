@@ -20,8 +20,8 @@
 # three rows draw their `--` (`absent:`); `wfb preview --units statute`
 # switches the distance row to miles.
 #
-# Build it with:     ./wfb.py build examples/features/units/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/units/face.yaml --units statute
+# Build it with:     ./wfb build examples/features/units/face.yaml
+# Preview it with:   ./wfb preview examples/features/units/face.yaml --units statute
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 

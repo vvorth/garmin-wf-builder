@@ -351,7 +351,7 @@ the tables before comparing any two `.prg` figures of your own.** The two
 sides move different numbers, because they are different kinds of thing.
 
 The font side is baked into a *resource*, so it moves the `.prg` and never
-`--build-stats`. On the Phase 2 slice (now `tests/fixtures/slice/`), all three
+`--build-stats`. On the Phase 2 slice (now `ts/test/fixtures/slice/`), all three
 targets, output paths held to the same length:
 
 | | `.prg` (fenix8solar47mm) | vs. previous row | `--build-stats` |
@@ -477,7 +477,7 @@ a build-error redirect on `text` (there is another key to point the
 author at — the font's own `antialias:`), `min_1px:` needs no such
 redirect: a font size, including an icon's `size:` (or a `data` element's
 `icon: {size:}`), already
-resolves through `wfb.units.pixel_size`, which floors at 1 px on its own,
+resolves through `pixelSize` in `ts/src/units.ts`, which floors at 1 px on its own,
 unconditional path. There is nothing left to switch for these three
 kinds, so the schema simply does not offer the key there, and writing it
 anyway gets the ordinary "unknown key" error every other unrecognised key

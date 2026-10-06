@@ -1,5 +1,4 @@
-// Build-time checks, with explicit confidence (ADR 0008). Port of
-// wfb/lint.py.
+// Build-time checks, with explicit confidence (ADR 0008)..
 //
 // The linter is this framework's main claim to being better than
 // hand-writing, so its credibility matters more than its coverage. Every
@@ -1006,7 +1005,7 @@ export function checkAodBurnIn(resolved: ResolvedFace, bag: Bag): void {
     `worst of ${AOD_BURN_IN_SAMPLE_TIMES.length} sampled clock times `
     + AOD_BURN_IN_SAMPLE_TIMES.map(([h, m]) => `${pad2(h)}:${pad2(m)}`).join(", ")
     + (worstPhase !== null ? " x 4 mask phases" : "")
-    + ", full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every possible time/data value",
+    + ", full battery, the preview's other sample readings unchanged -- not every possible time/data value",
     "lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance "
     + "(Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own "
     + "integral is unpublished (docs/guide/always-on-display.md, \"Lints\")",
@@ -1106,7 +1105,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
           `${placed.id}: on_hold: ${repr(element.on_hold)} needs Toybox.Complications, which ${device.id} lacks, so it never fires there`,
           element.span, {
             notes: [
-              "the generated delegate guards this call with 'Toybox has :Complications' (wfb.availability.compute_guards) -- the "
+              "the generated delegate guards this call with 'Toybox has :Complications' (computeGuards) -- the "
               + "hold compiles in but is a silent no-op here, not a crash",
               "the face still works; the element itself still draws as usual",
             ],
@@ -1124,7 +1123,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
           element.span, {
             notes: [
               `confirmed against ${device.id}'s own api.debug.xml -- not one of its <dataEntry type="module"> rows`,
-              `the generated view guards the acquisition with 'Toybox has :${bare}' (wfb.availability.compute_guards) -- the build `
+              `the generated view guards the acquisition with 'Toybox has :${bare}' (computeGuards) -- the build `
               + "still succeeds; only this graph degrades on this device",
             ],
             confidence: exact,
@@ -1143,7 +1142,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
           `${placed.id}: slot ${repr(slotName)} needs Toybox.Complications, which ${device.id} lacks, so it shows its absent state here -- never the declared default`,
           element.span, {
             notes: [
-              "the generated code guards every reference to Complications for this slot (wfb.availability.compute_guards) -- this "
+              "the generated code guards every reference to Complications for this slot (computeGuards) -- this "
               + "is silent, not a crash",
               "the slot's own 'default:' is itself read through WfbComplications.valueOf, so it is just as unreachable here as any "
               + "other choice -- there is no fallback to a compiled-in value on a device with no Complications module at all",
@@ -1161,9 +1160,9 @@ function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null
     emit(bag, placed, diag("error", "api-gated-unguardable",
       `${placed.id}: ${repr(path)} needs ${gap.symbol}, which ${device.id} lacks -- the generator cannot gate this call yet`, span, {
         notes: [
-          "wfb.availability.compute_guards only ever emits a runtime guard for a missing module ('Toybox has :Module') or field "
+          "computeGuards only ever emits a runtime guard for a missing module ('Toybox has :Module') or field "
           + "('x has :field') -- there is no guard for an individual missing function, so this call would run unguarded and crash on this device",
-          `drop this target, drop the binding, or add a guard for ${repr(gap.symbol)} to wfb/emit/monkeyc.py before shipping this`,
+          `drop this target, drop the binding, or add a guard for ${repr(gap.symbol)} to the generated code before shipping this`,
         ],
         confidence: "exact -- the device's own api.debug.xml",
       }));
@@ -1177,7 +1176,7 @@ function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null
       notes: [
         `confirmed against ${device.id}'s own api.debug.xml -- `
         + (gap.kind === "module" ? "not one of its <dataEntry type=\"module\"> rows" : `${repr(gap.symbol)} is not one of its <symbolTable> field entries`),
-        "the generated view guards this at runtime (wfb.availability.compute_guards) -- the build still succeeds; only this binding degrades on this device",
+        "the generated view guards this at runtime (computeGuards) -- the build still succeeds; only this binding degrades on this device",
       ],
       confidence,
     }));

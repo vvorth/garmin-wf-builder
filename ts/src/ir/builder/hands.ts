@@ -1,6 +1,5 @@
 // `hand_sets:` and the part vocabulary a hand and a `pattern` template
-// share, with the per-shape key and rejection-reason tables. Port of
-// wfb/ir/builder/hands.py.
+// share, with the per-shape key and rejection-reason tables..
 import type { Span } from "../../diagnostics.ts";
 import * as expr from "../../expr.ts";
 import * as formatting from "../../formatting.ts";

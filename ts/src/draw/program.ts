@@ -1,5 +1,4 @@
-// The draw program: what one element draws, as values and ops. Port of
-// wfb/draw/program.py.
+// The draw program: what one element draws, as values and ops..
 //
 // A kind lowers a placed element into a list of ops (`ElementKind.lower`).
 // Every value an op takes is something both backends can read: the printer

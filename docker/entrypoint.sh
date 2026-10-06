@@ -16,9 +16,9 @@
 set -eu
 
 # An escape hatch: anything that is obviously not a wfb subcommand runs directly,
-# so `docker run IMAGE pytest` and `docker run IMAGE sh` behave as expected.
+# so `docker run IMAGE npm test` and `docker run IMAGE sh` behave as expected.
 case "${1:-}" in
-    sh|bash|python|python3|pytest|pip|java|monkeyc|node)
+    sh|bash|java|monkeyc|node|npm)
         exec "$@"
         ;;
 esac
@@ -89,14 +89,6 @@ case "${1:-}" in
         done
         if [ "$has_host" = 0 ]; then
             set -- "$@" --host 0.0.0.0
-        fi
-        # Every face's history lives in the state directory: a volume at
-        # /state keeps it across runs; without one it ends with the container.
-        if [ -d /state ] && [ -w /state ]; then
-            export XDG_STATE_HOME=/state
-        else
-            echo "wfb: no writable volume at /state, so the editor's history ends with" >&2
-            echo "     this container; mount one to keep it: -v wfb-studio:/state" >&2
         fi
         ;;
     devices)
@@ -178,10 +170,10 @@ if [ "${needs_key}" = "1" ] && [ ! -f "${WFB_KEY}" ]; then
         echo "     mount a volume at /keys to keep one key across builds." >&2
     fi
     echo "wfb: generating a 4096-bit developer signing key at ${WFB_KEY}" >&2
-    pem="${key_dir}/developer_key.pem"
-    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "${pem}" 2>/dev/null
-    openssl pkcs8 -topk8 -inform PEM -outform DER -in "${pem}" -out "${WFB_KEY}" -nocrypt
-    chmod 600 "${pem}" "${WFB_KEY}" 2>/dev/null || true
+    # Node's crypto, not openssl, which the slim Node image does not ship.
+    node -e 'const { generateKeyPairSync } = require("node:crypto");
+      const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 4096 });
+      require("node:fs").writeFileSync(process.argv[1], privateKey.export({ type: "pkcs8", format: "der" }), { mode: 0o600 });' "${WFB_KEY}"
 fi
 
 exec wfb "$@"

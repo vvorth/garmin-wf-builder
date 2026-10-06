@@ -1,5 +1,4 @@
-// `type: hands`: places a declared `hand_sets:` entry on screen. Port of
-// wfb/kinds/hands.py's build half.
+// `type: hands`: places a declared `hand_sets:` entry on screen..
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { dedupAppend } from "../ir/builder/state.ts";

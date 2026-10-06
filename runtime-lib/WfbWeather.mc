@@ -10,17 +10,17 @@ import Toybox.Lang;
 //! that keeps WfbArc.mc and WfbTime.mc hand-written.
 //!
 //! Deliberately returns a *name*, never a glyph: `source/IconGlyphs.mc`
-//! (generated per project from `wfb.icon_catalog.CATALOG`) is the one place a
+//! (generated per project from the icon catalogue) is the one place a
 //! catalogue name becomes an actual drawn character, for every icon -- a
-//! weather condition or otherwise -- not just this one. See wfb/icons.py's
-//! module docstring for the fuller reasoning.
+//! weather condition or otherwise -- not just this one. See ts/src/icons.ts
+//! for the fuller reasoning.
 //!
 //! Day names only for now -- there is no sunrise/sunset source yet to know
 //! whether the `_night` variant applies on-device (see docs/limitations.md).
 module WfbWeather {
 
     //! `condition` null or out of the documented 0-53 range both resolve to
-    //! "weather_unknown", matching `wfb.icons.weather_icon_for_condition(None)`.
+    //! "weather_unknown", matching ts/src/icons.ts for a null condition.
     function chooseIcon(condition as Number?) as String {
         if (condition == null) {
             return "weather_unknown";

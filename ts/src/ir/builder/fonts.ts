@@ -1,6 +1,6 @@
 // The `fonts:` block: a baked font (a TTF/OTF rasterised to a BMFont sheet
 // at build time) or a vector `face:` (a device-resident scalable font).
-// Port of wfb/ir/builder/fonts.py.
+//
 import type { Span } from "../../diagnostics.ts";
 import { isNumber, repr, str, truthy } from "../../py.ts";
 import * as units from "../../units.ts";

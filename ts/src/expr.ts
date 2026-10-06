@@ -1,5 +1,5 @@
 // The expression language: parse, type-check, and compile to Monkey C.
-// Port of wfb/expr.py.
+//
 //
 // ADR 0005: expressions are compiled, not interpreted.
 // `heart_rate.current > user.hr_zone4 ? palette.hot : palette.text` becomes

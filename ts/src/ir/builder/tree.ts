@@ -1,6 +1,6 @@
 // The element tree: one node to one `Element` through its kind
 // (`kinds/`), ids and derived symbols, `overrides:` and `on_hold:`
-// targets. Port of wfb/ir/builder/tree.py.
+// targets.
 import * as catalog from "../../catalog.ts";
 import * as complications from "../../complications.ts";
 import type { Span } from "../../diagnostics.ts";
@@ -323,7 +323,7 @@ export class ElementTree extends StaticPass {
         span, {
           notes: [
             "none of this element's bound source(s) has a conventional "
-            + "complication counterpart (wfb.catalog.Source.launch_complication)",
+            + "complication counterpart (a catalogue source's launch_complication)",
             "name a target explicitly instead of 'auto' -- run `wfb complications` for the full list",
           ],
         });

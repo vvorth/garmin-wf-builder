@@ -9,8 +9,8 @@ progress). `features/` holds one face per format feature, `system-fonts/`
 the three calibration faces, and `generated_by_skill/` faces made from a
 reference picture by the `skill/watchface-from-image` branch's skill (with
 `prompts.md` and the reference PNGs beside them). Anything that walks the
-examples must recurse: `tests/test_templates.py` uses `rglob`, and a flat
-`examples/*/face.yaml` glob sweeps up only the four wearable faces.
+examples must recurse (`exampleDesigns` in `ts/tools/goldens.ts` does), and a
+flat `examples/*/face.yaml` glob sweeps up only the four wearable faces.
 
 Every example, template and fixture is format 2; a format 1 face no longer
 loads. Every example lints clean on every target. Where a design
@@ -28,9 +28,9 @@ watch -- keep that convention for new ones; it also decides the `.prg` name
 which feature. Rules that are not obvious from the files:
 
 - **`features/analog/` stays the generated analog-hands design**:
-  `tests/test_hands_*.py` assert against it. Hand-tuning belongs in the
-  wearable `analog-custom/`, which the tests do not read.
-- **`features/profile/` is generated** by `tools/gen-profile-face.py`: edit
+  its goldens and `ts/test/parameter-limits.test.ts` read it. Hand-tuning
+  belongs in the wearable `analog-custom/`.
+- **`features/profile/` is generated** by `ts/tools/gen-profile-face.ts`: edit
   the generator and rerun it, never the YAML.
 - **`features/aod/` is the only example with an AMOLED target**
   (`fenix847mm`, a fourth target). Its `info` group's explicit `aod: hide`
@@ -38,14 +38,14 @@ which feature. Rules that are not obvious from the files:
   carries `lint: {allow: [aod-unreachable]}`. Because it mixes an AMOLED
   target in, its MIP targets' generated source is not byte-identical to a
   build with no `aod:` keys; only an all-MIP `targets:` holds that
-  guarantee (`tests/test_aod.py`).
+  guarantee.
 - `features/rings/` is the `docs/screenshots/outlines.png` shot.
 
 ## `system-fonts/`
 
 `text/`, `numbers/` and `numbers-large/` are calibration faces, not design
 showcases: every `FONT_*` system font this project measures
-(`wfb.devices.Device.system_fonts`) drawn as a short literal sample on a 1px
+(`Device.systemFonts` in `ts/src/devices/device.ts`) drawn as a short literal sample on a 1px
 guide line, `align: left` at a common `px` x, so left edges compare across a
 real simulator screenshot and `wfb preview`'s PNG pixel-for-pixel (still
 open until the user sends screenshots). The four `FONT_NUMBER_*` sizes do
@@ -66,7 +66,7 @@ example `skip: [2, 10]` on the numeral ring, because the registers sit on
 those spokes).
 
 The Phase 2 slice is no longer an example: it is the test fixture
-`tests/fixtures/slice/`.
+`ts/test/fixtures/slice/`.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

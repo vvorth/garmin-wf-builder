@@ -1,7 +1,7 @@
 # Running garmin-wf-builder as a container
 
 A container image that turns a YAML design into a signed, sideloadable Connect IQ
-`.prg` — with no Garmin SDK, no Java and no Python set up on the host.
+`.prg` — with no Garmin SDK, no Java and no Node set up on the host.
 
 ```sh
 docker build -t garmin-wf-builder .
@@ -35,7 +35,7 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
 | **Device definitions** | **required, and must come from you** — see below |
 | **Garmin's own font files** | optional — see below |
-| **Network** | only at image build time, for the SDK, the icon and system fonts, and the Python and npm packages |
+| **Network** | only at image build time, for the SDK, the icon and system fonts, and the npm packages |
 | **Architecture** | verified on `linux/amd64`. The pruned SDK contains **no native binaries** — only shell scripts and JVM bytecode — so `linux/arm64` should work, but has not been tested |
 
 ### The one thing you have to supply: device definitions
@@ -70,7 +70,7 @@ failing deep inside a build.
 ### Garmin's own font files (optional)
 
 Text measurement and previews use free stand-ins for Garmin's system fonts
-by default (`wfb/fonts/registry.json`). If the same SDK Manager
+by default (`ts/src/data/font-registry.json`). If the same SDK Manager
 install
 that provided the device definitions also has Garmin's own font files —
 under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
@@ -91,7 +91,7 @@ the host:
 `WFB_FONTS=/fonts` is already set in the image; nothing to configure beyond
 the mount itself. Unlike the device definitions, this one is **optional** —
 without it, builds and previews fall back to the registry's fonts, which
-`tools/fetch-system-fonts.py` prefetched into the image at build time.
+`ts/tools/fetch-system-fonts.ts` prefetched into the image at build time.
 
 **Not baked in, by design:** `.dockerignore` keeps all of `vendor/` out of
 the build context, `vendor/fonts/` included, because like the device
@@ -147,7 +147,7 @@ doubles as a development shell:
 
 ```sh
 docker run --rm -it garmin-wf-builder sh
-docker run --rm ... garmin-wf-builder pytest
+docker run --rm ... garmin-wf-builder node --version
 ```
 
 What each command needs mounted:
@@ -247,41 +247,39 @@ image is composed from official bases rather than installed on top of one. That 
 reproducible and working on networks where the distribution mirrors are not
 reachable.
 
-**Stage 1** downloads the SDK with `docker/fetch-sdk.py` and strips it to the
-compiler. It also downloads the Nerd Fonts icon font with
-`tools/fetch-icon-font.py` and the registry's system-font stand-ins (free
-substitutes previews and width estimates use for Garmin's own system fonts)
-with `tools/fetch-system-fonts.py --all` for every device in the SDK
-device reference (no device definitions exist at image build time),
-each checked against pinned SHA-256 hashes;
-stage 2 copies both into `wfb/assets/icons/` and `wfb/assets/system-fonts/`.
-Neither is in the repository, and `.dockerignore` keeps a host copy out of
-the build context. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
-documentation, and `share/` plus the simulator, ERA, MonkeyMotion, the language
-server and the FIT graph tool are GUI and analysis programs the container does
-not run. What is left is **26 MB** and builds every target correctly. Before
-pruning, the script sets aside `doc/docs/Device_Reference/`, the one part of
-`doc/` that is data: `tools/extract-device-reference.py` turns it into the
-device reference stage 2 copies into `.cache/device-reference/`.
+**Stage 1** installs `ts/`'s npm dependencies from its lock file
+(`npm ci`) on the official `node:24-trixie-slim` image and copies in `ts/`.
+Node runs its `.ts` sources directly, so nothing is compiled.
 
-**Stage 2** installs `ts/`'s npm dependencies from its lock file
-(`npm ci`) on the official `node:24-trixie-slim` image. `ts/` is the
-compiler's TypeScript port in progress. Node runs its `.ts` sources
-directly, so nothing is compiled.
+**Stage 2** builds on stage 1 and runs its tools. `ts/tools/fetch-sdk.ts`
+downloads the SDK and strips it to the compiler: the full SDK is 309 MB;
+`doc/`, `resources/` and `samples/` are documentation, and `share/` plus the
+simulator, ERA, MonkeyMotion, the language server and the FIT graph tool are
+GUI and analysis programs the container does not run. What is left is
+**24 MB** and builds every target correctly; pruned files are skipped before
+they are unzipped. It keeps `doc/docs/Device_Reference/`, the one part of
+`doc/` that is data, aside: `ts/tools/extract-device-reference.ts` turns it
+into the device reference stage 3 copies into `.cache/device-reference/`.
+It also downloads the Nerd Fonts icon font with `ts/tools/fetch-icon-font.ts`
+and the registry's system-font stand-ins (free substitutes previews and
+width estimates use for Garmin's own system fonts) with
+`ts/tools/fetch-system-fonts.ts --all` for every device in the device
+reference (no device definitions exist at image build time), each checked
+against pinned SHA-256 hashes; stage 3 copies both into `ts/assets/icons/`
+and `ts/assets/system-fonts/`. Neither is in the repository, and
+`.dockerignore` keeps a host copy out of the build context.
 
 **Stage 3** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
-`python:3.13-slim`. It also copies the `node` binary and the installed
-`ts/` package from stage 2: one binary, built for the same Debian suite, so
-its `libstdc++` comes from the base. It then adds the pruned SDK, installs
-the Python host dependencies, and copies the compiler. The Debian base is what provides `bash` and `openssl`, both
-of which are needed: the SDK's `monkeyc` launcher is a bash script, and `openssl`
-generates the developer key.
+the same `node:24-trixie-slim` base, then the pruned SDK, `ts/` with its
+`node_modules`, `runtime-lib/`, `schema/`, `examples/` and the `wfb`
+launcher. The Debian base provides `bash`, which the SDK's `monkeyc`
+launcher needs; the developer key is generated with Node's own `crypto`, so
+no `openssl` is needed.
 
-Roughly 600 MB total: 159 MB JRE, ~150 MB Python base, ~100 MB of wheels
-(Pillow and fontTools dominate), 26 MB SDK, plus about 175 MB for `ts/`:
-121 MB for the `node` binary and 54 MB for `node_modules`, development tools
-included, so the image can run `ts/`'s tests and type check. Those are host
-measurements, not the rebuilt image's.
+Roughly 400 MB total: 159 MB JRE, the Node base, 24 MB SDK and about 54 MB
+of `node_modules`, development tools included, so the image can run `ts/`'s
+tests and type check. Those are estimates, not the rebuilt image's
+measurement.
 
 ### Build arguments
 
@@ -292,8 +290,7 @@ measurements, not the rebuilt image's.
 | `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
-| `PYTHON_VERSION` | `3.13` | base image tag |
-| `NODE_VERSION` | `24.21.0` | the `node` image tag for stage 2 |
+| `NODE_VERSION` | `24.21.0` | the `node` image tag for every stage |
 | `EXTRA_CA_CERT_B64` | empty | a base64 PEM certificate to trust |
 
 Behind a TLS-inspecting proxy:
@@ -305,9 +302,10 @@ docker build \
   -t garmin-wf-builder .
 ```
 
-The certificate is appended to the system trust store in both stages, and pip is
-pointed at that store rather than its bundled `certifi`, so the SDK download and
-the package installs both go through the proxy.
+The certificate is appended to the system trust store in every stage and
+handed to Node (`NODE_EXTRA_CA_CERTS`), whose `fetch` honours `HTTPS_PROXY`
+there (`NODE_USE_ENV_PROXY=1`), so the SDK and font downloads and the npm
+install all go through the proxy.
 
 ### Upgrading the SDK
 
@@ -349,11 +347,10 @@ writable, not just the file. A read-only SDK mount fails with
 Everything up to and including code generation needs no Garmin toolchain, which
 is deliberate (ADR 0003): the device files are the scarce resource. In CI where
 they are unavailable, the schema, semantic, layout, lint, font and golden-file
-tests still run — only the tests marked `slow`, which invoke `monkeyc`, are
-skipped.
+tests still run — only the slow suite, which invokes `monkeyc`, needs them.
 
 ```sh
-docker run --rm garmin-wf-builder pytest -m "not slow"
+docker run --rm --workdir /opt/wfb/ts garmin-wf-builder npm test
 ```
 
 To build for real in CI, the device definitions have to reach the runner

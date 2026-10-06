@@ -1,6 +1,5 @@
 // A device `FONT_*` symbol's `FontMetric` turned into a measurable face, for
-// layout (measuring) and the preview (drawing). Port of
-// wfb/fonts/fallback.py.
+// layout (measuring) and the preview (drawing)..
 //
 // System fonts are estimated: `locate` finds the device's own font file
 // (the Garmin font root) or a pinned free stand-in, measured at the

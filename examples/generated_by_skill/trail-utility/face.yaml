@@ -4,8 +4,8 @@
 # weather, recovery and body battery arcs and a heart-rate bar graph.
 # The original's model-name wordmark is replaced by the face's own name.
 #
-# Preview:  ./wfb.py preview faces/trail-utility/face.yaml --time 07:53:35
-# Build:    ./wfb.py build faces/trail-utility/face.yaml
+# Preview:  ./wfb preview faces/trail-utility/face.yaml --time 07:53:35
+# Build:    ./wfb build faces/trail-utility/face.yaml
 #
 # yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
 

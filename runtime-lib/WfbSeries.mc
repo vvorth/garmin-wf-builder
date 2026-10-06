@@ -11,12 +11,12 @@ import Toybox.Time;
 //! every graph -- Monkey C offers no way to pass a field name, so the
 //! per-series array loops (`day.steps` vs. `day.calories`, `hour.temperature`
 //! vs. `hour.uvIndex`) are generated per project instead, straight into the
-//! view (`wfb.emit.monkeyc._emit_graph_rebuild`).
+//! view (`emitGraphRebuild` in ts/src/emit/monkeyc/graph.ts).
 //!
 //! Every series here is cached in a private view field and rebuilt only when
 //! `System.getClockTime().min` changes -- one `Number` comparison a frame.
-//! **This is not the TTL cache this project deleted** (see `wfb/catalog.py`'s
-//! module docstring): that deletion was about re-caching a value Garmin
+//! **This is not the TTL cache this project deleted** (see
+//! ts/src/catalog.ts): that deletion was about re-caching a value Garmin
 //! already caches on its own side (`Weather.getCurrentConditions()` is
 //! documented as returning the "most recently cached" reading). A series is
 //! different -- it is *this compiler's own computation* over a source whose
@@ -69,14 +69,14 @@ module WfbSeries {
     //! series. A single `fillPolygon` cannot represent a gap partway through
     //! its own outline without visibly joining straight across it -- there
     //! is no "lift the pen" for a filled shape -- so a gap here ends one run
-    //! and starts the next, exactly as its twin `wfb.draw.barrel.series_area`
+    //! and starts the next, exactly as its twin `seriesArea` (ts/src/draw/barrel.ts)
     //! does for the preview, rather than
     //! either interpolating across it (a guess) or leaving the whole graph
     //! blank for one missing sample.
     //!
     //! Every individual call still respects `fillPolygon`'s own 64-point
     //! limit: a run can hold at most as many points as the whole series
-    //! does, and `wfb/ir/model.py`'s `GRAPH_AREA_MAX_SAMPLES` already refuses a
+    //! does, and ts/src/ir/model.ts's `GRAPH_AREA_MAX_SAMPLES` already refuses a
     //! `style: area` design whose series could exceed 62 (64 minus the two
     //! closing corners a *single* run would need).
     function drawArea(

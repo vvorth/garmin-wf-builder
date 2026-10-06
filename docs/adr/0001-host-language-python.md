@@ -114,3 +114,20 @@ One implementation is kept throughout, by porting stage by stage with this
 Python compiler as the oracle (plan 31). The last all-Python state is the
 tag `v0.3`. Python remains the shipping implementation until the plan's
 last slice, which amends this ADR again.
+
+**Amendment 2026-10-06: the migration is complete; the host language is
+TypeScript on Node.** `wfb/`, `wfb.py`, the Python tests and tools, and the
+oracle that held the port equal to Python stage by stage are deleted.
+`./wfb` runs the TypeScript CLI (`ts/src/cli.ts`); the editor runs in the
+browser over a small Node server; the Docker image is Node and a JRE, with no
+Python. Three things replace the oracle as the guard against an unintended
+output change: goldens frozen from the port's own output (every diagnostic of
+2 820 small designs, and each example's and fixture's diagnostics, generated
+project and previews), the hand-written tests ported for the logic the
+goldens do not pin, and a slow suite that builds every design with
+`monkeyc`. Python's semantics survive where output depends on them
+(`ts/src/py.ts`), and `tools/research/` keeps its stdlib Python scripts as
+research tooling. The `mypy --strict` amendment above no longer applies:
+`tsc` in strict mode is the type check. The preview has since moved off
+Pillow's rasterisation for most shapes, onto rules fitted to simulator
+captures (`docs/research/probes/garmin-raster/`).

@@ -95,8 +95,7 @@ Awesome glyph because MDI's walking/running figures read as "activity" rather
 than "step count" at a glance. Weather icons (`weather_*`) come from the font's
 dedicated Weather Icons set instead, because it covers more distinct conditions
 and day/night pairs than MDI's own `weather_*` glyphs and — unlike them — its
-codepoints fit in the Basic Multilingual Plane (see the comment above
-`CATALOG` in `wfb/icon_catalog.py`). `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` maps every
+codepoints fit in the Basic Multilingual Plane (`ts/assets/icons/README.md`). `GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts` maps every
 `Toybox.Weather.CONDITION_*` value (0–53) to one of these.
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
@@ -117,8 +116,8 @@ A codepoint is the **only** way to use an icon the catalogue does not name.
 removed. `U+F09B` is greppable, reviewable in a diff and survives copy-paste,
 where the character itself renders as a blank box — or as nothing at all — in
 most editors, and a paste that silently fails still parses as valid YAML. That
-is the same hazard `wfb/icon_catalog.py` warns about for this project's own
-source, and it applies just as much to a design file.
+is the same hazard `ts/assets/icons/README.md` warns about for this project's
+own catalogue, and it applies just as much to a design file.
 
 `icon:` takes exactly one of a name, a codepoint or `{for:}`. Writing a
 codepoint the catalogue *does* name is accepted with a note pointing at the
@@ -133,7 +132,7 @@ the wrist. A codepoint above the Basic
 Multilingual Plane builds and renders correctly; the generated `<font>`
 resource simply omits its `filter` attribute, because the resource compiler
 parses that attribute as UTF-16 code units and a surrogate pair would not
-survive it (see `wfb/emit/resources.py`). See `wfb/assets/icons/README.md` for
+survive it (see `ts/src/emit/resources.ts`). See `ts/assets/icons/README.md` for
 how to find a codepoint, and its licensing (the font aggregates several
 separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
 catalogue draws from are attributed there).
@@ -154,7 +153,7 @@ weather_now:
 This currently accepts only a bare `weather.condition*` source (see `wfb
 sources`) — not an expression over one (`weather.condition + 1` is rejected;
 the lookup needs the raw `Weather.CONDITION_*` value). The generated code
-resolves the glyph in two steps, mirroring `wfb.icons` exactly: `WfbWeather.
+resolves the glyph in two steps, mirroring `ts/src/icons.ts` exactly: `WfbWeather.
 chooseIcon()` (a hand-written barrel function, day glyphs only for now — there
 is no sunrise/sunset source yet to pick the night variant on-device) turns the
 condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
@@ -203,6 +202,6 @@ opening inside the icon wider than twice the ring keeps a ring of its own. See [
 
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the icon clusters shown above.
 - [Outlines](outlines.md) — `outline:` on an icon, openings included.
-- [`wfb/assets/icons/README.md`](../../wfb/assets/icons/README.md) — finding a codepoint, licensing, and adding a name to the catalogue.
+- [`ts/assets/icons/README.md`](../../ts/assets/icons/README.md) — finding a codepoint, licensing, and adding a name to the catalogue.
 - [Fonts](fonts.md#fonts) — the same TTF-to-bitmap pipeline an icon font uses.
 - [Elements: common keys and groups](elements.md) — `visible:`, `static:`, and the other keys an icon element shares with every other kind.

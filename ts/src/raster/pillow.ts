@@ -637,7 +637,7 @@ export function paste(im: Image, tile: Tile, x: number, y: number, color: Rgb | 
   }
 }
 
-// The tile store `wfb.draw.jsonform.Tiles.pack` sends, once inflated: the
+// The tile store `Tiles.pack in src/draw/jsonform.ts` sends, once inflated: the
 // RGBA bytes of every tile one after another, and their index
 // `{id: [offset, width, height, kind]}`.
 export function unpackTiles(bytes: Uint8Array, index: Record<string, [number, number, number, "mask" | "rgba"]>): Record<string, Tile> {
@@ -648,9 +648,9 @@ export function unpackTiles(bytes: Uint8Array, index: Record<string, [number, nu
   return tiles;
 }
 
-// -- the JSON form: `wfb.draw.jsonform.rasterise` ------------------------------------------
+// -- the JSON form: `src/draw/jsonform.ts's rasterise` ------------------------------------------
 
-// Every op `drawOps` draws: `wfb.draw.jsonform.BROWSER_OPS`, checked equal.
+// Every op `drawOps` draws: `src/draw/jsonform.ts's BROWSER_OPS`, checked equal.
 export const OPS = Object.freeze([
   "color", "pen", "fillPolygon", "arc", "text", "glyph",
   "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",

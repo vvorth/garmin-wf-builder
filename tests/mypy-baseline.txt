@@ -1,7 +1,0 @@
-# Known `mypy --strict` errors, one per occurrence, without line numbers.
-# Written by `tools/typecheck.py --update`; only ever shrink it by hand.
-# using mypy 2.3.1
-# using types-jsonschema 4.26.0.20260518
-# using pillow 12.3.0
-# using ruamel.yaml 0.19.1
-# using jsonschema 4.26.0

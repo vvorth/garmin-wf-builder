@@ -1,6 +1,5 @@
-// `ReadPlan`: which API calls happen, and where, for one view. Port of
-// wfb/emit/monkeyc/readplan.py's analysis, guards and declarations; the
-// pulls it writes come with the view.
+// `ReadPlan`: which API calls happen, and where, for one view: its
+// analysis, guards and declarations; the pulls it writes come with the view.
 import * as catalog from "../../catalog.ts";
 import { CATALOG, READERS, type Source } from "../../catalog.ts";
 import { frameMembers } from "../../draw/frames.ts";

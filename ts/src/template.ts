@@ -1,5 +1,5 @@
 // Format 2's `text:` template: `"{expr:spec}"` with literal text around it.
-// Port of wfb/template.py.
+//
 //
 // - `{{` and `}}` are a literal `{` and `}`.
 // - `{expr}` and `{expr:spec}` are a placeholder. The expression ends at

@@ -1,0 +1,137 @@
+# Golden coverage for `outline:` on a standalone
+# `text` element, and on a pattern's own `type: text` part) -- a
+# background, a baked-font clock with a plain (upright) outline, an
+# upright vector-font text with an outline (shorthand spelling), one of
+# each `curve:` style with an outline (every draw shape a standalone
+# element can take), a radial pattern of rotated
+# numerals with an outline (`curve: {style: angled}`, per-copy rotation
+# composed with the outline's own screen-space offsets), and a radial pattern of numerals bent along the dial with an
+# outline (`curve: {style: radial}`, the other pattern-part curve style).
+#
+# Every text element below demonstrates the canonical hollow idiom: `color:` repeats `color.bg` verbatim, so the interior reads
+# as empty against the full-screen `background` element and `outline.color`
+# carries the only visible ink. This is deliberate, not incidental: it is
+# what makes the design warning-free under `text-outline-interior` (the
+# interior colour is provably the *same* build-time constant as the
+# fully-covering `background` element's own `color:`) and under `contrast`
+# (judged on the ring against the backdrop, per `checkContrast` in `ts/src/lint.ts`'s
+# own docstring) rather than an accident of picking any old visible colour.
+#
+# A test fixture, not an example: ts/test/golden-monkeyc.test.ts's
+# goldens in ts/test/goldens/monkeyc/ (outline_text__*) read it, and it is what
+# tests/test_text_outline_codegen.py-equivalent assertions generate from
+# directly.
+#
+# Build it with:  ./wfb build ts/test/fixtures/outline_text/face.yaml
+#
+# yaml-language-server: $schema=../../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 5d8e2a4f-6c1b-4a9d-8e3f-1b6c4a9d8e3f
+  name: OutlineText
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  fonts:
+    clock:
+      source: ../slice/assets/OpenSans-Regular.ttf
+      size: 22%r
+
+    bezel:
+      face: [RobotoCondensedBold, RobotoCondensedRegular]
+      size: 6%r
+
+  palette:
+    bg: "#000000"
+    ring: "#FF5500"
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  clock:
+    type: text
+    text: "{time.clock:%h:%M}"
+    font: font.clock
+    at: { anchor: center, dy: -10% }
+    color: color.bg
+    outline: { color: color.ring, width: 2 }
+  upright_vector:
+    type: text
+    text: "UPRIGHT"
+    font: font.bezel
+    at: { anchor: center, dy: 30%r }
+    color: color.bg
+    outline: color.ring
+
+  brand:
+    type: text
+    text: "GARMIN"
+    font: font.bezel
+    color: color.bg
+    at: { anchor: center, dy: -55%r }
+    outline: { color: color.ring, width: 1 }
+    curve:
+      style: angled
+      angle: 45deg
+
+  bezel_text:
+    type: text
+    text: "BEZEL"
+    font: font.bezel
+    color: color.bg
+    at: { anchor: center }
+    outline: { color: color.ring, width: 3 }
+    curve:
+      style: radial
+      angle: 90deg
+      radius: 44%r
+      direction: clockwise
+
+  dial_numbers:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 225deg
+    step: 12deg
+    parts:
+      - type: text
+        text: "{copy + 1}"
+        font: font.bezel
+        color: color.bg
+        at: { dy: -80%r }
+        outline: { color: color.ring, width: 2 }
+        curve:
+          style: angled
+          angle: 0deg
+
+  dial_ring:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 255deg
+    step: 12deg
+    parts:
+      - type: text
+        text: "I"
+        font: font.bezel
+        color: color.bg
+        outline: { color: color.ring, width: 1 }
+        curve:
+          style: radial
+          angle: 0deg
+          radius: 60%r
+          direction: clockwise

@@ -1,5 +1,5 @@
 // `<Face>Delegate.mc`: touch and hold, and the on-device config editor
-// callbacks. Port of wfb/emit/monkeyc/delegate.py.
+// callbacks.
 //
 // `onPress` only, on every device: `onTap` is documented "Only available in
 // WatchFace config mode", and serves only the native editor's highlight.

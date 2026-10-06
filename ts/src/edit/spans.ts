@@ -1,5 +1,5 @@
 // The span index: every `key: value` entry of a design's text, with the
-// exact character range of its key and value. Port of wfb/edit/spans.py.
+// exact character range of its key and value.
 //
 // The composed node tree (`./yaml.ts`) gives every node a start and an end
 // mark, as ruamel's composer does. A patch rewrites those characters and

@@ -1,5 +1,5 @@
 // Part emitters for `type: hands`, `type: pattern` and a needle: geometry
-// rotated or translated on the device. Port of wfb/emit/monkeyc/rotated.py.
+// rotated or translated on the device.
 import { discPerimeterOffsets } from "../../ir/model.ts";
 import type { PlacedGauge, PlacedHands, PlacedPattern, RotatablePart } from "../../layout.ts";
 import type { Writer } from "../writer.ts";

@@ -1,8 +1,7 @@
 # ts/
 
-Loaded automatically when working under `ts/`. The compiler is being
-ported here from `wfb/`, one pipeline stage at a time. Python stays the
-shipping compiler until the port is complete.
+Loaded automatically when working under `ts/`. The compiler, its CLI and
+the editor, in TypeScript on Node; `../wfb` runs `src/cli.ts`.
 
 ## Running it
 
@@ -10,14 +9,13 @@ shipping compiler until the port is complete.
 npm test                    # node:test over test/**/*.test.ts
 npm run typecheck           # tsc --noEmit, strict
 npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
-npm run parity -- <stage>   # a ported stage against tools/oracle.py's dump
 npm run bundle              # dist/wfb.js and dist/worker.js, the browser bundles (not committed)
 ```
 
 Node runs the `.ts` sources directly (type stripping), so there is no build
 step outside the browser bundle. That needs an official Node 22.18+ or 24;
 `../tools/setup-env.sh` installs one when the `node` on `PATH` cannot.
-`../tests/test_ts.py` runs the tests and the type check from the fast suite.
+How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
 
 ## Rules
 
@@ -29,27 +27,20 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
 - **One package for the browser and Node.** Nothing reachable from
   `src/browser.ts` may import a `node:` module. Node-only code sits in its
   own module (`src/devices/node.ts`), which only Node entry points import.
-- **A stage is done when parity says so.** Port a `wfb/` module into the
-  matching `src/` path, register its stage in `tools/stages.ts`'s `PORTS`,
-  and run `npm run parity -- <stage>`. Every difference is either fixed or
-  recorded as a deliberate change, with its reason.
-- **A deviation is recorded, never absorbed.** A difference the port keeps
-  on purpose goes in `tools/stages.ts`'s `DEVIATIONS`, with its reason.
-  Parity counts it separately.
-- **Keep Python's names at the oracle boundary.** A stage's output uses the
-  dump's field names (snake_case) and shapes (`tools/oracle.py`'s
-  docstring lists them), so a comparison needs no mapping.
-- **Never fix Python to suit the port.** A Python bug the port exposes is
-  fixed in `wfb/` first, with a test, then the oracle is rerun.
+- **The compiler began as a port of a Python one**, and keeps Python's
+  semantics wherever output depends on them (`src/py.ts`: rounding,
+  `repr`, string formatting; the IR's snake_case field names). Keep them:
+  the goldens hold every output to what that port produced.
 - **Deterministic everywhere.** Nothing that ships or is compared may come
   from a canvas's pixels or a platform text engine: same input, same bytes,
   in every browser and in Node.
-- **Comments say what the code does and why**, as in `wfb/`; which slice
-  built it goes in the commit message.
+- **Comments say what the code does and why**; which slice built it goes
+  in the commit message.
 
 ## Layout
 
-- `src/` mirrors `wfb/` module for module.
+- `src/` is the compiler, one module per pipeline stage
+  (`docs/development.md`, "Pipeline"); `src/CLAUDE.md` loads its lore.
   - `src/devices/files.ts` is the `DeviceFiles` interface every stage reads
     devices through: synchronous, filled up front in the browser.
   - `src/devices/node.ts` is the same interface over the SDK's folders.
@@ -113,10 +104,9 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
     `colors`, `schemes`, `hands`, `slots`, `geometry` (pixel drags, with
     the font baker passed in), and `gate`, which loads each patched text
     through `build.ts`'s `load`.
-  - `src/ir/` is the IR. `model.ts` keeps the Python dataclasses' field
-    names and order, so the oracle's dump compares field for field; a
-    class is built with `Class.create({...})`. `builder/` is the semantic
-    pass, one layer per module as in Python, and `src/kinds/` each kind's
+  - `src/ir/` is the IR. `model.ts` keeps snake_case field names, as the
+    goldens spell them; a class is built with `Class.create({...})`.
+    `builder/` is the semantic pass, one layer per module, and `src/kinds/` each kind's
     `build` half, registered by importing `kinds/index.ts`.
   - `src/jsonschema.ts` is python-jsonschema's Draft 2020-12 validator,
     ported, so `validate.ts` shapes the same error tree into the same
@@ -126,14 +116,22 @@ step outside the browser bundle. That needs an official Node 22.18+ or 24;
       `splitlines`;
     - `f"{x:.6f}"` and `round()`, half to even;
     - `PyError`, a crash Python would raise, named by type.
-- `tools/` holds `parity.ts` (the runner), `compare.ts` (structural JSON
-  diff), `stages.ts` (the stage table, each stage's port, and the recorded
-  deviations) and `ports/` (each stage's port into the oracle's JSON form).
-- `test/cases/` holds inputs the oracle dumps beside the example faces:
-  `yaml/` has YAML edge cases the faces do not exercise.
-- The oracle also dumps every design the fast test suite loads, captured
-  by `../tools/capture_designs.py` into `../.cache/test-designs/` (its load
-  stages, its lint and the fonts the lint reads): thousands of small faces,
-  most written to hit one diagnostic. Rerun the capture when tests change,
-  then the oracle.
-- `test/` holds the `node:test` files.
+- `src/data/` holds the tables the browser needs without a file system.
+  `catalog.json`, `complications.json`, `icons.json` and
+  `font-registry.json` are the source themselves; `runtime-lib.json`,
+  `templates.json` and `hand-sets.json` copy `../runtime-lib/` and
+  `templates/`, regenerated by `tools/export-data.ts` (`test/data.test.ts`
+  fails when they are stale).
+- `templates/` holds the starters `wfb new` and the editor's New offer
+  (`blurbs.json` their one-line descriptions) and the hand presets.
+- `assets/` holds the downloaded fonts, not committed: the icon font
+  (`tools/fetch-icon-font.ts`) and the system-font stand-ins
+  (`tools/fetch-system-fonts.ts`).
+- `tools/` holds the Node tools: the three `setup-env.sh` runs
+  (`extract-device-reference.ts`, `fetch-icon-font.ts`,
+  `fetch-system-fonts.ts`), `fetch-sdk.ts` (the Docker image's SDK),
+  `build.ts`, `goldens.ts`, `export-data.ts`, `docs-shots.ts` (the
+  screenshots in `../docs/screenshots/`), `gen-profile-face.ts` and
+  `summary.ts` (the page tests' face summaries).
+- `test/` holds the `node:test` files (`test/CLAUDE.md`); `slow/` the
+  `monkeyc` suite.

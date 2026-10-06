@@ -258,7 +258,7 @@ elements:
 ```
 
 Each `slots:` entry is a **named slot** with its own `default:`/`choices:`,
-resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
+resolved exactly like `on_hold:` against :mod:`ts/src/complications.ts`' table (run
 `wfb complications`, which lists each type with its name for people,
 grouped as the editor lists them) -- `default:` compiles into the view as the starting
 `Complications.Id`, and is the only type a device with no native editor
@@ -283,7 +283,7 @@ like a plain `icon` element's own `icon:` -- an unknown catalogue name is an
 error with suggestions, a codepoint outside the font's character map is an
 error, and a codepoint that duplicates a catalogue entry gets the same "say
 `icon: <name>` instead" note. A choice with no `icon:` keeps the catalogue default
-(`wfb.icons.COMPLICATION_ICON`), same as the bare form. **A type listed more
+(`COMPLICATION_ICON` in `ts/src/icons.ts`), same as the bare form. **A type listed more
 than once across the whole `choices:` list -- in either shape -- is an IR
 error**: the schema's own `uniqueItems` only catches two identical bare
 entries, not a bare reference and a mapping-form entry naming the same type.
@@ -305,7 +305,7 @@ Instead:
   which choice the wearer makes -- a spec written for one choice
   would be silently wrong for another. `format:` is a schema error naming
   this reason. Instead **every complication type has its own rule**
-  (`wfb.complications.READING`), which the generated `source/SlotText.mc`
+  (`READING` in `ts/src/complications.ts`), which the generated `source/SlotText.mc`
   applies on the watch (a case only for the types the design's slots can
   show) through `runtime-lib/WfbReading.mc`. Metric or statute, and the
   12/24-hour clock, follow the watch's own settings:
@@ -339,7 +339,7 @@ Instead:
   it), `26/17` for `H 26 / L 17`, and a `unit:` suffix dropped when it would
   pass seven (`12:30/mi` -> `12:30`). Text the device supplies otherwise --
   a date, a calendar event, a training status the table does not know -- is
-  never cut. The tables are `wfb.complications.WEATHER_CONDITION_TEXT` and
+  never cut. The tables are `WEATHER_CONDITION_TEXT` in `ts/src/complications.ts` and
   `TRAINING_STATUS_SHORT`; the long condition names are the SDK's own
   (`doc/Toybox/Weather.html`), in English whatever the watch's language.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
@@ -351,7 +351,7 @@ Instead:
   pulled.
 * **`icon: {size:}`** (omit `icon:` to draw no icon) chooses the icon **on-device**, from
   the wearer's picked *type* -- `Complications.Id.getType()`, `switch`ed
-  against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`, or a
+  against a table of catalogue names (`COMPLICATION_ICON` in `ts/src/icons.ts`, or a
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
   `U+XXXX` override's canonical spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
@@ -362,12 +362,12 @@ Instead:
   with an authored `icon:` keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
-  `wfb.complications.TYPES` entirely) simply draws no icon, since this
+  `TYPES` in `ts/src/complications.ts` entirely) simply draws no icon, since this
   compiler cannot know what it is. Run `wfb complications` for the current
   mapping (it lists each type's catalogue icon alongside its Monkey C
   constant).
   **`choices: any` with an `icon:` is accepted**: `any` resolves against the
-  whole of `wfb.icons.COMPLICATION_ICON`. It builds warning-free on all three targets. A Connect IQ-app
+  whole of `COMPLICATION_ICON` in `ts/src/icons.ts`. It builds warning-free on all three targets. A Connect IQ-app
   complication picked in such a slot draws its reading with no icon.
   (monkeyc 9.2.0 crashes when two different string literals share a Java
   hash code, and some icon glyphs do, such as `distance` and
@@ -396,7 +396,7 @@ Instead:
   for exactly that reason); the geometry lints below size its box from the
   value alone (see "What this compiler cannot tell you"). The pair's
   geometry -- for every icon `position:` -- is computed by one pure function,
-  `wfb.layout.complication_slot_pair_geometry`, which sizes the estimated
+  `ts/src/layout.ts`, which sizes the estimated
   box the lints read, and mirrored (not called -- the real text is not
   known at build time) by the generated Monkey C, whose own arithmetic
   `wfb preview` evaluates.
@@ -412,7 +412,7 @@ Instead:
   (`Complications.exitTo` on this slot's own field), resolved fresh on every
   hold rather than a fixed name baked in at build time -- unlike every other
   element's `on_hold: auto`, which resolves once, at build time, to a single
-  `wfb.complications.TYPES` name via `Source.launch_complication`. A fixed
+  `TYPES` in `ts/src/complications.ts` name via `Source.launch_complication`. A fixed
   target (`on_hold: heart_rate`, say) is a schema-and-IR error naming why: it
   would silently disagree with what is on screen the moment the wearer
   repoints the slot. To always launch one fixed glance regardless of what a
@@ -439,7 +439,7 @@ documented 5.1.0, and still has no editor at all (see [Limitations](../limitatio
 `minApiLevel` bump on any device, `slots:` included: `manifest.xml`'s
 `minApiLevel` is one number shared by every target device in the build, so it
 stays at the generator's own base floor (`3.1.0`) regardless of what a design
-uses (`wfb/emit/manifest.py::BASE_API_LEVEL`). A slot needs
+uses (`ts/src/emit/manifest.ts::BASE_API_LEVEL`). A slot needs
 `Toybox.Complications` (`Complications.Id`, `COMPLICATION_TYPE_*`) the same as
 any other complication use, but a target device that lacks the module gets a
 runtime `Toybox has :Complications` guard in the generated code instead of a
@@ -559,7 +559,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
   alternative (a plain element bound to the matching `complication.<name>`).
 * `api-gated` (suppressible) -- *any* catalogue binding a target device
   cannot actually provide, resolved against that device's own
-  `api.debug.xml` rather than an API level (`wfb/availability.py`; CLAUDE.md
+  `api.debug.xml` rather than an API level (`ts/src/availability.ts`; CLAUDE.md
   constraint 6/6e). Five shapes, all WARNING, all reading as absent rather
   than failing the build:
   - a `text:`/`value:`/`color:`/etc. source path whose reader needs a `Toybox`
@@ -571,7 +571,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
     `Toybox.Weather` -- the guarded acquisition yields nothing and the graph
     draws empty there;
   - a complication *type* newer than the device's own ConnectIQ ceiling,
-    checked against `wfb.complications.ComplicationType.since`
+    checked against `ComplicationType.since` in `ts/src/complications.ts`
     (`COMPLICATION_TYPE_*` values are constants with no entry in
     `api.debug.xml` at all, so a level compare is the only thing that can
     catch this one), skipped when the device lacks
@@ -597,7 +597,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
   deliberately **not** suppressible: it means a reader's own function symbol
   (as opposed to a module or a field) is missing on a target device. The
   generated code only ever guards a module or a field at runtime
-  (`wfb.availability.compute_guards`) -- there is no guard for an individual
+  (`computeGuards` in `ts/src/availability.ts`) -- there is no guard for an individual
   function, so "reads as absent" would be a lie; the call would run
   unguarded and crash on that device. No device this project vendors
   triggers it today: the one real gap that used to (`fenix5`'s missing
@@ -616,7 +616,7 @@ list): the Watch Face menu entry appears and a change applies at once. The
 
 **A `data` element's geometry is sized from its readings alone.** The
 estimate is the widest reading any of its choices can draw under its
-`unit:`/`short:` (`wfb.complications.widest_reading`): a clock is `88:88`,
+`unit:`/`short:` (`widestReading` in `ts/src/complications.ts`): a clock is `88:88`,
 a race prediction `8:88:88`, a weather condition its longest name -- so
 `choices: any` in full names is honestly wider than the screen ("Cloudy
 chance of rain snow"), and the `off-screen` lint says so; `short: true`
@@ -650,7 +650,7 @@ a card that must stay visible while editing a brighter colour, such as
 
 **`on_hold: auto` on a `data` element is a third shape of `auto`,
 different from every other element's.** Every other element's `auto`
-resolves once, at build time, to a fixed `wfb.complications.TYPES` name
+resolves once, at build time, to a fixed `TYPES` in `ts/src/complications.ts` name
 (`Source.launch_complication`); a slot's resolves on-device, every hold,
 from whatever `Complications.Id` the wearer currently has it pointed at.
 Both compile to `Complications.exitTo`, but a slot's is never a build-time

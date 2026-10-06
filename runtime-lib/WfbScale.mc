@@ -5,7 +5,7 @@ import Toybox.Lang;
 //! app complication's own `ranges`, and the fill.  Each scale returns
 //! `[minimum, maximum]`, or null when the device has nothing to scale by,
 //! which hides the gauge.  The figures themselves are generated into
-//! `SlotScale` from `wfb.complications.SCALE`.  What reads the wearer's
+//! `SlotScale` from the complication table's scales.  What reads the wearer's
 //! profile is `WfbProfileScale`, a module of its own so a face that never
 //! scales by it needs no `UserProfile` permission.
 module WfbScale {

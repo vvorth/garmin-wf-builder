@@ -1,5 +1,4 @@
-// The gate every patch passes before it is accepted. Port of
-// wfb/edit/gate.py.
+// The gate every patch passes before it is accepted..
 //
 // A patched text is accepted only when
 //
