@@ -33,6 +33,7 @@
 // the current line, and, when the document is in an earlier state than the
 // newest, one move record to it under the head's `seq`; `collect` then
 // removes every blob neither the journal nor a snapshot names.
+import { uuid } from "../uuid.ts";
 import { unzlibSync, zlibSync } from "fflate";
 import { sha256 } from "./sha256.ts";
 
@@ -234,7 +235,7 @@ export class Store {
   // -- documents --
 
   newDocument(name: string): string {
-    const id = crypto.randomUUID().replace(/-/g, "");
+    const id = uuid().replace(/-/g, "");
     const meta = { name, created: now() };
     this.docs.set(id, { meta, journal: [], blobs: new Map(), snapshots: new Map(), timeline: null });
     this.write(`meta/${id}`, meta);
