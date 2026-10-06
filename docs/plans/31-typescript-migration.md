@@ -606,6 +606,13 @@ the page itself still needs a check by hand.
   - `docs/limitations.md`'s "Garmin's circles and rounded corners are not
     Pillow's" rewritten to state what the model now matches.
 
+**Started 2026-10-06: the probe faces.** `make_faces.ts` (TypeScript, as
+Python is going) writes the seven faces under
+`docs/research/probes/garmin-raster/faces/`, and each builds with no
+`monkeyc` warning on the four devices. `capture.sh` runs the user's capture
+session. Waiting on: the captures, then `garmin.ts`, the compare script
+and the switch.
+
 ### Slice 11 — delete Python
 
 - **Port or retire every remaining test.** The pure-logic ones should
