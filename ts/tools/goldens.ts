@@ -77,13 +77,20 @@ export function corpusDiagnostics(only: (id: string) => boolean = () => true): R
       const rel = normalize(p).replace(/^\.\//, "");
       return rel.startsWith(folder + "/") ? design.files[rel.slice(folder.length + 1)] : undefined;
     };
+    /** A path the design wrote as `_repo_/...`: the repository's own file. */
+    const repo = (p: string): string | null => {
+      const at = p.indexOf("_repo_/");
+      return at < 0 ? null : join(REPO_ROOT, p.slice(at + "_repo_/".length));
+    };
     const files: Files = {
-      exists: (p) => inside(p) !== undefined,
+      exists: (p) => inside(p) !== undefined || (repo(p) !== null && existsSync(repo(p)!)),
       read: (p) => {
         if (p === ICON_FONT) return iconFont();
         const key = inside(p);
-        if (key === undefined) throw new Error(`${p} is not in the design`);
-        return { path: p, bytes: bytesOf(key) };
+        if (key !== undefined) return { path: p, bytes: bytesOf(key) };
+        const file = repo(p);
+        if (file === null) throw new Error(`${p} is not in the design`);
+        return { path: p, bytes: new Uint8Array(readFileSync(file)) };
       },
     };
     const path = `${folder}/${design.design}`;

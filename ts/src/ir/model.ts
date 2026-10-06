@@ -864,6 +864,8 @@ export class Face {
   config: Map<string, ConfigColor> = new Map();
   palette_labels: Map<string, string> = new Map();
   color_scheme: Map<string, ColorScheme> = new Map();
+  /** The scheme roles some expression reads: only these become view fields. */
+  scheme_roles_used: Set<string> = new Set();
   layouts: string[] = [];
   layout_decls: Map<string, LayoutDecl> = new Map();
   config_style: ConfigStyle | null = null;

@@ -299,7 +299,7 @@ function, `wfb.draw.frames.frame_members`, read by the view, its read plan
 and the preview. The evaluator computes a barrel call with its
 Python transcription (`wfb.draw.barrel`). Each transcription is checked
 against the `.mc` source and swept against a model of the pixels the watch
-draws (`tests/test_draw_barrel.py`).
+draws (`ts/test/barrel.test.ts`).
 
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,

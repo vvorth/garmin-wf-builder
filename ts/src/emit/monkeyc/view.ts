@@ -390,6 +390,7 @@ function emitConfigFields(w: Writer, face: Face, guards: Guards): void {
   for (const entry of face.config.values()) w.line(`private var ${entry.field} as Number = ${entry.default.asMonkeyc()};`);
   if (face.config_style !== null && face.config_style.defaultEntry.colors !== null) {
     for (const [role, color] of face.color_scheme.get(face.config_style.defaultEntry.colors)!.colors) {
+      if (!face.scheme_roles_used.has(role)) continue; // monkeyc warns of an unused member
       w.line(`private var ${configField(`colors_${role}`)} as Number = ${color.asMonkeyc()};`);
     }
   }
@@ -477,7 +478,7 @@ function emitResolveStyle(w: Writer, face: Face): void {
         if (entry.layout !== null) comment.push(`layout: ${entry.layout}`);
         w.comment(`${entry.name} -- ${comment.join(", ")}`);
         if (entry.colors !== null) {
-          for (const [role, color] of face.color_scheme.get(entry.colors)!.colors) w.line(`${configField(`colors_${role}`)} = ${color.asMonkeyc()};`);
+          for (const [role, color] of face.color_scheme.get(entry.colors)!.colors) if (face.scheme_roles_used.has(role)) w.line(`${configField(`colors_${role}`)} = ${color.asMonkeyc()};`);
         }
         if (entry.layout !== null) w.line(`${CONFIG_LAYOUT_FIELD} = ${face.layouts.indexOf(entry.layout)};`);
       });

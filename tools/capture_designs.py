@@ -12,7 +12,8 @@ suite with `WFB_CAPTURE_DESIGNS` set; `tests/conftest.py` then calls
 holds that name), next to an empty
 stand-in for every file beside the original, so a `fonts:` entry's
 `source:` exists exactly when it existed in the test. Loading never reads
-a font, so an empty file is enough.
+a font, so an empty file is enough; with `WFB_CAPTURE_REAL=1` the files
+are copied, for designs that are built (the slow tests').
 
 The suite's own result does not matter here, only what it loaded: the
 capture runs whether tests pass or fail.
@@ -60,10 +61,14 @@ def capture(root: Path, path: Path, text: str | None) -> None:
     if where.exists():
         return
     where.mkdir(parents=True)
+    real = os.environ.get("WFB_CAPTURE_REAL") == "1"
     for name in siblings:
         stand_in = where / name
         stand_in.parent.mkdir(parents=True, exist_ok=True)
-        stand_in.touch()
+        if real:
+            shutil.copyfile(path.parent / name, stand_in)
+        else:
+            stand_in.touch()
     (where / path.name).write_text(text, encoding="utf-8")
     (where / DESIGN).write_text(path.name, encoding="utf-8")
 

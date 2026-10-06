@@ -96,6 +96,7 @@ export class Builder extends ElementTree {
       min_1px: this.face_min_1px,
       config: this.config,
       color_scheme: new Map(this.color_scheme),
+      scheme_roles_used: new Set([...this.scope.used].filter((p) => p.startsWith("color.")).map((p) => p.slice(6))),
       layouts: [...this.layouts.keys()],
       layout_decls: new Map(this.layouts),
       config_style: this.config_style,

@@ -22,8 +22,7 @@ Loaded automatically when working under `tests/`.
   generated analog-hands design and is kept that way; the user's hand-tuned copy
   is `examples/analog-custom/`. A red test here is a real regression.
 
-  `test_availability.py::test_an_ordinary_reader_is_available_everywhere_installed`,
-  `test_devices.py::test_every_target_has_weather_and_solar_intensity` and
+  Two availability tests (now in `ts/test/availability.test.ts`) and
   `test_font_registry.py::test_every_installed_ww_filename_resolves_or_is_unmapped`
   were once known failures (2026-09-23): `fenix847mm`'s
   incremental device install also installed `enduro3`, `fenix5`, `fenix5x`,
@@ -52,7 +51,7 @@ Loaded automatically when working under `tests/`.
   `wfb.py` itself), and the session-cached examples (`example`,
   `resolved_example`, read-only). Reach for these before writing a new
   private copy.
-- **The editor** (`wfb studio`): `test_edit.py` runs the patch engine over
+- **The editor** (`wfb studio`): `ts/test/edit.test.ts` runs the patch engine over
   the example corpus; the editor's worker and server are tested in
   `ts/test/studio*.test.ts`. `test_studio_frontend.py` runs the page's pure
   modules in Node (skipped without `node`), and `test_studio_panels.py`

@@ -208,6 +208,12 @@ export const DEVIATIONS: readonly Deviation[] = [
     normalise: yamlDiagnostics,
   },
   {
+    stages: ["face", "project"],
+    reason: "a scheme colour no expression reads gets no view field (Python's left monkeyc an unused-member warning): "
+      + "the IR records the roles read, and the view's scheme fields are compared without their lines",
+    normalise: schemeFields,
+  },
+  {
     stages: ["nodes", "spans"],
     reason: "an invalid text's message is the yaml package's, not ruamel's: which text is invalid agrees",
     normalise: yamlMessage,
@@ -216,4 +222,17 @@ export const DEVIATIONS: readonly Deviation[] = [
 
 export function isDeviceStage(stage: Stage): boolean {
   return (DEVICE_STAGES as readonly string[]).includes(stage);
+}
+
+/** A face without its read scheme roles; a project's views without their scheme-colour field lines. */
+function schemeFields(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if ("scheme_roles_used" in record) {
+    const { scheme_roles_used: _, ...rest } = record;
+    return rest;
+  }
+  return Object.fromEntries(Object.entries(record as Record<string, { text?: string }>).map(([path, file]) => [path,
+    !path.endsWith("View.mc") || typeof file?.text !== "string" ? file
+      : { ...file, text: file.text.replace(/^.*_configColors\w+.*\n/gm, "") }]));
 }

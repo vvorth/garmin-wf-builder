@@ -1,9 +1,9 @@
-// Freeze the designs the Python test suite wrote (`.cache/test-designs/`,
-// captured by tools/capture_designs.py) into ts/test/corpus/designs.json.gz:
-// each design's files, every file stored once by its hash, and the devices
-// its test resolved it on (from tools/oracle.py's index). The goldens
-// (test/goldens.test.ts) read it. Run once; the corpus is committed.
-//   node tools/pack-corpus.ts
+// Freeze the designs the Python test suite wrote, captured by
+// tools/capture_designs.py, into a committed corpus: each design's files,
+// every file stored once by its hash, and the devices its test resolved it
+// on (from tools/oracle.py's index, when it has them). Run once.
+//   node tools/pack-corpus.ts            # .cache/test-designs -> test/corpus/designs.json.gz (the goldens')
+//   node tools/pack-corpus.ts slow       # .cache/slow-designs -> test/corpus/slow-designs.json.gz (slow/build.test.ts)
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -30,7 +30,8 @@ function blob(bytes: Buffer, sha: string): { text: string } | { base64: string }
   const repo = inRepo.get(sha);
   if (repo !== undefined) return { repo };
   try {
-    return { text: decoder.decode(bytes) };
+    // A test that named a repository file by its absolute path: `_repo_/` stands for the root anywhere.
+    return { text: decoder.decode(bytes).replaceAll(REPO_ROOT + "/", "_repo_/") };
   } catch {
     return { base64: bytes.toString("base64") };
   }
@@ -52,14 +53,18 @@ function walk(dir: string, prefix = "", out: Record<string, string> = {}): Recor
   return out;
 }
 
-for (const entry of index.designs) {
-  if (!entry.id.startsWith(".cache/test-designs/")) continue;
+const slow = process.argv[2] === "slow";
+const source = slow ? "slow-designs" : "test-designs";
+const entries = slow
+  ? readdirSync(join(REPO_ROOT, ".cache", source)).sort().map((id) => ({ id: `.cache/${source}/${id}/face`, devices: [] as string[] }))
+  : index.designs.filter((e) => e.id.startsWith(`.cache/${source}/`));
+for (const entry of entries) {
   const id = entry.id.split("/")[2]!;
-  const dir = join(REPO_ROOT, ".cache", "test-designs", id);
+  const dir = join(REPO_ROOT, ".cache", source, id);
   const design = readFileSync(join(dir, ".design"), "utf8").trim();
   designs.push({ id, design, devices: entry.devices, files: walk(dir) });
 }
 designs.sort((a, b) => (a.id < b.id ? -1 : 1));
 const out = gzipSync(JSON.stringify({ blobs, designs }), { level: 9 });
-writeFileSync(join(REPO_ROOT, "ts", "test", "corpus", "designs.json.gz"), out);
+writeFileSync(join(REPO_ROOT, "ts", "test", "corpus", slow ? "slow-designs.json.gz" : "designs.json.gz"), out);
 console.log(`${designs.length} designs, ${Object.keys(blobs).length} files, ${out.length} bytes`);

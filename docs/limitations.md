@@ -1071,8 +1071,7 @@ outright, but that is a whole-module gap: both weather readers set
 `Reader.requires_module = "Weather"`, so every `weather.*` read and every
 forecast `graph`'s acquisition sits behind `Toybox has :Weather`, reads as
 absent there, and gets an `api-gated` warning
-(`tests/test_availability.py::test_weather_readers_track_the_weather_module`,
-`::test_weather_guards_compile_warning_free_on_fenix5`).
+(`ts/test/availability.test.ts`).
 
 **The bare-field-name approximation is a real, if currently unrealised,
 risk.** `Device.has_field` cannot tell two different classes' same-named

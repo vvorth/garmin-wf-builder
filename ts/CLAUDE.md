@@ -9,6 +9,7 @@ shipping compiler until the port is complete.
 ```sh
 npm test                    # node:test over test/**/*.test.ts
 npm run typecheck           # tsc --noEmit, strict
+npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
 npm run parity -- <stage>   # a ported stage against tools/oracle.py's dump
 npm run bundle              # dist/wfb.js and dist/worker.js, the browser bundles (not committed)
 ```
