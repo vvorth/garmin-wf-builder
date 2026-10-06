@@ -959,17 +959,18 @@ graphs and data elements land on its whole pixels, and an `outline:` ring is
 the same grown copy, shifted polygon or stamp on both. What remains is
 rasterisation:
 
-- **Garmin's circles and rounded corners are not Pillow's.** A simulator
-  capture (`docs/research/28-editor-open-questions.md` §7,
-  `docs/research/probes/ring-on-device/`) shows `fillCircle` of radius 14
-  as a different shape from Pillow's `ellipse` (flatter at the top, a pixel
-  off centre, slightly asymmetric: about 80–100 px of a 38×36 window), and
-  `fillRoundedRectangle`'s corners a few pixels off each. A corner radius of
-  1 is square on the watch, where Pillow rounds it, so a filled rectangle's
-  or a gauge bar's 1 px ring shows four corner pixels in the simulator that
-  the preview leaves out. `fillRectangle` matches exactly. The preview does
-  not try to match Garmin's circle or corner rasterisation; for those
-  pixels, the simulator is authoritative.
+- **Circles follow Garmin's rule; the other shapes follow Pillow's.**
+  `fillCircle` and `drawCircle` light exactly the pixels the simulator
+  lights on the MIP verification devices (radii 1-12, pens 1-4: the
+  `garmin-raster` probe, `docs/research/probes/garmin-raster/`). The same
+  captures show where the rest still differ: a wide line is wider and has
+  square ends, a wide `drawRectangle` or arc grows outward, a filled
+  polygon lights its right and bottom edge, and `drawRoundedRectangle`
+  reaches a pixel further left and up. A corner radius of 1 is square on
+  the watch, where Pillow rounds it (`docs/research/probes/ring-on-device/`).
+  `fillRectangle`, a 1 px line or rectangle, and baked text match exactly.
+  The AMOLED `fenix847mm` anti-aliases every edge, which the preview does
+  not. For those pixels, the simulator is authoritative.
 
 ---
 

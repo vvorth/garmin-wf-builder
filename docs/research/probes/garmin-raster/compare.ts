@@ -40,9 +40,9 @@ const hex = (c: Rgb): string => "#" + c.map((v) => v.toString(16).padStart(2, "0
 interface Screen { x0: number; y0: number; scale: number }
 
 /**
- * Where the screen sits in a capture: the offset that best overlays the
- * preview's lit pixels on the capture's, at SCALE. The lit boxes' centres
- * give a first guess and a search refines it. The capture's own black is
+ * Where the screen sits in a capture, at SCALE: the 2x2 blocks' phase from
+ * the capture alone, then the whole-pixel offset that best overlays the
+ * preview's lit pixels on the capture's. The capture's own black is
  * too noisy (bezel and screen both near 0) to find the disk by.
  */
 function fitScreen(capture: { width: number; height: number; pixels: Uint8Array }, previewLit: (x: number, y: number) => boolean,
@@ -63,29 +63,46 @@ function fitScreen(capture: { width: number; height: number; pixels: Uint8Array 
   const wx = Math.round(capture.width / 2), wy = Math.round(capture.height / 2);
   const [cl, ct, cr, cb] = box(wx + hw, wy + hh, capLit, wx - hw, wy - hh);
   const pcx = (pl! + pr!) / 2, pcy = (pt! + pb!) / 2, ccx = (cl! + cr!) / 2, ccy = (ct! + cb!) / 2;
+  // The block phase from the capture alone: a device pixel is a 2x2 block, so pairs inside a block differ least.
+  const lum = (x: number, y: number): number => {
+    const i = (y * capture.width + x) * 4;
+    return capture.pixels[i]! + capture.pixels[i + 1]! + capture.pixels[i + 2]!;
+  };
+  const phase = (across: boolean): number => {
+    const cost = [0, 0];
+    for (let y = ct!; y < cb!; y++) {
+      for (let x = cl!; x < cr!; x++) {
+        const k = across ? x : y;
+        cost[k % 2]! += Math.abs(lum(x, y) - (across ? lum(x + 1, y) : lum(x, y + 1)));
+      }
+    }
+    return cost[0]! <= cost[1]! ? 0 : 1;
+  };
+  const [px, py] = [phase(true), phase(false)];
   const misses = (s: Screen): number => {
     let n = 0;
     for (let y = pt!; y < pb!; y++) {
-      for (let x = pl!; x < pr!; x++) {
-        if (previewLit(x, y) !== capLit(Math.floor(s.x0 + (x + 0.5) * s.scale), Math.floor(s.y0 + (y + 0.5) * s.scale))) n++;
-      }
+      for (let x = pl!; x < pr!; x++) if (previewLit(x, y) !== capLit(s.x0 + x * SCALE + 1, s.y0 + y * SCALE + 1)) n++;
     }
     return n;
   };
-  const at = (dx: number, dy: number): Screen => ({ x0: ccx - pcx * SCALE + dx, y0: ccy - pcy * SCALE + dy, scale: SCALE });
-  let best = at(0, 0), bestMiss = misses(best);
-  for (let dy = -4; dy <= 4; dy += 0.25) {
-    for (let dx = -4; dx <= 4; dx += 0.25) {
-      const s = at(dx, dy), m = misses(s);
+  // The whole-pixel offset: the guess from the lit boxes' centres, snapped to the phase, then searched.
+  const snap = (v: number, p: number): number => Math.round((v - p) / SCALE) * SCALE + p;
+  const x00 = snap(ccx - pcx * SCALE, px), y00 = snap(ccy - pcy * SCALE, py);
+  let best: Screen = { x0: x00, y0: y00, scale: SCALE }, bestMiss = misses(best);
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const s = { x0: x00 + dx * SCALE, y0: y00 + dy * SCALE, scale: SCALE }, m = misses(s);
       if (m < bestMiss) [best, bestMiss] = [s, m];
     }
   }
   return best;
 }
 
-function compare(family: string, deviceId: string): string {
+/** A capture overlaid on the preview: the preview's frame, and each device pixel's colour in the capture. */
+export function overlay(family: string, deviceId: string): { width: number; height: number; prev: (x: number, y: number) => Rgb; sim: (x: number, y: number) => Rgb } | null {
   const capturePath = join(HERE, "captures", `${family}-${deviceId}.png`);
-  if (!existsSync(capturePath)) return `${family} ${deviceId}: no capture`;
+  if (!existsSync(capturePath)) return null;
   const capture = decodePng(new Uint8Array(readFileSync(capturePath)))!;
   const path = join(HERE, "faces", family, "face.yaml");
   const bag = new Bag();
@@ -98,14 +115,27 @@ function compare(family: string, deviceId: string): string {
     const i = (y * width + x) * 4;
     return [frame.data[i]!, frame.data[i + 1]!, frame.data[i + 2]!];
   };
-  const lit = (c: Rgb): boolean => Math.max(...c) > 127;
   const screen = fitScreen(capture, (x, y) => lit(prev(x, y)), width, height);
+  // A device pixel's colour: its 2x2 block's mean, which the smoothing bleeds into least.
   const sim = (x: number, y: number): Rgb => {
-    const cx = Math.floor(screen.x0 + (x + 0.5) * screen.scale);
-    const cy = Math.floor(screen.y0 + (y + 0.5) * screen.scale);
-    const i = (cy * capture.width + cx) * 4;
-    return [capture.pixels[i]!, capture.pixels[i + 1]!, capture.pixels[i + 2]!];
+    const out: Rgb = [0, 0, 0];
+    for (let dy = 0; dy < SCALE; dy++) {
+      for (let dx = 0; dx < SCALE; dx++) {
+        const i = ((screen.y0 + y * SCALE + dy) * capture.width + screen.x0 + x * SCALE + dx) * 4;
+        for (let k = 0; k < 3; k++) out[k] += capture.pixels[i + k]! / (SCALE * SCALE);
+      }
+    }
+    return out.map(Math.round) as Rgb;
   };
+  return { width, height, prev, sim };
+}
+
+export const lit = (c: Rgb): boolean => Math.max(...c) > 127;
+
+function compare(family: string, deviceId: string): string {
+  const o = overlay(family, deviceId);
+  if (o === null) return `${family} ${deviceId}: no capture`;
+  const { width, height, prev, sim } = o;
   const left = Math.floor((width - SQUARE) / 2), top = Math.floor((height - SQUARE) / 2);
   const out = new Uint8Array(SQUARE * ZOOM * SQUARE * ZOOM * 3);
   let differ = 0, previewOnly = 0, simOnly = 0, colour = 0, both = 0;
@@ -134,12 +164,14 @@ function compare(family: string, deviceId: string): string {
   }
   mkdirSync(join(HERE, "diffs"), { recursive: true });
   writeFileSync(join(HERE, "diffs", `${family}-${deviceId}.png`), encodePng(SQUARE * ZOOM, SQUARE * ZOOM, out, 3));
-  return `${family.padEnd(9)} ${deviceId.padEnd(16)} scale ${screen.scale.toFixed(3)}  lit both ${String(both).padStart(5)}`
+  return `${family.padEnd(9)} ${deviceId.padEnd(16)}  lit both ${String(both).padStart(5)}`
     + `  differ ${String(differ).padStart(5)} (preview only ${previewOnly}, simulator only ${simOnly}, colour ${colour})`
     + [...pairs].filter(([, n]) => n >= 20).map(([k, n]) => `\n    colour ${k} x${n}`).join("");
 }
 
-const only = process.argv[2];
-for (const family of FAMILIES.filter((f) => only === undefined || f === only)) {
-  for (const device of ["fenix8solar47mm", "fenix8solar51mm", "fr955", "fenix847mm"]) console.log(compare(family, device));
+if (import.meta.filename === process.argv[1]) {
+  const only = process.argv[2];
+  for (const family of FAMILIES.filter((f) => only === undefined || f === only)) {
+    for (const device of ["fenix8solar47mm", "fenix8solar51mm", "fr955", "fenix847mm"]) console.log(compare(family, device));
+  }
 }

@@ -286,9 +286,9 @@ its `stamps` is a list (`wfb.preview.Stamp`), and a frame's layers share one
 `jsonform.Tiles` store, which packs to raw RGBA bytes for a browser.
 `jsonform.rasterise` is the reference reader of that JSON: for every
 lowered element it paints exactly what the evaluator paints. The editor's
-browser reader, `ts/app/raster.js`, reproduces Pillow's
-primitives and its paste byte for byte, and equals `rasterise` on every
-element of the examples (`tests/test_studio_raster.py`, which needs Node).
+browser reader, `ts/app/raster.js`, draws as the TypeScript preview's
+rasteriser does (`ts/src/raster/`: Pillow's primitives and paste, and
+Garmin's own rule for circles), held equal by `ts/test/draw.test.ts`.
 The editor's frame (`ts/src/studio/document.ts`, `Document.frame`) carries its
 layers this way: `layers(..., paint_all=False)` paints only a layer with an
 op outside `BROWSER_OPS` (an outlined group's ring), and the browser draws
@@ -615,11 +615,9 @@ baseline records them, and a failure names any that differ.
 `tools/setup-env.sh` installs an official build when the Node on `PATH`
 cannot run `.ts` files (a distribution build may lack type stripping), and
 prepends it to `PATH`.
-- `tests/test_studio_raster.py` holds the browser's rasteriser
-  (`ts/app/raster.js`) to Pillow byte for byte.
 - `tests/test_ts.py` runs `ts/`'s own tests and its type check.
 
-Both fail rather than skip without Node.
+It fails rather than skips without Node.
 
 **The TypeScript port is held to the Python compiler stage by stage.**
 `tools/oracle.py` dumps what Python produces at each stage boundary for

@@ -1,4 +1,5 @@
-// Pillow's drawing primitives, in JavaScript, pixel for pixel: the shapes
+// Pillow's drawing primitives, in JavaScript, pixel for pixel (circles by
+// Garmin's rule instead): the shapes
 // the editor's draw program uses, and the pasting of its text's and icons'
 // tiles, so a layer's JSON (`wfb.draw.jsonform`) can be drawn in the
 // browser exactly as `jsonform.rasterise`, and so the preview, draws it.
@@ -18,8 +19,8 @@
 // values round to 32 bits after every operation (`F`), and its two
 // roundings (`ROUND_UP`/`ROUND_DOWN`, `lround`) round half away from zero.
 // Python's `round()` (in `rounded_rectangle`) rounds half to even. Pure
-// functions, no DOM, so Node checks them against Pillow itself
-// (tests/test_studio_raster.py).
+// functions, no DOM: ts/test/draw.test.ts holds them equal to
+// src/raster/, which also draws circles by Garmin's own rule (below).
 
 const F = Math.fround;
 
@@ -656,6 +657,10 @@ export function drawOps(im, ops, tiles, scale) {
         const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
         if (shape === "Rectangle") rectangle(im, rect, style);
         else roundedRectangle(im, rect, v[4] * s, style);
+      } else if (name === "fillCircle") {
+        garminFillCircle(im, v[0], v[1], v[2], color, s);
+      } else if (name === "drawCircle") {
+        garminDrawCircle(im, v[0], v[1], v[2], pen, color, s);
       } else if (shape === "Circle" || shape === "Ellipse") {
         const [cx, cy] = v;
         const [rx, ry] = shape === "Circle" ? [v[2], v[2]] : [v[2], v[3]];
@@ -667,6 +672,36 @@ export function drawOps(im, ops, tiles, scale) {
       }
     }
   }
+}
+
+// -- Garmin's own rules: src/raster/garmin.ts, kept equal by ts/test/draw.test.ts ---------
+// ponytail: a copy of the TypeScript module; bundle src/raster/ for the page to drop it
+
+function inDisc(x, y, radius) {
+  return x * x + y * y <= radius * radius && !(y === 0 && x === radius) && !(x === 0 && Math.abs(y) === radius);
+}
+
+function paintRuns(im, cx, cy, extent, lit, color, s) {
+  for (let y = -extent; y <= extent; y++) {
+    for (let x = -extent; x <= extent; x++) {
+      if (!lit(x, y)) continue;
+      let end = x;
+      while (end + 1 <= extent && lit(end + 1, y)) end++;
+      rectangle(im, [(cx + x) * s, (cy + y) * s, (cx + end + 1) * s - 1, (cy + y + 1) * s - 1], { fill: color });
+      x = end;
+    }
+  }
+}
+
+function garminFillCircle(im, cx, cy, r, color, s) {
+  const radius = Math.trunc(r);
+  paintRuns(im, Math.trunc(cx), Math.trunc(cy), radius, (x, y) => inDisc(x, y, radius), color, s);
+}
+
+function garminDrawCircle(im, cx, cy, r, pen, color, s) {
+  const radius = Math.trunc(r), half = Math.max(1, pen) / 2;
+  paintRuns(im, Math.trunc(cx), Math.trunc(cy), Math.ceil(radius + half),
+    (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half), color, s);
 }
 
 // -- what the canvas reads ---------------------------------------------------------------

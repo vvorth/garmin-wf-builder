@@ -59,9 +59,8 @@ Loaded automatically when working under `tests/`.
   clicks their controls, checking the edits they send; `test_studio_app.py`
   renders the whole page (`ts/app/app.js`) the same way against a stand-in
   worker answering from a real summary (`ts/tools/summary.ts`), and presses
-  its keys. `test_studio_raster.py` holds
-  the browser's rasteriser (`raster.js`) to Pillow byte for byte, and
-  **fails** without Node, being that rasteriser's only guard. Nothing here
+  its keys. `ts/test/draw.test.ts` holds the browser's rasteriser
+  (`raster.js`) equal to the preview's. Nothing here
   drives a browser: the pages are checked by hand.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture

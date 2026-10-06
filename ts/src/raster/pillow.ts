@@ -17,6 +17,11 @@
 // values round to 32 bits after every operation (`F`), and its two
 // roundings (`ROUND_UP`/`ROUND_DOWN`, `lround`) round half away from zero.
 // Python's `round()` (in `rounded_rectangle`) rounds half to even.
+//
+// `primitive` draws a `Dc` call through Garmin's own rule instead where
+// one is pinned down (`garmin.ts`).
+
+import * as garmin from "./garmin.ts";
 
 /** A colour. */
 export type Rgb = readonly [number, number, number] | [number, number, number];
@@ -716,6 +721,10 @@ export function primitive(im: Image, name: string, v: readonly number[], color: 
     const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
     if (shape === "Rectangle") rectangle(im, rect, style);
     else roundedRectangle(im, rect, v[4]! * s, style);
+  } else if (name === "fillCircle") {
+    garmin.fillCircle(im, v[0]!, v[1]!, v[2]!, color, s);
+  } else if (name === "drawCircle") {
+    garmin.drawCircle(im, v[0]!, v[1]!, v[2]!, pen, color, s);
   } else if (shape === "Circle" || shape === "Ellipse") {
     const [cx, cy] = v as [number, number];
     const [rx, ry] = shape === "Circle" ? [v[2]!, v[2]!] : [v[2]!, v[3]!];

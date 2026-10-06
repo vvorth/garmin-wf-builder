@@ -67,7 +67,7 @@ grey edges, below):
 
 | Family | Lit in both | Preview only | Simulator only | What differs |
 |---|---:|---:|---:|---|
-| circles | 2668 | 484 | 420 | below |
+| circles | 3088 | 0 | 0 | none since the fit (before: 484 and 420) |
 | arcs | 465 | 135 | 195 | below |
 | lines | 1287 | 52 | 553 | below |
 | polygons | 795 | 0 | 88 | below |
@@ -75,8 +75,8 @@ grey edges, below):
 | text | 2392 | 0 | 0 | only anti-aliased edge greys |
 | swatches | 9825 | 0 | 0 | colour only (the profile, above) |
 
-What each primitive does differently from today's preview (Pillow's
-conventions), read off the diff images. Each is VERIFIED as a difference;
+What each primitive did differently from the preview's Pillow
+conventions, read off the diff images. Each is VERIFIED as a difference;
 the exact rule Garmin follows is UNVERIFIED until a fitted model reproduces
 the capture:
 
@@ -101,5 +101,21 @@ the capture:
    AMOLED anti-aliases primitives the face does not ask to anti-alias
    (UNVERIFIED on a watch).
 
-Moving the preview onto these conventions (and refitting until the counts
-reach zero) is the work left in this probe.
+## Fitted rules
+
+Each rule below reproduces every probe pixel on the three MIP devices
+(VERIFIED: 0 pixels off, on 2026-10-06's captures), and the preview draws
+by it (`ts/src/raster/garmin.ts`). A device pixel's capture block reads
+175-255 when lit and at most 56 when not, so the threshold is 110.
+
+- **`fillCircle(cx, cy, r)`** lights every pixel with x² + y² <= r² from the
+  centre, except the right, top and bottom axis points `(r, 0)`, `(0, ±r)`;
+  the left one, `(-r, 0)`, stays lit. Radii 1-12.
+- **`drawCircle(cx, cy, r)` with pen p** lights the `fillCircle` disc of
+  radius r + p/2 less the disc of r - p/2, the same axis exceptions
+  applying at a whole radius. So an odd pen is centred on r, and an even
+  pen's ring sits half a pixel out on the left. Radii 8 and 9, pens 1-4.
+
+The AMOLED `fenix847mm` misses both rules by its grey edges (14-42 px a
+shape): it needs a coverage model. Lines, arcs, polygons and rectangles
+are not fitted yet.

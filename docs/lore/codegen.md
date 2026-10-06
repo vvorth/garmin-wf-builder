@@ -478,9 +478,9 @@ These cost real time to discover; do not rediscover them.
   a gauge bar's and a filled circle part's (a needle's, a hand's, a
   pattern's) is a grown copy, and a simulator capture shows the watch draws
   it as such: it is not the stamp, which differs by 4-20 px a shape (research
-  28 §7, `docs/research/probes/ring-on-device/`). The preview's Pillow
-  circles and rounded corners still differ from Garmin's rasteriser
-  (`docs/limitations.md`). An outlined group's ring is each member's
+  28 §7, `docs/research/probes/ring-on-device/`). The preview's
+  circles follow Garmin's rule; its other shapes are Pillow's and still
+  differ (`docs/limitations.md`). An outlined group's ring is each member's
   `ring<Id>` pass at its own width, before the group's first member
   (`Renderer.render_ring`), as the view draws it. `Placed.ring_grow`
   records how far `box` grew for rings; a kind that draws from its own box
