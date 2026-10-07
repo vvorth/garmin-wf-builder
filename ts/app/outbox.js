@@ -1,9 +1,9 @@
-// The changes on their way to the server: pure functions, no DOM, so
-// Node can check them (tests/test_studio_frontend.py).
+// The changes on their way to the worker: pure functions, no DOM, so
+// Node can check them (test/page-modules.test.ts).
 //
 // The editor sends one change at a time, each against the version the
 // last one produced, and keeps the rest in order behind it, so the canvas
-// takes the next press while the server is still writing the last, and an
+// takes the next press while the worker is still writing the last, and an
 // edit made meanwhile (the inspector, the layers, undo) waits its turn
 // instead of being refused as stale. A gesture from the canvas or the
 // arrow keys is an entry `{ids, gesture, preview, item, moving, where,
@@ -12,7 +12,7 @@
 // `gesture` is what is sent, `preview` the same gesture with what the
 // canvas draws it from; `where` the device and scope it is written for; `item` the dragged item and `moving` every element it moves (a
 // group's children included); `state` is "queued", "sent" or "done", and
-// `done` the version the server answered with. Until a frame of that
+// `done` the version the worker answered with. Until a frame of that
 // version arrives, the canvas still draws the entry itself.
 
 const isMove = (g) => !!g && g.kind === "move" && (g.part || "both") === "both";
@@ -89,7 +89,7 @@ export function shiftItems(items, by) {
 }
 
 // Whether the face's changes are saved, for the top bar: "unsaved" when
-// the YAML tab holds text the server did not take (its `textsync.plan`
+// the YAML tab holds text the worker did not take (its `textsync.plan`
 // kind is "held" or "wait"), "saving" while a request, a change in the
 // queue or the YAML tab's text is on its way, else "saved".
 export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
@@ -98,7 +98,7 @@ export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
   return "saved";
 }
 
-// Whether `incoming`, a face from the server, may replace `current`, the
+// Whether `incoming`, a face from the worker, may replace `current`, the
 // one shown: answers can arrive out of order, and an older face shown over
 // a newer one would aim the next change at a version that is gone. Another
 // face (a different id) always replaces it.

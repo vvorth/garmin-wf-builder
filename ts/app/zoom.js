@@ -1,8 +1,8 @@
 // Zoom and real size: pure functions, no DOM, so Node can check them
-// (tests/test_studio_frontend.py).
+// (test/page-modules.test.ts).
 //
-// The zoom is CSS pixels per watch pixel. The server draws at a whole
-// scale (1 to 4); the browser shows that image at the zoom, so the server
+// The zoom is CSS pixels per watch pixel. The worker draws at a whole
+// scale (1 to 4); the browser shows that image at the zoom, so the worker
 // draws at the smallest scale that is not blurred at the zoom on this
 // screen.
 //
@@ -22,7 +22,7 @@ export function clampZoom(zoom) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
-// The scale to ask the server for: the zoom in device pixels, rounded up.
+// The scale to ask the worker for: the zoom in device pixels, rounded up.
 export function serverScale(zoom, devicePixelRatio = 1) {
   return Math.min(4, Math.max(1, Math.ceil(zoom * devicePixelRatio - 1e-9)));
 }

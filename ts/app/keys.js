@@ -1,6 +1,6 @@
 // The editor's keyboard shortcuts: which action a key press asks for, and
 // the list the "?" overlay shows. Pure functions, no DOM, so Node can
-// check them (tests/test_studio_frontend.py); `hooks.useShortcuts` acts on
+// check them (test/page-modules.test.ts); `hooks.useShortcuts` acts on
 // them.
 
 const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };

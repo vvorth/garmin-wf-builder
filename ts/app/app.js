@@ -1,6 +1,7 @@
-// wfb studio's front end. The browser asks and shows; the server holds the
-// face's text and runs the compiler, so nothing here decides what a face
-// looks like: every image comes from the server's renderer.
+// wfb studio's front end. The page asks and shows; its worker
+// (`api.js`) holds the face's text and runs the compiler, so nothing here
+// decides what a face looks like: every image comes from the worker's
+// renderer.
 
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
@@ -309,7 +310,7 @@ function Editor({ docId, onError, onNotice }) {
   const [extra, setExtra] = useState([]);
   const [view, setView] = useState({ device: null, style: "", time: "", date: "", now: false, asleep: false,
                                      aod: false, skin: false, zoom: storedZoom() });
-  // the server draws at a whole scale; the browser shows it at the zoom
+  // the worker draws at a whole scale; the browser shows it at the zoom
   const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
   const [dialog, setDialog] = useState(null);           // "build" | "calibrate" | "keys"
@@ -327,7 +328,7 @@ function Editor({ docId, onError, onNotice }) {
   // writes where the viewed device reads it), the device, or its shape
   const [scope, setScope] = useState("all");
 
-  // A face from the server, shown unless it is older than the one shown
+  // A face from the worker, shown unless it is older than the one shown
   // (`outbox.newer`): answers can arrive out of order. An answer about
   // another face (one left while its change was on its way) is dropped.
   const docIdRef = useRef(docId);
@@ -363,7 +364,7 @@ function Editor({ docId, onError, onNotice }) {
   where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
   const { queue, queued, onDrag, send } = useOutbox({ docId, doc, frame, where, accept, reload: loadDoc, onError, onNotice });
   const step = useCallback((which) => send({ op: which }), [send]);
-  // One edit from the inspector or the Face panel: the server patches the
+  // One edit from the inspector or the Face panel: the worker patches the
   // text, checks it and answers with the face; a refusal says why.
   const edit = useCallback((op) => send({ op: "edit", args: { edit: op } }), [send]);
   const upload = useCallback((file, { font, size, reference }) => {
@@ -372,7 +373,7 @@ function Editor({ docId, onError, onNotice }) {
     if (reference) args.reference = reference;
     return send({ op: "assets", args, body: file });
   }, [send]);
-  // One structural edit from the Layers panel: the server patches the text,
+  // One structural edit from the Layers panel: the worker patches the text,
   // checks it and answers with the face and what to select.
   const structure = useCallback(async (op) => {
     const updated = await send({ op: "structure", args: { edit: op } });

@@ -1,6 +1,6 @@
 // The inspector (the selected element's keys) and the Face panel (targets,
 // colours, schemes, styles, slots, fonts). Every change is one edit sent to the
-// server, which patches the text, checks it and answers with the face;
+// worker, which patches the text, checks it and answers with the face;
 // a refused edit leaves the face as it was and says why.
 
 import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
@@ -67,7 +67,7 @@ function AlignPicker({ value, onCommit }) {
 // (its swatches, then its roles where a role is allowed), the 64 named MIP
 // colours, and a custom colour. A swatch or role is picked as
 // `color.<name>`; one of the 64 or a custom colour as its hex, which the
-// server turns into the swatch holding it (`src/edit/colors.ts`).
+// worker turns into the swatch holding it (`src/edit/colors.ts`).
 export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }) {
   const [custom, setCustom] = useState("");
   const palette = ctx.globals.palette || [];

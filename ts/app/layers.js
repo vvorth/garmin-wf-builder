@@ -5,7 +5,7 @@
 // of it, Shift-click selects every row from the selection to it; a row dragged
 // onto another goes in front of it (its top half) or behind it, onto a
 // group's middle into the group, onto a block's label to the block's front.
-// Every change is one structural edit the server patches into the text,
+// Every change is one structural edit the worker patches into the text,
 // checks and records.
 
 import { html, useState } from "./vendor/preact-htm.module.js";

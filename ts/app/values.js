@@ -1,5 +1,5 @@
 // Values as the author writes them: pure functions, no DOM, so Node can
-// check them (tests/test_studio_frontend.py).
+// check them (test/page-modules.test.ts).
 
 const NUMBER = /^\s*([+-]?(?:\d+\.?\d*|\.\d+))\s*([A-Za-z%]*)\s*$/;
 
@@ -133,7 +133,7 @@ export function afterRemovingSchemes(entries) {
 
 // The editor's "showing" as a query value (`picks=top:heart_rate,...`):
 // only slots shown with something other than their default, sorted, so one
-// choice is one cache key on the server.
+// choice is one cache key on the worker.
 export function picksParam(picks, slots) {
   return (slots || [])
     .filter((s) => picks && picks[s.name] && picks[s.name] !== s.default)

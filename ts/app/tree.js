@@ -1,5 +1,5 @@
 // The element tree's structure: pure functions, no DOM, so Node can check
-// them (tests/test_studio_frontend.py).
+// them (test/page-modules.test.ts).
 
 // Every element (flat, draw order) and every block an element can go to:
 // each top-level and layout block, then each group's children.

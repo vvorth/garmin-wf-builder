@@ -15,7 +15,7 @@ import { picksParam } from "./values.js";
 // Every change to the face -- gestures from the canvas and the arrow keys,
 // edits from the panels and the layers, undo, redo, uploads and restores
 // -- sent one at a time, each against the version the one before produced
-// (`outbox.js`), so the canvas never waits for the server and an edit made
+// (`outbox.js`), so the canvas never waits for the worker and an edit made
 // while a drag is on its way is not refused as stale.
 //
 // `doc` and `frame` are the face and frame shown; `where` a ref holding

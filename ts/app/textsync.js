@@ -1,12 +1,12 @@
-// The YAML tab's text on its way to the server: pure functions, no DOM, so
-// Node can check them (tests/test_studio_frontend.py).
+// The YAML tab's text on its way to the worker: pure functions, no DOM, so
+// Node can check them (test/page-modules.test.ts).
 //
 // The pane's state is `{acked, base, conflict, held}`: `acked` is the
-// text the server holds at version `base`, which is what the pane's text
-// was typed over; `held` is a text the server did not take (not YAML, or
+// text the worker holds at version `base`, which is what the pane's text
+// was typed over; `held` is a text the worker did not take (not YAML, or
 // the request failed), not sent again until the author changes it. A send is made against `base`, never against a newer version the
 // editor heard of meanwhile, so a change made elsewhere while the author
-// was typing (the inspector, another tab) is refused by the server rather
+// was typing (the inspector, another tab) is refused by the worker rather
 // than overwritten. `conflict` is set by that refusal and holds the pane
 // until the author chooses (`resolve`).
 
@@ -15,8 +15,8 @@ export function initial(doc) {
 }
 
 // What to do with `buffer`, the pane's text: `{kind: "idle"}` when the
-// server has it, `{kind: "wait"}` while a conflict waits for the author,
-// `{kind: "held"}` when the server did not take this very text, or
+// worker has it, `{kind: "wait"}` while a conflict waits for the author,
+// `{kind: "held"}` when the worker did not take this very text, or
 // `{kind: "send", text, version}`.
 export function plan(state, buffer) {
   if (state.conflict) return { kind: "wait" };
@@ -26,7 +26,7 @@ export function plan(state, buffer) {
 }
 
 // The state after a send of `text` was answered: `status` and, when the
-// server recorded it, the face's new `version`. Any other refusal holds
+// worker recorded it, the face's new `version`. Any other refusal holds
 // the text.
 export function answered(state, text, status, version = null) {
   if (status >= 200 && status < 300) return { ...state, acked: text, base: version, held: null };
@@ -44,7 +44,7 @@ export function failed(state, text) {
   return { ...state, held: text };
 }
 
-// The face as the server now has it (`doc`), the pane holding `buffer`. A
+// The face as the worker now has it (`doc`), the pane holding `buffer`. A
 // pane with nothing unsent follows it, and `replace` is the text to show;
 // one with unsent text keeps it, and its base. A face older than the base
 // (a late answer) is ignored.
@@ -65,7 +65,7 @@ export function resolve(state, doc, choice) {
 }
 
 // The pane closing (the author left the tab) holding `buffer`: `left` is
-// the text to show again when it reopens, or null when the server has it,
+// the text to show again when it reopens, or null when the worker has it,
 // and `kind` is `plan`'s for it. Text not saved, held, or waiting on a
 // conflict is never dropped by leaving the tab.
 export function closed(state, buffer) {

@@ -1,6 +1,6 @@
 // A line diff, for showing what a change elsewhere did to the face's text
 // (the YAML tab's conflict). Pure functions, no DOM, so Node can check
-// them (tests/test_studio_frontend.py).
+// them (test/page-modules.test.ts).
 
 // Past this many cells, a middle part is shown as removed then added
 // rather than compared line by line: a face's text never gets near it.

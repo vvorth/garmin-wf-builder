@@ -1,5 +1,5 @@
 // Picking what is under the pointer: pure functions, no DOM, so Node can
-// check them (tests/test_studio_frontend.py).
+// check them (test/page-modules.test.ts).
 
 // The element a layer belongs to: an outlined group's ring layer is
 // `ring:<group id>` and selects the group.

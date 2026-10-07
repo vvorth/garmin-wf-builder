@@ -1,11 +1,11 @@
-// The canvas: the face as the server drew it, selection, and the drag
+// The canvas: the face as the worker drew it, selection, and the drag
 // gestures. The frame arrives with its layers as JSON ops (the preview's
 // own rasteriser draws them: `src/raster/canvas.ts`, which the server
 // bundles), so hit-testing reads where each layer leaves ink. During a
 // move the whole face is drawn here from the layers' ops, the dragged ones
 // translated; a resize, an angle or a line's end is drawn as an outline. On
 // release the gesture joins the editor's outbox (`outbox.js`), which sends
-// it to the server, which writes it in the author's units and answers with
+// it to the worker, which writes it in the author's units and answers with
 // the new face, whose frame then replaces the preview. Until it does, the
 // canvas draws the gestures still on their way and takes the next press
 // against where they will put things. Nothing here decides where anything
@@ -100,9 +100,9 @@ function pick(frame, prepared, x, y, by = new Map()) {
 
 // The face drawn from its layers, each JSON layer's ops passed through
 // `change(layer)` and each fallback image shifted by `shift(layer)` frame
-// pixels: what the server will draw once a gesture lands. Drawn at the
+// pixels: what the worker will draw once a gesture lands. Drawn at the
 // watch's native size and enlarged `s` times without smoothing, as the
-// server's frame is. Cleared to black inside the screen's own shape only,
+// worker's frame is. Cleared to black inside the screen's own shape only,
 // so the skin round a round screen stays visible.
 function drawChanged(ctx, frame, prepared, change, shift, s) {
   const width = frame.width, height = frame.height;
@@ -200,7 +200,7 @@ function plus(by, moving, dx, dy) {
 }
 
 // The face with `item` drawn as a live handle (`handle.live`, which the
-// server declares only where it predicts the edit exactly) leaves it.
+// worker declares only where it predicts the edit exactly) leaves it.
 function drawLive(ctx, frame, prepared, item, g, s) {
   const change = g.kind === "turn" ? { degrees: g.degrees } : { delta: g.delta };
   drawChanged(ctx, frame, prepared,

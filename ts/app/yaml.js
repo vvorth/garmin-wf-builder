@@ -1,7 +1,7 @@
 // The YAML tab: the face's text in CodeMirror, with the format's schema
 // (completion, hovers, its own checks) and wfb's diagnostics in the gutter.
 // Typing is sent as the whole text, debounced, against the version it
-// was typed over (`textsync.js`); the server records it. A change made
+// was typed over (`textsync.js`); the worker records it. A change made
 // elsewhere meanwhile refuses the send, and the author chooses whose text
 // to keep. Selection follows the canvas and the layer tree, and
 // the cursor selects the element it is in. Leaving the tab keeps where it
@@ -64,8 +64,8 @@ function restore(v, place) {
 
 // `memory`: an object the editor keeps while the face is open, where the
 // pane leaves its place for next time, and its text on its way to the
-// server (`memory.text`, below), so that a send answered after the tab
-// closed, and text the server did not take, reach the pane that reopens.
+// worker (`memory.text`, below), so that a send answered after the tab
+// closed, and text the worker did not take, reach the pane that reopens.
 // `onSaving(kind)` hears whether the pane's text is saved: `textsync.plan`'s
 // "idle" (saved), "send" (on its way) or "held"/"wait" (not saved).
 export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onError, onSaving }) {
@@ -201,7 +201,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
           }, 150);
         }
       });
-      // the text the tab last closed on, if the server does not have it
+      // the text the tab last closed on, if the worker does not have it
       const kept = box.left !== null;
       const opened = sync.reopened(box.sync, box.left, state.current.doc);
       box.sync = opened.state;

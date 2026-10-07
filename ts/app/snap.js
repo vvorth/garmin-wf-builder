@@ -1,5 +1,5 @@
 // Snapping a drag: pure functions, no DOM, so Node can check them
-// (tests/test_studio_frontend.py). All lengths are device pixels.
+// (test/page-modules.test.ts). All lengths are device pixels.
 
 // The lines a moved element may snap to: the screen's centre lines, every
 // other element's centre and edges, and a grid of `gridPercent` %r about
