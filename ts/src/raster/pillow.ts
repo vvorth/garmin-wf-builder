@@ -1,10 +1,9 @@
 // Pillow's drawing primitives, pixel for pixel: the shapes a draw program
 // uses and the pasting of its text's and icons' tiles, so a layer's JSON
 // (`draw/jsonform.ts`) draws exactly as Pillow draws it, in Node and in
-// any browser. A transcription of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc, line,
+// any browser. A transcription of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, line,
 // polygon), `src/libImaging/Draw.c` (the scanline
-// polygon, Bresenham lines, the integer ellipse and its clipped arcs and
-// pies) and `Paste.c` (a paste through a mask), with the argument
+// polygon, Bresenham lines, the integer ellipse) and `Paste.c` (a paste through a mask), with the argument
 // conversion of `src/_imaging.c`.
 // Pillow is under the MIT-CMU licence: `ts/app/vendor/LICENSES-pillow`.
 //
@@ -61,10 +60,6 @@ interface EllipseState {
   pl: number;
 }
 
-interface ClipNode { type: 2; a: number; b: number; c: number }
-interface ClipJoin { type: 0 | 1; l: ClipTree | null; r: ClipTree | null }
-type ClipTree = ClipNode | ClipJoin;
-interface ClipEvent { x: number; type: number }
 
 /** A number in the JSON: a plain value, or a `Layout` constant plus an offset. */
 export type JsonNum = number | { const: string; value: number; add: number };
@@ -319,122 +314,17 @@ function ellipseNext(s: EllipseState): [number, number, number] | null {
   return s.buf.pop()!;
 }
 
-// -- Draw.c: clipping an ellipse into arcs and pies -----------------------------------
-
-const AND = 0 as const, OR = 1 as const, CLIP = 2 as const;
-
-function clipNode(a: number, b: number, c: number): ClipNode { return { type: CLIP, a, b, c }; }
-
-// The clipped pieces of one horizontal segment, as sorted
-// `[{x, type}]` events (1 opens, -1 closes).
-function doClip(root: ClipTree | null, x0: number, y: number, x1: number): ClipEvent[] {
-  if (root === null) return [{ x: x0, type: 1 }, { x: x1, type: -1 }];
-  if (root.type === CLIP) {
-    const eps = 1e-9, A = root.a, B = root.b, C = root.c;
-    if (Math.abs(A) < eps) {
-      if (B * y + C < -eps) { x0 = 1; x1 = 0; }
-    } else {
-      const ix = -(B * y + C) / A;
-      if (A * x0 + B * y + C < eps) x0 = halfAway(Math.max(x0, ix));
-      if (A * x1 + B * y + C < eps) x1 = halfAway(Math.min(x1, ix));
-    }
-    return x0 <= x1 ? [{ x: x0, type: 1 }, { x: x1, type: -1 }] : [];
-  }
-  const l1 = doClip(root.l, x0, y, x1), l2 = doClip(root.r, x0, y, x1);
-  const out: ClipEvent[] = [];
-  let i = 0, j = 0, k1 = 0, k2 = 0;
-  while (i < l1.length || j < l2.length) {
-    let t: ClipEvent;
-    if (j >= l2.length || (i < l1.length &&
-        (l1[i]!.x < l2[j]!.x || (l1[i]!.x === l2[j]!.x && l1[i]!.type > l2[j]!.type)))) {
-      t = l1[i++]!; k1 += t.type;
-    } else {
-      t = l2[j++]!; k2 += t.type;
-    }
-    const tail = out.length ? out[out.length - 1]! : null;
-    if ((root.type === OR &&
-         ((t.type === 1 && (tail === null || tail.type === -1)) ||
-          (t.type === -1 && k1 === 0 && k2 === 0))) ||
-        (root.type === AND &&
-         ((t.type === 1 && (tail === null || tail.type === -1) && k1 > 0 && k2 > 0) ||
-          (t.type === -1 && tail !== null && tail.type === 1 && (k1 === 0 || k2 === 0))))) {
-      out.push({ x: t.x, type: t.type });
-    }
-  }
-  return out;
-}
-
-function transpose(root: ClipTree | null): void {
-  if (root === null) return;
-  if (root.type === CLIP) { const t = root.a; root.a = root.b; root.b = t; }
-  else { transpose(root.l); transpose(root.r); }
-}
-
-// Angles as C floats: 0 <= al < 360, al <= ar <= al + 360.
-function normalizeAngles(al: number, ar: number): [number, number] {
-  if (F(ar - al) >= 360) return [0, 360];
-  const l = F(fmod(al < 0 ? 360 - fmod(-al, 360) : al, 360));
-  const r = F(l + fmod(ar < l ? 360 - fmod(F(l - ar), 360) : F(ar - l), 360));
-  return [l, r];
-}
-
-function arcTree(a: number, b: number, al: number, ar: number): ClipTree | null {
-  if (a < b) {
-    const root = arcTree(b, a, F(90 - ar), F(90 - al));
-    transpose(root);
-    return root;
-  }
-  [al, ar] = normalizeAngles(al, ar);
-  if (ar === F(al + 360)) return null;
-  const rad = Math.PI / 180.0;
-  const lc = clipNode(-a * Math.sin(al * rad), b * Math.cos(al * rad),
-                      (a * a - b * b) * Math.sin(al * Math.PI / 90.0) / 2.0);
-  const rc = clipNode(a * Math.sin(ar * rad), -b * Math.cos(ar * rad),
-                      (b * b - a * a) * Math.sin(ar * Math.PI / 90.0) / 2.0);
-  const span = F(ar - al);
-  if (fmod(al, 180) === 0 || fmod(ar, 180) === 0) {
-    return { type: span < 180 ? AND : OR, l: lc, r: rc };
-  }
-  const half = (v: number): number => trunc(F(v / 180));
-  if ((half(al) + half(ar)) % 2 === 1) {
-    return {
-      type: OR,
-      l: { type: AND, l: clipNode(0, half(al) % 2 === 0 ? 1 : -1, 0), r: lc },
-      r: { type: AND, l: clipNode(0, half(ar) % 2 === 0 ? 1 : -1, 0), r: rc },
-    };
-  }
-  const type = span < 180 ? AND : OR;
-  return { type, l: { type, l: lc, r: rc }, r: clipNode(0, ar < 180 || ar > 540 ? 1 : -1, 0) };
-}
-
-function drawSegments(im: Image, x0: number, y0: number, a: number, b: number, state: EllipseState, root: ClipTree | null | undefined, ink: Rgb): void {
+function drawSegments(im: Image, x0: number, y0: number, a: number, b: number, state: EllipseState, ink: Rgb): void {
   let seg;
   while ((seg = ellipseNext(state)) !== null) {
-    const pieces: { x: number }[] = root === undefined ? [{ x: seg[0] }, { x: seg[2] }] : doClip(root, seg[0], seg[1], seg[2]);
-    for (let i = 0; i + 1 < pieces.length; i += 2) {
-      hline(im, x0 + trunc((pieces[i]!.x + a) / 2), y0 + trunc((seg[1] + b) / 2),
-        x0 + trunc((pieces[i + 1]!.x + a) / 2), ink);
-    }
+    hline(im, x0 + trunc((seg[0] + a) / 2), y0 + trunc((seg[1] + b) / 2), x0 + trunc((seg[2] + a) / 2), ink);
   }
 }
 
 function ellipseNew(im: Image, x0: number, y0: number, x1: number, y1: number, ink: Rgb, fill: boolean, width: number): void {
   const a = x1 - x0, b = y1 - y0;
   if (a < 0 || b < 0) return;
-  drawSegments(im, x0, y0, a, b, ellipseState(a, b, fill ? a + b : width), undefined, ink);
-}
-
-function arcNew(im: Image, x0: number, y0: number, x1: number, y1: number, start: number, end: number, ink: Rgb, width: number): void {
-  const a = x1 - x0, b = y1 - y0;
-  if (a < 0 || b < 0) return;
-  drawSegments(im, x0, y0, a, b, ellipseState(a, b, width), arcTree(a, b, start, end), ink);
-}
-
-function drawArc(im: Image, x0: number, y0: number, x1: number, y1: number, start: number, end: number, ink: Rgb, width: number): void {
-  [start, end] = normalizeAngles(start, end);
-  if (F(start + 360) === end) { ellipseNew(im, x0, y0, x1, y1, ink, false, width); return; }
-  if (start === end) return;
-  arcNew(im, x0, y0, x1, y1, start, end, ink, width);
+  drawSegments(im, x0, y0, a, b, ellipseState(a, b, fill ? a + b : width), ink);
 }
 
 // -- _imaging.c: the bindings ----------------------------------------------------------
@@ -480,12 +370,6 @@ export function rectangle(im: Image, xy: readonly number[], { fill = null, outli
 export function ellipse(im: Image, xy: readonly number[], { fill = null, outline = null, width = 1 }: Style = {}): void {
   if (fill) drawEllipse(im, xy, fill, true, 1);
   if (outline && !sameInk(outline, fill) && width !== 0) drawEllipse(im, xy, outline, false, width);
-}
-
-export function arc(im: Image, xy: readonly number[], start: number, end: number, color: Rgb, width = 1): void {
-  if (width === 0) return;
-  const [x0, y0, x1, y1] = box(xy);
-  drawArc(im, x0, y0, x1, y1, F(start), F(end), color, width);
 }
 
 // One segment from (x0, y0) to (x1, y1), as `ImageDraw.line` draws it.
@@ -612,26 +496,23 @@ export function drawOps(im: Image, ops: readonly JsonOp[], tiles: Record<string,
 
 /** One `Dc` fill or draw call over device numbers, as Pillow draws it at `scale`. */
 export function primitive(im: Image, name: string, v: readonly number[], color: Rgb, pen: number, s: number): void {
-  const width = Math.max(1, pen * s);
-  const fill = name.startsWith("fill");
   const shape = name.slice(4);
-  const style: Style = fill ? { fill: color } : { outline: color, width };
   if (shape === "Rectangle" || shape === "RoundedRectangle") {
     const [x, y, w, h] = v as [number, number, number, number];
     if (w <= 0 || h <= 0) return; // `Dc` draws nothing
     const rect = [x * s, y * s, (x + w) * s - 1, (y + h) * s - 1];
     if (name === "drawRectangle") garmin.drawRectangle(im, x, y, w, h, pen, color, s);
-    else if (shape === "Rectangle") rectangle(im, rect, style);
+    else if (shape === "Rectangle") rectangle(im, rect, { fill: color });
     else if (name === "fillRoundedRectangle") garmin.fillRoundedRectangle(im, x, y, w, h, v[4]!, color, s);
     else garmin.drawRoundedRectangle(im, x, y, w, h, v[4]!, pen, color, s);
   } else if (name === "fillCircle") {
     garmin.fillCircle(im, v[0]!, v[1]!, v[2]!, color, s);
   } else if (name === "drawCircle") {
     garmin.drawCircle(im, v[0]!, v[1]!, v[2]!, pen, color, s);
-  } else if (shape === "Circle" || shape === "Ellipse") {
-    const [cx, cy] = v as [number, number];
-    const [rx, ry] = shape === "Circle" ? [v[2]!, v[2]!] : [v[2]!, v[3]!];
-    ellipse(im, [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s], style);
+  } else if (name === "fillEllipse") {
+    garmin.fillEllipse(im, v[0]!, v[1]!, v[2]!, v[3]!, color, s);
+  } else if (name === "drawEllipse") {
+    garmin.drawEllipse(im, v[0]!, v[1]!, v[2]!, v[3]!, pen, color, s);
   } else if (name === "drawLine") {
     garmin.drawLine(im, v[0]!, v[1]!, v[2]!, v[3]!, pen, color, s);
   } else {

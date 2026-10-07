@@ -28,7 +28,8 @@ function paint(im: Image, cx: number, cy: number, extent: number, lit: (x: numbe
   }
 }
 
-// ponytail: a Float argument is truncated, as Monkey C's toNumber does; unverified, the probe draws whole pixels only
+// A Float coordinate is truncated toward zero, as Monkey C's toNumber does: exact
+// on a radial pattern's runtime-rotated polygons and lines.
 const whole = (v: number): number => Math.trunc(v);
 
 /** `dc.fillCircle`: Garmin's disc. Exact on radii 1-12. */
@@ -42,6 +43,25 @@ export function drawCircle(im: Image, cx: number, cy: number, r: number, pen: nu
   const radius = whole(r), half = Math.max(1, pen) / 2;
   paint(im, whole(cx), whole(cy), Math.ceil(radius + half),
     (x, y) => inDisc(x, y, radius + half) && !inDisc(x, y, radius - half), color, s);
+}
+
+/** Whether `(x, y)` is inside Garmin's ellipse of semi-axes `rx`, `ry`: `inDisc` stretched, the same axis points left out. */
+function inEllipse(x: number, y: number, rx: number, ry: number): boolean {
+  if (rx <= 0 || ry <= 0) return false;
+  return (x * x) / (rx * rx) + (y * y) / (ry * ry) <= 1 && !(y === 0 && x === rx) && !(x === 0 && Math.abs(y) === ry);
+}
+
+/** `dc.fillEllipse`. */
+export function fillEllipse(im: Image, cx: number, cy: number, rx: number, ry: number, color: Rgb, s: number): void {
+  const [a, b] = [whole(rx), whole(ry)];
+  paint(im, whole(cx), whole(cy), Math.max(a, b), (x, y) => inEllipse(x, y, a, b), color, s);
+}
+
+/** `dc.drawEllipse` with a `pen` px pen: the ellipse grown by pen/2 less the one shrunk by it. */
+export function drawEllipse(im: Image, cx: number, cy: number, rx: number, ry: number, pen: number, color: Rgb, s: number): void {
+  const [a, b] = [whole(rx), whole(ry)], half = Math.max(1, pen) / 2;
+  paint(im, whole(cx), whole(cy), Math.ceil(Math.max(a, b) + half),
+    (x, y) => inEllipse(x, y, a + half, b + half) && !inEllipse(x, y, a - half, b - half), color, s);
 }
 
 /** Where a `p` px pen's square brush reaches either side of a 1 px path: `[before, after]`, leaning left and up. */
@@ -115,33 +135,63 @@ export function drawRoundedRectangle(im: Image, x: number, y: number, w: number,
 }
 
 /**
- * `dc.drawLine` with a `pen` px pen: a 4-connected path from end to end
- * (one x or one y step at a time, whichever stays nearer the true line; a
- * tie steps y first), both ends drawn, with the square brush stamped on
- * every pixel. Exact at pens 1 and 3 from 0 to 90 degrees, and at 2 and 4
- * horizontal or vertical; a 2 or 4 px diagonal is a few pixels off along
- * each side.
+ * `dc.drawLine` with a `pen` px pen: the pixels whose centre lies in the
+ * segment swept by a pen x pen square centred on it. A pixel on the swept
+ * outline counts when that edge faces left, or straight up. Exact over 50
+ * lines (pens 1-4, every direction) and over a radial pattern's lines,
+ * whose Float end points are truncated.
  */
-// ponytail: fitted on lines drawn up and to the right only; another direction's tie may differ
 export function drawLine(im: Image, x0: number, y0: number, x1: number, y1: number, pen: number, color: Rgb, s: number): void {
   [x0, y0, x1, y1] = [whole(x0), whole(y0), whole(x1), whole(y1)];
-  const [a, b] = brush(pen);
-  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-  let x = x0, y = y0, ix = 0, iy = 0;
-  for (;;) {
-    rectangle(im, [(x - a) * s, (y - a) * s, (x + b + 1) * s - 1, (y + b + 1) * s - 1], { fill: color });
-    if (ix === dx && iy === dy) return;
-    // The step that lands nearer the line: (ix + 1/2) / dx against (iy + 1/2) / dy, cross-multiplied.
-    if (iy === dy || (ix < dx && (1 + 2 * ix) * dy < (1 + 2 * iy) * dx)) { x += sx; ix++; } else { y += sy; iy++; }
+  const h = Math.max(1, Math.trunc(pen)) / 2;
+  const corners: [number, number][] = [];
+  for (const [ex, ey] of [[x0, y0], [x1, y1]] as const) for (const dx of [-h, h]) for (const dy of [-h, h]) corners.push([ex + dx, ey + dy]);
+  const hull = convexHull(corners);
+  // Each edge with the inside on its left; its outward normal is (dy, -dx).
+  const edges = hull.map((a, i) => {
+    const b = hull[(i + 1) % hull.length]!;
+    const [nx, ny] = [b[1] - a[1], a[0] - b[0]];
+    return { a, b, keep: nx < 0 || (nx === 0 && ny < 0) };
+  });
+  const inside = (x: number, y: number): boolean => edges.every(({ a, b, keep }) => {
+    const c = cross(a, b, [x, y]);
+    return c > 0 || (c === 0 && keep);
+  });
+  const [left, right] = [Math.floor(Math.min(x0, x1) - h), Math.ceil(Math.max(x0, x1) + h)];
+  for (let y = Math.floor(Math.min(y0, y1) - h); y <= Math.ceil(Math.max(y0, y1) + h); y++) {
+    for (let x = left; x <= right; x++) {
+      if (!inside(x, y)) continue;
+      let end = x;
+      while (end + 1 <= right && inside(end + 1, y)) end++;
+      rectangle(im, [x * s, y * s, (end + 1) * s - 1, (y + 1) * s - 1], { fill: color });
+      x = end;
+    }
   }
+}
+
+type Point = readonly [number, number];
+const cross = (o: Point, a: Point, b: Point): number => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+/** The convex hull of `points`, counter-clockwise on screen axes (inside on each edge's left), no collinear points. */
+function convexHull(points: Point[]): Point[] {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const half = (list: Point[]): Point[] => {
+    const out: Point[] = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) out.pop();
+      out.push(p);
+    }
+    return out.slice(0, -1);
+  };
+  return [...half(sorted), ...half([...sorted].reverse())];
 }
 
 /**
  * `dc.fillPolygon`: Pillow's scanline fill, and every edge drawn as a 1 px
  * `drawLine`, which lights the right and bottom edges Pillow leaves out.
- * One pixel off over six shapes (triangles, a quad, a thin one, a sliver).
+ * Exact over six shapes (triangles, a quad, a thin one, a sliver) and a
+ * radial pattern's runtime-rotated ones.
  */
-// ponytail: probed on whole-pixel points only; a rotated hand's fractional points are truncated for its edges, unverified
 export function fillPolygon(im: Image, points: readonly (readonly [number, number])[], color: Rgb, s: number): void {
   polygon(im, points.map(([x, y]): [number, number] => [x * s, y * s]), color);
   points.forEach(([x, y], i) => {

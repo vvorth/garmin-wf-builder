@@ -74,11 +74,20 @@ pixel; `fenix847mm` is the same geometry with grey edges, below):
 |---|---|---:|
 | circles | 484, 420 | 0 |
 | arcs | 135, 195 | 27 |
-| lines | 52, 553 | 224 |
-| polygons | 0, 88 | 1 |
+| lines | 52, 553 | 0 |
+| polygons | 0, 88 | 0 |
 | rects | 314, 450 | 0 |
 | text | 0, 0 | 0 |
 | swatches | 0, 0 | colour only (the profile, above) |
+| ellipses (2026-10-07) | 264, 182 | 0 |
+| lines2 (2026-10-07) | 160, 160 | 0 |
+| rects2 (2026-10-07) | 0, 0 | 0 |
+| rotated (2026-10-07) | 44, 51 | 0 |
+
+On 2026-10-07 the `fenix8solar51mm` captures of `lines2` and `rotated`
+did not overlay (thousands of pixels off, the screen fit misplaced by a
+few stray lit pixels near the bottom of the window); the other two MIP
+devices agree with each other to the pixel, so the fit stands on them.
 
 What each primitive did differently from the preview's Pillow
 conventions, read off the diff images. Each is VERIFIED as a difference;
@@ -123,9 +132,13 @@ counts given. A device pixel's capture block reads
   applying at a whole radius. So an odd pen is centred on r, and an even
   pen's ring sits half a pixel out on the left. Radii 8 and 9, pens 1-4.
 
-- **`drawRectangle(x, y, w, h)` with pen p**, and every other stroke below,
-  stamps a p x p square brush on each pixel of the 1 px path, reaching
-  ⌊p/2⌋ left and up and p - 1 - ⌊p/2⌋ right and down. Pens 1-4.
+- **`fillEllipse(cx, cy, rx, ry)`** is `fillCircle`'s rule stretched:
+  x²/rx² + y²/ry² <= 1, less the right, top and bottom axis points.
+  **`drawEllipse` with pen p** is the ellipse of semi-axes + p/2 less the
+  one of semi-axes - p/2, as `drawCircle`. Semi-axes 5x3 to 11x7, pens 1-3.
+- **`drawRectangle(x, y, w, h)` with pen p** stamps a p x p square brush
+  on each pixel of the 1 px outline, reaching ⌊p/2⌋ left and up and
+  p - 1 - ⌊p/2⌋ right and down. Pens 1-4.
 - **`fillRoundedRectangle(x, y, w, h, r)`** lights the pixels whose centre
   lies in the rectangle x..x+w, y..y+h with corners of radius r. Radii 2, 3
   and 5, at 20x14 and 21x15.
@@ -134,24 +147,26 @@ counts given. A device pixel's capture block reads
   r about the corner's centre (x + r, y + r), (x + w - 1 - r, y + r) and
   their mirrors below, axis exceptions included. A left corner's square
   ends before its centre column, a right one's takes it in; top and bottom
-  squares end before their centre row. Exact at a 2 px pen on radii 2, 3
+  squares end before their centre row. Exact at pens 1-4 on radii 2, 3
   and 5 at 20x14 and 21x15 (recaptured 2026-10-07, after layout's
   half-up rounding made the 21x15 shapes 21x15).
-- **`drawLine`**'s 1 px path is 4-connected: one x or one y step at a time,
-  whichever lands nearer the true line, a tie stepping y first, both ends
-  drawn (|dx| + |dy| + 1 pixels). With the brush this is exact at widths 1
-  and 3 at 0-90 degrees, and at widths 2 and 4 horizontally and
-  vertically. A 2 or 4 px diagonal is off by about 25 pixels: the
-  simulator's extra row runs below and right of the path, where the brush
-  puts it above and left, and no single offset fits.
-- **`fillPolygon`** is the scanline fill plus every edge drawn as that
-  1 px line: one pixel off over six shapes. Its edges run every way, so
-  this also checks the line's tie rule beyond up-and-right.
+- **`drawLine` with pen p** lights the pixels whose centre lies in the
+  segment swept by a p x p square centred on it: the hexagon that is the
+  convex hull of the squares at both ends. A centre exactly on the outline
+  counts when that edge faces left, or straight up (a right, bottom or
+  down-right-facing edge does not). One rule for every pen and direction:
+  exact over 50 lines, pens 1-4, at 0-345 degrees. A stamped brush on a
+  stepped path fitted the odd pens but not a 2 or 4 px diagonal, whose
+  thickness down a column is p + p·tan θ, the swept square's.
+- **A Float coordinate is truncated toward zero** before drawing: a radial
+  pattern's runtime-rotated polygons and lines (`WfbGeom.fillRotated`,
+  `drawLineRotated`) are exact so, where rounding misses about 475 pixels.
+- **`fillPolygon`** is the scanline fill plus every edge drawn as a 1 px
+  `drawLine`: exact over six shapes and a radial pattern's rotated ones.
 - **`drawArc`** is `drawCircle`'s ring at radius r - 1/2, cut to the
   pixels whose angle from the centre lies in the span, both ends in: 0-5
   pixels a shape, all at the ends, where the r ring missed 10-43 a shape.
-- **Not fitted:** 2 and 4 px diagonal lines. `drawRoundedRectangle` at
-  pens other than 2 is unprobed.
+- **Not fitted:** `drawArc`'s end pixels (27 over 16 arcs).
 
 The AMOLED `fenix847mm` misses every rule by its grey edges: it needs a
 coverage model.

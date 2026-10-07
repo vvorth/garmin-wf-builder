@@ -958,19 +958,17 @@ rasterisation:
 
 - **The preview draws by rules fitted to simulator captures**
   (`docs/research/probes/garmin-raster/`), on the MIP verification
-  devices. Exact: `fillCircle`, `drawCircle`, `fillRectangle`,
-  `drawRectangle`, `fillRoundedRectangle`, `drawRoundedRectangle` at a
-  2 px pen, a line of an odd width at any
-  angle, any line drawn straight across or down, and baked text.
-  `fillPolygon` is a pixel off over six shapes, and `drawArc` 0-5 pixels a
-  shape at its ends. Still off: a 2 or 4 px diagonal line (about 25
-  pixels a line). Lines drawn down or to the left, `drawRoundedRectangle`
-  at other pens and fractional coordinates are unprobed, and
-  `fillEllipse`/`drawEllipse` are still Pillow's, never compared. A
-  corner radius of 1 is square on the watch
-  (`docs/research/probes/ring-on-device/`), as the fitted rules draw it. The AMOLED `fenix847mm`
-  anti-aliases every edge, which the preview does not. For those pixels,
-  the simulator is authoritative.
+  devices. Exact: `fillCircle`, `drawCircle`, `fillEllipse`,
+  `drawEllipse`, `fillRectangle`, `drawRectangle`, `fillRoundedRectangle`,
+  `drawRoundedRectangle`, `fillPolygon`, `drawLine` at pens 1-4 in every
+  direction, Float coordinates (truncated, as on the watch), and baked
+  text. `drawArc` is 0-5 pixels a shape off at its ends. The probes draw
+  small shapes (radii to 12, lines about 22 px, a rotated pattern to
+  radius 80), so a much larger shape is fitted by extrapolation. A corner
+  radius of 1 is square on the watch
+  (`docs/research/probes/ring-on-device/`), as the fitted rules draw it.
+  The AMOLED `fenix847mm` anti-aliases every edge, which the preview does
+  not. For those pixels, the simulator is authoritative.
 
 ---
 
