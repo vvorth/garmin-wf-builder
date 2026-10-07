@@ -276,10 +276,9 @@ launcher. The Debian base provides `bash`, which the SDK's `monkeyc`
 launcher needs; the developer key is generated with Node's own `crypto`, so
 no `openssl` is needed.
 
-Roughly 400 MB total: 159 MB JRE, the Node base, 24 MB SDK and about 54 MB
-of `node_modules`, development tools included, so the image can run `ts/`'s
-tests and type check. Those are estimates, not the rebuilt image's
-measurement.
+535 MB as built (2026-10-06): the JRE (159 MB), the Node base, the 24 MB
+SDK and `node_modules` with its development tools, so the image can run
+`ts/`'s tests and type check.
 
 ### Build arguments
 

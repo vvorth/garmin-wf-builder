@@ -150,6 +150,12 @@ or AOD-related has been observed on a watch or in the simulator.
   their ink, redraws a move from them, and draws a resize or an angle
   live where the kind declares the result exact
   (`ElementKind.liveHandle`); it decides nothing. `docs/guide/studio.md`.
+- **TypeScript on Node** (2026-10-06, `v0.4`): the compiler, the CLI
+  (`./wfb`), the preview, the editor and its server, the setup tools and
+  the Docker image, with no Python (ADR 0001, amended). Every output was
+  held equal to the Python compiler while it was ported, then frozen as the
+  goldens (`ts/test/CLAUDE.md`). The preview draws most shapes by rules
+  fitted to simulator captures (`docs/limitations.md`).
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 

@@ -8,9 +8,7 @@ back here.
 
 ## Open
 
-| Plan | What |
-|---|---|
-| `31-typescript-migration.md` | the compiler, editor and server in TypeScript, stage by stage with Python as the oracle; the editor standalone in the browser (research 31, 32) |
+None.
 
 ## Built and deleted
 
@@ -46,3 +44,4 @@ records its own slices and decisions. Its commits are
 | 28 a browser renderer for `wfb studio` | `git show 2ab22c4:docs/plans/28-browser-renderer.md` |
 | 29 live centred boxes and gauge arcs | `git show 0b280bf:docs/plans/29-live-centred-boxes-and-gauges.md` (options A–C and C1–C4 for centred boxes are kept for a later plan) |
 | 30 the editor's gaps | `git show 07446be:docs/plans/30-editor-gaps.md` |
+| 31 TypeScript migration | `git show 7aea248:docs/plans/31-typescript-migration.md` (commits `git log --grep "port slice"`; slice 10's open shape rules are in `docs/research/probes/garmin-raster/README.md`) |
