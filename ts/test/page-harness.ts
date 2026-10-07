@@ -142,30 +142,44 @@ export async function page(face: { summary: any; vocabulary: any; home: any }, r
       globalThis.location = { hash: ${JSON.stringify(route)}, href: "http://studio/", reload() {} };
       const summary = ${JSON.stringify(face["summary"])};
       const answers = {
-        "/api/home": ${JSON.stringify(face["home"])},
-        "/api/vocabulary": ${JSON.stringify({ ...face["vocabulary"], devices: [] })},
+        home: ${JSON.stringify(face["home"])},
+        vocabulary: ${JSON.stringify({ ...face["vocabulary"], devices: [] })},
       };
-      answers[\`/api/documents/\${summary.id}\`] = summary;
+      answers[\`get \${summary.id}\`] = summary;
+      // every request the page made, [op, args]; \`sent()\` the changes among them
       const requests = [];
+      const READS = new Set(["home", "vocabulary", "get", "frame", "skin", "inspect", "history", "cover", "thumbnail", "handset"]);
+      const sent = () => requests.filter(([op]) => !READS.has(op));
       // the editor's worker, answering from the face's summary; a test
       // replaces \`respond\` to answer differently
       let respond = (request, reply) => {
-        const url = request.url;
-        const path = url.split("?")[0];
-        requests.push([request.method, url]);
-        let body = answers[path];
-        if (path.endsWith("/goto")) body = summary;
-        if (path.endsWith("/rename")) body = { id: summary.id, name: new URLSearchParams(url.split("?")[1]).get("name") };
+        const { op, args } = request;
+        requests.push([op, args]);
+        let body = answers[op === "get" ? \`get \${args.id}\` : op];
+        if (op === "goto") body = summary;
+        if (op === "rename") body = { id: summary.id, name: args.name };
         if (body !== undefined) reply({ status: 200, json: body });   // a frame: never drawn here
       };
-      const bodyOf = (request) => JSON.parse(new TextDecoder().decode(request.body));
+      // answers on their way to the page, which \`settle\` waits out
+      let inflight = 0;
       globalThis.Worker = class {
         postMessage({ id, request }) {
-          respond(request, (response) => setTimeout(() => this.onmessage({ data: { id, response } }), 0));
+          respond(request, (response) => {
+            inflight++;
+            setTimeout(() => { inflight--; this.onmessage({ data: { id, response } }); }, 0);
+          });
         }
       };
       await import(${JSON.stringify(appUri("app.js"))});
-      const settle = () => new Promise((r) => setTimeout(r, 10));
+      // Quiet: no answer on its way for a few timer turns, which covers an
+      // effect's request (rendered, then two timer turns). Counted in turns,
+      // not milliseconds, so a slow machine waits as long as it needs.
+      const settle = async () => {
+        for (let idle = 0; idle < 5;) {
+          await new Promise((r) => setTimeout(r, 0));
+          idle = inflight > 0 ? 0 : idle + 1;
+        }
+      };
       await settle(); await settle();
       const cls = (e) => e.attributes.class || "";
       const find = (pred) => app.all(pred);
@@ -177,7 +191,7 @@ export async function page(face: { summary: any; vocabulary: any; home: any }, r
 }
 
 /**
- * Wraps the stand-in worker so a test holds back the answer to each POST
+ * Wraps the stand-in worker so a test holds back the answer to each change
  * until it calls `release(i, status)` (200 answers the face one version
  * on, anything else refuses).
  */
@@ -185,11 +199,13 @@ export const DEFERRED_FETCH = `
       const held = [];
       const serve = respond;
       respond = (request, reply) => {
-        if (request.method !== "POST") return serve(request, reply);
-        requests.push(["POST", request.url]);
+        if (READS.has(request.op)) return serve(request, reply);
+        requests.push([request.op, request.args]);
         held.push((status) => reply({ status, json: status === 200 ? { ...summary, version: summary.version + 1 }
                                                                    : { error: "refused for the test" } }));
       };
-      // the page sends its next change in its own time: wait for it to be held, under any load
-      const release = async (i, status = 200) => { while (!held[i]) await settle(); held[i](status); await settle(); await settle(); };
+      const release = async (i, status = 200) => {
+        if (!held[i]) throw new Error(\`change \${i} was never sent: \${held.length} held\`);
+        held[i](status); await settle(); await settle();
+      };
     `;

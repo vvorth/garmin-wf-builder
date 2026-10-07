@@ -484,19 +484,13 @@ export function Strip({ doc, view, picks, onDevice }) {
     return () => clearTimeout(timer);
   }, [doc.version]);
   if (doc.targets.length < 2) return null;
-  const q = (device) => {
-    const p = new URLSearchParams({ device, v: version });
-    if (view.style) p.set("style", view.style);
+  const args = (device) => ({
+    id: doc.id, device, v: version, style: view.style, date: view.date, asleep: view.asleep, aod: view.aod, picks,
     // following the clock, the thumbnails change once a minute, not every second
-    if (view.time) p.set("time", view.now ? view.time.slice(0, 5) : view.time);
-    if (view.date) p.set("date", view.date);
-    if (view.asleep) p.set("asleep", "1");
-    if (view.aod) p.set("aod", "1");
-    if (picks) p.set("picks", picks);
-    return `/api/documents/${doc.id}/thumbnail?${p}`;
-  };
+    time: view.now && view.time ? view.time.slice(0, 5) : view.time,
+  });
   return html`<div class="strip">
     ${doc.targets.map((t) => html`<button class=${t === view.device ? "on" : ""} title=${t} onClick=${() => onDevice(t)}>
-      <${WorkerImage} path=${q(t)} alt=${t} /><span>${t}</span></button>`)}
+      <${WorkerImage} op="thumbnail" args=${args(t)} alt=${t} /><span>${t}</span></button>`)}
   </div>`;
 }

@@ -83,7 +83,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     help; `term.ts` styles the output.
   - `src/studio/` is the editor's back end: `worker.ts` (the browser's
     Web Worker, which the server bundles when it starts) answers the page's
-    requests through `router.ts`, over `document.ts`, `store.ts`
+    requests (an operation and its arguments, `app/api.js`'s `api(op,
+    args)`; no URLs) through `router.ts`, over `document.ts`, `store.ts`
     (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` and
     `drag.ts`; `server.ts` (Node) sends the app, the devices' digest, a
     device's skin and font files, and builds. `app/` is the page, plain ES
@@ -115,7 +116,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     - truthiness, `repr`, `str`, `==` (`deepEqual`), `json.dumps` and
       `splitlines`;
     - `f"{x:.6f}"` and `round()`, half to even;
-    - `PyError`, a crash Python would raise, named by type.
+    - `PyError`, a broken assumption about the data's shape (a bug), named by
+      the Python exception it stands for.
 - `src/data/` holds the tables the browser needs without a file system.
   `catalog.json`, `complications.json`, `icons.json` and
   `font-registry.json` are the source themselves; `runtime-lib.json`,

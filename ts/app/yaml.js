@@ -109,7 +109,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     box.sending = true;
     let answered = false;
     try {
-      const response = await call(`/api/documents/${s.doc.id}/text?version=${step.version}`, { method: "POST", body: step.text });
+      const response = await call("text", { id: s.doc.id, version: step.version, text: step.text });
       const body = response.json || {};
       response.ok = response.status < 400;
       box.sync = sync.answered(box.sync, step.text, response.status, body.version);
@@ -121,7 +121,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         // changed elsewhere since the pane's text was typed over: the
         // text stays, and the author chooses (`choose`)
         if (box.pane) box.pane.setConflict(true);
-        onDoc(await api(`/api/documents/${s.doc.id}`));
+        onDoc(await api("get", { id: s.doc.id }));
       } else if (response.status === 400) {
         // not YAML yet: keep typing; nothing was recorded
         show({ kind: "invalid", message: body.error || "the text is not YAML" });

@@ -2,7 +2,7 @@
   "name": "wfb",
   "version": "0.0.0",
   "private": true,
-  "description": "garmin-wf-builder's compiler, preview, editor back end and server, in TypeScript (being ported from wfb/)",
+  "description": "garmin-wf-builder's compiler, preview, editor back end and server, in TypeScript",
   "type": "module",
   "engines": {
     "node": ">=22.18"

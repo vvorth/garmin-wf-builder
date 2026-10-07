@@ -56,33 +56,21 @@ export class Client {
     return new Client(await newStudio(backend));
   }
 
-  async send(method: string, url: string, body: unknown = null): Promise<Reply> {
-    const bytes = body === null ? null : body instanceof Uint8Array ? body
-      : new TextEncoder().encode(typeof body === "string" ? body : JSON.stringify(body));
-    return await this.router.handle({ method, url, body: bytes, tab: this.tab }) as Reply;
-  }
-
-  get(url: string): Promise<Reply> {
-    return this.send("GET", url);
-  }
-
-  post(url: string, body: unknown = null): Promise<Reply> {
-    return this.send("POST", url, body);
-  }
-
-  delete(url: string): Promise<Reply> {
-    return this.send("DELETE", url);
+  /** `op` with `args`, and a file's bytes as the page sends them. */
+  async call(op: string, args: Record<string, unknown> = {}, body: Uint8Array | string | null = null): Promise<Reply> {
+    const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
+    return await this.router.handle({ op, args, body: bytes, tab: this.tab }) as Reply;
   }
 
   /** A face from a template, as its summary; throws unless it was made. */
   async create(template = "minimal", name = "D"): Promise<any> {
-    const r = await this.post(`/api/documents/new?template=${template}&name=${encodeURIComponent(name)}`);
+    const r = await this.call("new", { template, name });
     if (r.status !== 200) throw new Error(JSON.stringify(r.json));
     return r.json;
   }
 
   async upload(filename: string, data: Uint8Array | string): Promise<any> {
-    const r = await this.post(`/api/documents/upload?filename=${encodeURIComponent(filename)}`, data);
+    const r = await this.call("upload", { filename }, data);
     if (r.status !== 200) throw new Error(JSON.stringify(r.json));
     return r.json;
   }

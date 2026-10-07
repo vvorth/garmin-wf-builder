@@ -25,8 +25,7 @@ export function BuildDialog({ doc, vocab, device, onClose }) {
   const build = async () => {
     setState({ phase: "building" });
     try {
-      const r = await call(`/api/documents/${doc.id}/build?device=${encodeURIComponent(chosen)}&version=${doc.version}`,
-                           { method: "POST" });
+      const r = await call("build", { id: doc.id, device: chosen, version: doc.version });
       const body = r.json;
       if (r.status >= 400) { setState({ phase: "failed", error: body.error }); return; }
       if (body.ok && body.download) {

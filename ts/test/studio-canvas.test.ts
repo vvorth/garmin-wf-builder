@@ -154,27 +154,28 @@ test("a group and its member selected together move once", async () => {
 test("drags through the requests", async () => {
   const client = await Client.open();
   const doc = await client.upload("face.yaml", read(SHAPES));
-  const url = `/api/documents/${doc.id}`;
-  const arc = items((await client.get(`${url}/frame?device=fr955&scale=1`)).json)["outer_arc"];
+  const id = doc.id;
+  const drag = (version: number, args: Record<string, unknown>) => client.call("drag", { id, version, device: "fr955", ...args });
+  const arc = items((await client.call("frame", { id, device: "fr955", scale: 1 })).json)["outer_arc"];
   const sweep = arc.handles.find((h: any) => h.key === "sweep");
-  const r = await client.post(`${url}/drag?version=1`, { element: "outer_arc", device: "fr955", gesture: { kind: "turn", key: "sweep", degrees: sweep.sweep - 30 } });
+  const r = await drag(1, { element: "outer_arc", gesture: { kind: "turn", key: "sweep", degrees: sweep.sweep - 30 } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.ok(r.json.landed);
   assert.match(r.json.what, /^turn outer_arc\.sweep to/);
-  assert.equal((await client.post(`${url}/drag?version=1`, { element: "dot", device: "fr955", gesture: { kind: "move", dx: 1, dy: 0 } })).status, 409);
-  assert.equal((await client.post(`${url}/drag?version=2`, { element: "chevron", device: "fr955", gesture: { kind: "move", dx: 1, dy: 0 } })).status, 400);
-  assert.equal((await client.post(`${url}/drag?version=2`, "[]")).status, 400);
-  const many = await client.post(`${url}/drag?version=2`, { elements: ["dot", "card"], device: "fr955", gesture: { kind: "move", dx: 2, dy: 0 } });
+  assert.equal((await drag(1, { element: "dot", gesture: { kind: "move", dx: 1, dy: 0 } })).status, 409);
+  assert.equal((await drag(2, { element: "chevron", gesture: { kind: "move", dx: 1, dy: 0 } })).status, 400);
+  assert.equal((await drag(2, { gesture: [] })).status, 400);
+  const many = await drag(2, { elements: ["dot", "card"], gesture: { kind: "move", dx: 2, dy: 0 } });
   assert.equal(many.status, 200, JSON.stringify(many.json));
   assert.equal(many.json.what, "move dot, card by (+2, +0) px on fr955");
-  const resized = await client.post(`${url}/drag?version=3`, { elements: ["dot", "card"], device: "fr955", gesture: { kind: "resize", key: ["radius"], delta: 2 } });
+  const resized = await drag(3, { elements: ["dot", "card"], gesture: { kind: "resize", key: ["radius"], delta: 2 } });
   assert.equal(resized.status, 400);
   assert.match(resized.json.error, /only be moved together/);
-  const shown = (await client.get(`${url}/frame?device=fr955&scale=1`)).json;
+  const shown = (await client.call("frame", { id, device: "fr955", scale: 1 })).json;
   assert.equal(shown.version, 3);
   assert.ok(shown.layers.length > 0);
-  assert.equal((await client.get(`${url}/layers?device=fr955`)).status, 404);
-  assert.equal((await client.get(`${url}/thumbnail?device=fr955`)).type, "image/png");
+  assert.equal((await client.call("layers", { id, device: "fr955" })).status, 400);
+  assert.equal((await client.call("thumbnail", { id, device: "fr955" })).type, "image/png");
 });
 
 test("a gesture without its values and a refused gesture say different things", async () => {
@@ -287,14 +288,14 @@ test("a delete that would leave a dangling name is refused", async () => {
 test("structure through the requests", async () => {
   const client = await Client.open();
   const doc = await client.create("minimal", "S");
-  const url = `/api/documents/${doc.id}/structure`;
-  const r = await client.post(`${url}?version=1`, { op: "add", type: "graph", choice: "steps" });
+  const structure = (version: number, edit: unknown) => client.call("structure", { id: doc.id, version, edit });
+  const r = await structure(1, { op: "add", type: "graph", choice: "steps" });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.select, "new_graph");
   assert.equal(r.json.version, 2);
-  assert.equal((await client.post(`${url}?version=1`, "{}")).status, 409);
-  assert.equal((await client.post(`${url}?version=2`, { op: "add", type: "teapot" })).status, 400);
-  const words = (await client.get("/api/vocabulary")).json;
+  assert.equal((await structure(1, {})).status, 409);
+  assert.equal((await structure(2, { op: "add", type: "teapot" })).status, 400);
+  const words = (await client.call("vocabulary")).json;
   assert.ok(words.types.includes("graph") && words.series.includes("steps"));
   assert.ok("hand_sets" in r.json.globals && "slots" in r.json.globals);
 });
@@ -385,14 +386,14 @@ test("each tree node knows its last line", async () => {
 test("text through the requests", async () => {
   const client = await Client.open();
   const doc = await client.create("minimal", "Y");
-  const url = `/api/documents/${doc.id}/text`;
+  const put = (version: number, text: unknown) => client.call("text", { id: doc.id, version, text });
   const text = doc.text.replace("1.0.0", "1.2.3");
-  const r = await client.post(`${url}?version=1`, text);
+  const r = await put(1, text);
   assert.equal(r.status, 200);
   assert.equal(r.json.version, 2);
-  assert.equal((await client.post(`${url}?version=1`, text)).status, 409);
-  assert.equal((await client.post(`${url}?version=2`, "a: [1")).status, 400);
-  assert.equal((await client.post(`${url}?version=2`, Uint8Array.from([0xff, 0xfe]))).status, 400);
+  assert.equal((await put(1, text)).status, 409);
+  assert.equal((await put(2, "a: [1")).status, 400);
+  assert.equal((await put(2, 7)).status, 400);
 });
 
 test("a burst of typing is one step to undo", async () => {

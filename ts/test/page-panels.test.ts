@@ -64,8 +64,8 @@ test("a styles label is set and cleared", async () => {
 
 test("hand sets are listed added and shown in the yaml", async () => {
   const text = summary(instantiate("analog", "T"));
-  const printed = await render(text, "\n      const thumb = find((e) => e.localName === \"img\" && cls(e) === \"hand-thumb\")[0];\n      out(thumb.attributes[\"data-path\"].split(\"?\")[1].split(\"&\").slice(0, 2));\n      out(root.textContent.includes(\"placed by\"));\n      await click(find((e) => e.localName === \"a\" && e.textContent === \"Edit in YAML\")[0]);\n      const select = find((e) => e.localName === \"select\" && e.textContent.startsWith(\"from a preset\"))[0];\n      select.value = \"baton\"; select.dispatch(\"change\", { target: select }); await settle();\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Hand set\")[0]);\n      await typeName(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Duplicate\")[0]);\n      out(edits);\n    ");
-  assert.deepEqual(printed[0], ["name=classic", "device=fenix8solar47mm"]);
+  const printed = await render(text, "\n      const thumb = find((e) => e.localName === \"img\" && cls(e) === \"hand-thumb\")[0];\n      const args = JSON.parse(thumb.attributes[\"data-args\"]);\n      out([args.name, args.device]);\n      out(root.textContent.includes(\"placed by\"));\n      await click(find((e) => e.localName === \"a\" && e.textContent === \"Edit in YAML\")[0]);\n      const select = find((e) => e.localName === \"select\" && e.textContent.startsWith(\"from a preset\"))[0];\n      select.value = \"baton\"; select.dispatch(\"change\", { target: select }); await settle();\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Hand set\")[0]);\n      await typeName(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Duplicate\")[0]);\n      out(edits);\n    ");
+  assert.deepEqual(printed[0], ["classic", "fenix8solar47mm"]);
   assert.equal(printed[1], true);
   const [reveal, ...rest] = printed[2];
   assert.ok(reveal["reveal"][0] < reveal["reveal"][1]);
@@ -160,13 +160,13 @@ test("the thumbnails wait for the face to settle", async () => {
       const show = (version, view = {}) => render(html\`<\${Strip} doc=\${doc(version)} view=\${{ device: "a", ...view }}
                                                                picks=\${null} onDevice=\${() => {}} />\`, root);
       const versions = () => root.all((e) => e.localName === "img")
-        .map((e) => new URLSearchParams(e.attributes["data-path"].split("?")[1]).get("v"));
+        .map((e) => String(JSON.parse(e.attributes["data-args"]).v));
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const out = [];
       show(1); await wait(5); out.push(versions());
       show(2); await wait(5); show(3); await wait(5); out.push(versions());       // a run of drags
       show(3, { style: "night" }); await wait(5);
-      out.push(root.all((e) => e.localName === "img")[0].attributes["data-path"].includes("style=night"));
+      out.push(JSON.parse(root.all((e) => e.localName === "img")[0].attributes["data-args"]).style === "night");
       await wait(STRIP_SETTLE_MS + 100); out.push(versions());
       console.log(JSON.stringify(out));
     `;

@@ -189,29 +189,30 @@ test("a refused font leaves no file behind", async () => {
 test("inspect and edit through the requests", async () => {
   const client = await Client.open();
   const doc = await client.create("minimal", "H");
-  const url = `/api/documents/${doc.id}`;
+  const id = doc.id;
+  const edit = (version: number, edit: unknown) => client.call("edit", { id, version, edit });
   const clock = doc.tree.flatMap((b: any) => b.children).find((n: any) => n.id === "clock");
-  const result = (await client.get(`${url}/inspect?element=${encodeURIComponent(JSON.stringify(clock.path))}&device=fr955`)).json;
+  const result = (await client.call("inspect", { id, element: clock.path, device: "fr955" })).json;
   assert.equal(result.type, "text");
   assert.equal(result.device, "fr955");
-  const r = await client.post(`${url}/edit?version=1`, { op: "set", element: clock.path, path: ["font"], value: "FONT_SMALL" });
+  const r = await edit(1, { op: "set", element: clock.path, path: ["font"], value: "FONT_SMALL" });
   assert.equal(r.status, 200);
   assert.equal(r.json.version, 2);
   assert.ok(r.json.text.includes("font: FONT_SMALL"));
-  const bad = await client.post(`${url}/edit?version=2`, { op: "set", element: clock.path, path: ["color"], value: "color.nope" });
+  const bad = await edit(2, { op: "set", element: clock.path, path: ["color"], value: "color.nope" });
   assert.equal(bad.status, 400);
   assert.ok(bad.json.error.includes("color.nope"));
-  assert.equal((await client.post(`${url}/edit?version=1`, "{}")).status, 409);
-  assert.equal((await client.post(`${url}/edit?version=2`, "not json")).status, 400);
-  assert.equal((await client.post(`${url}/edit?version=2`, { op: "set", element: clock.path, path: ["at", "dy"], value: 1, scope: "device", device: "nosuchwatch" })).status, 400);
-  const font = await client.post(`${url}/assets?filename=C.ttf&font=big&size=30%25r&version=2`, read(CHIVO));
+  assert.equal((await edit(1, {})).status, 409);
+  assert.equal((await edit(2, "not an object")).status, 400);
+  assert.equal((await edit(2, { op: "set", element: clock.path, path: ["at", "dy"], value: 1, scope: "device", device: "nosuchwatch" })).status, 400);
+  const font = await client.call("assets", { id, filename: "C.ttf", font: "big", size: "30%r", version: 2 }, read(CHIVO));
   assert.equal(font.status, 200, JSON.stringify(font.json));
   assert.deepEqual(font.json.globals.fonts.map((f: any) => f.name), ["big"]);
 });
 
 test("the vocabulary lists sources, icons, complications and devices", async () => {
   const client = await Client.open();
-  const words = (await client.get("/api/vocabulary")).json;
+  const words = (await client.call("vocabulary")).json;
   assert.ok(words.sources.activity.includes("activity.steps"));
   assert.ok(words.icons.includes("heart"));
   assert.equal(words.complications[0], "auto");
@@ -226,25 +227,25 @@ test("the vocabulary lists sources, icons, complications and devices", async () 
 
 test("a skin is the watch round its screen", async () => {
   const client = await Client.open();
-  const r = await client.get("/api/skin?device=fr955&scale=2");
+  const r = await client.call("skin", { device: "fr955", scale: 2 });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const skin = r.json;
   const image = decodePng(Uint8Array.from(atob(skin.image.split(",", 2)[1]), (c) => c.charCodeAt(0)))!;
   assert.deepEqual([image.width, image.height], [skin.width, skin.height]);
   assert.ok(skin.x + 520 <= skin.width && skin.y + 520 <= skin.height);
   assert.equal(image.pixels[((skin.y + 260) * image.width + skin.x + 260) * 4 + 3], 0);
-  assert.equal((await client.get("/api/skin?device=nosuchwatch")).status, 400);
+  assert.equal((await client.call("skin", { device: "nosuchwatch" })).status, 400);
 });
 
 test("a face that does not load is not built", async () => {
   const client = await Client.open();
   const doc = make(client.studio);
   doc.replaceText(doc.text.replace("color: color.dim", "color: color.nope"), doc.version);
-  const r = await client.post(`/api/documents/${doc.id}/build?device=fr955&version=${doc.version}`);
+  const r = await client.call("build", { id: doc.id, device: "fr955", version: doc.version });
   assert.equal(r.status, 400);
   assert.match(r.json.error, /does not load/);
-  assert.equal((await client.post(`/api/documents/${doc.id}/build?device=nosuchwatch&version=${doc.version}`)).status, 400);
-  assert.equal((await client.post(`/api/documents/${doc.id}/build?device=fr955&version=0`)).status, 409);
+  assert.equal((await client.call("build", { id: doc.id, device: "nosuchwatch", version: doc.version })).status, 400);
+  assert.equal((await client.call("build", { id: doc.id, device: "fr955", version: 0 })).status, 409);
 });
 
 // -- slots --

@@ -6,16 +6,18 @@ import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js
 import { isIdentifier } from "./values.js";
 import { objectUrl } from "./api.js";
 
-// An image the worker draws (a cover, a thumbnail, a hand set): hidden
-// while it loads, and when there is none.
-export function WorkerImage({ path, ...rest }) {
+// An image the worker draws (`op`: a cover, a thumbnail, a hand set):
+// hidden while it loads, and when there is none. `args` may carry a key
+// the worker ignores (`v`, the version) to draw it again.
+export function WorkerImage({ op, args, ...rest }) {
   const [src, setSrc] = useState(null);
+  const key = JSON.stringify(args);
   useEffect(() => {
     let url = null, live = true;
-    objectUrl(path).then((u) => { if (live) setSrc(url = u); else URL.revokeObjectURL(u); }, () => setSrc(null));
+    objectUrl(op, args).then((u) => { if (live) setSrc(url = u); else URL.revokeObjectURL(u); }, () => setSrc(null));
     return () => { live = false; if (url) URL.revokeObjectURL(url); };
-  }, [path]);
-  return html`<img alt="" ...${rest} data-path=${path} src=${src || undefined}
+  }, [op, key]);
+  return html`<img alt="" ...${rest} data-op=${op} data-args=${key} src=${src || undefined}
     style=${src ? undefined : "visibility:hidden"} />`;
 }
 

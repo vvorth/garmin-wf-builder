@@ -227,8 +227,7 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   useEffect(() => {
     if (!element) { setIns(null); return; }
     let live = true;
-    const q = new URLSearchParams({ element: JSON.stringify(element.path), device: device || "" });
-    api(`/api/documents/${doc.id}/inspect?${q}`).then(
+    api("inspect", { id: doc.id, element: element.path, device: device || "" }).then(
       (data) => { if (live) setIns(data); }, onError);
     return () => { live = false; };
   }, [doc.id, doc.version, element && element.path.join("."), device]);
@@ -482,7 +481,7 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
   const taken = new Set(sets.map((s) => s.name));
   return html`${sets.length ? html`<ul class="rows">${sets.map((s) => html`<li class="hand-set">
       <${WorkerImage} class="hand-thumb" alt=${s.name} title="drawn alone at 10:09:42"
-        path=${`/api/documents/${doc.id}/handset?${new URLSearchParams({ name: s.name, device, scale: 1, v: doc.version })}`} />
+        op="handset" args=${{ id: doc.id, name: s.name, device, scale: 1, v: doc.version }} />
       <div class="hand-body">
         <div class="slot-head">
           <${InlineName} value=${s.name} title="click to rename (every set: naming it follows)"

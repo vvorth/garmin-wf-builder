@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState }
   from "./vendor/preact-htm.module.js";
-import { api, enc } from "./api.js";
+import { api } from "./api.js";
 import { shortcutFor, typingIn } from "./keys.js";
 import { droppedError, enqueue, mark, next } from "./outbox.js";
 import { picksParam } from "./values.js";
@@ -23,7 +23,8 @@ import { picksParam } from "./values.js";
 // answer; `reload()` fetches the face after a refusal for being stale.
 // Returns the queue (state, for drawing; `queued`, a ref, for reading
 // now), `onDrag(ids, gesture, shown)` for a gesture and `send(request)`
-// for any other change, `{path, query, body}` under the face's URL, which
+// for any other change, `{op, args, body}` (the face's id and version are
+// added), which
 // resolves to the face it produced, or null when it was refused (the
 // refusal is shown).
 export function useOutbox({ docId, doc, frame, where, accept, reload, onError, onNotice }) {
@@ -43,13 +44,10 @@ export function useOutbox({ docId, doc, frame, where, accept, reload, onError, o
   const post = (entry, version) => {
     if (entry.gesture) {
       const which = entry.ids.length > 1 ? { elements: entry.ids } : { element: entry.ids[0] };
-      return api(`/api/documents/${docId}/drag?version=${version}`, {
-        method: "POST", body: JSON.stringify({ ...which, gesture: entry.gesture, ...entry.where }),
-      });
+      return api("drag", { id: docId, version, ...which, gesture: entry.gesture, ...entry.where });
     }
-    const { path, query = {}, body } = entry.request;
-    const q = new URLSearchParams({ ...query, version });
-    return api(`/api/documents/${docId}/${path}?${q}`, { method: "POST", body });
+    const { op, args = {}, body = null } = entry.request;
+    return api(op, { ...args, id: docId, version }, body);
   };
   const pump = useCallback(async () => {
     const entry = next(queued.current);
@@ -118,14 +116,8 @@ export function useFrame({ docId, doc, view, scale, deviceInfo, onError }) {
     if (!doc || !view.device || !doc.targets.includes(view.device)) { setFrame(null); return; }
     let live = true;
     setBusy(true);
-    const q = new URLSearchParams({ device: view.device, scale });
-    if (view.style) q.set("style", view.style);
-    if (time) q.set("time", time);
-    if (date) q.set("date", date);
-    if (view.asleep) q.set("asleep", "1");
-    if (view.aod) q.set("aod", "1");
-    if (picks) q.set("picks", picks);
-    api(`/api/documents/${docId}/frame?${q}`)
+    api("frame", { id: docId, device: view.device, scale, style: view.style, time, date,
+                   asleep: view.asleep, aod: view.aod, picks })
       .then((f) => { if (live) setFrame(f); }, onError)
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
@@ -134,7 +126,7 @@ export function useFrame({ docId, doc, view, scale, deviceInfo, onError }) {
   useEffect(() => {
     if (!view.skin || !deviceInfo || !deviceInfo.skin) { setSkin(null); return; }
     let live = true;
-    api(`/api/skin?device=${enc(view.device)}&scale=${scale}`).then((s) => { if (live) setSkin(s); }, onError);
+    api("skin", { device: view.device, scale }).then((s) => { if (live) setSkin(s); }, onError);
     return () => { live = false; };
   }, [view.skin, view.device, scale, deviceInfo && deviceInfo.skin]);
   useEffect(() => {

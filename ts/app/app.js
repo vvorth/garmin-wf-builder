@@ -4,7 +4,7 @@
 
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
-import { api, download, enc, listen } from "./api.js";
+import { api, download, listen, saveBlob } from "./api.js";
 import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
@@ -56,11 +56,7 @@ async function copyOrDownload(text, filename) {
     await navigator.clipboard.writeText(text);
     return "copied";
   } catch (_) {
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([text], { type: "text/yaml" }));
-    link.download = filename;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    saveBlob(new Blob([text], { type: "text/yaml" }), filename);
     return "downloaded";
   }
 }
@@ -101,22 +97,21 @@ function Home({ onError }) {
   const [busy, setBusy] = useState(false);
   const fileInput = useRef(null);
 
-  const load = useCallback(() => api("/api/home").then(setHome, onError), []);
+  const load = useCallback(() => api("home").then(setHome, onError), []);
   useEffect(() => { load(); }, []);
   // another tab deleted or renamed a face
   useEvents((name) => { if (name === "created" || name === "deleted" || name === "renamed") load(); });
   const [renaming, setRenaming] = useState(null);
   const rename = async (doc, to) => {
     setRenaming(null);
-    try { await api(`/api/documents/${doc.id}/rename?name=${enc(to)}`, { method: "POST" }); load(); }
+    try { await api("rename", { id: doc.id, name: to }); load(); }
     catch (e) { onError(e); }
   };
 
   const create = async () => {
     setBusy(true);
     try {
-      const doc = await api(`/api/documents/new?template=${enc(template)}&name=${enc(name)}`,
-                            { method: "POST" });
+      const doc = await api("new", { template, name });
       go(doc.id);
     } catch (e) { onError(e); } finally { setBusy(false); }
   };
@@ -125,15 +120,14 @@ function Home({ onError }) {
     if (!file) return;
     setBusy(true);
     try {
-      const doc = await api(`/api/documents/upload?filename=${enc(file.name)}`,
-                            { method: "POST", body: file });
+      const doc = await api("upload", { filename: file.name }, file);
       go(doc.id);
     } catch (e) { onError(e); } finally { setBusy(false); }
   };
 
   const remove = async (doc) => {
     if (!confirm(`Delete "${doc.name}" and its whole history? This cannot be undone.`)) return;
-    try { await api(`/api/documents/${doc.id}`, { method: "DELETE" }); load(); }
+    try { await api("delete", { id: doc.id }); load(); }
     catch (e) { onError(e); }
   };
 
@@ -178,7 +172,7 @@ function Home({ onError }) {
               ${home.documents.map((d) => html`
                 <li>
                   <span class="cover" onClick=${() => go(d.id)} title="Open">
-                    <${WorkerImage} path=${`/api/documents/${d.id}/cover?v=${d.version}`} /></span>
+                    <${WorkerImage} op="cover" args=${{ id: d.id, v: d.version }} /></span>
                   <span class="about">
                     ${renaming === d.id
                       ? html`<${AddName} label="name" placeholder="the face's name" startOpen=${true}
@@ -202,7 +196,7 @@ function Home({ onError }) {
 function Missing({ doc, onSend }) {
   if (!doc.missing.length) return null;
   const add = (reference, file) => {
-    if (file) onSend({ path: "assets", query: { filename: file.name, reference }, body: file });
+    if (file) onSend({ op: "assets", args: { filename: file.name, reference }, body: file });
   };
   return html`<div class="banner">
     <strong>Missing files:</strong>
@@ -233,8 +227,8 @@ const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: "short", 
 
 function History({ doc, onChanged, onSend, onOpen, onError }) {
   const h = doc.history;
-  const post = async (path) => {
-    try { return await api(`/api/documents/${doc.id}/${path}`, { method: "POST" }); }
+  const post = async (op, args = {}) => {
+    try { return await api(op, { id: doc.id, ...args }); }
     catch (e) { onError(e); return null; }
   };
   // the summary lists the newest changes; once asked, all of them, kept
@@ -245,17 +239,17 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
   useEffect(() => {
     if (!wantAll) return;
     let live = true;
-    api(`/api/documents/${doc.id}/history`).then((got) => { if (live) setAll(got); }, onError);
+    api("history", { id: doc.id }).then((got) => { if (live) setAll(got); }, onError);
     return () => { live = false; };
   }, [wantAll, doc.id, doc.version]);
   const states = all && all.version === doc.version ? all.states : h.states;
   const total = h.total ?? h.states.length;
-  const restore = (s) => onSend({ path: `snapshots/${s.name}/restore` });
+  const restore = (s) => onSend({ op: "restore", args: { snapshot: s.name } });
   const copy = async (s) => {
-    const created = await post(`snapshots/${s.name}/copy`);
+    const created = await post("copy", { snapshot: s.name });
     if (created) onOpen(created.id);
   };
-  const snapshotNow = async () => { if (await post("snapshots")) onChanged(null); };
+  const snapshotNow = async () => { if (await post("snapshot")) onChanged(null); };
   return html`<div class="history">
     <div class="row">
       <button onClick=${snapshotNow} title="Keep this version as a point in time">Snapshot now</button>
@@ -272,7 +266,7 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
       </li>`)}
     </ul>` : html`<div class="dim pad">None yet: one is taken every few minutes while the face changes, and on every download.</div>`}
     <div class="sub">Changes</div>
-    <${Changes} states=${states} when=${when} onGoto=${(s) => onSend({ path: "goto", query: { seq: s.seq } })} />
+    <${Changes} states=${states} when=${when} onGoto=${(s) => onSend({ op: "goto", args: { seq: s.seq } })} />
     ${states.length < total ? html`<div class="row">
       <button onClick=${() => setWantAll(true)} title="Only the newest changes are listed">Show all ${total} changes</button>
     </div>` : null}
@@ -281,7 +275,7 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
 
 function DownloadMenu({ doc }) {
   const [open, setOpen] = useState(false);
-  const save = (form) => download(`/api/documents/${doc.id}/download?form=${form}`).catch((e) => alert(e.message));
+  const save = (form) => download("download", { id: doc.id, form }).catch((e) => alert(e.message));
   return html`<div class="menu">
     <button class="primary" onClick=${() => save("auto")}>Download</button>
     <button onClick=${() => setOpen(!open)} title="Choose the format">▾</button>
@@ -324,7 +318,7 @@ function Editor({ docId, onError, onNotice }) {
   const [vocab, setVocab] = useState({});
   // the face's slots, which the Preview popover picks a type for
   const slots = (doc && doc.globals && doc.globals.slots) || [];
-  useEffect(() => { api("/api/vocabulary").then(setVocab, onError); }, []);
+  useEffect(() => { api("vocabulary").then(setVocab, onError); }, []);
   const [left, setLeft] = useState("layers");
   const [pane, setPane] = useState("face");
   const [tab, setTab] = useState("diagnostics");
@@ -344,7 +338,7 @@ function Editor({ docId, onError, onNotice }) {
     if (d.id !== docIdRef.current) return;
     setDoc((current) => (newer(current, d) ? d : current));
   }, []);
-  const loadDoc = useCallback(() => api(`/api/documents/${docId}`).then(accept, (e) => {
+  const loadDoc = useCallback(() => api("get", { id: docId }).then(accept, (e) => {
     onError(e);
     if (e.status === 404) go(null);
   }), [docId]);
@@ -370,20 +364,20 @@ function Editor({ docId, onError, onNotice }) {
   const where = useRef({});
   where.current = { device: view.device, scope: scope === "all" ? "auto" : scope };
   const { queue, queued, onDrag, send } = useOutbox({ docId, doc, frame, where, accept, reload: loadDoc, onError, onNotice });
-  const step = useCallback((which) => send({ path: which }), [send]);
+  const step = useCallback((which) => send({ op: which }), [send]);
   // One edit from the inspector or the Face panel: the server patches the
   // text, checks it and answers with the face; a refusal says why.
-  const edit = useCallback((op) => send({ path: "edit", body: JSON.stringify(op) }), [send]);
+  const edit = useCallback((op) => send({ op: "edit", args: { edit: op } }), [send]);
   const upload = useCallback((file, { font, size, reference }) => {
-    const query = { filename: file.name };
-    if (font) { query.font = font; query.size = size || "10%r"; }
-    if (reference) query.reference = reference;
-    return send({ path: "assets", query, body: file });
+    const args = { filename: file.name };
+    if (font) { args.font = font; args.size = size || "10%r"; }
+    if (reference) args.reference = reference;
+    return send({ op: "assets", args, body: file });
   }, [send]);
   // One structural edit from the Layers panel: the server patches the text,
   // checks it and answers with the face and what to select.
   const structure = useCallback(async (op) => {
-    const updated = await send({ path: "structure", body: JSON.stringify(op) });
+    const updated = await send({ op: "structure", args: { edit: op } });
     if (!updated) return;
     if (op.op === "delete") setSelected(null);
     else if (updated.select) setSelected(updated.select);
@@ -537,7 +531,7 @@ function Editor({ docId, onError, onNotice }) {
         <span class="title"><${InlineName} value=${doc.name} className="name" valid=${(t) => t.length > 0}
           why="a face's name cannot be empty" title="click to rename the face"
           onRename=${async (to) => {
-            try { const r = await api(`/api/documents/${doc.id}/rename?name=${enc(to)}`, { method: "POST" });
+            try { const r = await api("rename", { id: doc.id, name: to });
                   setDoc((d) => ({ ...d, name: r.name })); }
             catch (e) { onError(e); }
           }} /></span>
@@ -555,7 +549,7 @@ function Editor({ docId, onError, onNotice }) {
           <${Popover} label="▾" title="Go back or forward to any change" className="history-menu">
             ${(close) => html`<div class="pop-title">Changes, newest first</div>
               <${Changes} states=${h.states} when=${when}
-                onGoto=${(st) => { close(); send({ path: "goto", query: { seq: st.seq } }); }} />
+                onGoto=${(st) => { close(); send({ op: "goto", args: { seq: st.seq } }); }} />
               ${(h.total ?? h.states.length) > h.states.length ? html`<button class="more" onClick=${() => {
                 close(); setTab("history"); setFolded("lower", false); }}>
                 ${h.total - h.states.length} older in the History tab</button>` : null}`}

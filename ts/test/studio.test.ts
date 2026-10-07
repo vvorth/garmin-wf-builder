@@ -186,12 +186,12 @@ test("a summary lists the newest changes and the history lists all", async () =>
   const doc = await client.create();
   const document = client.studio.document(doc.id);
   for (let i = 0; i < HISTORY_SHOWN + 5; i++) document.commit(bumped(document, i), noAssets, `c${i}`, document.version);
-  const summary = (await client.get(`/api/documents/${doc.id}`)).json.history;
+  const summary = (await client.call("get", { id: doc.id })).json.history;
   assert.equal(summary.states.length, HISTORY_SHOWN);
   assert.equal(summary.total, HISTORY_SHOWN + 6);
   assert.ok(summary.states[0].current);
   assert.equal(summary.states[0].label, `c${HISTORY_SHOWN + 4}`);
-  const whole = (await client.get(`/api/documents/${doc.id}/history`)).json;
+  const whole = (await client.call("history", { id: doc.id })).json;
   assert.equal(whole.states.length, HISTORY_SHOWN + 6);
   assert.match(whole.states.at(-1).label, /^new/);
 });
@@ -257,32 +257,32 @@ test("an outlined group's ring travels as its image", async () => {
 
 test("new from a template", async () => {
   const client = await Client.open();
-  const r = await client.post("/api/documents/new?template=analog&name=Dial");
+  const r = await client.call("new", { template: "analog", name: "Dial" });
   assert.equal(r.status, 200);
   assert.equal(r.json.name, "Dial");
   assert.equal(r.json.version, 1);
   assert.ok(r.json.loads);
   assert.deepEqual(r.json.diagnostics.filter((d: any) => d.severity === "error"), []);
-  assert.deepEqual((await client.get("/api/home")).json.documents.map((d: any) => d.id), [r.json.id]);
-  assert.equal((await client.post("/api/documents/new?template=../x")).status, 400);
+  assert.deepEqual((await client.call("home")).json.documents.map((d: any) => d.id), [r.json.id]);
+  assert.equal((await client.call("new", { template: "../x" })).status, 400);
 });
 
 test("upload then download returns the same bytes", async () => {
   const client = await Client.open();
   const text = minimalText("Plain");
   const plain = await client.upload("plain.yaml", text);
-  const r = await client.get(`/api/documents/${plain.id}/download`);
+  const r = await client.call("download", { id: plain.id });
   assert.equal(r.filename, "plain.yaml");
   assert.equal(new TextDecoder().decode(r.body), text);
   const doc = await client.upload("show.zip", zipped({ "face.yaml": read(SHOWCASE), "assets/ChivoMono-Bold.ttf": read(CHIVO), "assets/Dynalight-Regular.ttf": read(DYNALIGHT) }));
   assert.deepEqual(doc.missing, []);
   assert.ok(doc.loads);
-  const zip = await client.get(`/api/documents/${doc.id}/download`);
+  const zip = await client.call("download", { id: doc.id });
   assert.equal(zip.filename, "showcase.zip");
   const again = readUpload("x.zip", zip.body!);
   assert.equal(again.text, readText(SHOWCASE));
   assert.deepEqual(again.files.get("assets/ChivoMono-Bold.ttf"), read(CHIVO));
-  assert.equal(new TextDecoder().decode((await client.get(`/api/documents/${doc.id}/download?form=yaml`)).body), readText(SHOWCASE));
+  assert.equal(new TextDecoder().decode((await client.call("download", { id: doc.id, form: "yaml" })).body), readText(SHOWCASE));
 });
 
 test("a missing font is listed, then added and its reference patched", async () => {
@@ -291,7 +291,7 @@ test("a missing font is listed, then added and its reference patched", async () 
   const ref = "../outline/assets/ChivoMono-Bold.ttf";
   assert.deepEqual(doc.missing, [ref]);
   assert.ok(!doc.loads);
-  const r = await client.post(`/api/documents/${doc.id}/assets?filename=Chivo.ttf&reference=${ref}&version=1`, read(CHIVO));
+  const r = await client.call("assets", { id: doc.id, filename: "Chivo.ttf", reference: ref, version: 1 }, read(CHIVO));
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const after = r.json;
   assert.deepEqual(after.missing, []);
@@ -306,35 +306,38 @@ test("a missing font is listed, then added and its reference patched", async () 
 test("an asset against an old version is refused", async () => {
   const client = await Client.open();
   const doc = await client.upload("face.yaml", read(SHOWCASE));
-  const url = `/api/documents/${doc.id}/assets`;
-  assert.equal((await client.post(`${url}?filename=a.ttf&reference=assets/ChivoMono-Bold.ttf&version=1`, read(CHIVO))).status, 200);
-  const stale = await client.post(`${url}?filename=b.ttf&reference=assets/Dynalight-Regular.ttf&version=1`, read(DYNALIGHT));
+  const asset = (filename: string, reference: string, version: number, data: Uint8Array) =>
+    client.call("assets", { id: doc.id, filename, reference, version }, data);
+  assert.equal((await asset("a.ttf", "assets/ChivoMono-Bold.ttf", 1, read(CHIVO))).status, 200);
+  const stale = await asset("b.ttf", "assets/Dynalight-Regular.ttf", 1, read(DYNALIGHT));
   assert.equal(stale.status, 409);
   assert.match(stale.json.error, /version 2/);
-  assert.equal((await client.post(`${url}?filename=b.ttf&reference=nope.ttf&version=2`, read(DYNALIGHT))).status, 400);
-  assert.equal((await client.get(`/api/documents/${doc.id}`)).json.version, 2);
+  assert.equal((await asset("b.ttf", "nope.ttf", 2, read(DYNALIGHT))).status, 400);
+  assert.equal((await client.call("get", { id: doc.id })).json.version, 2);
 });
 
 test("frames and refusals", async () => {
   const client = await Client.open();
   const doc = await client.create("minimal", "F");
-  const url = `/api/documents/${doc.id}/frame`;
-  const frame = (await client.get(`${url}?device=fenix8solar47mm&scale=1&time=12:34`)).json;
+  const frame = (await client.call("frame", { id: doc.id, device: "fenix8solar47mm", scale: 1, time: "12:34" })).json;
   assert.equal(frame.device, "fenix8solar47mm");
   assert.ok(frame.items.length > 0);
-  for (const query of ["device=vivoactive4", "device=fr955&time=25:00", "device=fr955&date=2026-02-30", "device=fr955&date=4.10.2026", "device=fr955&scale=big"]) {
-    assert.equal((await client.get(`${url}?${query}`)).status, 400, query);
+  for (const args of [{ device: "vivoactive4" }, { device: "fr955", time: "25:00" }, { device: "fr955", date: "2026-02-30" },
+    { device: "fr955", date: "4.10.2026" }, { device: "fr955", scale: "big" }, { device: "fr955", scale: 1.5 }]) {
+    assert.equal((await client.call("frame", { id: doc.id, ...args })).status, 400, JSON.stringify(args));
   }
-  assert.equal((await client.get("/api/documents/" + "0".repeat(32))).status, 404);
-  assert.equal((await client.get("/api/documents/../../etc")).status, 404);
+  assert.equal((await client.call("get", { id: "0".repeat(32) })).status, 404);
+  assert.equal((await client.call("get", { id: "../../etc" })).status, 404);
+  assert.equal((await client.call("get", { id: 7 })).status, 400);
+  assert.equal((await client.call("teapot", { id: doc.id })).status, 400);
 });
 
 test("delete removes the document and its history", async () => {
   const client = await Client.open();
   const doc = await client.create();
-  assert.equal((await client.delete(`/api/documents/${doc.id}`)).status, 200);
-  assert.equal((await client.get(`/api/documents/${doc.id}`)).status, 404);
-  assert.deepEqual((await client.get("/api/home")).json.documents, []);
+  assert.equal((await client.call("delete", { id: doc.id })).status, 200);
+  assert.equal((await client.call("get", { id: doc.id })).status, 404);
+  assert.deepEqual((await client.call("home")).json.documents, []);
   assert.deepEqual(client.events.at(-1), ["deleted", { id: doc.id }]);
 });
 
@@ -405,7 +408,7 @@ test("a write the store cannot make is reported, not acknowledged", async () => 
   backend.put = async () => {
     throw new Error("disk full");
   };
-  const r = await client.post(`/api/documents/${doc.id}/edit?version=1`, { op: "set", path: ["face", "version"], value: "2.0.0" });
+  const r = await client.call("edit", { id: doc.id, version: 1, edit: { op: "set", path: ["face", "version"], value: "2.0.0" } });
   assert.equal(r.status, 507);
   assert.match(r.json.error, /disk full/);
   // what was not written is not there for the next session
@@ -535,35 +538,35 @@ test("pruning compacts every face", async () => {
 test("history through the requests", async () => {
   const client = await Client.open();
   const doc = await client.upload("face.yaml", read(SHOWCASE));
-  const url = `/api/documents/${doc.id}`;
-  assert.equal((await client.post(`${url}/undo?version=1`)).status, 400);
-  const added = (await client.post(`${url}/assets?filename=a.ttf&reference=assets/ChivoMono-Bold.ttf&version=1`, read(CHIVO))).json;
+  const id = doc.id;
+  assert.equal((await client.call("undo", { id, version: 1 })).status, 400);
+  const added = (await client.call("assets", { id, filename: "a.ttf", reference: "assets/ChivoMono-Bold.ttf", version: 1 }, read(CHIVO))).json;
   assert.ok(added.history.can_undo);
-  assert.equal((await client.post(`${url}/undo?version=1`)).status, 409);
-  const undone = (await client.post(`${url}/undo?version=2`)).json;
+  assert.equal((await client.call("undo", { id, version: 1 })).status, 409);
+  const undone = (await client.call("undo", { id, version: 2 })).json;
   assert.equal(undone.version, 3);
   assert.equal(undone.missing.length, 2);
   assert.ok(undone.history.can_redo);
-  const redone = (await client.post(`${url}/redo?version=3`)).json;
+  const redone = (await client.call("redo", { id, version: 3 })).json;
   assert.equal(redone.missing.length, 1);
-  const [snap] = (await client.post(`${url}/snapshots`)).json.snapshots;
+  const [snap] = (await client.call("snapshot", { id })).json.snapshots;
   assert.equal(snap.reason, "manual");
   assert.ok(snap.current);
-  await client.get(`${url}/download`);
-  assert.equal((await client.get(url)).json.history.snapshots.length, 1);
-  assert.equal((await client.post(`${url}/snapshots/${snap.name}/restore?version=4`)).json.version, 5);
-  const copy = (await client.post(`${url}/snapshots/${snap.name}/copy`)).json;
+  await client.call("download", { id });
+  assert.equal((await client.call("get", { id })).json.history.snapshots.length, 1);
+  assert.equal((await client.call("restore", { id, snapshot: snap.name, version: 4 })).json.version, 5);
+  const copy = (await client.call("copy", { id, snapshot: snap.name })).json;
   assert.notEqual(copy.id, doc.id);
   assert.deepEqual(copy.missing, redone.missing);
-  assert.equal((await client.post(`${url}/snapshots/00000001-1/restore?version=5`)).status, 404);
-  assert.equal((await client.post(`${url}/snapshots/..%2F..%2Fmeta/restore?version=5`)).status, 404);
+  assert.equal((await client.call("restore", { id, snapshot: "00000001-1", version: 5 })).status, 404);
+  assert.equal((await client.call("restore", { id, snapshot: "../../meta", version: 5 })).status, 404);
 });
 
 test("a download snapshots a version that has none", async () => {
   const client = await Client.open();
   const doc = await client.create();
-  await client.get(`/api/documents/${doc.id}/download`);
-  const [snap] = (await client.get(`/api/documents/${doc.id}`)).json.history.snapshots;
+  await client.call("download", { id: doc.id });
+  const [snap] = (await client.call("get", { id: doc.id })).json.history.snapshots;
   assert.equal(snap.reason, "download");
   assert.equal(snap.seq, 1);
 });
@@ -571,10 +574,10 @@ test("a download snapshots a version that has none", async () => {
 test("a frame is drawn on the date asked for", async () => {
   const client = await Client.open();
   const doc = await client.create("analog");
-  const url = `/api/documents/${doc.id}/frame?device=fr955&scale=1`;
-  const sunday = (await client.get(`${url}&date=2026-10-04`)).json.frame;
-  const saturday = (await client.get(`${url}&date=2026-03-28`)).json.frame;
-  const sample = (await client.get(url)).json.frame;
+  const frame = async (date?: string) => (await client.call("frame", { id: doc.id, device: "fr955", scale: 1, date })).json.frame;
+  const sunday = await frame("2026-10-04");
+  const saturday = await frame("2026-03-28");
+  const sample = await frame();
   assert.equal(new Set([sunday, saturday, sample]).size, 3);
 });
 
@@ -592,9 +595,9 @@ test("a change is announced with the tab that made it", async () => {
   const client = await Client.open();
   const doc = await client.create();
   client.tab = "tab-1";
-  await client.post(`/api/documents/${doc.id}/edit?version=1`, { op: "set", path: ["face", "version"], value: "2.0.0" });
+  await client.call("edit", { id: doc.id, version: 1, edit: { op: "set", path: ["face", "version"], value: "2.0.0" } });
   client.tab = null;
-  await client.post(`/api/documents/${doc.id}/undo?version=2`);
+  await client.call("undo", { id: doc.id, version: 2 });
   assert.deepEqual(client.events.filter(([n]) => n === "changed").map(([, d]) => [d["tab"], d["version"]]), [["tab-1", 2], [null, 3]]);
 });
 
@@ -603,46 +606,46 @@ test("goto moves to any change in one step and back", async () => {
   const doc = await client.create();
   const document = client.studio.document(doc.id);
   for (let i = 0; i < 4; i++) document.commit(bumped(document, i), noAssets, `c${i}`, document.version);
-  const url = `/api/documents/${doc.id}`;
-  const states = (await client.get(url)).json.history.states;
-  const back = (await client.post(`${url}/goto?seq=${states.at(-1).seq}&version=${document.version}`)).json;
+  const id = doc.id;
+  const states = (await client.call("get", { id })).json.history.states;
+  const back = (await client.call("goto", { id, seq: states.at(-1).seq, version: document.version })).json;
   assert.equal(back.history.redo, "c0");
   assert.ok(!back.history.can_undo);
   assert.equal(versionOf(document), "1.0.0");
   assert.equal(back.history.states[0].label, "c3");
-  const ahead = (await client.post(`${url}/goto?seq=${states[0].seq}&version=${back.version}`)).json;
+  const ahead = (await client.call("goto", { id, seq: states[0].seq, version: back.version })).json;
   assert.equal(versionOf(document), "1.0.3");
   assert.ok(!ahead.history.can_redo);
   assert.equal(ahead.history.undo, "c3");
-  const undone = (await client.post(`${url}/undo?version=${ahead.version}`)).json;
+  const undone = (await client.call("undo", { id, version: ahead.version })).json;
   assert.equal(versionOf(document), "1.0.2");
   assert.equal(undone.history.redo, "c3");
   const current = undone.history.states.find((s: any) => s.current).seq;
-  assert.equal((await client.post(`${url}/goto?seq=${current}&version=${undone.version}`)).status, 400);
-  assert.equal((await client.post(`${url}/goto?seq=999&version=${undone.version}`)).status, 400);
+  assert.equal((await client.call("goto", { id, seq: current, version: undone.version })).status, 400);
+  assert.equal((await client.call("goto", { id, seq: 999, version: undone.version })).status, 400);
 });
 
 test("a face is renamed, and the library and its tabs hear", async () => {
   const backend = new MemoryBackend();
   const client = new Client(await newStudio(backend));
   const doc = await client.create();
-  const url = `/api/documents/${doc.id}`;
-  assert.equal((await client.post(`${url}/rename?name=%20Morning%20%20Run%20`)).json.name, "Morning Run");
-  assert.equal((await client.get(url)).json.name, "Morning Run");
-  assert.equal((await client.get("/api/home")).json.documents[0].name, "Morning Run");
+  const id = doc.id;
+  assert.equal((await client.call("rename", { id, name: " Morning  Run " })).json.name, "Morning Run");
+  assert.equal((await client.call("get", { id })).json.name, "Morning Run");
+  assert.equal((await client.call("home")).json.documents[0].name, "Morning Run");
   assert.equal((await Store.open(backend)).meta(doc.id).name, "Morning Run");
-  assert.equal((await client.post(`${url}/rename?name=%20`)).status, 400);
+  assert.equal((await client.call("rename", { id, name: " " })).status, 400);
   assert.ok(client.events.some(([n, d]) => n === "renamed" && d["name"] === "Morning Run"));
-  assert.equal((await client.get(url)).json.version, doc.version);
+  assert.equal((await client.call("get", { id })).json.version, doc.version);
 });
 
 test("the library shows each face on its first target", async () => {
   const client = await Client.open();
   const doc = await client.create();
-  const cover = await client.get(`/api/documents/${doc.id}/cover`);
+  const cover = await client.call("cover", { id: doc.id });
   assert.equal(cover.status, 200);
   const png = decodePng(cover.body!)!;
   assert.deepEqual([png.width, png.height], [260, 260]);
   const broken = await client.upload("b.yaml", "format: 2\n");
-  assert.equal((await client.get(`/api/documents/${broken.id}/cover`)).status, 404);
+  assert.equal((await client.call("cover", { id: broken.id })).status, 404);
 });

@@ -170,7 +170,7 @@ test("the colour axes are written as lists", async () => {
 
 test("the vocabulary names the 64", async () => {
   const client = await Client.open();
-  const mip = (await client.get("/api/vocabulary")).json.mip;
+  const mip = (await client.call("vocabulary")).json.mip;
   assert.equal(mip.length, 64);
   assert.deepEqual(mip[0], { name: "white", value: "#FFFFFF", label: "White" });
 });
@@ -424,7 +424,7 @@ test("a set is drawn alone", async () => {
   const client = await Client.open();
   const doc = make(client.studio);
   edit(doc, { op: "add_hand_set", name: "dial", preset: "baton" });
-  const got = await client.get(`/api/documents/${doc.id}/handset?name=dial&device=fr955&scale=2`);
+  const got = await client.call("handset", { id: doc.id, name: "dial", device: "fr955", scale: 2 });
   assert.equal(got.status, 200);
   assert.equal(got.type, "image/png");
   const image = decodePng(got.body!)!;
@@ -432,7 +432,7 @@ test("a set is drawn alone", async () => {
   // cropped to its ink: some pixel on each edge is drawn
   const alpha = (x: number, y: number): number => image.pixels[(y * image.width + x) * 4 + 3]!;
   assert.ok([...Array(image.width).keys()].some((x) => alpha(x, 0)) && [...Array(image.height).keys()].some((y) => alpha(0, y)));
-  const missing = await client.get(`/api/documents/${doc.id}/handset?name=nope&device=fr955`);
+  const missing = await client.call("handset", { id: doc.id, name: "nope", device: "fr955" });
   assert.equal(missing.status, 400);
   assert.match(missing.json.error, /no hand set called nope/);
 });
