@@ -2,7 +2,7 @@
 // root, without the user's own Garmin fonts.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -132,7 +132,7 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(nope.code === 1 && nope.stderr.includes("no such command 'nope'") && nope.stderr.includes("validate"));
   });
 
-  test("preview: a bad time, a non-target device, stdout, -d, quiet, a heat map, conflicts", () => {
+  test("preview: a bad time, a non-target device, stdout, -d, quiet, conflicts (a heat map is in slow/)", () => {
     const bad = wfb(["preview", "examples/features/analog/face.yaml", "--time", "not-a-time", "-d", "fenix8solar47mm", "-o", join(scratch(), "p")]);
     assert.ok(bad.code === 1 && bad.stderr.includes("not-a-time") && bad.stderr.includes("HH:MM"));
     const out = scratch();
@@ -156,12 +156,6 @@ describe("the command line", { concurrency: true }, () => {
     const quietDir = scratch();
     const quiet = wfb(["preview", SUN, "-q", "-o", quietDir, "--color", "never"]);
     assert.ok(quiet.code === 0 && quiet.stdout === "" && existsSync(join(quietDir, "fenix8solar47mm.png")));
-    const cwd = scratch();
-    const heat = wfb(["preview", join(REPO_ROOT, "examples/features/aod/face.yaml"), "-d", "fenix847mm", "--heatmap", "--scale", "1", "-o", "-"], { cwd });
-    assert.equal(heat.code, 0, heat.stderr);
-    const heatPng = decodePng(new Uint8Array(heat.bytes))!;
-    assert.deepEqual([heatPng.width, heatPng.height], [454, 454]);
-    assert.deepEqual(readdirSync(cwd), []);
     for (const [extra, named] of [
       [["--time", "10:00", "--minute", "5"], "--time and --minute"], [["--heatmap", "--minute", "5"], "--minute and --heatmap"],
       [["--heatmap", "--time", "10:00"], "--time and --heatmap"], [["--style", "x", "--all-styles"], "--style and --all-styles"],

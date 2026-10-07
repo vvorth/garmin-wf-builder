@@ -610,7 +610,8 @@ diff of `ts/test/goldens/`.
 The slow suite builds every design with the real `monkeyc` and asserts no
 `monkeyc` diagnostic and a `.prg` for every device: the build bar is
 warning-free, not merely successful. `ts/slow/` holds it, over
-`ts/test/corpus/slow-designs.json.gz` and every example and fixture.
+`ts/test/corpus/slow-designs.json.gz` and every example and fixture, and
+runs `wfb preview --heatmap`, which renders every minute of an hour.
 
 ## What is decided
 

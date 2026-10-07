@@ -3,9 +3,9 @@
 Loaded automatically when working under `ts/test/`.
 
 - **Fast suite:** `npm test` in `ts/` (`node --test`), plus `npm run
-  typecheck`. The slow suite, `npm run test:slow` (`ts/slow/`), is the only
-  one that runs the real `monkeyc`: it builds every slow-test design, every
-  example and every fixture.
+  typecheck`. The slow suite, `npm run test:slow` (`ts/slow/`), runs the real `monkeyc`
+  (every slow-test design, every example and every fixture) and the CLI's
+  AOD heat map, too slow for the fast suite.
 - **Never pipe a test run through `tail`, `head` or `grep`.**
   - A cut-off log can hide the failures and the summary, and then the
     whole suite has to be rerun just to read it.
