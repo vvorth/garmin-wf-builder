@@ -14,6 +14,7 @@ import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
 import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js";
+import { HelpDialog } from "./help.js";
 import { SHORTCUTS } from "./keys.js";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
 
@@ -96,6 +97,7 @@ function Home({ onError }) {
   const [name, setName] = useState("My Face");
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(false);
   const fileInput = useRef(null);
 
   const load = useCallback(() => api("home").then(setHome, onError), []);
@@ -136,8 +138,9 @@ function Home({ onError }) {
   const blurb = (home.templates.find((t) => t.name === template) || {}).blurb;
   return html`
     <div class="home">
-      <h1>wfb studio</h1>
+      <h1>wfb studio <button class="help-open" onClick=${() => setHelp(true)} title="The README and the guide">Help</button></h1>
       <div class="dim">Create a watch face, or open one to edit. Download it to save.</div>
+      ${help ? html`<${HelpDialog} start="README.md" onClose=${() => setHelp(false)} />` : null}
       <div class="cards">
         <div class="card">
           <h2>New face</h2>
@@ -557,6 +560,7 @@ function Editor({ docId, onError, onNotice }) {
         <span class="spacer"></span>
         ${counts.error ? html`<button class="errors" onClick=${showErrors} title="Show the errors in Diagnostics">
             ${counts.error} error${counts.error > 1 ? "s" : ""}</button>` : null}
+        <button title="The README and the guide" onClick=${() => setDialog("help")}>Help</button>
         <button class="keys-help" title="Keyboard shortcuts (?)" onClick=${() => setDialog("keys")}>?</button>
         <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
                 onClick=${() => setDialog("build")}>Build…</button>
@@ -694,6 +698,7 @@ function Editor({ docId, onError, onNotice }) {
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
                                                onClose=${() => setDialog(null)} />` : null}
     ${dialog === "keys" ? html`<${ShortcutHelp} onClose=${() => setDialog(null)} />` : null}
+    ${dialog === "help" ? html`<${HelpDialog} start="docs/guide/studio.md" onClose=${() => setDialog(null)} />` : null}
     ${dialog === "calibrate" ? html`<${CalibrateDialog} current=${pxPerInch} onClose=${() => setDialog(null)}
         onSave=${(v) => {
           try { localStorage.setItem("wfb-css-px-per-inch", String(v)); } catch (_) { /* private mode */ }

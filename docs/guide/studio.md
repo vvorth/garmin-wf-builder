@@ -137,6 +137,11 @@ the middle button, or hold **Space** and drag; the wheel scrolls too.
 **?** (or the **?** button in the top bar) lists every shortcut. None of
 them acts while you type in a field or the YAML tab.
 
+**Help** (in the top bar, and beside the title on the faces page) opens
+this guide and the README in a popup: links between pages open there,
+with **Back** to return and **Contents** for the chapter list; a link to
+an example face or any other file opens in a new tab.
+
 **Skin** draws the watch round its screen, as the simulator does, at the
 same zoom; some watches' files have no skin, and the box is then off.
 

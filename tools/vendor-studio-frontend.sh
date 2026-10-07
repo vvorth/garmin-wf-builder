@@ -14,9 +14,11 @@
 #   tools/studio-frontend/ (pinned by its package-lock.json, `npm ci`), with
 #   schema descriptions rendered as plain text instead of markdown-it and
 #   Shiki. Every bundled package's licence goes into LICENSES-codemirror.
+# - marked's `lib/marked.esm.js`: the Help popup's markdown, as published.
 set -euo pipefail
 
 HTM_VERSION=3.1.1
+MARKED_VERSION=18.1.0
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="$root/ts/app/vendor"
@@ -35,6 +37,11 @@ cp package/LICENSE "$out/LICENSE-htm"
 npm pack --silent "preact@$preact_range" >/dev/null
 mkdir preact && tar xzf preact-*.tgz -C preact
 cp preact/package/LICENSE "$out/LICENSE-preact"
+
+npm pack --silent "marked@$MARKED_VERSION" >/dev/null
+mkdir marked && tar xzf "marked-$MARKED_VERSION.tgz" -C marked
+cp marked/package/lib/marked.esm.js "$out/marked.esm.js"
+cp marked/package/LICENSE "$out/LICENSE-marked"
 
 # CodeMirror: one bundle from the pinned packages
 cp -R "$root/tools/studio-frontend" "$work/cm"
@@ -62,6 +69,8 @@ LICENSE-htm           htm (Apache-2.0)
 LICENSE-preact        Preact (MIT)
 codemirror.module.js  $cm_versions (tools/studio-frontend, esbuild, markdown as plain text)
 LICENSES-codemirror   every package in codemirror.module.js, with its version
+marked.esm.js         marked@$MARKED_VERSION lib/marked.esm.js (the Help popup's markdown)
+LICENSE-marked        marked (MIT)
 EOF
 echo "vendored into $out:"
 cat "$out/VERSIONS"

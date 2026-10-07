@@ -5,9 +5,9 @@ import { call } from "./api.js";
 import { html, useEffect, useState } from "./vendor/preact-htm.module.js";
 import { CARD_MM, CSS_PX_PER_INCH, calibrate } from "./zoom.js";
 
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children, className = "" }) {
   return html`<div class="modal-back" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <div class="modal" role="dialog" aria-label=${title}>
+    <div class=${"modal " + className} role="dialog" aria-label=${title}>
       <div class="modal-head"><strong>${title}</strong>
         <button class="reset" onClick=${onClose} title="Close" aria-label="Close">×</button></div>
       ${children}

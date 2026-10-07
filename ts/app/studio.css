@@ -417,3 +417,17 @@ h3.fold:hover { color: var(--text); }
 .modal-body.shortcuts dt, .modal-body.shortcuts dd { margin: 0; }
 kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
 .topbar .keys-help { width: 26px; padding-left: 0; padding-right: 0; }
+
+/* Help: the README and the guide */
+.modal.help { width: min(900px, calc(100vw - 32px)); height: calc(100vh - 32px); }
+.help-nav { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.help-nav code { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+h1 .help-open { font-size: 13px; vertical-align: middle; margin-left: 8px; }
+.modal-body.markdown { display: block; line-height: 1.5; }
+.markdown img { max-width: 100%; height: auto; }
+.markdown pre { background: var(--bg); padding: 8px 10px; border-radius: 6px; overflow: auto; }
+.markdown code { font-size: .92em; }
+.markdown table { border-collapse: collapse; margin: 8px 0; }
+.markdown th, .markdown td { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; }
+.markdown blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--dim); }
+.markdown a { color: var(--accent); }

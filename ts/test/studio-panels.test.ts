@@ -344,6 +344,12 @@ test("the server sends the app, the device digest, a device's extras, and refuse
     assert.ok(body.calls.length > 0);
     assert.equal((await fetch(url("/api/builds/" + "0".repeat(32)))).status, 404);
     assert.equal((await fetch(url("/api/schema"))).status, 200);
+    const help = await fetch(url("/help/docs/guide/studio.md"));
+    assert.match(help.headers.get("content-type") ?? "", /^text\/markdown/);
+    assert.equal((await fetch(url("/help/docs/screenshots/align.png"))).headers.get("content-type"), "image/png");
+    for (const outside of ["ts/package.json", "docs%2F..%2Fts%2Fpackage.json", "docs%2F..%2F..%2Fetc%2Fpasswd"]) {
+      assert.equal((await fetch(url("/help/" + outside))).status, 404, outside);
+    }
   } finally {
     await server.close();
   }

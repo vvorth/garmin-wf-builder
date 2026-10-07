@@ -14,6 +14,8 @@
 //   font file its metrics read, recorded as the compiler looks them up, so
 //   the browser answers the same lookups the same way;
 // - `GET /api/schema`, `GET /api/icon-font`;
+// - `GET /help/<path>`: the README, `LICENSE`, `docs/` and `examples/`,
+//   read-only, for the Help popup;
 // - `POST /api/build?device=&stem=`: a face's bundle in, built with
 //   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`.
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -48,7 +50,10 @@ const LOOPBACK = ["127.0.0.1", "localhost", "::1"];
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".map": "application/json", ".ttf": "font/ttf", ".png": "image/png", ".svg": "image/svg+xml",
+  ".md": "text/markdown; charset=utf-8", ".yaml": "text/plain; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".jpg": "image/jpeg", ".gif": "image/gif", "": "text/plain; charset=utf-8",
 };
+/** What `/help/` serves: the files a doc links to, never the compiler or the user's licensed `vendor/`. */
+const HELP = /^(README\.md|LICENSE|docs\/.+|examples\/.+)$/;
 /** The `api.debug.xml` tags `Device` reads: a function, a scope, a module. */
 const DIGEST_TAG = /<(functionEntry|apiScopeEntry|dataEntry)\b[^>]*>/g;
 
@@ -234,6 +239,10 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
       if (path.startsWith("/static/")) return sendFile(response, APP, path.slice("/static/".length));
       if (path === "/dist/worker.js") return send(response, 200, worker, "text/javascript; charset=utf-8");
       if (path === "/dist/raster.js") return send(response, 200, raster, "text/javascript; charset=utf-8");
+      if (path.startsWith("/help/")) {
+        const relative = normalize(decodeURIComponent(path.slice("/help/".length)));
+        return HELP.test(relative) ? sendFile(response, REPO_ROOT, relative) : sendJson(response, 404, { error: "not found" });
+      }
       if (path === "/api/schema") return send(response, 200, readFileSync(SCHEMA), "application/schema+json");
       if (path === "/api/icon-font") {
         if (!existsSync(ICON_FONT)) return sendJson(response, 404, { error: "the icon font is not installed: run ./tools/setup-env.sh" });
