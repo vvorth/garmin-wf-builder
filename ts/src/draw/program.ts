@@ -8,28 +8,28 @@
 //
 // Each type is a plain object tagged by `t`, with the Python dataclass's
 // name, and built by the function of the same name. A number keeps Python's
-// int/float distinction as `expr.ts` does: an integral float is a `PyFloat`,
+// int/float distinction as `expr.ts` does: an integral float is a `WholeFloat`,
 // since Monkey C's `/` truncates two `Number`s and not a `Float`.
 import type { FontMetric } from "../devices/device.ts";
-import type { PyFloat } from "../edit/yaml.ts";
+import type { WholeFloat } from "../edit/yaml.ts";
 import type { ConfigDataSlot, Element, Expression } from "../ir/model.ts";
 import type { ResolvedFace, RotatablePart } from "../layout.ts";
 import type { IntBox } from "../units.ts";
 import * as complications from "../complications.ts";
 import type { AodStyle, RingPass } from "../emit/monkeyc/common.ts";
 
-/** A number as Python holds it: an int, a non-integral float, or a `PyFloat`. */
-export type PyNum = number | PyFloat;
+/** A number as the watch types it: a whole `number` is a Number; a non-whole one, or a `WholeFloat`, is a Float. */
+export type WatchNumber = number | WholeFloat;
 
 // -- numbers --------------------------------------------------------------------
 
 /** A `Layout` constant: `Layout.<name>` on the watch, `value` on this device. */
-export interface Const { t: "Const"; name: string; value: PyNum }
-export const Const = (name: string, value: PyNum): Const => ({ t: "Const", name, value });
+export interface Const { t: "Const"; name: string; value: WatchNumber }
+export const Const = (name: string, value: WatchNumber): Const => ({ t: "Const", name, value });
 
 /** A number written into the call itself. */
-export interface Lit { t: "Lit"; value: PyNum }
-export const Lit = (value: PyNum): Lit => ({ t: "Lit", value });
+export interface Lit { t: "Lit"; value: WatchNumber }
+export const Lit = (value: WatchNumber): Lit => ({ t: "Lit", value });
 
 /** `base` moved `by` pixels for one `outline:` stamp. */
 export interface Shifted { t: "Shifted"; base: Num; by: number }

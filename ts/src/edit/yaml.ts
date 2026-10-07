@@ -293,13 +293,13 @@ class Composer {
 // -- constructing data: ruamel's safe constructor --------------------------------
 
 /**
- * A float whose value is integral (`1.0`, `0.0`, `1e3`). Python keeps it a
- * `float`, apart from the `int` 1, and the compiler types and prints the
- * two differently (`0.0` is a Float reading, `0` a Number). Every other
- * number in YAML data is a plain number: a non-integral one can only be a
- * float, and an integral one is an int.
+ * A float whose value is whole (`1.0`, `0.0`, `1e3`): still a float, apart
+ * from the integer `1`, as YAML reads it and as Monkey C types it (`0.0` is
+ * a Float, `0` a Number), and the compiler types and prints the two
+ * differently. Every other number is a plain `number`: a non-whole one can
+ * only be a float, and a whole one is an integer.
  */
-export class PyFloat {
+export class WholeFloat {
   readonly value: number;
 
   constructor(value: number) {
@@ -317,7 +317,7 @@ export class Timestamp {
 }
 
 export type DataKey = string | number | boolean | null;
-export type Data = null | boolean | number | PyFloat | string | Timestamp | Data[] | Map<DataKey, Data>;
+export type Data = null | boolean | number | WholeFloat | string | Timestamp | Data[] | Map<DataKey, Data>;
 
 /** The plain data ruamel's safe constructor builds from `node`. */
 export function construct(node: YamlNode | null): Data {
@@ -440,7 +440,7 @@ export function mergeSources(node: MappingNode): { sources: MappingNode[]; posit
 export function mappingKey(k: YamlNode): DataKey {
   const key = construct(k);
   if (key instanceof Map || Array.isArray(key)) throw new YamlError("found unhashable key", k.start.line + 1, k.start.column + 1);
-  return key instanceof PyFloat ? key.value : key instanceof Timestamp ? key.iso : key;
+  return key instanceof WholeFloat ? key.value : key instanceof Timestamp ? key.iso : key;
 }
 
 const BOOLS: Record<string, boolean> = { yes: true, no: false, y: true, n: false, true: true, false: false, on: true, off: false };
@@ -453,7 +453,7 @@ function scalarValue(node: ScalarNode): Data {
     case "int": return constructInt(value);
     case "float": {
       const number = constructFloat(value);
-      return Number.isInteger(number) ? new PyFloat(number) : number;
+      return Number.isInteger(number) ? new WholeFloat(number) : number;
     }
     case "timestamp": return constructTimestamp(value);
     default: return value;
@@ -519,7 +519,7 @@ export function sameData(a: Data, b: Data): boolean {
   }
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => sameData(v, b[i]!));
   if (a instanceof Timestamp && b instanceof Timestamp) return a.iso === b.iso;
-  const x = a instanceof PyFloat ? a.value : a, y = b instanceof PyFloat ? b.value : b;
+  const x = a instanceof WholeFloat ? a.value : a, y = b instanceof WholeFloat ? b.value : b;
   if (typeof x === "number" && typeof y === "number") return x === y || (Number.isNaN(x) && Number.isNaN(y));
   return x === y;
 }

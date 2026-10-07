@@ -23,7 +23,7 @@ import {
 import { type Color, Color as ColorClass, hasPaletteRule, LUMINANCE_WEIGHTS, srgbChannelToLinear } from "./palette.ts";
 import { deepEqual, formatFixed, quoted, roundHalfEven, truthy } from "./py.ts";
 import * as aodMask from "./aod_mask.ts";
-import { PyFloat } from "./edit/yaml.ts";
+import { WholeFloat } from "./edit/yaml.ts";
 import type { ExprValue } from "./expr.ts";
 import { type PreviewOptions, previewOptions, render } from "./preview.ts";
 import { ellipse, type Image, image as newImage } from "./raster/pillow.ts";
@@ -915,7 +915,7 @@ export const AOD_BURN_IN_THRESHOLD = 0.10;
 export const AOD_BURN_IN_SAMPLE_TIMES: readonly [number, number, number][] = [[10, 8, 0], [20, 8, 0]];
 
 /** Full battery, so a gauge or graph on it is measured at its own worst case too. */
-export const AOD_BURN_IN_SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>([["system.battery", new PyFloat(100)]]);
+export const AOD_BURN_IN_SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>([["system.battery", new WholeFloat(100)]]);
 
 const AOD_BURN_IN_TOP_N = 3;
 

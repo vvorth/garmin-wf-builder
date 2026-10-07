@@ -6,7 +6,7 @@ import * as kinds from "../../kinds/index.ts";
 import { type Placed, PlacedText, type ResolvedFace } from "../../layout.ts";
 import { stringLiteral } from "../../mcsource.ts";
 import { VERSION } from "../../version.ts";
-import type { PyNum } from "../../draw/program.ts";
+import type { WatchNumber } from "../../draw/program.ts";
 import { isFloat, val } from "../../draw/barrel.ts";
 import { Color } from "../../palette.ts";
 import { floatRepr } from "../../py.ts";
@@ -286,7 +286,7 @@ export function describe(placed: Placed): string {
 }
 
 /** A `Layout` constant's declared Monkey C type. */
-export function mcType(value: PyNum | string | boolean | McLiteral): string {
+export function mcType(value: WatchNumber | string | boolean | McLiteral): string {
   if (value instanceof McLiteral) return value.type;
   if (typeof value === "boolean") return "Boolean";
   if (typeof value === "string") return "String";
@@ -298,7 +298,7 @@ export function mcBool(value: boolean): string {
 }
 
 /** A `Layout` constant's value as Monkey C: a Float with a trailing `f`. */
-export function mcNumber(value: PyNum | string | boolean | McLiteral): string {
+export function mcNumber(value: WatchNumber | string | boolean | McLiteral): string {
   if (value instanceof McLiteral) return value.code;
   if (typeof value === "boolean") return mcBool(value);
   if (typeof value === "string") return stringLiteral(value);

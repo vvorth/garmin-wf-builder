@@ -20,7 +20,7 @@ import type { BakedFont, GlyphBox } from "../fonts/bmfont.ts";
 import * as barrel from "./barrel.ts";
 import { flt, isFloat, Pulled, val } from "./barrel.ts";
 import {
-  type Cond, FillPolygon, type Font, type For, Lit, type Num, type Op, type Paint, Primitive, type PyNum, SetPen, type Str,
+  type Cond, FillPolygon, type Font, type For, Lit, type Num, type Op, type Paint, Primitive, type WatchNumber, SetPen, type Str,
   type Part, type SeriesDraw, type SlotText, type LetAutoScale, type ArcSpan, type ArcProgress, type Text, type Glyph,
 } from "./program.ts";
 
@@ -47,13 +47,13 @@ export function readValue(e: Expression, values: Values): ExprValue {
 }
 
 /** A reading as a number the program computes with. */
-function asNum(value: unknown): PyNum {
+function asNum(value: unknown): WatchNumber {
   const n = expr.asNumber(value);
   return typeof n === "bigint" ? Number(n) : n;
 }
 
 /** One Monkey C operator on two numbers: two `Number`s stay whole, and `/` and `%` on them truncate. */
-function arith(a: PyNum | null, op: string, b: PyNum | null): PyNum | null {
+function arith(a: WatchNumber | null, op: string, b: WatchNumber | null): WatchNumber | null {
   if (a === null || b === null) return null;
   const whole = !isFloat(a) && !isFloat(b);
   const x = val(a), y = val(b);
@@ -92,8 +92,8 @@ export class Measure {
 
 /** `n` on this device, in the always-on frame when `aod`: a number, or `null` when a reading in it is absent. */
 export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValue> = new Map(), values: Values = new Map(),
-  measure: Measure | null = null): PyNum | null {
-  const value = (m: Num): PyNum | null => numValue(m, aod, env, values, measure);
+  measure: Measure | null = null): WatchNumber | null {
+  const value = (m: Num): WatchNumber | null => numValue(m, aod, env, values, measure);
   switch (n.t) {
     case "TextWidth": {
       if (measure === null) throw new Error("a text measurement evaluated without a renderer");
@@ -105,7 +105,7 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
       return measure.fontHeight(n.font);
     case "Const": case "Lit": return n.value;
     case "FloatLit": return flt(n.value);
-    case "NumLocal": return env.get(n.name) as PyNum | null;
+    case "NumLocal": return env.get(n.name) as WatchNumber | null;
     case "Read": {
       const found = readValue(n.expr, values);
       return found === null ? null : asNum(found);
@@ -115,7 +115,7 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
     case "Call": {
       const args = n.args.map(value);
       if (args.some((arg) => arg === null)) return null;
-      return barrel.CALLS.get(n.fn)!(...(args as PyNum[]));
+      return barrel.CALLS.get(n.fn)!(...(args as WatchNumber[]));
     }
     case "Conv": {
       const inner = value(n.inner);
@@ -131,7 +131,7 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
     default: {
       // A chain of infix operators, printed bare: evaluate it the way Monkey
       // C parses the printed text, not the way the tree nests.
-      const terms: (PyNum | null)[] = [];
+      const terms: (WatchNumber | null)[] = [];
       const ops: string[] = [];
       flatten(n, terms, ops, value);
       for (const level of [2, 1]) {
@@ -151,7 +151,7 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
 }
 
 /** `n`'s printed infix chain as its terms and operators. */
-function flatten(n: Num, terms: (PyNum | null)[], ops: string[], value: (m: Num) => PyNum | null): void {
+function flatten(n: Num, terms: (WatchNumber | null)[], ops: string[], value: (m: Num) => WatchNumber | null): void {
   if (n.t === "Bin") {
     flatten(n.a, terms, ops, value);
     ops.push(n.op);
@@ -173,7 +173,7 @@ function flatten(n: Num, terms: (PyNum | null)[], ops: string[], value: (m: Num)
 }
 
 /** Python's `a == b` between two program numbers (or absences). */
-function numEquals(a: PyNum | null, b: PyNum | null): boolean {
+function numEquals(a: WatchNumber | null, b: WatchNumber | null): boolean {
   if (a === null || b === null) return a === b;
   return val(a) === val(b);
 }
@@ -226,7 +226,7 @@ export function strValue(s: Str, values: Values, env: ReadonlyMap<string, LocalV
       const reading = s.value.ast !== null ? expr.evaluate(s.value.ast, values) : null;
       return icons.CATALOG.get(icons.chooseWeatherIcon(reading))!.codepoint;
     }
-    case "PerCopy": return s.texts[Math.trunc(val(env.get(s.var) as PyNum))]!;
+    case "PerCopy": return s.texts[Math.trunc(val(env.get(s.var) as WatchNumber))]!;
     case "Local": return (env.get(s.name) ?? null) as string | null;
   }
 }
@@ -246,7 +246,7 @@ export class Evaluator {
     this.ringColor = ringColor;
   }
 
-  num(n: Num): PyNum | null {
+  num(n: Num): WatchNumber | null {
     const r = this.renderer;
     return numValue(n, r.options.aod, this.locals, r.values, new Measure(r));
   }
@@ -447,7 +447,7 @@ export function pasteGlyph(renderer: Renderer, fontKey: string, char: string, x:
 export function partOps(op: Part, ev: Evaluator): Op[] {
   const part = op.part;
   const env = ev.locals;
-  const get = (name: string): number => val(env.get(name) as PyNum);
+  const get = (name: string): number => val(env.get(name) as WatchNumber);
   let at: (x: number, y: number) => [number, number];
   if (op.radial) {
     const cx = get("cx"), cy = get("cy"), sin = get("sin"), cos = get("cos");

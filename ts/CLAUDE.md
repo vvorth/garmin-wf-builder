@@ -59,8 +59,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   - `src/draw/` is the draw program: `program.ts` its values and ops
     (plain objects tagged `t`, built by functions named as Python's
     classes), each kind's `lower` and `layoutConstants`, `evaluator.ts`
-    (Monkey C's arithmetic: a number keeps Python's int/float split, an
-    integral float being a `PyFloat`), `jsonform.ts` and `layers.ts`.
+    (Monkey C's arithmetic: a number keeps the Number/Float split, a whole
+    float being a `WholeFloat`), `jsonform.ts` and `layers.ts`.
     `src/emit/monkeyc/` holds the codegen pieces lowering reads:
     `ReadPlan`, `AodStyle`, the constant blocks.
   - `src/preview.ts` renders a frame: shapes through `src/raster/garmin.ts`

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { drawProgress, drawSpan, pillowArc } from "../src/draw/barrel.ts";
 import { numValue } from "../src/draw/evaluator.ts";
 import { Bin, Const, FloatLit, Lit, Paren } from "../src/draw/program.ts";
-import { PyFloat } from "../src/edit/yaml.ts";
+import { WholeFloat } from "../src/edit/yaml.ts";
 
 test("a chain of operators evaluates as Monkey C parses the printed text", () => {
   // `Layout.W * 3 / 2`: two Numbers divide whole, left to right.
@@ -16,7 +16,7 @@ test("a chain of operators evaluates as Monkey C parses the printed text", () =>
   assert.equal(numValue(Bin("/", Lit(-7), Lit(2))), -3);
   assert.equal(numValue(Bin("%", Lit(-7), Lit(2))), -1);
   // A Float on either side divides exactly, even when it is a whole number.
-  const half = numValue(Bin("/", Lit(new PyFloat(7)), Lit(2)));
+  const half = numValue(Bin("/", Lit(new WholeFloat(7)), Lit(2)));
   assert.equal(half, 3.5);
   assert.equal(numValue(Bin("/", Lit(7), FloatLit(2.0))), 3.5);
 });

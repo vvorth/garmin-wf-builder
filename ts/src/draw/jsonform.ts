@@ -11,7 +11,7 @@
 // once each in a `Tiles` store.
 import { zlibSync } from "fflate";
 import type { FontMetric } from "../devices/device.ts";
-import { PyFloat } from "../edit/yaml.ts";
+import { WholeFloat } from "../edit/yaml.ts";
 import type { Placed } from "../layout.ts";
 import type { Renderer, RGB } from "../preview.ts";
 import { deepEqual } from "../py.ts";
@@ -150,7 +150,7 @@ class JsonWriter {
     }
     if (n.t === "Bin" && (n.op === "+" || n.op === "-") && n.a.t === "Const") {
       const add = this.ev.num(n.b);
-      if (typeof add === "number" || add instanceof PyFloat) {
+      if (typeof add === "number" || add instanceof WholeFloat) {
         const amount = val(add);
         return { const: n.a.name, value: val(n.a.value), add: n.op === "+" ? amount : -amount };
       }

@@ -2,11 +2,11 @@
 // port reads like the code it came from and produces the same text:
 // truthiness, a value quoted in a message, `json.dumps`, `str.splitlines`,
 // `f"{x:.6f}"` and `round()`.
-import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
+import { type Data, type DataKey, WholeFloat, Timestamp } from "./edit/yaml.ts";
 
 /** Python's truthiness: `None`, `False`, `0`, `""` and empty containers are false. */
 export function truthy(value: unknown): boolean {
-  if (value instanceof PyFloat) return value.value !== 0;
+  if (value instanceof WholeFloat) return value.value !== 0;
   if (value === null || value === undefined || value === false || value === 0 || value === "") return false;
   if (typeof value === "number" && Number.isNaN(value)) return true;
   if (Array.isArray(value)) return value.length > 0;
@@ -39,7 +39,7 @@ export function quoted(value: unknown): string {
   if (value === true) return "true";
   if (value === false) return "false";
   if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
-  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof WholeFloat) return floatRepr(value.value);
   if (value instanceof Timestamp) return value.iso;
   if (value instanceof Map) return `{${[...value].map(([k, v]) => `${quoted(k)}: ${quoted(v)}`).join(", ")}}`;
   if (Array.isArray(value)) return `[${value.map(quoted).join(", ")}]`;
@@ -250,8 +250,8 @@ function roundSignificant(num: bigint, den: bigint, exponent: number, p: number)
 }
 
 /** Python's `isinstance(x, (int, float)) and not isinstance(x, bool)`. */
-export function isNumber(value: unknown): value is number | PyFloat {
-  return typeof value === "number" || value instanceof PyFloat;
+export function isNumber(value: unknown): value is number | WholeFloat {
+  return typeof value === "number" || value instanceof WholeFloat;
 }
 
 /** Python's `isinstance(x, int) and not isinstance(x, bool)`. */
@@ -261,19 +261,19 @@ export function isInt(value: unknown): value is number {
 
 /** Python's `isinstance(x, float)`: a boxed integral float, or any non-integral number. */
 export function isFloat(value: unknown): boolean {
-  return value instanceof PyFloat || (typeof value === "number" && !Number.isInteger(value));
+  return value instanceof WholeFloat || (typeof value === "number" && !Number.isInteger(value));
 }
 
 /** A number's value, boxed or not. */
-export function num(value: number | PyFloat): number {
-  return value instanceof PyFloat ? value.value : value;
+export function num(value: number | WholeFloat): number {
+  return value instanceof WholeFloat ? value.value : value;
 }
 
 /** Python's `str()` of a value: a string as itself, a number as Python prints it, anything else quoted (`quoted`). */
 export function str(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
-  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof WholeFloat) return floatRepr(value.value);
   if (value instanceof Timestamp) return value.iso.replace("T", " ");
   return quoted(value);
 }

@@ -3,29 +3,29 @@
 // The evaluator computes what a barrel call draws with these functions, so
 // the preview draws what the watch draws by construction. Each keeps Monkey
 // C's own number semantics: `toNumber` truncates toward zero, `%` takes the
-// dividend's sign. A number keeps Python's int/float distinction (`PyNum`),
+// dividend's sign. A number keeps the Number/Float distinction (`WatchNumber`),
 // since a result's type decides how a later `/` divides.
-import { PyFloat } from "../edit/yaml.ts";
+import { WholeFloat } from "../edit/yaml.ts";
 import { radians } from "../py.ts";
-import type { PyNum } from "./program.ts";
+import type { WatchNumber } from "./program.ts";
 
 /** Is `v` a Python float? */
 export function isFloat(v: unknown): boolean {
-  return v instanceof PyFloat || (typeof v === "number" && !Number.isInteger(v));
+  return v instanceof WholeFloat || (typeof v === "number" && !Number.isInteger(v));
 }
 
 /** `v`'s value. */
-export function val(v: PyNum): number {
-  return v instanceof PyFloat ? v.value : v;
+export function val(v: WatchNumber): number {
+  return v instanceof WholeFloat ? v.value : v;
 }
 
 /** `x` as a Python float. */
-export function flt(x: number): PyNum {
-  return Number.isFinite(x) && Number.isInteger(x) ? new PyFloat(x) : x;
+export function flt(x: number): WatchNumber {
+  return Number.isFinite(x) && Number.isInteger(x) ? new WholeFloat(x) : x;
 }
 
 /** Monkey C `Float.toNumber`: truncates toward zero. */
-export function toNumber(x: PyNum): number {
+export function toNumber(x: WatchNumber): number {
   return Math.trunc(val(x));
 }
 
@@ -80,14 +80,14 @@ export function rotatedY(x: number, y: number, cy: number, sin: number, cos: num
 }
 
 /** `WfbMath.clamp`. */
-function clamp(value: PyNum, lo: PyNum, hi: PyNum): PyNum {
+function clamp(value: WatchNumber, lo: WatchNumber, hi: WatchNumber): WatchNumber {
   if (val(value) < val(lo)) return lo;
   if (val(value) > val(hi)) return hi;
   return value;
 }
 
 /** `WfbMath.percent`: `value` as a percentage of `goal`, 0 to 100; 0 for a goal at or below zero. */
-function percent(value: PyNum, goal: PyNum): PyNum {
+function percent(value: WatchNumber, goal: WatchNumber): WatchNumber {
   if (val(goal) <= 0) return flt(0);
   return clamp(flt(100.0 * val(value) / val(goal)), flt(0), flt(100));
 }
@@ -112,9 +112,9 @@ export class Pulled {
 }
 
 /** `WfbScale.fraction`: `share` of the pulled value, a "K" count multiplied back; `null` for a non-number. */
-function scaleFraction(c: Pulled, scale: readonly [number, number]): PyNum | null {
+function scaleFraction(c: Pulled, scale: readonly [number, number]): WatchNumber | null {
   const value = c.value;
-  if (!(typeof value === "number" || value instanceof PyFloat)) return null;
+  if (!(typeof value === "number" || value instanceof WholeFloat)) return null;
   let reading = val(value);
   if (isFloat(value) && c.unit === "K") reading *= 1000;
   return flt(share(reading, scale));
@@ -135,20 +135,20 @@ export function secondAngle(_hour: number, _minute: number, second: number): num
   return radians(second * 6.0);
 }
 
-type Arg = PyNum | Pulled | [number, number];
+type Arg = WatchNumber | Pulled | [number, number];
 
 /** The functions a program's `Call` may name, by their Monkey C name. */
-export const CALLS: ReadonlyMap<string, (...args: Arg[]) => PyNum | null> = new Map<string, (...args: never[]) => PyNum | null>([
-  ["Math.sin", (x: PyNum) => flt(Math.sin(val(x)))],
-  ["Math.cos", (x: PyNum) => flt(Math.cos(val(x)))],
-  ["Math.round", (x: PyNum) => flt(Math.floor(val(x) + 0.5))],
+export const CALLS: ReadonlyMap<string, (...args: Arg[]) => WatchNumber | null> = new Map<string, (...args: never[]) => WatchNumber | null>([
+  ["Math.sin", (x: WatchNumber) => flt(Math.sin(val(x)))],
+  ["Math.cos", (x: WatchNumber) => flt(Math.cos(val(x)))],
+  ["Math.round", (x: WatchNumber) => flt(Math.floor(val(x) + 0.5))],
   ["WfbMath.clamp", clamp],
   ["WfbMath.percent", percent],
-  ["WfbScale.share", (reading: PyNum, scale: [number, number]) => flt(share(val(reading), scale))],
+  ["WfbScale.share", (reading: WatchNumber, scale: [number, number]) => flt(share(val(reading), scale))],
   ["WfbScale.fraction", scaleFraction],
-  ["WfbGeom.rotatedX", (x: PyNum, y: PyNum, cx: PyNum, s: PyNum, c: PyNum) => rotatedX(val(x), val(y), val(cx), val(s), val(c))],
-  ["WfbGeom.rotatedY", (x: PyNum, y: PyNum, cy: PyNum, s: PyNum, c: PyNum) => rotatedY(val(x), val(y), val(cy), val(s), val(c))],
-]) as unknown as ReadonlyMap<string, (...args: Arg[]) => PyNum | null>;
+  ["WfbGeom.rotatedX", (x: WatchNumber, y: WatchNumber, cx: WatchNumber, s: WatchNumber, c: WatchNumber) => rotatedX(val(x), val(y), val(cx), val(s), val(c))],
+  ["WfbGeom.rotatedY", (x: WatchNumber, y: WatchNumber, cy: WatchNumber, s: WatchNumber, c: WatchNumber) => rotatedY(val(x), val(y), val(cy), val(s), val(c))],
+]) as unknown as ReadonlyMap<string, (...args: Arg[]) => WatchNumber | null>;
 
 /** Each hand's angle twin, by hand name. */
 export const HAND_ANGLES: ReadonlyMap<string, (hour: number, minute: number, second: number) => number> = new Map([
@@ -232,13 +232,13 @@ export function seriesBars(x: number, y: number, w: number, h: number, barWidth:
 }
 
 /** `WfbSeries.autoMin`: the least present sample, 0.0 with none. */
-export function autoMin(values: readonly (number | null)[]): PyNum {
+export function autoMin(values: readonly (number | null)[]): WatchNumber {
   const present = values.filter((v): v is number => v !== null);
   return flt(present.length > 0 ? Math.min(...present) : 0.0);
 }
 
 /** `WfbSeries.autoMax`: the greatest present sample, 0.0 with none. */
-export function autoMax(values: readonly (number | null)[]): PyNum {
+export function autoMax(values: readonly (number | null)[]): WatchNumber {
   const present = values.filter((v): v is number => v !== null);
   return flt(present.length > 0 ? Math.max(...present) : 0.0);
 }

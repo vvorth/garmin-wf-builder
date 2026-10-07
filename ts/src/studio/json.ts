@@ -1,12 +1,12 @@
 // The editor's data as JSON: YAML values (a mapping is a `Map`, a float a
-// `PyFloat`) as plain objects for an answer, and Python's `json.dumps`
+// `WholeFloat`) as plain objects for an answer, and Python's `json.dumps`
 // spelling where a value is shown as text.
-import { PyFloat, Timestamp } from "../edit/yaml.ts";
+import { WholeFloat, Timestamp } from "../edit/yaml.ts";
 import { floatRepr } from "../py.ts";
 
-/** `value` with every `Map` an object, every `PyFloat` a number, every `Timestamp` its text. */
+/** `value` with every `Map` an object, every `WholeFloat` a number, every `Timestamp` its text. */
 export function plain(value: unknown): unknown {
-  if (value instanceof PyFloat) return value.value;
+  if (value instanceof WholeFloat) return value.value;
   if (value instanceof Timestamp) return value.iso;
   if (value instanceof Map) return Object.fromEntries([...value].map(([k, v]) => [String(k), plain(v)]));
   if (Array.isArray(value)) return value.map(plain);
@@ -19,7 +19,7 @@ export function plain(value: unknown): unknown {
 
 /** Python's `json.dumps(value)`: `", "` and `": "` separators, ASCII only. */
 export function jsonDumps(value: unknown): string {
-  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof WholeFloat) return floatRepr(value.value);
   if (value instanceof Timestamp) return ascii(value.iso);
   if (value === null || value === undefined) return "null";
   if (value === true) return "true";

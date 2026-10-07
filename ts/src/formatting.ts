@@ -14,7 +14,7 @@
 import { isNumeric, type Source, type Type } from "./catalog.ts";
 import { stringLiteral } from "./mcsource.ts";
 import { floatRepr, formatFixed, isNumber, num, quoted, roundHalfEven } from "./py.ts";
-import { PyFloat } from "./edit/yaml.ts";
+import { WholeFloat } from "./edit/yaml.ts";
 
 const FIELD = /\{(?:(?<unit>unit)|:(?<spec>[^}]*))?\}/g;
 const NUMERIC_SPEC = /^(?<zero>0)?(?<width>\d+)?(?:\.(?<precision>\d+))?(?<kind>[dfs])$/;
@@ -388,7 +388,7 @@ function renderDuration(spec: string, value: unknown, values: Values, unitText: 
 
 /** A value as a field shows it: a float in its shortest round-trip digits, anything else as `valueStr`. */
 function str(value: unknown): string {
-  if (value instanceof PyFloat) return floatRepr(value.value);
+  if (value instanceof WholeFloat) return floatRepr(value.value);
   if (typeof value === "number" && !Number.isInteger(value)) return floatRepr(value);
   return valueStr(value);
 }

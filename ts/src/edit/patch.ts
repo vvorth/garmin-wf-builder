@@ -24,7 +24,7 @@ import {
   dotted, type Entry, indentOf, isElement, lineEnd, lineStart, type Path, pathKey, parse, Refused,
   sameData, SpanIndex, type Step,
 } from "./spans.ts";
-import { type Data, type DataKey, type MappingNode, PyFloat, type ScalarNode, Timestamp, type YamlNode } from "./yaml.ts";
+import { type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, Timestamp, type YamlNode } from "./yaml.ts";
 
 /** A patched text and the data it must parse to. */
 export interface Patch {
@@ -57,7 +57,7 @@ function isNumber(value: unknown): value is number {
 export function scalar(value: Data, style: string | null = null): string {
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof PyFloat) return number(value.value);
+  if (value instanceof WholeFloat) return number(value.value);
   if (isNumber(value)) return number(value);
   const text = value instanceof Timestamp ? value.iso : String(value);
   if (style === "'") return "'" + text.replaceAll("'", "''") + "'";

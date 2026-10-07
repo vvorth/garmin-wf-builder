@@ -11,8 +11,8 @@
 // `find_additional_properties`, `extras_msg`). Keywords run in each
 // schema's own key order; `$ref` and `if` add nothing to the schema path.
 // Instances are YAML data: a mapping is a `Map`, and an integral float a
-// `PyFloat`.
-import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
+// `WholeFloat`.
+import { type Data, type DataKey, WholeFloat, Timestamp } from "./edit/yaml.ts";
 import { quoted } from "./py.ts";
 
 export type Schema = boolean | { [key: string]: unknown };
@@ -65,9 +65,9 @@ function isType(instance: unknown, type: string): boolean {
     case "string": return typeof instance === "string";
     case "boolean": return typeof instance === "boolean";
     case "null": return instance === null;
-    case "number": return typeof instance === "number" || instance instanceof PyFloat;
+    case "number": return typeof instance === "number" || instance instanceof WholeFloat;
     // Draft 6 on: an int, or a float that is integral.
-    case "integer": return instance instanceof PyFloat || (typeof instance === "number" && Number.isInteger(instance));
+    case "integer": return instance instanceof WholeFloat || (typeof instance === "number" && Number.isInteger(instance));
     default: throw new Error(`unknown type ${type}`);
   }
 }
@@ -78,7 +78,7 @@ function equal(one: unknown, two: unknown): boolean {
   if (typeof one === "string" || typeof two === "string") return one === two;
   if (Array.isArray(one) && Array.isArray(two)) return one.length === two.length && one.every((v, i) => equal(v, two[i]));
   const asMap = (x: unknown): Map<unknown, unknown> | null =>
-    x instanceof Map ? x : x !== null && typeof x === "object" && !(x instanceof PyFloat) && !(x instanceof Timestamp) && !Array.isArray(x)
+    x instanceof Map ? x : x !== null && typeof x === "object" && !(x instanceof WholeFloat) && !(x instanceof Timestamp) && !Array.isArray(x)
       ? new Map(Object.entries(x)) : null;
   const m1 = asMap(one), m2 = asMap(two);
   if (m1 !== null && m2 !== null) {
@@ -87,7 +87,7 @@ function equal(one: unknown, two: unknown): boolean {
     return true;
   }
   if (typeof one === "boolean" || typeof two === "boolean") return one === two;
-  const n1 = one instanceof PyFloat ? one.value : one, n2 = two instanceof PyFloat ? two.value : two;
+  const n1 = one instanceof WholeFloat ? one.value : one, n2 = two instanceof WholeFloat ? two.value : two;
   return n1 === n2;
 }
 
@@ -298,7 +298,7 @@ const KEYWORDS: Record<string, Keyword> = {
 };
 
 function numeric(instance: unknown): number {
-  return instance instanceof PyFloat ? instance.value : (instance as number);
+  return instance instanceof WholeFloat ? instance.value : (instance as number);
 }
 
 export class Validator {

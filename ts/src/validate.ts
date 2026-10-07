@@ -19,7 +19,7 @@
 // schema error allows, so an unrelated mistake on the same element is still
 // reported ("one error, not N").
 import type { Bag } from "./diagnostics.ts";
-import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
+import { type Data, type DataKey, WholeFloat, Timestamp } from "./edit/yaml.ts";
 import { type Schema, ValidationError, Validator } from "./jsonschema.ts";
 import { compareStrings, quoted } from "./py.ts";
 import type { YamlDocument } from "./yamlsrc.ts";
@@ -59,7 +59,7 @@ export function checkFormatVersion(doc: YamlDocument, bag: Bag): boolean {
     return false;
   }
   const declared = doc.data.get("format");
-  const value = declared instanceof PyFloat ? declared.value : declared;
+  const value = declared instanceof WholeFloat ? declared.value : declared;
   // Python's `declared == 1` holds for True too.
   if (value === 1 || value === true) {
     bag.error("format-version", "this file is format 1, which this compiler no longer reads",
@@ -758,7 +758,7 @@ function unexpectedKeys(error: ValidationError): string[] {
  */
 export function typeName(value: unknown): string {
   if (typeof value === "boolean") return "boolean";
-  if (value instanceof PyFloat) return "ScalarFloat";
+  if (value instanceof WholeFloat) return "ScalarFloat";
   if (typeof value === "number") return Number.isInteger(value) ? "integer" : Number.isFinite(value) ? "ScalarFloat" : "number";
   if (typeof value === "string") return "string";
   if (Array.isArray(value)) return "CommentedSeq";

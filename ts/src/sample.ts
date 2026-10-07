@@ -1,7 +1,7 @@
 // The readings a host frame draws at: plausible values, so a preview shows a
 // face mid-life rather than at zero. Apart from the preview, so the kinds
 // can read them without importing it.
-import { PyFloat } from "./edit/yaml.ts";
+import { WholeFloat } from "./edit/yaml.ts";
 import type { ExprValue } from "./expr.ts";
 
 /** The sample readings, by catalogue path. */
@@ -27,8 +27,8 @@ export const SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>
   ["device.notification_count", 3],
   ["device.alarm_count", 1],
   ["device.phone_connected", true],
-  ["system.battery", new PyFloat(68)],
-  ["system.battery_in_days", new PyFloat(9)],
+  ["system.battery", new WholeFloat(68)],
+  ["system.battery_in_days", new WholeFloat(9)],
   ["system.charging", false],
   ["activity.steps", 8432],
   ["activity.step_goal", 10000],
@@ -77,8 +77,8 @@ export const DATA_SAMPLE: ReadonlyMap<string, unknown> = new Map<string, unknown
   ["forecast_weather_3day", 0],
   ["sunrise", 22512],
   ["sunset", 65558],
-  ["altitude", new PyFloat(511)],
-  ["sea_level_pressure", new PyFloat(101675)],
+  ["altitude", new WholeFloat(511)],
+  ["sea_level_pressure", new WholeFloat(101675)],
   ["recovery_time", 2161],
   ["race_predictor_5k", 1480],
   ["race_predictor_10k", 3090],
@@ -88,8 +88,8 @@ export const DATA_SAMPLE: ReadonlyMap<string, unknown> = new Map<string, unknown
   ["race_pace_predictor_10k", 3.24],
   ["race_pace_predictor_half_marathon", 3.06],
   ["race_pace_predictor_marathon", 2.91],
-  ["weekly_run_distance", new PyFloat(23400)],
-  ["weekly_bike_distance", new PyFloat(61200)],
+  ["weekly_run_distance", new WholeFloat(23400)],
+  ["weekly_bike_distance", new WholeFloat(61200)],
   ["vo2max_run", 49],
   ["vo2max_bike", 45],
   ["pulse_ox", 97],

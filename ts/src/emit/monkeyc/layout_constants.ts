@@ -1,6 +1,6 @@
 // `Layout.mc`'s per-device constants, the blocks every kind builds its own
 // from: the shared helpers.
-import type { PyNum } from "../../draw/program.ts";
+import type { WatchNumber } from "../../draw/program.ts";
 import { flt } from "../../draw/barrel.ts";
 import { type Guards, NO_GUARDS, vectorFontFace } from "../../availability.ts";
 import { discPerimeterOffsets, type Element, slotOf } from "../../ir/model.ts";
@@ -21,7 +21,7 @@ import * as configMenu from "./config_menu.ts";
 import * as profileMod from "./profile.ts";
 
 /** One `Layout` block: `[name, value, note]` per constant. */
-export type Constants = [string, PyNum | string | boolean | McLiteral, string][];
+export type Constants = [string, WatchNumber | string | boolean | McLiteral, string][];
 
 /** The `_X/_Y/_WIDTH/_HEIGHT` quartet for one resolved box. */
 export function boxConstants(prefix: string, box: IntBox, note = ""): Constants {
@@ -94,9 +94,9 @@ export function handPartConstants(partPrefix: string, owner: string, index: numb
 }
 
 /** The numeric constants of `constants`, by name: what a kind's `lower` names. */
-export function numericConstants(constants: Constants): Map<string, PyNum> {
-  const out = new Map<string, PyNum>();
-  for (const [name, value] of constants) if (typeof value === "number" || (typeof value === "object" && !(value instanceof McLiteral))) out.set(name, value as PyNum);
+export function numericConstants(constants: Constants): Map<string, WatchNumber> {
+  const out = new Map<string, WatchNumber>();
+  for (const [name, value] of constants) if (typeof value === "number" || (typeof value === "object" && !(value instanceof McLiteral))) out.set(name, value as WatchNumber);
   return out;
 }
 

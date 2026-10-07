@@ -21,7 +21,7 @@ import * as hands from "../edit/hands.ts";
 import { slotDrawers } from "../edit/patch.ts";
 import { indexFor, type Path, Refused, type SpanIndex } from "../edit/spans.ts";
 import { elementTypes } from "../edit/structure.ts";
-import { PyFloat } from "../edit/yaml.ts";
+import { WholeFloat } from "../edit/yaml.ts";
 import * as icons from "../icons.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../kinds/shape.ts";
 import { Color, ColorError, MIP64_NAMED } from "../palette.ts";
@@ -52,7 +52,7 @@ const SKIPPED = new Set(["children", "overrides"]);
 const isMap = (v: unknown): v is Map<unknown, unknown> => v instanceof Map;
 const g = (m: unknown, k: unknown): unknown => (m instanceof Map ? m.get(k) : undefined);
 const keysOf = (m: unknown): unknown[] => (m instanceof Map ? [...m.keys()] : []);
-const isScalar = (v: unknown): boolean => typeof v === "string" || typeof v === "number" || typeof v === "boolean" || v instanceof PyFloat;
+const isScalar = (v: unknown): boolean => typeof v === "string" || typeof v === "number" || typeof v === "boolean" || v instanceof WholeFloat;
 
 function refName(node: Json): string | null {
   const ref = node["$ref"];

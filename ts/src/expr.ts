@@ -11,25 +11,25 @@
 // loops, no user functions, no assignment, no state.
 //
 // Values keep Python's int/float distinction: a Number is a JavaScript
-// integer, a Float a non-integral number or a `PyFloat` (an integral one).
+// integer, a Float a non-integral number or a `WholeFloat` (an integral one).
 // Integer arithmetic is exact (BigInt where it could leave the safe range),
 // so a fold's overflow check sees the true value.
 import * as catalog from "./catalog.ts";
 import type { Type } from "./catalog.ts";
 import { didYouMean, getCloseMatches } from "./diagnostics.ts";
-import { PyFloat } from "./edit/yaml.ts";
+import { WholeFloat } from "./edit/yaml.ts";
 import { stringLiteral } from "./mcsource.ts";
 import { compareStrings, floatRepr, quoted } from "./py.ts";
 
 // -- values -----------------------------------------------------------------------
 
-/** A value an expression computes: Python's int (`number`/`bigint`), float (`number`/`PyFloat`), bool, str or None. */
-export type ExprValue = number | bigint | PyFloat | boolean | string | null;
+/** A value an expression computes: a Number or Long (a whole `number`, a `bigint`), a Float (a non-whole `number`, a `WholeFloat`), a Boolean, a String or `null`. */
+export type ExprValue = number | bigint | WholeFloat | boolean | string | null;
 
 const isWhole = (v: unknown): v is number | bigint => typeof v === "bigint" || (typeof v === "number" && Number.isInteger(v));
-const isFloatV = (v: unknown): boolean => v instanceof PyFloat || (typeof v === "number" && !Number.isInteger(v));
-const isNum = (v: unknown): v is number | bigint | PyFloat => typeof v === "number" || typeof v === "bigint" || v instanceof PyFloat;
-const toNumber = (v: number | bigint | PyFloat): number => (v instanceof PyFloat ? v.value : Number(v));
+const isFloatV = (v: unknown): boolean => v instanceof WholeFloat || (typeof v === "number" && !Number.isInteger(v));
+const isNum = (v: unknown): v is number | bigint | WholeFloat => typeof v === "number" || typeof v === "bigint" || v instanceof WholeFloat;
+const toNumber = (v: number | bigint | WholeFloat): number => (v instanceof WholeFloat ? v.value : Number(v));
 const big = (v: number | bigint): bigint => (typeof v === "bigint" ? v : BigInt(v));
 
 /** An int, as a plain number when safe and a BigInt beyond. */
@@ -38,8 +38,8 @@ function intValue(v: bigint): number | bigint {
 }
 
 /** A float result: boxed when integral, so it stays a float. */
-function floatValue(v: number): number | PyFloat {
-  return Number.isFinite(v) && Number.isInteger(v) ? new PyFloat(v) : v;
+function floatValue(v: number): number | WholeFloat {
+  return Number.isFinite(v) && Number.isInteger(v) ? new WholeFloat(v) : v;
 }
 
 /** An expression value as a message prints it: `null`, `true` and `false` as the expression language spells them. */
@@ -48,7 +48,7 @@ export function valueText(v: unknown): string {
   if (v === true) return "true";
   if (v === false) return "false";
   if (typeof v === "bigint") return v.toString();
-  if (v instanceof PyFloat) return floatRepr(v.value);
+  if (v instanceof WholeFloat) return floatRepr(v.value);
   if (typeof v === "number") return Number.isInteger(v) ? String(v) : floatRepr(v);
   return String(v);
 }
@@ -167,7 +167,7 @@ function less(a: ExprValue, b: ExprValue): boolean {
   throw new TypeError("'<' not supported");
 }
 
-function numberOf(v: ExprValue): number | bigint | PyFloat {
+function numberOf(v: ExprValue): number | bigint | WholeFloat {
   if (v === true) return 1;
   if (v === false) return 0;
   if (isNum(v)) return v;
@@ -192,8 +192,8 @@ function clamp(args: ExprValue[]): ExprValue {
 /** `WfbMath.percent`: 0.0 for a goal <= 0, otherwise clamped to 0..100. */
 function percent(args: ExprValue[]): ExprValue {
   const [value, goal] = args as [ExprValue, ExprValue];
-  if (!less(0, goal!)) return new PyFloat(0);
-  return clamp([floatValue(100.0 * toNumber(numberOf(value)) / toNumber(numberOf(goal))), new PyFloat(0), new PyFloat(100)]);
+  if (!less(0, goal!)) return new WholeFloat(0);
+  return clamp([floatValue(100.0 * toNumber(numberOf(value)) / toNumber(numberOf(goal))), new WholeFloat(0), new WholeFloat(100)]);
 }
 
 /** Monkey C's `%`: the remainder takes the dividend's sign. Integers only. */
@@ -222,7 +222,7 @@ function minMax(args: ExprValue[], pickSecond: (a: ExprValue, b: ExprValue) => b
 
 function absValue(v: ExprValue): ExprValue {
   if (typeof v === "bigint") return v < 0n ? -v : v;
-  if (v instanceof PyFloat) return new PyFloat(Math.abs(v.value));
+  if (v instanceof WholeFloat) return new WholeFloat(Math.abs(v.value));
   if (typeof v === "number") return Math.abs(v);
   if (typeof v === "boolean") return Number(v);
   throw new TypeError("bad operand type for abs()");
@@ -626,7 +626,7 @@ function isTrue(v: ExprValue): boolean {
 }
 
 /** `value` as the number a numeric literal or reading holds; `TypeError` for anything else. */
-export function asNumber(value: unknown): number | bigint | PyFloat {
+export function asNumber(value: unknown): number | bigint | WholeFloat {
   if (isNum(value)) return value;
   if (typeof value === "boolean") return Number(value);
   throw new TypeError(`expected a number, got ${quoted(value)}`);
@@ -634,7 +634,7 @@ export function asNumber(value: unknown): number | bigint | PyFloat {
 
 function negate(value: ExprValue): ExprValue {
   const n = asNumber(value);
-  if (n instanceof PyFloat) return new PyFloat(-n.value);
+  if (n instanceof WholeFloat) return new WholeFloat(-n.value);
   if (isWhole(n)) return wrapNumber(-big(n));
   return -n;
 }
@@ -675,15 +675,16 @@ function hostBinary(op: string, a: ExprValue, b: ExprValue): ExprValue {
     case "<=": return !less(b, a);
     case ">": return less(b, a);
     case ">=": return !less(a, b);
-    case "==": return pyEquals(a, b);
-    case "!=": return !pyEquals(a, b);
+    case "==": return sameValue(a, b);
+    case "!=": return !sameValue(a, b);
     case "and": return isTrue(a) && isTrue(b);
     case "or": return isTrue(a) || isTrue(b);
     default: throw new TypeError("unknown operator");
   }
 }
 
-function pyEquals(a: ExprValue, b: ExprValue): boolean {
+/** `a == b` over operands `check` admitted: numbers by value across Number and Float, anything else by identity. */
+function sameValue(a: ExprValue, b: ExprValue): boolean {
   const an = typeof a === "boolean" ? Number(a) : a, bn = typeof b === "boolean" ? Number(b) : b;
   if (isNum(an) && isNum(bn)) return isWhole(an) && isWhole(bn) ? big(an) === big(bn) : toNumber(an) === toNumber(bn);
   return an === bn;
@@ -691,7 +692,7 @@ function pyEquals(a: ExprValue, b: ExprValue): boolean {
 
 /** `a op b` on the host, typed; `null` when it has no value. */
 export function apply(op: string, a: ExprValue, b: ExprValue): [ExprValue, Type] | null {
-  if ((op === "/" || op === "%") && pyEquals(b, 0)) return null;
+  if ((op === "/" || op === "%") && sameValue(b, 0)) return null;
   if (!["+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "and", "or"].includes(op)) return null;
   let result: ExprValue;
   try {
@@ -766,7 +767,7 @@ function emitLiteral(node: Literal): string {
   }
   if (node.type === "float") return `${floatRepr(toNumber(asNumber(value)))}f`;
   const n = asNumber(value);
-  if (pyEquals(n as ExprValue, NUMBER_MIN)) return `(${NUMBER_MIN + 1} - 1)`;
+  if (sameValue(n as ExprValue, NUMBER_MIN)) return `(${NUMBER_MIN + 1} - 1)`;
   return isWhole(n) ? big(n).toString() : String(Math.trunc(toNumber(n)));
 }
 
@@ -796,7 +797,7 @@ export function evaluate(node: Node, values: ReadonlyMap<string, ExprValue>): Ex
       if (node.op === "or") return left !== null && right !== null ? isTrue(left) || isTrue(right) : null;
       if (left === null || right === null) return null;
       // `WfbMath.div`/`WfbMath.mod`: a zero divisor gives 0
-      if (DIVISION_OPS.has(node.op) && pyEquals(right, 0)) return node.op === "/" ? new PyFloat(0) : 0;
+      if (DIVISION_OPS.has(node.op) && sameValue(right, 0)) return node.op === "/" ? new WholeFloat(0) : 0;
       const folded = apply(node.op, left, right);
       return folded ? folded[0] : null;
     }

@@ -250,7 +250,7 @@ class Lowering {
   readonly placed: PlacedGauge;
   readonly element: Gauge;
   readonly prefix: string;
-  readonly consts: Map<string, number | import("../edit/yaml.ts").PyFloat>;
+  readonly consts: Map<string, number | import("../edit/yaml.ts").WholeFloat>;
   readonly color: Paint;
   readonly track: Paint | null;
   /** The ring to draw: an outlined group's pass, else the gauge's own. */

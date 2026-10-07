@@ -5,7 +5,7 @@
 import data from "./data/complications.json" with { type: "json" };
 import { Catalogue } from "./diagnostics.ts";
 import { formatFixed, isInt, isNumber, num } from "./py.ts";
-import { PyFloat } from "./edit/yaml.ts";
+import { WholeFloat } from "./edit/yaml.ts";
 
 /** One `COMPLICATION_TYPE_*`: an `on_hold:` target, and the type behind a `complication.<name>` source. */
 export interface ComplicationType {
@@ -53,7 +53,7 @@ export const VO2MAX_AGES: readonly [number, number] = data.vo2max_ages as [numbe
 export const VO2MAX_RATINGS: ReadonlyMap<string, readonly (readonly [number, number, number, number])[]> =
   new Map(Object.entries(data.vo2max_ratings as unknown as Record<string, [number, number, number, number][]>));
 
-const isFloatValue = (value: unknown): boolean => value instanceof PyFloat || (typeof value === "number" && !Number.isInteger(value));
+const isFloatValue = (value: unknown): boolean => value instanceof WholeFloat || (typeof value === "number" && !Number.isInteger(value));
 
 /**
  * A pulled complication value as the watch draws it (`WfbReading.mc`'s

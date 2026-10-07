@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compileExpression, evaluate, ExprError, type ExprValue, parse, Scope, Value } from "../src/expr.ts";
-import { PyFloat } from "../src/edit/yaml.ts";
+import { WholeFloat } from "../src/edit/yaml.ts";
 
 function scope(): Scope {
   const s = new Scope();
@@ -18,7 +18,7 @@ function scope(): Scope {
 
 const code = (text: string): string => compileExpression(text, scope())[0];
 const value = (text: string): Value => compileExpression(text, scope())[1];
-const num = (v: ExprValue): number => (v instanceof PyFloat ? v.value : Number(v));
+const num = (v: ExprValue): number => (v instanceof WholeFloat ? v.value : Number(v));
 const run = (text: string, values: Record<string, ExprValue>): ExprValue => evaluate(parse(text), new Map(Object.entries(values)));
 const refused = (text: string, reason: RegExp, s = scope()): void => {
   assert.throws(() => compileExpression(text, s), (e: Error) => e instanceof ExprError && reason.test(e.message), text);
@@ -102,7 +102,7 @@ test("evaluation matches the compiled semantics", () => {
 test("round is half up toward +infinity, as the watch's Math.round is: -2.5 is -2", () => {
   for (const [x, want] of [[2.5, 3], [72.5, 73], [0.5, 1], [2.4999, 2], [2.0, 2], [3, 3], [0.49999999999999994, 0], [-2.4, -2], [-2.6, -3],
     [-2.5, -2], [-1.5, -1], [-0.5, 0]] as const) {
-    assert.equal(num(run("round(x)", { x: Number.isInteger(x) && x !== 3 ? new PyFloat(x) : x })), want, String(x));
+    assert.equal(num(run("round(x)", { x: Number.isInteger(x) && x !== 3 ? new WholeFloat(x) : x })), want, String(x));
   }
   assert.equal(code("round(2.5)"), "3");
   assert.equal(code("round(72.5)"), "73");

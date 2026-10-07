@@ -10,7 +10,7 @@
 // ruamel's `lc.key`/`lc.value`/`lc.item` read it.
 import { Bag, Span } from "./diagnostics.ts";
 import {
-  compose, construct, type Data, type DataKey, mappingKey, mergeSources, PyFloat, Timestamp, type YamlNode, YamlError,
+  compose, construct, type Data, type DataKey, mappingKey, mergeSources, WholeFloat, Timestamp, type YamlNode, YamlError,
 } from "./edit/yaml.ts";
 
 /** ruamel's `LineCol`: a collection's own position and its entries'. */
@@ -261,4 +261,4 @@ export function load(path: string, bag: Bag, text: string, node?: YamlNode | nul
   return new YamlDocument(path, text, data);
 }
 
-export { PyFloat, Timestamp };
+export { WholeFloat, Timestamp };
