@@ -25,9 +25,6 @@ export interface FontFiles {
   registry(key: string): FontFile | undefined;
 }
 
-/** No fonts at all: every system font then measures by the crude fallback. */
-export const NO_FONT_FILES: FontFiles = { garmin: () => undefined, registry: () => undefined };
-
 interface Registry {
   sources: Record<string, { sha256: string }>;
   fonts: Record<string, { source: string; match: string }>;

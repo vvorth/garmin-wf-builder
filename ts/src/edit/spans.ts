@@ -66,10 +66,6 @@ function composed(text: string): [YamlNode | null, Data] {
   }
 }
 
-export function composeText(text: string): YamlNode | null {
-  return composed(text)[0];
-}
-
 /** The plain data `text` parses to: mappings in key order, lists and scalars. What the gate compares. */
 export function parse(text: string): Data {
   return composed(text)[1];

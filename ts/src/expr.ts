@@ -16,11 +16,10 @@
 // so a fold's overflow check sees the true value.
 import * as catalog from "./catalog.ts";
 import type { Type } from "./catalog.ts";
-import { compareStrings, getCloseMatches } from "./difflib.ts";
-import { didYouMean } from "./diagnostics.ts";
+import { didYouMean, getCloseMatches } from "./diagnostics.ts";
 import { PyFloat } from "./edit/yaml.ts";
 import { stringLiteral } from "./mcsource.ts";
-import { floatRepr, repr } from "./py.ts";
+import { compareStrings, floatRepr, repr } from "./py.ts";
 
 // -- values -----------------------------------------------------------------------
 

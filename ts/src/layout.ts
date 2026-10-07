@@ -1135,13 +1135,3 @@ export function isFullBleed(box: IntBox, device: Device): boolean {
   return box.x <= 0 && box.y <= 0 && box.right >= device.width && box.bottom >= device.height;
 }
 
-/** The region in which any element is guaranteed visible: the inscribed square on a round screen. */
-export function safeArea(device: Device): Box | null {
-  if (device.shape === "round") {
-    const radius = device.minorRadius * (1.0 - BEZEL_MARGIN);
-    const side = radius * Math.SQRT2;
-    return new Box(device.width / 2 - side / 2, device.height / 2 - side / 2, side, side);
-  }
-  if (device.shape === "rectangle") return new Box(0, 0, device.width, device.height);
-  return null;
-}

@@ -78,9 +78,9 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   - `src/lint.ts` is every lint check; `src/availability.ts` what each
     target lacks; `src/build.ts` loads a design, selects its devices and
     resolves and lints each (`resolveAll`, the bake passed in).
-  - `src/cli.ts` is `wfb` (`node src/cli.ts …`) over `argparse.ts`, a
-    port of the part of Python's argparse it uses, so help, errors and
-    exit codes read as before; `term.ts` and `textwrap.ts` likewise.
+  - `src/cli.ts` is `wfb` (`node src/cli.ts …`): each command's options
+    are a table over `node:util`'s `parseArgs`, which also renders its
+    help; `term.ts` styles the output.
   - `src/studio/` is the editor's back end: `worker.ts` (the browser's
     Web Worker, which the server bundles when it starts) answers the page's
     requests through `router.ts`, over `document.ts`, `store.ts`

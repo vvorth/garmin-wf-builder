@@ -306,9 +306,3 @@ export function mcNumber(value: PyNum | string | boolean | McLiteral): string {
   return String(Math.trunc(val(value)));
 }
 
-/** `element`'s own `outline:` as a `RingPass`, dimmed like every AOD colour, or `null`. */
-export function ownRing(element: Element, aod: AodStyle = NO_AOD): RingPass | null {
-  const outline = element.outline;
-  if (outline === null) return null;
-  return new RingPass(aod.dimmed(element, outline.color), outline.width);
-}

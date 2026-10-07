@@ -196,7 +196,7 @@ ts/                   the compiler, its tests and tools: one package for the
     emit/                 Monkey C, resources, manifest, jungle
     preview.ts            the host-side renderer over the resolved IR
     build.ts, node_build.ts  the pipeline, and writing and compiling a project (Node)
-    cli.ts                `wfb`; argparse.ts, term.ts and textwrap.ts behind it
+    cli.ts                `wfb`, over node:util's parseArgs; term.ts behind it
     studio/               the editor's worker (the history store, open documents, the
                           requests) and its server (devices, fonts, builds)
     browser.ts            the browser bundle's entry (npm run bundle -> dist/wfb.js)
@@ -580,7 +580,7 @@ awake-only build.
 |---|---|
 | `common` | `constPrefix` (the `Layout.<PREFIX>_*` prefix of an id), `fontField`, `aodFontField`, `mcColor`, `mcFloat`, `glyphYExpr`, `article`, `andList` |
 | `layoutConstants` | `boxConstants`, `arcConstants`, `handPartConstants`, `aodThicknessConstant`, `EVERY_PART_NOTE` |
-| `shapes` | `emitArcSpan`, `thicknessExpr`, `emitPlainTextCall`, `radialRadiusExpr`, `RADIAL_DIRECTION` |
+| `shapes` | `thicknessExpr`, `radialRadiusExpr`, `RADIAL_DIRECTION` |
 | `rotated` | `emitTransformedPart`, `emitPartRing`, `aodThicknessOverride` (a hand, needle or pattern part, which the printer writes for a `Part`) |
 
 ## Tests

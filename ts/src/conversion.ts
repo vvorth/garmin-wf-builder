@@ -8,9 +8,6 @@
 import type { Source } from "./catalog.ts";
 import { floatRepr } from "./py.ts";
 
-/** `units:`'s values. */
-export const SYSTEMS = ["auto", "metric", "statute"] as const;
-
 /** One displayed unit: `value * factor + offset`, labelled `label`, or `factor / value` when `reciprocal`. */
 export interface Display {
   label: string;

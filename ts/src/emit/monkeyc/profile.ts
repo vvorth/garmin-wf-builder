@@ -11,7 +11,6 @@ import { type RingGroup, ringGroups } from "../../ir/rings.ts";
 import type { Placed, ResolvedFace } from "../../layout.ts";
 import { IntBox } from "../../units.ts";
 
-export const DEFAULT_REPS = 10;
 export const NEXT = "_profNext";
 export const MS = "_profMs";
 export const REPS = "_profReps";

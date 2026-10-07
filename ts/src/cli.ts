@@ -5,7 +5,7 @@
 //     wfb build    design.yaml     # generate Monkey C and compile it
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ArgumentParser, ArgumentTypeError, FLOAT, INT, type Namespace, ParserExit } from "./argparse.ts";
+import { parseArgs } from "node:util";
 import { resolveAll, selectDevices } from "./build.ts";
 import * as catalog from "./catalog.ts";
 import { COMMANDS, MAIN } from "./cli_help.ts";
@@ -29,7 +29,7 @@ import { formatFixed, repr } from "./py.ts";
 import * as series from "./series.ts";
 import * as starters from "./starters.ts";
 import * as term from "./term.ts";
-import { fill } from "./textwrap.ts";
+import { fill, wrap } from "./textwrap.ts";
 import { VERSION } from "./version.ts";
 
 const DEFAULT_OUTPUT = "build";
@@ -108,158 +108,282 @@ const STDOUT_OUTPUT = ["-", "--"];
 
 const isStdout = (output: unknown): boolean => typeof output === "string" && STDOUT_OUTPUT.includes(output);
 
-const POSITIVE_INT = {
-  name: "_positive_int",
-  convert(text: string): number {
-    if (!/^\d+$/.test(text) || Number(text) < 1) throw new ArgumentTypeError(`'${text}' is not a whole number of at least 1`);
-    return Number(text);
-  },
-};
-
+/** Parsed arguments: each option's or positional's `dest` to its value. */
+type Namespace = Record<string, unknown>;
 type Handler = (args: Namespace) => Promise<number> | number;
 
-function parser(): ArgumentParser {
-  const top = new ArgumentParser({ prog: "wfb", description: MAIN });
-  const colorArgument = (p: ArgumentParser, dest: string): void => {
-    p.addArgument(["--color"], { dest, choices: term.MODES, default: null, help: "colour the output: auto (default), always or never" });
-  };
-  colorArgument(top, "color_before");
-  top.addArgument(["--version"], { action: "version", version: `wfb ${VERSION}` });
-  const add = top.addSubparsers("command");
-  const command = (name: string, handler: Handler): ArgumentParser => {
-    const doc = COMMANDS[name]!;
-    const p = add(name, { help: doc.split("\n")[0]!, description: doc });
-    colorArgument(p, "color");
-    p.setDefaults({ handler });
-    return p;
-  };
-  const verbose = (p: ArgumentParser): void => {
-    p.addArgument(["-v", "--verbose"], { action: "store_true", help: "show every note in full, with its source line and details" });
-  };
+/** A bad argument; `main` prints the command's usage line and this, and exits 2. */
+class UsageError extends Error {}
 
-  const b = command("build", buildCommand);
-  verbose(b);
-  b.addArgument(["design"], { help: "the .yaml design file" });
-  b.addArgument(["-d", "--device"], { action: "append", dest: "devices", help: "build only this device (repeatable); any installed device, not just a listed target; defaults to all targets" });
-  b.addArgument(["-o", "--output"], { default: DEFAULT_OUTPUT, help: `build directory (default: ${DEFAULT_OUTPUT})` });
-  b.addArgument(["--no-compile"], { action: "store_true", help: "generate the project but do not run monkeyc" });
-  b.addArgument(["--profile"], {
-    nargs: "?", type: INT, const: DEFAULT_PROFILE_REPS, metavar: "REPS",
-    help: `time every element's draw on the watch and show the average per call over it (default: ${DEFAULT_PROFILE_REPS} repetitions per sample) -- a build for measuring, not for wearing`,
+/** A value converter: the parsed value, or a thrown message. */
+type Convert = (text: string) => unknown;
+
+const INT: Convert = (text) => {
+  if (!/^\s*[+-]?\d+\s*$/.test(text)) throw new Error(`invalid int value: ${repr(text)}`);
+  return Number(text);
+};
+const FLOAT: Convert = (text) => {
+  const value = Number(text);
+  if (!text.trim() || Number.isNaN(value)) throw new Error(`invalid float value: ${repr(text)}`);
+  return value;
+};
+const POSITIVE_INT: Convert = (text) => {
+  if (!/^\d+$/.test(text) || Number(text) < 1) throw new Error(`'${text}' is not a whole number of at least 1`);
+  return Number(text);
+};
+
+interface Option {
+  /** `-x`, `--long`, or both, short first. */
+  flags: readonly string[];
+  /** Default: the long flag, dashes to underscores. */
+  dest?: string;
+  /** `flag` is true when given; `append` collects every value; `value` (the default) keeps the last. */
+  kind?: "flag" | "append" | "value";
+  type?: Convert;
+  choices?: readonly string[];
+  default?: unknown;
+  /** What a `value` option given bare takes (`--profile` alone). */
+  bare?: unknown;
+  metavar?: string;
+  help?: string;
+}
+
+interface Positional { dest: string; optional?: boolean; many?: boolean; metavar?: string; help?: string }
+
+interface Command { name: string; handler: Handler; summary: string; description: string; options: Option[]; positionals: Positional[] }
+
+const longFlag = (o: Option): string => o.flags.find((f) => f.startsWith("--"))!;
+const destOf = (o: Option): string => o.dest ?? longFlag(o).slice(2).replaceAll("-", "_");
+const metavarOf = (o: Option): string => o.metavar ?? (o.choices ? `{${o.choices.join(",")}}` : destOf(o).toUpperCase());
+
+const COLOR: Option = { flags: ["--color"], choices: term.MODES, default: null, help: "colour the output: auto (default), always or never" };
+const HELP: Option = { flags: ["-h", "--help"], kind: "flag", help: "show this help message and exit" };
+const VERBOSE: Option = { flags: ["-v", "--verbose"], kind: "flag", help: "show every note in full, with its source line and details" };
+const DEVICES_DIR: Option = { flags: ["--devices-dir"], help: "device definitions directory" };
+const DESIGN: Positional = { dest: "design", help: "the .yaml design file" };
+const deviceOption = (verb: string): Option => ({
+  flags: ["-d", "--device"], kind: "append", dest: "devices",
+  help: `${verb} only this device (repeatable); any installed device, not just a listed target; defaults to all targets`,
+});
+
+function command(name: string, handler: Handler, options: Option[] = [], positionals: Positional[] = []): Command {
+  const description = COMMANDS[name]!;
+  return { name, handler, summary: description.split("\n")[0]!, description, options: [HELP, COLOR, ...options], positionals };
+}
+
+const COMMAND_LIST: readonly Command[] = [
+  command("build", buildCommand, [
+    VERBOSE, deviceOption("build"),
+    { flags: ["-o", "--output"], default: DEFAULT_OUTPUT, help: `build directory (default: ${DEFAULT_OUTPUT})` },
+    { flags: ["--no-compile"], kind: "flag", help: "generate the project but do not run monkeyc" },
+    {
+      flags: ["--profile"], type: INT, bare: DEFAULT_PROFILE_REPS, metavar: "REPS",
+      help: `time every element's draw on the watch and show the average per call over it (default: ${DEFAULT_PROFILE_REPS} repetitions per sample) -- a build for measuring, not for wearing`,
+    },
+    { flags: ["-j", "--jobs"], type: POSITIVE_INT, metavar: "N", help: `compile up to N devices at once (default: one per device, at most one per CPU and at most ${MAX_DEFAULT_JOBS})` },
+    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
+    DEVICES_DIR,
+  ], [DESIGN]),
+  command("validate", validateCommand, [VERBOSE, deviceOption("check"), DEVICES_DIR], [DESIGN]),
+  command("preview", previewCommand, [
+    VERBOSE, deviceOption("render"),
+    { flags: ["-o", "--output"], default: "build/preview", help: "directory to write the PNGs to (default: build/preview); `-o -` (or `-o --`) writes ONE PNG to stdout instead, for piping -- e.g. `wfb preview face.yaml -o -- | chafa`" },
+    { flags: ["-q", "--quiet"], kind: "flag", help: "print nothing to stdout; errors and warnings still go to stderr (implied by `-o -`)" },
+    { flags: ["--scale"], type: INT, default: 2, help: "enlarge the native-resolution frame this many times, each watch pixel a SCALE x SCALE block (default: 2)" },
+    { flags: ["--no-quantise"], kind: "flag", help: "skip snapping colours to the device palette" },
+    { flags: ["--style"], help: "render one 'config: style:' entry by name (default: the default entry)" },
+    { flags: ["--all-styles"], kind: "flag", help: "render every 'config: style:' entry side by side, one PNG per device" },
+    { flags: ["--time"], metavar: "HH:MM[:SS]", help: "render analog hands (and any time.*-bound element) at this time instead of the sample 10:09:42" },
+    { flags: ["--units"], choices: ["metric", "statute"], help: "the watch's unit setting to render a 'units: auto' element under (default: metric)" },
+    { flags: ["--asleep"], kind: "flag", help: "hide every awake-only second hand, simulating a sleeping glance (no mode/aod-set switch: 'always_on' membership used to do that too, but was removed -- see --aod)" },
+    { flags: ["--aod"], kind: "flag", help: "render the AMOLED always-on-display frame: the resolved 'aod:' set, restyled, with every awake-only second hand hidden" },
+    { flags: ["--minute"], type: INT, metavar: "N", help: "render minute N of the day (0-1439); sugar for --time, and mutually exclusive with it" },
+    { flags: ["--heatmap"], kind: "flag", help: "sum the AOD frame (implies --aod) over every minute of the day into one PNG where a pixel lit every minute is white, and print the largest share of minutes any pixel was lit" },
+    { flags: ["--skin"], kind: "flag", help: "draw the watch round the screen: the simulator skin from the device files; a device without one renders the bare screen, with a warning" },
+    { flags: ["-w", "--watch"], kind: "flag", help: "re-render whenever the design or a font it uses changes" },
+    { flags: ["--interval"], type: FLOAT, default: 0.4, help: "seconds between checks while watching (default: 0.4)" },
+    DEVICES_DIR,
+    { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, vendor/fonts/, or the SDK Manager's per-OS install location); without it, any face the registry has no exact match for is drawn with a stand-in typeface -- see `wfb doctor`" },
+  ], [DESIGN]),
+  command("simulate", simulateCommand, [
+    VERBOSE,
+    { flags: ["-d", "--device"], help: "which device to run, target or not (default: the first target)" },
+    { flags: ["-o", "--output"], default: DEFAULT_OUTPUT, help: `build directory (default: ${DEFAULT_OUTPUT})` },
+    { flags: ["--screenshot"], help: "capture the simulator window to this PNG" },
+    { flags: ["-f", "--follow"], kind: "flag", help: "stay attached and print the face's console output (System.println) until Ctrl-C" },
+    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
+    DEVICES_DIR,
+  ], [DESIGN]),
+  command("new", newCommand, [
+    { flags: ["-t", "--template"], default: "dashboard", help: "which template to start from (default: dashboard)" },
+    { flags: ["-o", "--output"], help: "where to write it (default: <name>.yaml in the current directory)" },
+    { flags: ["--list"], kind: "flag", dest: "list_templates", help: "list the available templates and exit" },
+  ], [{ dest: "name", optional: true, help: "the face's name, e.g. \"My Face\"" }]),
+  command("studio", studioCommand, [
+    { flags: ["--host"], default: "127.0.0.1", help: "the address to listen on (default: 127.0.0.1, loopback only)" },
+    { flags: ["-p", "--port"], type: INT, default: 8765, help: "the port to listen on (default: 8765)" },
+    DEVICES_DIR,
+    { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb preview`" },
+  ]),
+  command("devices", devicesCommand, [DEVICES_DIR]),
+  command("fonts", fontsCommand, [
+    { flags: ["-d", "--device"], kind: "append", dest: "device_flags", metavar: "DEVICE", help: "another device to inspect (repeatable; alternative or addition to the positional form)" },
+    DEVICES_DIR,
+  ], [{ dest: "devices", many: true, metavar: "DEVICE", help: "device(s) to inspect (repeatable; default: all installed devices, summarised)" }]),
+  command("doctor", doctorCommand, [
+    DEVICES_DIR,
+    { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, vendor/fonts/, or the SDK Manager's per-OS install location)" },
+  ]),
+  command("schema", schemaCommand, [{ flags: ["--path"], kind: "flag", help: "print the schema's path instead of its contents" }]),
+  command("sources", sourcesCommand),
+  command("complications", complicationsCommand),
+  command("series", seriesCommand),
+  command("help", helpCommand, [], [{ dest: "topic", optional: true, help: "a command name, e.g. `wfb help build`" }]),
+];
+
+const COMMAND_MAP: ReadonlyMap<string, Command> = new Map(COMMAND_LIST.map((c) => [c.name, c]));
+
+const TOP_OPTIONS: readonly Option[] = [HELP, COLOR, { flags: ["--version"], kind: "flag", help: "show program's version number and exit" }];
+
+function usageOf(c: Command | null): string {
+  if (c === null) return "usage: wfb [-h] [--color {auto,always,never}] [--version] <command> ...";
+  const positionals = c.positionals.map((p) => {
+    const name = p.metavar ?? p.dest;
+    return p.many ? `[${name} ...]` : p.optional ? `[${name}]` : name;
   });
-  b.addArgument(["-j", "--jobs"], { type: POSITIVE_INT, metavar: "N", help: `compile up to N devices at once (default: one per device, at most one per CPU and at most ${MAX_DEFAULT_JOBS})` });
-  b.addArgument(["--sdk"], { help: "Connect IQ SDK root (default: $CIQ_SDK)" });
-  b.addArgument(["--key"], { help: "developer key .der (default: ~/ciq/developer_key.der)" });
-  b.addArgument(["--devices-dir"], { help: "device definitions directory" });
-
-  const v = command("validate", validateCommand);
-  verbose(v);
-  v.addArgument(["design"]);
-  v.addArgument(["-d", "--device"], { action: "append", dest: "devices", help: "check only this device (repeatable); any installed device, not just a listed target; defaults to all targets" });
-  v.addArgument(["--devices-dir"]);
-
-  const p = command("preview", previewCommand);
-  verbose(p);
-  p.addArgument(["design"]);
-  p.addArgument(["-d", "--device"], { action: "append", dest: "devices", help: "render only this device (repeatable); any installed device, not just a listed target; defaults to all targets" });
-  p.addArgument(["-o", "--output"], { default: "build/preview", help: "directory to write the PNGs to (default: build/preview); `-o -` (or `-o --`) writes ONE PNG to stdout instead, for piping -- e.g. `wfb preview face.yaml -o -- | chafa`" });
-  p.addArgument(["-q", "--quiet"], { action: "store_true", help: "print nothing to stdout; errors and warnings still go to stderr (implied by `-o -`)" });
-  p.addArgument(["--scale"], { type: INT, default: 2, help: "enlarge the native-resolution frame this many times, each watch pixel a SCALE x SCALE block (default: 2)" });
-  p.addArgument(["--no-quantise"], { action: "store_true", help: "skip snapping colours to the device palette" });
-  p.addArgument(["--style"], { help: "render one 'config: style:' entry by name (default: the default entry)" });
-  p.addArgument(["--all-styles"], { action: "store_true", help: "render every 'config: style:' entry side by side, one PNG per device" });
-  p.addArgument(["--time"], { metavar: "HH:MM[:SS]", help: "render analog hands (and any time.*-bound element) at this time instead of the sample 10:09:42" });
-  p.addArgument(["--units"], { choices: ["metric", "statute"], help: "the watch's unit setting to render a 'units: auto' element under (default: metric)" });
-  p.addArgument(["--asleep"], { action: "store_true", help: "hide every awake-only second hand, simulating a sleeping glance (no mode/aod-set switch: 'always_on' membership used to do that too, but was removed -- see --aod)" });
-  p.addArgument(["--aod"], { action: "store_true", help: "render the AMOLED always-on-display frame: the resolved 'aod:' set, restyled, with every awake-only second hand hidden" });
-  p.addArgument(["--minute"], { type: INT, metavar: "N", help: "render minute N of the day (0-1439); sugar for --time, and mutually exclusive with it" });
-  p.addArgument(["--heatmap"], { action: "store_true", help: "sum the AOD frame (implies --aod) over every minute of the day into one PNG where a pixel lit every minute is white, and print the largest share of minutes any pixel was lit" });
-  p.addArgument(["--skin"], { action: "store_true", help: "draw the watch round the screen: the simulator skin from the device files; a device without one renders the bare screen, with a warning" });
-  p.addArgument(["-w", "--watch"], { action: "store_true", help: "re-render whenever the design or a font it uses changes" });
-  p.addArgument(["--interval"], { type: FLOAT, default: 0.4, help: "seconds between checks while watching (default: 0.4)" });
-  p.addArgument(["--devices-dir"]);
-  p.addArgument(["--fonts"], { dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, vendor/fonts/, or the SDK Manager's per-OS install location); without it, any face the registry has no exact match for is drawn with a stand-in typeface -- see `wfb doctor`" });
-
-  const s = command("simulate", simulateCommand);
-  verbose(s);
-  s.addArgument(["design"]);
-  s.addArgument(["-d", "--device"], { dest: "device", help: "which device to run, target or not (default: the first target)" });
-  s.addArgument(["-o", "--output"], { default: DEFAULT_OUTPUT });
-  s.addArgument(["--screenshot"], { help: "capture the simulator window to this PNG" });
-  s.addArgument(["-f", "--follow"], { action: "store_true", help: "stay attached and print the face's console output (System.println) until Ctrl-C" });
-  s.addArgument(["--sdk"]);
-  s.addArgument(["--key"]);
-  s.addArgument(["--devices-dir"]);
-
-  const n = command("new", newCommand);
-  n.addArgument(["name"], { nargs: "?", help: "the face's name, e.g. \"My Face\"" });
-  n.addArgument(["-t", "--template"], { default: "dashboard", help: "which template to start from (default: dashboard)" });
-  n.addArgument(["-o", "--output"], { help: "where to write it (default: <name>.yaml in the current directory)" });
-  n.addArgument(["--list"], { action: "store_true", dest: "list_templates", help: "list the available templates and exit" });
-
-  const st = command("studio", studioCommand);
-  st.addArgument(["--host"], { default: "127.0.0.1", help: "the address to listen on (default: 127.0.0.1, loopback only)" });
-  st.addArgument(["-p", "--port"], { type: INT, default: 8765, help: "the port to listen on (default: 8765)" });
-  st.addArgument(["--devices-dir"]);
-  st.addArgument(["--fonts"], { dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb preview`" });
-
-  const d = command("devices", devicesCommand);
-  d.addArgument(["--devices-dir"]);
-
-  const f = command("fonts", fontsCommand);
-  f.addArgument(["devices"], { nargs: "*", metavar: "DEVICE", help: "device(s) to inspect (repeatable; default: all installed devices, summarised)" });
-  f.addArgument(["-d", "--device"], { action: "append", dest: "device_flags", metavar: "DEVICE", help: "another device to inspect (repeatable; alternative or addition to the positional form)" });
-  f.addArgument(["--devices-dir"], { help: "device definitions directory" });
-
-  const doc = command("doctor", doctorCommand);
-  doc.addArgument(["--devices-dir"]);
-  doc.addArgument(["--fonts"], { dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, vendor/fonts/, or the SDK Manager's per-OS install location)" });
-
-  const sc = command("schema", schemaCommand);
-  sc.addArgument(["--path"], { action: "store_true", help: "print the schema's path instead of its contents" });
-
-  command("sources", sourcesCommand);
-  command("complications", complicationsCommand);
-  command("series", seriesCommand);
-
-  const h = command("help", helpCommand);
-  h.addArgument(["topic"], { nargs: "?", help: "a command name, e.g. `wfb help build`" });
-  return top;
+  return ["usage: wfb", c.name, "[options]", ...positionals].join(" ");
 }
 
-/** `wfb <command> help` -> `wfb <command> --help`. */
-function rewriteTrailingHelp(argv: string[], commands: ReadonlyMap<string, ArgumentParser>): string[] {
-  if (argv.length === 2 && argv[1] === "help" && commands.has(argv[0]!)) return [argv[0]!, "--help"];
-  return argv;
-}
-
-/** `-o --` -> `-o -`: argparse takes the first bare `--` as the end of options before `-o` can see it. */
-function rewriteStdoutOutput(argv: string[]): string[] {
-  const outArgs = [...argv];
-  for (let i = 0; i < outArgs.length - 1; i++) {
-    if ((outArgs[i] === "-o" || outArgs[i] === "--output") && outArgs[i + 1] === "--") outArgs[i + 1] = "-";
+/** Help rows: two-space indent, the help text from column 24, wrapped to the terminal. */
+function helpRows(rows: [string, string][]): string[] {
+  const width = (term.width(process.stdout) ?? 80) - 2;
+  const lines: string[] = [];
+  for (const [name, help] of rows) {
+    const wrapped = help ? wrap(help, Math.max(11, width - 24)) : [];
+    if (name.length <= 20 && wrapped.length > 0) {
+      lines.push(`  ${name.padEnd(22)}${wrapped[0]}`);
+      wrapped.shift();
+    } else {
+      lines.push(`  ${name}`);
+    }
+    lines.push(...wrapped.map((l) => " ".repeat(24) + l));
   }
-  return outArgs;
+  return lines;
+}
+
+const optionRow = (o: Option): [string, string] =>
+  [o.kind === "flag" ? o.flags.join(", ") : `${o.flags.join(", ")} ${o.bare !== undefined ? `[${metavarOf(o)}]` : metavarOf(o)}`, o.help ?? ""];
+
+function formatHelp(c: Command | null): string {
+  const sections = [usageOf(c), c === null ? MAIN : c.description];
+  if (c === null) {
+    sections.push(["commands:", ...helpRows(COMMAND_LIST.map((x) => [x.name, x.summary]))].join("\n"));
+    sections.push(["options:", ...helpRows(TOP_OPTIONS.map(optionRow))].join("\n"));
+  } else {
+    if (c.positionals.length) sections.push(["positional arguments:", ...helpRows(c.positionals.map((p) => [p.metavar ?? p.dest, p.help ?? ""]))].join("\n"));
+    sections.push(["options:", ...helpRows(c.options.map(optionRow))].join("\n"));
+  }
+  return sections.join("\n\n") + "\n";
+}
+
+/** `--profile` given bare -> `--profile=<bare>`; `-o --` -> `--output=-`, before `--` can end the options. */
+function normalise(argv: readonly string[], options: readonly Option[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!, next = argv[i + 1];
+    const bare = options.find((o) => o.bare !== undefined && o.flags.includes(arg));
+    if (bare !== undefined && (next === undefined || !/^\d+$/.test(next))) out.push(`${arg}=${bare.bare}`);
+    else if ((arg === "-o" || arg === "--output") && next === "--") out.push("--output=-"), i++;
+    else out.push(arg);
+  }
+  return out;
+}
+
+/** `c`'s arguments from `argv`, or `null` for `--help`. */
+function parseCommand(c: Command, argv: readonly string[]): Namespace | null {
+  const config: Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }> = {};
+  for (const o of c.options) {
+    const short = o.flags.find((f) => !f.startsWith("--"));
+    config[longFlag(o).slice(2)] = { type: o.kind === "flag" ? "boolean" : "string", ...(short ? { short: short.slice(1) } : {}), ...(o.kind === "append" ? { multiple: true } : {}) };
+  }
+  let parsed;
+  try {
+    parsed = parseArgs({ args: normalise(argv, c.options), options: config, allowPositionals: true, strict: true });
+  } catch (e) {
+    throw new UsageError((e as Error).message.split(/\.\s/)[0]!);
+  }
+  if (parsed.values["help"]) return null;
+  const args: Namespace = { command: c.name, handler: c.handler };
+  for (const o of c.options) {
+    const given = parsed.values[longFlag(o).slice(2)];
+    const name = o.flags.join("/");
+    const convert = (text: string): unknown => {
+      if (o.choices && !o.choices.includes(text)) throw new UsageError(`argument ${name}: invalid choice: ${repr(text)} (choose from ${o.choices.join(", ")})`);
+      try {
+        return o.type ? o.type(text) : text;
+      } catch (e) {
+        throw new UsageError(`argument ${name}: ${(e as Error).message}`);
+      }
+    };
+    if (o.kind === "flag") args[destOf(o)] = given === true;
+    else if (given === undefined) args[destOf(o)] = o.default ?? null;
+    else args[destOf(o)] = Array.isArray(given) ? given.map((g) => convert(g as string)) : convert(given as string);
+  }
+  const rest = [...parsed.positionals];
+  for (const p of c.positionals) {
+    if (p.many) args[p.dest] = rest.splice(0);
+    else if (rest.length) args[p.dest] = rest.shift();
+    else if (p.optional) args[p.dest] = null;
+    else throw new UsageError(`the following arguments are required: ${p.dest}`);
+  }
+  if (rest.length) throw new UsageError(`unrecognized arguments: ${rest.join(" ")}`);
+  return args;
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
-  const top = parser();
-  let raw = rewriteTrailingHelp(argv, top.subparsers());
-  raw = rewriteStdoutOutput(raw);
-  let args: Namespace;
+  let color: string | null = null;
+  let i = 0;
+  let current: Command | null = null;
+  let args: Namespace | null;
   try {
-    args = top.parseArgs(raw);
-  } catch (exit) {
-    if (!(exit instanceof ParserExit)) throw exit;
-    process.stdout.write(exit.stdout);
-    process.stderr.write(exit.stderr);
-    return exit.status;
-  }
-  term.setMode((args["color"] as string | null) || (args["color_before"] as string | null) || "auto");
-  if (!args["command"]) {
-    process.stdout.write(top.formatHelp());
+    for (; i < argv.length && argv[i]!.startsWith("-"); i++) {
+      const arg = argv[i]!;
+      if (arg === "-h" || arg === "--help") {
+        process.stdout.write(formatHelp(null));
+        return 0;
+      }
+      if (arg === "--version") {
+        out(`wfb ${VERSION}`);
+        return 0;
+      }
+      if (arg === "--color" || arg.startsWith("--color=")) {
+        color = arg === "--color" ? argv[++i] ?? null : arg.slice("--color=".length);
+        if (color === null || !(term.MODES as readonly string[]).includes(color)) throw new UsageError(`argument --color: invalid choice: ${repr(color ?? "")} (choose from ${term.MODES.join(", ")})`);
+        continue;
+      }
+      throw new UsageError(`unrecognized arguments: ${arg}`);
+    }
+    if (i === argv.length) {
+      process.stdout.write(formatHelp(null));
+      return 2;
+    }
+    current = COMMAND_MAP.get(argv[i]!) ?? null;
+    if (current === null) throw new UsageError(`argument command: invalid choice: ${repr(argv[i])} (choose from ${[...COMMAND_MAP.keys()].join(", ")})`);
+    const rest = argv.slice(i + 1);
+    args = parseCommand(current, rest.length === 1 && rest[0] === "help" ? ["--help"] : rest);
+  } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    err(usageOf(current));
+    err(`wfb${current ? ` ${current.name}` : ""}: error: ${e.message}`);
     return 2;
   }
+  if (args === null) {
+    process.stdout.write(formatHelp(current));
+    return 0;
+  }
+  term.setMode((args["color"] as string | null) || color || "auto");
   installAssets();
   try {
     return await (args["handler"] as Handler)(args);
@@ -998,20 +1122,18 @@ function seriesCommand(): number {
 }
 
 function helpCommand(args: Namespace): number {
-  const top = parser();
   const topic = args["topic"] as string | null;
   if (!topic) {
-    process.stdout.write(top.formatHelp());
+    process.stdout.write(formatHelp(null));
     return 0;
   }
-  const commands = top.subparsers();
-  const target = commands.get(topic);
+  const target = COMMAND_MAP.get(topic);
   if (target === undefined) {
     error(`no such command ${repr(topic)}`);
-    err(`       commands: ${[...commands.keys()].sort().join(", ")}`);
+    err(`       commands: ${[...COMMAND_MAP.keys()].sort().join(", ")}`);
     return 1;
   }
-  process.stdout.write(target.formatHelp());
+  process.stdout.write(formatHelp(target));
   return 0;
 }
 

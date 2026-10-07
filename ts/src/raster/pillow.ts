@@ -649,13 +649,6 @@ export function unpackTiles(bytes: Uint8Array, index: Record<string, [number, nu
 
 // -- the JSON form: `src/draw/jsonform.ts's rasterise` ------------------------------------------
 
-// Every op `drawOps` draws: `src/draw/jsonform.ts's BROWSER_OPS`, checked equal.
-export const OPS = Object.freeze([
-  "color", "pen", "fillPolygon", "arc", "text", "glyph",
-  "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",
-  "fillCircle", "drawCircle", "fillEllipse", "drawEllipse", "drawLine",
-]);
-
 const num = (n: JsonNum): number => (typeof n === "object" ? n.value + n.add : n);
 
 // A run's tiles from the op's anchor: `floor(x * scale), floor(y * scale)`.

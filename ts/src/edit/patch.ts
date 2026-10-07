@@ -698,6 +698,3 @@ export function removeSlot(index: SpanIndex, name: string): Patch {
   return patch(removed.text, removed.expected, `delete the slot ${name}`);
 }
 
-export function nodeText(index: SpanIndex, node: YamlNode): string {
-  return index.text.slice(node.start.index, node.end.index);
-}

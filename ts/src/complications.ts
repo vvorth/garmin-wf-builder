@@ -56,19 +56,6 @@ export const VO2MAX_RATINGS: ReadonlyMap<string, readonly (readonly [number, num
 const isFloatValue = (value: unknown): boolean => value instanceof PyFloat || (typeof value === "number" && !Number.isInteger(value));
 
 /**
- * The twin of `WfbComplications.mc`'s `count`: a count the device scaled to
- * thousands (a non-Number with the unit "K") multiplied back and rounded,
- * step for step in single precision as the watch computes it.
- */
-export function countValue(value: unknown, unit: unknown): unknown {
-  if (isFloatValue(value) && unit === "K") {
-    const f = Math.fround;
-    return Math.trunc(f(f(f(num(value as number)) * 1000) + 0.5));
-  }
-  return value;
-}
-
-/**
  * A pulled complication value as the watch draws it (`WfbReading.mc`'s
  * `formatValue`): a float to three significant figures without dropping an
  * integer digit, trailing zeros gone; everything else as `str()`.
@@ -306,12 +293,6 @@ export function vo2maxScale(sex: string | null, age: number | null): [number, nu
 export function heartRateScale(zones: readonly number[] | null): [number, number] | null {
   if (zones === null || zones.length < 6 || zones[0]! >= zones[5]!) return null;
   return [zones[0]!, zones[5]!];
-}
-
-/** An app complication's own `ranges`: the first value to the last. */
-export function rangesScale(ranges: readonly number[] | null): [number, number] | null {
-  if (ranges === null || ranges.length < 2 || ranges[0]! >= ranges[ranges.length - 1]!) return null;
-  return [ranges[0]!, ranges[ranges.length - 1]!];
 }
 
 /** The twin of the generated `SlotScale.scale`: type `name`'s `[minimum, maximum]` for a wearer, or `null`. */

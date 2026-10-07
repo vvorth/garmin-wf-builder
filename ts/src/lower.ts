@@ -17,12 +17,11 @@
 // spelled out. And it records, for a nested key the builder compiles
 // (`outline.color`, `absent.value`), the dotted name a diagnostic gives it
 // (`Origin`).
-import { compareStrings, getCloseMatches } from "./difflib.ts";
-import type { Bag, Span } from "./diagnostics.ts";
+import { type Bag, getCloseMatches, type Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { ExprError, tokenize, type Token } from "./expr.ts";
 import { controlCharacter } from "./mcsource.ts";
-import { repr } from "./py.ts";
+import { compareStrings, repr } from "./py.ts";
 import {
   aodFormat, parseTemplate, type Placeholder, segments, stripTemplateParens, type Template, TemplateError, toValueFormat,
 } from "./template.ts";

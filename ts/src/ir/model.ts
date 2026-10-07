@@ -24,14 +24,6 @@ export function make<T extends object>(cls: new () => T, init: Partial<T>): T {
 /** `modes:` means only the two MIP partial-update modes. */
 export const MODES = ["active", "low_power"] as const;
 
-/** Every key the schema accepts on a `group`, and what it does to the members. */
-export const GROUP_KEYS: ReadonlyMap<string, string> = new Map([
-  ["type", "structural"], ["at", "structural"], ["size", "structural"], ["align", "structural"],
-  ["children", "structural"], ["visible", "conjoined"], ["antialias", "nearest"], ["min_1px", "nearest"],
-  ["sleep_update", "nearest"], ["z", "nearest"], ["aod", "merged"], ["lint", "union"],
-  ["on_hold", "group"], ["outline", "group"], ["unsupported", "group"], ["overrides", "structural"],
-]);
-
 export const ROLE_VALUE = "value";
 export const ROLE_MAX = "max";
 export const ROLE_MIN = "min";

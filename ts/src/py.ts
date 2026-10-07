@@ -272,12 +272,6 @@ export function pyMod(a: number, b: number): number {
   return (r < 0) !== (b < 0) ? r + b : r;
 }
 
-/** Python's `a // b`. */
-export function floorDiv(a: number, b: number): number {
-  if (b === 0) throw new PyError("ZeroDivisionError", "division by zero");
-  return Math.floor(a / b);
-}
-
 /** Python's `math.degrees`: `x / (pi / 180)`, as CPython computes it. */
 export function degrees(x: number): number {
   return x / (Math.PI / 180.0);
@@ -464,4 +458,14 @@ export function hypot(x: number, y: number): number {
     if (rem > half || (rem === half && (!exact || (q & 1n) === 1n))) q += 1n;
   }
   return Number(q) * 2 ** (e - 64 + drop);
+}
+
+/** Python's `str` comparison: by code point. */
+export function compareStrings(x: string, y: string): number {
+  const a = Array.from(x), b = Array.from(y);
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const d = a[i]!.codePointAt(0)! - b[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return a.length - b.length;
 }

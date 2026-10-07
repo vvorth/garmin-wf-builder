@@ -21,8 +21,7 @@
 import type { Bag } from "./diagnostics.ts";
 import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
 import { type Schema, ValidationError, Validator } from "./jsonschema.ts";
-import { repr } from "./py.ts";
-import { compareStrings } from "./difflib.ts";
+import { compareStrings, repr } from "./py.ts";
 import type { YamlDocument } from "./yamlsrc.ts";
 
 export const SUPPORTED_FORMATS = [2] as const;

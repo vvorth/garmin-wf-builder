@@ -5,8 +5,7 @@
 // line and column, not at an internal representation. ADR 0008 requires
 // each diagnostic to carry a severity and, where the check rests on
 // estimation, to say so.
-import { getCloseMatches } from "./difflib.ts";
-import { lines as splitLines } from "./py.ts";
+import { compareStrings, lines as splitLines } from "./py.ts";
 import { SEVERITY_STYLE, style } from "./term.ts";
 import { wrap } from "./textwrap.ts";
 
@@ -213,4 +212,38 @@ export class Catalogue<T> extends Map<string, T> {
   didYouMeanNotes(name: string, limit = 3): string[] {
     return didYouMean(this.suggest(name, limit));
   }
+}
+
+/** Characters matched by Ratcliff/Obershelp: the longest common run (earliest on a tie), then the same either side of it. */
+function matched(a: readonly string[], b: readonly string[]): number {
+  let best = 0, bi = 0, bj = 0;
+  let row = new Array<number>(b.length + 1).fill(0);
+  for (let i = 0; i < a.length; i++) {
+    const next = new Array<number>(b.length + 1).fill(0);
+    for (let j = 0; j < b.length; j++) {
+      if (a[i] !== b[j]) continue;
+      next[j + 1] = row[j]! + 1;
+      if (next[j + 1]! > best) [best, bi, bj] = [next[j + 1]!, i + 1 - next[j + 1]!, j + 1 - next[j + 1]!];
+    }
+    row = next;
+  }
+  if (best === 0) return 0;
+  return best + matched(a.slice(0, bi), b.slice(0, bj)) + matched(a.slice(bi + best), b.slice(bj + best));
+}
+
+/** difflib's `SequenceMatcher(None, x, y).ratio()` over code points. */
+function similarity(x: string, y: string): number {
+  const a = Array.from(x), b = Array.from(y);
+  return a.length + b.length ? 2 * matched(a, b) / (a.length + b.length) : 1;
+}
+
+/** The "did you mean" candidates: up to `n` of `possibilities` at least `cutoff` similar to `word`, best first. */
+export function getCloseMatches(word: string, possibilities: Iterable<string>, n = 3, cutoff = 0.6): string[] {
+  const scored: [number, string][] = [];
+  for (const x of possibilities) {
+    const score = similarity(x, word);
+    if (score >= cutoff) scored.push([score, x]);
+  }
+  scored.sort((p, q) => q[0] - p[0] || compareStrings(q[1], p[1]));
+  return scored.slice(0, n).map(([, x]) => x);
 }
