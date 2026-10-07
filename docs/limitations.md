@@ -965,9 +965,10 @@ rasterisation:
   `fillPolygon` is a pixel off over six shapes, and `drawArc` 0-5 pixels a
   shape at its ends. Still off: a 2 or 4 px diagonal line (about 25
   pixels a line). Lines drawn down or to the left, `drawRoundedRectangle`
-  at other pens and fractional coordinates are unprobed. A
-  corner radius of 1 is square on the watch, where Pillow rounds it
-  (`docs/research/probes/ring-on-device/`). The AMOLED `fenix847mm`
+  at other pens and fractional coordinates are unprobed, and
+  `fillEllipse`/`drawEllipse` are still Pillow's, never compared. A
+  corner radius of 1 is square on the watch
+  (`docs/research/probes/ring-on-device/`), as the fitted rules draw it. The AMOLED `fenix847mm`
   anti-aliases every edge, which the preview does not. For those pixels,
   the simulator is authoritative.
 
