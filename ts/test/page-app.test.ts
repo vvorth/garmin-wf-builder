@@ -6,6 +6,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantiate, len, node, page, render, repoText, run, summary, testUri } from "./page-harness.ts";
 
+test("one frame is on its way at a time, and only the newest is shown", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fr955"];
+  const printed = await page(face, `#/face/${face.summary.id}`, `
+      const frames = () => requests.filter(([op]) => op === "frame").map(([, a]) => a.scale);
+      // three zoom steps while the first frame is still being drawn
+      for (let i = 0; i < 3; i++) { press("=", { ctrlKey: true }); await settle(); }
+      out(frames());
+      unanswered.shift()({ status: 400, json: { error: "an old frame failed" } });
+      await settle(); await settle();
+      out([frames(), app.textContent.includes("an old frame failed")]);
+    `);
+  assert.deepEqual(printed, [[2], [[2, 4], false]]);
+});
+
 test("deleting a face asks in the page's own dialog first", async () => {
   const printed = await page(faceFixture(), "#/", `
       const asked = () => app.textContent.includes("Are you sure?");

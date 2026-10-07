@@ -111,16 +111,37 @@ export function useFrame({ docId, doc, view, scale, deviceInfo, onError }) {
   const date = view.now ? clock.date : view.date;
   const slots = (doc && doc.globals && doc.globals.slots) || [];
   const picks = picksParam(view.picks, slots);
+  // One frame on its way at a time: the worker draws in turn with the
+  // face's edits, so a zoom drag or a run of time steps must not queue a
+  // frame per step. A newer ask replaces the one waiting, and only the
+  // newest ask's answer is shown.
+  const asked = useRef(0);            // the newest ask, by number
+  const waiting = useRef(null);       // the ask not sent yet, {n, args}
+  const sending = useRef(false);
+  const pump = async () => {
+    if (sending.current || waiting.current === null) return;
+    const { n, args } = waiting.current;
+    waiting.current = null;
+    sending.current = true;
+    try {
+      const f = await api("frame", args);
+      if (n === asked.current) setFrame(f);
+    } catch (e) {
+      if (n === asked.current) onError(e);
+    } finally {
+      sending.current = false;
+      if (waiting.current !== null) pump();
+      else setBusy(false);
+    }
+  };
   useEffect(() => { setFrame(null); }, [docId]);
   useEffect(() => {
-    if (!doc || !view.device || !doc.targets.includes(view.device)) { setFrame(null); return; }
-    let live = true;
+    const n = ++asked.current;
+    if (!doc || !view.device || !doc.targets.includes(view.device)) { waiting.current = null; setFrame(null); return; }
     setBusy(true);
-    api("frame", { id: docId, device: view.device, scale, style: view.style, time, date,
-                   asleep: view.asleep, aod: view.aod, picks })
-      .then((f) => { if (live) setFrame(f); }, onError)
-      .finally(() => { if (live) setBusy(false); });
-    return () => { live = false; };
+    waiting.current = { n, args: { id: docId, device: view.device, scale, style: view.style, time, date,
+                                   asleep: view.asleep, aod: view.aod, picks } };
+    pump();
   }, [doc && doc.version, doc && doc.targets.join(), view.device, view.style, time, date,
       view.asleep, view.aod, scale, picks]);
   useEffect(() => {

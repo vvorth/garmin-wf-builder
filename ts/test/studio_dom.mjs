@@ -49,6 +49,7 @@ class Element extends Node {
   showPopover() { if (!this.popoverOpen) { this.popoverOpen = true; this.dispatch("toggle", { newState: "open" }); } }
   hidePopover() { if (this.popoverOpen) { this.popoverOpen = false; this.dispatch("toggle", { newState: "closed" }); } }
   getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
+  querySelector() { return null; }   // no selectors here: nothing is found
 }
 export function install() {
   const document = {

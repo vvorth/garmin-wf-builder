@@ -158,8 +158,11 @@ export async function page(face: { summary: any; vocabulary: any; home: any }, r
         let body = answers[op === "get" ? \`get \${args.id}\` : op];
         if (op === "goto") body = summary;
         if (op === "rename") body = { id: summary.id, name: args.name };
-        if (body !== undefined) reply({ status: 200, json: body });   // a frame: never drawn here
+        // a frame is never drawn here: its answer waits in \`unanswered\` for a test to give
+        if (body !== undefined) reply({ status: 200, json: body });
+        else unanswered.push(reply);
       };
+      const unanswered = [];
       // answers on their way to the page, which \`settle\` waits out
       let inflight = 0;
       globalThis.Worker = class {
