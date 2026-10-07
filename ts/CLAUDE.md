@@ -108,9 +108,9 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     goldens spell them; a class is built with `Class.create({...})`.
     `builder/` is the semantic pass, one layer per module, and `src/kinds/` each kind's
     `build` half, registered by importing `kinds/index.ts`.
-  - `src/jsonschema.ts` is python-jsonschema's Draft 2020-12 validator,
-    ported, so `validate.ts` shapes the same error tree into the same
-    messages.
+  - `src/jsonschema.ts` is the schema validator (Draft 2020-12, no
+    dependency), whose error tree, python-jsonschema's shape,
+    `validate.ts` turns into diagnostics.
   - `src/py.ts` holds Python's semantics where output depends on them:
     - truthiness, `repr`, `str`, `==` (`deepEqual`), `json.dumps` and
       `splitlines`;

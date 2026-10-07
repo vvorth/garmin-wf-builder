@@ -1,11 +1,12 @@
-// JSON Schema validation as python-jsonschema 4.26 (Draft 2020-12) does
-// it, for the keywords this project's schema uses. `validate.ts` turns
-// jsonschema's errors into diagnostics using their whole shape (the
-// keyword, the failing subschema, each `oneOf` branch's errors as
-// `context`, the paths, even the message's length to break a tie), so this
-// reproduces that shape exactly rather than adapting another validator's.
+// The project's JSON Schema validator: Draft 2020-12, the keywords this
+// project's schema uses, no dependency. `validate.ts` turns its errors
+// into diagnostics using their whole shape (the keyword, the failing
+// subschema, each `oneOf` branch's errors as `context`, the paths, even
+// the message's length to break a tie). That shape is python-jsonschema
+// 4.26's, which a flat-error validator such as Ajv does not give, so the
+// diagnostics stay as they are.
 //
-// Transcribed from jsonschema's `validators.py` (`iter_errors`, `descend`,
+// Follows jsonschema's `validators.py` (`iter_errors`, `descend`,
 // `_validate_reference`), `_keywords.py` and `_utils.py` (`equal`, `uniq`,
 // `find_additional_properties`, `extras_msg`). Keywords run in each
 // schema's own key order; `$ref` and `if` add nothing to the schema path.
