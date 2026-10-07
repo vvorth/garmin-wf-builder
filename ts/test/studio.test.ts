@@ -135,6 +135,27 @@ test("a document survives a new store over the same records", async () => {
   assert.notEqual(again.analysis().face, null);
 });
 
+test("a tab's change survives another tab's next change once that tab reloads", async () => {
+  const backend = new MemoryBackend();
+  const a = await newStudio(backend);
+  const id = a.create(bundle("T", minimalText()), "new").id;
+  await a.store.flush();
+  const b = await newStudio(backend);
+  const there = a.document(id);
+  there.commit(bumped(there, 1), new Map(), "tab A", there.version);
+  await a.store.flush();
+  await b.reload(id);
+  const here = b.document(id);
+  here.commit(bumped(here, 2), new Map(), "tab B", here.version);
+  await b.store.flush();
+  const after = await newStudio(backend);
+  assert.deepEqual(after.store.journal(id).map((c) => c.label), ["new", "tab A", "tab B"]);
+  a.delete(id);
+  await a.store.flush();
+  await b.reload(id);
+  assert.equal(b.store.has(id), false);
+});
+
 test("a merged change takes the place of the one before", () => {
   const change = (seq: number, kind = CHANGE, target?: number, merge = false): Change =>
     ({ seq, time: 0, label: `c${seq}`, text: "", assets: {}, kind, ...(target !== undefined ? { target } : {}), ...(merge ? { merge } : {}) });

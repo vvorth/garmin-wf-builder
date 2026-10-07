@@ -4,8 +4,11 @@
 //
 // It loads the schema, the icon font and every installed device's digest
 // from the server once, and a device's skin and font files the first time
-// a face needs that device (`prepare`). What the studio does is broadcast
-// on the `wfb-studio` channel, which every open tab listens to.
+// a face needs that device (`prepare`). What the studio does goes to this
+// tab's page and, on the `wfb-studio` channel, to every other tab's worker,
+// which reads that face again from IndexedDB before telling its own page:
+// each worker holds the store in memory, and one that wrote over another
+// tab's change would lose it.
 import opentype from "opentype.js";
 import { DeviceDatabase } from "../devices/device.ts";
 import { MemoryDeviceFiles } from "../devices/files.ts";
@@ -42,10 +45,10 @@ class IdbBackend implements Backend {
     });
   }
 
-  async load(): Promise<Map<string, unknown>> {
+  async load(prefix = ""): Promise<Map<string, unknown>> {
     const out = new Map<string, unknown>();
     await this.run("readonly", (records) => {
-      const cursor = records.openCursor();
+      const cursor = records.openCursor(prefix ? IDBKeyRange.bound(prefix, prefix + "\uffff") : null);
       cursor.onsuccess = () => {
         const at = cursor.result;
         if (at === null) return;
@@ -127,6 +130,8 @@ async function start(): Promise<Router> {
         }
         if (extras.skin !== null) files.add(id, extras.skin.name, decode(extras.skin.data));
       })());
+      // a failed load is tried again on the next request, not remembered
+      prepared.get(key)!.catch(() => prepared.delete(key));
     }
     return prepared.get(key)!;
   };
@@ -136,11 +141,23 @@ async function start(): Promise<Router> {
     if (iconFont === null) throw new Error("the icon font is not installed on the server");
     return iconFont;
   });
-  const emit = (event: string, data: Record<string, unknown>): void => channel.postMessage({ event, data });
-  studio.onEvent = emit;
+  const emit = (event: string, data: Record<string, unknown>): void => {
+    channel.postMessage({ event, data });
+    self.postMessage({ event, data });
+  };
+  // timed snapshots and compaction, in turn with the requests, announced once written
+  const later: [string, Record<string, unknown>][] = [];
+  studio.onEvent = (event, data) => later.push([event, data]);
   setInterval(() => {
-    studio.tick();
-    void store.flush();
+    queue = queue.then(async () => {
+      studio.tick();
+      try {
+        await store.flush();
+      } catch (error) {
+        later.push(["error", { message: (error as Error).message }]);
+      }
+      for (const [event, data] of later.splice(0)) emit(event, data);
+    });
   }, Math.max(1, Math.min(30, studio.snapshotSeconds / 4)) * 1000);
   return new Router(studio, {
     prepare: async (ids, faces = []) => {
@@ -171,5 +188,19 @@ self.onmessage = (message: MessageEvent<{ id: number; request: Request }>) => {
       response = { status: 500, json: { error: (error as Error).message ?? String(error) } };
     }
     self.postMessage({ id, response });
+  });
+};
+
+// Another tab's worker changed a face: read it again, in turn with this
+// tab's requests, then tell the page.
+channel.onmessage = (message: MessageEvent<{ event: string; data: Record<string, unknown> }>) => {
+  const { event, data } = message.data;
+  queue = queue.then(async () => {
+    try {
+      if (typeof data["id"] === "string") await (await ready).studio.reload(data["id"]);
+    } catch {
+      // the face is read again when next asked for, and that answer says what failed
+    }
+    self.postMessage({ event, data });
   });
 };

@@ -6,6 +6,7 @@
 import { TAB } from "./session.js";
 
 const waiting = new Map();
+const listeners = new Set();
 let next = 0;
 let worker = null;
 
@@ -14,7 +15,8 @@ function started() {
   if (worker === null) {
     worker = new Worker("/dist/worker.js", { type: "module" });
     worker.onmessage = (e) => {
-      const { id, response } = e.data;
+      const { id, response, event, data } = e.data;
+      if (event) { for (const f of listeners) f(event, data); return; }
       waiting.get(id)(response);
       waiting.delete(id);
     };
@@ -63,6 +65,14 @@ export async function download(path) {
   link.download = response.filename || "face";
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+// What the studio did, in this tab or another (once this tab's worker has
+// read it): `onEvent(name, data)` until the returned function is called.
+export function listen(onEvent) {
+  started();
+  listeners.add(onEvent);
+  return () => listeners.delete(onEvent);
 }
 
 export const enc = encodeURIComponent;

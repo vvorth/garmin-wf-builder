@@ -27,7 +27,9 @@
 // The store holds everything in memory, read once (`open`); each action
 // changes the memory at once and queues its writes, which `flush` awaits.
 // A request's answer waits for its flush, so an acknowledged change is on
-// disk.
+// disk. Another tab's store writes the same records, so a document another
+// tab changed is read again (`reload`) before this one touches it: an
+// append against the old head would overwrite that tab's record.
 //
 // **Compaction** (`compact`) rewrites the journal as the newest states on
 // the current line, and, when the document is in an earlier state than the
@@ -94,8 +96,8 @@ export interface Meta {
 
 /** Where the store's records live. */
 export interface Backend {
-  /** Every record. */
-  load(): Promise<Map<string, unknown>>;
+  /** Every record whose key starts with `prefix`. */
+  load(prefix?: string): Promise<Map<string, unknown>>;
   put(key: string, value: unknown): Promise<void>;
   delete(keys: readonly string[]): Promise<void>;
 }
@@ -104,8 +106,8 @@ export interface Backend {
 export class MemoryBackend implements Backend {
   readonly records = new Map<string, unknown>();
 
-  async load(): Promise<Map<string, unknown>> {
-    return new Map(this.records);
+  async load(prefix = ""): Promise<Map<string, unknown>> {
+    return new Map([...this.records].filter(([key]) => key.startsWith(prefix)));
   }
 
   async put(key: string, value: unknown): Promise<void> {
@@ -153,6 +155,43 @@ export function replay(journal: readonly Change[]): Timeline {
   return line;
 }
 
+async function read(backend: Backend, prefixes: string[]): Promise<Map<string, unknown>> {
+  try {
+    return new Map((await Promise.all(prefixes.map((p) => backend.load(p)))).flatMap((m) => [...m]));
+  } catch (error) {
+    throw new StoreError(`cannot read the history store: ${(error as Error).message}`);
+  }
+}
+
+/** The documents `records` hold; one without its `meta` record is not one. */
+function parse(records: Map<string, unknown>): Map<string, Doc> {
+  const docs = new Map<string, Doc>();
+  const doc = (id: string): Doc => {
+    let found = docs.get(id);
+    if (found === undefined) {
+      found = { meta: { name: "", created: 0 }, journal: [], blobs: new Map(), snapshots: new Map(), timeline: null };
+      docs.set(id, found);
+    }
+    return found;
+  };
+  const metas = new Set<string>();
+  for (const [key, value] of records) {
+    const [kind, id, rest] = key.split("/");
+    if (id === undefined || !ID.test(id)) continue;
+    if (kind === "meta") {
+      doc(id).meta = value as Meta;
+      metas.add(id);
+    } else if (kind === "journal") doc(id).journal.push(value as Change);
+    else if (kind === "blob" && rest !== undefined) doc(id).blobs.set(rest, value as Blob);
+    else if (kind === "snapshot" && rest !== undefined) doc(id).snapshots.set(rest, value as Snapshot);
+  }
+  for (const id of [...docs.keys()]) {
+    if (!metas.has(id)) docs.delete(id);
+    else docs.get(id)!.journal.sort((a, b) => a.seq - b.seq);
+  }
+  return docs;
+}
+
 const seqKey = (seq: number): string => String(seq).padStart(10, "0");
 const now = (): number => Date.now() / 1000;
 const encoder = new TextEncoder();
@@ -170,36 +209,18 @@ export class Store {
   /** The store over `backend`, every record read. */
   static async open(backend: Backend): Promise<Store> {
     const store = new Store(backend);
-    let records: Map<string, unknown>;
-    try {
-      records = await backend.load();
-    } catch (error) {
-      throw new StoreError(`cannot read the history store: ${(error as Error).message}`);
-    }
-    const doc = (id: string): Doc => {
-      let found = store.docs.get(id);
-      if (found === undefined) {
-        found = { meta: { name: "", created: 0 }, journal: [], blobs: new Map(), snapshots: new Map(), timeline: null };
-        store.docs.set(id, found);
-      }
-      return found;
-    };
-    const metas = new Set<string>();
-    for (const [key, value] of records) {
-      const [kind, id, rest] = key.split("/");
-      if (id === undefined || !ID.test(id)) continue;
-      if (kind === "meta") {
-        doc(id).meta = value as Meta;
-        metas.add(id);
-      } else if (kind === "journal") doc(id).journal.push(value as Change);
-      else if (kind === "blob" && rest !== undefined) doc(id).blobs.set(rest, value as Blob);
-      else if (kind === "snapshot" && rest !== undefined) doc(id).snapshots.set(rest, value as Snapshot);
-    }
-    for (const id of [...store.docs.keys()]) {
-      if (!metas.has(id)) store.docs.delete(id);
-      else store.docs.get(id)!.journal.sort((a, b) => a.seq - b.seq);
-    }
+    for (const [id, doc] of parse(await read(backend, [""]))) store.docs.set(id, doc);
     return store;
+  }
+
+  /** Read document `id`'s records again, as another tab left them; gone when that tab deleted it. */
+  async reload(id: string): Promise<void> {
+    if (!ID.test(id)) return;
+    await this.flush();
+    const records = await read(this.backend, ["meta", "journal", "blob", "snapshot"].map((kind) => `${kind}/${id}`));
+    const doc = parse(records).get(id);
+    if (doc === undefined) this.docs.delete(id);
+    else this.docs.set(id, doc);
   }
 
   /** Wait for every queued write; a failed one is thrown, once. */

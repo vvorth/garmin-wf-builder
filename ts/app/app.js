@@ -4,7 +4,7 @@
 
 import { html, render, useState, useEffect, useRef, useCallback, useMemo }
   from "./vendor/preact-htm.module.js";
-import { api, download, enc } from "./api.js";
+import { api, download, enc, listen } from "./api.js";
 import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
@@ -79,10 +79,7 @@ function useEvents(onEvent) {
   const handler = useRef(onEvent);
   handler.current = onEvent;
   useEffect(() => {
-    // Every tab's worker announces what it did on this channel.
-    const channel = new BroadcastChannel("wfb-studio");
-    channel.onmessage = (e) => handler.current(e.data.event, e.data.data);
-    return () => channel.close();
+    return listen((event, data) => handler.current(event, data));
   }, []);
 }
 
@@ -107,7 +104,7 @@ function Home({ onError }) {
   const load = useCallback(() => api("/api/home").then(setHome, onError), []);
   useEffect(() => { load(); }, []);
   // another tab deleted or renamed a face
-  useEvents((name) => { if (name === "deleted" || name === "renamed") load(); });
+  useEvents((name) => { if (name === "created" || name === "deleted" || name === "renamed") load(); });
   const [renaming, setRenaming] = useState(null);
   const rename = async (doc, to) => {
     setRenaming(null);
@@ -397,9 +394,9 @@ function Editor({ docId, onError, onNotice }) {
   const [gone, setGone] = useState(false);
   useEffect(() => { setGone(false); }, [docId]);
   useEvents((name, data) => {
+    if (name === "error" && (!data.id || data.id === docId)) onError(new Error(data.message));
     if (!doc || data.id !== docId) return;
-    if (name === "error") onError(new Error(data.message));
-    else if (name === "deleted") setGone(true);
+    if (name === "deleted") setGone(true);
     else if (name === "renamed") setDoc((d) => (d && d.id === data.id ? { ...d, name: data.name } : d));
     // this tab's own change reaches it with the answer to its request
     else if ((name === "changed" && data.tab !== TAB && data.version > doc.version)

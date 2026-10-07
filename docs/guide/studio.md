@@ -36,6 +36,9 @@ The editor runs in the browser, compiler and all: the server sends the
 watches' files and fonts, and builds a `.prg` when you ask. Every face,
 with its history and snapshots, is kept in that browser's own storage
 (IndexedDB), so closing the tab or stopping the server loses nothing.
+Tabs of one browser share those faces: a change made in one tab shows in
+every other tab that has the face open, and editing it there carries on
+from that change.
 Each browser has its own faces: to edit one in another browser, download
 it there and open it. Clearing the browser's site data deletes them, so
 download a face you want to keep elsewhere.

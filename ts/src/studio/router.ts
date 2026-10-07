@@ -3,9 +3,9 @@
 // message; the tests run it directly.
 //
 // Each answer waits for the store's writes, so an acknowledged change is
-// kept. What the studio did is announced through `emit` ("changed",
-// "deleted", "renamed", "snapshot"), which the worker broadcasts to the
-// editor's other tabs.
+// kept. What the studio did is announced through `emit` ("created",
+// "changed", "deleted", "renamed", "snapshot"), which the worker hands its
+// page and the other tabs' workers.
 import { slug } from "../build.ts";
 import { DeviceError } from "../devices/device.ts";
 import { indexFor, Refused } from "../edit/spans.ts";
@@ -138,11 +138,20 @@ export class Router {
     this.host = host;
   }
 
+  /** What this request did, announced once its writes are on disk: another tab's worker reads them then. */
+  private announced: [string, Json][] = [];
+
+  private emit(event: string, data: Json): void {
+    this.announced.push([event, data]);
+  }
+
   /** Answer one request; every refusal is JSON with its status, never a stack trace. */
   async handle(request: Request): Promise<Response> {
+    this.announced = [];
     try {
       const answer = await this.route(request);
       await this.studio.store.flush();
+      for (const [event, data] of this.announced) this.host.emit(event, data);
       return answer;
     } catch (e) {
       if (e instanceof UnknownDocument) return error(404, "there is no such face; it may have been deleted");
@@ -165,7 +174,7 @@ export class Router {
   }
 
   private changed(doc: Document, tab: string | null): void {
-    this.host.emit("changed", { id: doc.id, version: doc.version, tab });
+    this.emit("changed", { id: doc.id, version: doc.version, tab });
   }
 
   private async route({ method, url, body = null, tab = null }: Request): Promise<Response> {
@@ -202,12 +211,14 @@ export class Router {
       const template = q.get("template") ?? "minimal";
       const faceName = (q.get("name") ?? "").trim() || "My Face";
       const created = studio.create(bundle(faceName, starters.instantiate(template, faceName)), `new from the ${template} template`);
+      this.emit("created", { id: created.id });
       await this.open(created.id);
       return json(created.summary());
     }
     if (id === "upload" && method === "POST") {
       const filename = q.get("filename") ?? "";
       const created = studio.create(readUpload(filename, body ?? new Uint8Array()), `open ${filename}`);
+      this.emit("created", { id: created.id });
       await this.open(created.id);
       return json(created.summary());
     }
@@ -218,11 +229,11 @@ export class Router {
       case "GET ": return json(doc.summary());
       case "DELETE ":
         studio.delete(id);
-        this.host.emit("deleted", { id });
+        this.emit("deleted", { id });
         return json({ deleted: id });
       case "POST rename":
         doc.rename(q.get("name") ?? "");
-        this.host.emit("renamed", { id, name: doc.name });
+        this.emit("renamed", { id, name: doc.name });
         return json({ id, name: doc.name });
       case "GET cover": {
         const png = doc.cover();
@@ -298,7 +309,7 @@ export class Router {
       case "POST snapshots": {
         if (name !== undefined) break;
         const snap = doc.snapshot("manual");
-        this.host.emit("snapshot", { id, name: snap.name, version: doc.version });
+        this.emit("snapshot", { id, name: snap.name, version: doc.version });
         return json(doc.history());
       }
       case "GET download": {
@@ -307,7 +318,7 @@ export class Router {
         // Every download is a point in time worth going back to, unless that version has a snapshot.
         if (doc.lastSnapshot[1] !== doc.version) {
           const snap = doc.snapshot("download");
-          this.host.emit("snapshot", { id, name: snap.name, version: doc.version });
+          this.emit("snapshot", { id, name: snap.name, version: doc.version });
         }
         if (form === "auto") form = b.files.size > 0 ? "zip" : "yaml";
         const stem = slug(b.name);
@@ -324,6 +335,7 @@ export class Router {
       }
       if (sub === "copy") {
         const copy = studio.fork(id, name);
+        this.emit("created", { id: copy.id });
         await this.open(copy.id);
         return json(copy.summary());
       }

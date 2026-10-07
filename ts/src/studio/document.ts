@@ -912,6 +912,12 @@ export class Studio {
     this.open.delete(id);
     this.store.delete(id);
   }
+
+  /** Read `id` again as another tab left it, its open copy dropped. */
+  async reload(id: string): Promise<void> {
+    await this.store.reload(id);
+    this.open.delete(id);
+  }
 }
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {

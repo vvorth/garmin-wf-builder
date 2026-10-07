@@ -140,7 +140,6 @@ export async function page(face: { summary: any; vocabulary: any; home: any }, r
         return event.prevented;
       };
       globalThis.location = { hash: ${JSON.stringify(route)}, href: "http://studio/", reload() {} };
-      globalThis.BroadcastChannel = class { close() {} postMessage() {} };
       const summary = ${JSON.stringify(face["summary"])};
       const answers = {
         "/api/home": ${JSON.stringify(face["home"])},
@@ -191,5 +190,6 @@ export const DEFERRED_FETCH = `
         held.push((status) => reply({ status, json: status === 200 ? { ...summary, version: summary.version + 1 }
                                                                    : { error: "refused for the test" } }));
       };
-      const release = async (i, status = 200) => { held[i](status); await settle(); await settle(); };
+      // the page sends its next change in its own time: wait for it to be held, under any load
+      const release = async (i, status = 200) => { while (!held[i]) await settle(); held[i](status); await settle(); await settle(); };
     `;
