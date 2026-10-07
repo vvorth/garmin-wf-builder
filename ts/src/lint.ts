@@ -881,11 +881,11 @@ export function checkAodUnreachable(resolved: ResolvedFace, bag: Bag): void {
     const element = placed.element;
     if (!element.aod_ancestor_hidden || element.aod_own === null) continue;
     emit(bag, placed, diag("warning", "aod-unreachable",
-      `${placed.id}: has its own 'aod:', but an ancestor group already writes 'aod: hide', which hides the whole subtree and cannot be undone below it`,
+      `${placed.id}: has its own 'aod:', but an ancestor group already writes 'aod: {visible: false}', which hides the whole subtree and cannot be undone below it`,
       element.span, {
         notes: [
-          "an explicit 'aod: hide' on a group is sticky -- nothing beneath it can turn AOD back on",
-          "delete this element's own 'aod:', or drop the ancestor's 'aod: hide'",
+          "'aod: {visible: false}' on a group is sticky -- nothing beneath it can turn AOD back on",
+          "delete this element's own 'aod:', or drop the ancestor's 'visible: false'",
         ],
         confidence: "exact -- resolved at build time",
       }));
@@ -900,8 +900,8 @@ export function checkAodEmpty(resolved: ResolvedFace, bag: Bag): void {
   bag.warning("aod-empty", `${resolved.device.id} is AMOLED, but nothing in this design draws in always-on display`, null, {
     notes: [
       "Garmin treats an absent always-on view as a defect on an AMOLED target, not an optional extra (docs/guide/always-on-display.md)",
-      "add 'aod: show' (or an override) to at least the time, or set the face-wide 'aod: {default: show}'",
-      "suppress with the face's own 'aod: {lint: {allow: [aod-empty], reason: ...}}' if this is deliberate",
+      "add 'aod: {visible: true}' (or an override) to at least the time, or set the face-wide 'defaults: {aod: {visible: true}}'",
+      "suppress with 'defaults: {aod: {lint: {allow: [aod-empty], reason: ...}}}' if this is deliberate",
     ],
     confidence: "exact -- resolved 'aod:' set, this device",
   });
@@ -1012,7 +1012,7 @@ export function checkAodBurnIn(resolved: ResolvedFace, bag: Bag): void {
     "checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), "
     + "since the device files do not say which generation a target is",
     worstPhase !== null
-      ? "the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the "
+      ? "the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the "
         + "3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled "
         + "ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md"
       : "cannot see the 3-minute static-pixel rule or any minute but the sampled ones (`wfb preview --heatmap` approximates both) "

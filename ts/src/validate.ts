@@ -634,7 +634,7 @@ export const FORMAT_1_KEYS: ReadonlyMap<string, string> = new Map([
   ["color_scheme", "'theme: {schemes: ...}'"],
   ["antialias", "'defaults: {antialias: ...}' at the top level"],
   ["min_1px", "'defaults: {min_1px: ...}' at the top level"],
-  ["default", "'defaults: {aod: hide|show}'"],
+  ["default", "'defaults: {aod: {visible: false|true}}'"],
   ["data", "'config: {slots: ...}'"],
   ["colors", "'scheme:'"],
   ["when_absent", "'absent:' -- 'hide', a placeholder string, or {value: <expression>}"],
@@ -688,6 +688,7 @@ function humanise(error: ValidationError): [string, string[]] {
       for (const key of unexpectedKeys(error)) {
         const v1 = FORMAT_1_KEYS.get(key);
         if (v1 !== undefined) notes.push(`'${key}:' is format 1; format 2 writes ${v1}`);
+        if (key === "aod" && error.absolutePath.length === 0) notes.push("the face-wide 'aod:' block moved into 'defaults: {aod: {dim:, mask:, lint:}}'");
       }
       notes.push("unknown keys are an error, not a warning -- a misspelled key is how a design silently loses an element (ADR 0009)");
       const allowed = schemaOf(error)["properties"];
@@ -710,6 +711,9 @@ function humanise(error: ValidationError): [string, string[]] {
       break;
     case "type":
       message = `expected ${typeof error.validatorValue === "string" ? error.validatorValue : quoted(error.validatorValue)}, got ${typeName(error.instance)}`;
+      if (error.absolutePath.at(-1) === "aod" && (error.instance === "hide" || error.instance === "show")) {
+        notes.push(`'aod: ${error.instance}' is written 'aod: {visible: ${error.instance === "show"}}'`);
+      }
       break;
     case "minItems":
     case "maxItems":

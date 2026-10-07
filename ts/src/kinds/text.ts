@@ -14,7 +14,7 @@ import { type Box, roundPx as round } from "../units.ts";
 import type { Reading } from "../template.ts";
 import { type Common, ElementKind, type Refusal, register, ringFont, TextRun } from "./base.ts";
 import {
-  AodDimmed, AodPaint, AodRestyled, AodStr, Blank, Color, Comment, Concat, Const, type DrawContext, Font,
+  AodDimmed, AodRestyled, AodStr, Blank, Color, Comment, Concat, Const, type DrawContext, Font,
   IfAod, IfAwake, IfNotNull, LetText, LoadFont, Local, type Op, type Paint, Reading as ReadingOp, RingColor, SetColor, Shifted,
   type Str, StrLit, Text as DrawText,
 } from "../draw/program.ts";
@@ -183,10 +183,10 @@ function textGlyphs(element: Text): [Set<string>, Set<string>] {
   return [glyphs, aodGlyphs];
 }
 
-/** `aodOutlineChoice` for this element's AOD frame; `[null, "awake"]` when it is not drawn in AOD. */
-function aodRing(element: Text, dimSet: boolean): [Outline | null, string] {
-  if (element.aod === null) return [null, "awake"];
-  return aodOutlineChoice(element.outline, element.aod, dimSet);
+/** `aodOutlineChoice` for this element's AOD frame; `null` when it is not drawn in AOD. */
+function aodRing(element: Text): Outline | null {
+  if (element.aod === null) return null;
+  return aodOutlineChoice(element.outline, element.aod);
 }
 
 /** The ring font this element draws its `width` px ring with, or `null` when it stamps. */
@@ -412,7 +412,7 @@ class TextKind extends ElementKind<Text> {
   private static ring(element: Text, aod: AodStyle, ringOps: (paint: Paint, width: number) => Op[]): Op[] {
     const awake = element.outline;
     if (!aod.on || element.aod === null) return awake !== null ? [...ringOps(Color(awake.color), awake.width), Blank()] : [];
-    const [asleep, choice] = aodRing(element, aod.dim !== null);
+    const asleep = aodRing(element);
     if (awake === null && asleep === null) return [];
     if (awake === null || asleep === null) {
       const only = (asleep ?? awake)!;
@@ -422,8 +422,7 @@ class TextKind extends ElementKind<Text> {
     if (asleep.width !== awake.width) {
       return [IfAod(ringOps(Color(asleep.color), asleep.width), ringOps(Color(awake.color), awake.width)), Blank()];
     }
-    const paint: Paint = choice === "override" ? AodPaint(Color(asleep.color), Color(awake.color)) : AodDimmed(element, awake.color);
-    return [...ringOps(paint, awake.width), Blank()];
+    return [...ringOps(AodDimmed(element, asleep.color, awake.color), awake.width), Blank()];
   }
 
   override layoutConstants(prefix: string, placed: Placed): Constants {

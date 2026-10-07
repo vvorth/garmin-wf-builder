@@ -1,7 +1,8 @@
-// The always-on display: the face-wide `aod:` defaults, each node's own
-// `aod:` (`hide`/`show`/an override block), and resolution down the tree
-// (element > nearest ancestor group > face default)..
+// The always-on display: the face-wide `defaults: {aod:}`, each node's own
+// `aod:` override block, and resolution down the tree
+// (element > nearest ancestor group > face default).
 import * as kinds from "../../kinds/index.ts";
+import { dimFraction } from "../../palette.ts";
 import type { Refusal } from "../../kinds/base.ts";
 import { isNumber, num, quoted, str, truthy } from "../../py.ts";
 import * as template from "../../template.ts";
@@ -13,6 +14,13 @@ import { lintSuppression, type Node } from "./state.ts";
 /** An element's own resolved `aod:` keys, in the order they were read. */
 export type AodKeys = Map<string, unknown>;
 
+/** A block's `dim:`, or `null` when it has none. */
+function aodDim(block: Node): number | null {
+  const raw = block.get("dim");
+  if (raw === undefined || raw === null) return null;
+  return isNumber(raw) ? num(raw) : Number(raw);
+}
+
 /** `[kind, shape, literalText]` of a built element, in the terms `aodRefusal` reads off a raw node. */
 function aodKind(element: Element): [string, string | null, boolean] {
   const kind = kinds.forElement(element);
@@ -23,16 +31,13 @@ function aodKind(element: Element): [string, string | null, boolean] {
 
 /** `aod:` reading and resolution. */
 export class AodPass extends HandParts {
-  /** Top-level `aod:` (`dim:`, `mask:`) and `defaults: {aod:}`. */
-  buildFaceAod(raw: Node, defaultValue: unknown): void {
-    this.face_aod_default_hide = ((defaultValue as string | null | undefined) || "hide") === "hide";
+  /** `defaults: {aod:}`: the cascade's root `visible:`/`dim:`, and the frame's own `mask:`/`lint:`. */
+  buildFaceAod(raw: Node): void {
+    this.face_aod_default_hide = !truthy(raw.get("visible") ?? false);
     const lint = lintSuppression(raw);
     this.face_aod_lint_allow = lint.lint_allow;
     this.face_aod_lint_reason = lint.lint_reason;
-    const dimRaw = raw.get("dim");
-    // `dim: 1` means no dimming, exactly like no `dim:`.
-    const dim = dimRaw === undefined || dimRaw === null ? null : isNumber(dimRaw) ? num(dimRaw) : Number(dimRaw);
-    this.face_aod_dim = dim === null || dim === 1.0 ? null : dim;
+    this.face_aod_dim = aodDim(raw);
     this.face_aod_mask = truthy(raw.has("mask") ? raw.get("mask") : true);
   }
 
@@ -46,9 +51,8 @@ export class AodPass extends HandParts {
   buildAodAuthored(node: Node): [boolean, AodKeys | null] {
     const raw = node.get("aod");
     if (raw === undefined || raw === null) return [false, null];
-    if (raw === "hide") return [true, null];
-    if (raw === "show") return [false, new Map()];
     const block = raw as Node;
+    if (block.get("visible") === false) return [true, null];
     const elementId = str(node.get("id") ?? "?");
     const keys: AodKeys = new Map();
     for (const key of ["color", "track_color"]) {
@@ -101,7 +105,10 @@ export class AodPass extends HandParts {
       const outline = this.buildOutline(block, "outline", `${elementId}.aod`);
       if (outline !== null || block.get("outline") === "none") keys.set("outline", outline !== null ? outline : "none");
     }
-    if (block.has("visible")) keys.set("visible", this.visibleOf(block));
+    // `visible: true` is what writing the block already means.
+    if (typeof block.get("visible") === "string") keys.set("visible", this.visibleOf(block));
+    const dim = aodDim(block);
+    if (dim !== null) keys.set("dim", dim);
     return [false, keys];
   }
 
@@ -112,7 +119,10 @@ export class AodPass extends HandParts {
     const ownVisible = (keys.get("visible") ?? null) as Expression | null;
     const outline = keys.get("outline");
     const pick = <T>(key: string): T | null => (keys.get(key) ?? null) as T | null;
+    // `dim: 1` means no dimming, and stops an inherited one.
+    const dim = pick<number>("dim") ?? this.face_aod_dim;
     return AodOverride.create({
+      dim: dim === null || dim === 1.0 ? null : dimFraction(dim),
       outline: outline instanceof Outline ? outline : null,
       outline_none: outline === "none",
       color: pick<Expression>("color"),

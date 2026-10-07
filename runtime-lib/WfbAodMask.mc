@@ -1,7 +1,7 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 
-//! A moving 2x2 pixel mask over the AOD frame (`aod: {mask: ...}`,
+//! A moving 2x2 pixel mask over the AOD frame (`defaults: {aod: {mask: ...}}`,
 //! docs/guide/always-on-display.md).
 module WfbAodMask {
 

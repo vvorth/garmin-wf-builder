@@ -504,8 +504,8 @@ These cost real time to discover; do not rediscover them.
   colour ternary; a ring only in AOD -- under `if (_aod) { ... }`; a ring
   only while awake (`outline: none`) -- under `if (!_aod) { ... }`.  A ring
   carried over from the awake design is dimmed like every AOD colour
-  (`AodStyle.dimmed`, also a pattern text part's ring); the override's own
-  colour never is. Confirmed by a real build of all three shapes, on a
+  (`AodStyle.dimmed`, also a pattern text part's ring), and so is the
+  override's own colour, by the element's resolved `dim:`. Confirmed by a real build of all three shapes, on a
   system and a vector font, warning-free on `fenix847mm` and `fr955`.
 
 - **`aod:` restyling: ternary beats a second method,
@@ -606,7 +606,7 @@ These cost real time to discover; do not rediscover them.
   into a second literal once, at build time
   (`Color.dim` in `ts/src/palette.ts`); anything else calls `WfbColor.dim` at the draw
   site. Measured (`fenix847mm`, `--build-stats`, one `text` element): a
-  face with `aod: show` and no `dim:` at all is 1,127 B; the same face with
+  face with `aod: {visible: true}` and no `dim:` at all is 1,127 B; the same face with
   `aod: {dim: 0.5}` on a scheme's `color.<role>` is 1,318 B -- **191 B**
   for the runtime path (the `WfbColor` module, the call site and the
   ternary together). A colour dimmed at build time costs far less: the
@@ -672,7 +672,7 @@ These cost real time to discover; do not rediscover them.
   per-device symbol question (`AppBase` gets no override, no test needed
   for one) -- not measured, because nothing was built to measure.
 
-- **`aod: {mask: ...}`: `WfbAodMask.apply` is
+- **`defaults: {aod: {mask: ...}}`: `WfbAodMask.apply` is
   emitted last in the `_aod` branch, after every element the frame draws,
   and only when the resolved AOD set is non-empty** -- masking an
   all-black frame is pure waste, and the same "only emit what could
@@ -694,7 +694,7 @@ These cost real time to discover; do not rediscover them.
   goldens of `examples/features/aod/` move when one changes alone.
   Measured: `examples/features/aod/face.yaml` on `fenix847mm` is
   **2,726 B** with the mask (the default) against **2,447 B** with
-  `aod: {mask: false}` -- **+279 B**, warning-free on all four targets.
+  `defaults: {aod: {mask: false}}` -- **+279 B**, warning-free on all four targets.
 
 - **`date.today`'s `format:` bug (found 2026-09-23): under `FORMAT_MEDIUM`
   (the `date` reader), `month` and `day_of_week` are Strings, not Numbers --

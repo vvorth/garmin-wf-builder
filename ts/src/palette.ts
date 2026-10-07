@@ -231,7 +231,7 @@ export function dimChannel(value: number, num: number, den: number): number {
   return Math.max(0, Math.min(255, Math.floor((value * num + Math.floor(den / 2)) / den)));
 }
 
-/** A face's `aod: {dim: ...}` factor as the `[num, den]` ratio `dimChannel` uses, over 1000. */
+/** An `aod: {dim: ...}` factor as the `[num, den]` ratio `dimChannel` uses, over 1000. */
 export function dimFraction(dim: number): [number, number] {
   return [round(dim * 1000), 1000];
 }

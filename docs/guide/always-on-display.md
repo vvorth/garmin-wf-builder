@@ -13,28 +13,37 @@ updates only (see [Power modes and touch-and-hold](modes-and-interaction.md)).
 
 ## At a glance
 
+`aod:` is one block, the same shape everywhere: in `defaults:`, on a
+group, on an element. Each key cascades on its own, and the nearest one
+wins (see [Resolution](#resolution)).
+
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `aod:` | any element, `group` | `hide` \| `show` \| an override block | inherited (see [Resolution](#resolution)) | this element's AOD behaviour |
-| `aod:` | `defaults:` | `hide` \| `show` | `hide` | the AOD visibility of an element whose ancestry says nothing |
-| `aod:` | top level, beside `elements:` | `{dim, mask, lint}` | — | face-wide AOD frame settings |
+| `visible` | `defaults:`, group, element | `true` \| `false` \| an expression | `false` in `defaults:` | is it drawn in AOD |
+| `dim` | `defaults:`, group, element | 0–1 (exclusive of 0) | `1` | scale every colour it draws — see [Dimming](#dimming-dim) |
+| restyling keys | group, element | the element's own (`color`, `thickness`, …) | the awake value | how it looks in AOD |
+| `mask` | `defaults:` only | `true` \| `false` | `true` | the moving pixel mask — see [Pixel mask](#pixel-mask-mask) |
+| `lint` | `defaults:` only | `{allow, reason}` | — | suppress a face-level AOD lint |
 
 ## Per element or group
 
 ```yaml
-aod: hide                          # not drawn in AOD
-aod: show                          # drawn, unchanged (same as an empty block)
-aod:                               # an override block: drawn, restyled
+aod: {visible: false}              # not drawn in AOD
+aod: {visible: true}               # drawn, unchanged (so is an empty block)
+aod:                               # drawn, restyled
   color: "#555555"
-  visible: battery.level < 20
+  dim: 1                           # this one at full brightness
+  visible: battery.level < 20      # and only while this holds
 ```
 
-An override block reuses the element's **own property names** — there is
-no second vocabulary — restricted to a per-kind allowlist:
+Writing an `aod:` block on an element draws it in AOD unless the block
+says `visible: false`. The block reuses the element's **own property
+names** — there is no second vocabulary — restricted to a per-kind
+allowlist:
 
 | Kind | Overridable |
 |---|---|
-| every kind | `visible` (conjoined with the element's own `visible:`, not replacing it) |
+| every kind | `visible` (an expression is conjoined with the element's own `visible:`, not replacing it), `dim` |
 | `text` | `color`, `font`, `text`, `outline` |
 | the primitives | `color`, `thickness`, `filled` |
 | `gauge` | `color`, `track_color`, `thickness` |
@@ -100,68 +109,70 @@ other `awake`-only frame.
 
 ```yaml
 defaults:
-  aod: hide             # hide (default) | show — for elements whose ancestry says nothing
-aod:                    # top-level, beside elements:
-  dim: 0.4              # scale every drawn colour's luminance, 0-1 (exclusive of 0) — see "Dimming" below
-  mask: true            # moving 2x2 pixel mask, on by default — see "Pixel mask" below
-  lint:                 # suppress a face-level AOD lint (aod-empty)
-    allow: [aod-empty]
-    reason: "prototype face, AOD comes later"
+  aod:
+    visible: false      # false (default) | true — for elements whose ancestry says nothing
+    dim: 0.4            # inherited by every element that does not set its own — see "Dimming" below
+    mask: true          # moving 2x2 pixel mask, on by default — see "Pixel mask" below
+    lint:               # suppress a face-level AOD lint (aod-empty)
+      allow: [aod-empty]
+      reason: "prototype face, AOD comes later"
 ```
 
-`defaults: {aod: hide}` is the safe choice: an unconverted design lights nothing
+`visible: false` is the safe default: an unconverted design lights nothing
 extra in AOD. It fills an element's AOD visibility **only where nothing in
 that element's own ancestry — itself, every ancestor group — ever mentions
-`aod:` at all.**
+`aod:` at all.** The restyling keys are not accepted here: what a colour
+or a thickness means differs per kind, so they belong on a group or an
+element.
 
 ## Resolution
 
 Three rules, checked in order, for **each key independently** (`color`,
-`thickness`, `visible`, …):
+`thickness`, `dim`, `visible`, …):
 
 1. **The element's own `aod:` wins**, key by key, over its ancestors'.
 2. **Otherwise the nearest ancestor group's `aod:` applies** — the nearest
    one that actually wrote something, walking up past a silent group.
-3. **Otherwise `defaults: {aod:}`** fills in — `hide` unless the
-   face says `show`.
+3. **Otherwise `defaults: {aod:}`** fills in — hidden unless it says
+   `visible: true`, and dimmed by its `dim:` if it has one.
 
 ```yaml
 defaults:
-  aod: hide               # face-wide: hidden by default
+  aod: {visible: false}         # face-wide: hidden by default
 elements:
   clock:
     type: text
     text: "{time.clock:%H:%M}"
     color: color.white
-    aod: {color: color.dim}     # the one element turned back on
+    aod: {color: color.gray}    # the one element turned back on
 ```
 
 That's the whole shape of "everything off but the time" — one line.
 
-**One deliberate asymmetry.** An explicit `aod: hide` on a `group` hides
+**One deliberate asymmetry.** `aod: {visible: false}` on a `group` hides
 its **whole subtree unconditionally**, and no descendant can undo it — the
-same way a group's `visible:` conjoins into everything beneath it, one
-step stricter (nothing below can turn it back on). `defaults: {aod:}` is
-different: it is not explicit, so it only ever fills silence. This is what
-lets a `defaults: {aod: hide}` design still show a stray element with its own
-`aod: show`, while a group's explicit `hide` really means it.
+same way a group's `visible:` conjoins into everything beneath it.
+`defaults: {aod: {visible:}}` is different: it is not on any ancestor, so
+it only ever fills silence. This is what lets a hidden-by-default design
+still show a stray element with its own `aod:`, while a group's
+`visible: false` really means it.
 
 ```yaml
 elements:
   complications:
     type: group
-    aod: hide              # sticky: nothing inside can override this
+    aod: {visible: false}       # sticky: nothing inside can override this
     children:
       hr:
         type: data
         slot: top
         color: color.fg
-        aod: show            # has no effect -- warns: aod-unreachable
+        aod: {visible: true}    # has no effect -- warns: aod-unreachable
 ```
 
-`visible:` follows the same conjunction it always did: `aod: {visible:
-...}` is **ANDed with the element's own `visible:`**, not a replacement for
-it — an element hidden while awake stays hidden in AOD too.
+An expression in `visible:` follows the same conjunction: it is **ANDed
+with the element's own `visible:`**, not a replacement for it — an element
+hidden while awake stays hidden in AOD too.
 
 ## Restyling
 
@@ -199,45 +210,40 @@ naming the group. Elements that can take the key get it as usual. `wfb
 preview --aod` matches this exact scope, element for element — none of
 these cases can ever reach it, since the build fails first.
 
-## Dimming (`aod: {dim: ...}`)
+## Dimming (`dim`)
 
 ```yaml
-aod:
-  dim: 0.6              # scale every AOD colour's luminance to 60%
+defaults:
+  aod: {dim: 0.6}       # scale every AOD colour's luminance to 60%
 elements:
   clock:
     type: text
     text: "{time.clock:%H:%M}"
     color: color.white
-    aod: {color: color.white}     # explicit -- never dimmed
+    aod: {dim: 1}                  # full brightness
   date:
     type: text
     text: "{date.today:%a %e %b}"
     color: color.white
-    aod: show                      # dimmed to 60% -- no override of its own
+    aod: {visible: true}           # inherits dim: 0.6
 ```
 
-`dim` reaches **every** colour the AOD frame draws — `color:`, `track_color:`,
-`icon: {color:}`, a hand or pattern part's own colour, an icon's glyph colour,
-an `outline:` ring (a text element's or a pattern text part's) —
-whether or not that element has an `aod:` override of its own. A `show`-only
-element, or one that inherits its AOD set purely from a face default or an
-ancestor group, is dimmed exactly like an overridden one.
-
-**The one exception is an explicit override colour.** `color:`/
-`track_color:`/`icon: {color:}`, or an `outline:` ring's colour, written inside
-an element's own (or an inherited group's) `aod:` block is the author's
-final word and is never dimmed — the `clock` example above stays full white in AOD; `date`, which
-opts in with a bare `aod: show`, dims to 60%.
+`dim` reaches **every** colour an element draws in AOD — `color:`,
+`track_color:`, `icon: {color:}`, a hand or pattern part's own colour, an
+icon's glyph colour, an `outline:` ring (a text element's or a pattern
+text part's) — override colours included: an `aod: {color: ...}` is dimmed
+like the awake colour it replaces. `dim` cascades like every other `aod:`
+key, so the nearest one wins: `dim: 1` on an element (or a group) keeps
+it, or its subtree, at full brightness under a face-wide dim.
 
 **The formula.** Each 8-bit RGB channel is multiplied by `dim` and rounded
 to the nearest integer: `round(channel * dim)`, clamped to 0–255. Hue is
-unchanged; luminance scales linearly. `dim: 1` and omitting `dim:` entirely
-are identical — both mean "no dimming," and neither emits a single dimming
-ternary, so a `dim: 1` face's generated source is byte-identical to one with
-no `dim:` at all. `dim: 0` is rejected by the schema (`exclusiveMinimum: 0`):
-it would turn every undimmed colour black, which is indistinguishable from
-`aod: hide` and almost certainly not what was meant.
+unchanged; luminance scales linearly. A resolved `dim: 1` and no `dim:` at
+all are identical — both mean "no dimming," and neither emits a single
+dimming ternary, so a `dim: 1` face's generated source is byte-identical to
+one with no `dim:` at all. `dim: 0` is rejected by the schema
+(`exclusiveMinimum: 0`): it would turn every colour black, which is
+`visible: false` and almost certainly not what was meant.
 
 **Where the arithmetic runs.** A colour fixed at build time — a bare hex
 literal, or a swatch — is pre-dimmed into a second
@@ -267,11 +273,11 @@ since `dim` only ever reaches the `_aod` branch, which only ever runs on an
 AMOLED device (constraint 13's rule is MIP-only to begin with), there is
 nothing there to warn about anyway.
 
-## Pixel mask (`aod: {mask: ...}`)
+## Pixel mask (`mask`)
 
 ```yaml
-aod:
-  mask: false           # opt out; on by default, so omitting this key entirely masks too
+defaults:
+  aod: {mask: false}    # opt out; on by default, so omitting this key entirely masks too
 ```
 
 A moving 2x2 pixel mask sits over the whole AOD frame, on top of restyling
@@ -325,7 +331,7 @@ the 1px strips land on exact pixels.
 `--minute` and `--heatmap` all show the masked frame (`apply` in `ts/src/aod_mask.ts`,
 using each frame's own clock minute), and `aod-burn-in` scores the masked
 frame too, worst case over all four phases (below) — see "Preview" and
-"Lints" below for the details of each. `aod: {mask: false}` turns all three
+"Lints" below for the details of each. `defaults: {aod: {mask: false}}` turns all three
 back into exactly what they showed before this mask existed.
 
 ## When the AOD frame runs
@@ -408,7 +414,7 @@ Renders the resolved `aod:` set, restyled exactly as codegen restyles it —
 colour, thickness, filled, font (baked or system, non-vector only) and
 format all apply — with every `awake`-only second hand hidden (AOD only
 ever runs asleep). A design with no `aod:` anywhere renders blank under the
-face default (`hide`). `dim:` applies with the exact same formula and
+face default (`visible: false`). `dim:` applies with the exact same formula and
 rounding codegen uses (`dimChannel` in `ts/src/palette.ts`, shared by both), so a
 colour that this preview draws and a colour the generated `WfbColor.dim`
 computes on the device agree to the pixel.
@@ -417,7 +423,7 @@ The moving pixel mask (above) applies last, over the frame's own clock
 minute — `--time`/`--minute` when given, otherwise the sample clock's own
 minute (10:09) — exactly the way `WfbAodMask.apply` masks the device's own
 frame (`apply` in `ts/src/aod_mask.ts`, ADR 0004's shared-renderer stance
-extended to this too). `aod: {mask: false}` renders the plain unmasked
+extended to this too). `defaults: {aod: {mask: false}}` renders the plain unmasked
 frame instead.
 
 `--asleep` is the narrower, older flag: it only hides an `awake`-only
@@ -443,18 +449,18 @@ other preview, but not `--all-styles`, `--time` or `--minute`.
 With the mask on (the default), the heatmap's own peak share is **at most
 25%** by construction — every pixel is lit at most one minute in four,
 whatever the design draws — and `--minute`/`--time` show whichever of the
-four phases that minute's clock lands on. `aod: {mask: false}` removes that
+four phases that minute's clock lands on. `defaults: {aod: {mask: false}}` removes that
 ceiling; the heatmap then reports whatever the unmasked design actually
 does (potentially 100% on a static pixel).
 
 ## Lints
 
 - **`aod-unreachable`** (warning, suppressible) — an element's own `aod:`
-  (a `show` or an override) that can never draw because an ancestor group
-  already writes `aod: hide`.
-- **`aod-empty`** (warning, suppressible on the face's own `aod: {lint:
-  ...}`) — an AMOLED target where nothing in the design draws in AOD at
-  all. Since the face default is `hide`, an unconverted design triggers
+  block that can never draw because an ancestor group already writes
+  `aod: {visible: false}`.
+- **`aod-empty`** (warning, suppressible on the face's own `defaults: {aod:
+  {lint: ...}}`) — an AMOLED target where nothing in the design draws in AOD at
+  all. Since the face default is hidden, an unconverted design triggers
   this on every AMOLED target until at least one element opts in.
 - **`aod-burn-in`** — is the rendered
   AOD frame within Garmin's rule of thumb? *Measured*, not estimated: it
@@ -498,7 +504,7 @@ does (potentially 100% on a static pixel).
   clock happens to land on — every phase recurs every hour regardless. The
   message names the phase the worst figures came from (`phase N, dx=.. dy=..`),
   and the top-contributor shares are computed at that same phase, so they
-  stay consistent with each other. `aod: {mask: false}` turns this back
+  stay consistent with each other. `defaults: {aod: {mask: false}}` turns this back
   into exactly the unmasked-frame check this lint always was.
 
   **Reported per element.** Every AOD-shown element is re-rendered *alone*

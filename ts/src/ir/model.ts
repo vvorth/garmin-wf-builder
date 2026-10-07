@@ -166,6 +166,8 @@ export class Outline {
 
 /** The resolved `aod:` override for one element; `Element.aod` is null when the element is hidden in AOD. */
 export class AodOverride {
+  /** `dim:` as the `[num, den]` ratio `dimChannel` uses; `null` for none. */
+  dim: [number, number] | null = null;
   color: Expression | null = null;
   track_color: Expression | null = null;
   icon_color: Expression | null = null;
@@ -197,20 +199,11 @@ export class ColorRole {
 const role = (label: string, expression: Expression, r: string, isGlyph: boolean, aod = false): ColorRole =>
   ColorRole.create({ label, expression, role: r, is_glyph: isGlyph, aod });
 
-/** Which of an AOD colour's three cases applies: the override, the dimmed awake colour, or the awake one. */
-export function aodColorChoice(aod: AodOverride | null, key: "color" | "track_color" | "icon_color", dimSet: boolean): ["override" | "dim" | "awake", Expression | null] {
-  if (aod !== null) {
-    const override = aod[key];
-    if (override !== null) return ["override", override];
-  }
-  return dimSet ? ["dim", null] : ["awake", null];
-}
-
-/** The ring a text element draws in the AOD frame, and how its colour is chosen. */
-export function aodOutlineChoice(awake: Outline | null, aod: AodOverride | null, dimSet: boolean): [Outline | null, string] {
-  if (aod !== null && aod.outline_none) return [null, "override"];
-  if (aod !== null && aod.outline !== null) return [aod.outline, "override"];
-  return [awake, dimSet ? "dim" : "awake"];
+/** The ring a text element draws in the AOD frame. */
+export function aodOutlineChoice(awake: Outline | null, aod: AodOverride | null): Outline | null {
+  if (aod !== null && aod.outline_none) return null;
+  if (aod !== null && aod.outline !== null) return aod.outline;
+  return awake;
 }
 
 /** The stamped-ring offsets for one ring width: every integer point on the outer shell of a disc of this radius. */
@@ -865,7 +858,6 @@ export class Face {
   aod_default_hide = true;
   aod_lint_allow: Set<string> = new Set();
   aod_lint_reason: string | null = null;
-  aod_dim: number | null = null;
   aod_mask = true;
 
   static create(init: Partial<Face>): Face { return make(Face, init); }

@@ -47,7 +47,7 @@ export class Builder extends ElementTree {
     const resources = mapping(data.get("resources"));
     this.face_antialias = truthy(defaults.get("antialias") ?? false);
     this.face_min_1px = truthy(defaults.get("min_1px") ?? false);
-    this.buildFaceAod(mapping(data.get("aod")), defaults.get("aod") ?? null);
+    this.buildFaceAod(mapping(defaults.get("aod")));
     // Layouts first: a `config: style:` entry's `layout:` resolves against them.
     this.buildLayouts(mapping(data.get("layouts")));
     this.buildPalette(mapping(resources.get("palette")));
@@ -105,7 +105,6 @@ export class Builder extends ElementTree {
       aod_default_hide: this.face_aod_default_hide,
       aod_lint_allow: this.face_aod_lint_allow,
       aod_lint_reason: this.face_aod_lint_reason,
-      aod_dim: this.face_aod_dim,
       aod_mask: this.face_aod_mask,
     });
   }

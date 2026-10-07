@@ -85,8 +85,9 @@ or AOD-related has been observed on a watch or in the simulator.
   editor treats a slot as every element drawing it
   (`editorSlots` in `ts/src/emit/monkeyc/common.ts`). Zone colouring by a metric's
   own bands is not built. `docs/guide/progress-and-graphs.md`.
-- **Always-on display** — `aod:` overrides resolved element > group >
-  face default, restyled by inline ternaries; `dim:`; the pixel `mask:`
+- **Always-on display** — one `aod:` block shape on elements, groups and
+  `defaults:`, resolved key by key element > group > face default,
+  restyled by inline ternaries; a cascading `dim:`; the pixel `mask:`
   (on by default, +279 B on `examples/features/aod/`); the
   `getDisplayMode` early exit; lints `aod-unreachable`, `aod-empty`,
   `aod-burn-in`; `wfb preview --aod/--minute/--heatmap`. An all-MIP build

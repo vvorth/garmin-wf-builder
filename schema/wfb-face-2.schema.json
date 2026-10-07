@@ -24,9 +24,6 @@
     "defaults": {
       "$ref": "#/$defs/defaults"
     },
-    "aod": {
-      "$ref": "#/$defs/faceAod"
-    },
     "resources": {
       "$ref": "#/$defs/resources"
     },
@@ -859,25 +856,22 @@
           "default": false
         },
         "aod": {
-          "description": "Whether an element with no 'aod:' anywhere in its own ancestry draws in the always-on-display frame. 'hide' (the default) is safe: an unconverted design lights nothing extra. Not sticky: one element's own 'aod: show' still applies under a default of 'hide'.",
-          "enum": [
-            "hide",
-            "show"
-          ],
-          "default": "hide"
+          "$ref": "#/$defs/faceAod"
         }
       }
     },
     "faceAod": {
-      "description": "The face-wide always-on-display (AOD) frame settings, for an AMOLED target (docs/guide/always-on-display.md). Which elements draw there is 'defaults: aod:' and each element's own 'aod:'.",
+      "description": "The root of the always-on-display (AOD) cascade, for an AMOLED target (docs/guide/always-on-display.md): 'visible:' and 'dim:' are inherited by every element whose own ancestry does not set them; 'mask:' and 'lint:' are the frame's own.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "visible": {
+          "description": "Whether an element with no 'aod:' anywhere in its own ancestry draws in the always-on frame. false (the default) is safe: an unconverted design lights nothing extra. Not sticky: an element's own 'aod:' still applies.",
+          "type": "boolean",
+          "default": false
+        },
         "dim": {
-          "description": "Scale the luminance of every colour the AOD frame draws (docs/guide/always-on-display.md): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon: {color:}' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 1
+          "$ref": "#/$defs/aodDim"
         },
         "mask": {
           "description": "A moving 2x2 pixel mask over the whole AOD frame (docs/guide/always-on-display.md): one pixel in each on-screen 2x2 tile stays lit, the other three are forced black, and which pixel of the tile is lit moves to a 4-neighbour once a minute (phase = minute mod 4). On (the default) unless set to false. No pixel is lit for two consecutive minutes and every pixel is lit at most one minute in four, cutting lit-pixel count and luminance to about a quarter of the unmasked frame. Stacks with 'dim:'.",
@@ -1037,291 +1031,228 @@
       }
     },
     "aodText": {
-      "description": "'aod:' on a 'text' element: 'hide' | 'show' | an override block reusing its own 'color:'/'font:'/'text:'/'outline:', plus 'visible:'. An empty block means 'show'. 'outline:' replaces the awake ring whole: 'none' drops it in AOD; a colour or '{color, width}' draws that ring instead.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'text' element: an override block reusing its own 'color:'/'font:'/'text:'/'outline:', plus 'visible:' and 'dim:'. 'outline:' replaces the awake ring whole: 'none' drops it in AOD; a colour or '{color, width}' draws that ring instead. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "font": {
-              "type": "string"
-            },
-            "text": {
-              "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
-              "type": "string"
-            },
-            "outline": {
-              "$ref": "#/$defs/outline"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "font": {
+          "type": "string"
+        },
+        "text": {
+          "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
+          "type": "string"
+        },
+        "outline": {
+          "$ref": "#/$defs/outline"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodShape": {
-      "description": "'aod:' on a primitive (rectangle, circle, line, arc, ellipse, polygon): 'hide' | 'show' | an override block reusing its own 'color:'/'thickness:'/'filled:', plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a primitive (rectangle, circle, line, arc, ellipse, polygon): an override block reusing its own 'color:'/'thickness:'/'filled:', plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "filled": {
-              "type": "boolean"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "filled": {
+          "type": "boolean"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodGauge": {
-      "description": "'aod:' on a 'gauge': 'hide' | 'show' | an override block reusing its own 'color:'/'track_color:'/'thickness:', plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'gauge': an override block reusing its own 'color:'/'track_color:'/'thickness:', plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "track_color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "track_color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodIcon": {
-      "description": "'aod:' on an 'icon': 'hide' | 'show' | an override block reusing its own 'color:', plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on an 'icon': an override block reusing its own 'color:', plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodGraph": {
-      "description": "'aod:' on a 'graph': 'hide' | 'show' | an override block reusing its own 'color:'/'thickness:'/'bar_width:', plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'graph': an override block reusing its own 'color:'/'thickness:'/'bar_width:', plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "bar_width": {
-              "$ref": "#/$defs/length"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "bar_width": {
+          "$ref": "#/$defs/length"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodData": {
-      "description": "'aod:' on a 'data' element: 'hide' | 'show' | an override block reusing its own 'color:'/'icon: {color:}'/'font:', plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'data' element: an override block reusing its own 'color:'/'icon: {color:}'/'font:', plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
+        "icon": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "color": {
               "$ref": "#/$defs/colorExpression"
-            },
-            "icon": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "color": {
-                  "$ref": "#/$defs/colorExpression"
-                }
-              }
-            },
-            "font": {
-              "type": "string"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
             }
           }
+        },
+        "font": {
+          "type": "string"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodHands": {
-      "description": "'aod:' on a 'hands' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set, plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'hands' element: an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set, plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodPattern": {
-      "description": "'aod:' on a 'pattern': 'hide' | 'show' | an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part, plus 'visible:'.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'pattern': an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part, plus 'visible:' and 'dim:'. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "font": {
-              "type": "string"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
-            }
-          }
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "font": {
+          "type": "string"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "aodGroup": {
-      "description": "'aod:' on a 'group': 'hide' | 'show' | an override block allowing the union of every kind a descendant might allow, plus 'visible:'. Pushed down to descendants key by key.",
-      "oneOf": [
-        {
-          "enum": [
-            "hide",
-            "show"
-          ]
+      "description": "'aod:' on a 'group': an override block allowing the union of every kind a descendant might allow, plus 'visible:' and 'dim:'. Pushed down to descendants key by key. Writing the block draws the element unless it says 'visible: false'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
+        "track_color": {
+          "$ref": "#/$defs/colorExpression"
+        },
+        "icon": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "color": {
               "$ref": "#/$defs/colorExpression"
-            },
-            "track_color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "icon": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "color": {
-                  "$ref": "#/$defs/colorExpression"
-                }
-              }
-            },
-            "thickness": {
-              "$ref": "#/$defs/length"
-            },
-            "bar_width": {
-              "$ref": "#/$defs/length"
-            },
-            "filled": {
-              "type": "boolean"
-            },
-            "font": {
-              "type": "string"
-            },
-            "text": {
-              "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
-              "type": "string"
-            },
-            "outline": {
-              "$ref": "#/$defs/outline"
-            },
-            "visible": {
-              "$ref": "#/$defs/visible"
             }
           }
+        },
+        "thickness": {
+          "$ref": "#/$defs/length"
+        },
+        "bar_width": {
+          "$ref": "#/$defs/length"
+        },
+        "filled": {
+          "type": "boolean"
+        },
+        "font": {
+          "type": "string"
+        },
+        "text": {
+          "description": "The element's own template with a different literal text or format spec -- the placeholder's expression must be the element's own (a group's is empty: \"{:d}\", standing for each descendant's).",
+          "type": "string"
+        },
+        "outline": {
+          "$ref": "#/$defs/outline"
+        },
+        "visible": {
+          "$ref": "#/$defs/aodVisible"
+        },
+        "dim": {
+          "$ref": "#/$defs/aodDim"
         }
-      ]
+      }
     },
     "position": {
       "description": "A position relative to an anchor on the parent box. Either cartesian (dx/dy) or polar (angle/radius) -- polar is first-class because 115 of 164 devices are round.",
@@ -2008,11 +1939,11 @@
           "const": "text"
         },
         "text": {
-          "description": "What to draw: literal text, with '{expr}' or '{expr:spec}' placeholders (docs/guide/text.md). The expression ends at the first ':' outside parentheses, brackets and quotes, so a ternary is parenthesised: \"{(x > 0 ? x : 0):d}\". 'spec' is a format spec: d, 02d, .1f, strftime codes such as %H:%M for a time, or a duration. '{{' and '}}' are literal braces. With 'units:', '{unit}' is the displayed unit's label (km or mi, \u00b0C or \u00b0F, m or ft, km/h or mph). With several placeholders the text is absent when any reading is, and 'units:', 'absent: {value:}' and 'aod: {text:}' are errors.",
+          "description": "What to draw: literal text, with '{expr}' or '{expr:spec}' placeholders (docs/guide/text.md). The expression ends at the first ':' outside parentheses, brackets and quotes, so a ternary is parenthesised: \"{(x > 0 ? x : 0):d}\". 'spec' is a format spec: d, 02d, .1f, strftime codes such as %H:%M for a time, or a duration. '{{' and '}}' are literal braces. With 'units:', '{unit}' is the displayed unit's label (km or mi, °C or °F, m or ft, km/h or mph). With several placeholders the text is absent when any reading is, and 'units:', 'absent: {value:}' and 'aod: {text:}' are errors.",
           "type": "string"
         },
         "units": {
-          "description": "Convert the placeholder's reading to the wearer's units (ADR 0005 \u00a74): 'auto' follows the watch's own distance/elevation/temperature setting at runtime, 'metric'/'statute' fix one system. The placeholder must be exactly one source with a physical quantity (activity.distance, ambient.altitude, weather.temperature, weather.wind_speed, ...); '{unit}' in the text shows the displayed unit's label.",
+          "description": "Convert the placeholder's reading to the wearer's units (ADR 0005 §4): 'auto' follows the watch's own distance/elevation/temperature setting at runtime, 'metric'/'statute' fix one system. The placeholder must be exactly one source with a physical quantity (activity.distance, ambient.altitude, weather.temperature, weather.wind_speed, ...); '{unit}' in the text shows the displayed unit's label.",
           "enum": [
             "auto",
             "metric",
@@ -2562,7 +2493,7 @@
           "default": "none"
         },
         "unit": {
-          "description": "Add the unit a reading can carry: '%' (battery, body battery, pulse ox, solar), 'bpm'/'brpm' (heart rate, respiration), 'm'/'ft' (altitude), 'km'/'mi' (weekly distances), '/km'/'/mi' (race pace), 'hPa' (pressure), '\u00b0C'/'\u00b0F' (temperature). Metric or statute follows the watch's own settings. Markers a bare number is unreadable without -- 'K' on a count of 10,000 or more, '\u00b0' on a temperature, 'h' on recovery time -- are drawn either way. Default false.",
+          "description": "Add the unit a reading can carry: '%' (battery, body battery, pulse ox, solar), 'bpm'/'brpm' (heart rate, respiration), 'm'/'ft' (altitude), 'km'/'mi' (weekly distances), '/km'/'/mi' (race pace), 'hPa' (pressure), '°C'/'°F' (temperature). Metric or statute follows the watch's own settings. Markers a bare number is unreadable without -- 'K' on a count of 10,000 or more, '°' on a temperature, 'h' on recovery time -- are drawn either way. Default false.",
           "type": "boolean",
           "default": false
         },
@@ -3071,6 +3002,23 @@
           "$ref": "#/$defs/hand"
         }
       }
+    },
+    "aodDim": {
+      "description": "Scale the luminance of every colour this element draws in the always-on frame, override colours included (docs/guide/always-on-display.md): each 8-bit channel times 'dim', rounded to the nearest integer. Inherited like every other 'aod:' key: the nearest group's, else 'defaults: {aod: {dim:}}'. 1 is identity, and stops an inherited dim here. 0 is rejected (exclusiveMinimum): it would make every colour black, which is 'visible: false'.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "aodVisible": {
+      "description": "Whether this draws in the always-on frame. false hides it -- on a group, the whole subtree, and nothing below can turn it back on; true draws it (also what writing any 'aod:' block means); an expression draws it only while true, conjoined with the element's own 'visible:'.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/visible"
+        }
+      ]
     }
   }
 }

@@ -27,7 +27,7 @@ resources:
     ring: "#FF0000"
 
 defaults:
-  aod: show
+  aod: { visible: true }
 
 elements:
   background:

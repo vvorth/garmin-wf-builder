@@ -20,10 +20,10 @@ import { glyphOutline } from "./fonts/bake.ts";
 import type { BakedFont, GlyphBox, Sheet } from "./fonts/bmfont.ts";
 import { fontForHeight, type SystemFace } from "./fonts/fallback.ts";
 import { bounds, flatten, rasterise } from "./fonts/raster.ts";
-import { aodColorChoice, type Element, type Expression, type Face, type StyleEntry } from "./ir/model.ts";
+import { type Element, type Expression, type Face, type StyleEntry } from "./ir/model.ts";
 import { type RingGroup, ringGroups } from "./ir/rings.ts";
 import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, type ResolvedFace } from "./layout.ts";
-import { Color, dimFraction, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
+import { Color, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
 import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
 import { SAMPLE } from "./sample.ts";
@@ -55,7 +55,7 @@ export interface PreviewOptions {
   asleep: boolean;
   /** Render the AMOLED always-on frame. */
   aod: boolean;
-  /** Apply the face's `aod: {mask: ...}` when rendering `aod`. */
+  /** Apply the face's `defaults: {aod: {mask: ...}}` when rendering `aod`. */
   aod_mask: boolean;
   /** The type each `config: slots:` slot is drawn showing, as `[slot, type]` pairs. */
   picks: readonly (readonly [string, string])[];
@@ -284,27 +284,25 @@ export class Renderer {
 
   // -- aod: restyling --
 
-  private dimRgb(rgb: RGB): RGB {
-    const [num, den] = dimFraction(this.resolved.face.aod_dim!);
+  private dimRgb(rgb: RGB, [num, den]: [number, number]): RGB {
     const dimmed = new Color(...rgb).dim(num, den);
     return [dimmed.r, dimmed.g, dimmed.b];
   }
 
-  /** The drawn RGB for one colour role: the `aod:` override while `aod` renders, else the colour, dimmed by `dim:`. */
+  /** The drawn RGB for one colour role: while `aod` renders, the `aod:` override or the colour, dimmed by its `dim:`. */
   aodColor(element: Element, key: "color" | "track_color" | "icon_color", baseExpr: Expression | null, values: Values | null = null): RGB {
     const base = this.color(baseExpr, values);
     if (!this.options.aod || element.aod === null) return base;
-    const [choice, override] = aodColorChoice(element.aod, key, this.resolved.face.aod_dim !== null);
-    if (choice === "override") return this.color(override);
-    if (choice === "dim") return this.dimRgb(base);
-    return base;
+    const override = element.aod[key];
+    const asleep = override !== null ? this.color(override) : base;
+    return element.aod.dim !== null ? this.dimRgb(asleep, element.aod.dim) : asleep;
   }
 
-  /** `expr`'s RGB, dimmed while `aod` renders an element the AOD frame draws and the face has `dim:`. */
-  aodDimmed(element: Element, expression: Expression | null, values: Values | null = null): RGB {
-    const base = this.color(expression, values);
-    if (!this.options.aod || element.aod === null || this.resolved.face.aod_dim === null) return base;
-    return this.dimRgb(base);
+  /** `asleep`'s RGB dimmed by the element's `dim:` while `aod` renders an element the AOD frame draws; `awake`'s otherwise. */
+  aodDimmed(element: Element, asleep: Expression | null, awake: Expression | null = asleep, values: Values | null = null): RGB {
+    if (!this.options.aod || element.aod === null) return this.color(awake, values);
+    const rgb = this.color(asleep, values);
+    return element.aod.dim !== null ? this.dimRgb(rgb, element.aod.dim) : rgb;
   }
 
   // -- dispatch --

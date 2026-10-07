@@ -14,7 +14,6 @@ import {
 import { type RingGroup, ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
 import { type Placed, PlacedData, PlacedGraph, PlacedHands, type ResolvedFace } from "../../layout.ts";
-import { dimFraction } from "../../palette.ts";
 import * as vocab from "../../vocab.ts";
 import * as usage from "../usage.ts";
 import { Writer } from "../writer.ts";
@@ -195,7 +194,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     + "the element's `id:` in the source YAML, so a change on screen leads back to\n"
     + "a line in the design file.");
   const aodOn = guards.amoled_target;
-  const aod = new AodStyle(aodOn, aodOn && face.aod_dim !== null ? dimFraction(face.aod_dim) : null);
+  const aod = new AodStyle(aodOn);
   const statics = !profile ? staticPlan(resolved) : null;
   const rings = new Rings(ringGroups(face.elements), aod);
   const prof = profile ? profileMod.planFor(resolved, profile) : null;
@@ -843,7 +842,7 @@ function emitAodBody(w: Writer, resolved: ResolvedFace, plan: ReadPlan, guards: 
   emitLayoutGuarded(w, resolved.face, entries, one, beforeRun);
   if (resolved.face.aod_mask && entries.length > 0) {
     w.blank();
-    w.comment("aod: {mask: ...}: moves the lit pixel every minute");
+    w.comment("aod mask: moves the lit pixel every minute");
     w.line("WfbAodMask.apply(dc, System.getClockTime().min);");
   }
 }

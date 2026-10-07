@@ -601,7 +601,7 @@
   }
  },
  "examples/features/align/face.yaml": {
-  "diagnostics": "examples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n  144 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n  144 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n  144 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above\n\nexamples/features/align/face.yaml:246:3: note[aod-burn-in]: venusq2: with the pixel mask (phase 1, dx=1 dy=0), the AOD frame lights 0.3% of pixels and 0.3% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: main_hands (100.0%)\n  246 |   main_hands:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 306 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 230,400 B of the 2,097,152 B graphics pool (11.0%) on venusq2\n  144 | static:\n        ^\n      note: 320x360 pixels at the display's own 16 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "examples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n  144 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n  144 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n  144 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above\n\nexamples/features/align/face.yaml:246:3: note[aod-burn-in]: venusq2: with the pixel mask (phase 1, dx=1 dy=0), the AOD frame lights 0.3% of pixels and 0.3% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: main_hands (100.0%)\n  246 |   main_hands:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 306 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nexamples/features/align/face.yaml:144:1: note[graphics-pool]: the static content buffers 230,400 B of the 2,097,152 B graphics pool (11.0%) on venusq2\n  144 | static:\n        ^\n      note: 320x360 pixels at the display's own 16 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "8e472ea168e36613e8dfc85929ace4ef",
@@ -615,12 +615,12 @@
     "source-fr955/Layout.mc": "6a207f7b34eb565fd17b13dcd9928d5f",
     "source-venusq2/Layout.mc": "9ecf69d750b750fafe62eccf174e88ec",
     "source/IconGlyphs.mc": "db8280bc23d5fcccd72ec9a584eca8e2",
-    "source/FeatureAlignView.mc": "58bed4e6c706a5cc115e7922388c6569",
+    "source/FeatureAlignView.mc": "4b3d86766b18a4f465a6b9f0b5049dc2",
     "source/FeatureAlignSlotDrawable.mc": "46a6d5b770e81fcecdf49ea96344d019",
     "source/SlotText.mc": "adc50d9a89b06e80973acb82c9b209fc",
     "source/FeatureAlignDelegate.mc": "58a00c4c2d7bc6e32de397049f94e8f2",
     "source/FeatureAlignConfigMenuDelegate.mc": "be34feb9db5b3eb3b7eaaa45c3726acd",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbComplications.mc": "d975e35ad57537e42e935db68ff0307f",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -679,12 +679,12 @@
     "source-fr245/Layout.mc": "9da52f3e1f1205f82b7e86e8289eb6ca",
     "source-fenix6/Layout.mc": "98185fb604d33031157f4ee19dde6c14",
     "source/IconGlyphs.mc": "db8280bc23d5fcccd72ec9a584eca8e2",
-    "source/FeatureAlignView.mc": "d04af4a4ef8f604ec07a018e7bcc241e",
+    "source/FeatureAlignView.mc": "03cd86594ca04f638d4ca0d462eb5fd9",
     "source/FeatureAlignSlotDrawable.mc": "46a6d5b770e81fcecdf49ea96344d019",
     "source/SlotText.mc": "adc50d9a89b06e80973acb82c9b209fc",
     "source/FeatureAlignDelegate.mc": "58a00c4c2d7bc6e32de397049f94e8f2",
     "source/FeatureAlignConfigMenuDelegate.mc": "be34feb9db5b3eb3b7eaaa45c3726acd",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbComplications.mc": "d975e35ad57537e42e935db68ff0307f",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -741,12 +741,12 @@
     "source-fenix947mm/Layout.mc": "2518f58a97429fc1db20b3087a64b1c0",
     "source-fr955/Layout.mc": "6a207f7b34eb565fd17b13dcd9928d5f",
     "source/IconGlyphs.mc": "db8280bc23d5fcccd72ec9a584eca8e2",
-    "source/FeatureAlignView.mc": "58bed4e6c706a5cc115e7922388c6569",
+    "source/FeatureAlignView.mc": "4b3d86766b18a4f465a6b9f0b5049dc2",
     "source/FeatureAlignSlotDrawable.mc": "46a6d5b770e81fcecdf49ea96344d019",
     "source/SlotText.mc": "adc50d9a89b06e80973acb82c9b209fc",
     "source/FeatureAlignDelegate.mc": "58a00c4c2d7bc6e32de397049f94e8f2",
     "source/FeatureAlignConfigMenuDelegate.mc": "be34feb9db5b3eb3b7eaaa45c3726acd",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbComplications.mc": "d975e35ad57537e42e935db68ff0307f",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -916,7 +916,7 @@
   }
  },
  "examples/features/aod/face.yaml": {
-  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.1% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (68.5%), battery_ring (30.2%), accent_dot (1.2%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,764 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.0% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (68.5%), battery_ring (30.2%), accent_dot (1.2%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,764 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "b77f7b7c9c21362da85207f965aabfa8",
@@ -928,8 +928,8 @@
     "source-fenix8solar47mm/Layout.mc": "eb4c1ea019f5b4880733a467c161ba91",
     "source-fenix8solar51mm/Layout.mc": "898c932ca29b27e9c6acfff79ec97a46",
     "source-fr955/Layout.mc": "36893080916cf12ada566f9d6bfeb77a",
-    "source/FeatureAODView.mc": "a88f217a67489df1e821e628cb7ee869",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/FeatureAODView.mc": "b56d224e58ae4396a31a6fde74c555e8",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
@@ -951,8 +951,8 @@
     "source-fenix8solar47mm/Layout.mc": "eb4c1ea019f5b4880733a467c161ba91",
     "source-fr245/Layout.mc": "5d07a0ac2dfc3b1625a9abb226fb9f2d",
     "source-fenix6/Layout.mc": "4b7b0dbc0b5b455f566b9a852fbfe929",
-    "source/FeatureAODView.mc": "a88f217a67489df1e821e628cb7ee869",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/FeatureAODView.mc": "b56d224e58ae4396a31a6fde74c555e8",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
@@ -972,8 +972,8 @@
     "source/Palette.mc": "6adcec68abf1ba2c348f3b2f51ed0cf6",
     "source-fenix947mm/Layout.mc": "a0a48378899864186765d4f17693cf73",
     "source-fr955/Layout.mc": "36893080916cf12ada566f9d6bfeb77a",
-    "source/FeatureAODView.mc": "a88f217a67489df1e821e628cb7ee869",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/FeatureAODView.mc": "b56d224e58ae4396a31a6fde74c555e8",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
@@ -1008,10 +1008,10 @@
     "fr955": "refused: 'Feature AOD' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "6eb61404d6a67c209260983407ba22a5"
+    "fenix847mm": "14b06b5e04ae6ca8e6444b1b083f46dd"
    },
    "aod-minute-7": {
-    "fenix847mm": "90aa1a6bb8e91ec3031f90ff717ee56b"
+    "fenix847mm": "25e5d9da993b12ec6fa2727781eb60eb"
    }
   }
  },
@@ -4798,7 +4798,7 @@
   }
  },
  "ts/test/fixtures/text_fallback/face.yaml": {
-  "diagnostics": "ts/test/fixtures/text_fallback/face.yaml:38:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 3, dx=0 dy=1), the AOD frame lights 0.7% of pixels and 0.5% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: heart (54.1%), heart_ringed (45.9%), background (0.0%)\n   38 |   heart:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (aod: {mask: ...}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,083 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP one: fenix8solar47mm\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "ts/test/fixtures/text_fallback/face.yaml:38:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 3, dx=0 dy=1), the AOD frame lights 0.7% of pixels and 0.5% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: heart (54.1%), heart_ringed (45.9%), background (0.0%)\n   38 |   heart:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,083 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP one: fenix8solar47mm\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "cceb4c7edee97a0481a02a51bccc8daa",
@@ -4808,8 +4808,8 @@
     "source/Palette.mc": "ccb18195948d46316fb5eb35931d1186",
     "source-fenix8solar47mm/Layout.mc": "3d845016deacd6f570e4bceb5ae97aa8",
     "source-fenix847mm/Layout.mc": "0b802eb1258f6ddf1a8390b2f5ae3a3d",
-    "source/TextFallbackView.mc": "ca9c25881dc10306d8d0268af5996844",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/TextFallbackView.mc": "6ca723cdffbcaeeb8037f1d7fb1ee5bc",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
@@ -4825,8 +4825,8 @@
     "source-fenix8solar47mm/Layout.mc": "3d845016deacd6f570e4bceb5ae97aa8",
     "source-fr245/Layout.mc": "b3b61dc4c75f33b62a8543346cfc5dac",
     "source-fenix6/Layout.mc": "8759c092a3c9226f4e496d8d89fadb19",
-    "source/TextFallbackView.mc": "ca9c25881dc10306d8d0268af5996844",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/TextFallbackView.mc": "6ca723cdffbcaeeb8037f1d7fb1ee5bc",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
     "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
@@ -4844,8 +4844,8 @@
     "source/Palette.mc": "ccb18195948d46316fb5eb35931d1186",
     "source-fenix947mm/Layout.mc": "7f54e1887a1fa52733bc41a57a696e9c",
     "source-fr955/Layout.mc": "4b1583f408556e606df5e2f176f322e8",
-    "source/TextFallbackView.mc": "ca9c25881dc10306d8d0268af5996844",
-    "runtime-lib/WfbAodMask.mc": "1ad0c45bc896e4e3f4dcb93f008ba083",
+    "source/TextFallbackView.mc": "6ca723cdffbcaeeb8037f1d7fb1ee5bc",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
     "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
     "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",

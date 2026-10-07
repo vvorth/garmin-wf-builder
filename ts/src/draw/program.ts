@@ -176,13 +176,10 @@ export interface AodRestyled { t: "AodRestyled"; element: Element; key: "color" 
 export const AodRestyled = (element: Element, key: "color" | "track_color" | "icon_color", awake: Paint | null = null): AodRestyled =>
   ({ t: "AodRestyled", element, key, awake });
 
-/** `expr` dimmed in the always-on frame and unchanged otherwise. */
-export interface AodDimmed { t: "AodDimmed"; element: Element; expr: Expression | null }
-export const AodDimmed = (element: Element, expr: Expression | null): AodDimmed => ({ t: "AodDimmed", element, expr });
-
-/** `awake`, or `asleep` in the always-on frame. */
-export interface AodPaint { t: "AodPaint"; asleep: Paint; awake: Paint }
-export const AodPaint = (asleep: Paint, awake: Paint): AodPaint => ({ t: "AodPaint", asleep, awake });
+/** `expr` dimmed by the element's `dim:` in the always-on frame, and `awake` (by default `expr`) otherwise. */
+export interface AodDimmed { t: "AodDimmed"; element: Element; expr: Expression | null; awake: Expression | null }
+export const AodDimmed = (element: Element, expr: Expression | null, awake: Expression | null = expr): AodDimmed =>
+  ({ t: "AodDimmed", element, expr, awake });
 
 /** The `ringColor` parameter of a `ring<Id>` method. */
 export interface RingColor { t: "RingColor" }
@@ -196,7 +193,7 @@ export const AodPart = (element: Element, expr: Expression | null): AodPart => (
 export interface PaintPick { t: "PaintPick"; cond: Cond; then: Paint; otherwise: Paint }
 export const PaintPick = (cond: Cond, then: Paint, otherwise: Paint): PaintPick => ({ t: "PaintPick", cond, then, otherwise });
 
-export type Paint = Color | AodRestyled | AodDimmed | AodPaint | RingColor | AodPart | PaintPick;
+export type Paint = Color | AodRestyled | AodDimmed | RingColor | AodPart | PaintPick;
 
 /** The font a text call names. */
 export interface Font {

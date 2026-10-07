@@ -40,7 +40,7 @@ geometry, [Placement](placement.md#per-device-and-per-shape-overrides)) and
 | `antialias` | `group`, the primitives, `gauge`, `graph`, `hands`, `pattern`, `icon`, `data` (not `text`) | `true`\|`false` | `defaults:` (`false`) | [soften the edge](#antialias--soften-an-edge) |
 | `min_1px` | `group`, the primitives, `gauge`, `graph`, `hands`, `pattern`, and a hand/pattern part (not `text`, `icon`, `data`) | `true`\|`false` | `defaults:` (`false`) | [clamp a length to at least 1px](#min_1px--never-let-a-relative-length-round-to-nothing) |
 | `sleep_update` | every element | `true`\|`false` | `false` | also redraw every second while a MIP watch sleeps — see [Power modes](modes-and-interaction.md) |
-| `aod` | every element, `group` | `hide`\|`show`\|an override block | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
+| `aod` | every element, `group` | an override block (`visible:`, `dim:`, restyling keys) | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
 | `z` | every element | integer | document order | z-order override; on a `group`, the default for every member |
 | `unsupported` | an element anchored to the [subscreen](placement.md#the-subscreen-window), or a `text` with a `face:` font | `error`\|`hide` | `error` (a `text`: its font's own) | what to do on a target that lacks the window, or the face |
 | `on_hold` | kinds with a fixed box (not `hands`, not `pattern`) | a complication name, or `auto` | — | touch-and-hold target — see [Interactivity](modes-and-interaction.md#interactivity-on_hold) |

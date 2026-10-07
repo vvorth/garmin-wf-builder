@@ -64,7 +64,7 @@
 # readout's box is anchored before alignment pushes it outward.
 #
 # `venusq2` (320x360, AMOLED) is a fourth target: the one example with a
-# rectangular screen, and the reason `main_hands` carries `aod: show` -- an
+# rectangular screen, and the reason `main_hands` carries `aod: {visible: true}` -- an
 # AMOLED target needs an always-on frame, and the hands are this face's.
 # The three MIP targets never draw it.
 #
@@ -247,7 +247,7 @@ elements:
     type: hands
     set: main
     at: { anchor: center }
-    aod: show
+    aod: { visible: true }
 
   # NE: `data` element, re-pointable on the wrist between steps and
   # heart rate -- on `fr955`, from the generated settings menu

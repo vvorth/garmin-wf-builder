@@ -2,10 +2,10 @@
 # on the one design.
 #
 # A small, ordinary face -- digital time, a date, a battery ring, a bezel --
-# not a format-feature dump. The face-wide `defaults: {aod: hide}` and
-# `aod: {dim: 0.6}` below are the canonical "everything off but the time"
-# shape, plus a face-wide dim: every element the ancestry says nothing about
-# is hidden in AOD, and each `aod:` block below restyles its element with a
+# not a format-feature dump. The face-wide `defaults: {aod: {visible: false,
+# dim: 0.6}}` below is the canonical "everything off but the time" shape,
+# plus a face-wide dim: every element the ancestry says nothing about is
+# hidden in AOD, and each `aod:` block below restyles its element with a
 # ternary at the draw call site:
 #
 # - `clock` turns hollow in AOD: `outline:` draws a dim grey ring the awake
@@ -15,20 +15,20 @@
 #   use to drop seconds -- free, since AOD redraws once a minute anyway --
 #   kept as a same-width swap here so the widest-rendering estimate, which
 #   is measured against the *awake* format only, still fits fēnix 8's
-#   screen). Its explicit `color:` and `outline:` colours are the author's
-#   final word: `dim: 0.6` never touches them.
+#   screen). Its own `dim: 1` keeps the ring at full brightness: `dim:`
+#   is inherited like every other `aod:` key, and the nearest one wins.
 # - `accent_dot` is a small filled accent, awake -- `aod: {filled: false}`
 #   turns it into a thin ring instead of a filled disc in AOD, the "solid
 #   disc becomes a thin ring" guidance applied to the
-#   smallest lit shape this face has, in miniature -- and, with **no**
-#   `color:` override of its own, its awake blue is dimmed automatically:
-#   `dim: 0.6` reaches every AOD colour, override or not, which is the
-#   contrast this element is here to show against `clock`'s explicit one.
+#   smallest lit shape this face has, in miniature -- and its awake blue
+#   is dimmed by the inherited `dim: 0.6`, the contrast this element is
+#   here to show against `clock`'s own `dim: 1`.
 # - `battery_ring` shows in AOD too, thinner and dimmer than its awake ring
-#   (`thickness:`/`color:` overrides) -- exactly the kind of secondary
-#   reading Garmin's own guidance says to keep legible but unobtrusive.
-# - `info` is a `group` with an explicit `aod: hide`: unconditional and
-#   sticky (the one asymmetry) -- `date_text`'s own `aod: show`
+#   (`thickness:`/`color:` overrides, both colours dimmed too) -- exactly
+#   the kind of secondary reading Garmin's own guidance says to keep
+#   legible but unobtrusive.
+# - `info` is a `group` with `aod: {visible: false}`: unconditional and
+#   sticky (the one asymmetry) -- `date_text`'s own `aod: {visible: true}`
 #   inside it can never draw, which is *why* it needs `lint: {allow:
 #   [aod-unreachable]}` here: this pairing is deliberately demonstrating the
 #   rule the lint exists to catch, not an oversight.
@@ -38,7 +38,7 @@
 # in one build (root CLAUDE.md §1); the three MIP verification devices never
 # see a lit `_aod` (their sleep frame stays exactly the awake design).
 #
-# This face's `aod:` block above also gets the moving 2x2 pixel mask (docs/guide/always-on-display.md "Pixel mask"),
+# This face's `defaults: {aod:}` block above also gets the moving 2x2 pixel mask (docs/guide/always-on-display.md "Pixel mask"),
 # on by default -- no `mask:` key is written here, the same way no design
 # has to ask for it. `aod-burn-in`'s own note now scores the masked frame
 # (1.0% lit, 0.1% luminance, down from 4.0%/0.3% unmasked).
@@ -63,9 +63,9 @@ build:
     - fr955
 
 defaults:
-  aod: hide
-aod:
-  dim: 0.6
+  aod:
+    visible: false
+    dim: 0.6
 
 resources:
   palette:
@@ -92,11 +92,11 @@ elements:
 
   # An explicit group hide is unconditional and sticky: no
   # descendant can undo it, whatever it writes itself. `date_text`'s own
-  # `aod: show` is deliberately unreachable, to demonstrate exactly that --
+  # `aod: {visible: true}` is deliberately unreachable, to demonstrate exactly that --
   # see the header comment above.
   info:
     type: group
-    aod: hide
+    aod: { visible: false }
     children:
       date_text:
         type: text
@@ -104,12 +104,12 @@ elements:
         font: FONT_XTINY
         at: { anchor: center, dy: -30% }
         color: color.gray
-        aod: show
+        aod: { visible: true }
         lint:
           allow: [aod-unreachable]
           reason: >-
-            deliberate: demonstrates that a group's own 'aod: hide' beats a
-            descendant's 'aod: show' (docs/guide/always-on-display.md)
+            deliberate: demonstrates that a group's own 'visible: false' beats a
+            descendant's 'visible: true' (docs/guide/always-on-display.md)
 
   # A small filled accent while awake -- becomes a thin ring in AOD (the
   # "solid disc becomes a thin ring" guidance), in its own awake blue
@@ -136,6 +136,7 @@ elements:
     at: { anchor: center }
     color: color.white
     aod:
+      dim: 1
       text: "{time.clock:%H %M}"
       color: color.black
       outline:

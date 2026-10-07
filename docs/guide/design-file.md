@@ -14,8 +14,7 @@ platform does with it.
 | `face.version` | `face:` | string | `1.0.0` | the face's version string |
 | `face.entry` | `face:` | identifier | from `face.name` | the Monkey C entry class name |
 | `targets` | `build:` | list of device ids | — | the default device set; `-d` may name others |
-| `antialias`, `min_1px`, `aod` | `defaults:` | see each | `false`, `false`, `hide` | the per-element defaults every element inherits: [`antialias:`](elements.md#antialias--soften-an-edge), [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing), [`aod:`](always-on-display.md) |
-| `aod` | top level | `{dim, mask, lint}` | — | the face-wide always-on frame settings: [Always-on display](always-on-display.md) |
+| `antialias`, `min_1px`, `aod` | `defaults:` | see each | `false`, `false`, `{visible: false}` | the per-element defaults every element inherits: [`antialias:`](elements.md#antialias--soften-an-edge), [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing), [`aod:`](always-on-display.md) (which also holds the always-on frame's own `mask:` and `lint:`) |
 | `fonts` | `resources:` | TTF files → device fonts | — | [Fonts](fonts.md) |
 | `palette` | `resources:` | named colours | — | [Colours](colors.md) |
 | `hand_sets` | `resources:` | named analog hand sets | — | [Analog hands](analog-hands.md) |

@@ -2,15 +2,16 @@
 #
 # An AMOLED screen that stayed on all day would burn in, so while the watch
 # sleeps it draws a separate, sparse frame instead (docs/guide/always-on-display.md).
-# You don't write a second design: `aod:` on an element says what it looks
-# like in that frame -- `aod: hide`, `aod: show`, or a block of overrides
-# (which also shows it) -- and `aod: {default: ...}` below says what happens
-# to every element that says nothing.
+# You don't write a second design: `aod:` on an element is a block of
+# overrides for that frame (writing one also shows it; `visible: false`
+# hides it), and `defaults: {aod: ...}` below is the same block for every
+# element that says nothing.
 #
 # Here everything is hidden asleep except the clock, drawn as a thin outline
 # around black digits, and a dimmer, thinner battery ring. `dim:` scales every
-# colour the sleep frame draws that has no override of its own. A moving
-# pixel mask is on by default, so no pixel stays lit two minutes running.
+# colour the sleep frame draws; the clock's own `dim: 1` keeps its outline
+# at full brightness. A moving pixel mask is on by default, so no pixel
+# stays lit two minutes running.
 #
 # The MIP watches in `targets:` are always on already and ignore `aod:`.
 #
@@ -28,10 +29,9 @@ face:
 build:
   targets: [fenix847mm, fenix8solar47mm, fenix8solar51mm, fr955]
 defaults:
-  aod: hide
-
-aod:
-  dim: 0.6
+  aod:
+    visible: false
+    dim: 0.6
 
 resources:
   palette:
@@ -63,6 +63,7 @@ elements:
     at: { anchor: center }
     color: color.white
     aod:
+      dim: 1
       color: color.black   # hollow digits: only the outline lights
       outline:
         width: 2

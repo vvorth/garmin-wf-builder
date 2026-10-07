@@ -36,10 +36,10 @@ messages; see `ts/src/lint.ts` if unsure.
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
 | `font-unavailable` | a `face:` font (or an element using one) with `unsupported: hide` fails to resolve a usable face on this device |
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
-| `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
+| `aod-unreachable` | an element's own `aod:` block can never draw because an ancestor group already writes `aod: {visible: false}`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
 | `override-unreachable` | an [`overrides:`](placement.md#per-device-and-per-shape-overrides) selector matches no device in this build, so it changes nothing |
-| `aod-burn-in` | the rendered `--aod` frame -- masked, at its worst of 4 mask phases, unless `aod: {mask: false}` -- lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
+| `aod-burn-in` | the rendered `--aod` frame -- masked, at its worst of 4 mask phases, unless `defaults: {aod: {mask: false}}` -- lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
 
 ## Lint suppression
 
@@ -115,8 +115,8 @@ goes on the **`config: style:` entry's own** `lint:` (the second entry of
 the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
 own** `lint:` -- neither is an element. `aod-empty` is the same shape, one
 level up: it is about the whole face (nothing anywhere draws in AOD), so it
-goes on the **face's own `aod:` block's** `lint:` --
-`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `dim:`/`mask:`.
+goes on the **face's own `defaults: {aod:}` block's** `lint:` --
+`defaults: {aod: {lint: {allow: [aod-empty], reason: ...}}}`, beside `dim:`/`mask:`.
 `aod-unreachable`, by contrast, is an ordinary element-scoped
 diagnostic: it goes on the element whose own now-dead `aod:` it names.
 `aod-burn-in` is element-scoped too, but not on a fixed element the way

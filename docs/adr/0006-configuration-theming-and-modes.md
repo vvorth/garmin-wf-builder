@@ -1061,3 +1061,23 @@ axis does, and the generated code, are unchanged.
 - **Static.** Only the `static:` block remains; the per-element flag is
   removed, and the `graphics-pool` lint is acknowledged on any element
   inside the block.
+
+## Amendment (2026-10-07): one `aod:` block shape
+
+`aod:` was three shapes in two places: `hide`/`show` or an override block
+on an element, `hide`/`show` in `defaults:`, and a top-level `{dim, mask,
+lint}`. It is now one block, the same on an element, a group and in
+`defaults:`, each key cascading on its own (element, then nearest group,
+then `defaults:`).
+
+- **Visibility is `visible:`.** `hide` is `{visible: false}` (sticky on a
+  group, as before) and `show` is `{visible: true}`; writing any block
+  still draws the element. `defaults: {aod: {visible:}}` fills only
+  silence, as `defaults: {aod:}` did.
+- **`dim:` cascades.** It moved from the top level into the block and may
+  be set on a group or an element too. It now dims override colours as
+  well; the old exception (an override colour is never dimmed) is gone,
+  and `dim: 1` is how an element opts out.
+- **`mask:` and `lint:`** sit in `defaults: {aod:}` only; the top-level
+  `aod:` key is removed. The restyling keys are not accepted in
+  `defaults:`, since their meaning differs per kind.

@@ -278,8 +278,7 @@ export class Evaluator {
         }
         return r.aodColor(c.element, c.key, ((c.element as unknown as Record<string, unknown>)[c.key] ?? null) as Expression | null);
       }
-      case "AodDimmed": return r.aodDimmed(c.element, c.expr);
-      case "AodPaint": return this.paint(r.options.aod ? c.asleep : c.awake);
+      case "AodDimmed": return r.aodDimmed(c.element, c.expr, c.awake);
       case "AodPart": return r.aodColor(c.element, "color", c.expr);
       case "PaintPick": return this.paint(this.cond(c.cond) ? c.then : c.otherwise);
       case "RingColor":

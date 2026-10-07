@@ -65,8 +65,7 @@ export function colorCode(c: Paint, aod: AodStyle = NO_AOD): string {
   switch (c.t) {
     case "Color": return mcColor(c.expr);
     case "AodRestyled": return aod.color(c.element, c.key, c.awake !== null ? colorCode(c.awake, aod) : null);
-    case "AodDimmed": return aod.dimmed(c.element, c.expr);
-    case "AodPaint": return aod.value(colorCode(c.asleep, aod), colorCode(c.awake, aod));
+    case "AodDimmed": return aod.dimmed(c.element, c.expr, c.awake);
     case "AodPart": return aod.partColor(c.element, c.expr);
     case "PaintPick": return `(${condCode(c.cond, aod)}) ? ${colorCode(c.then, aod)} : ${colorCode(c.otherwise, aod)}`;
     case "RingColor": return "ringColor";

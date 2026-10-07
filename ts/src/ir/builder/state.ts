@@ -114,7 +114,7 @@ export class BuilderState {
   face_aod_default_hide = true;
   face_aod_lint_allow = new Set<string>();
   face_aod_lint_reason: string | null = null;
-  /** `null` for both an absent `aod: dim:` and `dim: 1`. */
+  /** `defaults: {aod: {dim:}}`, `null` when absent. */
   face_aod_dim: number | null = null;
   face_aod_mask = true;
 

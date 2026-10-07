@@ -33,8 +33,8 @@ which feature. Rules that are not obvious from the files:
 - **`features/profile/` is generated** by `ts/tools/gen-profile-face.ts`: edit
   the generator and rerun it, never the YAML.
 - **`features/aod/` is the only example with an AMOLED target**
-  (`fenix847mm`, a fourth target). Its `info` group's explicit `aod: hide`
-  deliberately shadows its child's `aod: show`, which is why that child
+  (`fenix847mm`, a fourth target). Its `info` group's `aod: {visible: false}`
+  deliberately shadows its child's `aod: {visible: true}`, which is why that child
   carries `lint: {allow: [aod-unreachable]}`. Because it mixes an AMOLED
   target in, its MIP targets' generated source is not byte-identical to a
   build with no `aod:` keys; only an all-MIP `targets:` holds that

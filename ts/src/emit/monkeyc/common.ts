@@ -1,6 +1,6 @@
 // Shared small helpers and types for the Monkey C generation.
-import type { Element, Expression, Face } from "../../ir/model.ts";
-import { aodColorChoice, DataElement, slotOf, walkElements } from "../../ir/model.ts";
+import type { AodOverride, Element, Expression, Face } from "../../ir/model.ts";
+import { DataElement, slotOf, walkElements } from "../../ir/model.ts";
 import { configDataIds, elementConstPrefix } from "../../ir/naming.ts";
 import * as kinds from "../../kinds/index.ts";
 import { type Placed, PlacedText, type ResolvedFace } from "../../layout.ts";
@@ -45,14 +45,14 @@ export function mcColor(expression: Expression | null): string {
 /** `aod: {dim: ...}` as an integer ratio, or `null` for no dimming. */
 export type AodDim = [number, number] | null;
 
-/** A colour with no `aod:` override, dimmed: a pre-dimmed literal for a constant, else `WfbColor.dim`. */
-function dimColorCode(expression: Expression | null, awakeCode: string, dim: [number, number]): string {
+/** A colour dimmed: a pre-dimmed literal for a constant, else `WfbColor.dim`. */
+function dimColorCode(expression: Expression | null, code: string, dim: [number, number]): string {
   const [num, den] = dim;
   if (expression === null || expression.isConstant) {
     const value = expression !== null ? expression.constant : 0xffffff;
     return Color.parse(value).dim(num, den).asMonkeyc();
   }
-  return `WfbColor.dim(${awakeCode}, ${num}, ${den})`;
+  return `WfbColor.dim(${code}, ${num}, ${den})`;
 }
 
 /**
@@ -62,11 +62,9 @@ function dimColorCode(expression: Expression | null, awakeCode: string, dim: [nu
  */
 export class AodStyle {
   readonly on: boolean;
-  readonly dim: AodDim;
 
-  constructor(on = false, dim: AodDim = null) {
+  constructor(on = false) {
     this.on = on;
-    this.dim = dim;
   }
 
   /** `(_aod ? <override> : <awake>)`, or `awakeCode` alone with no override. */
@@ -80,34 +78,33 @@ export class AodStyle {
     return this.value(hasOverride ? `Layout.${prefix}_AOD_${suffix}` : null, `Layout.${prefix}_${suffix}`);
   }
 
-  /** One colour argument of an element shown in AOD: its override, else dimmed, else unchanged. */
+  /** One colour argument of an element shown in AOD: its override, else unchanged, either dimmed by its `dim:`. */
   color(element: Element, key: "color" | "track_color" | "icon_color", awakeCode: string | null = null): string {
     const expression = ((element as unknown as Record<string, unknown>)[key] ?? null) as Expression | null;
     const awake = awakeCode ?? mcColor(expression);
     if (!this.on || element.aod === null) return awake;
-    const [choice, override] = aodColorChoice(element.aod, key, this.dim !== null);
-    return this.render(choice, override, expression, awake);
+    return this.render(element.aod, element.aod[key], expression, awake);
   }
 
   /** `color`'s rule for one `hands`/`pattern` part. */
   partColor(element: Element, colorExpr: Expression | null): string {
     const awake = mcColor(colorExpr);
     if (!this.on || element.aod === null) return awake;
-    const [choice, override] = aodColorChoice(element.aod, "color", this.dim !== null);
-    return this.render(choice, override, colorExpr, awake);
+    return this.render(element.aod, element.aod.color, colorExpr, awake);
   }
 
-  /** `expression` dimmed by `dim` in the AOD frame, else unchanged. */
-  dimmed(element: Element, expression: Expression | null): string {
-    const awake = mcColor(expression);
-    if (!this.on || element.aod === null) return awake;
-    return this.render(this.dim !== null ? "dim" : "awake", null, expression, awake);
+  /** `asleep` (by default the awake colour) dimmed by the element's `dim:` in the AOD frame; `awake` otherwise. */
+  dimmed(element: Element, asleep: Expression | null, awake: Expression | null = asleep): string {
+    const awakeCode = mcColor(awake);
+    if (!this.on || element.aod === null) return awakeCode;
+    return this.render(element.aod, asleep !== awake ? asleep : null, awake, awakeCode);
   }
 
-  private render(choice: string, override: Expression | null, expression: Expression | null, awakeCode: string): string {
-    if (choice === "override") return this.value(override!.code, awakeCode);
-    if (choice === "dim" && this.dim !== null) return this.value(dimColorCode(expression, awakeCode, this.dim), awakeCode);
-    return awakeCode;
+  private render(aod: AodOverride, override: Expression | null, expression: Expression | null, awakeCode: string): string {
+    const asleep = override ?? expression;
+    const asleepCode = override !== null ? override.code : awakeCode;
+    if (aod.dim !== null) return this.value(dimColorCode(asleep, asleepCode, aod.dim), awakeCode);
+    return override !== null ? this.value(asleepCode, awakeCode) : awakeCode;
   }
 }
 

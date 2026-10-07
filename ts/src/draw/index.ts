@@ -13,7 +13,6 @@ import { negated } from "../emit/monkeyc/view.ts";
 import { localName } from "../ir/naming.ts";
 import * as kinds from "../kinds/index.ts";
 import type { Placed, ResolvedFace } from "../layout.ts";
-import { dimFraction } from "../palette.ts";
 import { truthy } from "../py.ts";
 import type { Renderer, RGB } from "../preview.ts";
 import * as vocab from "../vocab.ts";
@@ -80,9 +79,7 @@ export function paint(renderer: Renderer, placed: Placed, ring: RingPass | null 
 
 /** How the host lowers `placed`: with always-on code present, the face's own dimming, and the view's value guards. */
 export function context(renderer: Renderer, placed: Placed, ring: RingPass | null = null): DrawContext {
-  const dim = renderer.resolved.face.aod_dim;
-  const aod = new AodStyle(true, dim !== null ? dimFraction(dim) : null);
-  return new DrawContext(renderer.resolved, aod, renderer.valueGuards(placed), ring, { picks: renderer.options.picks });
+  return new DrawContext(renderer.resolved, new AodStyle(true), renderer.valueGuards(placed), ring, { picks: renderer.options.picks });
 }
 
 /** The string `placed` (a text-drawing element) draws at `values`, without painting it; `null` when it draws none. */
