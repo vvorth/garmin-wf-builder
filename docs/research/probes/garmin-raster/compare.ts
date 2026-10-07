@@ -24,7 +24,7 @@ import { decodePng, encodePng } from "../../../../ts/src/png.ts";
 import { previewOptions, render } from "../../../../ts/src/preview.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FAMILIES = ["circles", "arcs", "lines", "polygons", "rects", "text", "swatches"];
+const FAMILIES = ["circles", "arcs", "lines", "polygons", "rects", "text", "swatches", "ellipses", "lines2", "rects2", "rotated"];
 const TOLERANCE = 96;
 /** Capture pixels per device pixel: the simulator at 100% zoom on a Retina screen. A fitted scale came out 2.016-2.019, pulled by the model differences; 2 overlays the 1 px circles exactly. */
 const SCALE = 2;

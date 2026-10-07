@@ -159,6 +159,70 @@ const faces: Record<string, string> = {};
   faces["rects"] = face("rects", "rounded rectangles filled and drawn, radii 2/3/5 on odd and even sizes; drawRectangle pens 1-4", els);
 }
 
+// fillEllipse and drawEllipse: odd and even radii, then pens 1-3.
+{
+  const els: Record<string, Element> = {};
+  const fills: [number, number][] = [[10, 6], [11, 7], [16, 9], [17, 10], [20, 12], [21, 13]];
+  grid(fills.length, 3, 50).forEach(([dx, dy], i) => {
+    const [w, h] = fills[i]!;
+    els[`fill_${w}x${h}`] = { type: "ellipse", at: at(dx, dy - 40), size: `{ width: ${w}px, height: ${h}px }`, color: "color.ink" };
+  });
+  const outlines: [number, number, number][] = [];
+  for (const pen of [1, 2, 3]) for (const [w, h] of [[20, 12], [21, 13]] as const) outlines.push([w, h, pen]);
+  grid(outlines.length, 3, 50).forEach(([dx, dy], i) => {
+    const [w, h, pen] = outlines[i]!;
+    els[`draw_${w}x${h}_p${pen}`] = {
+      type: "ellipse", at: at(dx, dy + 40), size: `{ width: ${w}px, height: ${h}px }`, thickness: `${pen}px`, filled: "false", color: "color.ink",
+    };
+  });
+  faces["ellipses"] = face("ellipses", "fillEllipse on odd and even sizes, drawEllipse pens 1-3", els);
+}
+
+// drawLine in the directions the lines face leaves out (left, down), and 2 and 4 px diagonals.
+{
+  const els: Record<string, Element> = {};
+  const cases: [number, number][] = [];
+  for (const width of [1, 3]) for (const angle of [120, 150, 210, 240, 300, 330]) cases.push([width, angle]);
+  for (const width of [2, 4]) for (const angle of [15, 30, 45, 60, 135, 225, 315]) cases.push([width, angle]);
+  grid(cases.length, 6, 30).forEach(([dx, dy], i) => {
+    const [width, angle] = cases[i]!;
+    const r = 11, t = angle * Math.PI / 180;
+    const [ex, ey] = [Math.round(r * Math.cos(t)), Math.round(-r * Math.sin(t))];
+    els[`line_w${width}_a${angle}`] = { type: "line", at: at(dx - ex, dy - ey), to: at(dx + ex, dy + ey), thickness: `${width}px`, color: "color.ink" };
+  });
+  faces["lines2"] = face("lines2", "drawLine widths 1 and 3 drawn left and down, widths 2 and 4 on diagonals", els);
+}
+
+// drawRoundedRectangle at the pens the rects face leaves out.
+{
+  const els: Record<string, Element> = {};
+  const cases: [number, number, number, number][] = [];
+  for (const pen of [1, 3, 4]) for (const r of [2, 3, 5]) cases.push([20, 14, r, pen]);
+  for (const pen of [1, 3, 4]) cases.push([21, 15, 3, pen]);
+  grid(cases.length, 3, 42).forEach(([dx, dy], i) => {
+    const [w, h, r, pen] = cases[i]!;
+    els[`rr_${w}x${h}_r${r}_p${pen}`] = {
+      type: "rectangle", at: at(dx, dy), size: `{ width: ${w}px, height: ${h}px }`, corner_radius: `${r}px`,
+      thickness: `${pen}px`, filled: "false", color: "color.ink",
+    };
+  });
+  faces["rects2"] = face("rects2", "drawRoundedRectangle pens 1, 3 and 4", els);
+}
+
+// fillPolygon and drawLine on points turned at runtime: a radial pattern's copies land between pixels.
+{
+  const els: Record<string, Element> = {};
+  for (const [name, count, part] of [
+    ["tri_outer", 12, "{type: polygon, points: [{dx: -3px, dy: -80px}, {dx: 3px, dy: -80px}, {dx: 0px, dy: -68px}]}"],
+    ["bar_mid", 9, "{type: polygon, points: [{dx: -2px, dy: -56px}, {dx: 2px, dy: -56px}, {dx: 2px, dy: -44px}, {dx: -2px, dy: -44px}]}"],
+    ["line2_inner", 8, "{type: line, at: {dy: -36px}, to: {dy: -26px}, thickness: 2px}"],
+    ["line1_core", 7, "{type: line, at: {dy: -19px}, to: {dy: -9px}, thickness: 1px}"],
+  ] as const) {
+    els[name] = { type: "pattern", pattern: "radial", count, at: "{ anchor: center }", start: "7deg", color: "color.ink", parts: [part] };
+  }
+  faces["rotated"] = face("rotated", "a radial pattern's polygons and lines, turned at runtime off the pixel grid", els);
+}
+
 // A run of drawText from a baked sheet, and the same with antialias.
 {
   const font = "../../../../../../examples/showcase/assets/ChivoMono-Bold.ttf";

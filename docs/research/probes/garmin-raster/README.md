@@ -1,6 +1,6 @@
 # garmin-raster: the probe faces for Garmin's pixel model
 
-Seven faces, one per primitive family the preview draws, each a grid of
+Eleven faces, one per primitive family the preview draws, each a grid of
 sizes, odd and even, white on black, so a capture shows exactly which
 pixels the simulator lights:
 
@@ -13,10 +13,15 @@ pixels the simulator lights:
 | `rects` | rounded rectangles filled and drawn (radii 2/3/5, 20×14 and 21×15), `drawRectangle` pens 1–4 |
 | `text` | `drawText` of a baked sheet, plain and anti-aliased |
 | `swatches` | sixteen colours, on and off the 64 MIP colours |
+| `ellipses` | `fillEllipse` at six sizes, odd and even radii; `drawEllipse` pens 1–3 |
+| `lines2` | `drawLine` widths 1 and 3 drawn left and down; widths 2 and 4 at 15/30/45/60/135/225/315° |
+| `rects2` | `drawRoundedRectangle` pens 1, 3 and 4 (radii 2/3/5 at 20×14, radius 3 at 21×15) |
+| `rotated` | a radial pattern's polygons and lines, turned at runtime: `fillPolygon` and `drawLine` given Float points |
 
 Each targets `fenix8solar47mm`, `fenix8solar51mm`, `fr955` and
 `fenix847mm`. `make_faces.ts` writes them (`node make_faces.ts`); every face
-builds with no `monkeyc` warning on all four (2026-10-06). The lint warnings
+builds with no `monkeyc` warning on all four (2026-10-06; the last four
+2026-10-07). The lint warnings
 they draw (`aod-empty`, and `palette-dither` and `contrast` on the swatches)
 are what the probes are for.
 

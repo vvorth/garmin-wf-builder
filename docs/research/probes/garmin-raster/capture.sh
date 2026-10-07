@@ -12,7 +12,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../../../.." && pwd)"
 families=("$@")
-[ ${#families[@]} -gt 0 ] || families=(circles arcs lines polygons rects text swatches)
+[ ${#families[@]} -gt 0 ] || families=(circles arcs lines polygons rects text swatches ellipses lines2 rects2 rotated)
 mkdir -p "$here/captures"
 for family in "${families[@]}"; do
   for device in fenix8solar47mm fenix8solar51mm fr955 fenix847mm; do
