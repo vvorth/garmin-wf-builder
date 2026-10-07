@@ -24,11 +24,28 @@ import { decodePng, encodePng } from "../../../../ts/src/png.ts";
 import { previewOptions, render } from "../../../../ts/src/preview.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FAMILIES = ["circles", "arcs", "lines", "polygons", "rects", "text", "swatches", "ellipses", "lines2", "rects2", "rotated"];
+const FAMILIES = ["circles", "arcs", "lines", "polygons", "rects", "text", "swatches", "ellipses", "lines2", "rects2", "rotated",
+  "big_circles", "big_fills", "big_ellipses", "big_lines", "big_rects", "big_arcs"];
 const TOLERANCE = 96;
 /** Capture pixels per device pixel: the simulator at 100% zoom on a Retina screen. A fitted scale came out 2.016-2.019, pulled by the model differences; 2 overlays the 1 px circles exactly. */
 const SCALE = 2;
-const SQUARE = 200; // the central square the faces draw in, with a margin
+const SQUARE = 200; // the central square the small faces draw in, with a margin
+
+/** The device pixels compared: the central square, or for a `big_` face the whole round screen but its outermost 2 px. */
+function region(family: string, width: number, height: number): { left: number; top: number; size: number; inside: (x: number, y: number) => boolean } {
+  if (!family.startsWith("big_")) {
+    const left = Math.floor((width - SQUARE) / 2), top = Math.floor((height - SQUARE) / 2);
+    return { left, top, size: SQUARE, inside: () => true };
+  }
+  const r = width / 2 - 2;
+  return { left: 0, top: 0, size: width, inside: (x, y) => (x + 0.5 - width / 2) ** 2 + (y + 0.5 - height / 2) ** 2 <= r * r };
+}
+
+/** The devices a probe face targets. */
+function targets(family: string): string[] {
+  const text = readFileSync(join(HERE, "faces", family, "face.yaml"), "utf8");
+  return /^ {2}targets: \[(.*)\]$/m.exec(text)![1]!.split(",").map((d) => d.trim());
+}
 const ZOOM = 4;
 
 installAssets();
@@ -132,12 +149,12 @@ export function overlay(family: string, deviceId: string): { width: number; heig
 
 export const lit = (c: Rgb): boolean => Math.max(...c) > 127;
 
-/** The pixels lit in one of the capture and the preview but not the other, in the central square. */
+/** The pixels lit in one of the capture and the preview but not the other, in the compared region. */
 export function misses(family: string, deviceId: string): number {
   const { width, height, prev, sim } = overlay(family, deviceId)!;
-  const left = Math.floor((width - SQUARE) / 2), top = Math.floor((height - SQUARE) / 2);
+  const { left, top, size, inside } = region(family, width, height);
   let n = 0;
-  for (let y = top; y < top + SQUARE; y++) for (let x = left; x < left + SQUARE; x++) if (lit(prev(x, y)) !== lit(sim(x, y))) n++;
+  for (let y = top; y < top + size; y++) for (let x = left; x < left + size; x++) if (inside(x, y) && lit(prev(x, y)) !== lit(sim(x, y))) n++;
   return n;
 }
 
@@ -145,12 +162,13 @@ function compare(family: string, deviceId: string): string {
   const o = overlay(family, deviceId);
   if (o === null) return `${family} ${deviceId}: no capture`;
   const { width, height, prev, sim } = o;
-  const left = Math.floor((width - SQUARE) / 2), top = Math.floor((height - SQUARE) / 2);
-  const out = new Uint8Array(SQUARE * ZOOM * SQUARE * ZOOM * 3);
+  const { left, top, size, inside } = region(family, width, height);
+  const out = new Uint8Array(size * ZOOM * size * ZOOM * 3);
   let differ = 0, previewOnly = 0, simOnly = 0, colour = 0, both = 0;
   const pairs = new Map<string, number>();
-  for (let y = 0; y < SQUARE; y++) {
-    for (let x = 0; x < SQUARE; x++) {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (!inside(left + x, top + y)) continue;
       const p = prev(left + x, top + y), s = sim(left + x, top + y);
       const off = p.some((v, k) => Math.abs(v - s[k]!) > TOLERANCE);
       let rgb: Rgb = [0, 0, 0];
@@ -167,12 +185,12 @@ function compare(family: string, deviceId: string): string {
         }
       }
       for (let dy = 0; dy < ZOOM; dy++) {
-        for (let dx = 0; dx < ZOOM; dx++) out.set(rgb, (((y * ZOOM + dy) * SQUARE * ZOOM) + x * ZOOM + dx) * 3);
+        for (let dx = 0; dx < ZOOM; dx++) out.set(rgb, (((y * ZOOM + dy) * size * ZOOM) + x * ZOOM + dx) * 3);
       }
     }
   }
   mkdirSync(join(HERE, "diffs"), { recursive: true });
-  writeFileSync(join(HERE, "diffs", `${family}-${deviceId}.png`), encodePng(SQUARE * ZOOM, SQUARE * ZOOM, out, 3));
+  writeFileSync(join(HERE, "diffs", `${family}-${deviceId}.png`), encodePng(size * ZOOM, size * ZOOM, out, 3));
   return `${family.padEnd(9)} ${deviceId.padEnd(16)}  lit both ${String(both).padStart(5)}`
     + `  differ ${String(differ).padStart(5)} (preview only ${previewOnly}, simulator only ${simOnly}, colour ${colour})`
     + [...pairs].filter(([, n]) => n >= 20).map(([k, n]) => `\n    colour ${k} x${n}`).join("");
@@ -181,6 +199,6 @@ function compare(family: string, deviceId: string): string {
 if (import.meta.filename === process.argv[1]) {
   const only = process.argv[2];
   for (const family of FAMILIES.filter((f) => only === undefined || f === only)) {
-    for (const device of ["fenix8solar47mm", "fenix8solar51mm", "fr955", "fenix847mm"]) console.log(compare(family, device));
+    for (const device of targets(family)) console.log(compare(family, device));
   }
 }

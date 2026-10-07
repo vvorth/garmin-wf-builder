@@ -1,6 +1,6 @@
 # garmin-raster: the probe faces for Garmin's pixel model
 
-Eleven faces, one per primitive family the preview draws, each a grid of
+Seventeen faces, one per primitive family the preview draws and size range, each a grid or nest of
 sizes, odd and even, white on black, so a capture shows exactly which
 pixels the simulator lights:
 
@@ -17,9 +17,18 @@ pixels the simulator lights:
 | `lines2` | `drawLine` widths 1 and 3 drawn left and down; widths 2 and 4 at 15/30/45/60/135/225/315° |
 | `rects2` | `drawRoundedRectangle` pens 1, 3 and 4 (radii 2/3/5 at 20×14, radius 3 at 21×15) |
 | `rotated` | a radial pattern's polygons and lines, turned at runtime: `fillPolygon` and `drawLine` given Float points |
+| `big_circles` | `drawCircle` radii 20–120, pens 1–3, nested about the centre |
+| `big_fills` | `fillCircle` radii 37 and 44, `fillEllipse` semi-axes 44×22 and 21×41, `fillRoundedRectangle` radius 14 |
+| `big_ellipses` | `drawEllipse` semi-axes 30×10 to 110×50, pens 1–3, nested |
+| `big_lines` | `drawLine` 88 px long at 24 angles, pens 1–4, drawn outward and inward |
+| `big_rects` | `drawRoundedRectangle` 40×28 to 196×142, corner radii 8–44, pens 1–3, nested |
+| `big_arcs` | `drawArc` radii 30–120, pens 1–3, odd starts and sweeps, nested |
 
-Each targets `fenix8solar47mm`, `fenix8solar51mm`, `fr955` and
-`fenix847mm`. `make_faces.ts` writes them (`node make_faces.ts`); every face
+Each small face targets `fenix8solar47mm`, `fenix8solar51mm`, `fr955`
+and `fenix847mm`; the `big_` faces, which ask whether a rule fitted on
+small shapes holds out to the rim, target `fr955` alone (the MIP devices
+agreed to the pixel on every small face) and are compared over the whole
+round screen rather than the central square. `make_faces.ts` writes them (`node make_faces.ts`); every face
 builds with no `monkeyc` warning on all four (2026-10-06; the last four
 2026-10-07). The lint warnings
 they draw (`aod-empty`, and `palette-dither` and `contrast` on the swatches)

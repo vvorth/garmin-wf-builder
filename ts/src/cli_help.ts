@@ -44,9 +44,10 @@ edit; reach for \`wfb build\` only once this is clean.`,
   preview: `render the design to a PNG on the host, with no simulator
 
 Resolves the same per-device geometry \`wfb build\` would generate code
-from, then rasterises it directly with Pillow -- so a preview and a
-compiled face cannot disagree about *position*. Glyph shapes and arc
-caps are approximations; the Connect IQ simulator is authoritative for
+from, then draws each shape by rules fitted to the simulator's own
+pixels -- so a preview and a compiled face cannot disagree about
+*position*. System-font glyphs, arc ends and an AMOLED screen's smoothed
+edges are approximations; the Connect IQ simulator is authoritative for
 those, when it can run at all (see docs/limitations.md).
 
 A system or vector font is drawn with the user's own licensed Garmin
