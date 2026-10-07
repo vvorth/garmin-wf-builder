@@ -12,7 +12,6 @@ import { ellipse, type Image, image as newImage, line } from "../raster/pillow.t
 import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
-import * as icons from "../icons.ts";
 import { type Face, FontSpec } from "../ir/model.ts";
 import { comparePoints } from "../kinds/data.ts";
 import * as kinds from "../kinds/index.ts";

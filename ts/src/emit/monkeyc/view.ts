@@ -144,8 +144,6 @@ class Rings {
   }
 }
 
-const NO_RINGS = new Rings([]);
-
 /** The face's one static buffer, or `null` when nothing is static. */
 function staticPlan(resolved: ResolvedFace): StaticPlan | null {
   const members = resolved.items.filter((p) => p.kind !== "group" && p.element.static_root !== null);

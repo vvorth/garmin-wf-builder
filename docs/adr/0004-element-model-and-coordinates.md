@@ -561,11 +561,11 @@ found a group's `z:` and `lint: allow` equally inert.
   one too, naming the group.
 - A group's `lint: allow` covers every member, added to the member's own;
   each code is validated once, where it is written.
-- Every key the schema accepts on `group` has a declared policy in
-  `wfb.ir.model.GROUP_KEYS`: structural, conjoined, nearest, merged, union,
-  whole-group or refused. `tests/test_group_keys.py` holds the table equal to
-  the schema, so a new group key cannot land without deciding what it does
-  to members.
+- Every key the schema accepts on `group` has one policy: structural,
+  conjoined, nearest, merged, union, whole-group or refused, as the bullets
+  above give them. No table in code or test holds this list equal to the
+  schema, so a new group key must decide what it does to members in its
+  own change.
 
 ## Amendment (2026-10-01): §4 overrides, geometry only
 

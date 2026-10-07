@@ -46,7 +46,6 @@ export function schema(): Record<string, unknown> {
 }
 
 const isDict = (x: unknown): x is Dict => x instanceof Map;
-const get = (x: unknown, k: DataKey): Data | undefined => (x instanceof Map ? x.get(k) : undefined);
 
 /** ADR 0009: refuse an unknown format outright rather than parsing part of it. */
 export function checkFormatVersion(doc: YamlDocument, bag: Bag): boolean {

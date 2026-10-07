@@ -186,25 +186,6 @@ export function floatHex(value: number): string {
   return `${sign}0x${lead}.${mantissa.toString(16).padStart(13, "0")}p${e >= 0 ? "+" : ""}${e}`;
 }
 
-/** Python's `json.dumps(text, ensure_ascii=True)`. */
-function asciiJson(text: string): string {
-  let out = "\"";
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    const c = text.charCodeAt(i);
-    if (ch === "\"") out += "\\\"";
-    else if (ch === "\\") out += "\\\\";
-    else if (ch === "\n") out += "\\n";
-    else if (ch === "\r") out += "\\r";
-    else if (ch === "\t") out += "\\t";
-    else if (ch === "\b") out += "\\b";
-    else if (ch === "\f") out += "\\f";
-    else if (c < 0x20 || c > 0x7e) out += "\\u" + c.toString(16).padStart(4, "0");
-    else out += ch;
-  }
-  return out + "\"";
-}
-
 /** An exception Python would raise outside `Refused` (`KeyError`, `IndexError`, ...), named so a crash compares across languages. */
 export class PyError extends Error {
   readonly pyType: string;
