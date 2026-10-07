@@ -1,6 +1,7 @@
 // The canvas: the face as the server drew it, selection, and the drag
-// gestures. The frame arrives with its layers as JSON ops (`raster.js`
-// draws them), so hit-testing reads where each layer leaves ink. During a
+// gestures. The frame arrives with its layers as JSON ops (the preview's
+// own rasteriser draws them: `src/raster/canvas.ts`, which the server
+// bundles), so hit-testing reads where each layer leaves ink. During a
 // move the whole face is drawn here from the layers' ops, the dragged ones
 // translated; a resize, an angle or a line's end is drawn as an outline. On
 // release the gesture joins the editor's outbox (`outbox.js`), which sends
@@ -14,7 +15,7 @@ import { WorkerImage } from "./ui.js";
 import { html, useEffect, useMemo, useRef, useState } from "./vendor/preact-htm.module.js";
 import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
 import { offsets, shiftItems, unshown } from "./outbox.js";
-import * as raster from "./raster.js";
+import * as raster from "/dist/raster.js";
 import {
   angleAt, dragHint, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.js";

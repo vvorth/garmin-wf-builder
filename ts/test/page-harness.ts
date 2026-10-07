@@ -33,7 +33,7 @@ export const count = (container: string | unknown[], item: unknown): number =>
 
 /** A script run as an ES module in a fresh Node: its exit code and output. */
 export function node(script: string): { returncode: number; stdout: string; stderr: string } {
-  const done = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const done = spawnSync(process.execPath, ["--import", testUri("dist_hook.mjs"), "--input-type=module", "-e", script], { encoding: "utf8", maxBuffer: 64 << 20 });
   return { returncode: done.status ?? 1, stdout: done.stdout, stderr: done.stderr };
 }
 

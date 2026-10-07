@@ -31,9 +31,7 @@ Loaded automatically when working under `ts/test/`.
   page itself in Node (`page-harness.ts`): its pure modules, its panels
   rendered with preact over a minimal DOM (`studio_dom.mjs`) with their
   controls clicked, and the whole page against a stand-in worker answering
-  from a real summary (`tools/summary.ts`). `draw.test.ts` holds the page's
-  rasteriser (`app/raster.js`) equal to the preview's, and
-  `garmin-raster.test.ts` the preview's shapes to the simulator captures.
+  from a real summary (`tools/summary.ts`). `garmin-raster.test.ts` holds the preview's shapes to the simulator captures.
   Nothing drives a browser: the pages are checked by hand.
 - **`fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing

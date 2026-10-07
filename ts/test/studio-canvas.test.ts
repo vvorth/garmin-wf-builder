@@ -434,14 +434,13 @@ test("every live handle predicts the edit", async () => {
   // the element's ops before, changed by the browser's `liveOps`, draw
   // exactly what the engine's own landed edit draws, grown and shrunk by
   // even and odd amounts, and turned to whole degrees either way.
-  const { pathToFileURL } = await import("node:url");
   const { join } = await import("node:path");
   const { createHash } = await import("node:crypto");
   const { loadText } = await import("../src/edit/gate.ts");
   const { Tiles, toJson } = await import("../src/draw/jsonform.ts");
   const preview = await import("../src/preview.ts");
   const { REPO_ROOT } = await import("../src/devices/node.ts");
-  const raster = await import(pathToFileURL(join(REPO_ROOT, "ts", "app", "raster.js")).href) as any;
+  const raster = await import("../src/raster/canvas.ts");
   const device = db.get("fr955");
   const opsOf = (resolved: any, id: string, tiles: InstanceType<typeof Tiles>): any => {
     const options = preview.previewOptions();

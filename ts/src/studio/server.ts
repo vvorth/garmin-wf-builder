@@ -4,7 +4,8 @@
 // (IndexedDB) and bundles in and out are all in its worker. The server
 // sends what only this computer has, and builds:
 //
-// - the app (`ts/app/`) and the worker, bundled at start;
+// - the app (`ts/app/`), and the worker and the canvas's rasteriser
+//   (`src/raster/canvas.ts`), bundled at start;
 // - `GET /api/devices`: every installed device's `compiler.json`,
 //   `simulator.json` and a digest of its `api.debug.xml` (the symbol tags
 //   the compiler reads, a few percent of the file), and the SDK device
@@ -33,13 +34,13 @@ import { MAX_UPLOAD_BYTES } from "./bundle.ts";
 import { devices as listDevices } from "./inspect.ts";
 
 const APP = join(REPO_ROOT, "ts", "app");
-const WORKER = join(REPO_ROOT, "ts", "src", "studio", "worker.ts");
+const SRC = join(REPO_ROOT, "ts", "src");
 
-/** The worker, bundled at start from the sources, so a checkout serves its own. */
-async function bundleWorker(): Promise<Uint8Array> {
+/** A browser module, bundled at start from the sources, so a checkout serves its own. */
+async function bundle(entry: string): Promise<Uint8Array> {
   const esbuild = await import("esbuild");
   const built = await esbuild.build({
-    entryPoints: [WORKER], bundle: true, format: "esm", platform: "browser", target: "es2023", write: false, logLevel: "silent",
+    entryPoints: [join(SRC, entry)], bundle: true, format: "esm", platform: "browser", target: "es2023", write: false, logLevel: "silent",
   });
   return built.outputFiles[0]!.contents;
 }
@@ -174,7 +175,8 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
   const builds = new Map<string, Built>();
   let building = false;
   const scratch = mkdtempSync(join(tmpdir(), "wfb-studio-builds-"));
-  const worker = await bundleWorker();
+  const worker = await bundle("studio/worker.ts");
+  const raster = await bundle("raster/canvas.ts");
 
   const send = (response: ServerResponse, status: number, body: string | Uint8Array, type: string, headers: Record<string, string> = {}): void => {
     response.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store", ...headers });
@@ -231,6 +233,7 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
       if (path === "/" || path === "/index.html") return sendFile(response, APP, "index.html");
       if (path.startsWith("/static/")) return sendFile(response, APP, path.slice("/static/".length));
       if (path === "/dist/worker.js") return send(response, 200, worker, "text/javascript; charset=utf-8");
+      if (path === "/dist/raster.js") return send(response, 200, raster, "text/javascript; charset=utf-8");
       if (path === "/api/schema") return send(response, 200, readFileSync(SCHEMA), "application/schema+json");
       if (path === "/api/icon-font") {
         if (!existsSync(ICON_FONT)) return sendJson(response, 404, { error: "the icon font is not installed: run ./tools/setup-env.sh" });

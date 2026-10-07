@@ -309,6 +309,7 @@ test("the server sends the app, the device digest, a device's extras, and refuse
   try {
     assert.match(await (await fetch(url("/"))).text(), /app\.js/);
     assert.equal((await fetch(url("/static/vendor/preact-htm.module.js"))).status, 200);
+    assert.match(await (await fetch(url("/dist/raster.js"))).text(), /export\s*\{[^}]*\bliveOps\b/);
     assert.equal((await fetch(url("/static/../../package.json"))).status, 404);
     assert.match(await (await fetch(url("/dist/worker.js"))).text(), /wfb-studio/);
     const digest = await (await fetch(url("/api/devices"))).json() as any;

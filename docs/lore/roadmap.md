@@ -112,7 +112,7 @@ or AOD-related has been observed on a watch or in the simulator.
   barrel's arithmetic transcribed, and a frame is per-element layers with
   the program as JSON (`ts/src/draw/layers.ts`, `ts/src/draw/jsonform.ts`): text and
   icons as placed tiles, which the editor's browser draws itself
-  (`ts/app/raster.js`, the preview's rasteriser: Garmin's own rules where
+  (with the preview's own rasteriser, bundled for the page: Garmin's own rules where
   captures pin them, Pillow's elsewhere). A grown outline ring is drawn
   grown in the preview as on the watch (research 28 §7). What still
   differs from the watch is in `docs/limitations.md`.
@@ -146,7 +146,7 @@ or AOD-related has been observed on a watch or in the simulator.
   server, the `.prg` downloaded), a continuous zoom with real size
   from the device's ppi (calibrated in the browser), and the skin. Every edit but typed text is a
   patch of the text checked by the full load (`ts/src/edit/`). The browser
-  draws the frame's layers from their JSON (`raster.js`), hit-tests by
+  draws the frame's layers from their JSON (`ts/src/raster/canvas.ts`), hit-tests by
   their ink, redraws a move from them, and draws a resize or an angle
   live where the kind declares the result exact
   (`ElementKind.liveHandle`); it decides nothing. `docs/guide/studio.md`.

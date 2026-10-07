@@ -1,13 +1,12 @@
 // Pillow's drawing primitives, pixel for pixel: the shapes a draw program
 // uses and the pasting of its text's and icons' tiles, so a layer's JSON
 // (`draw/jsonform.ts`) draws exactly as Pillow draws it, in Node and in
-// any browser. Port of ts/app/raster.js, itself a transcription
-// of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc, line,
+// any browser. A transcription of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc, line,
 // polygon, rounded_rectangle), `src/libImaging/Draw.c` (the scanline
 // polygon, Bresenham lines, the integer ellipse and its clipped arcs and
 // pies) and `Paste.c` (a paste through a mask), with the argument
 // conversion of `src/_imaging.c`.
-// Pillow is under the MIT-CMU licence: `vendor/LICENSES-pillow`.
+// Pillow is under the MIT-CMU licence: `ts/app/vendor/LICENSES-pillow`.
 //
 // An image is `{width, height, data}`, `data` RGBA bytes (alpha always 255),
 // drawn on as Pillow draws on an "RGB" image: every pixel written outright,
