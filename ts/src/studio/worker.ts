@@ -145,21 +145,7 @@ async function start(): Promise<Router> {
     channel.postMessage({ event, data });
     self.postMessage({ event, data });
   };
-  // timed snapshots and compaction, in turn with the requests, announced once written
-  const later: [string, Record<string, unknown>][] = [];
-  studio.onEvent = (event, data) => later.push([event, data]);
-  setInterval(() => {
-    queue = queue.then(async () => {
-      studio.tick();
-      try {
-        await store.flush();
-      } catch (error) {
-        later.push(["error", { message: (error as Error).message }]);
-      }
-      for (const [event, data] of later.splice(0)) emit(event, data);
-    });
-  }, Math.max(1, Math.min(30, studio.snapshotSeconds / 4)) * 1000);
-  return new Router(studio, {
+  const router = new Router(studio, {
     prepare: async (ids, faces = []) => {
       await Promise.all(ids.map((id) => prepare(id, faces)));
     },
@@ -172,32 +158,44 @@ async function start(): Promise<Router> {
     emit,
     devices: () => digest.listing,
   });
+  // timed snapshots and compaction, in turn with the requests, announced once written
+  const later: [string, Record<string, unknown>][] = [];
+  studio.onEvent = (event, data) => later.push([event, data]);
+  setInterval(() => {
+    void router.exclusive(async () => {
+      studio.tick();
+      try {
+        await store.flush();
+      } catch (error) {
+        later.push(["error", { message: (error as Error).message }]);
+      }
+      for (const [event, data] of later.splice(0)) emit(event, data);
+    });
+  }, Math.max(1, Math.min(30, studio.snapshotSeconds / 4)) * 1000);
+  return router;
 }
 
 const ready = start();
-// ponytail: one request at a time across every face; per-face queues if a slow frame holds up another face's edits.
-let queue: Promise<unknown> = Promise.resolve();
 
-self.onmessage = (message: MessageEvent<{ id: number; request: Request }>) => {
+self.onmessage = async (message: MessageEvent<{ id: number; request: Request }>) => {
   const { id, request } = message.data;
-  queue = queue.then(async () => {
-    let response: Response;
-    try {
-      response = await (await ready).handle(request);
-    } catch (error) {
-      response = { status: 500, json: { error: (error as Error).message ?? String(error) } };
-    }
-    self.postMessage({ id, response });
-  });
+  let response: Response;
+  try {
+    response = await (await ready).handle(request);
+  } catch (error) {
+    response = { status: 500, json: { error: (error as Error).message ?? String(error) } };
+  }
+  self.postMessage({ id, response });
 };
 
 // Another tab's worker changed a face: read it again, in turn with this
 // tab's requests, then tell the page.
-channel.onmessage = (message: MessageEvent<{ event: string; data: Record<string, unknown> }>) => {
+channel.onmessage = async (message: MessageEvent<{ event: string; data: Record<string, unknown> }>) => {
   const { event, data } = message.data;
-  queue = queue.then(async () => {
+  const router = await ready;
+  void router.exclusive(async () => {
     try {
-      if (typeof data["id"] === "string") await (await ready).studio.reload(data["id"]);
+      if (typeof data["id"] === "string") await router.studio.reload(data["id"]);
     } catch {
       // the face is read again when next asked for, and that answer says what failed
     }

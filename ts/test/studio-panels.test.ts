@@ -248,6 +248,27 @@ test("a face that does not load is not built", async () => {
   assert.equal((await client.call("build", { id: doc.id, device: "fr955", version: 0 })).status, 409);
 });
 
+test("a build's compile does not hold up editing", async () => {
+  const client = await Client.open();
+  let finish!: () => void;
+  (client.router.host as { build: unknown }).build = (_zip: Uint8Array, _device: string, version: number) =>
+    new Promise((done) => { finish = () => done({ ok: true, built: version }); });
+  const doc = make(client.studio);
+  const building = client.call("build", { id: doc.id, device: "fr955", version: doc.version });
+  const other = make(client.studio);
+  const edited = await Promise.race([
+    client.call("text", { id: doc.id, version: doc.version, text: doc.text.replace("T", "U") }),
+    new Promise((never) => setTimeout(() => never("timed out"), 2000)),
+  ]);
+  assert.notEqual(edited, "timed out", "an edit waited for the compile");
+  assert.equal((await client.call("get", { id: other.id })).status, 200);
+  finish();
+  const built = await building;
+  assert.equal(built.status, 200);
+  // the build is of the face as it was asked for, not as it was edited since
+  assert.equal(built.json.built, doc.version - 1);
+});
+
 // -- slots --
 
 const slotsOf = (doc: Document): Record<string, any> => Object.fromEntries((doc.summary()["globals"] as any).slots.map((s: any) => [s.name, s]));

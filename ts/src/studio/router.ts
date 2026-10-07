@@ -9,6 +9,10 @@
 // file; a refusal's status says why: 400 refused, 404 no such face or
 // snapshot, 409 the face moved on (stale), 507 the store failed.
 //
+// Requests are answered one at a time (`exclusive`), so no two interleave
+// over one face; a build waits its turn only to check and pack the face, and
+// the server's compile runs outside it, so editing goes on meanwhile.
+//
 // Each answer waits for the store's writes, so an acknowledged change is
 // kept. What the studio did is announced through `emit` ("created",
 // "changed", "deleted", "renamed", "snapshot"), which the worker hands its
@@ -155,8 +159,24 @@ export class Router {
     this.announced.push([event, data]);
   }
 
-  /** Answer one request; every refusal is JSON with its status, never a stack trace. */
+  // ponytail: one request at a time across every face; render is synchronous, so only a worker per face would let a slow frame not hold up another face.
+  private queue: Promise<unknown> = Promise.resolve();
+
+  /** Run `work` after everything queued before it: the worker's timed snapshots and other tabs' reloads take their turn here too. */
+  exclusive<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(work);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  /** Answer one request, in turn; every refusal is JSON with its status, never a stack trace. */
   async handle(request: Request): Promise<Response> {
+    const answer = await this.exclusive(() => this.answer(request));
+    return typeof answer === "function" ? await answer() : answer;
+  }
+
+  /** The answer, or the work left to do once the queue is free again (a build). */
+  private async answer(request: Request): Promise<Response | (() => Promise<Response>)> {
     this.announced = [];
     try {
       const answer = await this.route(request);
@@ -189,7 +209,7 @@ export class Router {
     return json(doc.summary());
   }
 
-  private async route({ op, args = {}, body = null, tab = null }: Request): Promise<Response> {
+  private async route({ op, args = {}, body = null, tab = null }: Request): Promise<Response | (() => Promise<Response>)> {
     const studio = this.studio;
     switch (op) {
       case "home":
@@ -275,7 +295,8 @@ export class Router {
         const watch = studio.db.get(target);
         if (!watch.supportsWatchface) throw new Refused(`${target} cannot run a watch face`);
         if (doc.analysis().face === null) throw new Refused("the face does not load: mend the errors in Diagnostics first");
-        return json(await this.host.build(toZip(doc.bundle()), target, doc.version, slug(doc.name)));
+        const [zip, version, stem] = [toZip(doc.bundle()), doc.version, slug(doc.name)];
+        return async () => json(await this.host.build(zip, target, version, stem));
       }
       case "undo":
         doc.undo(int(args, "version"));
