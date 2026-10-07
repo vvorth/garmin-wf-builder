@@ -13,7 +13,7 @@
 // up, and a `-` flag drops the zero-padding.
 import { isNumeric, type Source, type Type } from "./catalog.ts";
 import { stringLiteral } from "./mcsource.ts";
-import { floatRepr, formatFixed, isNumber, num, repr, roundHalfEven } from "./py.ts";
+import { floatRepr, formatFixed, isNumber, num, quoted, roundHalfEven } from "./py.ts";
 import { PyFloat } from "./edit/yaml.ts";
 
 const FIELD = /\{(?:(?<unit>unit)|:(?<spec>[^}]*))?\}/g;
@@ -75,7 +75,8 @@ const hour12 = (v: Values): number => (hour(v) % 12) || 12;
 const day = (v: Values): number => int(v.get("date.day"), 3);
 const year = (v: Values): number => int(v.get("date.year"), 2026);
 const pyTruthy = (v: unknown): boolean => !(v === undefined ? false : v === null || v === false || v === 0 || v === "");
-const valueStr = (v: unknown): string => (v === true ? "True" : v === false ? "False" : v === null ? "None" : String(v));
+// as the watch's `toString()` prints them: `true`, `false` (docs/research/probes/text-of-values/)
+const valueStr = (v: unknown): string => (v === null ? "null" : String(v));
 
 const code = (description: string, widest: string, emit: (r: Readers) => string, render: (v: Values) => string,
   extra_path: string | null = null): Code => ({ description, widest, emit, render, extra_path });
@@ -189,7 +190,7 @@ export function parse(spec: string): Part[] {
     pos = m.index + m[0].length;
   }
   if (pos < spec.length) parts.push({ kind: "literal", text: spec.slice(pos) });
-  if (!parts.some((p) => p.kind === "field")) throw new FormatError(`${repr(spec)} has no placeholder -- a fixed string needs no format`);
+  if (!parts.some((p) => p.kind === "field")) throw new FormatError(`${quoted(spec)} has no placeholder -- a fixed string needs no format`);
   return parts;
 }
 
@@ -262,7 +263,7 @@ export function strftimeParts(spec: string, valueType: Type): [TimePart[], Reado
 /** A numeric field spec as `[kind, flags, precision]`, shared by the device's code and the preview. */
 function numericSpec(spec: string): [string, string, string | null] {
   const m = NUMERIC_SPEC.exec(spec);
-  if (!m) throw new FormatError(`${repr(spec)} is not a supported format spec -- after the ':' use d, 02d or .1f, or no spec at all`);
+  if (!m) throw new FormatError(`${quoted(spec)} is not a supported format spec -- after the ':' use d, 02d or .1f, or no spec at all`);
   const g = m.groups!;
   return [g["kind"]!, `${g["zero"] ? "0" : ""}${g["width"] ?? ""}`, g["precision"] ?? null];
 }
@@ -385,7 +386,7 @@ function renderDuration(spec: string, value: unknown, values: Values, unitText: 
   return out;
 }
 
-/** Python's `str()` of a value a field shows: a float as its repr. */
+/** A value as a field shows it: a float in its shortest round-trip digits, anything else as `valueStr`. */
 function str(value: unknown): string {
   if (value instanceof PyFloat) return floatRepr(value.value);
   if (typeof value === "number" && !Number.isInteger(value)) return floatRepr(value);

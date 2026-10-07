@@ -6,7 +6,7 @@ import type { Bag, Span } from "../../diagnostics.ts";
 import type { Data, DataKey } from "../../edit/yaml.ts";
 import * as expr from "../../expr.ts";
 import type { Color } from "../../palette.ts";
-import { deepEqual, repr } from "../../py.ts";
+import { deepEqual, quoted } from "../../py.ts";
 import type { YamlDocument } from "../../yamlsrc.ts";
 import type {
   ColorScheme, ConfigColor, ConfigDataSlot, ConfigStyle, Expression, FontSpec, HandSet, LayoutDecl,
@@ -76,9 +76,9 @@ export function lintSuppression(node: Node): LintSuppression {
 
 /** `'a'`, `'a' and 'b'`, `'a', 'b' and 'c'`, for a diagnostic. */
 export function andPaths(paths: readonly string[]): string {
-  const quoted = paths.map(repr);
-  if (quoted.length === 1) return quoted[0]!;
-  return quoted.slice(0, -1).join(", ") + " and " + quoted[quoted.length - 1];
+  const names = paths.map(quoted);
+  if (names.length === 1) return names[0]!;
+  return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
 }
 
 /** Whether a design-relative file exists; the builder asks it for a baked font's `source:`. */

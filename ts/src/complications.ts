@@ -61,7 +61,7 @@ const isFloatValue = (value: unknown): boolean => value instanceof PyFloat || (t
  * integer digit, trailing zeros gone; everything else as `str()`.
  */
 export function formatValue(value: unknown): string {
-  if (!isFloatValue(value)) return pyStrValue(value);
+  if (!isFloatValue(value)) return shownValue(value);
   const v = num(value as number);
   const magnitude = Math.abs(v);
   const decimals = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 2;
@@ -70,11 +70,9 @@ export function formatValue(value: unknown): string {
   return text;
 }
 
-function pyStrValue(value: unknown): string {
-  if (value === null || value === undefined) return "None";
-  if (value === true) return "True";
-  if (value === false) return "False";
-  return String(value);
+/** A non-float value as the watch's `toString()` prints it: `true`, `false` (docs/research/probes/text-of-values/). */
+function shownValue(value: unknown): string {
+  return value === null || value === undefined ? "null" : String(value);
 }
 
 export function label(name: string): string {
@@ -203,7 +201,7 @@ export function formatReading(name: string, value: unknown, deviceUnit: unknown 
     return suffixed(duration(rounded((statute ? 1609.344 : 1000.0) / number)), unit ? (statute ? "/mi" : "/km") : "", short);
   }
   let suffix = "";
-  if (unit) suffix = typeof deviceUnit === "string" ? deviceUnit : UNIT_SUFFIX.get(pyStrValue(deviceUnit)) ?? "";
+  if (unit) suffix = typeof deviceUnit === "string" ? deviceUnit : UNIT_SUFFIX.get(shownValue(deviceUnit)) ?? "";
   return suffixed(formatValue(value), suffix, short);
 }
 

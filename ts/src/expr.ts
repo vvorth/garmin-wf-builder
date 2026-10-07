@@ -19,7 +19,7 @@ import type { Type } from "./catalog.ts";
 import { didYouMean, getCloseMatches } from "./diagnostics.ts";
 import { PyFloat } from "./edit/yaml.ts";
 import { stringLiteral } from "./mcsource.ts";
-import { compareStrings, floatRepr, repr } from "./py.ts";
+import { compareStrings, floatRepr, quoted } from "./py.ts";
 
 // -- values -----------------------------------------------------------------------
 
@@ -42,11 +42,11 @@ function floatValue(v: number): number | PyFloat {
   return Number.isFinite(v) && Number.isInteger(v) ? new PyFloat(v) : v;
 }
 
-/** Python's `str()` of an expression value, as a message prints it. */
+/** An expression value as a message prints it: `null`, `true` and `false` as the expression language spells them. */
 export function valueText(v: unknown): string {
-  if (v === null || v === undefined) return "None";
-  if (v === true) return "True";
-  if (v === false) return "False";
+  if (v === null || v === undefined) return "null";
+  if (v === true) return "true";
+  if (v === false) return "false";
   if (typeof v === "bigint") return v.toString();
   if (v instanceof PyFloat) return floatRepr(v.value);
   if (typeof v === "number") return Number.isInteger(v) ? String(v) : floatRepr(v);
@@ -89,7 +89,7 @@ export function tokenize(text: string): Token[] {
   while (pos < text.length) {
     TOKEN.lastIndex = pos;
     const m = TOKEN.exec(text);
-    if (m === null) throw new ExprError(`unexpected character ${repr(points[cp])}`, cp);
+    if (m === null) throw new ExprError(`unexpected character ${quoted(points[cp])}`, cp);
     const value = m[0];
     const groups = m.groups!;
     let kind = (["ws", "number", "string", "name", "op"] as const).find((g) => groups[g] !== undefined)!;
@@ -154,8 +154,6 @@ export interface ExprFunction {
   host: (args: ExprValue[]) => ExprValue;
   /** Toybox module the emitted call needs, or `null` for a `WfbMath` barrel call. */
   module: string | null;
-  /** Whether folding may bake `host`'s answer for these values; absent means always. */
-  foldable?: (args: ExprValue[]) => boolean;
 }
 
 /** Python's `<` over two numbers of any kind; a non-number raises TypeError, as Python's comparison would. */
@@ -176,16 +174,11 @@ function numberOf(v: ExprValue): number | bigint | PyFloat {
   throw new TypeError("not a number");
 }
 
-/** `Math.round`: halves rounded up, computed from the fractional part, as WfbMath and the SDK do. */
+/** `Math.round`: halves rounded up, toward +infinity (-2.5 is -2), as the watch does (`docs/research/probes/text-of-values/`). */
 function round(args: ExprValue[]): ExprValue {
   const x = toNumber(numberOf(args[0]!));
   const whole = Math.floor(x);
   return intValue(BigInt(whole) + (x - whole >= 0.5 ? 1n : 0n));
-}
-
-function roundFoldable(args: ExprValue[]): boolean {
-  const x = toNumber(numberOf(args[0]!));
-  return !(x < 0 && x - Math.floor(x) === 0.5);
 }
 
 /** `WfbMath.clamp`, in its order: below `lo` first, then above `hi`. */
@@ -242,7 +235,7 @@ export const FUNCTIONS: ReadonlyMap<string, ExprFunction> = new Map<string, Expr
     host: (a) => minMax(a, (x, y) => less(x, y)) }],
   ["clamp", { arity: 3, description: "clamp(value, lo, hi)", result: null, module: null, host: clamp }],
   ["round", { arity: 1, description: "round to the nearest whole number (.5 rounds up)", result: "number",
-    module: "Toybox.Math", host: round, foldable: roundFoldable }],
+    module: "Toybox.Math", host: round }],
   ["floor", { arity: 1, description: "round down", result: "number", module: "Toybox.Math",
     host: (a) => intValue(BigInt(Math.floor(toNumber(numberOf(a[0]!))))) }],
   ["abs", { arity: 1, description: "absolute value", result: null, module: null, host: (a) => absValue(a[0]!) }],
@@ -277,14 +270,14 @@ export class Parser {
 
   expect(text: string): Token {
     if (this.current.text !== text) {
-      throw new ExprError(`expected ${repr(text)} but found ${repr(this.current.text || "end of expression")}`, this.current.offset);
+      throw new ExprError(`expected ${quoted(text)} but found ${quoted(this.current.text || "end of expression")}`, this.current.offset);
     }
     return this.advance();
   }
 
   parse(): Node {
     const node = this.parseTernary();
-    if (this.current.kind !== "end") throw new ExprError(`unexpected ${repr(this.current.text)}`, this.current.offset);
+    if (this.current.kind !== "end") throw new ExprError(`unexpected ${quoted(this.current.text)}`, this.current.offset);
     return node;
   }
 
@@ -336,19 +329,19 @@ export class Parser {
     if (token.kind === "keyword") {
       if (token.text === "true" || token.text === "false") return literal(token.text === "true", "boolean", token.offset);
       if (token.text === "null") return literal(null, "number", token.offset);
-      throw new ExprError(`${repr(token.text)} cannot start an expression`, token.offset);
+      throw new ExprError(`${quoted(token.text)} cannot start an expression`, token.offset);
     }
     if (token.kind === "name") {
       if (this.current.text === "(") return this.parseCall(token);
       return { kind: "ref", path: token.text, offset: token.offset };
     }
-    throw new ExprError(`expected a value but found ${repr(token.text || "end of expression")}`, token.offset);
+    throw new ExprError(`expected a value but found ${quoted(token.text || "end of expression")}`, token.offset);
   }
 
   parseCall(name: Token): Node {
     const fn = FUNCTIONS.get(name.text);
     if (fn === undefined) {
-      throw new ExprError(`unknown function ${repr(name.text)}`, name.offset,
+      throw new ExprError(`unknown function ${quoted(name.text)}`, name.offset,
         [`the expression language has exactly these functions: ${[...FUNCTIONS.keys()].sort().join(", ")}`]);
     }
     this.expect("(");
@@ -486,7 +479,7 @@ export function check(node: Node, scope: Scope): Value {
         requireType(right, "boolean", node.op, node.offset);
         return new Value("boolean", nullable);
       }
-      throw new ExprError(`unknown operator ${repr(node.op)}`, node.offset);
+      throw new ExprError(`unknown operator ${quoted(node.op)}`, node.offset);
     }
     case "conditional": {
       const cond = check(node.cond, scope);
@@ -518,14 +511,14 @@ export function check(node: Node, scope: Scope): Value {
 function unknownRef(node: Ref, scope: Scope): ExprError {
   if (node.path === COPY) {
     return new ExprError(
-      `${repr(COPY)} is only defined in a 'type: pattern' element's colours, its parts' 'visible:' and a text part's placeholder`,
+      `${quoted(COPY)} is only defined in a 'type: pattern' element's colours, its parts' 'visible:' and a text part's placeholder`,
       node.offset,
-      [`${repr(COPY)} is the index of the copy being drawn, 0-based -- nothing but a pattern has copies`,
+      [`${quoted(COPY)} is the index of the copy being drawn, 0-based -- nothing but a pattern has copies`,
         "to hide some copies, put 'visible:' on the parts, or use 'skip:'"]);
   }
   const renamed = catalog.renamedTo(node.path);
   if (renamed !== undefined) {
-    return new ExprError(`${repr(node.path)} has been renamed to ${repr(renamed)}`, node.offset,
+    return new ExprError(`${quoted(node.path)} has been renamed to ${quoted(renamed)}`, node.offset,
       ["complications now have their own namespace -- 'complication.<type>' is always read through Toybox.Complications, " +
         "and every other catalogue path is always a direct API read",
       "the value is unchanged; only the path moves",
@@ -540,7 +533,7 @@ function unknownRef(node: Ref, scope: Scope): ExprError {
   if (near.length > 0) note = didYouMean(near)[0]!;
   else if (siblings.length > 0) note = `${namespace} has: ` + siblings.join(", ");
   else note = "known namespaces: " + [...catalog.namespaces().keys()].sort(compareStrings).join(", ") + ", color";
-  return new ExprError(`unknown data source ${repr(node.path)}`, node.offset, [note]);
+  return new ExprError(`unknown data source ${quoted(node.path)}`, node.offset, [note]);
 }
 
 function requireType(value: Value, want: Type, op: string, offset: number): void {
@@ -614,11 +607,8 @@ export function fold(node: Node, scope: Scope, foldColors = true): Node {
       const literals = args.filter((a): a is Literal => a.kind === "literal" && a.value !== null);
       if (literals.length === args.length) {
         const values = literals.map((a) => a.value);
-        const fn = FUNCTIONS.get(node.name);
-        if (fn === undefined || fn.foldable === undefined || fn.foldable(values)) {
-          const folded = applyCall(node.name, values);
-          if (folded !== null) return literal(folded[0], folded[1], node.offset);
-        }
+        const folded = applyCall(node.name, values);
+        if (folded !== null) return literal(folded[0], folded[1], node.offset);
       }
       return { ...node, args };
     }
@@ -638,7 +628,7 @@ function truthyValue(v: ExprValue): boolean {
 export function asNumber(value: unknown): number | bigint | PyFloat {
   if (isNum(value)) return value;
   if (typeof value === "boolean") return Number(value);
-  throw new TypeError(`expected a number, got ${repr(value)}`);
+  throw new TypeError(`expected a number, got ${quoted(value)}`);
 }
 
 function negate(value: ExprValue): ExprValue {

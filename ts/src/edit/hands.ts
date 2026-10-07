@@ -7,9 +7,9 @@
 // and `color.accent` stand for the face's main colour and its accent, and
 // are rewritten to colours the face has, so an added set loads.
 import handSets from "../data/hand-sets.json" with { type: "json" };
-import { deepCopy, get, or, repr } from "../py.ts";
+import { deepCopy, get, or, quoted } from "../py.ts";
 import { roles, swatches } from "./colors.ts";
-import { chain, child, endedPatch, patch, type Patch, pyKey, remove, renameKey, repointOn, setValue } from "./patch.ts";
+import { chain, child, endedPatch, patch, type Patch, remove, renameKey, repointOn, setValue } from "./patch.ts";
 import { type Path, parse, Refused, type SpanIndex } from "./spans.ts";
 import { add } from "./structure.ts";
 import type { Data, DataKey } from "./yaml.ts";
@@ -69,7 +69,7 @@ function recolored(value: Data, colors: Map<string, string>): Data {
 
 function checkName(name: string): string {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name || "")) {
-    throw new Refused(`${repr(name)} is not a hand set name: letters, digits and _, not starting with a digit`);
+    throw new Refused(`${quoted(name)} is not a hand set name: letters, digits and _, not starting with a digit`);
   }
   return name;
 }
@@ -78,7 +78,7 @@ function checkName(name: string): string {
 export function addHandSet(index: SpanIndex, name: string, preset: string): Patch {
   checkName(name);
   const all = presets();
-  if (!all.has(preset)) throw new Refused(`there is no preset called ${preset}: ${[...all.keys()].map(pyKey).join(", ")}`);
+  if (!all.has(preset)) throw new Refused(`there is no preset called ${preset}: ${[...all.keys()].map(String).join(", ")}`);
   if (sets(index).has(name)) throw new Refused(`there is a hand set called ${name} already`);
   const value = recolored(deepCopy(all.get(preset)!), faceColors(index));
   let result = setValue(index, ["resources", "hand_sets", name], value, { block: true });
@@ -126,7 +126,7 @@ export function deleteHandSet(index: SpanIndex, name: string): Patch {
 
 /** The declared hand sets' names. */
 export function summaryNames(index: SpanIndex): string[] {
-  return [...sets(index).keys()].map(pyKey);
+  return [...sets(index).keys()].map(String);
 }
 
 /** Each hand set: its hands (parts and colour) and the elements placing it, for the Face panel. */
@@ -142,10 +142,10 @@ export function summary(index: SpanIndex): Record<string, unknown>[] {
         hands[h] = { parts: Array.isArray(parts) ? parts.length : parts instanceof Map ? parts.size : 0, color: get(hand, "color") ?? null };
       }
     }
-    const held = index.at(["resources", "hand_sets", pyKey(name)]);
+    const held = index.at(["resources", "hand_sets", String(name)]);
     const until = Math.max(index.valueEnd(held) - 1, 0);
     const last = (index.text.slice(0, until).match(/\n/g)?.length ?? 0) + 1;
-    out.push({ name: pyKey(name), hands, placed_by: placedBy(index, pyKey(name)), line: held.key.start.line + 1, end: last });
+    out.push({ name: String(name), hands, placed_by: placedBy(index, String(name)), line: held.key.start.line + 1, end: last });
   }
   return out;
 }

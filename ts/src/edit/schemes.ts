@@ -17,10 +17,10 @@
 //   same names, `theme:` goes, and every style entry loses its `scheme:`. An
 //   entry left with nothing (it named only a scheme) goes; one naming a
 //   layout stays, even when that leaves two alike (the author's to resolve).
-import { get, or, repr, truthy } from "../py.ts";
+import { get, or, quoted, truthy } from "../py.ts";
 import { hexOf, roles, swatches, users } from "./colors.ts";
 import {
-  chain, patch, type Patch, pyKey, referencePattern, remove, renameKey, rewriteScalars, setValue,
+  chain, patch, type Patch, referencePattern, remove, renameKey, rewriteScalars, setValue,
 } from "./patch.ts";
 import { type Path, Refused, type SpanIndex } from "./spans.ts";
 import type { Data, DataKey } from "./yaml.ts";
@@ -60,7 +60,7 @@ const rename = (path: Path, renamed: string): Step => (i) => renameKey(i, path, 
 
 function checkName(name: string, what: string): string {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name || "")) {
-    throw new Refused(`${repr(name)} is not a ${what} name: letters, digits and _, not starting with a digit`);
+    throw new Refused(`${quoted(name)} is not a ${what} name: letters, digits and _, not starting with a digit`);
   }
   return name;
 }
@@ -132,7 +132,7 @@ export function addScheme(index: SpanIndex, name: string, like: string | null = 
   }
   if (layouts.length > 0) {
     for (const layout of layouts) {
-      const entry = `${pyKey(layout as DataKey)}_${name}`;
+      const entry = `${String(layout as DataKey)}_${name}`;
       if (entries.has(entry)) throw new Refused(`there is a style called ${entry} already`);
       steps.push(set(["config", "style", "choices", entry], new Map<DataKey, Data>([["layout", layout], ["scheme", name]])));
     }
@@ -212,7 +212,7 @@ export function addRole(index: SpanIndex, name: string, values: Data): Patch {
   if (swatches(index).has(name)) throw new Refused(`${name} is a palette colour: a role needs a name of its own`);
   const each = values instanceof Map ? values : new Map([...schemes.keys()].map((s) => [s, values]));
   const missing = [...schemes.keys()].filter((s) => !each.has(s));
-  if (missing.length > 0) throw new Refused(`no colour for ${name} in ${missing.map(pyKey).join(", ")}`);
+  if (missing.length > 0) throw new Refused(`no colour for ${name} in ${missing.map(String).join(", ")}`);
   const steps = [...schemes.keys()].map((s) => set(["theme", "schemes", s as string, "colors", name], roleValue(index, each.get(s)!)));
   return run(index, steps, `add the role ${name}`);
 }

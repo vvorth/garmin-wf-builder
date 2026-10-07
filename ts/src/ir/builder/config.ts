@@ -5,7 +5,7 @@ import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
 import type * as icons from "../../icons.ts";
 import { Color, ColorError } from "../../palette.ts";
-import { repr, str } from "../../py.ts";
+import { quoted, str } from "../../py.ts";
 import { CONFIG_AXIS_ROLES, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry } from "../model.ts";
 import { TopLevelBlocks } from "./blocks.ts";
 import { ICON_OVERRIDE_ERROR, NO_ICON_OVERRIDE } from "./glyphs.ts";
@@ -107,7 +107,7 @@ export class ConfigAxes extends TopLevelBlocks {
   private defaultNotInChoices(where: string, defaultValue: unknown, span: Span | null,
     { noun, tag, listed }: { noun: string; tag: string; listed: string }): void {
     const article = "aeiou".includes(noun[0]!) ? "an" : "a";
-    this.bag.error("config", `${where}: default ${repr(defaultValue)} is not one of 'choices:'`, span, {
+    this.bag.error("config", `${where}: default ${quoted(defaultValue)} is not one of 'choices:'`, span, {
       notes: [
         `the on-device editor marks one listed ${noun} as the user's `
         + `default (the generated <${tag} default="true">) -- Garmin `
@@ -128,11 +128,11 @@ export class ConfigAxes extends TopLevelBlocks {
   /** A complication type's name from `config: slots:`'s `default:`/`choices:`. */
   private complicationReference(raw: Data | undefined, what: string, span: Span | null): string | null {
     if (typeof raw !== "string") {
-      this.bag.error("config", `${what}: expected a complication type's name, got ${repr(raw ?? null)}`, span);
+      this.bag.error("config", `${what}: expected a complication type's name, got ${quoted(raw ?? null)}`, span);
       return null;
     }
     if (complications.get(raw) !== undefined) return raw;
-    this.bag.error("config", `${what}: unknown complication type ${repr(raw)}`, span,
+    this.bag.error("config", `${what}: unknown complication type ${quoted(raw)}`, span,
       { notes: this.complicationSuggestionNotes(raw, "types") });
     return null;
   }

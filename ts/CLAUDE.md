@@ -29,7 +29,7 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   own module (`src/devices/node.ts`), which only Node entry points import.
 - **The compiler began as a port of a Python one**, and keeps Python's
   semantics wherever output depends on them (`src/py.ts`: rounding,
-  `repr`, string formatting; the IR's snake_case field names). Keep them:
+  `quoted` values, string formatting; the IR's snake_case field names). Keep them:
   the goldens hold every output to what that port produced.
 - **Deterministic everywhere.** Nothing that ships or is compared may come
   from a canvas's pixels or a platform text engine: same input, same bytes,
@@ -113,7 +113,7 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     dependency), whose error tree, python-jsonschema's shape,
     `validate.ts` turns into diagnostics.
   - `src/py.ts` holds Python's semantics where output depends on them:
-    - truthiness, `repr`, `str`, `==` (`deepEqual`), `json.dumps` and
+    - truthiness, `quoted` (a value as a message shows it), `str`, `==` (`deepEqual`), `json.dumps` and
       `splitlines`;
     - `f"{x:.6f}"` and `round()`, half to even;
 - `src/data/` holds the tables the browser needs without a file system.

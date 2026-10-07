@@ -18,7 +18,7 @@ import { DeviceError } from "../devices/device.ts";
 import { indexFor, Refused } from "../edit/spans.ts";
 import { encodePng } from "../png.ts";
 import { skinFor } from "../preview.ts";
-import { repr } from "../py.ts";
+import { quoted } from "../py.ts";
 import * as starters from "../starters.ts";
 import { BundleError, bundle, readUpload, toZip } from "./bundle.ts";
 import { type Document, frameKey, type FrameKey, StaleVersion, type Studio } from "./document.ts";
@@ -82,7 +82,7 @@ function object(args: Json, name: string): Json {
 function time(raw: string | null): [number, number, number] | null {
   if (!raw) return null;
   const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
-  if (m === null || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[3] ?? 0) > 59) throw new Refused(`time ${repr(raw)} is not HH:MM or HH:MM:SS`);
+  if (m === null || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[3] ?? 0) > 59) throw new Refused(`time ${quoted(raw)} is not HH:MM or HH:MM:SS`);
   return [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)];
 }
 
@@ -92,7 +92,7 @@ function date(raw: string | null): [number, number, number] | null {
   const [y, mo, d] = m === null ? [0, 0, 0] : [Number(m[1]), Number(m[2]), Number(m[3])];
   const day = new Date(Date.UTC(y, mo - 1, d));
   if (m === null || day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) {
-    throw new Refused(`date ${repr(raw)} is not a day, YYYY-MM-DD`);
+    throw new Refused(`date ${quoted(raw)} is not a day, YYYY-MM-DD`);
   }
   return [y, mo, d];
 }
@@ -301,7 +301,7 @@ export class Router {
         const stem = slug(b.name);
         if (form === "yaml") return { status: 200, body: new TextEncoder().encode(b.text), type: "application/yaml", filename: `${stem}.yaml` };
         if (form === "zip") return { status: 200, body: toZip(b), type: "application/zip", filename: `${stem}.zip` };
-        throw new Refused(`form ${repr(form)} is neither zip nor yaml`);
+        throw new Refused(`form ${quoted(form)} is neither zip nor yaml`);
       }
       case "restore":
         doc.restore(text(args, "snapshot"), int(args, "version"));
@@ -309,7 +309,7 @@ export class Router {
       case "copy":
         return await this.created(studio.fork(id, text(args, "snapshot")));
     }
-    throw new Refused(`no such request: ${repr(op)}`);
+    throw new Refused(`no such request: ${quoted(op)}`);
   }
 
   /** A face just made: announced, its devices loaded, its summary. */

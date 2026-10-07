@@ -7,7 +7,7 @@ import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, IconElement } from "../ir/model.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
-import { repr, roundHalfEven as round, str } from "../py.ts";
+import { quoted, roundHalfEven as round, str } from "../py.ts";
 import * as units from "../units.ts";
 import { Box } from "../units.ts";
 import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
@@ -99,7 +99,7 @@ class IconKind extends ElementKind<IconElement> {
       if (valueFor !== null && (valueFor.ast === null || valueFor.ast.kind !== "ref" || valueFor.sources.length !== 1
         || !catalog.WEATHER_CONDITION_SOURCES.has(valueFor.sources[0]!))) {
         b.bag.error("icon", "icon: {for:} must be exactly one of: "
-          + `${[...catalog.WEATHER_CONDITION_SOURCES].sort().join(", ")} -- not ${repr(valueFor.shown)}`,
+          + `${[...catalog.WEATHER_CONDITION_SOURCES].sort().join(", ")} -- not ${quoted(valueFor.shown)}`,
         b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
           notes: ["arithmetic or a conditional would break the condition-to-glyph "
             + "lookup, which needs the raw Weather.CONDITION_* value"],
@@ -122,10 +122,10 @@ class IconKind extends ElementKind<IconElement> {
     const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
     let glyph: Str;
     if (element.value_for !== null) {
-      ops.push(Comment(`${repr(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
+      ops.push(Comment(`${quoted(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
       glyph = IconChoice(element.value_for);
     } else {
-      ops.push(Comment(repr(element.icon)));
+      ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
     }
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
@@ -155,8 +155,8 @@ class IconKind extends ElementKind<IconElement> {
 
   override describe(placed: Placed): string {
     const element = (placed as PlacedIcon).element;
-    if (element.value_for !== null) return `an icon chosen at runtime from ${repr(element.value_for.text)}`;
-    return `the ${repr(element.icon)} icon`;
+    if (element.value_for !== null) return `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
+    return `the ${quoted(element.icon)} icon`;
   }
 }
 

@@ -11,7 +11,7 @@ import { Gate, loadText } from "../src/edit/gate.ts";
 import { move, turn, View } from "../src/edit/geometry.ts";
 import {
   addElement, chain, DEFAULTS, deleteElement, duplicateElement, faceColor, moveElement, type Patch, patch as makePatch, remove, renameKey,
-  renameReference, rewriteScalars, setScalars, setValue, child, deleteChild, setChild, ShapeError,
+  renameReference, rewriteScalars, setScalars, setValue, child, deleteChild, flow, setChild, ShapeError,
 } from "../src/edit/patch.ts";
 import { type Entry, parse, type Path, Refused, sameData, SpanIndex } from "../src/edit/spans.ts";
 import { add, elementTypes, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
@@ -398,4 +398,11 @@ test("child, setChild and deleteChild reach a mapping's key and a list's index, 
   for (const bad of [() => child(data, "nope"), () => child(list, 2), () => setChild(list, 5, "x"), () => deleteChild(data, "nope"), () => child("text", 0)]) {
     assert.throws(bad, ShapeError);
   }
+});
+
+test("a key written back reads back as the same key: null, a bool, a number and the string null", () => {
+  const keys = [null, true, 5, "null", "plain"];
+  const written = flow(new Map(keys.map((k, i) => [k, i])) as never);
+  const back = (parse(`k: ${written}\n`) as Map<unknown, Map<unknown, unknown>>).get("k")!;
+  assert.deepEqual([...back.keys()], keys, written);
 });

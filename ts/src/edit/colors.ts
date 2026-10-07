@@ -18,7 +18,7 @@
 // removed by either.
 import { Color, ColorError, MIP64_NAMED, mip64Name } from "../palette.ts";
 import { get, or } from "../py.ts";
-import { chain, patch, type Patch, pyKey, remove, renameReference, setValue } from "./patch.ts";
+import { chain, patch, type Patch, remove, renameReference, setValue } from "./patch.ts";
 import { dotted, type Path, pathKey, Refused, SpanIndex, type Step } from "./spans.ts";
 import type { Data, DataKey } from "./yaml.ts";
 
@@ -52,7 +52,7 @@ export function swatches(index: SpanIndex): Map<string, string> {
   for (const [name, entry] of palette(index)) {
     const raw = entry instanceof Map ? entry.get("value") : entry;
     try {
-      out.set(pyKey(name), Color.parse(raw).toString());
+      out.set(String(name), Color.parse(raw).toString());
     } catch (error) {
       if (!(error instanceof ColorError)) throw error;
     }
@@ -68,7 +68,7 @@ export function roles(index: SpanIndex): string[] {
   for (const scheme of schemes instanceof Map ? schemes.values() : []) {
     const colors = or(get(or(scheme, new Map()), "colors"), new Map());
     for (const role of colors instanceof Map ? colors.keys() : []) {
-      if (!out.includes(role as string)) out.push(pyKey(role));
+      if (!out.includes(role as string)) out.push(String(role));
     }
   }
   const config = or(data.get("config"), new Map());
@@ -219,7 +219,7 @@ export function setSwatch(index: SpanIndex, name: string, value: string): Patch 
 
 /** Remove every swatch no `color.<name>` names, except those the launcher icon reads. */
 export function removeUnused(index: SpanIndex): Patch {
-  const unused = [...palette(index).keys()].map(pyKey).filter((n) => !LAUNCHER.has(n) && users(index, n).length === 0);
+  const unused = [...palette(index).keys()].map(String).filter((n) => !LAUNCHER.has(n) && users(index, n).length === 0);
   if (unused.length === 0) throw new Refused("every colour in the palette is in use");
   let result = remove(index, ["resources", "palette", unused[0]!]);
   for (const name of unused.slice(1)) result = chain(result, (i) => remove(i, ["resources", "palette", name]));

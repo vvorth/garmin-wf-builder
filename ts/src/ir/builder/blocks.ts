@@ -7,7 +7,7 @@ import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
 import * as expr from "../../expr.ts";
 import { Color, ColorError } from "../../palette.ts";
-import { repr } from "../../py.ts";
+import { quoted } from "../../py.ts";
 import { ColorScheme, DataElement, type Element, LayoutDecl, slotOf, walkElements } from "../model.ts";
 import { configField, localName } from "../naming.ts";
 import { FontBlock } from "./fonts.ts";
@@ -39,7 +39,7 @@ export class TopLevelBlocks extends FontBlock {
     for (const element of walkElements(elements)) {
       if (slotOf(element) !== null && element.layout !== null) {
         const what = element instanceof DataElement ? "a 'type: data' element" : "a gauge with 'slot:'";
-        this.bag.error("layouts", `${repr(element.id)}: ${what} may not be inside layout ${repr(element.layout)} content`,
+        this.bag.error("layouts", `${quoted(element.id)}: ${what} may not be inside layout ${quoted(element.layout)} content`,
           element.span, {
             notes: [
               "the Data axis is face-wide -- one <complication "
@@ -80,7 +80,7 @@ export class TopLevelBlocks extends FontBlock {
         label = undefined;
       }
       if (typeof rawValue === "string" && rawValue.startsWith("color.")) {
-        this.bag.error("palette", `palette entry ${repr(name)} refers to ${repr(rawValue)}`, valueSpan, {
+        this.bag.error("palette", `palette entry ${quoted(name)} refers to ${quoted(rawValue)}`, valueSpan, {
           notes: [
             "palette entries must be literal colours",
             "name the role directly from 'color:'/'track_color:' instead -- "
@@ -106,7 +106,7 @@ export class TopLevelBlocks extends FontBlock {
   paletteReference(name: string, span: Span | null): Color | null {
     const key = name.slice("color.".length);
     return this.palette.resolve(this.bag, key, span,
-      { code: "config", message: `unknown palette entry ${repr(name)}`, note: "declared palette entries", prefix: "color." });
+      { code: "config", message: `unknown palette entry ${quoted(name)}`, note: "declared palette entries", prefix: "color." });
   }
 
   /** A `config:` `default:`/`choices:` colour: a literal hex, or a `color.<swatch>` reference. */
@@ -168,14 +168,14 @@ export class TopLevelBlocks extends FontBlock {
   /** A bare scheme name from a `config: style:` entry's `scheme:`. */
   schemeReference(name: string, span: Span | null): string | null {
     const scheme = this.color_scheme.resolve(this.bag, name, span,
-      { code: "config", message: `unknown color scheme ${repr(name)}`, note: "declared schemes (theme: schemes:)" });
+      { code: "config", message: `unknown color scheme ${quoted(name)}`, note: "declared schemes (theme: schemes:)" });
     return scheme !== null ? name : null;
   }
 
   /** A bare layout name from a `config: style:` entry's `layout:`. */
   layoutReference(name: string, span: Span | null): string | null {
     const decl = this.layouts.resolve(this.bag, name, span,
-      { code: "config", message: `unknown layout ${repr(name)}`, note: "declared layouts" });
+      { code: "config", message: `unknown layout ${quoted(name)}`, note: "declared layouts" });
     return decl !== null ? name : null;
   }
 

@@ -1,7 +1,7 @@
 // A slot added with the element that draws it, as one change: the wearer
 // picks what a slot shows, but a slot nothing draws shows nothing..
 import * as complications from "../complications.ts";
-import { repr } from "../py.ts";
+import { quoted } from "../py.ts";
 import { chain, type Patch, patch, setValue } from "./patch.ts";
 import { Refused, type SpanIndex } from "./spans.ts";
 import { add } from "./structure.ts";
@@ -14,10 +14,10 @@ import type { Data } from "./yaml.ts";
  */
 export function addSlot(index: SpanIndex, name: string, defaultType: string): Patch {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name || "")) {
-    throw new Refused(`${repr(name)} is not a slot name: letters, digits and _, not starting with a digit`);
+    throw new Refused(`${quoted(name)} is not a slot name: letters, digits and _, not starting with a digit`);
   }
   if (!complications.TYPES.has(defaultType)) {
-    throw new Refused(`${repr(defaultType)} is not a complication type: see \`wfb complications\``);
+    throw new Refused(`${quoted(defaultType)} is not a complication type: see \`wfb complications\``);
   }
   const data = index.data instanceof Map ? index.data : new Map<string, Data>();
   const config = data.get("config");

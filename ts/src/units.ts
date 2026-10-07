@@ -12,7 +12,7 @@
 // Angles are degrees with 12 o'clock = 0 and clockwise positive, because
 // that is how a watch designer thinks. Garmin's `drawArc` uses 3 o'clock = 0
 // and counter-clockwise positive; `Angle.toGarmin` converts.
-import { degrees, formatG, isNumber, num, floorMod, repr, roundHalfEven } from "./py.ts";
+import { degrees, formatG, isNumber, num, floorMod, quoted, roundHalfEven } from "./py.ts";
 
 export class UnitError extends Error {}
 
@@ -38,9 +38,9 @@ export class Length {
     if (raw instanceof Length) return raw;
     if (typeof raw === "boolean") throw new UnitError(`${what}: expected a length, got a boolean`);
     if (isNumber(raw)) return new Length(num(raw), "px");
-    if (typeof raw !== "string") throw new UnitError(`${what}: expected a length such as '12px' or '30%', got ${repr(raw)}`);
+    if (typeof raw !== "string") throw new UnitError(`${what}: expected a length such as '12px' or '30%', got ${quoted(raw)}`);
     const m = LENGTH.exec(raw);
-    if (!m) throw new UnitError(`${what}: ${repr(raw)} is not a length.  Use px, %, %r or pt, e.g. '12px', '-4%', '38%r'`);
+    if (!m) throw new UnitError(`${what}: ${quoted(raw)} is not a length.  Use px, %, %r or pt, e.g. '12px', '-4%', '38%r'`);
     return new Length(Number(m.groups!["num"]), (m.groups!["unit"] ?? "px") as LengthUnit);
   }
 
@@ -97,9 +97,9 @@ export class Angle {
     if (raw instanceof Angle) return raw;
     if (typeof raw === "boolean") throw new UnitError(`${what}: expected an angle, got a boolean`);
     if (isNumber(raw)) return new Angle(num(raw));
-    if (typeof raw !== "string") throw new UnitError(`${what}: expected an angle such as '45deg', got ${repr(raw)}`);
+    if (typeof raw !== "string") throw new UnitError(`${what}: expected an angle such as '45deg', got ${quoted(raw)}`);
     const m = ANGLE.exec(raw);
-    if (!m) throw new UnitError(`${what}: ${repr(raw)} is not an angle.  Use deg, rad or turn, e.g. '45deg'`);
+    if (!m) throw new UnitError(`${what}: ${quoted(raw)} is not an angle.  Use deg, rad or turn, e.g. '45deg'`);
     let value = Number(m.groups!["num"]);
     const unit = m.groups!["unit"] ?? "deg";
     if (unit === "rad") value = degrees(value);
@@ -127,9 +127,9 @@ export class Duration {
 
   static parse(raw: unknown, what = "duration"): Duration {
     if (raw instanceof Duration) return raw;
-    if (typeof raw !== "string") throw new UnitError(`${what}: expected a duration such as '30m', '4h' or '7d', got ${repr(raw)}`);
+    if (typeof raw !== "string") throw new UnitError(`${what}: expected a duration such as '30m', '4h' or '7d', got ${quoted(raw)}`);
     const m = DURATION.exec(raw);
-    if (!m) throw new UnitError(`${what}: ${repr(raw)} is not a duration.  Use m, h or d, e.g. '30m', '4h', '7d'`);
+    if (!m) throw new UnitError(`${what}: ${quoted(raw)} is not a duration.  Use m, h or d, e.g. '30m', '4h', '7d'`);
     const factor = { m: 60, h: 3600, d: 86400 }[m.groups!["unit"] as "m" | "h" | "d"];
     return new Duration(Number(m.groups!["num"]) * factor);
   }
@@ -173,7 +173,7 @@ export class Box {
 
   anchorPoint(anchor: string): [number, number] {
     const f = ANCHORS.get(anchor);
-    if (f === undefined) throw new UnitError(`unknown anchor ${repr(anchor)}.  Valid anchors: ${[...ANCHORS.keys()].sort().join(", ")}`);
+    if (f === undefined) throw new UnitError(`unknown anchor ${quoted(anchor)}.  Valid anchors: ${[...ANCHORS.keys()].sort().join(", ")}`);
     return [this.x + f[0] * this.width, this.y + f[1] * this.height];
   }
 

@@ -3,7 +3,7 @@
 // glyphs, and the per-`shape:`/`style:` foreign-key check..
 import type { Span } from "../../diagnostics.ts";
 import * as icons from "../../icons.ts";
-import { isNumber, num, repr, str } from "../../py.ts";
+import { isNumber, num, quoted, str } from "../../py.ts";
 import { Curve, type Element, MAX_OUTLINE_WIDTH, Outline } from "../model.ts";
 import { AbsenceChecks } from "./absence.ts";
 import type { Node } from "./state.ts";
@@ -51,10 +51,10 @@ export class GlyphHelpers extends AbsenceChecks {
       const owners = [...table].filter(([, keys]) => keys.has(key)).map(([s]) => s).sort();
       const notes = [
         `'${disc}: ${chosen}' reads: ` + ([...own].sort().join(", ") || emptyLabel),
-        `${repr(key)} belongs to ` + owners.map((s) => `'${disc}: ${s}'`).join(" and "),
+        `${quoted(key)} belongs to ` + owners.map((s) => `'${disc}: ${s}'`).join(" and "),
       ];
       if (extraNotes !== undefined) notes.push(...extraNotes(key));
-      this.bag.error(code, `${prefix}${repr(key)} is not used by ${qualifier}'${disc}: ${chosen}'${suffix}`,
+      this.bag.error(code, `${prefix}${quoted(key)} is not used by ${qualifier}'${disc}: ${chosen}'${suffix}`,
         this.doc.span(node, key) ?? this.doc.span(node), { notes });
       ok = false;
     }
@@ -174,7 +174,7 @@ export class GlyphHelpers extends AbsenceChecks {
   resolveIconName(name: string, span: Span | null): string | null {
     const codepoint = icons.resolveCodepoint(name);
     if (codepoint === null) {
-      this.bag.error("icon", `unknown icon ${repr(name)}`, span, {
+      this.bag.error("icon", `unknown icon ${quoted(name)}`, span, {
         notes: [
           "the catalogue has: " + icons.names().join(", "),
           "for a glyph the catalogue does not name, write its codepoint, "
@@ -189,7 +189,7 @@ export class GlyphHelpers extends AbsenceChecks {
   resolveIconGlyph(raw: string, span: Span | null): string | null {
     const character = icons.parseCodepoint(raw);
     if (character === null) {
-      this.bag.error("icon", `an icon codepoint is written 'U+XXXX', not ${repr(raw)}`, span, {
+      this.bag.error("icon", `an icon codepoint is written 'U+XXXX', not ${quoted(raw)}`, span, {
         notes: ["e.g. icon: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
           "or name an icon from the built-in catalogue"],
       });
@@ -208,7 +208,7 @@ export class GlyphHelpers extends AbsenceChecks {
     }
     const named = icons.nameForCodepoint(character);
     if (named !== null) {
-      this.bag.note("icon", `glyph ${raw.toUpperCase()} is in the catalogue as ${repr(named)} -- `
+      this.bag.note("icon", `glyph ${raw.toUpperCase()} is in the catalogue as ${quoted(named)} -- `
         + `'icon: ${named}' says the same thing and survives a font update`, span);
     }
     return character;
@@ -222,7 +222,7 @@ export class GlyphHelpers extends AbsenceChecks {
     const span = this.doc.span(item, "icon") ?? fallbackSpan;
     if (rawIcon === "none") return null;
     if (typeof rawIcon !== "string") {
-      this.bag.error("config", `${what}.icon: expected a string, got ${repr(rawIcon)}`, span);
+      this.bag.error("config", `${what}.icon: expected a string, got ${quoted(rawIcon)}`, span);
       return ICON_OVERRIDE_ERROR;
     }
     if (!icons.isCodepointSpelling(rawIcon)) {

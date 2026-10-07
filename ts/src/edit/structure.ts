@@ -19,7 +19,7 @@
 // block the same way, as written: an id the face already has is renamed,
 // and anything else the copy needs (a colour, a font, a slot) is the
 // gate's to refuse.
-import { deepCopy, repr, splitlines } from "../py.ts";
+import { deepCopy, quoted, splitlines } from "../py.ts";
 import * as seriesCatalog from "../series.ts";
 import {
   blockText, child, dataAt, DEFAULTS, endedPatch, faceColor, keyText, patch, type Patch, rebuild, removeOn, ShapeError, withData,
@@ -62,7 +62,7 @@ function graphRange(series: string): string | number {
 /** What a new element of `type` starts with: its defaults, the face's most used colour, and the series, slot or set `choice` names. */
 export function newFields(index: SpanIndex, type: string, choice?: string | null): Map<DataKey, Data> {
   const defaults = DEFAULTS.get(type) ?? MORE_DEFAULTS.get(type);
-  if (defaults === undefined) throw new Refused(`there is no element type ${repr(type)}`);
+  if (defaults === undefined) throw new Refused(`there is no element type ${quoted(type)}`);
   const fields: Map<DataKey, Data> = new Map([["type", type], ...deepCopy(defaults)]);
   const chosen = CHOICES.get(type);
   if (chosen !== undefined) {

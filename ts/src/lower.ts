@@ -21,7 +21,7 @@ import { type Bag, getCloseMatches, type Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { ExprError, tokenize, type Token } from "./expr.ts";
 import { controlCharacter } from "./mcsource.ts";
-import { compareStrings, repr } from "./py.ts";
+import { compareStrings, quoted } from "./py.ts";
 import {
   aodFormat, parseTemplate, type Placeholder, segments, stripTemplateParens, type Template, TemplateError, toValueFormat,
 } from "./template.ts";
@@ -92,7 +92,7 @@ class Lowering {
         const where: [object, DataKey] = body.has("role") ? [body, "role"] : [config, axis];
         const seen = declared.get(role);
         if (seen !== undefined && seen[0] !== config) {
-          this.error("color", `the role ${repr(role)} is both a 'theme:' scheme role and the role 'config: ${axis}:' binds`,
+          this.error("color", `the role ${quoted(role)} is both a 'theme:' scheme role and the role 'config: ${axis}:' binds`,
             this.span(where[0], where[1], "key"),
             `'color.${role}' would mean two different colours`,
             "rename the scheme role, or give the axis another with 'role:'");
@@ -142,7 +142,7 @@ class Lowering {
       if (token.kind !== "name") continue;
       const v1 = format1Ref(token.text);
       if (v1 !== null) {
-        this.error("color", `${repr(token.text)} is format 1's spelling of a colour`, this.span(node, key), `format 2 writes ${repr(v1)}`);
+        this.error("color", `${quoted(token.text)} is format 1's spelling of a colour`, this.span(node, key), `format 2 writes ${quoted(v1)}`);
         ok = false;
         continue;
       }
@@ -157,7 +157,7 @@ class Lowering {
         continue;
       }
       if (swatchOnly && !this.swatches.has(name)) {
-        this.error("color", `'color.${name}' is a colour role, but ${repr(author ?? key)} needs a build-time colour`, span,
+        this.error("color", `'color.${name}' is a colour role, but ${quoted(author ?? key)} needs a build-time colour`, span,
           "a role follows the active style's scheme or the wearer's pick, so it has no single value when the face is built",
           "name a palette swatch, or write the colour as '#RRGGBB'");
         ok = false;

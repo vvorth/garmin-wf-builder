@@ -8,7 +8,7 @@ import type { Data, DataKey } from "../../edit/yaml.ts";
 import type { Common, SchemaPath } from "../../kinds/base.ts";
 import * as kinds from "../../kinds/index.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../../kinds/shape.ts";
-import { repr, str, truthy } from "../../py.ts";
+import { quoted, str, truthy } from "../../py.ts";
 import { DataElement, type Element, HOLD_AUTO, type Position, ROLE_VALUE, Shape } from "../model.ts";
 import { elementConstPrefix, elementMethodName } from "../naming.ts";
 import { ringGroups } from "../rings.ts";
@@ -24,7 +24,7 @@ const GLYPH_KINDS = new Set(["text", "icon", "data"]);
 
 /** The key `Element.overrides` holds one `[shape, device]` selector pair under: Python's `str` of the pair as a list. */
 export function overrideKey(shape: string | null, device: string | null): string {
-  return repr([shape, device]);
+  return quoted([shape, device]);
 }
 
 /** `patch` deep-merged over `base`: mappings key by key, anything else replaced. */
@@ -65,7 +65,7 @@ export class ElementTree extends StaticPass {
     const elementId = node.get("id") as string;
     if (this.seen_ids.has(elementId)) {
       const first = this.seen_ids.get(elementId);
-      this.bag.error("duplicate-id", `duplicate element id ${repr(elementId)}`, this.doc.span(node, "id"),
+      this.bag.error("duplicate-id", `duplicate element id ${quoted(elementId)}`, this.doc.span(node, "id"),
         { notes: first ? [`first declared at ${first}`] : [] });
       return null;
     }
@@ -97,7 +97,7 @@ export class ElementTree extends StaticPass {
       unsupported: (node.get("unsupported") ?? null) as string | null,
     };
     if (!kinds.names().includes(common.kind)) { // unreachable once the schema has run
-      this.bag.error("element", `unsupported element type ${repr(node.get("type"))}`, span);
+      this.bag.error("element", `unsupported element type ${quoted(node.get("type"))}`, span);
       return null;
     }
     const element = kinds.get(common.kind).build(this as unknown as Builder, node, common, path);
@@ -217,11 +217,11 @@ export class ElementTree extends StaticPass {
         const refusal = kind.ringRefusal(leaf);
         if (refusal !== null && kind.ringed) {
           this.bag.error("outline", `${group.id}: 'outline:' on a group needs every member to draw a `
-            + `ring, and ${repr(leaf.id)} cannot: 'outline:' ${refusal}`, leaf.span ?? span,
+            + `ring, and ${quoted(leaf.id)} cannot: 'outline:' ${refusal}`, leaf.span ?? span,
           { notes: ["not implemented yet -- docs/limitations.md §2"] });
         } else if (!kind.ringed) {
           this.bag.error("outline", `${group.id}: 'outline:' on a group needs every member to draw a `
-            + `ring, and ${repr(leaf.id)} is a '${leaf.kind}', which cannot yet`, leaf.span ?? span, {
+            + `ring, and ${quoted(leaf.id)} is a '${leaf.kind}', which cannot yet`, leaf.span ?? span, {
             notes: ["text, icons, shapes, hands, patterns and gauges can be "
               + "ringed; move this element out of the group, or drop the group's 'outline:'"],
           });
@@ -270,13 +270,13 @@ export class ElementTree extends StaticPass {
     }
     if (collisions.length > 0) {
       const [, otherId, otherSpan] = collisions[0]!;
-      const symbols = collisions.map(([symbol]) => repr(symbol)).join(", ");
+      const symbols = collisions.map(([symbol]) => quoted(symbol)).join(", ");
       const notes = ["element ids only need to be distinct as literal strings today, "
         + "but codegen derives one Monkey C symbol per id, folding case and "
         + "separators away -- 'temp_low' and 'tempLow' both become 'TEMP_LOW'"];
-      if (otherSpan !== null) notes.unshift(`${repr(otherId)} first declared at ${otherSpan}`);
-      this.bag.error("duplicate-id", `element id ${repr(elementId)} generates the same Monkey C symbol as `
-        + `${repr(otherId)} (${symbols})`, this.doc.span(node, "id") ?? span, { notes });
+      if (otherSpan !== null) notes.unshift(`${quoted(otherId)} first declared at ${otherSpan}`);
+      this.bag.error("duplicate-id", `element id ${quoted(elementId)} generates the same Monkey C symbol as `
+        + `${quoted(otherId)} (${symbols})`, this.doc.span(node, "id") ?? span, { notes });
       return false;
     }
     for (const symbol of candidates) this.seen_symbols.set(symbol, [elementId, span]);
@@ -290,7 +290,7 @@ export class ElementTree extends StaticPass {
     const name = str(raw);
     if (name === HOLD_AUTO) return HOLD_AUTO;
     if (complications.get(name) !== undefined) return name;
-    this.bag.error("on-hold", `unknown hold target ${repr(name)}`, this.doc.span(node, "on_hold"),
+    this.bag.error("on-hold", `unknown hold target ${quoted(name)}`, this.doc.span(node, "on_hold"),
       { notes: this.complicationSuggestionNotes(name, "launch targets") });
     return null;
   }
@@ -317,7 +317,7 @@ export class ElementTree extends StaticPass {
       if (target !== null && !found.has(target)) found.set(target, path);
     }
     if (found.size === 1) return found.keys().next().value!;
-    const bound = sources.length > 0 ? sources.map(repr).join(", ") : "(none)";
+    const bound = sources.length > 0 ? sources.map(quoted).join(", ") : "(none)";
     if (found.size === 0) {
       this.bag.error("hold-auto-unresolved", `${label}: '${key}: auto' could not resolve a hold target -- bound source(s): ${bound}`,
         span, {
@@ -329,7 +329,7 @@ export class ElementTree extends StaticPass {
         });
       return null;
     }
-    const candidates = [...found.keys()].sort().map(repr).join(", ");
+    const candidates = [...found.keys()].sort().map(quoted).join(", ");
     this.bag.error("hold-auto-ambiguous", `${label}: 'auto' is ambiguous between ${candidates} -- bound source(s): ${bound}`, span,
       { notes: ["name one explicitly instead of 'auto' -- run `wfb complications` for the full list"] });
     return null;

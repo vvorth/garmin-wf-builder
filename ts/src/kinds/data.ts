@@ -10,7 +10,7 @@ import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
 import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, PlacedData, type Resolver } from "../layout.ts";
-import { formatG, repr, roundHalfEven as round, str, truthy } from "../py.ts";
+import { formatG, quoted, roundHalfEven as round, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
 import { Box, IntBox } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
@@ -29,14 +29,14 @@ type Node = Map<DataKey, Data>;
 /** Resolve a `slot: <name>` reference, a `data` element's or a gauge's, against `config: slots:`. */
 export function resolveSlotReference(b: Builder, raw: string, span: Span | null): ConfigDataSlot | null {
   return b.config_data.resolve(b.bag, raw, span,
-    { code: "complication-slot", message: `unknown slot ${repr(raw)}`, note: "declared slots (config: slots:)", prefix: "" });
+    { code: "complication-slot", message: `unknown slot ${quoted(raw)}`, note: "declared slots (config: slots:)", prefix: "" });
 }
 
 /** A data element's `color:`/`icon: {color:}` may not read anything absent-able. */
 function checkSlotColorAbsence(b: Builder, node: Node, element: DataElement, key: string, color: Expression | null,
   note: string, label: string | null = null): void {
   if (color === null || !color.nullable) return;
-  b.bag.error("complication-slot", `${element.id}: '${label || key}' reads ${repr(color.shown)}, which can be absent`,
+  b.bag.error("complication-slot", `${element.id}: '${label || key}' reads ${quoted(color.shown)}, which can be absent`,
     b.doc.span(node, key), {
       notes: [note, "guard it in the expression instead, e.g. \"x != null and x > 100 ? color.hot : color.fg\""],
     });
@@ -344,7 +344,7 @@ class DataKind extends ElementKind<DataElement> {
     if (element.on_hold !== null && element.on_hold !== HOLD_AUTO) {
       // A fixed target would disagree with the slot the moment the wearer repoints it.
       b.bag.error("complication-slot", `${element.id}: 'on_hold:' on a 'type: data' element only accepts `
-        + `'auto', not ${repr(element.on_hold)}`, element.span, {
+        + `'auto', not ${quoted(element.on_hold)}`, element.span, {
         notes: [
           "a slot already draws whatever complication the wearer chose in "
           + "the native editor -- opening a fixed, different glance on hold "

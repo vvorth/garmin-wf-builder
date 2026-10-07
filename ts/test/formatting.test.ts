@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { get } from "../src/catalog.ts";
 import { barrelModules } from "../src/emit/usage.ts";
 import * as formatting from "../src/formatting.ts";
-import { drawn, errors, face, method, template, view } from "./designs.ts";
+import { drawn, errors, face, MINIMAL, method, template, view } from "./designs.ts";
 
 const r = (spec: string, value: unknown, type: Parameters<typeof formatting.render>[2], values: Record<string, unknown> = {}): string =>
   formatting.render(spec, value, type, new Map(Object.entries(values)));
@@ -207,4 +207,9 @@ test("duration refusals in a face", () => {
   const [twelve] = errors(pattern("%h"));
   assert.ok(twelve!.code === "format" && twelve!.message.includes("12/24-hour"));
   assert.deepEqual((face(pattern("%H")).elements[0] as any).parts[0].texts, ["00", "06", "12", "18"]);
+});
+
+test("a Boolean reading reads as the watch prints it: true and false, lower case", () => {
+  const text = MINIMAL + `  t:\n    type: text\n    at: {anchor: center}\n    text: "{system.charging} {not system.charging}"\n    color: color.fg\n`;
+  assert.equal(drawn(text, "t", { "system.charging": true }), "true false");
 });

@@ -11,7 +11,7 @@
 // absolute path, no `..`, no link, and the uncompressed sizes within limits.
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { indexFor, type Path } from "../edit/spans.ts";
-import { repr } from "../py.ts";
+import { quoted } from "../py.ts";
 
 /** The design's name inside a bundle. */
 export const FACE = "face.yaml";
@@ -133,7 +133,7 @@ export function readUpload(filename: string, data: Uint8Array, limits: Limits = 
     read.name = displayName(filename, read.text);
     return read;
   }
-  throw new BundleError(`${repr(filename)} is neither a .yaml nor a .zip`);
+  throw new BundleError(`${quoted(filename)} is neither a .yaml nor a .zip`);
 }
 
 const S_IFMT = 0o170000, S_IFLNK = 0o120000;
@@ -230,7 +230,7 @@ function free(files: { has(path: string): boolean }, path: string): string {
 export function assetPath(files: { has(path: string): boolean }, filename: string): string {
   const normal = filename.replace(/\\/g, "/");
   const base = normal.slice(normal.lastIndexOf("/") + 1);
-  if (!base || base === "." || base === "..") throw new BundleError(`${repr(filename)} is not a file name`);
+  if (!base || base === "." || base === "..") throw new BundleError(`${quoted(filename)} is not a file name`);
   return free(files, `${ASSETS}/${base}`);
 }
 

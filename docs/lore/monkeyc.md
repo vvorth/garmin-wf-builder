@@ -133,6 +133,10 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   Python's floor modulo. That is the compiler, not an observed VM. Under
   `-l 3`, either operand being a `Float` is a compile error ("Cannot perform
   operation 'mod' on types ..."), so `check` in `ts/src/expr.ts` refuses it up front.
-  **`Math.round` of a negative exact half is UNVERIFIED.** The SDK says only
-  ".5 will be rounded up", so -2.5 could be -2 or -3. `ts/src/expr.ts` never
-  constant-folds that one input, and leaves the call for the device.
+  **`Math.round` rounds a half up, toward +infinity, negatives included**:
+  `-2.5` is `-2`, `-1.5` is `-1`, `-0.5` is `0`
+  (`docs/research/probes/text-of-values/`, simulator on fr955 and both
+  fēnix 8 sizes, 2026-10-07). The SDK says only ".5 will be rounded up".
+  `ts/src/expr.ts` folds and previews `round()` the same way.
+- **A Boolean prints as `true` or `false`, lower case**: `b.toString()` and
+  `"x " + b` (same probe). `Toybox.Lang.Boolean` does not document it.

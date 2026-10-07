@@ -9,7 +9,7 @@ import { type Element, type Expression, Text, TextSegment } from "../ir/model.ts
 import {
   HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
 } from "../layout.ts";
-import { repr, roundHalfEven as round, str } from "../py.ts";
+import { quoted, roundHalfEven as round, str } from "../py.ts";
 import type { Box } from "../units.ts";
 import type { Reading } from "../template.ts";
 import { type Common, ElementKind, type Refusal, register, ringFont, TextRun } from "./base.ts";
@@ -32,7 +32,7 @@ function rejectTextAntialias(b: Builder, node: Node, element: Text): void {
   const span = b.doc.span(node, "antialias");
   const notes = element.font_is_custom
     ? [`put it on 'fonts: ${element.font}: antialias:' instead -- the font this element references`]
-    : [`this element uses the system font ${repr(element.font)}, which `
+    : [`this element uses the system font ${quoted(element.font)}, which `
       + "has no 'antialias:' of its own to set -- only a custom 'fonts:' entry does"];
   b.bag.error("text-antialias", `${element.id}: 'antialias:' is not accepted on a 'text' element`, span, { notes });
 }
@@ -56,8 +56,8 @@ function applyUnits(b: Builder, node: Node, value: Expression | null, reading: R
   if (found === null) {
     const convertible = [...catalog.CATALOG].filter(([, s]) => conversion.conversionFor(s) !== null).map(([path]) => path).sort();
     const what = source !== undefined && source.unit
-      ? `${repr(raw)} is in ${source.unit}, which 'units:' does not convert`
-      : `${repr(raw)} is not a single source with a unit 'units:' converts`;
+      ? `${quoted(raw)} is in ${source.unit}, which 'units:' does not convert`
+      : `${quoted(raw)} is not a single source with a unit 'units:' converts`;
     b.bag.error("units", `${elementId}: ${what}`, b.doc.span(node, "text"), {
       notes: ["'units:' converts a placeholder that is exactly one of: " + convertible.join(", "),
         "write the bare source; the conversion replaces any "
@@ -266,7 +266,7 @@ class TextKind extends ElementKind<Text> {
     if (element.font_is_custom) {
       const widest = widestText(element);
       runs.push(new TextRun(element.id, element.font, {
-        glyphs, samples: [widest], sample_note: `the widest rendering of this element is ${repr(widest)}`,
+        glyphs, samples: [widest], sample_note: `the widest rendering of this element is ${quoted(widest)}`,
         span: element.span, unsupported: element.unsupported, curve: element.curve,
       }));
     }

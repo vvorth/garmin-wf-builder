@@ -20,7 +20,7 @@
 // reported here (`element-mapping`).
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
-import { repr } from "./py.ts";
+import { quoted } from "./py.ts";
 import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
 type Dict = Map<DataKey, Data>;
@@ -97,7 +97,7 @@ function staticBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
   if (!Array.isArray(elements)) return false; // leaving `elements:` as written keeps that diagnostic honest
   for (const existing of elements) {
     if (isDict(existing) && existing.get("id") === STATIC_GROUP_ID) {
-      bag.error("static", `the id ${repr(STATIC_GROUP_ID)} is reserved while a top-level \`static:\` block is present`,
+      bag.error("static", `the id ${quoted(STATIC_GROUP_ID)} is reserved while a top-level \`static:\` block is present`,
         doc.span(existing, "id") ?? span,
         { notes: ["the block is rewritten into a group under that id, and two elements cannot share one", "rename this element"] });
       return false;
@@ -143,15 +143,15 @@ function layoutsBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
       const keySpan = doc.span(body, key, "key");
       const claimant = existingIds.get(generatedId);
       if (claimant !== undefined) {
-        bag.error("layouts", `layouts.${name}.${key}: the generated id ${repr(generatedId)} collides with ${claimant}`, keySpan,
-          { notes: [`'layouts: ${name}:' needs id ${repr(generatedId)} for its own ${repr(key)} content`,
+        bag.error("layouts", `layouts.${name}.${key}: the generated id ${quoted(generatedId)} collides with ${claimant}`, keySpan,
+          { notes: [`'layouts: ${name}:' needs id ${quoted(generatedId)} for its own ${quoted(key)} content`,
             "rename the layout, or whatever already claims that id"] });
         ok = false;
         continue;
       }
       const group = syntheticGroup(generatedId, node!, wrapStatic, keySpan);
       ok = rewrite(doc, group, "children", bag) && ok;
-      collectIds(group, existingIds, `layout ${repr(name)}`);
+      collectIds(group, existingIds, `layout ${quoted(name)}`);
       const idx = elements.length;
       elements.push(group);
       const lc = lcOf(elements);
@@ -222,7 +222,7 @@ function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySp
   seen: Map<object, DataKey>, bag: Bag): boolean {
   const earlier = seen.get(body);
   if (earlier !== undefined) {
-    bag.error("element-mapping", `the body under ${repr(name)} is the same node as the one under ${repr(earlier)}`, keySpan,
+    bag.error("element-mapping", `the body under ${quoted(name)} is the same node as the one under ${quoted(earlier)}`, keySpan,
       { notes: ["a YAML alias cannot give two elements two different ids; write the second one out"] });
     return false;
   }

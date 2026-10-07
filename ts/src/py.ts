@@ -1,6 +1,6 @@
 // Python's semantics where the compiler's behaviour depends on them, so a
 // port reads like the code it came from and produces the same text:
-// truthiness, `repr` of a string, `json.dumps`, `str.splitlines`,
+// truthiness, a value quoted in a message, `json.dumps`, `str.splitlines`,
 // `f"{x:.6f}"` and `round()`.
 import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
 
@@ -29,20 +29,21 @@ export function get(value: unknown, key: DataKey): Data | undefined {
 }
 
 /**
- * Python's `repr()` as an f-string's `!r` writes it: of a string, `None`, a
- * number, a bool, a dict (a `Map`, or a plain object such as a schema), a
- * list or a date.
+ * An author's value as a message quotes it: a string in quotes (single,
+ * unless it holds one), a number as written, `null`, `true` and `false` as
+ * YAML spells them, a date as its ISO form, and a mapping or list in flow
+ * style with its members quoted the same way.
  */
-export function repr(value: unknown): string {
-  if (value === null || value === undefined) return "None";
-  if (value === true) return "True";
-  if (value === false) return "False";
+export function quoted(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (value === true) return "true";
+  if (value === false) return "false";
   if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
   if (value instanceof PyFloat) return floatRepr(value.value);
-  if (value instanceof Timestamp) return timestampRepr(value.iso);
-  if (value instanceof Map) return `{${[...value].map(([k, v]) => `${repr(k)}: ${repr(v)}`).join(", ")}}`;
-  if (Array.isArray(value)) return `[${value.map(repr).join(", ")}]`;
-  if (typeof value === "object") return `{${Object.entries(value).map(([k, v]) => `${repr(k)}: ${repr(v)}`).join(", ")}}`;
+  if (value instanceof Timestamp) return value.iso;
+  if (value instanceof Map) return `{${[...value].map(([k, v]) => `${quoted(k)}: ${quoted(v)}`).join(", ")}}`;
+  if (Array.isArray(value)) return `[${value.map(quoted).join(", ")}]`;
+  if (typeof value === "object") return `{${Object.entries(value).map(([k, v]) => `${quoted(k)}: ${quoted(v)}`).join(", ")}}`;
   if (typeof value !== "string") return String(value);
   const quote = value.includes("'") && !value.includes("\"") ? "\"" : "'";
   let out = quote;
@@ -56,18 +57,6 @@ export function repr(value: unknown): string {
     else out += ch;
   }
   return out + quote;
-}
-
-/** `datetime.date(2026, 10, 5)` or `datetime.datetime(...)`, from an isoformat. */
-function timestampRepr(iso: string): string {
-  const m = /^(\d+)-(\d+)-(\d+)(?:T(\d+):(\d+):(\d+)(?:\.(\d+))?)?/.exec(iso);
-  if (m === null) return iso;
-  const parts = [m[1], m[2], m[3]].map(Number);
-  if (m[4] === undefined) return `datetime.date(${parts.join(", ")})`;
-  const time = [m[4], m[5], m[6]].map(Number);
-  const micro = m[7] ? [Number(m[7])] : [];
-  while (time.length > 2 && time[time.length - 1] === 0 && micro.length === 0) time.pop();
-  return `datetime.datetime(${[...parts, ...time, ...micro].join(", ")})`;
 }
 
 /** Python's `str()` of a number: `1.0` for an integral float is not recoverable here, so integers print as integers. */
@@ -280,13 +269,13 @@ export function num(value: number | PyFloat): number {
   return value instanceof PyFloat ? value.value : value;
 }
 
-/** Python's `str()` of a value: a string as itself, a number as Python prints it, anything else as `repr`. */
+/** Python's `str()` of a value: a string as itself, a number as Python prints it, anything else quoted (`quoted`). */
 export function str(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number") return Number.isInteger(value) ? pyStr(value) : floatRepr(value);
   if (value instanceof PyFloat) return floatRepr(value.value);
   if (value instanceof Timestamp) return value.iso.replace("T", " ");
-  return repr(value);
+  return quoted(value);
 }
 
 /**

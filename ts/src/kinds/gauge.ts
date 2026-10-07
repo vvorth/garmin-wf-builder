@@ -7,7 +7,7 @@ import * as expr from "../expr.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
-import { degrees, formatG, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
+import { degrees, formatG, isNumber, num, quoted, roundHalfEven as round, str } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
@@ -151,7 +151,7 @@ function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
   }
   const missing = arcGiven.length > 0 ? ARC_KEYS.filter((key) => !node.has(key)) : [];
   if (missing.length > 0) {
-    b.bag.error("element", `${element.id}: an arc 'style: ${style}' also needs ` + missing.map(repr).join(", "),
+    b.bag.error("element", `${element.id}: an arc 'style: ${style}' also needs ` + missing.map(quoted).join(", "),
       b.doc.span(node, "style"));
     return false;
   }

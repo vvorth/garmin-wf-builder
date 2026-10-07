@@ -2,7 +2,7 @@
 // at build time) or a vector `face:` (a device-resident scalable font).
 //
 import type { Span } from "../../diagnostics.ts";
-import { isNumber, repr, str, truthy } from "../../py.ts";
+import { isNumber, quoted, str, truthy } from "../../py.ts";
 import * as units from "../../units.ts";
 import { Length, UnitError } from "../../units.ts";
 import { FontSpec } from "../model.ts";
@@ -57,7 +57,7 @@ export class FontBlock extends VisibilityHelpers {
     const written = joinPath(base, str(spec.get("source")));
     const source = normalizePath(written);
     if (!this.fileExists(written)) {
-      this.bag.error("font", `font ${repr(name)}: source file not found: ${str(spec.get("source"))}`,
+      this.bag.error("font", `font ${quoted(name)}: source file not found: ${str(spec.get("source"))}`,
         this.doc.span(spec, "source"), { notes: [`resolved against the design file, to ${written}`] });
       return null;
     }
@@ -65,7 +65,7 @@ export class FontBlock extends VisibilityHelpers {
     if (size === null) return null;
     const monospace = truthy(spec.get("monospace") ?? false);
     if (spec.has("align") && !monospace) {
-      this.bag.error("font", `font ${repr(name)}: 'align' needs 'monospace: true'`, this.doc.span(spec, "align"), {
+      this.bag.error("font", `font ${quoted(name)}: 'align' needs 'monospace: true'`, this.doc.span(spec, "align"), {
         notes: [
           "align says where a glyph's ink sits inside its cell, and a "
           + "proportional font has no cell -- every glyph is exactly as "
@@ -76,7 +76,7 @@ export class FontBlock extends VisibilityHelpers {
       return null;
     }
     if (spec.has("unsupported")) {
-      this.bag.error("font", `font ${repr(name)}: 'unsupported:' is not accepted on a baked font`,
+      this.bag.error("font", `font ${quoted(name)}: 'unsupported:' is not accepted on a baked font`,
         this.doc.span(spec, "unsupported"), {
           notes: [
             "'unsupported:' governs a device-resident 'face:' font "
@@ -107,9 +107,9 @@ export class FontBlock extends VisibilityHelpers {
     let ok = true;
     for (const key of VECTOR_FONT_BAKING_KEYS) {
       if (!spec.has(key)) continue;
-      this.bag.error("font", `font ${repr(name)}: ${repr(key)} is not accepted on a 'face:' font`, this.doc.span(spec, key), {
+      this.bag.error("font", `font ${quoted(name)}: ${quoted(key)} is not accepted on a 'face:' font`, this.doc.span(spec, key), {
         notes: [
-          `${repr(key)} is a property of baking a bitmap sheet, and a `
+          `${quoted(key)} is a property of baking a bitmap sheet, and a `
           + "vector font has no sheet -- it is drawn straight from the "
           + "device's own resident face, at any size, with nothing "
           + "rasterised at build time",
@@ -129,31 +129,31 @@ export class FontBlock extends VisibilityHelpers {
   private fontSize(name: string, spec: Node): Length | null {
     const raw = spec.get("size");
     if (isNumber(raw)) {
-      this.bag.error("font", `font ${repr(name)}: size must be a length such as '18%r' or `
-        + `'12px', not a bare number (${repr(raw)})`, this.doc.span(spec, "size"), {
+      this.bag.error("font", `font ${quoted(name)}: size must be a length such as '18%r' or `
+        + `'12px', not a bare number (${quoted(raw)})`, this.doc.span(spec, "size"), {
         notes: [
-          `size: ${repr(raw)} used to mean ${repr(raw)}px on the smallest `
+          `size: ${quoted(raw)} used to mean ${quoted(raw)}px on the smallest `
           + "target, scaled per device by the ratio of minor radii "
           + "-- the exact equivalent is (size / <smallest target's "
           + "minor radius, in px> * 100)%r, e.g. 68 on a 130px minor "
           + "radius (fenix8solar47mm, fr955) is 52.3076923077%r",
           "for the same pixel count on every device instead -- "
           + "what 'scale: false' used to give you -- use 'px', "
-          + `e.g. '${repr(raw)}px'`,
+          + `e.g. '${quoted(raw)}px'`,
         ],
       });
       return null;
     }
     let size: Length;
     try {
-      size = Length.parse(raw, `font ${repr(name)}: size`);
+      size = Length.parse(raw, `font ${quoted(name)}: size`);
     } catch (error) {
       if (!(error instanceof UnitError)) throw error;
       this.bag.error("units", error.message, this.doc.span(spec, "size"));
       return null;
     }
     if (!(units.SIZE_UNITS as readonly string[]).includes(size.unit)) {
-      this.bag.error("font", `font ${repr(name)}: size must be px or %r, not ${size.unit}`, this.doc.span(spec, "size"), {
+      this.bag.error("font", `font ${quoted(name)}: size must be px or %r, not ${size.unit}`, this.doc.span(spec, "size"), {
         notes: [
           "a font's sheet is rasterised before any element is placed, so its "
           + "size cannot depend on a parent box (%) or on a font (pt) -- there "
@@ -165,7 +165,7 @@ export class FontBlock extends VisibilityHelpers {
       return null;
     }
     if (size.value <= 0) {
-      this.bag.error("font", `font ${repr(name)}: size must be greater than zero`, this.doc.span(spec, "size"));
+      this.bag.error("font", `font ${quoted(name)}: size must be greater than zero`, this.doc.span(spec, "size"));
       return null;
     }
     return size;

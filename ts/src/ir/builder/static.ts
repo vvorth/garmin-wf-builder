@@ -1,7 +1,7 @@
 // `static:` subtrees: marking, checking and ranking the elements drawn once
 // into a buffer.
 import * as kinds from "../../kinds/index.ts";
-import { repr } from "../../py.ts";
+import { quoted } from "../../py.ts";
 import { authoredDrawOrder, type Element, PatternElement, walkElements } from "../model.ts";
 import { AodPass } from "./aod.ts";
 import { andPaths } from "./state.ts";
@@ -10,9 +10,9 @@ import { andPaths } from "./state.ts";
 function rootName(root: Element): string {
   if (root.id === "static") return "the 'static:' block";
   if (root.id.startsWith("layout_") && root.id.endsWith("_static")) {
-    return `layout ${repr(root.id.slice("layout_".length, -"_static".length))}'s 'static:' block`;
+    return `layout ${quoted(root.id.slice("layout_".length, -"_static".length))}'s 'static:' block`;
   }
-  return repr(root.id);
+  return quoted(root.id);
 }
 
 /** `static:` marking and its checks. */
@@ -28,7 +28,7 @@ export class StaticPass extends AodPass {
 
   private markStatic(root: Element, element: Element): void {
     if (element !== root && element.static) {
-      this.bag.error("static", `${repr(element.id)} is static inside the static subtree of ${rootName(root)}`, element.span, {
+      this.bag.error("static", `${quoted(element.id)} is static inside the static subtree of ${rootName(root)}`, element.span, {
         notes: [`${rootName(root)} already draws it into the same buffer`, "delete the inner `static: true`"],
       });
       return;
@@ -43,7 +43,7 @@ export class StaticPass extends AodPass {
         const forbidden = kinds.forElement(element).staticForbidden;
         if (forbidden !== null) {
           const [phrase, note] = forbidden;
-          this.bag.error("static", `${repr(element.id)} is ${phrase} and cannot be static`, element.span, {
+          this.bag.error("static", `${quoted(element.id)} is ${phrase} and cannot be static`, element.span, {
             notes: [note, element !== root ? `take it out of ${rootName(root)}` : "move it out of the 'static:' block"],
           });
           continue;
@@ -52,8 +52,8 @@ export class StaticPass extends AodPass {
           if (expression.sources.length === 0) continue;
           const isPartVisible = element instanceof PatternElement && element.parts.some((p) => expression === p.visible);
           const where = expression === element.visible || isPartVisible ? "visible" : "a value";
-          this.bag.error("static", `${repr(element.id)} binds ${where} to ${andPaths(expression.sources)} inside the static `
-            + `subtree of ${repr(root.id)}`, expression.span ?? element.span, {
+          this.bag.error("static", `${quoted(element.id)} binds ${where} to ${andPaths(expression.sources)} inside the static `
+            + `subtree of ${quoted(root.id)}`, expression.span ?? element.span, {
             notes: ["a static subtree is drawn once, into a buffer "
               + "that is never refilled -- a reading bound here "
               + "would freeze at whatever it was on the first frame",
@@ -61,7 +61,7 @@ export class StaticPass extends AodPass {
           });
         }
         if (element.modes.includes("low_power")) {
-          this.bag.error("static", `${repr(element.id)} is static and declares 'sleep_update: true'`, element.span, {
+          this.bag.error("static", `${quoted(element.id)} is static and declares 'sleep_update: true'`, element.span, {
             notes: ["onPartialUpdate is charged by clip *area*, and "
               + "the buffer is the whole screen -- one blit a "
               + "second would spend the power budget, which is "

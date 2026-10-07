@@ -14,7 +14,7 @@
 // Both rules are tables here (`MIP64_SNAP`, `MONO_LUMINANCE`), which
 // `Color.nearestLegal` and the preview's per-pixel snap both read, so a
 // warning's "nearest" colour is exactly what the preview draws.
-import { repr } from "./py.ts";
+import { quoted } from "./py.ts";
 
 const HEX = /^#?([0-9a-fA-F]{6})$/;
 const SHORT_HEX = /^#?([0-9a-fA-F]{3})$/;
@@ -123,7 +123,7 @@ export class Color {
   static parse(raw: unknown, what = "color"): Color {
     if (raw instanceof Color) return raw;
     if (typeof raw === "number" && Number.isInteger(raw)) return new Color((raw >> 16) & 0xff, (raw >> 8) & 0xff, raw & 0xff);
-    if (typeof raw !== "string") throw new ColorError(`${what}: expected a colour such as '#FF8000', got ${repr(raw)}`);
+    if (typeof raw !== "string") throw new ColorError(`${what}: expected a colour such as '#FF8000', got ${quoted(raw)}`);
     const text = raw.trim();
     let m = HEX.exec(text);
     if (m) {
@@ -135,7 +135,7 @@ export class Color {
       const d = m[1]!;
       return new Color(parseInt(d[0]! + d[0]!, 16), parseInt(d[1]! + d[1]!, 16), parseInt(d[2]! + d[2]!, 16));
     }
-    throw new ColorError(`${what}: ${repr(raw)} is not a colour.  Use '#RRGGBB' or '#RGB'`);
+    throw new ColorError(`${what}: ${quoted(raw)} is not a colour.  Use '#RRGGBB' or '#RGB'`);
   }
 
   get value(): number {

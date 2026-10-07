@@ -21,7 +21,7 @@
 import type { Bag } from "./diagnostics.ts";
 import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
 import { type Schema, ValidationError, Validator } from "./jsonschema.ts";
-import { compareStrings, repr } from "./py.ts";
+import { compareStrings, quoted } from "./py.ts";
 import type { YamlDocument } from "./yamlsrc.ts";
 
 export const SUPPORTED_FORMATS = [2] as const;
@@ -68,7 +68,7 @@ export function checkFormatVersion(doc: YamlDocument, bag: Bag): boolean {
     return false;
   }
   if (!(typeof value === "number" && (SUPPORTED_FORMATS as readonly number[]).includes(value))) {
-    bag.error("format-version", `this file declares format ${repr(declared)}, which this compiler does not understand`,
+    bag.error("format-version", `this file declares format ${quoted(declared)}, which this compiler does not understand`,
       doc.span(doc.data, "format"), { notes: [`supported format versions: ${SUPPORTED_FORMATS.join(", ")}`] });
     return false;
   }
@@ -201,7 +201,7 @@ function checkElementTypes(doc: YamlDocument, bag: Bag): Path[] {
       if (alias) notes.push(`write it as:\n    ${alias}`);
       else if (pending) notes.push(pending);
       notes.push("this format has: " + types.join(", "));
-      bag.error("schema", `unknown element type ${repr(kind)}`, doc.span(element, "type"), { notes });
+      bag.error("schema", `unknown element type ${quoted(kind)}`, doc.span(element, "type"), { notes });
       bad.push(here);
     }
     return false;
@@ -241,11 +241,11 @@ function checkProgressStyleKeys(doc: YamlDocument, bag: Bag, element: Dict): boo
   const candidates = [...new Set(wrong.map((key) => others.get(key)!))];
   bag.error("schema",
     `this ${String(element.get("type"))} element is 'style: ${style}' but carries ` +
-    `${candidates.join("/")}-only key${plural}: ${wrong.map(repr).join(", ")}`,
+    `${candidates.join("/")}-only key${plural}: ${wrong.map(quoted).join(", ")}`,
     doc.span(element, "style"),
     {
       notes: [
-        `either set 'style: ${candidates.join(" or ")}', or replace those with ${PROGRESS_STYLE_KEYS.get(style)!.map(repr).join(", ")}`,
+        `either set 'style: ${candidates.join(" or ")}', or replace those with ${PROGRESS_STYLE_KEYS.get(style)!.map(quoted).join(", ")}`,
         [...PROGRESS_STYLE_SHAPES].map(([name, shape]) => `'${name}' is ${shape}`).join("; "),
       ],
     });
@@ -383,7 +383,7 @@ function checkFramePart(doc: YamlDocument, bag: Bag, part: Dict, path: Path, fra
     const unit = handUnit(container.get(key));
     if (unit === null) return;
     bag.error("schema",
-      `${dottedPath(at)}: ${repr(container.get(key))} -- a ${frame.noun}'s lengths are px or %r only; ${frame.unitRefusals[unit]}`,
+      `${dottedPath(at)}: ${quoted(container.get(key))} -- a ${frame.noun}'s lengths are px or %r only; ${frame.unitRefusals[unit]}`,
       doc.span(container, key), { notes: [frame.lengthNote] });
     bad.push(at);
   };
@@ -439,7 +439,7 @@ function checkPatternFrame(doc: YamlDocument, bag: Bag): Path[] {
           // own error for it narrows only as far as `step` itself.
           const stepPath = [...here, "step"];
           bag.error("schema",
-            `${dottedPath([...stepPath, key])}: ${repr(step.get(key))} -- a linear pattern's step is px, % or %r, not pt: there is no font in scope to measure a pt against`,
+            `${dottedPath([...stepPath, key])}: ${quoted(step.get(key))} -- a linear pattern's step is px, % or %r, not pt: there is no font in scope to measure a pt against`,
             doc.span(step, key), { notes: ["px, %r and a bare number are also fine here"] });
           bad.push(stepPath);
         }
@@ -466,7 +466,7 @@ function checkHandsPatternAlignment(doc: YamlDocument, bag: Bag): Path[] {
     if (reason === undefined) return;
     for (const key of PIVOT_ALIGNMENT_KEYS) {
       if (element.has(key)) {
-        bag.error("schema", `${dottedPath([...here, key])}: ${repr(key)} is not accepted on 'type: ${kind}' -- ${reason}`,
+        bag.error("schema", `${dottedPath([...here, key])}: ${quoted(key)} is not accepted on 'type: ${kind}' -- ${reason}`,
           doc.span(element, key), { notes: ["align a hand or pattern part instead, or move 'at:'"] });
       }
     }
@@ -475,7 +475,7 @@ function checkHandsPatternAlignment(doc: YamlDocument, bag: Bag): Path[] {
 }
 
 function unexpectedMessage(remaining: string[]): string {
-  const joined = remaining.map(repr).join(", ");
+  const joined = remaining.map(quoted).join(", ");
   return `Additional properties are not allowed (${joined} ${remaining.length === 1 ? "was" : "were"} unexpected)`;
 }
 
@@ -584,7 +584,7 @@ function exclusive(error: ValidationError): ValidationError {
   }
   const present = names.filter((n) => isDict(error.instance) && error.instance.has(n));
   if (present.length < 2) return error;
-  error.message = `${present.map(repr).join(" and ")} cannot both be set -- use ${present.map(repr).join(" or ")}, not both`;
+  error.message = `${present.map(quoted).join(" and ")} cannot both be set -- use ${present.map(quoted).join(" or ")}, not both`;
   error.validator = "exclusive-keys";
   return error;
 }
@@ -611,7 +611,7 @@ function isDiscriminator(sub: ValidationError): boolean {
 function mergeAlternatives(error: ValidationError): ValidationError {
   const missing = error.context.filter((sub) => sub.validator === "required").map((sub) => sub.message.split("'")[1]!);
   if (missing.length < 2) return error;
-  error.message = `needs one of ${missing.map(repr).join(" or ")}`;
+  error.message = `needs one of ${missing.map(quoted).join(" or ")}`;
   error.validator = "required-one-of";
   return error;
 }
@@ -669,11 +669,11 @@ function humanise(error: ValidationError): [string, string[]] {
       message = error.message;
       break;
     case "required":
-      message = `missing required key ${repr(error.message.split("'")[1])}`;
+      message = `missing required key ${quoted(error.message.split("'")[1])}`;
       break;
     case "dependentRequired": {
       const parts = error.message.split("'");
-      message = `missing required key ${repr(parts[1])} -- ${repr(parts[3])} needs it`;
+      message = `missing required key ${quoted(parts[1])} -- ${quoted(parts[3])} needs it`;
       break;
     }
     case "additionalProperties": {
@@ -697,19 +697,19 @@ function humanise(error: ValidationError): [string, string[]] {
       break;
     }
     case "enum":
-      message = `${repr(error.instance)} is not valid here`;
-      notes.push("allowed: " + (Array.isArray(error.validatorValue) ? error.validatorValue : []).map(repr).join(", "));
+      message = `${quoted(error.instance)} is not valid here`;
+      notes.push("allowed: " + (Array.isArray(error.validatorValue) ? error.validatorValue : []).map(quoted).join(", "));
       break;
     case "const":
-      message = `expected ${repr(error.validatorValue)}, got ${repr(error.instance)}`;
+      message = `expected ${quoted(error.validatorValue)}, got ${quoted(error.instance)}`;
       break;
     case "pattern":
       message = error.schemaPath.includes("propertyNames")
-        ? `${repr(error.instance)} is not a valid name`
-        : `${repr(error.instance)} has the wrong shape`;
+        ? `${quoted(error.instance)} is not a valid name`
+        : `${quoted(error.instance)} has the wrong shape`;
       break;
     case "type":
-      message = `expected ${typeof error.validatorValue === "string" ? error.validatorValue : repr(error.validatorValue)}, got ${typeName(error.instance)}`;
+      message = `expected ${typeof error.validatorValue === "string" ? error.validatorValue : quoted(error.validatorValue)}, got ${typeName(error.instance)}`;
       break;
     case "minItems":
     case "maxItems":

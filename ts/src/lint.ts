@@ -21,7 +21,7 @@ import {
   visibleReach,
 } from "./layout.ts";
 import { type Color, Color as ColorClass, hasPaletteRule, LUMINANCE_WEIGHTS, srgbChannelToLinear } from "./palette.ts";
-import { deepEqual, formatFixed, repr, roundHalfEven, truthy } from "./py.ts";
+import { deepEqual, formatFixed, quoted, roundHalfEven, truthy } from "./py.ts";
 import * as aodMask from "./aod_mask.ts";
 import { PyFloat } from "./edit/yaml.ts";
 import type { ExprValue } from "./expr.ts";
@@ -94,7 +94,7 @@ export function checkOverrideSelectors(face: Face, installed: Iterable<string>, 
       if (selector.startsWith("shape:")) {
         reachable = shapes.has(selector.slice("shape:".length));
       } else if (!known.has(selector)) {
-        bag.error("overrides", `${element.id}: 'overrides:' names ${repr(selector)}, which is not an installed device`, span, {
+        bag.error("overrides", `${element.id}: 'overrides:' names ${quoted(selector)}, which is not an installed device`, span, {
           notes: ["'wfb devices' lists the installed devices; a shape is written 'shape:round', 'shape:rectangle', "
             + "'shape:semi-octagon' or 'shape:semi-round'"],
         });
@@ -104,7 +104,7 @@ export function checkOverrideSelectors(face: Face, installed: Iterable<string>, 
       }
       if (reachable) continue;
       emitForUsers(bag, [element], diag("warning", "override-unreachable",
-        `${element.id}: no device in this build matches the override ${repr(selector)}, so it changes nothing`, span, {
+        `${element.id}: no device in this build matches the override ${quoted(selector)}, so it changes nothing`, span, {
           notes: ["building for: " + sorted(ids).join(", ")],
           confidence: "exact -- the devices this build resolves",
         }));
@@ -153,7 +153,7 @@ export function checkPermissions(face: Face, bag: Bag): void {
         if (source === undefined) continue;
         for (const permission of source.permissions) {
           if (catalog.WATCHFACE_PERMISSIONS.has(permission)) continue;
-          bag.error("permission", `${element.id}: ${repr(path)} needs the ${repr(permission)} permission, which a watch face may not declare`,
+          bag.error("permission", `${element.id}: ${quoted(path)} needs the ${quoted(permission)} permission, which a watch face may not declare`,
             expression.span ?? element.span, {
               notes: [
                 "the SDK's permission table leaves the Watch Face column blank for this one (Core_Topics/Manifest_and_Permissions)",
@@ -180,7 +180,7 @@ export function checkDuplicateStyle(face: Face, bag: Bag): void {
     bag.warning("duplicate-style", `config.style.choices.${entry.name}: the same combination as '${first.name}' -- indistinguishable on the wrist`,
       entry.span, {
         notes: [
-          `both resolve to colors: ${repr(entry.colors)}` + (entry.layout !== null ? `, layout: ${repr(entry.layout)}` : ""),
+          `both resolve to colors: ${quoted(entry.colors)}` + (entry.layout !== null ? `, layout: ${quoted(entry.layout)}` : ""),
           "set 'lint: {allow: [duplicate-style], reason: ...}' on "
           + `'${entry.name}' to accept it -- e.g. two labels while iterating on the same look`,
         ],
@@ -284,12 +284,12 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
 
 function vectorFontFailureReason(device: Device, spec: FontSpec, curve: Curve | null): string {
   if (!device.hasSymbol(Device.VECTOR_FONT_SYMBOL)) {
-    return `${device.id}: has no ${repr(Device.VECTOR_FONT_SYMBOL)} at all (gate 1) -- no device-resident face, of any name, can ever be drawn here`;
+    return `${device.id}: has no ${quoted(Device.VECTOR_FONT_SYMBOL)} at all (gate 1) -- no device-resident face, of any name, can ever be drawn here`;
   }
   if (curve !== null) {
     const symbol = curve.style === "angled" ? Device.DRAW_ANGLED_TEXT_SYMBOL : Device.DRAW_RADIAL_TEXT_SYMBOL;
     if (!device.hasSymbol(symbol)) {
-      return `${device.id}: has ${repr(Device.VECTOR_FONT_SYMBOL)} but not ${repr(symbol)} (gate 1) -- 'curve: {style: ${curve.style}}' `
+      return `${device.id}: has ${quoted(Device.VECTOR_FONT_SYMBOL)} but not ${quoted(symbol)} (gate 1) -- 'curve: {style: ${curve.style}}' `
         + "cannot draw here even though a plain, upright 'face:' text could";
     }
   }
@@ -300,7 +300,7 @@ function vectorFontFailureReason(device: Device, spec: FontSpec, curve: Curve | 
 function checkOneLintAllow(bag: Bag, what: string, span: Span | null, code: string): void {
   if (SUPPRESSIBLE.has(code)) return;
   if (ALL_CODES.has(code)) {
-    bag.error("lint-allow", `${what}: ${repr(code)} is a real diagnostic code, but it is deliberately not suppressible`, span, {
+    bag.error("lint-allow", `${what}: ${quoted(code)} is a real diagnostic code, but it is deliberately not suppressible`, span, {
       notes: [
         "the hard-platform-limit checks stay unsuppressible on purpose: silencing one would produce a face that does not work",
         "suppressible codes: " + sorted(SUPPRESSIBLE).join(", "),
@@ -311,8 +311,8 @@ function checkOneLintAllow(bag: Bag, what: string, span: Span | null, code: stri
   }
   const near = getCloseMatches(code, ALL_CODES, 1, 0.6);
   const notes = ["suppressible codes: " + sorted(SUPPRESSIBLE).join(", ")];
-  if (near.length > 0) notes.unshift(`did you mean ${repr(near[0])}?`);
-  bag.error("lint-allow", `${what}: ${repr(code)} is not a diagnostic code this compiler emits`, span, {
+  if (near.length > 0) notes.unshift(`did you mean ${quoted(near[0])}?`);
+  bag.error("lint-allow", `${what}: ${quoted(code)} is not a diagnostic code this compiler emits`, span, {
     notes, confidence: "exact -- SUPPRESSIBLE is this file's own registry",
   });
 }
@@ -447,7 +447,7 @@ function probeSymbols<T>(bag: Bag, device: Device, code: string, what: string, p
 }
 
 function axisName(token: string): string {
-  return token.startsWith("config.data.") ? `slot ${repr(token.slice("config.data.".length))}` : token;
+  return token.startsWith("config.data.") ? `slot ${quoted(token.slice("config.data.".length))}` : token;
 }
 
 export function checkConfigSupport(resolved: ResolvedFace, bag: Bag): void {
@@ -493,7 +493,7 @@ export function checkConfigSupport(resolved: ResolvedFace, bag: Bag): void {
   notes.push("the native editor is fēnix 8 and newer only, and the settings menu that offers config: elsewhere needs "
     + "AppBase.getSettingsView, which this device lacks too");
   if (nonDefaultEntries.length > 0) {
-    notes.push(`with no editor to switch styles, every 'config: style:' entry but the default (${repr(defaultStyle)}) is unreachable here: `
+    notes.push(`with no editor to switch styles, every 'config: style:' entry but the default (${quoted(defaultStyle)}) is unreachable here: `
       + nonDefaultEntries.join(", "));
   }
   let suppressNote: string;
@@ -578,7 +578,7 @@ export function checkGeometry(resolved: ResolvedFace, bag: Bag): void {
     }
   }
   if (uncheckedShape) {
-    bag.note("safe-area", `${device.id}: no visible-area geometry is defined for a ${repr(device.shape)} screen, so element placement is not checked`,
+    bag.note("safe-area", `${device.id}: no visible-area geometry is defined for a ${quoted(device.shape)} screen, so element placement is not checked`,
       null, { confidence: "not checked -- see ADR 0004" });
   }
 }
@@ -615,7 +615,7 @@ export function checkTextFit(resolved: ResolvedFace, bag: Bag): void {
     const fits = insideVisibleAreaFor(placed, device);
     if (placed.box.width > device.width || fits === false) {
       emit(bag, placed, diag("warning", "text-overflow",
-        `${placed.id}: the widest rendering ${repr(placed.widest)} is ${placed.measured_width}px and does not fit its position on ${device.id}`,
+        `${placed.id}: the widest rendering ${quoted(placed.widest)} is ${placed.measured_width}px and does not fit its position on ${device.id}`,
         placed.element.span, {
           notes: [`screen is ${device.width}px wide; the text box spans x=${placed.box.x}..${placed.box.right}`], confidence,
         }));
@@ -624,8 +624,8 @@ export function checkTextFit(resolved: ResolvedFace, bag: Bag): void {
 }
 
 function missingGlyphError(bag: Bag, what: string, fontReference: string, missing: Set<string>, span: Span | null, notes: string[]): void {
-  const characters = sorted(missing).map((c) => repr(c)).join(", ");
-  bag.error("missing-glyph", `${what}: font ${repr(fontReference)} has no glyph for ${characters}`, span, {
+  const characters = sorted(missing).map((c) => quoted(c)).join(", ");
+  bag.error("missing-glyph", `${what}: font ${quoted(fontReference)} has no glyph for ${characters}`, span, {
     notes: [...notes, "widen the font's 'glyphs:' set, or remove it to let the compiler derive the set from the design"],
     confidence: "exact -- the baked font's own character map",
   });
@@ -809,7 +809,7 @@ export function checkPartialUpdateBudget(resolved: ResolvedFace, bag: Bag): void
     if (expensive === null) continue;
     const [path, call] = expensive;
     emit(bag, placed, diag("warning", "partial-update-budget",
-      `${placed.id}: binds ${repr(path)} in low-power mode, which reads ${call} on every onPartialUpdate, once a second`, placed.element.span, {
+      `${placed.id}: binds ${quoted(path)} in low-power mode, which reads ${call} on every onPartialUpdate, once a second`, placed.element.span, {
         notes: [
           "since the per-source refresh-tier cache was removed, this is a real API call every time, not a cached field read",
           BUDGET_PERMANENT,
@@ -1062,7 +1062,7 @@ export function checkHoldTargets(resolved: ResolvedFace, bag: Bag): void {
       if (neverTogether(first.element, second.element)) continue;
       if (!intersects(first.box, second.box)) continue;
       emit(bag, second, diag("warning", "hold-overlap",
-        `${second.id}'s hold region overlaps ${first.id}'s on ${device.id}, so a touch in the shared area always opens ${repr(first.element.on_hold)}`,
+        `${second.id}'s hold region overlaps ${first.id}'s on ${device.id}, so a touch in the shared area always opens ${quoted(first.element.on_hold)}`,
         second.element.span, {
           notes: [
             "regions are tested in draw order and the first match wins, so the second target is unreachable where they overlap",
@@ -1101,7 +1101,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
         candidates.push([placed, element.on_hold, element.span, "hold"]);
       } else if (hasOnpress) {
         emit(bag, placed, diag("warning", "api-gated",
-          `${placed.id}: on_hold: ${repr(element.on_hold)} needs Toybox.Complications, which ${device.id} lacks, so it never fires there`,
+          `${placed.id}: on_hold: ${quoted(element.on_hold)} needs Toybox.Complications, which ${device.id} lacks, so it never fires there`,
           element.span, {
             notes: [
               "the generated delegate guards this call with 'Toybox has :Complications' (computeGuards) -- the "
@@ -1118,7 +1118,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
       const gap = availability.moduleUnavailable(bare, device);
       if (gap !== null) {
         emit(bag, placed, diag("warning", "api-gated",
-          `${placed.id}: series ${repr(element.series)} needs module ${module}, which ${device.id} lacks, so the graph draws empty there`,
+          `${placed.id}: series ${quoted(element.series)} needs module ${module}, which ${device.id} lacks, so the graph draws empty there`,
           element.span, {
             notes: [
               `confirmed against ${device.id}'s own api.debug.xml -- not one of its <dataEntry type="module"> rows`,
@@ -1138,7 +1138,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
         for (const name of choices) if (complications.get(name) !== undefined) candidates.push([placed, name, element.span, "slot"]);
       } else {
         emit(bag, placed, diag("warning", "api-gated",
-          `${placed.id}: slot ${repr(slotName)} needs Toybox.Complications, which ${device.id} lacks, so it shows its absent state here -- never the declared default`,
+          `${placed.id}: slot ${quoted(slotName)} needs Toybox.Complications, which ${device.id} lacks, so it shows its absent state here -- never the declared default`,
           element.span, {
             notes: [
               "the generated code guards every reference to Complications for this slot (computeGuards) -- this "
@@ -1157,24 +1157,24 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
 function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null, gap: availability.Unavailable, device: Device): void {
   if (gap.kind === "function") {
     emit(bag, placed, diag("error", "api-gated-unguardable",
-      `${placed.id}: ${repr(path)} needs ${gap.symbol}, which ${device.id} lacks -- the generator cannot gate this call yet`, span, {
+      `${placed.id}: ${quoted(path)} needs ${gap.symbol}, which ${device.id} lacks -- the generator cannot gate this call yet`, span, {
         notes: [
           "computeGuards only ever emits a runtime guard for a missing module ('Toybox has :Module') or field "
           + "('x has :field') -- there is no guard for an individual missing function, so this call would run unguarded and crash on this device",
-          `drop this target, drop the binding, or add a guard for ${repr(gap.symbol)} to the generated code before shipping this`,
+          `drop this target, drop the binding, or add a guard for ${quoted(gap.symbol)} to the generated code before shipping this`,
         ],
         confidence: "exact -- the device's own api.debug.xml",
       }));
     return;
   }
-  const need = gap.kind === "module" ? `module Toybox.${gap.symbol}` : `field ${repr(gap.symbol)}`;
+  const need = gap.kind === "module" ? `module Toybox.${gap.symbol}` : `field ${quoted(gap.symbol)}`;
   let confidence = `exact -- ${device.id}'s own api.debug.xml`;
   if (gap.kind === "field") confidence += " (a bare field name's absence from its symbol table is exact)";
   emit(bag, placed, diag("warning", "api-gated",
-    `${placed.id}: ${repr(path)} needs ${need}, which ${device.id} lacks, so it reads as absent there ('absent:' applies)`, span, {
+    `${placed.id}: ${quoted(path)} needs ${need}, which ${device.id} lacks, so it reads as absent there ('absent:' applies)`, span, {
       notes: [
         `confirmed against ${device.id}'s own api.debug.xml -- `
-        + (gap.kind === "module" ? "not one of its <dataEntry type=\"module\"> rows" : `${repr(gap.symbol)} is not one of its <symbolTable> field entries`),
+        + (gap.kind === "module" ? "not one of its <dataEntry type=\"module\"> rows" : `${quoted(gap.symbol)} is not one of its <symbolTable> field entries`),
         "the generated view guards this at runtime (computeGuards) -- the build still succeeds; only this binding degrades on this device",
       ],
       confidence,
@@ -1202,8 +1202,8 @@ const SINCE_NOTES: Record<string, string[]> = {
 };
 
 function sinceSubject(placed: Placed, name: string, kind: string): string {
-  if (kind === "hold") return `holding to launch ${repr(name)}`;
-  if (kind === "slot") return `slot ${repr(slotOf(placed.element))}'s 'complication.${name}'`;
+  if (kind === "hold") return `holding to launch ${quoted(name)}`;
+  if (kind === "slot") return `slot ${quoted(slotOf(placed.element))}'s 'complication.${name}'`;
   return `'complication.${name}'`;
 }
 
@@ -1222,7 +1222,7 @@ function checkComplicationSince(bag: Bag, resolved: ResolvedFace, candidates: [P
     emit(bag, placed, diag("warning", "api-gated",
       `${placed.id}: ${sinceSubject(placed, name, kind)} needs ConnectIQ ${ctype.since}, but ${device.id} tops out at ${level}`, span, {
         notes: [...SINCE_NOTES[kind]!],
-        confidence: `exact -- ${repr(name)}'s since (${ctype.since}, Toybox/Complications.html) vs ${device.id}'s api_level (${level}, compiler.json)`,
+        confidence: `exact -- ${quoted(name)}'s since (${ctype.since}, Toybox/Complications.html) vs ${device.id}'s api_level (${level}, compiler.json)`,
       }));
   }
 }
@@ -1261,9 +1261,9 @@ export function checkStaticOverlap(resolved: ResolvedFace, bag: Bag): void {
   });
   for (const [elementId, under] of covered) {
     const placed = placedById.get(elementId)!;
-    const names = under.map((name) => repr(name)).join(", ");
+    const names = under.map((name) => quoted(name)).join(", ");
     emit(bag, placed, diag("warning", "static-overlap",
-      `${repr(elementId)} may draw over ${names} on ${resolved.device.id}: hoisting the static content to the front of draw order swapped them round`,
+      `${quoted(elementId)} may draw over ${names} on ${resolved.device.id}: hoisting the static content to the front of draw order swapped them round`,
       placed.element.span, {
         notes: [
           "the static buffer is opaque and full-screen, so every static element is blitted before anything else is drawn -- "
@@ -1309,9 +1309,9 @@ export function checkTextOutlineInterior(resolved: ResolvedFace, bag: Bag): void
       under.push(earlier.id);
     }
     if (under.length === 0) return;
-    const names = under.map((name) => repr(name)).join(", ");
+    const names = under.map((name) => quoted(name)).join(", ");
     emit(bag, later, diag("warning", "text-outline-interior",
-      `${repr(later.id)}'s outline interior may paint over ${names} on ${resolved.device.id}: the interior pass paints over what's `
+      `${quoted(later.id)}'s outline interior may paint over ${names} on ${resolved.device.id}: the interior pass paints over what's `
       + "beneath it, it does not reveal it -- check the interior colour matches what's actually there, or move one of them",
       later.element.span, {
         notes: [
@@ -1373,8 +1373,8 @@ export function checkPatternStep(resolved: ResolvedFace, bag: Bag): void {
       landing = "every copy lands on copy 0";
     }
     const step = element.step;
-    const length = (l: unknown): string => (l === null || l === undefined ? "None" : String(l));
-    const authored = step !== null ? `{dx: ${length(step.dx)}, dy: ${length(step.dy)}}` : "{}";
+    const given = step === null ? [] : ([["dx", step.dx], ["dy", step.dy]] as const).filter(([, l]) => l !== null && l !== undefined);
+    const authored = `{${given.map(([key, l]) => `${key}: ${l}`).join(", ")}}`;
     emit(bag, placed, diag("error", "pattern-step",
       `${placed.id}: 'step: ${authored}' rounds to {${placed.dx}, ${placed.dy}}px on ${resolved.device.id} -- ${landing}`, placed.element.span, {
         notes: ["a step this small only reaches a whole pixel on a larger screen, or a larger fraction of the parent box -- use a larger "

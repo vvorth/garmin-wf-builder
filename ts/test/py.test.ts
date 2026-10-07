@@ -2,7 +2,7 @@
 // JavaScript gives a different answer, so the test fails against it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatFixed, jsonString, repr, roundHalfEven, splitlines, truthy } from "../src/py.ts";
+import { formatFixed, jsonString, quoted, roundHalfEven, splitlines, truthy } from "../src/py.ts";
 
 test("f'{x:.6f}' rounds the exact binary value half to even, where toFixed rounds a tie away", () => {
   assert.equal((1 / 128).toFixed(6), "0.007813");
@@ -18,12 +18,13 @@ test("round() is half to even", () => {
   assert.deepEqual([0.5, 1.5, 2.5, -0.5, -1.5, 2.6].map(roundHalfEven), [0, 2, 2, 0, -2, 3]);
 });
 
-test("repr() quotes as Python does, switching quotes around an apostrophe", () => {
-  assert.equal(repr("abc"), "'abc'");
-  assert.equal(repr("it's"), "\"it's\"");
-  assert.equal(repr("both ' and \""), "'both \\' and \"'");
-  assert.equal(repr("tab\there"), "'tab\\there'");
-  assert.equal(repr(null), "None");
+test("quoted() quotes a string, switching quotes around an apostrophe, and spells the rest as YAML does", () => {
+  assert.equal(quoted("abc"), "'abc'");
+  assert.equal(quoted("it's"), "\"it's\"");
+  assert.equal(quoted("both ' and \""), "'both \\' and \"'");
+  assert.equal(quoted("tab\there"), "'tab\\there'");
+  assert.deepEqual([null, true, false].map(quoted), ["null", "true", "false"]);
+  assert.equal(quoted(new Map<string, unknown>([["a", null], ["b", [true, 1.5]]])), "{'a': null, 'b': [true, 1.5]}");
 });
 
 test("json.dumps(ensure_ascii=False) keeps non-ASCII and escapes control characters", () => {

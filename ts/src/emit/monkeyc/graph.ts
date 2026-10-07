@@ -4,7 +4,7 @@ import { type Guards, NO_GUARDS } from "../../availability.ts";
 import type { Graph } from "../../ir/model.ts";
 import { graphBuiltField, graphMaxField, graphMinField, graphRebuildMethod, graphSeriesField } from "../../ir/naming.ts";
 import type { PlacedGraph } from "../../layout.ts";
-import { repr } from "../../py.ts";
+import { quoted } from "../../py.ts";
 import { ACQUISITION, type SeriesDef } from "../../series.ts";
 import type { Writer } from "../writer.ts";
 
@@ -13,7 +13,7 @@ export function emitGraphFields(w: Writer, graphs: readonly PlacedGraph[]): void
   if (graphs.length === 0) return;
   for (const placed of graphs) {
     const element = placed.element;
-    w.doc(`\`${element.id}\`: the cached ${repr(element.series)} series.`);
+    w.doc(`\`${element.id}\`: the cached ${quoted(element.series)} series.`);
     w.line(`private var ${graphSeriesField(element.id)} as Array<Float?> = [] as Array<Float?>;`);
     // heart_rate's auto bound is the iterator's own Number; every other series' a Float
     const autoType = element.series_def !== null && element.series_def.acquisition === "heart_rate" ? "Number" : "Float";
@@ -31,7 +31,7 @@ export function emitGraphRebuild(w: Writer, placed: PlacedGraph, guards: Guards 
   const element = placed.element;
   const src = element.series_def!;
   w.blank();
-  w.doc(`Recompute \`${element.id}\`'s ${repr(element.series)} series.`);
+  w.doc(`Recompute \`${element.id}\`'s ${quoted(element.series)} series.`);
   w.block(`private function ${graphRebuildMethod(element.id)}() as Void`, () => {
     if (src.acquisition === "heart_rate") emitHrRebuild(w, element);
     else emitArrayRebuild(w, element, src, guards);

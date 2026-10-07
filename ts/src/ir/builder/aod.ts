@@ -3,7 +3,7 @@
 // (element > nearest ancestor group > face default)..
 import * as kinds from "../../kinds/index.ts";
 import type { Refusal } from "../../kinds/base.ts";
-import { isNumber, num, repr, str, truthy } from "../../py.ts";
+import { isNumber, num, quoted, str, truthy } from "../../py.ts";
 import * as template from "../../template.ts";
 import type { Length } from "../../units.ts";
 import { AodOverride, type Element, type Expression, Outline, Shape, Text } from "../model.ts";
@@ -79,7 +79,7 @@ export class AodPass extends HandParts {
         if (resolved !== null && this.isVectorFont(...resolved)) {
           this.bag.error("aod", `${elementId}: an 'aod: {font: ...}' override naming a 'face:' (vector) font is not implemented yet`,
             this.doc.span(block, "font"), {
-              notes: [`${repr(resolved[0])} is declared with 'face:', not 'source:' `
+              notes: [`${quoted(resolved[0])} is declared with 'face:', not 'source:' `
                 + "-- name a baked font instead, or drop the override for now"],
             });
         } else if (resolved !== null) {
@@ -178,8 +178,8 @@ export class AodPass extends HandParts {
       if (refusal === null) continue;
       const [code, what, notes] = refusal;
       const where = group.span !== null ? `line ${group.span.line}` : "its own 'aod:'";
-      this.bag.error(code, `${element.id}: ${what}, inherited from group ${repr(group.id)}`, element.span, {
-        notes: [`group ${repr(group.id)} sets 'aod: {${key}: ...}' (${where}) for every element below it`, ...notes,
+      this.bag.error(code, `${element.id}: ${what}, inherited from group ${quoted(group.id)}`, element.span, {
+        notes: [`group ${quoted(group.id)} sets 'aod: {${key}: ...}' (${where}) for every element below it`, ...notes,
           `move the group's '${key}' onto the elements that can take it`],
       });
       inherited.delete(key);
@@ -213,8 +213,8 @@ export class AodPass extends HandParts {
         if (element.sleep_update === null && element.resolved_sleep_update
           && (element.kind === "hands" || element.kind === "pattern") && sleeper !== null) {
           this.bag.error(element.kind, `${element.id}: inherits 'sleep_update: true' from group `
-            + `${repr(sleeper.id)}, which a '${element.kind}' does not accept`, element.span, {
-            notes: [`write 'sleep_update: false' on ${repr(element.id)} to keep it out of the partial update`],
+            + `${quoted(sleeper.id)}, which a '${element.kind}' does not accept`, element.span, {
+            notes: [`write 'sleep_update: false' on ${quoted(element.id)} to keep it out of the partial update`],
           });
         }
         visit(element.children(), new Set([...allow, ...element.lint_allow]), source);

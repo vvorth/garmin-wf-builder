@@ -1,0 +1,69 @@
+# Probe: what the watch prints for a Boolean, and Math.round of a negative half.
+# See README.md. Each line names what it shows, then the watch's own answer.
+
+format: 2
+
+face:
+  id: 3d9a6f1c-7b24-4e0a-9c51-8f2e6a0b4d17
+  name: Probe Text Of Values
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fr955]
+
+resources:
+  palette:
+    bg: "#000000"
+    text: "#FFFFFF"
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+elements:
+  is_24:
+    type: text
+    text: "A {device.is_24_hour}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: -45%r }
+    color: color.text
+    absent: "A absent"
+
+  not_24:
+    type: text
+    text: "B {not device.is_24_hour}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: -30%r }
+    color: color.text
+    absent: "B absent"
+
+  round_m25:
+    type: text
+    text: "C {round(-2.5)}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: -10%r }
+    color: color.text
+
+  round_m15:
+    type: text
+    text: "D {round(-1.5)}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 5%r }
+    color: color.text
+
+  round_m05:
+    type: text
+    text: "E {round(-0.5)}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 20%r }
+    color: color.text
+
+  round_p25:
+    type: text
+    text: "F {round(2.5)}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 35%r }
+    color: color.text

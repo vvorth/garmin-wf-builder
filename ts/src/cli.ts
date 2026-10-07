@@ -25,7 +25,7 @@ import {
   BUILD_INFO, build as runBuild, type BuildResult, loadDesign, MAX_DEFAULT_JOBS, methodCodeSizes, pathStr,
   referenceSdkVersion, slug, Toolchain,
 } from "./node_build.ts";
-import { formatFixed, repr } from "./py.ts";
+import { formatFixed, quoted } from "./py.ts";
 import * as series from "./series.ts";
 import * as starters from "./starters.ts";
 import * as term from "./term.ts";
@@ -119,12 +119,12 @@ class UsageError extends Error {}
 type Convert = (text: string) => unknown;
 
 const INT: Convert = (text) => {
-  if (!/^\s*[+-]?\d+\s*$/.test(text)) throw new Error(`invalid int value: ${repr(text)}`);
+  if (!/^\s*[+-]?\d+\s*$/.test(text)) throw new Error(`invalid int value: ${quoted(text)}`);
   return Number(text);
 };
 const FLOAT: Convert = (text) => {
   const value = Number(text);
-  if (!text.trim() || Number.isNaN(value)) throw new Error(`invalid float value: ${repr(text)}`);
+  if (!text.trim() || Number.isNaN(value)) throw new Error(`invalid float value: ${quoted(text)}`);
   return value;
 };
 const POSITIVE_INT: Convert = (text) => {
@@ -320,7 +320,7 @@ function parseCommand(c: Command, argv: readonly string[]): Namespace | null {
     const given = parsed.values[longFlag(o).slice(2)];
     const name = o.flags.join("/");
     const convert = (text: string): unknown => {
-      if (o.choices && !o.choices.includes(text)) throw new UsageError(`argument ${name}: invalid choice: ${repr(text)} (choose from ${o.choices.join(", ")})`);
+      if (o.choices && !o.choices.includes(text)) throw new UsageError(`argument ${name}: invalid choice: ${quoted(text)} (choose from ${o.choices.join(", ")})`);
       try {
         return o.type ? o.type(text) : text;
       } catch (e) {
@@ -360,7 +360,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       }
       if (arg === "--color" || arg.startsWith("--color=")) {
         color = arg === "--color" ? argv[++i] ?? null : arg.slice("--color=".length);
-        if (color === null || !(term.MODES as readonly string[]).includes(color)) throw new UsageError(`argument --color: invalid choice: ${repr(color ?? "")} (choose from ${term.MODES.join(", ")})`);
+        if (color === null || !(term.MODES as readonly string[]).includes(color)) throw new UsageError(`argument --color: invalid choice: ${quoted(color ?? "")} (choose from ${term.MODES.join(", ")})`);
         continue;
       }
       throw new UsageError(`unrecognized arguments: ${arg}`);
@@ -370,7 +370,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       return 2;
     }
     current = COMMAND_MAP.get(argv[i]!) ?? null;
-    if (current === null) throw new UsageError(`argument command: invalid choice: ${repr(argv[i])} (choose from ${[...COMMAND_MAP.keys()].join(", ")})`);
+    if (current === null) throw new UsageError(`argument command: invalid choice: ${quoted(argv[i])} (choose from ${[...COMMAND_MAP.keys()].join(", ")})`);
     const rest = argv.slice(i + 1);
     args = parseCommand(current, rest.length === 1 && rest[0] === "help" ? ["--help"] : rest);
   } catch (e) {
@@ -492,7 +492,7 @@ function previewTime(args: Namespace, minutesPerDay: number): [number, number, n
   if (args["heatmap"] && args["all_styles"]) throw new FlagError("--heatmap renders one panel; use --style to pick it, not --all-styles");
   if (args["time"] != null) {
     const time = parsePreviewTime(args["time"] as string);
-    if (time === null) throw new FlagError(`--time ${repr(args["time"])} is not HH:MM or HH:MM:SS`);
+    if (time === null) throw new FlagError(`--time ${quoted(args["time"])} is not HH:MM or HH:MM:SS`);
     return time;
   }
   if (args["minute"] != null) {
@@ -738,7 +738,7 @@ function newCommand(args: Namespace): number {
   }
   const template = args["template"] as string;
   if (!templates.includes(template)) {
-    error(`no template ${repr(template)}`);
+    error(`no template ${quoted(template)}`);
     err(`       available: ${templates.join(", ")}`);
     return 1;
   }
@@ -750,7 +750,7 @@ function newCommand(args: Namespace): number {
   const text = starters.instantiate(template, name);
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, text);
-  out(`created ${destination}  (from the ${repr(template)} template)`);
+  out(`created ${destination}  (from the ${quoted(template)} template)`);
   out();
   out("next:");
   out(`  wfb preview ${destination} --watch     # render as you edit`);
@@ -1129,7 +1129,7 @@ function helpCommand(args: Namespace): number {
   }
   const target = COMMAND_MAP.get(topic);
   if (target === undefined) {
-    error(`no such command ${repr(topic)}`);
+    error(`no such command ${quoted(topic)}`);
     err(`       commands: ${[...COMMAND_MAP.keys()].sort().join(", ")}`);
     return 1;
   }

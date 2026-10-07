@@ -4,7 +4,7 @@
 import * as catalog from "../../catalog.ts";
 import type { Span } from "../../diagnostics.ts";
 import * as formatting from "../../formatting.ts";
-import { repr } from "../../py.ts";
+import { quoted } from "../../py.ts";
 import { type Element, type Expression, ROLE_VISIBLE } from "../model.ts";
 import { Readers } from "./reading.ts";
 import type { Node } from "./state.ts";
@@ -38,7 +38,7 @@ export class AbsenceChecks extends Readers {
       return;
     }
     if (absent === null) {
-      this.bag.error("when-absent", `${element.id}: ${repr(bound.shown)} can be absent, so 'absent:' is required`,
+      this.bag.error("when-absent", `${element.id}: ${quoted(bound.shown)} can be absent, so 'absent:' is required`,
         this.doc.span(node, key), { notes: [ABSENCE_IS_NORMAL, WHEN_ABSENT_CHOICES] });
       return;
     }
@@ -53,7 +53,7 @@ export class AbsenceChecks extends Readers {
     if (bound === null || !bound.nullable) return;
     if (absentOf(element) !== null) return;
     this.bag.error("when-absent",
-      `${element.id}: ${repr(key)} reads ${repr(bound.shown)}, which can be absent, so 'absent:' is required`,
+      `${element.id}: ${quoted(key)} reads ${quoted(bound.shown)}, which can be absent, so 'absent:' is required`,
       span !== null ? span : this.doc.span(node, key), {
         notes: [
           ABSENCE_IS_NORMAL,
@@ -150,12 +150,12 @@ export class AbsenceChecks extends Readers {
         }
       });
     } else if (coded && !catalog.isFormatted(type)) {
-      this.bag.error("format", `strftime-style format ${repr(asTemplate(spec, bound))} needs a time, date or `
+      this.bag.error("format", `strftime-style format ${quoted(asTemplate(spec, bound))} needs a time, date or `
         + `number value, got ${bound.value}`, span);
     } else if (!coded && catalog.isFormatted(type)) {
       const example = type === "date" ? "{:%a %e %b}" : "{:%H:%M}";
       this.bag.error("format", `a ${type} value needs a strftime-style format `
-        + `such as ${repr(asTemplate(example, bound))}`, span);
+        + `such as ${quoted(asTemplate(example, bound))}`, span);
     } else if (coded) {
       // A date spec on a clock value and the reverse both parse, and the wrong one renders nonsense.
       report(() => formatting.strftimeParts(spec, type));

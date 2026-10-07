@@ -5,7 +5,7 @@ import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";
 import { type Element, type Expression, GRAPH_AREA_MAX_SAMPLES, Graph } from "../ir/model.ts";
 import { type Placed, PlacedGraph, type Resolver } from "../layout.ts";
-import { isFloat, isInt, isNumber, num, repr, roundHalfEven as round, str } from "../py.ts";
+import { isFloat, isInt, isNumber, num, quoted, roundHalfEven as round, str } from "../py.ts";
 import type { Box } from "../units.ts";
 import * as series from "../series.ts";
 import type { SeriesDef } from "../series.ts";
@@ -53,7 +53,7 @@ function graphRange(b: Builder, node: Node): [string, number] {
     }
   }
   b.bag.error("units", "range must be a duration ('30m', '4h', '7d') or an integer sample "
-    + `count, got ${repr(raw ?? null)}`, b.doc.span(node, "range"));
+    + `count, got ${quoted(raw ?? null)}`, b.doc.span(node, "range"));
   return ["count", 0];
 }
 
@@ -135,11 +135,11 @@ class GraphKind extends ElementKind<Graph> {
       const reason = name ? series.unavailableReason(str(name)) : null;
       if (reason !== null) {
         // Not a typo: a real quantity the platform will not serve as a history.
-        b.bag.error("graph", `${repr(name)} cannot be plotted on a watch face`, b.doc.span(node, "series"), {
+        b.bag.error("graph", `${quoted(name)} cannot be plotted on a watch face`, b.doc.span(node, "series"), {
           notes: [reason, "run `wfb series` for what a watch face can plot (docs/guide/progress-and-graphs.md)"],
         });
       } else {
-        b.bag.error("graph", `unknown series ${repr(name ?? null)}`, b.doc.span(node, "series"), {
+        b.bag.error("graph", `unknown series ${quoted(name ?? null)}`, b.doc.span(node, "series"), {
           notes: [...(name ? series.SERIES.didYouMeanNotes(str(name)) : []), "run `wfb series` for the full list"],
         });
       }
@@ -150,7 +150,7 @@ class GraphKind extends ElementKind<Graph> {
     const heartRateDuration = src !== null && src.acquisition === "heart_rate" && rangeKind === "duration";
     if (node.has("buckets") && !heartRateDuration) {
       const reason = src !== null && src.acquisition === "heart_rate" ? "a count range does not bin by time"
-        : src !== null ? `${repr(name)} is not time-binned` : "the series is unknown";
+        : src !== null ? `${quoted(name)} is not time-binned` : "the series is unknown";
       b.bag.error("graph", `'buckets' has no effect here -- ${reason}`, b.doc.span(node, "buckets"), {
         notes: ["'buckets:' only means something for a time-binned series read "
           + "over a duration -- 'heart_rate' with a 'range:' such as '4h'",

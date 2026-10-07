@@ -1,7 +1,7 @@
 // The face templates a new design starts from: `wfb new` and the editor's
 // New both copy one through `instantiate`, so they cannot drift..
 import { uuid } from "./uuid.ts";
-import { repr } from "./py.ts";
+import { quoted } from "./py.ts";
 import templates from "./data/templates.json" with { type: "json" };
 
 const TEMPLATES = templates as Record<string, { blurb: string; text: string }>;
@@ -25,6 +25,6 @@ export function blurb(name: string): string {
  */
 export function instantiate(template: string, name: string): string {
   const found = Object.hasOwn(TEMPLATES, template) ? TEMPLATES[template] : undefined;
-  if (found === undefined) throw new UnknownTemplate(`no template ${repr(template)}`);
+  if (found === undefined) throw new UnknownTemplate(`no template ${quoted(template)}`);
   return found.text.replaceAll("__UUID__", uuid()).replaceAll("__NAME__", name);
 }

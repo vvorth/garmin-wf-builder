@@ -4,7 +4,7 @@ import type { Guards } from "../../availability.ts";
 import * as icons from "../../icons.ts";
 import type { Face } from "../../ir/model.ts";
 import * as kinds from "../../kinds/index.ts";
-import { repr } from "../../py.ts";
+import { quoted } from "../../py.ts";
 import { Writer } from "../writer.ts";
 import { editorSlots, header, needsDelegate, type SourceFile } from "./common.ts";
 
@@ -16,7 +16,7 @@ export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
   const w = new Writer();
   w.doc(header(face)).blank();
   w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank();
-  w.doc(`The application entry point for ${repr(face.name)}.`);
+  w.doc(`The application entry point for ${quoted(face.name)}.`);
   const viewCtor = hasSlots ? `new ${face.entry}View(_editMode)` : `new ${face.entry}View()`;
   w.block(`class ${face.entry}App extends Application.AppBase`, () => {
     if (hasSlots) {

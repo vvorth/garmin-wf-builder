@@ -19,7 +19,7 @@
 //
 // Two patches can be one edit (`chain`): a colour's rename rewrites its key
 // and every `color.<name>` that names it, and only the pair loads.
-import { deepCopy, formatFixed, jsonString, reEscape, repr, truthy } from "../py.ts";
+import { deepCopy, formatFixed, jsonString, reEscape, quoted, truthy } from "../py.ts";
 import {
   dotted, type Entry, indentOf, isElement, lineEnd, lineStart, type Path, pathKey, parse, Refused,
   sameData, SpanIndex, type Step,
@@ -85,17 +85,16 @@ export function keyText(key: string): string {
 export function flow(value: Data): string {
   if (value instanceof Map) {
     if (value.size === 0) return "{}";
-    return "{ " + [...value].map(([k, v]) => `${keyText(pyKey(k))}: ${flow(v)}`).join(", ") + " }";
+    return "{ " + [...value].map(([k, v]) => `${yamlKey(k)}: ${flow(v)}`).join(", ") + " }";
   }
   if (Array.isArray(value)) return "[" + value.map(flow).join(", ") + "]";
   return scalar(value);
 }
 
-/** Python's `str()` of a mapping key. */
-export function pyKey(key: DataKey): string {
-  if (key === null) return "None";
-  if (key === true) return "True";
-  if (key === false) return "False";
+/** A mapping key as YAML writes it, so it reads back as the same key: a string through `keyText`, `null`, `true`, `false` and a number plain. */
+export function yamlKey(key: DataKey): string {
+  if (typeof key === "string") return keyText(key);
+  if (key === null) return "null";
   return String(key);
 }
 
@@ -115,7 +114,7 @@ export function child(container: unknown, step: DataKey): Data {
     const found = container.at(step) as Data | undefined;
     if (found !== undefined) return found;
   }
-  throw new ShapeError(`no ${repr(step)} in this data`);
+  throw new ShapeError(`no ${quoted(step)} in this data`);
 }
 
 /** `container[step] = value`: a mapping's key, or a list's existing index. */
@@ -131,7 +130,7 @@ export function setChild(container: unknown, step: DataKey, value: Data): void {
       return;
     }
   }
-  throw new ShapeError(`cannot set ${repr(step)} in this data`);
+  throw new ShapeError(`cannot set ${quoted(step)} in this data`);
 }
 
 /** Remove `container[step]`: a mapping's key, or a list's index. */
@@ -144,7 +143,7 @@ export function deleteChild(container: unknown, step: DataKey): void {
       return;
     }
   }
-  throw new ShapeError(`no ${repr(step)} to remove in this data`);
+  throw new ShapeError(`no ${quoted(step)} to remove in this data`);
 }
 
 export function dataAt(data: Data, path: Path): Data {
@@ -305,8 +304,8 @@ export function blockText(value: Data, indent: number): string {
   const lines: string[] = [];
   if (value instanceof Map) {
     for (const [k, v] of value) {
-      if ((v instanceof Map || Array.isArray(v)) && truthy(v)) lines.push(`${pad}${keyText(pyKey(k))}:\n` + blockText(v, indent + 2));
-      else lines.push(`${pad}${keyText(pyKey(k))}: ${flow(v)}\n`);
+      if ((v instanceof Map || Array.isArray(v)) && truthy(v)) lines.push(`${pad}${yamlKey(k)}:\n` + blockText(v, indent + 2));
+      else lines.push(`${pad}${yamlKey(k)}: ${flow(v)}\n`);
     }
   } else if (Array.isArray(value)) {
     for (const entry of value) {

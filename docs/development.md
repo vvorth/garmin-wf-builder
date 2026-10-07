@@ -202,7 +202,7 @@ ts/                   the compiler, its tests and tools: one package for the
     browser.ts            the browser bundle's entry (npm run bundle -> dist/wfb.js)
     data/                 tables the browser needs without a file system
                           (font-registry.json: device font name -> free font)
-    py.ts                 Python's semantics (rounding, repr, json.dumps) where
+    py.ts                 Python's semantics (rounding, quoting, json.dumps) where
                           output depends on them
   app/                  the editor's page (wfb studio): plain ES modules, its
                         vendor/ files built by tools/vendor-studio-frontend.sh,

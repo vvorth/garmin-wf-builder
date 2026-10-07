@@ -6,7 +6,7 @@
 // A glyph above the BMP is two UTF-16 units `(hi, lo)`, whose hash is
 // `31*hi + lo`, so two glyphs collide whenever they are 993 codepoints apart
 // in the right range. This module only finds collisions.
-import { repr } from "../py.ts";
+import { quoted } from "../py.ts";
 
 const ESCAPES: Record<string, string> = { n: "\n", t: "\t", r: "\r", "\\": "\\", '"': '"', "'": "'" };
 
@@ -87,7 +87,7 @@ export function collisions(files: ReadonlyMap<string, string>): Collision[] {
 /** A literal as a reader can see it: non-ASCII characters as `U+XXXX`. */
 export function describe(text: string): string {
   const chars = [...text];
-  if (chars.every((ch) => ch.codePointAt(0)! >= 32 && ch.codePointAt(0)! < 127)) return repr(text);
+  if (chars.every((ch) => ch.codePointAt(0)! >= 32 && ch.codePointAt(0)! < 127)) return quoted(text);
   return '"' + chars.map((ch) => {
     const cp = ch.codePointAt(0)!;
     return cp >= 32 && cp < 127 ? ch : `<U+${cp.toString(16).toUpperCase().padStart(4, "0")}>`;

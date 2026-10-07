@@ -99,14 +99,14 @@ test("evaluation matches the compiled semantics", () => {
   for (const goal of [0, -5]) assert.equal(num(run("percent(activity.steps, activity.step_goal)", { "activity.steps": 100, "activity.step_goal": goal })), 0);
 });
 
-test("round is half up, like Math.round", () => {
-  for (const [x, want] of [[2.5, 3], [72.5, 73], [0.5, 1], [2.4999, 2], [2.0, 2], [3, 3], [0.49999999999999994, 0], [-2.4, -2], [-2.6, -3]] as const) {
+test("round is half up toward +infinity, as the watch's Math.round is: -2.5 is -2", () => {
+  for (const [x, want] of [[2.5, 3], [72.5, 73], [0.5, 1], [2.4999, 2], [2.0, 2], [3, 3], [0.49999999999999994, 0], [-2.4, -2], [-2.6, -3],
+    [-2.5, -2], [-1.5, -1], [-0.5, 0]] as const) {
     assert.equal(num(run("round(x)", { x: Number.isInteger(x) && x !== 3 ? new PyFloat(x) : x })), want, String(x));
   }
   assert.equal(code("round(2.5)"), "3");
   assert.equal(code("round(72.5)"), "73");
-  // half up and half away from zero differ at -2.5, and the SDK does not say which
-  assert.equal(code("round(-2.5)"), "Math.round(-2.5f).toNumber()");
+  assert.equal(code("round(-2.5)"), "-2");
   assert.equal(code("round(-2.6)"), "-3");
 });
 

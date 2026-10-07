@@ -6,7 +6,7 @@ import { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
 import * as expr from "../../expr.ts";
 import { Color, ColorError } from "../../palette.ts";
-import { repr, str } from "../../py.ts";
+import { quoted, str } from "../../py.ts";
 import * as template from "../../template.ts";
 import * as units from "../../units.ts";
 import { Angle, Length, UnitError } from "../../units.ts";
@@ -178,13 +178,13 @@ export class Readers extends BuilderState {
   fontReference(name: string, span: Span | null): [string, boolean] | null {
     if (!name.startsWith("font.")) {
       if ((SYSTEM_FONTS as readonly string[]).includes(name)) return [name, false];
-      this.bag.error("font", `unknown font ${repr(name)}`, span,
+      this.bag.error("font", `unknown font ${quoted(name)}`, span,
         { notes: ["use 'font.<name>' for a custom font, or a system font: " + SYSTEM_FONTS.join(", ")] });
       return null;
     }
     const key = name.slice("font.".length);
     const spec = this.fonts.resolve(this.bag, key, span,
-      { code: "font", message: `unknown font ${repr(name)}`, note: "declared fonts", prefix: "font." });
+      { code: "font", message: `unknown font ${quoted(name)}`, note: "declared fonts", prefix: "font." });
     return spec !== null ? [key, true] : null;
   }
 

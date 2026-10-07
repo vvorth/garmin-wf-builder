@@ -31,8 +31,8 @@ after `-O 3z`'s constant-folding pass.
    `Toybox_Math round` at run time, so the compiler says nothing about it.
    `$CIQ_SDK/doc/Toybox/Math.html` says "Decimal values >= .5 will be rounded
    up", which settles non-negative input (2.5 is 3, not Python's 2).
-   **UNVERIFIED: a negative exact half.** -2.5 "rounded up" is -2, and
-   rounded away from zero it is -3. The doc does not say which.
+   **A negative exact half rounds up too**: -2.5 is -2. VERIFIED on the
+   simulator by `../text-of-values/` (2026-10-07).
 
 4. **A `Number` wraps at 32 bits.** VERIFIED against the compiler's own
    constant folder (SDK 9.2.0, `fr955`, 2026-10-04): `2147483647 + 1`

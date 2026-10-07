@@ -3,7 +3,7 @@
 import type { Span } from "../../diagnostics.ts";
 import * as expr from "../../expr.ts";
 import * as formatting from "../../formatting.ts";
-import { repr, str, truthy } from "../../py.ts";
+import { quoted, str, truthy } from "../../py.ts";
 import {
   type AnyHandPart, ArcPart, CirclePart, type Curve, type Expression, Hand, HandSet, LinePart, type Outline,
   PolygonPart, Position, RectanglePart, TextPart,
@@ -254,7 +254,7 @@ export class HandParts extends ConfigAxes {
       throw error;
     }
     if (extra.length > 0) {
-      this.bag.error("format", `${partWhere}.text: ${repr(spec)} follows the watch's 12/24-hour `
+      this.bag.error("format", `${partWhere}.text: ${quoted(spec)} follows the watch's 12/24-hour `
         + "setting, which a pattern text part cannot read", this.doc.span(node, "text"), {
         notes: ["a pattern text part's strings are fixed at build time; "
           + "use '%H' for 24-hour or '%l %p' for 12-hour"],

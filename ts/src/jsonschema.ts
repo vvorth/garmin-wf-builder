@@ -13,7 +13,7 @@
 // Instances are YAML data: a mapping is a `Map`, and an integral float a
 // `PyFloat`.
 import { type Data, type DataKey, PyFloat, Timestamp } from "./edit/yaml.ts";
-import { repr } from "./py.ts";
+import { quoted } from "./py.ts";
 
 export type Schema = boolean | { [key: string]: unknown };
 type Step = string | number;
@@ -133,7 +133,7 @@ const KEYWORDS: Record<string, Keyword> = {
   *type(_v, types, instance) {
     const list = typeof types === "string" ? [types] : (types as string[]);
     if (!list.some((t) => isType(instance, t))) {
-      yield new ValidationError(`${repr(instance)} is not of type ${list.map((t) => repr(t)).join(", ")}`);
+      yield new ValidationError(`${quoted(instance)} is not of type ${list.map((t) => quoted(t)).join(", ")}`);
     }
   },
   *properties(v, properties, instance) {
@@ -152,29 +152,29 @@ const KEYWORDS: Record<string, Keyword> = {
     } else if (!aP && extras.length > 0) {
       if ("patternProperties" in schema) {
         const verb = extras.length === 1 ? "does" : "do";
-        const joined = [...extras].sort(compareKeys).map(repr).join(", ");
-        const pats = Object.keys(schema["patternProperties"] as object).sort().map(repr).join(", ");
+        const joined = [...extras].sort(compareKeys).map(quoted).join(", ");
+        const pats = Object.keys(schema["patternProperties"] as object).sort().map(quoted).join(", ");
         yield new ValidationError(`${joined} ${verb} not match any of the regexes: ${pats}`);
       } else {
         const sorted = [...extras].sort(compareKeys);
         const verb = sorted.length === 1 ? "was" : "were";
-        yield new ValidationError(`Additional properties are not allowed (${sorted.map(repr).join(", ")} ${verb} unexpected)`);
+        yield new ValidationError(`Additional properties are not allowed (${sorted.map(quoted).join(", ")} ${verb} unexpected)`);
       }
     }
   },
   *required(_v, required, instance) {
     if (!(instance instanceof Map)) return;
     for (const property of required as string[]) {
-      if (!instance.has(property)) yield new ValidationError(`${repr(property)} is a required property`);
+      if (!instance.has(property)) yield new ValidationError(`${quoted(property)} is a required property`);
     }
   },
   *enum(_v, enums, instance) {
     if ((enums as unknown[]).every((each) => !equal(each, instance))) {
-      yield new ValidationError(`${repr(instance)} is not one of ${repr(enums)}`);
+      yield new ValidationError(`${quoted(instance)} is not one of ${quoted(enums)}`);
     }
   },
   *const(_v, value, instance) {
-    if (!equal(instance, value)) yield new ValidationError(`${repr(value)} was expected`);
+    if (!equal(instance, value)) yield new ValidationError(`${quoted(value)} was expected`);
   },
   *allOf(v, allOf, instance) {
     let index = 0;
@@ -188,7 +188,7 @@ const KEYWORDS: Record<string, Keyword> = {
       if (errs.length === 0) return;
       all.push(...errs);
     }
-    yield new ValidationError(`${repr(instance)} is not valid under any of the given schemas`, all);
+    yield new ValidationError(`${quoted(instance)} is not valid under any of the given schemas`, all);
   },
   *oneOf(v, oneOf, instance) {
     const subschemas = oneOf as Schema[];
@@ -201,18 +201,18 @@ const KEYWORDS: Record<string, Keyword> = {
       all.push(...errs);
     }
     if (firstValid === undefined) {
-      yield new ValidationError(`${repr(instance)} is not valid under any of the given schemas`, all);
+      yield new ValidationError(`${quoted(instance)} is not valid under any of the given schemas`, all);
       return;
     }
     const moreValid = subschemas.slice(index).filter((each) => v.isValid(instance, each));
     if (moreValid.length > 0) {
       moreValid.push(firstValid);
-      yield new ValidationError(`${repr(instance)} is valid under each of ${moreValid.map(repr).join(", ")}`);
+      yield new ValidationError(`${quoted(instance)} is valid under each of ${moreValid.map(quoted).join(", ")}`);
     }
   },
   *not(v, notSchema, instance) {
     if (v.isValid(instance, notSchema as Schema)) {
-      yield new ValidationError(`${repr(instance)} should not be valid under ${repr(notSchema)}`);
+      yield new ValidationError(`${quoted(instance)} should not be valid under ${quoted(notSchema)}`);
     }
   },
   *if(v, ifSchema, instance, schema) {
@@ -229,37 +229,37 @@ const KEYWORDS: Record<string, Keyword> = {
     if (extra <= 0) return;
     if (items === false) {
       const rest = extra !== 1 ? instance.slice(prefix) : instance[prefix];
-      yield new ValidationError(`Expected at most ${prefix} ${prefix !== 1 ? "items" : "item"} but found ${extra} extra: ${repr(rest)}`);
+      yield new ValidationError(`Expected at most ${prefix} ${prefix !== 1 ? "items" : "item"} but found ${extra} extra: ${quoted(rest)}`);
     } else {
       for (let index = prefix; index < instance.length; index++) yield* v.descend(instance[index], items as Schema, index);
     }
   },
   *minItems(_v, mI, instance) {
     if (Array.isArray(instance) && instance.length < (mI as number)) {
-      yield new ValidationError(`${repr(instance)} ${mI === 1 ? "should be non-empty" : "is too short"}`);
+      yield new ValidationError(`${quoted(instance)} ${mI === 1 ? "should be non-empty" : "is too short"}`);
     }
   },
   *maxItems(_v, mI, instance) {
     if (Array.isArray(instance) && instance.length > (mI as number)) {
-      yield new ValidationError(`${repr(instance)} ${mI === 0 ? "is expected to be empty" : "is too long"}`);
+      yield new ValidationError(`${quoted(instance)} ${mI === 0 ? "is expected to be empty" : "is too long"}`);
     }
   },
   *uniqueItems(_v, uI, instance) {
-    if (uI && Array.isArray(instance) && !uniq(instance)) yield new ValidationError(`${repr(instance)} has non-unique elements`);
+    if (uI && Array.isArray(instance) && !uniq(instance)) yield new ValidationError(`${quoted(instance)} has non-unique elements`);
   },
   *pattern(_v, pattern, instance) {
     if (typeof instance === "string" && !search(pattern as string, instance)) {
-      yield new ValidationError(`${repr(instance)} does not match ${repr(pattern)}`);
+      yield new ValidationError(`${quoted(instance)} does not match ${quoted(pattern)}`);
     }
   },
   *minLength(_v, mL, instance) {
     if (typeof instance === "string" && length(instance) < (mL as number)) {
-      yield new ValidationError(`${repr(instance)} ${mL === 1 ? "should be non-empty" : "is too short"}`);
+      yield new ValidationError(`${quoted(instance)} ${mL === 1 ? "should be non-empty" : "is too short"}`);
     }
   },
   *maxLength(_v, mL, instance) {
     if (typeof instance === "string" && length(instance) > (mL as number)) {
-      yield new ValidationError(`${repr(instance)} ${mL === 0 ? "is expected to be empty" : "is too long"}`);
+      yield new ValidationError(`${quoted(instance)} ${mL === 0 ? "is expected to be empty" : "is too long"}`);
     }
   },
   *propertyNames(v, propertyNames, instance) {
@@ -268,22 +268,22 @@ const KEYWORDS: Record<string, Keyword> = {
   },
   *minProperties(_v, mP, instance) {
     if (instance instanceof Map && instance.size < (mP as number)) {
-      yield new ValidationError(`${repr(instance)} ${mP === 1 ? "should be non-empty" : "does not have enough properties"}`);
+      yield new ValidationError(`${quoted(instance)} ${mP === 1 ? "should be non-empty" : "does not have enough properties"}`);
     }
   },
   *minimum(_v, minimum, instance) {
     if (isType(instance, "number") && numeric(instance) < (minimum as number)) {
-      yield new ValidationError(`${repr(instance)} is less than the minimum of ${repr(minimum)}`);
+      yield new ValidationError(`${quoted(instance)} is less than the minimum of ${quoted(minimum)}`);
     }
   },
   *maximum(_v, maximum, instance) {
     if (isType(instance, "number") && numeric(instance) > (maximum as number)) {
-      yield new ValidationError(`${repr(instance)} is greater than the maximum of ${repr(maximum)}`);
+      yield new ValidationError(`${quoted(instance)} is greater than the maximum of ${quoted(maximum)}`);
     }
   },
   *exclusiveMinimum(_v, minimum, instance) {
     if (isType(instance, "number") && numeric(instance) <= (minimum as number)) {
-      yield new ValidationError(`${repr(instance)} is less than or equal to the minimum of ${repr(minimum)}`);
+      yield new ValidationError(`${quoted(instance)} is less than or equal to the minimum of ${quoted(minimum)}`);
     }
   },
   *dependentRequired(_v, dependentRequired, instance) {
@@ -291,7 +291,7 @@ const KEYWORDS: Record<string, Keyword> = {
     for (const [property, dependency] of Object.entries(dependentRequired as Record<string, string[]>)) {
       if (!instance.has(property)) continue;
       for (const each of dependency) {
-        if (!instance.has(each)) yield new ValidationError(`${repr(each)} is a dependency of ${repr(property)}`);
+        if (!instance.has(each)) yield new ValidationError(`${quoted(each)} is a dependency of ${quoted(property)}`);
       }
     }
   },
@@ -332,7 +332,7 @@ export class Validator {
   *descend(instance: unknown, schema: Schema, path?: Step, schemaPath?: Step): Generator<ValidationError> {
     if (schema === true) return;
     if (schema === false) {
-      const error = new ValidationError(`False schema does not allow ${repr(instance)}`);
+      const error = new ValidationError(`False schema does not allow ${quoted(instance)}`);
       error.fill(null, null, instance, schema);
       if (path !== undefined) error.path.unshift(path);
       if (schemaPath !== undefined) error.schemaPath.unshift(schemaPath);

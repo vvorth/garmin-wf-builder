@@ -67,9 +67,9 @@ export function conversionFor(source: Source | null | undefined): Conversion | n
 
 /** A float literal the expression language parses back exactly: shortest round-trip digits, never in exponent form. */
 export function literal(value: number): string {
-  const repr = floatRepr(value);
-  const m = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(repr);
-  let text = repr;
+  const quoted = floatRepr(value);
+  const m = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(quoted);
+  let text = quoted;
   if (m !== null) {
     const [, sign, lead, rest = "", exp] = m;
     const digits = lead! + rest;
