@@ -62,7 +62,7 @@ can't: why each key exists, and what the watch does with it.
 
 | Document | For |
 |---|---|
-| [`limitations.md`](limitations.md) | What the platform can't do (§1), what isn't built yet (§2, the authoritative list), and what the linter doesn't check (§3) |
+| [`limitations.md`](limitations.md) | What the platform can't do (§1), what isn't built yet (§2, the authoritative list), what the linter doesn't check (§3), and what is built but not yet seen on a watch (§4) |
 | [`container.md`](container.md) | Running `wfb` from the Docker image, with no local install |
 | [`development.md`](development.md) | Working on `wfb` itself: setup, the generated code, repository layout, tests |
 | [`../examples/README.md`](../examples/README.md) | The example faces, and which feature each test face exercises |

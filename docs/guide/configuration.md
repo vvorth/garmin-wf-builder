@@ -606,7 +606,7 @@ carries it. Measured on the example faces (`fr955`): +1,830 B for
 ### What this compiler cannot tell you
 
 **No behaviour of the editor is verified anywhere in this project.** There is
-no simulator in this container and no watch (`docs/limitations.md` §2); every
+no simulator in this container and no watch (`docs/limitations.md` §4); every
 claim above is a compile-time result (schema, IR, a real `monkeyc` build) or a
 byte cost, never a description of what the editor's UI actually does. The
 settings menu mechanism was seen working on `fr955` (2026-09-27, with the

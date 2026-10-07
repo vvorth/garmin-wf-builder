@@ -87,13 +87,12 @@ outer one runs, and everything downstream — reader hoisting, null guards, the
 host preview's evaluator, the linter's constant folding — works on it with no
 group-awareness at all.
 
-One consequence is deliberate and recorded in `docs/limitations.md`: a hidden
+Two consequences are deliberate and recorded in `docs/limitations.md`: a hidden
 element still occupies its box for every build-time geometric check (visibility
 is a runtime fact, and deciding whether two conditions can both hold is a
-satisfiability question). Its `on_hold:` region does not outlive it: the view
-records which hold targets passed their `visible:` test on the last frame, and
-the delegate tests that record, so a hold answers about the pixels on screen
-without a second copy of the element's reads.
+satisfiability question), and it still owns its `on_hold:` hit region (the
+generated delegate has none of the frame's readings, and re-reading them at
+touch time would answer about a different moment than the pixels on screen).
 
 > **Amendment (2026-09-25, plan 19 A4): each kind's code lives in one
 > module.** The vocabulary above is now a registry, `wfb/kinds/`: one
@@ -619,3 +618,17 @@ draws the grown copy, and so does the preview (research 28 §7). What the
 evaluator does not reproduce is rasterisation: Garmin's circles and rounded
 corners are not Pillow's (`docs/limitations.md`).
 
+
+## Amendment (2026-10-07): a hold follows `visible:`
+
+The second deliberate consequence above, a hidden element keeping its
+`on_hold:` region, is reversed. It weighed only re-reading the condition in
+`onPress`, which would be a second copy of the element's reads and would
+answer about touch time rather than the frame on screen. The view instead
+records which hold targets passed their own `visible:` test on the last
+frame, one bit each, and the delegate tests that bit beside the box: the
+answer is about the pixels the wearer sees, from the draw's own guard. A
+group's bit is set by any member that passed. A target that is or holds a
+static element is not gated, since its buffer is painted outside `onUpdate`
+(`docs/limitations.md` §3). The first consequence, a hidden element keeping
+its box for every geometric check, stands.

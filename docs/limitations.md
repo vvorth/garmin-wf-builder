@@ -487,8 +487,8 @@ forever, and the suppressible `config-unsupported` warning says so at build
 time rather than leaving it to be discovered on the wrist.
 
 **No behaviour of the editor is verified anywhere in this project.** There is
-no simulator in this container and no watch (§2 below, "the simulator does not
-run"), so everything claimed about `config:` is a compile-time result — the
+no simulator in this container and no watch (§4 below, "The simulator crashes
+when an app is pushed"), so everything claimed about `config:` is a compile-time result — the
 schema accepts or rejects a design, a real `monkeyc` build succeeds or fails,
 `--build-stats`/file size report a byte cost — never a description of what the
 editor's UI actually shows or does. `docs/research/probes/watchface-config/`'s
@@ -727,78 +727,45 @@ the menu runs under.
 
 ## 2. Not implemented yet
 
-Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
+In scope and not built. Each row says what stands in the way or where it is
+specified; a key that is not built is a friendly build or schema error, never
+silently ignored. What was considered and turned down is under "Declined"
+below, and what is built but not yet seen on a watch is §4.
 
-### Measured against a real face
+`examples/dashboard/` reproduces the reference face in
+`garmin-watchface-protomolecule` (the "can the schema express Dashboard?"
+question ADR 0004 poses). What it cannot have is a platform limit, not
+missing work: history graphs of Body Battery, stress, pressure or elevation
+are `Toybox.SensorHistory`-backed, which a watch face may not use (§1,
+"`SensorHistory` is closed to a watch face...").
 
-`examples/dashboard/` is a deliberate attempt to reproduce the reference face in
-`garmin-watchface-protomolecule` — the "can the schema express Dashboard?"
-question ADR 0004 poses. It gets the row structure, the separators, the two-tone
-clock, the conditional colours, the badge and the arcs, the weather row's
-icon and every one of its readings, Body Battery, and the data a daylight arc
-would need. `type: graph` plots a series, so what remains blocked is a
-data-source gap rather than a layout one:
-
-| Dashboard has | Blocked on |
-|---|---|
-| A history graph of heart rate | nothing — `type: graph`, `series: heart_rate` |
-| A history graph of Body Battery, stress, pressure or elevation | these are `Toybox.SensorHistory`-backed, and a watch face may not declare that permission at all — see "`SensorHistory` is closed to a watch face..." above. Body Battery and stress each have a *current-value* route (`complication.body_battery`, `activity.stress_score`), but neither is a series |
-
-Weather's condition icon (`icon: {for: weather.condition}`, resolved on-device
-through `WfbWeather.mc`, mirroring `GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts`)
-and its full reading set -- temperature, feels-like, today's high/low and
-precipitation chance, humidity, wind speed -- both shipped; see
-`docs/guide/icons.md`'s `icon: {for:}` section and `docs/guide/data.md`'s "Data binding" section. Body Battery
-(`complication.body_battery`) and a daylight arc's sunrise/sunset data
-(`complication.sunrise`/`complication.sunset`) also both shipped, all three
-through `Toybox.Complications`, read the same way every other source is now
-read -- a plain per-frame pull, see `docs/guide/data.md`'s "Data binding" section
--- not a direct API field. Nothing in `examples/dashboard/` binds any of
-these yet, the graph included; that is an example-content update the user
-makes on their own playground (see "`examples/dashboard/face.yaml` is the
-user's own playground" in CLAUDE.md), not a platform gap.
-
-| Missing | Where it is specified |
+| Missing | What stands in the way |
 |---|---|
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | `overrides:` beyond geometry (`color:`, `visible:`, fonts, data, the `colors:`/`touch:`/`api:` selectors), and an `align:` override on `text`, `icon` or `data` | ADR 0004 §4. The geometry keys (`at:`, `size:`, `radius:`, `align:`) are built; the others are a schema error. A glyph kind's alignment is its `drawText` justification, one flag in the view every target shares, so overriding it is a build error |
-| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install, and there is no `wfb package`. The generated settings menu covers `config:` on the watch instead. |
-| `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | declined by the user; there is no plan to build it |
 | Colouring or segmenting a slot gauge by its picked metric's own bands (heart-rate zones, Body Battery and stress levels, sleep-score and VO2 max ratings) | the band edges are in `SCALE` in `ts/src/complications.ts`; drawing them needs band geometry computed on the watch each frame, where `bands:` today are build-time constants |
-| `on_hold: auto` on a gauge with `slot:` | a friendly build error; the slot's `type: data` element carries it |
-| A `data` element, or a gauge with `slot:`, inside a `layouts:` body | a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
-| Per-layout fonts, or a per-layout `onPartialUpdate` clip | Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions `sleep_update: true` elements across *every* layout, conservatively -- see that method's own docstring in `ts/src/layout.ts` |
-| The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | needs a probe; only worth doing if fr955 runs short of memory |
-| Ticks drawn by a `style: scale` gauge itself | ADR 0004 §1 lists "ticks + coloured range band + pointer"; the band and the pointer are built, and ticks are a radial `pattern` sharing the scale's `start_angle`/`sweep` rather than a second tick mechanism |
-| `aod: {text: ...}` on a `text` element with several placeholders, and `units:` or `absent: {value:}` beside several | a friendly build error each. An AOD restyle would pair each placeholder with its own; `units:` and `absent: {value:}` speak of one reading. The text draws its awake template in the always-on frame (`docs/guide/text.md`) |
-| `units:` on an expression, or on a `data` element | a conversion needs the unit its value is in, which only a bare source states. A slot has no `units:`: each type's reading already follows the watch's own metric/statute settings (`docs/guide/configuration.md`, "The Data axis") |
-| `wfb install`, `package` | brief, Phase 3 |
-| Sideloading, a polygon's points, a hand's parts, keys no control covers (a list, `aod:`, `curve:`), and sharing faces between browsers, in `wfb studio` | each browser keeps its own faces in its own storage, and a face moves to another browser by download and upload (`docs/guide/studio.md`, "Where the faces are"); its Build downloads a `.prg` to copy to the watch by hand; the polygon and those keys are edited in its YAML tab (`docs/guide/studio.md`). Real size is the device's `ppi` at the browser's 96 px per inch unless calibrated, since a browser cannot measure its screen, and is missing for a watch whose files give no `ppi`. The editor's checks, patches and gestures are tested headless, its worker under Node; its pages are checked by hand in a browser, since no browser runs in the test suite. The browser draws the face with the preview's own rasteriser, so it shows what the preview shows; a rotated or curved vector run moves as one image. During a drag a moved element is drawn translated, which a `%` box re-rounds by a pixel where it lands; a resize or an angle is drawn live only where the kind declares it exact (a circle's, arc's or plain arc gauge's radius when centred, an arc's or plain arc gauge's angles, a box's edge when the box is aligned to the other edge), elsewhere as an outline, corrected on release |
-| Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
+| `wfb install`, `wfb package` | not built; a sideload is copied by hand ([getting started](guide/getting-started.md)) |
+| In `wfb studio`: sideloading, controls for a polygon's points, a hand's parts and keys no control covers (a list, `aod:`, `curve:`), and sharing faces between browsers | each is done by hand today: the `.prg` copied to the watch, those keys edited in the YAML tab, a face moved by download and upload (`docs/guide/studio.md`, "What it does not do") |
+| Catalogue generation from the SDK | ADR 0005 §1; the catalogue is hand-written |
 | An SDK check outside `wfb build` (`validate`, `preview`) | `wfb build` warns when the device reference came from another SDK than the one it compiles with, and records both in `build-info.json`; `wfb doctor` reports the mismatch too. `validate` and `preview` compile nothing, so they do not check |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `sourceUnavailable` in `ts/src/availability.ts` but set on no source, because none needs it today |
 | CI | nothing runs the tests unattended: the fast suite, the type check and the slow suite (`ts/test/CLAUDE.md`) run only by hand |
-| `seconds: always` (a second hand while asleep) | needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
-| `arc` hand parts | would need the start angle to rotate with the hand too |
+| `seconds: always` (a second hand while asleep) | needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one |
+| `arc` hand parts | the start angle would have to rotate with the hand too |
 | Data-driven hand colours | a hand has no `absent:` to fall back through if the bound reading were absent |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | not built |
 | Text on more than one line | a line break, tab or other control character in drawn text (`text:`, an `absent:` placeholder, a pattern's text part) is a build error on its line: a text is measured and previewed as one line. Each line is its own element |
 | A pattern `text` part whose placeholder reads data (a data source or a colour) | every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `absent:`. Text parts reading only `copy` are built |
 | Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | a longer or differently-shaped copy is a second pattern element today |
-| `on_hold:` and `sleep_update: true` on a `pattern` | hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
-| Rounded-rectangle (`corner_radius:`)/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | a linear pattern could draw both untransformed, but patterns keep one part vocabulary |
-| A true typographic-baseline value for `align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
-| Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:` outright) | useful for aligning a whole row, but not built because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
-| Pixel shifting in the AOD frame (`aod: jitter:`) | a schema error: `aod: {mask: ...}`, a moving 2×2 pixel mask on by default, protects the panel instead, without moving the design (`docs/research/15-aod-pixel-masks.md` §7) |
-| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | UNVERIFIED and not built: the burn-in lint (`aod-burn-in`) measures whatever `wfb preview --aod` renders, and nothing renders through the alpha route, so whether the meter would count a *blended* result correctly is an open question. Channel arithmetic, at build time or on the device (`dimChannel` in `ts/src/palette.ts`/`WfbColor.dim`), is what `dim:` does instead |
-| A `pattern`'s own `aod: {font: ...}` override, and a `data` element's `aod: {font: ...}` override | the `color`/`track_color`/icon `color`/`thickness`/`bar_width`/`filled`/`text` overrides and a `text` element's `font:` override are built, but not these two -- the builder rejects them with a friendly "not implemented yet" error rather than silently keeping the element's awake font, whether the element writes the key itself or inherits it from a group (`Builder.aod_refusal`) |
-| An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | the same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
-| `aod: {filled: ...}` on `type: polygon` | there is no outline primitive for it to switch to (Dc has fillPolygon, no drawPolygon) -- a friendly build error, the same one the awake element's own `filled: false` already gets, and the same when the key is inherited from a group |
-| `outline:` on a `data` or `graph` element, or on a `segments`/`scale` gauge | research 19 -- a `data` and a `graph` have no ring op (and so cannot sit in an outlined group either), and a ticked gauge's cells would need their own; a friendly build error on the element and on an outlined group containing it |
-| `outline:` on a pattern whose `type: text` part has its own `outline:` | research 19 -- the part's ring inside the pattern's would be a stamp inside a stamp (N x M draws per copy); a friendly build error naming both keys |
-| `aod: {outline: ...}` on anything but `text` | research 19 -- every other kind's awake ring carries over into the AOD frame, dimmed like every AOD colour, but cannot be replaced there |
-| A group `outline.color` that reads data | research 19 -- the group's ring is drawn from the frame methods, which read only what the members bind; a friendly build error |
+| A true typographic-baseline value for `align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | `bottom` is the line box's bottom (ascent + descent); a real baseline needs a new value |
+| `aod: {text: ...}` on a `text` element with several placeholders | an AOD restyle would pair each placeholder with its own; the text draws its awake template in the always-on frame (`docs/guide/text.md`) |
+| A `pattern`'s own `aod: {font: ...}` override, and a `data` element's | the other AOD overrides are built (`color`, `track_color`, icon `color`, `thickness`, `bar_width`, `filled`, `text`, and a `text` element's `font:`); these two are refused, whether written on the element or inherited from a group (`aodRefusal` in `ts/src/ir/builder/aod.ts`) |
+| An `aod: {font: ...}` override naming a `face:` (vector) font | the vector-font path has no AOD-aware second face and size constant yet |
+| `outline:` on a `data` or `graph` element, or on a `segments`/`scale` gauge | a `data` and a `graph` have no ring op (and so cannot sit in an outlined group either), and a ticked gauge's cells would need their own; refused on the element and on an outlined group containing it |
+| `outline:` on a pattern whose `type: text` part has its own `outline:` | the part's ring inside the pattern's would be a stamp inside a stamp, N x M draws per copy |
+| `aod: {outline: ...}` on anything but `text` | every other kind's awake ring carries over into the AOD frame, dimmed like every AOD colour, but cannot be replaced there |
+| A group `outline.color` that reads data | the group's ring is drawn from the frame methods, which read only what the members bind |
 
 **Reserved by format 2**: the vocabulary is fixed now, and
 writing any of these is a friendly "not implemented" error naming what it
@@ -809,169 +776,30 @@ will be, never an unknown key. Each needs its own plan before it is built.
 | `resources: {components:}`, and `use:`/`with:` on an element | reusable element groups with parameters, `$name` standing for a whole value |
 | `effects:` on an element (`effects: {shadow: {color:, dx:, dy:}}`) | drop shadows, replacing duplicated shadow elements |
 | `outline:` on a single hand, pattern or needle part (other than a pattern's `type: text` part) | a ring round one part; the element-level `outline:` already rings each hand, copy or needle whole (`docs/guide/outlines.md`) |
-| `parts:`, `arrange:`, `requires:`, `fallback:` on `type: data` | a data widget built from an icon, value, label, graph or gauge (research 18 §10) |
+| `parts:`, `arrange:`, `requires:`, `fallback:` on `type: data` | a data widget built from an icon, value, label, graph or gauge |
 | A `[ {when: …, value: …}, …, {else: …} ]` rule list as any value | values chosen by rules over live data, never the power state |
 | An advisory `static-candidate` lint | not a format change; may be built at any time |
 
-**`wfb preview --heatmap` approximates the simulator's Screen Heat Map, and
-only approximates it.** It sums the design's rendered AOD frame over every
-minute of the day at the design's default sample data (no per-minute data
-variation, unlike a real day on a wrist) and reports how *persistently* any
-one pixel stays lit -- closer to Garmin's 3-minutes-on-the-same-pixel rule
-than to its 10% rule. It is not the burn-in lint (`aod-burn-in`, §3 below),
-which scores one worst-case frame's lit-pixel/luminance share, and it is not
-the simulator's own tool, which is unreachable in this environment and
-would also vary sensor data over its 24-hour run. **With the pixel mask on
-(the default, `aod: {mask: ...}`), `--heatmap` applies the same
-masked frame the device draws, so its peak persistence figure is capped at
-25% by construction** -- on `examples/features/aod/face.yaml` it falls from
-100% (unmasked) to 25.0%. `aod: {mask: false}` restores the unmasked figure
-and the old caveat above in full.
+### Declined
 
-**None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
-verified anywhere in this project** (the same standing "no simulator in this container, no watch" caveat every
-`config:` feature in this table carries): whether the editor lists a
-`<style>` entry's label and previews it live as the wearer scrolls, whether
-the static buffer repaints promptly on a style edit, and whether a
-layout-scoped `on_hold:` hit region reads correctly on a real touchscreen
-are all open questions. What *is* verified is what this project always
-verifies for a feature like this: a warning-free real `monkeyc` build on
-all three targets, the measured `--build-stats` figure, and `wfb preview
---style`/`--all-styles` rendering from the same resolved geometry the
-generated code draws from.
+Considered and turned down, each for a reason that still holds. Each is a
+friendly error where an author could write it.
 
-**Every source is a plain per-frame read; there are no refresh tiers or TTL
-caches.** Every value comes from a Garmin API that caches on its own side
-(`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
-**recently cached** weather conditions"), so a cache inside the 128 KB budget
-would buy nothing (`docs/guide/data.md`'s "How data is read"). So a `weather.*` or
-`complication.*` binding may be used from a `sleep_update: true` element (or
-an AMOLED sleep frame's `aod:` `visible:`); that is the author's
-responsibility, backed only by the suppressible `partial-update-budget`
-warning (§3 below, `docs/guide/modes-and-interaction.md`'s "Sleep updates").
-
-**Complications are read by pull, not by subscription callback**:
-`WfbComplications.valueOf` is called from `onUpdate` exactly like any other
-reader, cast to the source's declared type because `Complication.value` is a
-union type. A `Float` source is read as `Numeric?` and converted with
-`.toFloat()` rather than cast: `ALTITUDE` and `CURRENT_TEMPERATURE` were
-Numbers before API 5.1.0/5.0.0, and a cast only asserts a type. A subscription is still registered once per bound type in
-`onLayout`, but only to call `WatchUi.requestUpdate()` on change -- it is not
-a cache. Whether a pulled value would *stay* fresh with no subscription at all
-is **unverified** (no working simulator, "The simulator crashes when an app is
-pushed" below). All 42 `COMPLICATION_TYPE_*` values are data sources under
-`complication.*`; nine older path names (`body_battery.current` and others)
-raise a `source-renamed` build error naming the replacement (`docs/guide/data.md`'s
-"The `complication.*` namespace", `WfbComplications.mc`).
-`complication.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0
-ceiling, so it never updates there; the `api-gated` lint warns about it on
-that target (below, "Device gating for a source is only partly enforced").
-
-### Screen shapes
-
-A round screen's visible area is the inscribed circle. Every other shape's
-is the device's own simulator skin: the `safe-area` lint, the preview crop
-and the `aod-burn-in` denominator all read the skin's alpha channel
-(research 16 §3). That covers the Instinct's octagon and the ring round its
-subscreen window, and a rectangle's rounded corners (`venux1` hides about
-2% of its framebuffer). The skin is the simulator's picture of the device,
-not a measurement of the glass; the lint allows one pixel of tolerance. A
-non-round device without a skin falls back to its framebuffer (rectangle)
-or "not checked" (semi-shapes). No semi-round device is installed.
-
-Rectangles are exercised against real device files (`venusq`, `venusq2`,
-`venux1`), and `examples/features/align/`
-targets `venusq2`, and `examples/features/instinct/` targets the four installed
-semi-octagons, with its battery gauge in the subscreen window
-(`at: {anchor: subscreen}`). No non-round face has been seen on a real watch,
-and nothing here has confirmed that `WatchUi.getSubscreen()` returns the box
-the device files declare.
-`docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
-realistic targets) and a route to exact geometry from the simulator skin.
-Where a relative unit is not enough on one shape, `overrides:` patches an
-element's geometry for it (`docs/guide/placement.md`).
-
-### The simulator crashes when an app is pushed
-
-`wfb simulate` works where the Connect IQ simulator does. On macOS it does:
-`wfb simulate` opens the SDK's `ConnectIQ.app` itself, with no display
-setup, and runs the face there. In the Linux container this project is
-developed in, the simulator's app-load path is broken in this SDK build.
-Other systems, a Linux desktop or Windows, are untested. The simulator is a
-GUI application, and on
-Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
-`libjavascriptcoregtk-4.0`, which current distributions no longer ship.
-
-Supplying them is not enough. On an `ubuntu:22.04` base — which still
-packages all three natively, so every one of the simulator's 27 otherwise-missing
-shared libraries resolves — the simulator **starts**: it opens its window under
-Xvfb and sits there. It then **segfaults the moment a `.prg` is pushed to it**
-with `monkeydo`, which is the "on app load" failure, and it does so with an
-unmodified SDK sample `.prg` — an environment limitation, not a property of
-generated faces.
-
-The faulting frame is on a worker thread the simulator spawns during app load,
-**entirely inside its own stripped executable**; GTK, WebKit and JavaScriptCore
-appear nowhere on the stack. `libGL` is not among the loaded objects at all, so
-this is not a software-OpenGL problem. Ruled out by direct test, each varied on
-its own: `/dev/shm` at 64 MB and at 2 GB; Docker's default seccomp profile and
-`--security-opt seccomp=unconfined`; running as uid 1000 and as root; the device
-definitions mounted read-only and copied in writable; and WebKit's
-`DISABLE_COMPOSITING_MODE` / `DISABLE_SANDBOX` escape hatches.
-
-**It is not a container or distro artifact.** On a real Ubuntu 22.04 desktop
-(Xwayland, no Docker, no Xvfb) the window genuinely renders, and `monkeydo`
-still segfaults it at the byte-identical crash, across two devices and two
-example faces, with `GDK_BACKEND=x11` and WebKit's JIT env vars set. Under an
-Ubuntu 20.04 container (glibc 2.31, before `libpthread` was folded into
-`libc`) it crashes identically too. Full account in
-`docs/research/probes/simulator/README.md`.
-
-`wfb preview` is the answer: it renders from the same resolved geometry the
-generated code uses, so the two cannot disagree about position. What it does
-*not* claim to reproduce is glyph rasterisation for system fonts (except
-`.cft` bitmap fonts, drawn from the device's own glyphs), arc cap shape, the
-transflective panel's real appearance, or — a deliberate scope decision —
-**a primitive/`gauge`/`graph`/`hands` element's own anti-aliasing**
-(`antialias:`, `docs/guide/elements.md`):
-that side of the feature is a runtime `Dc.setAntiAlias` call, and
-the preview's evaluator (`ts/src/draw/evaluator.ts`) draws every primitive with
-plain `PIL.ImageDraw` calls (`rectangle`, `ellipse`, `arc`, `polygon`,
-`line`), which are aliased by construction and were not changed to match. ADR 0004 exists precisely so the
-preview and the device cannot disagree about what a design looks like, and a
-second renderer's idea of a soft edge is not Garmin's. Turning `antialias:` on
-for a primitive/`gauge` element changes what the device draws with no
-visible difference in `wfb preview`. **The font and icon half of the same key
-is not this gap** — it previews correctly, for free: `paste_glyph` already
-pastes a baked glyph tile as a mask, so a multi-grey-level (anti-aliased)
-sheet blends into the background exactly the way `drawText` does on the
-device, while a 1-bit sheet cannot, because its mask has only two values. For
-the primitive gap, the simulator is authoritative.
-
-**The preview draws the program the watch is sent.** Every element is
-lowered once into a draw program that the view prints and the preview
-evaluates (`wfb/draw/`), guards included, with the barrel's arithmetic
-transcribed (`ts/src/draw/barrel.ts`): arcs start on the watch's whole degree,
-graphs and data elements land on its whole pixels, and an `outline:` ring is
-the same grown copy, shifted polygon or stamp on both. What remains is
-rasterisation:
-
-- **The preview draws by rules fitted to simulator captures**
-  (`docs/research/probes/garmin-raster/`), on the MIP verification
-  devices. Exact: `fillCircle`, `drawCircle`, `fillEllipse`,
-  `drawEllipse`, `fillRectangle`, `drawRectangle`, `fillRoundedRectangle`,
-  `drawRoundedRectangle`, `fillPolygon`, `drawLine` at pens 1-4 in every
-  direction, Float coordinates (truncated, as on the watch), and baked
-  text. `drawArc` is 0-5 pixels a shape off at its ends. From radius
-  about 40, a circle, ellipse or arc is a few edge pixels off (about 1-2%
-  of a ring's): Garmin steps a circle incrementally, which no distance
-  test reproduces (`docs/lore/rendering.md`). A corner
-  radius of 1 is square on the watch
-  (`docs/research/probes/ring-on-device/`), as the fitted rules draw it.
-  The AMOLED `fenix847mm` anti-aliases every edge, which the preview does
-  not. For those pixels, the simulator is authoritative.
-
----
+| Declined | Why, and what to write instead |
+|---|---|
+| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install (§1, "Garmin Connect does not edit a sideloaded face's settings"); the generated settings menu covers `config:` on the watch |
+| `layouts:` form B (membership written on each element, not the container form) | declined by the user |
+| A `data` element, or a gauge with `slot:`, inside a `layouts:` body | the Data axis is face-wide, so a slot stays in the shared top-level `elements:` |
+| `on_hold: auto` on a gauge with `slot:` | the slot's `type: data` element carries it |
+| `units:` on an expression or a `data` element, and `units:` or `absent: {value:}` beside several placeholders | a conversion needs the unit its value is in, which only one bare source states. A slot's reading already follows the watch's own metric/statute settings (`docs/guide/configuration.md`, "The Data axis") |
+| Ticks drawn by a `style: scale` gauge itself | a radial `pattern` sharing the scale's `start_angle`/`sweep` draws them, rather than a second tick mechanism |
+| `on_hold:` and `sleep_update: true` on a `pattern` | hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
+| Rounded-rectangle (`corner_radius:`) or `ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | patterns keep one part vocabulary for both arrangements |
+| Aligning a linear `pattern`'s drawn-ink box | its `at:` is the pivot every copy steps from (and refuses `align:`); a second meaning, the row's own box, would make `at:` mean two things |
+| Pixel shifting in the AOD frame (`aod: jitter:`) | `aod: {mask: ...}`, a moving 2×2 pixel mask on by default, protects the panel without moving the design (`docs/research/15-aod-pixel-masks.md` §7) |
+| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black) | nothing renders through it, so the burn-in lint could not measure it; `dim:` is channel arithmetic instead, at build time or on the device (`dimChannel` in `ts/src/palette.ts`, `WfbColor.dim`) |
+| Per-layout fonts, and a per-layout `onPartialUpdate` clip | every layout's fonts load in `onLayout` (measured, not a problem); the sleep clip unions `sleep_update: true` elements across every layout, conservatively (`clipFor` in `ts/src/layout.ts`) |
+| Stripping an unreachable layout's code on fr955 (`excludeAnnotations`) | needs a probe, and is worth one only if fr955 runs short of memory |
 
 ## 3. What the linter does not check
 
@@ -1078,7 +906,7 @@ devices that this has not produced a false positive, but a future catalogue
 entry is not guaranteed the same luck.
 
 **Runtime behaviour on a real sub-4.2.0 device is unverified in this
-container.** The simulator cannot run here (§3), so "a device without
+container.** The simulator cannot run here (§4), so "a device without
 `Toybox.Complications` silently treats `Toybox has :Complications` as
 `false` and does not crash merely importing the module or referencing its
 type in an annotation" is the SDK docs' documented idiom, not an observed
@@ -1256,3 +1084,170 @@ anyway. A face may gate at most 32 hold targets, one `Number`'s bits.
   renders as though the value were simply absent -- the same "absence is
   normal" contract every nullable source has. The check exists so that is a
   decision the author makes knowingly.
+
+
+## 4. Built, and not yet seen on a watch
+
+The simulator cannot run where this project is developed, and no watch is
+attached to it, so some built behaviour has been checked only as far as a
+warning-free `monkeyc` build, `--build-stats` and `wfb preview` can check it.
+
+### Screen shapes
+
+A round screen's visible area is the inscribed circle. Every other shape's
+is the device's own simulator skin: the `safe-area` lint, the preview crop
+and the `aod-burn-in` denominator all read the skin's alpha channel
+(research 16 §3). That covers the Instinct's octagon and the ring round its
+subscreen window, and a rectangle's rounded corners (`venux1` hides about
+2% of its framebuffer). The skin is the simulator's picture of the device,
+not a measurement of the glass; the lint allows one pixel of tolerance. A
+non-round device without a skin falls back to its framebuffer (rectangle)
+or "not checked" (semi-shapes). No semi-round device is installed.
+
+Rectangles are exercised against real device files (`venusq`, `venusq2`,
+`venux1`), and `examples/features/align/`
+targets `venusq2`, and `examples/features/instinct/` targets the four installed
+semi-octagons, with its battery gauge in the subscreen window
+(`at: {anchor: subscreen}`). No non-round face has been seen on a real watch,
+and nothing here has confirmed that `WatchUi.getSubscreen()` returns the box
+the device files declare.
+`docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
+realistic targets) and a route to exact geometry from the simulator skin.
+Where a relative unit is not enough on one shape, `overrides:` patches an
+element's geometry for it (`docs/guide/placement.md`).
+
+### The simulator crashes when an app is pushed
+
+`wfb simulate` works where the Connect IQ simulator does. On macOS it does:
+`wfb simulate` opens the SDK's `ConnectIQ.app` itself, with no display
+setup, and runs the face there. In the Linux container this project is
+developed in, the simulator's app-load path is broken in this SDK build.
+Other systems, a Linux desktop or Windows, are untested. The simulator is a
+GUI application, and on
+Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
+`libjavascriptcoregtk-4.0`, which current distributions no longer ship.
+
+Supplying them is not enough. On an `ubuntu:22.04` base — which still
+packages all three natively, so every one of the simulator's 27 otherwise-missing
+shared libraries resolves — the simulator **starts**: it opens its window under
+Xvfb and sits there. It then **segfaults the moment a `.prg` is pushed to it**
+with `monkeydo`, which is the "on app load" failure, and it does so with an
+unmodified SDK sample `.prg` — an environment limitation, not a property of
+generated faces.
+
+The faulting frame is on a worker thread the simulator spawns during app load,
+**entirely inside its own stripped executable**; GTK, WebKit and JavaScriptCore
+appear nowhere on the stack. `libGL` is not among the loaded objects at all, so
+this is not a software-OpenGL problem. Ruled out by direct test, each varied on
+its own: `/dev/shm` at 64 MB and at 2 GB; Docker's default seccomp profile and
+`--security-opt seccomp=unconfined`; running as uid 1000 and as root; the device
+definitions mounted read-only and copied in writable; and WebKit's
+`DISABLE_COMPOSITING_MODE` / `DISABLE_SANDBOX` escape hatches.
+
+**It is not a container or distro artifact.** On a real Ubuntu 22.04 desktop
+(Xwayland, no Docker, no Xvfb) the window genuinely renders, and `monkeydo`
+still segfaults it at the byte-identical crash, across two devices and two
+example faces, with `GDK_BACKEND=x11` and WebKit's JIT env vars set. Under an
+Ubuntu 20.04 container (glibc 2.31, before `libpthread` was folded into
+`libc`) it crashes identically too. Full account in
+`docs/research/probes/simulator/README.md`.
+
+`wfb preview` is the answer: it renders from the same resolved geometry the
+generated code uses, so the two cannot disagree about position. What it does
+*not* claim to reproduce is glyph rasterisation for system fonts (except
+`.cft` bitmap fonts, drawn from the device's own glyphs), arc cap shape, the
+transflective panel's real appearance, or — a deliberate scope decision —
+**a primitive/`gauge`/`graph`/`hands` element's own anti-aliasing**
+(`antialias:`, `docs/guide/elements.md`):
+that side of the feature is a runtime `Dc.setAntiAlias` call, and
+the preview draws every primitive aliased (`ts/src/raster/garmin.ts`, Garmin's
+own rules fitted to simulator captures, and `ts/src/raster/pillow.ts`), and was
+not changed to match. ADR 0004 exists precisely so the
+preview and the device cannot disagree about what a design looks like, and a
+second renderer's idea of a soft edge is not Garmin's. Turning `antialias:` on
+for a primitive/`gauge` element changes what the device draws with no
+visible difference in `wfb preview`. **The font and icon half of the same key
+is not this gap** — it previews correctly, for free: `pasteGlyph` already
+pastes a baked glyph tile as a mask, so a multi-grey-level (anti-aliased)
+sheet blends into the background exactly the way `drawText` does on the
+device, while a 1-bit sheet cannot, because its mask has only two values. For
+the primitive gap, the simulator is authoritative.
+
+**The preview draws the program the watch is sent.** Every element is
+lowered once into a draw program that the view prints and the preview
+evaluates (`ts/src/draw/`), guards included, with the barrel's arithmetic
+transcribed (`ts/src/draw/barrel.ts`): arcs start on the watch's whole degree,
+graphs and data elements land on its whole pixels, and an `outline:` ring is
+the same grown copy, shifted polygon or stamp on both. What remains is
+rasterisation:
+
+- **The preview draws by rules fitted to simulator captures**
+  (`docs/research/probes/garmin-raster/`), on the MIP verification
+  devices. Exact: `fillCircle`, `drawCircle`, `fillEllipse`,
+  `drawEllipse`, `fillRectangle`, `drawRectangle`, `fillRoundedRectangle`,
+  `drawRoundedRectangle`, `fillPolygon`, `drawLine` at pens 1-4 in every
+  direction, Float coordinates (truncated, as on the watch), and baked
+  text. `drawArc` is 0-5 pixels a shape off at its ends. From radius
+  about 40, a circle, ellipse or arc is a few edge pixels off (about 1-2%
+  of a ring's): Garmin steps a circle incrementally, which no distance
+  test reproduces (`docs/lore/rendering.md`). A corner
+  radius of 1 is square on the watch
+  (`docs/research/probes/ring-on-device/`), as the fitted rules draw it.
+  The AMOLED `fenix847mm` anti-aliases every edge, which the preview does
+  not. For those pixels, the simulator is authoritative.
+
+### Data, config and the AOD heat map
+
+**Every source is a plain per-frame read; there are no refresh tiers or TTL
+caches.** Every value comes from a Garmin API that caches on its own side
+(`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
+**recently cached** weather conditions"), so a cache inside the memory budget
+would buy nothing (`docs/guide/data.md`'s "How data is read"). So a `weather.*` or
+`complication.*` binding may be used from a `sleep_update: true` element (or
+an AMOLED sleep frame's `aod:` `visible:`); that is the author's
+responsibility, backed only by the suppressible `partial-update-budget`
+warning (§3, `docs/guide/modes-and-interaction.md`'s "Sleep updates").
+
+**Complications are read by pull, not by subscription callback**:
+`WfbComplications.valueOf` is called from `onUpdate` exactly like any other
+reader, cast to the source's declared type because `Complication.value` is a
+union type. A `Float` source is read as `Numeric?` and converted with
+`.toFloat()` rather than cast: `ALTITUDE` and `CURRENT_TEMPERATURE` were
+Numbers before API 5.1.0/5.0.0, and a cast only asserts a type. A subscription is still registered once per bound type in
+`onLayout`, but only to call `WatchUi.requestUpdate()` on change -- it is not
+a cache. Whether a pulled value would *stay* fresh with no subscription at all
+is **unverified** (no working simulator, "The simulator crashes when an app is
+pushed" above). All 42 `COMPLICATION_TYPE_*` values are data sources under
+`complication.*`; nine older path names (`body_battery.current` and others)
+raise a `source-renamed` build error naming the replacement (`docs/guide/data.md`'s
+"The `complication.*` namespace", `WfbComplications.mc`).
+`complication.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0
+ceiling, so it never updates there; the `api-gated` lint warns about it on
+that target (§3, "Device gating for a source is only partly enforced").
+
+**None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
+verified anywhere in this project** (the same standing "no simulator in this container, no watch" caveat every
+`config:` feature carries): whether the editor lists a
+`<style>` entry's label and previews it live as the wearer scrolls, whether
+the static buffer repaints promptly on a style edit, and whether a
+layout-scoped `on_hold:` hit region reads correctly on a real touchscreen
+are all open questions. What *is* verified is what this project always
+verifies for a feature like this: a warning-free real `monkeyc` build on
+all three targets, the measured `--build-stats` figure, and `wfb preview
+--style`/`--all-styles` rendering from the same resolved geometry the
+generated code draws from.
+
+**`wfb preview --heatmap` approximates the simulator's Screen Heat Map, and
+only approximates it.** It sums the design's rendered AOD frame over every
+minute of the day at the design's default sample data (no per-minute data
+variation, unlike a real day on a wrist) and reports how *persistently* any
+one pixel stays lit -- closer to Garmin's 3-minutes-on-the-same-pixel rule
+than to its 10% rule. It is not the burn-in lint (`aod-burn-in`, §3),
+which scores one worst-case frame's lit-pixel/luminance share, and it is not
+the simulator's own tool, which is unreachable in this environment and
+would also vary sensor data over its 24-hour run. **With the pixel mask on
+(the default, `aod: {mask: ...}`), `--heatmap` applies the same
+masked frame the device draws, so its peak persistence figure is capped at
+25% by construction** -- on `examples/features/aod/face.yaml` it falls from
+100% (unmasked) to 25.0%. `aod: {mask: false}` restores the unmasked figure
+and the old caveat above in full.

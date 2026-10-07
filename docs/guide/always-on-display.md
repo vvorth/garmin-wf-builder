@@ -259,7 +259,7 @@ the *blended* result, not the nominal colour, and that has not been
 checked. Pre-computed/on-device channel arithmetic is
 what ships, and works on every device regardless of alpha support.
 
-**Palette lint.** The 64-colour MIP palette rule (`docs/limitations.md` §2,
+**Palette lint.** The 64-colour MIP palette rule (`docs/limitations.md` §1,
 constraint 13) never fires on a dimmed colour: a dimmed value is a new,
 synthetic literal that is never entered into `palette:`, `config:` or
 `theme:`, so it is invisible to that check by construction — and
