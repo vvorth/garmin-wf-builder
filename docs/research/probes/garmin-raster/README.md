@@ -93,10 +93,28 @@ pixel; `fenix847mm` is the same geometry with grey edges, below):
 | rects2 (2026-10-07) | 0, 0 | 0 |
 | rotated (2026-10-07) | 44, 51 | 0 |
 
-On 2026-10-07 the `fenix8solar51mm` captures of `lines2` and `rotated`
-did not overlay (thousands of pixels off, the screen fit misplaced by a
-few stray lit pixels near the bottom of the window); the other two MIP
-devices agree with each other to the pixel, so the fit stands on them.
+The large faces, on `fr955` (2026-10-07), after the fit:
+
+| Family | Differing pixels |
+|---|---:|
+| big_lines | 0 |
+| big_rects | 0 |
+| big_fills | 12: 8 on the radius-44 disc, 4 on the 44x22 ellipse, each a pixel just past r² |
+| big_ellipses | 20 |
+| big_circles | 144, over 16 rings to radius 120 |
+| big_arcs | 47 (569 before an even pen's ring was centred on r) |
+
+The circle misses fit no single threshold on x² + y²: ring by ring, the
+largest lit and smallest dark d² beyond r² contradict each other (at
+radius 73, 106 and 120 the intervals are empty). Garmin steps the circle
+incrementally, and the preview keeps the distance test.
+
+The screen fit (`fitScreen`) now tries two starts and keeps the one with
+fewer misses: the lit boxes' centres, and a search of the whole window for
+the offset where a sample of the preview's lit and dark pixels agrees
+most. The first alone misplaced every large face (the bezel's white ticks
+and lettering widen the capture's lit box) and the `fenix8solar51mm`
+captures of `lines2` and `rotated`; with both, every capture overlays.
 
 What each primitive did differently from the preview's Pillow
 conventions, read off the diff images. Each is VERIFIED as a difference;
@@ -172,10 +190,13 @@ counts given. A device pixel's capture block reads
   `drawLineRotated`) are exact so, where rounding misses about 475 pixels.
 - **`fillPolygon`** is the scanline fill plus every edge drawn as a 1 px
   `drawLine`: exact over six shapes and a radial pattern's rotated ones.
-- **`drawArc`** is `drawCircle`'s ring at radius r - 1/2, cut to the
-  pixels whose angle from the centre lies in the span, both ends in: 0-5
-  pixels a shape, all at the ends, where the r ring missed 10-43 a shape.
-- **Not fitted:** `drawArc`'s end pixels (27 over 16 arcs).
+- **`drawArc`** is `drawCircle`'s ring at radius r - 1/2 for an odd pen
+  and r for an even one, cut to the pixels whose angle from the centre
+  lies in the span, both ends in: 0-5 pixels a shape, all at the ends,
+  where the r ring missed 10-43 a shape at odd pens (the `arcs` face has
+  pens 1 and 3; `big_arcs` showed the even pen).
+- **Not fitted:** `drawArc`'s end pixels (27 over 16 arcs), and the
+  incremental circle's few edge pixels from radius about 40 (above).
 
 The AMOLED `fenix847mm` misses every rule by its grey edges: it needs a
 coverage model.

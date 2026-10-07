@@ -962,9 +962,10 @@ rasterisation:
   `drawEllipse`, `fillRectangle`, `drawRectangle`, `fillRoundedRectangle`,
   `drawRoundedRectangle`, `fillPolygon`, `drawLine` at pens 1-4 in every
   direction, Float coordinates (truncated, as on the watch), and baked
-  text. `drawArc` is 0-5 pixels a shape off at its ends. The probes draw
-  small shapes (radii to 12, lines about 22 px, a rotated pattern to
-  radius 80), so a much larger shape is fitted by extrapolation. A corner
+  text. `drawArc` is 0-5 pixels a shape off at its ends. From radius
+  about 40, a circle, ellipse or arc is a few edge pixels off (about 1-2%
+  of a ring's): Garmin steps a circle incrementally, which no distance
+  test reproduces (`docs/lore/rendering.md`). A corner
   radius of 1 is square on the watch
   (`docs/research/probes/ring-on-device/`), as the fitted rules draw it.
   The AMOLED `fenix847mm` anti-aliases every edge, which the preview does

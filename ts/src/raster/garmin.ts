@@ -203,12 +203,14 @@ export function fillPolygon(im: Image, points: readonly (readonly [number, numbe
 /**
  * `dc.drawArc` as the barrel calls it (`[start, end, clockwise]` in Garmin's
  * degrees, counter-clockwise from 3 o'clock): `drawCircle`'s ring of radius
- * r - 1/2, cut to the pixels whose angle from the centre lies in the span,
- * both ends included. Within 0-5 pixels a shape, all at the ends, over
- * pens 1 and 3, sweeps 30 and 135 degrees and four start angles.
+ * r - 1/2 (an odd pen) or r (an even one), cut to the pixels whose angle
+ * from the centre lies in the span, both ends included. Within 0-5 pixels a
+ * shape, all at the ends, over pens 1-3, radii 14-120 and odd starts and
+ * sweeps.
  */
 export function drawArc(im: Image, cx: number, cy: number, r: number, pen: number, [start, end, clockwise]: [number, number, boolean], color: Rgb, s: number): void {
-  const radius = whole(r) - 0.5, half = Math.max(1, Math.trunc(pen)) / 2;
+  // An odd pen's ring is centred half a pixel in, an even pen's on the radius itself.
+  const pens = Math.max(1, Math.trunc(pen)), radius = whole(r) - (pens % 2 === 0 ? 0 : 0.5), half = pens / 2;
   // The span counter-clockwise from `lo`, `length` degrees; start == end is the whole circle.
   const lo = clockwise ? end : start;
   const length = ((((clockwise ? start - end : end - start) % 360) + 360) % 360) || 360;

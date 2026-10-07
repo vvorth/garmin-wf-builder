@@ -103,16 +103,36 @@ function fitScreen(capture: { width: number; height: number; pixels: Uint8Array 
     }
     return n;
   };
-  // The whole-pixel offset: the guess from the lit boxes' centres, snapped to the phase, then searched.
+  // The whole-pixel offset, from two starts, each refined by full misses: the lit boxes' centres
+  // (right for a small face, whose own box the bezel stays clear of), and a search of the whole window
+  // for the offset where a sample of the preview's pixels, lit and dark alike, agrees most with the
+  // capture (right for a face reaching the rim, where the centred box takes in the bezel's ticks).
+  const refine = (start: Screen, reach: number): [Screen, number] => {
+    let best = start, bestMiss = misses(start);
+    for (let dy = -reach; dy <= reach; dy++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        const s = { x0: start.x0 + dx * SCALE, y0: start.y0 + dy * SCALE, scale: SCALE }, m = misses(s);
+        if (m < bestMiss) [best, bestMiss] = [s, m];
+      }
+    }
+    return [best, bestMiss];
+  };
   const snap = (v: number, p: number): number => Math.round((v - p) / SCALE) * SCALE + p;
-  const x00 = snap(ccx - pcx * SCALE, px), y00 = snap(ccy - pcy * SCALE, py);
-  let best: Screen = { x0: x00, y0: y00, scale: SCALE }, bestMiss = misses(best);
-  for (let dy = -3; dy <= 3; dy++) {
-    for (let dx = -3; dx <= 3; dx++) {
-      const s = { x0: x00 + dx * SCALE, y0: y00 + dy * SCALE, scale: SCALE }, m = misses(s);
-      if (m < bestMiss) [best, bestMiss] = [s, m];
+  const centred = refine({ x0: snap(ccx - pcx * SCALE, px), y0: snap(ccy - pcy * SCALE, py), scale: SCALE }, 3);
+  const lit: [number, number][] = [], dark: [number, number][] = [];
+  for (let y = pt!; y < pb!; y++) for (let x = pl!; x < pr!; x++) (previewLit(x, y) ? lit : dark).push([x, y]);
+  const every = <T>(list: T[], n: number): T[] => list.filter((_, i) => i % Math.max(1, Math.floor(list.length / n)) === 0);
+  const probe = [...every(lit, 200), ...every(dark, 200)].map(([x, y]) => [x, y, previewLit(x, y)] as const);
+  let found: Screen = { x0: px, y0: py, scale: SCALE }, bestAgree = -1;
+  for (let y0 = py - pt! * SCALE; y0 + pb! * SCALE <= capture.height; y0 += 4 * SCALE) {
+    for (let x0 = px - pl! * SCALE; x0 + pr! * SCALE <= capture.width; x0 += 4 * SCALE) {
+      let agree = 0;
+      for (const [x, y, on] of probe) if (capLit(x0 + x * SCALE + 1, y0 + y * SCALE + 1) === on) agree++;
+      if (agree > bestAgree) [found, bestAgree] = [{ x0, y0, scale: SCALE }, agree];
     }
   }
+  const searched = refine(found, 4);
+  const best = searched[1] < centred[1] ? searched[0] : centred[0];
   return best;
 }
 

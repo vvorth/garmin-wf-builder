@@ -10,6 +10,7 @@ future session needs it on turn one.
 | a platform constraint's full text and citations | `docs/lore/platform-constraints.md` (same numbering as §4) |
 | build/SDK/environment facts, `.prg` measurement, SDK doc paths | `docs/lore/toolchain.md` |
 | Monkey C compiler quirks | `docs/lore/monkeyc.md` (auto-loaded in `ts/src/emit/`, `runtime-lib/`) |
+| which pixels Garmin's `Dc` lights, as the simulator showed it | `docs/lore/rendering.md` |
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `ts/src/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
