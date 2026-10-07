@@ -6,6 +6,20 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantiate, len, node, page, render, repoText, run, summary, testUri } from "./page-harness.ts";
 
+test("deleting a face asks in the page's own dialog first", async () => {
+  const printed = await page(faceFixture(), "#/", `
+      const asked = () => app.textContent.includes("Are you sure?");
+      await click(button("Delete"));
+      out(asked());
+      await click(button("Cancel"));
+      out([asked(), sent().length]);
+      await click(button("Delete"));
+      await click(find((e) => e.localName === "button" && cls(e) === "primary" && e.textContent === "Delete")[0]);
+      out([asked(), sent().map(([op]) => op)]);
+    `);
+  assert.deepEqual(printed, [true, [false, 0], [false, ["delete"]]]);
+});
+
 test("the library shows each face with its picture and renames it", async () => {
   const face = faceFixture();
   const printed = await page(face, "#/", "\n      const img = find((e) => e.localName === \"img\" && e.parentNode && cls(e.parentNode) === \"cover\")[0];\n      out(img.attributes[\"data-op\"] === \"cover\");\n      await click(button(\"Rename\"));\n      const input = find((e) => e.localName === \"input\" && cls(e).startsWith(\"inline-name\"))[0];\n      out(input.attributes.value);\n      input.value = \"Evening\"; input.dispatch(\"input\", { target: input }); await settle();\n      input.dispatch(\"keydown\", { key: \"Enter\", target: input }); await settle();\n      out(sent().map(([op, a]) => `${op} ${a.name}`));\n    ");

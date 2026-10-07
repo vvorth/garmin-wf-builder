@@ -21,25 +21,44 @@ export function WorkerImage({ op, args, ...rest }) {
     style=${src ? undefined : "visibility:hidden"} />`;
 }
 
-// A button that opens `children` below it; a click outside or Escape
-// closes it. `children` may be a function of `close`, for an item that
-// closes the popover once chosen. `align`: "left" or "right" edge.
-export function Popover({ label, title, className = "", align = "left", children, onOpen }) {
+// A button that opens `children` below it, in the browser's top layer
+// (`popover="auto"`): a click outside or Escape closes it, and opening one
+// closes any other, natively. Placed under its button when it opens, and
+// closed when anything behind it scrolls, since it does not move with it.
+// `children` may be a function of `close`, for an item that closes the
+// popover once chosen. `align`: "left" or "right" edge, plus "up" to open
+// above the button; `buttonClass` and `bodyClass` style the two halves.
+let popovers = 0;
+export function Popover({ label, title, className = "", buttonClass = "", bodyClass = "", align = "left", children, onOpen }) {
   const [open, setOpen] = useState(false);
-  const box = useRef(null);
+  const id = useRef(null);
+  id.current ??= `popover-${++popovers}`;
+  const button = useRef(null), body = useRef(null);
+  const place = () => {
+    const r = button.current.getBoundingClientRect(), s = body.current.style;
+    const up = align.includes("up"), right = align.includes("right");
+    s.top = up ? "auto" : `${r.bottom + 4}px`;
+    s.bottom = up ? `${innerHeight - r.top + 4}px` : "auto";
+    s.left = right ? "auto" : `${r.left}px`;
+    s.right = right ? `${innerWidth - r.right}px` : "auto";
+  };
+  const onToggle = (e) => {
+    const now = e.newState === "open";
+    if (now) { place(); if (onOpen) onOpen(); }
+    setOpen(now);
+  };
+  const close = () => { if (body.current && body.current.hidePopover) body.current.hidePopover(); };
   useEffect(() => {
     if (!open) return;
-    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
-    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
-    addEventListener("mousedown", away);
-    addEventListener("keydown", esc);
-    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); };
+    const scrolled = (e) => { if (!body.current.contains(e.target)) close(); };
+    addEventListener("scroll", scrolled, true);
+    return () => removeEventListener("scroll", scrolled, true);
   }, [open]);
-  const close = () => setOpen(false);
-  return html`<span class=${"popover " + className} ref=${box}>
-    <button class=${open ? "on" : ""} title=${title || ""} aria-expanded=${open}
-            onClick=${() => { if (!open && onOpen) onOpen(); setOpen(!open); }}>${label}</button>
-    ${open ? html`<div class=${"popover-body " + align}>${typeof children === "function" ? children(close) : children}</div>` : null}
+  return html`<span class=${"popover " + className}>
+    <button ref=${button} class=${(open ? "on " : "") + buttonClass} title=${title || ""} aria-expanded=${open}
+            popovertarget=${id.current}>${label}</button>
+    <div ref=${body} id=${id.current} popover="auto" class=${`popover-body ${align} ${bodyClass}`} onToggle=${onToggle}>
+      ${open ? (typeof children === "function" ? children(close) : children) : null}</div>
   </span>`;
 }
 
@@ -107,6 +126,6 @@ export function AddName({ label, title, suggest = () => "", onAdd, onCancel, dis
         else if (e.key === "Escape") cancel();
       }} />
     <button class="primary" disabled=${!ok} title="add" onClick=${add}>✓</button>
-    <button class="reset" title="cancel" onClick=${cancel}>×</button>
+    <button class="reset" title="cancel" aria-label="cancel" onClick=${cancel}>×</button>
   </span>`;
 }

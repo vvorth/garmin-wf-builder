@@ -1,6 +1,7 @@
-// A minimal DOM for tests/test_studio_panels.py: enough for preact to render
-// the editor's panels in Node, and for a test to read their text, find
-// elements and click them.
+// A minimal DOM for the page tests (`page-harness.ts`): enough for preact
+// to render the editor's panels in Node, and for a test to read their text,
+// find elements and click them. A popover opens and closes on its button's
+// click (`popovertarget`), as a browser's does.
 class Node {
   constructor(type, name) { this.nodeType = type; this.nodeName = name; this.childNodes = []; this.parentNode = null; }
   get firstChild() { return this.childNodes[0] || null; }
@@ -18,7 +19,7 @@ class Node {
   contains(n) { while (n) { if (n === this) return true; n = n.parentNode; } return false; }
 }
 class Text extends Node { constructor(d) { super(3, "#text"); this.data = String(d); } set nodeValue(v) { this.data = String(v); } get nodeValue() { return this.data; } }
-const EVENTS = ["click", "change", "input", "keydown", "blur", "focus", "mousedown", "pointerdown",
+const EVENTS = ["click", "change", "input", "keydown", "blur", "focus", "mousedown", "pointerdown", "toggle",
                 "dragstart", "dragover", "dragleave", "drop"];
 class Element extends Node {
   constructor(name) { super(1, name.toUpperCase()); this.localName = name; this.attributes = {}; this.style = { setProperty(k, v) { this[k] = v; }, cssText: "" }; this.listeners = {};
@@ -35,7 +36,18 @@ class Element extends Node {
     const event = { type, target: this, currentTarget: this, preventDefault() {}, stopPropagation() {}, ...extra };
     for (const f of this.listeners[type] || []) f.call(this, event);
   }
-  click() { this.dispatch("click"); }
+  click() {
+    this.dispatch("click");
+    const target = this.attributes.popovertarget;
+    if (target === undefined) return;
+    let top = this;
+    while (top.parentNode) top = top.parentNode;
+    const found = top.all((e) => e.attributes.id === target)[0];
+    if (found) found.togglePopover();
+  }
+  togglePopover() { if (this.popoverOpen) this.hidePopover(); else this.showPopover(); }
+  showPopover() { if (!this.popoverOpen) { this.popoverOpen = true; this.dispatch("toggle", { newState: "open" }); } }
+  hidePopover() { if (this.popoverOpen) { this.popoverOpen = false; this.dispatch("toggle", { newState: "closed" }); } }
   getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
 }
 export function install() {

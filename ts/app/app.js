@@ -12,7 +12,7 @@ import { newer, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
-import { BuildDialog, CalibrateDialog, Modal } from "./dialogs.js";
+import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js";
 import { SHORTCUTS } from "./keys.js";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
 
@@ -126,7 +126,7 @@ function Home({ onError }) {
   };
 
   const remove = async (doc) => {
-    if (!confirm(`Delete "${doc.name}" and its whole history? This cannot be undone.`)) return;
+    if (!await ask(`Delete "${doc.name}" and its whole history? This cannot be undone.`, "Delete")) return;
     try { await api("delete", { id: doc.id }); load(); }
     catch (e) { onError(e); }
   };
@@ -144,7 +144,7 @@ function Home({ onError }) {
           <select value=${template} onChange=${(e) => setTemplate(e.target.value)}>
             ${home.templates.map((t) => html`<option value=${t.name}>${t.name}</option>`)}
           </select>
-          <div class="dim" style="margin-top:6px;font-size:12px">${blurb}</div>
+          <div class="dim small blurb">${blurb}</div>
           <label>Name</label>
           <input type="text" value=${name} onInput=${(e) => setName(e.target.value)} />
           <div class="row"><button class="primary" disabled=${busy} onClick=${create}>Create</button></div>
@@ -156,15 +156,15 @@ function Home({ onError }) {
                onDragLeave=${() => setOver(false)}
                onDrop=${(e) => { e.preventDefault(); setOver(false); upload(e.dataTransfer.files[0]); }}>
             Drop a <code>.zip</code> (face.yaml + assets/) or a <code>.yaml</code> here
-            <div class="row" style="justify-content:center">
+            <div class="row center">
               <button disabled=${busy} onClick=${() => fileInput.current.click()}>Choose file…</button>
             </div>
           </div>
-          <input type="file" accept=".zip,.yaml,.yml" style="display:none" ref=${fileInput}
+          <input type="file" accept=".zip,.yaml,.yml" hidden ref=${fileInput}
                  onChange=${(e) => upload(e.target.files[0])} />
         </div>
       </div>
-      <div class="card" style="margin-top:16px">
+      <div class="card library">
         <h2>Library</h2>
         ${home.documents.length === 0
           ? html`<div class="dim">Nothing yet. Faces you create or open are kept here, with their history, until you delete them.</div>`
@@ -181,12 +181,11 @@ function Home({ onError }) {
                       : html`<span class="name" onClick=${() => go(d.id)} title="Open">${d.name}</span>`}
                     <span class="dim">v${d.version} · ${ago(d.changed)}${d.snapshots ? ` · ${d.snapshots} snapshot${d.snapshots > 1 ? "s" : ""}` : ""}</span>
                   </span>
-                  <button onClick=${() => go(d.id)}>Open</button>
                   <button onClick=${() => setRenaming(d.id)} disabled=${renaming === d.id}>Rename</button>
                   <button class="danger" onClick=${() => remove(d)}>Delete</button>
                 </li>`)}
             </ul>`}
-        <div class="dim" style="margin-top:10px;font-size:12px">Faces and their history are kept in <code>${home.store}</code> until you delete them</div>
+        <div class="dim small store-note">Faces and their history are kept in <code>${home.store}</code> until you delete them</div>
       </div>
     </div>`;
 }
@@ -203,7 +202,7 @@ function Missing({ doc, onSend }) {
     ${doc.missing.map((ref) => html`<span class="file">
       <code>${ref}</code>
       <label><button onClick=${(e) => e.currentTarget.nextElementSibling.click()}>Add…</button>
-        <input type="file" accept=".ttf,.otf" style="display:none"
+        <input type="file" accept=".ttf,.otf" hidden
                onChange=${(e) => add(ref, e.target.files[0])} /></label>
     </span>`)}
     <span class="dim">The face does not draw until every font file is added.</span>
@@ -273,20 +272,19 @@ function History({ doc, onChanged, onSend, onOpen, onError }) {
   </div>`;
 }
 
-function DownloadMenu({ doc }) {
-  const [open, setOpen] = useState(false);
-  const save = (form) => download("download", { id: doc.id, form }).catch((e) => alert(e.message));
+function DownloadMenu({ doc, onError }) {
+  const save = (form) => download("download", { id: doc.id, form }).catch(onError);
   return html`<div class="menu">
     <button class="primary" onClick=${() => save("auto")}>Download</button>
-    <button onClick=${() => setOpen(!open)} title="Choose the format">▾</button>
-    ${open ? html`<div class="items" onClick=${() => setOpen(false)}>
-      <button onClick=${() => save("zip")}>.zip (face.yaml + assets)</button>
-      <button onClick=${() => {
-        if (!doc.assets.length || confirm("This face uses asset files; a plain .yaml will not build on its own. Download it anyway?")) {
+    <${Popover} label="▾" title="Choose the format" align="right" bodyClass="menu-items">${(close) => html`
+      <button onClick=${() => { close(); save("zip"); }}>.zip (face.yaml + assets)</button>
+      <button onClick=${async () => {
+        close();
+        if (!doc.assets.length || await ask("This face uses asset files; a plain .yaml will not build on its own. Download it anyway?", "Download .yaml")) {
           save("yaml");
         }
-      }}>.yaml only</button>
-    </div>` : null}
+      }}>.yaml only</button>`}
+    </${Popover}>
   </div>`;
 }
 
@@ -561,7 +559,7 @@ function Editor({ docId, onError, onNotice }) {
         <button class="keys-help" title="Keyboard shortcuts (?)" onClick=${() => setDialog("keys")}>?</button>
         <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
                 onClick=${() => setDialog("build")}>Build…</button>
-        <${DownloadMenu} doc=${doc} />
+        <${DownloadMenu} doc=${doc} onError=${onError} />
       </div>
       ${gone ? html`<div class="banner lost" role="alert">
         <strong>This face was deleted</strong> (in another tab), so changes to it can no longer be saved.
@@ -639,7 +637,7 @@ function Editor({ docId, onError, onNotice }) {
                   title=${real ? `the watch's real size, ${screenMm(deviceInfo.width, deviceInfo.ppi).toFixed(1)} mm across, on this screen`
                                : "this watch's files give no pixel density"}
                   onClick=${() => setZoom(real, true)}>1:1</button>
-          <button class="reset" title="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
+          <button class="reset" title="Calibrate real size with a bank card" aria-label="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
           ? html`<${YamlPane} doc=${doc} selected=${selected} reveal=${reveal} memory=${yamlMemory.current[docId] ||= {}} onDoc=${accept} onError=${onError} onSaving=${setYamlSaving}
@@ -712,7 +710,7 @@ function MessageLog({ log, unseen, onOpen, onClear }) {
   if (!log.length) return null;
   const time = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   return html`<div class="log-badge">
-    <${Popover} align="right" onOpen=${onOpen}
+    <${Popover} align="right up" onOpen=${onOpen}
       label=${html`Messages${unseen ? html` <span class=${"count" + (log.some((m, i) => i < unseen && m.kind === "error") ? " error" : "")}>${unseen}</span>` : null}`}
       title="Every message shown, newest first">
       <div class="pop-title">Messages, newest first</div>
@@ -750,7 +748,8 @@ function App() {
     ${toast ? html`<div class=${"toast " + toast.kind} role=${toast.kind === "error" ? "alert" : "status"}
                         onClick=${() => setToast(null)}>${toast.message}</div>` : null}
     <${MessageLog} log=${log} unseen=${unseen} onOpen=${() => setUnseen(0)}
-                   onClear=${() => { setLog([]); setUnseen(0); }} />`;
+                   onClear=${() => { setLog([]); setUnseen(0); }} />
+    <${AskHost} />`;
 }
 
 render(html`<${App} />`, document.getElementById("app"));

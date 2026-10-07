@@ -1,17 +1,41 @@
-// Dialogs: building a face for one watch, and calibrating real size.
+// Dialogs: a question to confirm, building a face for one watch, and
+// calibrating real size.
 
 import { call } from "./api.js";
-import { html, useState } from "./vendor/preact-htm.module.js";
+import { html, useEffect, useState } from "./vendor/preact-htm.module.js";
 import { CARD_MM, CSS_PX_PER_INCH, calibrate } from "./zoom.js";
 
 export function Modal({ title, onClose, children }) {
   return html`<div class="modal-back" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <div class="modal" role="dialog" aria-label=${title}>
       <div class="modal-head"><strong>${title}</strong>
-        <button class="reset" onClick=${onClose} title="Close">×</button></div>
+        <button class="reset" onClick=${onClose} title="Close" aria-label="Close">×</button></div>
       ${children}
     </div>
   </div>`;
+}
+
+// A question with a yes and a no, in the page's own dialog: `ask(message,
+// yes)` resolves true or false once answered. `AskHost` (mounted once, by
+// the app) shows it; with none mounted, the browser's confirm() asks.
+let asking = null;
+export function ask(message, yes = "OK") {
+  if (asking === null) return Promise.resolve(confirm(message));
+  return new Promise((resolve) => asking({ message, yes, resolve }));
+}
+
+export function AskHost() {
+  const [question, setQuestion] = useState(null);
+  useEffect(() => { asking = setQuestion; return () => { asking = null; }; }, []);
+  if (!question) return null;
+  const answer = (yes) => { setQuestion(null); question.resolve(yes); };
+  return html`<${Modal} title="Are you sure?" onClose=${() => answer(false)}>
+    <div class="modal-body ask">${question.message}</div>
+    <div class="modal-foot">
+      <button onClick=${() => answer(false)}>Cancel</button>
+      <button class="primary" autofocus onClick=${() => answer(true)}>${question.yes}</button>
+    </div>
+  </${Modal}>`;
 }
 
 // Build the face for one watch, then download its .prg.
@@ -84,7 +108,7 @@ export function CalibrateDialog({ current, onSave, onClose }) {
     <div class="modal-body">
       <div>Hold a bank card against the screen and drag until the box matches it.</div>
       <div class="card-box" style=${`width:${width}px;height:${height}px`}>85.6 × 54 mm</div>
-      <input type="range" min="150" max="900" step="1" value=${width} style="width:100%"
+      <input type="range" class="wide" min="150" max="900" step="1" value=${width}
              onInput=${(e) => setWidth(Number(e.target.value))} />
       <div class="dim">${calibrate(width).toFixed(1)} CSS px per inch on this screen (CSS assumes ${CSS_PX_PER_INCH}). Kept in this browser only.</div>
     </div>

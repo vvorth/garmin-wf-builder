@@ -8,8 +8,9 @@ import {
   ANGLE_UNITS, LENGTH_UNITS, afterRemovingSchemes, at, colorName, formatQuantity,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.js";
-import { AddName, InlineName, WorkerImage } from "./ui.js";
+import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
 import { api } from "./api.js";
+import { ask } from "./dialogs.js";
 
 const ALIGN = [["top_left", "top", "top_right"], ["left", "center", "right"],
                ["bottom_left", "bottom", "bottom_right"]];
@@ -57,7 +58,8 @@ function Quantity({ value, units, bareUnit, onCommit, placeholder, like }) {
 function AlignPicker({ value, onCommit }) {
   return html`<span class="align">
     ${ALIGN.map((row) => html`<span class="align-row">${row.map((a) => html`
-      <button class=${value === a ? "on" : ""} title=${a} onClick=${() => onCommit(a)}></button>`)}</span>`)}
+      <button class=${value === a ? "on" : ""} title=${a} aria-label=${a.replace("_", " ")} aria-pressed=${value === a}
+        onClick=${() => onCommit(a)}></button>`)}</span>`)}
   </span>`;
 }
 
@@ -67,39 +69,28 @@ function AlignPicker({ value, onCommit }) {
 // `color.<name>`; one of the 64 or a custom colour as its hex, which the
 // server turns into the swatch holding it (`src/edit/colors.ts`).
 export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }) {
-  const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
-  const box = useRef(null);
   const palette = ctx.globals.palette || [];
   const mip = ctx.vocab.mip || [];
   const displays = ctx.globals.displays || [];
   const ref = colorName(value);
   const swatch = ref && palette.find((p) => p.name === ref);
   const shown = parseHex(value) || (swatch && parseHex(swatch.value));
-  useEffect(() => {
-    if (!open) return;
-    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
-    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
-    addEventListener("mousedown", away);
-    addEventListener("keydown", esc);
-    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); };
-  }, [open]);
-  const pick = (v) => { setOpen(false); setCustom(""); onPick(v); };
   const customRgb = parseHex(custom) || shown || [255, 255, 255];
   const target = swatchFor(customRgb, palette, mip);
   const safe = safeOn(customRgb, displays);
   const warn = shown && !safeOn(shown, displays).ok;
-  return html`<span class="color pop-anchor" ref=${box}>
-    <button class="chip-button" title=${title || "pick a colour"} onClick=${() => setOpen(!open)}>
-      ${label ? null : html`<span class="chip" style=${shown ? `background:${toHex(shown)}` : ""}></span>`}
-      <span class=${ref || label ? "" : "dim"}>${label || ref || (shown ? toHex(shown) : "—")}</span>
-    </button>
-    ${warn ? html`<span class="warn" title=${`dithers on this face's ${displays.join("/")}-colour screens`}>⚠</span>` : null}
-    ${open ? html`<div class="pop">
+  const chip = html`${label ? null : html`<span class="chip" style=${shown ? `background:${toHex(shown)}` : ""}></span>`}
+      <span class=${ref || label ? "" : "dim"}>${label || ref || (shown ? toHex(shown) : "—")}</span>`;
+  return html`<span class="color">
+    <${Popover} buttonClass="chip-button" bodyClass="pop" title=${title || "pick a colour"} label=${chip}
+      onOpen=${() => setCustom("")}>${(close) => {
+      const pick = (v) => { close(); setCustom(""); onPick(v); };
+      return html`
       ${faceGroup ? html`<div class="pop-group">
         <div class="pop-title">This face</div>
         <div class="pop-swatches">${palette.map((p) => { const v = parseHex(p.value); return html`
-          <button class=${"swatch" + (ref === p.name ? " on" : "")} title=${`${p.name} ${p.value}`}
+          <button class=${"swatch" + (ref === p.name ? " on" : "")} title=${`${p.name} ${p.value}`} aria-label=${p.name} aria-pressed=${ref === p.name}
             style=${v ? `background:${toHex(v)}` : ""} onClick=${() => pick(`color.${p.name}`)}></button>`; })}</div>
         ${roles && (ctx.globals.roles || []).length ? html`<div class="pop-roles">${ctx.globals.roles.map((r) => html`
           <button class=${ref === r ? "on" : ""} title="a role: follows the wearer's style or pick" onClick=${() => pick(`color.${r}`)}>${r}</button>`)}</div>` : null}
@@ -108,22 +99,23 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
         <div class="pop-title">MIP 64</div>
         <div class="pop-grid">${mip.map((m) => {
           const held = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
-          return html`<button class=${"swatch" + (held ? " held" : "")} style=${`background:${m.value}`}
+          return html`<button class=${"swatch" + (held ? " held" : "")} style=${`background:${m.value}`} aria-label=${m.label}
             title=${`${m.label} ${m.value}${held ? ` (this face: ${held.name})` : ""}`} onClick=${() => pick(m.value)}></button>`; })}</div>
       </div>
       <div class="pop-group">
         <div class="pop-title">Custom</div>
         <div class="pop-custom">
           <input type="color" value=${toHex(customRgb)} onInput=${(e) => setCustom(e.target.value.toUpperCase())} />
-          <input type="text" class="mono" value=${custom || toHex(customRgb)} style="width:6.5em"
+          <input type="text" class="mono hex" aria-label="hex colour" value=${custom || toHex(customRgb)}
             onInput=${(e) => setCustom(e.target.value)}
             onKeyDown=${(e) => { if (e.key === "Enter" && parseHex(custom)) pick(toHex(parseHex(custom))); }} />
           <button class="primary" disabled=${!parseHex(custom)} onClick=${() => pick(toHex(customRgb))}>Use</button>
         </div>
         ${parseHex(custom) ? html`<div class="note">${target.adds ? `adds ${target.name}` : `uses ${target.name}`}
           ${!safe.ok ? html` · <span class="warn">⚠ dithers</span> <a href="#" onClick=${(e) => { e.preventDefault(); setCustom(toHex(safe.nearest)); }}>nearest ${toHex(safe.nearest)}</a>` : null}</div>` : null}
-      </div>
-    </div>` : null}
+      </div>`;
+    }}</${Popover}>
+    ${warn ? html`<span class="warn" title=${`dithers on this face's ${displays.join("/")}-colour screens`}>⚠</span>` : null}
   </span>`;
 }
 
@@ -214,6 +206,7 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
         onPickColor=${(v) => onEdit({ op: "use_color", ...base, scope: "all", value: v })} />
       ${value != null && !field.required && field.widget !== "readonly"
         ? html`<button class="reset" title=${overridden ? "remove the override" : "remove the key (back to the default)"}
+          aria-label=${overridden ? "remove the override" : "remove the key"}
             onClick=${() => onEdit({ op: "remove", ...base })}>×</button>` : null}
       ${overridden && value == null && field.value != null ? html`<div class="note">inherits ${JSON.stringify(field.value)}</div>` : null}
       ${!overridden && local.length ? html`<div class="note">overridden on this ${local.join(" and ")}</div>` : null}
@@ -273,34 +266,25 @@ export function Glyph({ name, vocab }) {
 // An icon picker: every catalogue icon as a glyph, `none` where the key
 // takes it, and a codepoint (`U+XXXX`) typed in.
 export function IconPop({ value, vocab, allowNone = false, placeholder, onPick }) {
-  const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
-  const box = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
-    addEventListener("mousedown", away);
-    return () => removeEventListener("mousedown", away);
-  }, [open]);
-  const pick = (v) => { setOpen(false); setCode(""); onPick(v); };
   const names = Object.keys(vocab.icon_glyphs || {}).sort();
-  return html`<span class="pop-anchor" ref=${box}>
-    <button class="chip-button" title=${value || placeholder || "pick an icon"} onClick=${() => setOpen(!open)}>
-      <${Glyph} name=${value || placeholder} vocab=${vocab} />
-      <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>
-    </button>
-    ${open ? html`<div class="pop">
+  const label = html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
+      <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
+  return html`<${Popover} buttonClass="chip-button" bodyClass="pop" title=${value || placeholder || "pick an icon"} label=${label}
+    onOpen=${() => setCode("")}>${(close) => {
+    const pick = (v) => { close(); setCode(""); onPick(v); };
+    return html`
       <div class="pop-grid icons">${names.map((n) => html`<button class=${"swatch icon" + (n === value ? " on" : "")}
-        title=${n} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
+        title=${n} aria-label=${n} aria-pressed=${n === value} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
       <div class="pop-custom">
         ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}
-        <input type="text" class="mono" placeholder="U+F0000" value=${code} style="width:7em"
+        <input type="text" class="mono codepoint" aria-label="codepoint" placeholder="U+F0000" value=${code}
           onInput=${(e) => setCode(e.target.value)} />
         <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick(code.trim().toUpperCase())}>Use</button>
-        ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
-      </div>
-    </div>` : null}
-  </span>`;
+        ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"}
+          aria-label=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
+      </div>`;
+  }}</${Popover}>`;
 }
 
 // One `config: slots:` entry, the same card in the Face tab and above a
@@ -330,7 +314,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }) {
     <div class="slot-head">
       <b><${InlineName} value=${slot.name} title="click to rename (every slot: naming it follows)"
         onRename=${(n) => onEdit({ op: "rename", path, to: n })} /></b>
-      <button class="reset" title="delete (refused while an element draws it)"
+      <button class="reset" title="delete (refused while an element draws it)" aria-label="delete (refused while an element draws it)"
         onClick=${() => onEdit({ op: "remove", path })}>×</button>
     </div>
     <div class="slot-line"><span class="dim">shows first</span>
@@ -396,12 +380,12 @@ function Schemes({ schemes, palette, styles, ctx, onEdit }) {
       <tr><th></th>${schemes.names.map((s) => html`<th>
         <${InlineName} value=${s} title="click to rename (every style naming it follows)"
           onRename=${(n) => onEdit({ op: "rename_scheme", name: s, to: n })} />
-        <button class="reset" title="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
+        <button class="reset" title="delete this scheme and the styles that pick it" aria-label="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
       </th>`)}</tr>
       ${schemes.roles.map((r) => html`<tr><td>
         <${InlineName} value=${r} title=${`click to rename (every color.${r} follows)`}
           onRename=${(n) => onEdit({ op: "rename_role", name: r, to: n })} />
-        <button class="reset" title="delete this role (refused while something uses it)" onClick=${() => onEdit({ op: "delete_role", name: r })}>×</button>
+        <button class="reset" title="delete this role (refused while something uses it)" aria-label="delete this role (refused while something uses it)" onClick=${() => onEdit({ op: "delete_role", name: r })}>×</button>
       </td>${schemes.names.map((s) => html`<td>
         <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
           onPick=${(v) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
@@ -420,7 +404,7 @@ function Schemes({ schemes, palette, styles, ctx, onEdit }) {
         const parts = [`Every role becomes a palette colour with ${keepName}'s value.`];
         if (outcome.removed) parts.push(`${outcome.removed} style${outcome.removed > 1 ? "s" : ""} naming only a scheme will go.`);
         if (outcome.duplicates) parts.push(`${outcome.duplicates} style${outcome.duplicates > 1 ? "s" : ""} will look like another one; Diagnostics will name them.`);
-        if (confirm(parts.join("\n"))) onEdit({ op: "remove_theme", keep: keepName });
+        ask(parts.join("\n"), "Remove schemes").then((yes) => { if (yes) onEdit({ op: "remove_theme", keep: keepName }); });
       }}>Remove schemes…</button>
     </div>`;
 }
@@ -453,7 +437,7 @@ function AxisRow({ axis, entry, palette, onEdit }) {
       <${Commit} value=${entry.role} width="7em" placeholder=${meta.role}
         onCommit=${(v) => onEdit(v.trim() && v.trim() !== meta.role ? { op: "set", path: [...path, "role"], value: v.trim() }
                                                                    : { op: "remove", path: [...path, "role"] })} />
-      <button class="reset" title="remove this setting" onClick=${() => onEdit({ op: "remove", path })}>×</button></div>
+      <button class="reset" title="remove this setting" aria-label="remove this setting" onClick=${() => onEdit({ op: "remove", path })}>×</button></div>
     <div class="slot-line"><span class="dim">default</span>
       <select value=${entry.default || ""} onChange=${(e) => onEdit({ op: "set", path: [...path, "default"], value: e.target.value })}>
         ${(list ? list.filter((c) => typeof c === "string") : palette.map((p) => `color.${p.name}`)).map((c) => html`<option value=${c}>${colorName(c) || c}</option>`)}
@@ -487,7 +471,7 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
           <${InlineName} value=${s.name} title="click to rename (every set: naming it follows)"
             onRename=${(n) => onEdit({ op: "rename_hand_set", name: s.name, to: n })} />
           <button title="a copy, to change without touching this one" onClick=${() => onEdit({ op: "duplicate_hand_set", name: s.name })}>Duplicate</button>
-          <button class="reset" title="delete (refused while an element places it)" onClick=${() => onEdit({ op: "delete_hand_set", name: s.name })}>×</button>
+          <button class="reset" title="delete (refused while an element places it)" aria-label="delete (refused while an element places it)" onClick=${() => onEdit({ op: "delete_hand_set", name: s.name })}>×</button>
         </div>
         ${Object.entries(s.hands).map(([hand, h]) => html`<div class="slot-line">
           <span class="dim">${hand}</span>
@@ -557,7 +541,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
       <ul class="rows">${(g.targets || []).map((t) => html`<li>
         <span>${(devices.find((d) => d.id === t) || {}).name || t}</span> <code class="dim">${t}</code>
         ${(g.target_problems || {})[t] ? html`<span class="warn" title=${g.target_problems[t]}>⚠ not available here</span>` : null}
-        <button class="reset" title="remove this target" onClick=${() => onEdit({ op: "set", path: ["build", "targets"], value: g.targets.filter((x) => x !== t) })}>×</button>
+        <button class="reset" title="remove this target" aria-label="remove this target" onClick=${() => onEdit({ op: "set", path: ["build", "targets"], value: g.targets.filter((x) => x !== t) })}>×</button>
       </li>`)}</ul>
       <div class="row">
         <select value=${adding} onChange=${(e) => setAdding(e.target.value)}>
@@ -583,14 +567,14 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
           ${p.dithers_on.length ? html`<span class="warn" title=${`dithers on ${p.dithers_on.join(", ")}`}>⚠</span>` : null}
           ${p.problem ? html`<span class="warn" title=${p.problem}>⚠ not a colour</span>` : null}
           ${p.automatic ? html`<span class="tag" title="named after its colour: renamed when its colour changes, removed when nothing uses it">auto</span>` : null}
-          <button class="reset" title="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
+          <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
           <div class="note">${p.used_by.length ? html`used by ${users(p.used_by)}`
             : p.launcher ? "the launcher icon reads it" : "not used"}</div>
         </li>`)}</ul>
       <div class="row">
         <${ColorPop} ctx=${ctx} faceGroup=${false} label="+ Colour" title="add one of the 64, or your own" onPick=${(v) => onEdit({ op: "add_swatch", value: v })} />
         <button disabled=${!unused.length} title=${unused.length ? `remove ${unused.map((p) => p.name).join(", ")}` : "every colour is in use"}
-          onClick=${() => { if (confirm(`Remove ${unused.map((p) => p.name).join(", ")}?`)) onEdit({ op: "remove_unused" }); }}>Remove unused</button>
+          onClick=${() => ask(`Remove ${unused.map((p) => p.name).join(", ")}?`, "Remove").then((yes) => { if (yes) onEdit({ op: "remove_unused" }); })}>Remove unused</button>
       </div>
     </${Section}>
 
@@ -619,7 +603,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
             ? { op: "set", path: ["config", "style", "choices", e.name, "scheme"], value: ev.target.value }
             : { op: "remove", path: ["config", "style", "choices", e.name, "scheme"] })}>
           <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select>` : null}
-        <button class="reset" title="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
+        <button class="reset" title="delete this style" aria-label="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
       </li>`)}</ul>` : html`<div class="dim">${g.layouts.length || schemes.names.length ? "No styles yet." : "Styles pair a layout with a colour scheme; this face has neither yet."}</div>`}
       ${g.layouts.length || schemes.names.length ? html`<${AddName} label="+ Style" placeholder="style name"
         onAdd=${(n) => {
@@ -649,7 +633,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         ${f.size != null ? html`<${Quantity} value=${f.size} units=${["%r", "px"]} bareUnit="px"
           onCommit=${(v) => onEdit({ op: "set", path: ["resources", "fonts", f.name, "size"], value: v })} />` : null}
         ${f.source ? html`<button title="replace the font file" onClick=${() => { replaceFor.current = f.source; replaceFile.current.click(); }}>Replace…</button>` : null}
-        <button class="reset" title="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "fonts", f.name] })}>×</button>
+        <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "fonts", f.name] })}>×</button>
       </li>`)}</ul>
       ${newFont ? html`<div class="row"><span class="dim">${newFont.name} as</span>
           <${AddName} key=${newFont.name} label="font name" placeholder="font name" startOpen=${true}
@@ -657,10 +641,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
             onAdd=${(n) => { onUpload(newFont, { font: n, size: "10%r" }); setNewFont(null); }}
             onCancel=${() => setNewFont(null)} /></div>`
         : html`<button onClick=${() => fontFile.current.click()}>+ Font from a file…</button>`}
-      <input type="file" accept=".ttf,.otf" style="display:none" ref=${fontFile} onChange=${(e) => {
+      <input type="file" accept=".ttf,.otf" hidden ref=${fontFile} onChange=${(e) => {
         const file = e.target.files[0]; e.target.value = ""; if (file) setNewFont(file);
       }} />
-      <input type="file" accept=".ttf,.otf" style="display:none" ref=${replaceFile} onChange=${(e) => {
+      <input type="file" accept=".ttf,.otf" hidden ref=${replaceFile} onChange=${(e) => {
         const file = e.target.files[0]; e.target.value = ""; if (file) onUpload(file, { reference: replaceFor.current });
       }} />
     </${Section}>
