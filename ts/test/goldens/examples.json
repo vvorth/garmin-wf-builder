@@ -2512,19 +2512,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
-    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
-    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
+    "fenix8solar47mm": "f6b7c1e0f37413a44aa4a37a5abc3b1e",
+    "fenix8solar51mm": "f93fe0fa1e2fbba104c70dd80dbcbd4e",
+    "fr955": "a9802db39739bade129632b4e77a0f41"
    },
    "asleep": {
-    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
-    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
-    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
+    "fenix8solar47mm": "f6b7c1e0f37413a44aa4a37a5abc3b1e",
+    "fenix8solar51mm": "f93fe0fa1e2fbba104c70dd80dbcbd4e",
+    "fr955": "a9802db39739bade129632b4e77a0f41"
    },
    "time": {
-    "fenix8solar47mm": "b8739c221700631a0917b4f24312e9c9",
-    "fenix8solar51mm": "1583a941e9bd8c27532785a96f986526",
-    "fr955": "1e80b7adf662acbf64c0bff5d5da6ec4"
+    "fenix8solar47mm": "f6b7c1e0f37413a44aa4a37a5abc3b1e",
+    "fenix8solar51mm": "f93fe0fa1e2fbba104c70dd80dbcbd4e",
+    "fr955": "a9802db39739bade129632b4e77a0f41"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Shapes' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -3780,9 +3780,9 @@
     "fr955": "a7f192434574d379976b4c13ac48db66"
    },
    "all-styles": {
-    "fenix8solar47mm": "f04b7974b5f96bcff831df416b05e5cf",
-    "fenix8solar51mm": "d05a994646f41e1891769872e30694fa",
-    "fr955": "382203e6151ffe3e1233bcdc7e6d56ec"
+    "fenix8solar47mm": "78f455f8ff240455471ad253a8d5345a",
+    "fenix8solar51mm": "c9ee971561561644dedeb9032553c797",
+    "fr955": "715e99ba5796bdaea8d4035ef948afa2"
    },
    "aod": {
     "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"

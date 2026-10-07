@@ -2,7 +2,7 @@
 // uses and the pasting of its text's and icons' tiles, so a layer's JSON
 // (`draw/jsonform.ts`) draws exactly as Pillow draws it, in Node and in
 // any browser. A transcription of Pillow 12.3.0: `src/PIL/ImageDraw.py` (rectangle, ellipse, arc, line,
-// polygon, rounded_rectangle), `src/libImaging/Draw.c` (the scanline
+// polygon), `src/libImaging/Draw.c` (the scanline
 // polygon, Bresenham lines, the integer ellipse and its clipped arcs and
 // pies) and `Paste.c` (a paste through a mask), with the argument
 // conversion of `src/_imaging.c`.
@@ -15,7 +15,6 @@
 // The C code's arithmetic is kept: `(int)` truncates toward zero, `float`
 // values round to 32 bits after every operation (`F`), and its two
 // roundings (`ROUND_UP`/`ROUND_DOWN`, `lround`) round half away from zero.
-// Python's `round()` (in `rounded_rectangle`) rounds half to even.
 //
 // `primitive` and `drawOps` draw a `Dc` call through Garmin's own rule
 // instead where one is pinned down (`garmin.ts`).
@@ -113,13 +112,6 @@ function roundDownD(f: number): number {
 }
 
 function fmod(a: number, b: number): number { return a % b; }           // C fmod: the sign of a
-
-function roundHalfEven(v: number): number {                     // Python's round()
-  const t = Math.floor(v), d = v - t;
-  if (d > 0.5) return t + 1;
-  if (d < 0.5) return t;
-  return t % 2 === 0 ? t : t + 1;
-}
 
 // -- Draw.c: points, lines, scanlines ------------------------------------------------
 
@@ -415,17 +407,6 @@ function arcTree(a: number, b: number, al: number, ar: number): ClipTree | null 
   return { type, l: { type, l: lc, r: rc }, r: clipNode(0, ar < 180 || ar > 540 ? 1 : -1, 0) };
 }
 
-function pieTree(a: number, b: number, al: number, ar: number): ClipTree {
-  const rad = Math.PI / 180.0;
-  const xl = a * Math.cos(al * rad), xr = a * Math.cos(ar * rad);
-  const yl = b * Math.sin(al * rad), yr = b * Math.sin(ar * rad);
-  let root: ClipTree = { type: F(ar - al) < 180 ? AND : OR, l: clipNode(-yl, xl, 0), r: clipNode(yr, -xr, 0) };
-  if (F(ar - al) < 90) {
-    root = { type: AND, l: root, r: clipNode((xl + xr) / 2.0, (yl + yr) / 2.0, 0) };
-  }
-  return root;
-}
-
 function drawSegments(im: Image, x0: number, y0: number, a: number, b: number, state: EllipseState, root: ClipTree | null | undefined, ink: Rgb): void {
   let seg;
   while ((seg = ellipseNext(state)) !== null) {
@@ -454,16 +435,6 @@ function drawArc(im: Image, x0: number, y0: number, x1: number, y1: number, star
   if (F(start + 360) === end) { ellipseNew(im, x0, y0, x1, y1, ink, false, width); return; }
   if (start === end) return;
   arcNew(im, x0, y0, x1, y1, start, end, ink, width);
-}
-
-// A filled pie: all `rounded_rectangle` needs of `ImagingDrawPieslice`.
-function drawPiesliceFilled(im: Image, x0: number, y0: number, x1: number, y1: number, start: number, end: number, ink: Rgb): void {
-  [start, end] = normalizeAngles(start, end);
-  if (F(start + 360) === end) { ellipseNew(im, x0, y0, x1, y1, ink, true, 0); return; }
-  if (start === end) return;
-  const a = x1 - x0, b = y1 - y0;
-  if (a < 0 || b < 0) return;
-  drawSegments(im, x0, y0, a, b, ellipseState(a, b, x1 + y1 - x0 - y0), pieTree(a, b, start, end), ink);
 }
 
 // -- _imaging.c: the bindings ----------------------------------------------------------
@@ -549,57 +520,6 @@ export function polygon(im: Image, points: readonly (readonly [number, number])[
     edges.push(edge(xy[i]![0], xy[i]![1], xy[0]![0], xy[0]![1]));
   }
   polygonGeneric(im, edges, fill);
-}
-
-export function roundedRectangle(im: Image, xy: readonly number[], radius: number, { fill = null, outline = null, width = 1 }: Style = {}): void {
-  let [x0, y0, x1, y1] = xy as [number, number, number, number];
-  if (x1 < x0) throw new RangeError("x1 must be greater than or equal to x0");
-  if (y1 < y0) throw new RangeError("y1 must be greater than or equal to y0");
-  let d = Math.min(x1 - x0, y1 - y0, radius * 2);
-  x0 = roundHalfEven(x0); y0 = roundHalfEven(y0);
-  x1 = roundHalfEven(x1); y1 = roundHalfEven(y1);
-  const fullX = d >= x1 - x0 - 1;
-  if (fullX) d = x1 - x0;
-  const fullY = d >= y1 - y0 - 1;
-  if (fullY) d = y1 - y0;
-  if (fullX && fullY) { ellipse(im, xy, { fill, outline, width }); return; }
-  if (d === 0) { rectangle(im, xy, { fill, outline, width }); return; }
-  const r = Math.floor(d / 2);
-  let parts: [[number, number, number, number], number, number][];
-  if (fullX) {
-    parts = [[[x0, y0, x0 + d, y0 + d], 180, 360], [[x0, y1 - d, x0 + d, y1], 0, 180]];
-  } else if (fullY) {
-    parts = [[[x0, y0, x0 + d, y0 + d], 90, 270], [[x1 - d, y0, x1, y0 + d], 270, 90]];
-  } else {
-    parts = [[[x0, y0, x0 + d, y0 + d], 180, 270], [[x1 - d, y0, x1, y0 + d], 270, 360],
-             [[x1 - d, y1 - d, x1, y1], 0, 90], [[x0, y1 - d, x0 + d, y1], 90, 180]];
-  }
-  if (fill) {
-    for (const [xy4, s, e] of parts) {
-      const [a0, b0, a1, b1] = box(xy4);
-      drawPiesliceFilled(im, a0, b0, a1, b1, F(s), F(e), fill);
-    }
-    if (fullX) drawRectangle(im, [x0, y0 + r + 1, x1, y1 - r - 1], fill, true, 1);
-    else if (x1 - r - 1 >= x0 + r + 1) drawRectangle(im, [x0 + r + 1, y0, x1 - r - 1, y1], fill, true, 1);
-    if (!fullX && !fullY) {
-      drawRectangle(im, [x0, y0 + r + 1, x0 + r, y1 - r - 1], fill, true, 1);
-      drawRectangle(im, [x1 - r, y0 + r + 1, x1, y1 - r - 1], fill, true, 1);
-    }
-  }
-  if (outline && !sameInk(outline, fill) && width !== 0) {
-    for (const [xy4, s, e] of parts) {
-      const [a0, b0, a1, b1] = box(xy4);
-      drawArc(im, a0, b0, a1, b1, F(s), F(e), outline, width);
-    }
-    if (!fullX) {
-      drawRectangle(im, [x0 + r + 1, y0, x1 - r - 1, y0 + width - 1], outline, true, 1);
-      drawRectangle(im, [x0 + r + 1, y1 - width + 1, x1 - r - 1, y1], outline, true, 1);
-    }
-    if (!fullY) {
-      drawRectangle(im, [x0, y0 + r + 1, x0 + width - 1, y1 - r - 1], outline, true, 1);
-      drawRectangle(im, [x1 - width + 1, y0 + r + 1, x1, y1 - r - 1], outline, true, 1);
-    }
-  }
 }
 
 function sameInk(a: Rgb | null, b: Rgb | null): boolean {
@@ -703,7 +623,7 @@ export function primitive(im: Image, name: string, v: readonly number[], color: 
     if (name === "drawRectangle") garmin.drawRectangle(im, x, y, w, h, pen, color, s);
     else if (shape === "Rectangle") rectangle(im, rect, style);
     else if (name === "fillRoundedRectangle") garmin.fillRoundedRectangle(im, x, y, w, h, v[4]!, color, s);
-    else roundedRectangle(im, rect, v[4]! * s, style);
+    else garmin.drawRoundedRectangle(im, x, y, w, h, v[4]!, pen, color, s);
   } else if (name === "fillCircle") {
     garmin.fillCircle(im, v[0]!, v[1]!, v[2]!, color, s);
   } else if (name === "drawCircle") {

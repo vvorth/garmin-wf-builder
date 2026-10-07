@@ -70,7 +70,7 @@ export function drawRectangle(im: Image, x: number, y: number, w: number, h: num
 /**
  * `dc.fillRoundedRectangle`: the pixels whose centre lies in the rectangle
  * x..x+w, y..y+h with corners of radius r. Exact at r 2, 3 and 5 on 20x14
- * and 20x16.
+ * and 21x15.
  */
 export function fillRoundedRectangle(im: Image, x: number, y: number, w: number, h: number, r: number, color: Rgb, s: number): void {
   [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
@@ -84,6 +84,33 @@ export function fillRoundedRectangle(im: Image, x: number, y: number, w: number,
     // A pixel is in when its centre px + 0.5 >= x + inset, and px + 0.5 <= x + w - inset.
     const left = Math.ceil(x + inset - 0.5), right = Math.floor(x + w - inset - 0.5);
     if (right >= left) rectangle(im, [left * s, py * s, (right + 1) * s - 1, (py + 1) * s - 1], { fill: color });
+  }
+}
+
+/**
+ * `dc.drawRoundedRectangle` with a `pen` px pen: drawRectangle's stroke,
+ * with each corner square replaced by drawCircle's ring about the corner's
+ * centre, its axis exceptions included. The right corners' squares take in
+ * their centre column, the left ones' do not. Exact at a 2 px pen on radii 2,
+ * 3 and 5 at 20x14 and 21x15; other pens are unprobed.
+ */
+export function drawRoundedRectangle(im: Image, x: number, y: number, w: number, h: number, r: number, pen: number, color: Rgb, s: number): void {
+  [x, y, w, h] = [whole(x), whole(y), whole(w), whole(h)];
+  const radius = whole(Math.max(0, Math.min(r, w / 2, h / 2)));
+  const [a, b] = brush(pen);
+  const half = Math.max(1, pen) / 2;
+  const cl = x + radius, cr = x + w - 1 - radius, ct = y + radius, cb = y + h - 1 - radius;
+  const ring = (dx: number, dy: number): boolean => inDisc(dx, dy, radius + half) && !inDisc(dx, dy, radius - half);
+  const lit = (px: number, py: number): boolean => {
+    const zx = px < cl ? cl : px >= cr ? cr : null;
+    const zy = py < ct ? ct : py > cb ? cb : null;
+    if (zx !== null && zy !== null) return ring(px - zx, py - zy);
+    const onH = (py >= y - a && py <= y + b) || (py >= y + h - 1 - a && py <= y + h - 1 + b);
+    const onV = (px >= x - a && px <= x + b) || (px >= x + w - 1 - a && px <= x + w - 1 + b);
+    return (onH && px >= x - a && px <= x + w - 1 + b) || (onV && py >= y - a && py <= y + h - 1 + b);
+  };
+  for (let py = y - pen - 1; py <= y + h + pen; py++) for (let px = x - pen - 1; px <= x + w + pen; px++) {
+    if (lit(px, py)) rectangle(im, [px * s, py * s, (px + 1) * s - 1, (py + 1) * s - 1], { fill: color });
   }
 }
 

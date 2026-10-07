@@ -71,7 +71,7 @@ pixel; `fenix847mm` is the same geometry with grey edges, below):
 | arcs | 135, 195 | 27 |
 | lines | 52, 553 | 224 |
 | polygons | 0, 88 | 1 |
-| rects | 314, 450 | 312 |
+| rects | 314, 450 | 0 |
 | text | 0, 0 | 0 |
 | swatches | 0, 0 | colour only (the profile, above) |
 
@@ -123,8 +123,15 @@ counts given. A device pixel's capture block reads
   ⌊p/2⌋ left and up and p - 1 - ⌊p/2⌋ right and down. Pens 1-4.
 - **`fillRoundedRectangle(x, y, w, h, r)`** lights the pixels whose centre
   lies in the rectangle x..x+w, y..y+h with corners of radius r. Radii 2, 3
-  and 5. The probe's 21x15 shapes came out 20x16 after layout, so odd sizes
-  are unprobed.
+  and 5, at 20x14 and 21x15.
+- **`drawRoundedRectangle(x, y, w, h, r)` with pen p** is `drawRectangle`'s
+  stroke with each corner square replaced by `drawCircle`'s ring of radius
+  r about the corner's centre (x + r, y + r), (x + w - 1 - r, y + r) and
+  their mirrors below, axis exceptions included. A left corner's square
+  ends before its centre column, a right one's takes it in; top and bottom
+  squares end before their centre row. Exact at a 2 px pen on radii 2, 3
+  and 5 at 20x14 and 21x15 (recaptured 2026-10-07, after layout's
+  half-up rounding made the 21x15 shapes 21x15).
 - **`drawLine`**'s 1 px path is 4-connected: one x or one y step at a time,
   whichever lands nearer the true line, a tie stepping y first, both ends
   drawn (|dx| + |dy| + 1 pixels). With the brush this is exact at widths 1
@@ -138,9 +145,8 @@ counts given. A device pixel's capture block reads
 - **`drawArc`** is `drawCircle`'s ring at radius r - 1/2, cut to the
   pixels whose angle from the centre lies in the span, both ends in: 0-5
   pixels a shape, all at the ends, where the r ring missed 10-43 a shape.
-- **Not fitted:** `drawRoundedRectangle` (only a 2 px pen was probed; the
-  brush over the fill's boundary still misses 10-28 pixels a shape, so a
-  1 px probe is needed first), and 2 and 4 px diagonal lines.
+- **Not fitted:** 2 and 4 px diagonal lines. `drawRoundedRectangle` at
+  pens other than 2 is unprobed.
 
 The AMOLED `fenix847mm` misses every rule by its grey edges: it needs a
 coverage model.
