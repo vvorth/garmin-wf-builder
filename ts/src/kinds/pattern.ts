@@ -14,7 +14,7 @@ import type { Device } from "../devices/device.ts";
 import {
   type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
 } from "../layout.ts";
-import { deepEqual, formatG, num, pyMod, roundHalfEven as round } from "../py.ts";
+import { deepEqual, formatG, num, floorMod, roundHalfEven as round } from "../py.ts";
 import { Box, IntBox } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type Refusal, register, TextRun } from "./base.ts";
 import {
@@ -43,7 +43,7 @@ export class PatternTextAngle {
   }
 
   copyCurveAngle(index: number): number {
-    return pyMod(this.local - (this.start + index * this.step), 360.0);
+    return floorMod(this.local - (this.start + index * this.step), 360.0);
   }
 }
 
@@ -205,7 +205,7 @@ function patternSkipTerms(element: PatternElement): Cond[] {
   const terms: Cond[] = [];
   if (element.skip_every !== null) terms.push(Cmp("==", Bin("%", i, Lit(element.skip_every)), Lit(0)));
   for (const index of element.skip) {
-    if (element.skip_every === null || pyMod(index, element.skip_every) !== 0) terms.push(Cmp("==", i, Lit(index)));
+    if (element.skip_every === null || floorMod(index, element.skip_every) !== 0) terms.push(Cmp("==", i, Lit(index)));
   }
   return terms;
 }

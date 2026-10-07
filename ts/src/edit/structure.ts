@@ -19,10 +19,10 @@
 // block the same way, as written: an id the face already has is renamed,
 // and anything else the copy needs (a colour, a font, a slot) is the
 // gate's to refuse.
-import { deepCopy, item, PyError, repr, splitlines } from "../py.ts";
+import { deepCopy, repr, splitlines } from "../py.ts";
 import * as seriesCatalog from "../series.ts";
 import {
-  blockText, dataAt, DEFAULTS, endedPatch, faceColor, keyText, patch, type Patch, rebuild, removeOn, withData,
+  blockText, child, dataAt, DEFAULTS, endedPatch, faceColor, keyText, patch, type Patch, rebuild, removeOn, ShapeError, withData,
 } from "./patch.ts";
 import { dotted, ELEMENT_BLOCKS, type Entry, indexFor, isElement, lineEnd, type Path, pathKey, Refused, SpanIndex } from "./spans.ts";
 import type { Data, DataKey } from "./yaml.ts";
@@ -147,7 +147,7 @@ function pasteLines(index: SpanIndex, block: Path, lines: string, column: number
     // an empty value sits on its key's line: the rest of it goes
     const indent = holder.key.start.column + 2;
     const colon = text.indexOf(":", holder.key.end.index);
-    if (colon < 0) throw new PyError("ValueError", "substring not found");
+    if (colon < 0) throw new ShapeError("substring not found");
     const eol = lineEnd(text, holder.key.start.index);
     return text.slice(0, colon + 1) + "\n" + reindent(lines, column, indent) + text.slice(eol);
   }
@@ -175,8 +175,8 @@ function pasteLines(index: SpanIndex, block: Path, lines: string, column: number
 /** Into the data: `name: value` in `block`, created when missing. */
 function put(expected: Data, block: Path, name: string, value: Data, before: string | null): void {
   let holder: Data = expected;
-  for (const step of block.slice(0, -1)) holder = item(holder, step);
-  if (!(holder instanceof Map)) throw new PyError("AttributeError");
+  for (const step of block.slice(0, -1)) holder = child(holder, step);
+  if (!(holder instanceof Map)) throw new ShapeError("not a mapping");
   const last = block[block.length - 1]!;
   if (!(holder.get(last) instanceof Map)) holder.set(last, new Map());
   const target = holder.get(last) as Map<DataKey, Data>;
@@ -186,7 +186,7 @@ function put(expected: Data, block: Path, name: string, value: Data, before: str
   }
   const items = [...target];
   const at = items.findIndex(([k]) => k === before);
-  if (at < 0) throw new PyError("ValueError");
+  if (at < 0) throw new ShapeError("no such key in the mapping");
   items.splice(at, 0, [name, value]);
   rebuild(target, items);
 }
@@ -296,8 +296,8 @@ function groupOn(index: SpanIndex, paths: Path[], groupId: string | null): Patch
   text = text.slice(0, firstStart) + groupLines + text.slice(firstStart);
   const expected = withData(index);
   const holder = dataAt(expected, block);
-  if (!(holder instanceof Map)) throw new PyError("AttributeError");
-  const members = new Map<DataKey, Data>(entries.map((e) => [e.name, item(holder, e.name)]));
+  if (!(holder instanceof Map)) throw new ShapeError("not a mapping");
+  const members = new Map<DataKey, Data>(entries.map((e) => [e.name, child(holder, e.name)]));
   const items: [DataKey, Data][] = [];
   for (const [k, v] of holder) {
     if (k === entries[0]!.name) items.push([newId, new Map<DataKey, Data>([["type", "group"], ["children", members]])]);
@@ -334,7 +334,7 @@ function ungroupOn(index: SpanIndex, path: Path): Patch {
   const text = index.text.slice(0, g0) + lifted + index.text.slice(g1);
   const expected = withData(index);
   const holder = dataAt(expected, path.slice(0, -1));
-  if (!(holder instanceof Map)) throw new PyError("AttributeError");
+  if (!(holder instanceof Map)) throw new ShapeError("not a mapping");
   const kids = data.get("children");
   const kidMap = kids instanceof Map ? kids : new Map<DataKey, Data>();
   const clash = [...kidMap.keys()].filter((k) => holder.has(k) && k !== entry.name);

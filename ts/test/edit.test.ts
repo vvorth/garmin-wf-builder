@@ -11,7 +11,7 @@ import { Gate, loadText } from "../src/edit/gate.ts";
 import { move, turn, View } from "../src/edit/geometry.ts";
 import {
   addElement, chain, DEFAULTS, deleteElement, duplicateElement, faceColor, moveElement, type Patch, patch as makePatch, remove, renameKey,
-  renameReference, rewriteScalars, setScalars, setValue,
+  renameReference, rewriteScalars, setScalars, setValue, child, deleteChild, setChild, ShapeError,
 } from "../src/edit/patch.ts";
 import { type Entry, parse, type Path, Refused, sameData, SpanIndex } from "../src/edit/spans.ts";
 import { add, elementTypes, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
@@ -388,3 +388,14 @@ test("pasted elements keep their text and take fresh ids where the face has them
   for (const bad of ["just some words", "a: 1\n", "- type: circle\n"]) assert.throws(() => paste(index, bad), /not elements/, bad);
 });
 
+test("child, setChild and deleteChild reach a mapping's key and a list's index, negative from the end", () => {
+  const list = ["a", "b", "c"];
+  const data = new Map<string, unknown>([["k", list]]) as never;
+  assert.equal(child(child(data, "k"), -1), "c");
+  setChild(list, -3, "z");
+  deleteChild(list, 1);
+  assert.deepEqual(list, ["z", "c"]);
+  for (const bad of [() => child(data, "nope"), () => child(list, 2), () => setChild(list, 5, "x"), () => deleteChild(data, "nope"), () => child("text", 0)]) {
+    assert.throws(bad, ShapeError);
+  }
+});

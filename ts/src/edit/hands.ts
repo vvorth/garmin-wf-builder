@@ -7,9 +7,9 @@
 // and `color.accent` stand for the face's main colour and its accent, and
 // are rewritten to colours the face has, so an added set loads.
 import handSets from "../data/hand-sets.json" with { type: "json" };
-import { deepCopy, get, item, or, repr } from "../py.ts";
+import { deepCopy, get, or, repr } from "../py.ts";
 import { roles, swatches } from "./colors.ts";
-import { chain, endedPatch, patch, type Patch, pyKey, remove, renameKey, repointOn, setValue } from "./patch.ts";
+import { chain, child, endedPatch, patch, type Patch, pyKey, remove, renameKey, repointOn, setValue } from "./patch.ts";
 import { type Path, parse, Refused, type SpanIndex } from "./spans.ts";
 import { add } from "./structure.ts";
 import type { Data, DataKey } from "./yaml.ts";
@@ -42,7 +42,7 @@ export function placedBy(index: SpanIndex, name: string): string[] {
   const out: string[] = [];
   for (const entry of index.elements()) {
     let data: Data = index.data;
-    for (const step of entry.path) data = item(data, step);
+    for (const step of entry.path) data = child(data, step);
     if (data instanceof Map && data.get("type") === "hands" && data.get("set") === name) out.push(entry.name);
   }
   return out;

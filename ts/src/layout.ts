@@ -12,7 +12,7 @@ import {
   type DataElement,
 } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
-import { degrees, hypot, pyMod, radians, roundHalfEven } from "./py.ts";
+import { degrees, hypot, floorMod, radians, roundHalfEven } from "./py.ts";
 import * as units from "./units.ts";
 import { visibleMask } from "./visible_area.ts";
 import { Angle, type Axis, Box, IntBox, type Length } from "./units.ts";
@@ -58,13 +58,13 @@ export function alignmentShift(width: number, height: number, align: string, ver
 
 /** The author's arc angles in Garmin's `drawArc` convention. */
 export function garminArc(start: number, sweep: number): [number, string] {
-  return [pyMod(90.0 - start, 360.0), sweep >= 0 ? "ARC_CLOCKWISE" : "ARC_COUNTER_CLOCKWISE"];
+  return [floorMod(90.0 - start, 360.0), sweep >= 0 ? "ARC_CLOCKWISE" : "ARC_COUNTER_CLOCKWISE"];
 }
 
 /** `curve.angle` in `drawAngledText`/`drawRadialText`'s convention: a position for `radial`, a rotation for `angled`. */
 export function garminCurveAngle(style: string, angle: Angle): number {
   if (style === "radial") return angle.toGarmin();
-  return pyMod(-angle.degrees, 360.0);
+  return floorMod(-angle.degrees, 360.0);
 }
 
 export function radialDirectionSign(direction: string | null): number {
@@ -117,7 +117,7 @@ export function arcBbox(cx: number, cy: number, rInner: number, rOuter: number, 
     ys.push(cy - rOuter, cy + rOuter);
   } else {
     for (const axis of [0.0, 90.0, 180.0, 270.0]) {
-      if (pyMod(axis - thetaMin, 360.0) <= sweep) {
+      if (floorMod(axis - thetaMin, 360.0) <= sweep) {
         const rad = radians(axis);
         xs.push(cx + rOuter * Math.cos(rad));
         ys.push(cy - rOuter * Math.sin(rad));
@@ -151,8 +151,8 @@ export function annulusSectorReach(cx: number, cy: number, rInner: number, rOute
   const sweep = thetaMax - thetaMin;
   rInner = Math.max(0.0, rInner);
   if (sweep >= 360.0 || distC < 1e-9) return distC + rOuter;
-  const thetaFar = pyMod(degrees(Math.atan2(-(cy - py), cx - px)), 360.0);
-  if (pyMod(thetaFar - thetaMin, 360.0) <= sweep) return distC + rOuter;
+  const thetaFar = floorMod(degrees(Math.atan2(-(cy - py), cx - px)), 360.0);
+  if (floorMod(thetaFar - thetaMin, 360.0) <= sweep) return distC + rOuter;
   let best = 0.0;
   for (const theta of [thetaMin, thetaMax]) {
     const rad = radians(theta);
@@ -267,8 +267,8 @@ export class InkSector implements Ink {
     const thetaMin = Math.min(this.thetaA, this.thetaB);
     const sweep = Math.max(this.thetaA, this.thetaB) - thetaMin;
     if (sweep >= 360.0 || r < 1e-9) return true;
-    const theta = pyMod(degrees(Math.atan2(-(py - this.cy), px - this.cx)), 360.0);
-    return pyMod(theta - thetaMin, 360.0) <= sweep;
+    const theta = floorMod(degrees(Math.atan2(-(py - this.cy), px - this.cx)), 360.0);
+    return floorMod(theta - thetaMin, 360.0) <= sweep;
   }
 }
 
@@ -577,7 +577,7 @@ export class PlacedPattern extends Placed {
       return [this.center[0], this.center[1], Math.sin(theta), Math.cos(theta)];
     }
     if (this.element.pattern === "grid") {
-      const column = pyMod(index, this.columns), row = Math.floor(index / this.columns);
+      const column = floorMod(index, this.columns), row = Math.floor(index / this.columns);
       return [this.center[0] + column * this.dx, this.center[1] + row * this.dy, 0.0, 1.0];
     }
     return [this.center[0] + index * this.dx, this.center[1] + index * this.dy, 0.0, 1.0];

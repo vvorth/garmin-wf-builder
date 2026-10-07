@@ -170,68 +170,14 @@ function copyData(value: Data): Data {
   return value;
 }
 
-/** A broken assumption about YAML data's shape (`KeyError`, `IndexError`, ...): a bug in the caller, never the author's mistake, which `Refused` reports. */
-export class PyError extends Error {
-  readonly pyType: string;
-
-  constructor(pyType: string, message = "") {
-    super(message || pyType);
-    this.pyType = pyType;
-  }
-}
-
-/** Python's `container[step]` over YAML data: a dict's key, a list's index. */
-export function item(container: unknown, step: DataKey): Data {
-  if (container instanceof Map) {
-    if (!container.has(step)) throw new PyError("KeyError", String(step));
-    return container.get(step)!;
-  }
-  if (Array.isArray(container)) {
-    if (typeof step !== "number" || !Number.isInteger(step)) throw new PyError("TypeError", "list indices must be integers");
-    const i = step < 0 ? container.length + step : step;
-    if (i < 0 || i >= container.length) throw new PyError("IndexError", "list index out of range");
-    return container[i] as Data;
-  }
-  throw new PyError("TypeError", `${typeof container} is not subscriptable`);
-}
-
-/** Python's `container[step] = value` over YAML data. */
-export function setItem(container: unknown, step: DataKey, value: Data): void {
-  if (container instanceof Map) { container.set(step, value); return; }
-  if (Array.isArray(container)) {
-    if (typeof step !== "number" || !Number.isInteger(step)) throw new PyError("TypeError", "list indices must be integers");
-    const i = step < 0 ? container.length + step : step;
-    if (i < 0 || i >= container.length) throw new PyError("IndexError", "list assignment index out of range");
-    container[i] = value;
-    return;
-  }
-  throw new PyError("TypeError", `${typeof container} does not support item assignment`);
-}
-
-/** Python's `del container[step]` over YAML data. */
-export function delItem(container: unknown, step: DataKey): void {
-  if (container instanceof Map) {
-    if (!container.delete(step)) throw new PyError("KeyError", String(step));
-    return;
-  }
-  if (Array.isArray(container)) {
-    if (typeof step !== "number") throw new PyError("TypeError", "list indices must be integers");
-    const i = step < 0 ? container.length + step : step;
-    if (i < 0 || i >= container.length) throw new PyError("IndexError", "list assignment index out of range");
-    container.splice(i, 1);
-    return;
-  }
-  throw new PyError("TypeError", `${typeof container} does not support item deletion`);
-}
-
 /** A string for a regular expression that matches `text` literally: Python's `re.escape`. */
 export function reEscape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\\/-]/g, "\\$&");
 }
 
-/** Python's `a % b` on floats or ints: the result takes the divisor's sign. */
-export function pyMod(a: number, b: number): number {
-  if (b === 0) throw new PyError("ZeroDivisionError", "modulo by zero");
+/** `a` modulo `b` rounded toward minus infinity, so the result takes the divisor's sign: `floorMod(-90, 360)` is 270. */
+export function floorMod(a: number, b: number): number {
+  if (b === 0) throw new RangeError("modulo by zero");
   const r = a % b;
   if (r === 0) return b < 0 ? -0 : 0; // a zero takes the divisor's sign, as Python's float % does
   return (r < 0) !== (b < 0) ? r + b : r;

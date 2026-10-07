@@ -19,7 +19,7 @@
 //
 // Two patches can be one edit (`chain`): a colour's rename rewrites its key
 // and every `color.<name>` that names it, and only the pair loads.
-import { deepCopy, delItem, formatFixed, item, jsonString, PyError, reEscape, setItem, truthy } from "../py.ts";
+import { deepCopy, formatFixed, jsonString, reEscape, repr, truthy } from "../py.ts";
 import {
   dotted, type Entry, indentOf, isElement, lineEnd, lineStart, type Path, pathKey, parse, Refused,
   sameData, SpanIndex, type Step,
@@ -101,8 +101,54 @@ export function pyKey(key: DataKey): string {
 
 // -- data helpers -----------------------------------------------------------
 
+/**
+ * The data is not the shape its caller already checked (through the span
+ * index or the gate): a bug in the patch engine, never the author's mistake,
+ * which is `Refused`.
+ */
+export class ShapeError extends Error {}
+
+/** `container[step]`: a mapping's key, or a list's index (negative counts from the end). */
+export function child(container: unknown, step: DataKey): Data {
+  if (container instanceof Map && container.has(step)) return container.get(step)!;
+  if (Array.isArray(container) && typeof step === "number" && Number.isInteger(step)) {
+    const found = container.at(step) as Data | undefined;
+    if (found !== undefined) return found;
+  }
+  throw new ShapeError(`no ${repr(step)} in this data`);
+}
+
+/** `container[step] = value`: a mapping's key, or a list's existing index. */
+export function setChild(container: unknown, step: DataKey, value: Data): void {
+  if (container instanceof Map) {
+    container.set(step, value);
+    return;
+  }
+  if (Array.isArray(container) && typeof step === "number" && Number.isInteger(step)) {
+    const i = step < 0 ? container.length + step : step;
+    if (i >= 0 && i < container.length) {
+      container[i] = value;
+      return;
+    }
+  }
+  throw new ShapeError(`cannot set ${repr(step)} in this data`);
+}
+
+/** Remove `container[step]`: a mapping's key, or a list's index. */
+export function deleteChild(container: unknown, step: DataKey): void {
+  if (container instanceof Map && container.delete(step)) return;
+  if (Array.isArray(container) && typeof step === "number" && Number.isInteger(step)) {
+    const i = step < 0 ? container.length + step : step;
+    if (i >= 0 && i < container.length) {
+      container.splice(i, 1);
+      return;
+    }
+  }
+  throw new ShapeError(`no ${repr(step)} to remove in this data`);
+}
+
 export function dataAt(data: Data, path: Path): Data {
-  for (const step of path) data = item(data, step);
+  for (const step of path) data = child(data, step);
   return data;
 }
 
@@ -122,12 +168,12 @@ export function rebuild(mapping: Map<DataKey, Data>, items: [DataKey, Data][]): 
 }
 
 export function insertAfter(mapping: Data, after: DataKey | undefined, key: DataKey, value: Data): void {
-  if (!(mapping instanceof Map)) throw new PyError("AttributeError");
+  if (!(mapping instanceof Map)) throw new ShapeError("not a mapping");
   const items = [...mapping];
   let at = items.length;
   if (after !== undefined) {
     const i = items.findIndex(([k]) => k === after);
-    if (i < 0) throw new PyError("ValueError");
+    if (i < 0) throw new ShapeError("no such key in the mapping");
     at = i + 1;
   }
   items.splice(at, 0, [key, value]);
@@ -166,10 +212,10 @@ function mappingAt(index: SpanIndex, path: Path): MappingNode {
   return entry.value;
 }
 
-/** The index of `needle` in `text` from `from`, or Python's `ValueError` when absent. */
+/** The index of `needle` in `text` from `from`; absent, a `ShapeError`. */
 export function indexOf(text: string, needle: string, from: number): number {
   const i = text.indexOf(needle, from);
-  if (i < 0) throw new PyError("ValueError", "substring not found");
+  if (i < 0) throw new ShapeError("substring not found");
   return i;
 }
 
@@ -214,7 +260,7 @@ function setValueOn(index: SpanIndex, path: Path, value: Data, block = false): P
   const expected = withData(index);
   const entry = index.get(path);
   if (entry !== undefined) {
-    setItem(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
+    setChild(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
     const node = entry.value;
     let replacement: string;
     if (node.kind === "scalar" && !(value instanceof Map) && !Array.isArray(value)) {
@@ -271,7 +317,7 @@ export function blockText(value: Data, indent: number): string {
       }
     }
   } else {
-    throw new PyError("TypeError", "not iterable");
+    throw new ShapeError("not iterable");
   }
   return lines.join("");
 }
@@ -304,7 +350,7 @@ function renameKeyOn(index: SpanIndex, path: Path, renamed: string): Patch {
   }
   const expected = withData(index);
   const holder = dataAt(expected, entry.path.slice(0, -1));
-  if (!(holder instanceof Map)) throw new PyError("AttributeError");
+  if (!(holder instanceof Map)) throw new ShapeError("not a mapping");
   const last = entry.path[entry.path.length - 1];
   rebuild(holder, [...holder].map(([k, v]) => [k === last ? renamed : k, v]));
   const { index: start } = entry.key.start, { index: end } = entry.key.end;
@@ -357,7 +403,7 @@ export function removeOn(index: SpanIndex, path: Path): Patch {
     const removed = removeOn(index, holder.path);
     return patch(removed.text, removed.expected, `remove ${dotted(entry.path)}`);
   }
-  delItem(dataAt(expected, entry.path.slice(0, -1)), entry.path[entry.path.length - 1]!);
+  deleteChild(dataAt(expected, entry.path.slice(0, -1)), entry.path[entry.path.length - 1]!);
   const text = index.text;
   if (entry.isFlow) {
     const pairs = entry.parent.pairs;
@@ -415,7 +461,7 @@ function duplicateElementOn(index: SpanIndex, path: Path): Patch {
   const expected = withData(index);
   const parent = dataAt(expected, entry.path.slice(0, -1));
   const renamedPaths = new Set(inside.map((e) => pathKey(e.path.slice(entry.path.length))));
-  const copied = renamedCopy(deepCopy(item(parent, entry.name)), renamedPaths, suffix, []);
+  const copied = renamedCopy(deepCopy(child(parent, entry.name)), renamedPaths, suffix, []);
   insertAfter(parent, entry.name, entry.name + suffix, copied);
   return patch(text.slice(0, end) + block + text.slice(end), expected, `duplicate ${entry.name} as ${entry.name + suffix}`);
 }
@@ -440,7 +486,7 @@ function moveElementOn(index: SpanIndex, path: Path, to: number): Patch {
   if (!(to >= 0 && to < siblings.length)) throw new Refused(`${entry.name} cannot move to position ${to} of ${siblings.length}`);
   const expected = withData(index);
   const parent = dataAt(expected, entry.path.slice(0, -1));
-  if (!(parent instanceof Map)) throw new PyError("AttributeError");
+  if (!(parent instanceof Map)) throw new ShapeError("not a mapping");
   const items = [...parent];
   const [moved] = items.splice(here, 1);
   items.splice(to, 0, moved!);
@@ -515,14 +561,14 @@ function addElementOn(index: SpanIndex, type: string, block: Path, after: string
       if (!taken.has(candidate)) { newId = candidate; break; }
     }
   }
-  if (newId === undefined) throw new PyError("StopIteration");
+  if (newId === undefined) throw new ShapeError("no id left to give");
   if (taken.has(newId)) throw new Refused(`there is already an element called ${newId}`);
   const expected = withData(index);
   const text = index.text;
   const holder = index.get(block);
   if (holder === undefined) {
     if (block.length !== 1) throw new Refused(`${dotted(block)} does not exist`);
-    setItem(expected, block[0]!, new Map([[newId, fields]]));
+    setChild(expected, block[0]!, new Map([[newId, fields]]));
     const lines = [`${keyText(String(block[0]))}:`, `  ${keyText(newId)}:`,
       ...[...fields].map(([k, v]) => `    ${keyText(String(k))}: ${flow(v)}`)];
     const sep = text === "" || text.endsWith("\n\n") ? "" : "\n";
@@ -573,7 +619,7 @@ export function setScalars(index: SpanIndex, values: [Path, Data][]): Patch | un
     if (entry === undefined || value instanceof Map || Array.isArray(value)) return undefined;
     const node = entry.value;
     if (node.kind !== "scalar" || (node.value === "" && node.style === null)) return undefined;
-    setItem(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
+    setChild(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
     spans.push([node.start.index, node.end.index, scalar(value, quoteStyle(node))]);
   }
   spans.sort((a, b) => b[0] - a[0] || b[1] - a[1] || (a[2] < b[2] ? 1 : a[2] > b[2] ? -1 : 0));
@@ -655,7 +701,7 @@ export function repointOn(index: SpanIndex, key: string, old: string, renamed: s
     const entry = index.get([...element.path, key]);
     if (entry !== undefined && entry.value.kind === "scalar" && entry.value.value === old) {
       nodes.push(entry.value);
-      setItem(dataAt(expected, element.path), key, renamed);
+      setChild(dataAt(expected, element.path), key, renamed);
     }
   }
   for (const node of [...nodes].sort((a, b) => b.start.index - a.start.index)) {
@@ -690,9 +736,9 @@ export function removeSlot(index: SpanIndex, name: string): Patch {
     throw new Refused(`${drawers.join(", ")} ${one ? "draws" : "draw"} the slot ${name}: delete ${one ? "it" : "them"} ` +
       "or point them at another slot first");
   }
-  const config = item(index.data, "config");
+  const config = child(index.data, "config");
   let path: Path = ["config", "slots", name];
-  const slots = item(config, "slots");
+  const slots = child(config, "slots");
   if (slots instanceof Map && slots.size === 1) path = config instanceof Map && config.size === 1 ? ["config"] : ["config", "slots"];
   const removed = remove(index, path);
   return patch(removed.text, removed.expected, `delete the slot ${name}`);

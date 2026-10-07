@@ -116,8 +116,6 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     - truthiness, `repr`, `str`, `==` (`deepEqual`), `json.dumps` and
       `splitlines`;
     - `f"{x:.6f}"` and `round()`, half to even;
-    - `PyError`, a broken assumption about the data's shape (a bug), named by
-      the Python exception it stands for.
 - `src/data/` holds the tables the browser needs without a file system.
   `catalog.json`, `complications.json`, `icons.json` and
   `font-registry.json` are the source themselves; `runtime-lib.json`,

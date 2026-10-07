@@ -12,7 +12,7 @@
 // Angles are degrees with 12 o'clock = 0 and clockwise positive, because
 // that is how a watch designer thinks. Garmin's `drawArc` uses 3 o'clock = 0
 // and counter-clockwise positive; `Angle.toGarmin` converts.
-import { degrees, formatG, isNumber, num, pyMod, repr, roundHalfEven } from "./py.ts";
+import { degrees, formatG, isNumber, num, floorMod, repr, roundHalfEven } from "./py.ts";
 
 export class UnitError extends Error {}
 
@@ -109,7 +109,7 @@ export class Angle {
 
   /** `Dc.drawArc`'s convention: 3 o'clock = 0, counter-clockwise positive. */
   toGarmin(): number {
-    return pyMod(90.0 - this.degrees, 360.0);
+    return floorMod(90.0 - this.degrees, 360.0);
   }
 
   toString(): string {
