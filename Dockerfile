@@ -152,12 +152,14 @@ COPY --from=sdk /opt/system-fonts/ ./ts/assets/system-fonts/
 COPY runtime-lib/ ./runtime-lib/
 COPY schema/ ./schema/
 COPY examples/ ./examples/
+# The Help popup in `wfb studio` serves these (docs/research/ is left out: 60 MB of records).
+COPY docs/ ./docs/
 # The SDK device reference: the only source for each panel's real palette size
 # (64 colours, not the 256 that bitsPerPixel implies) and for per-device
 # system-font pixel metrics.  Extracted from the SDK in the stage above; wfb
 # refuses to load devices without it.
 COPY --from=sdk /opt/wfb/.cache/device-reference/ ./.cache/device-reference/
-COPY wfb README.md ./
+COPY wfb README.md LICENSE ./
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN set -eux; \

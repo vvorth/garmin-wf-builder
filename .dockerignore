@@ -22,3 +22,5 @@ ts/assets/icons/LICENSE-nerd-fonts.txt
 ts/assets/system-fonts/
 # The SDK device reference is extracted from the SDK in the image build.
 .cache/
+# Research records and their probes: tens of MB nothing in the image reads.
+docs/research/

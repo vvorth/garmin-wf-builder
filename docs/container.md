@@ -271,8 +271,9 @@ and `ts/assets/system-fonts/`. Neither is in the repository, and
 
 **Stage 3** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
 the same `node:24-trixie-slim` base, then the pruned SDK, `ts/` with its
-`node_modules`, `runtime-lib/`, `schema/`, `examples/` and the `wfb`
-launcher. The Debian base provides `bash`, which the SDK's `monkeyc`
+`node_modules`, `runtime-lib/`, `schema/`, `examples/`, `docs/` (without
+`docs/research/`), `README.md`, `LICENSE` and the `wfb` launcher; the docs
+are there for `wfb studio`'s Help popup. The Debian base provides `bash`, which the SDK's `monkeyc`
 launcher needs; the developer key is generated with Node's own `crypto`, so
 no `openssl` is needed.
 
