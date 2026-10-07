@@ -20,7 +20,7 @@
 // reported here (`element-mapping`).
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
-import { PyError, repr } from "./py.ts";
+import { repr } from "./py.ts";
 import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
 type Dict = Map<DataKey, Data>;
@@ -239,10 +239,5 @@ function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySp
 function keyPosition(mapping: Dict, name: DataKey): [number, number] | null {
   const lc = lcOf(mapping);
   if (lc === undefined) return null;
-  try {
-    return lc.key(name);
-  } catch (error) {
-    if (error instanceof PyError) return null;
-    throw error;
-  }
+  return lc.key(name) ?? null;
 }

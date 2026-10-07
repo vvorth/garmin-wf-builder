@@ -2,7 +2,7 @@
 // JavaScript gives a different answer, so the test fails against it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { floatHex, formatFixed, jsonString, repr, roundHalfEven, splitlines, truthy } from "../src/py.ts";
+import { formatFixed, jsonString, repr, roundHalfEven, splitlines, truthy } from "../src/py.ts";
 
 test("f'{x:.6f}' rounds the exact binary value half to even, where toFixed rounds a tie away", () => {
   assert.equal((1 / 128).toFixed(6), "0.007813");
@@ -38,12 +38,5 @@ test("splitlines(keepends=True) splits on every boundary Python knows", () => {
 test("truthiness: empty containers and zero are false, NaN is true", () => {
   assert.deepEqual([0, "", null, [], new Map(), false].map(truthy), [false, false, false, false, false, false]);
   assert.deepEqual([NaN, "0", [0], new Map([["a", 1]])].map(truthy), [true, true, true, true]);
-});
-
-test("float.hex() matches Python's", () => {
-  assert.equal(floatHex(1.5), "0x1.8000000000000p+0");
-  assert.equal(floatHex(0.1), "0x1.999999999999ap-4");
-  assert.equal(floatHex(-3), "-0x1.8000000000000p+1");
-  assert.equal(floatHex(5e-324), "0x0.0000000000001p-1022");
 });
 

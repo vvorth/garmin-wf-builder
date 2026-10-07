@@ -12,7 +12,6 @@ import { Bag, Span } from "./diagnostics.ts";
 import {
   compose, construct, type Data, type DataKey, mappingKey, mergeSources, PyFloat, Timestamp, type YamlNode, YamlError,
 } from "./edit/yaml.ts";
-import { PyError } from "./py.ts";
 
 /** ruamel's `LineCol`: a collection's own position and its entries'. */
 export class LineCol {
@@ -29,18 +28,17 @@ export class LineCol {
     (this.data ??= new Map()).set(index, value);
   }
 
-  private kv(k: DataKey, x: number, y: number): [number, number] | null {
+  /** `null` when no position was ever added; `undefined` when this key or index has none. */
+  private kv(k: DataKey, x: number, y: number): [number, number] | null | undefined {
     if (this.data === null) return null;
     const entry = this.data.get(k);
-    if (entry === undefined) throw new PyError("KeyError", String(k));
-    const a = entry[x], b = entry[y];
-    if (a === undefined || b === undefined) throw new PyError("IndexError");
-    return [a, b];
+    const a = entry?.[x], b = entry?.[y];
+    return a === undefined || b === undefined ? undefined : [a, b];
   }
 
-  key(k: DataKey): [number, number] | null { return this.kv(k, 0, 1); }
-  value(k: DataKey): [number, number] | null { return this.kv(k, 2, 3); }
-  item(i: number): [number, number] | null { return this.kv(i, 0, 1); }
+  key(k: DataKey): [number, number] | null | undefined { return this.kv(k, 0, 1); }
+  value(k: DataKey): [number, number] | null | undefined { return this.kv(k, 2, 3); }
+  item(i: number): [number, number] | null | undefined { return this.kv(i, 0, 1); }
 }
 
 const LCS = new WeakMap<object, LineCol>();
@@ -134,20 +132,12 @@ export class YamlDocument {
   span(node: unknown, key?: DataKey, of: SpanOf = "value"): Span | null {
     const lc = lcOf(node);
     if (lc === undefined) return null;
-    const own = (): Span => {
-      if (lc.line === null || lc.col === null) throw new PyError("TypeError", "unsupported operand type(s) for +: 'NoneType' and 'int'");
-      return new Span(this.path, lc.line + 1, lc.col + 1);
-    };
-    if (key === undefined) return own();
-    let pos: [number, number] | null;
-    try {
-      if (typeof key === "number" && !(node instanceof Map)) pos = lc.item(key);
-      else if (of === "key") pos = lc.key(key);
-      else pos = lc.value(key);
-    } catch (error) {
-      if (error instanceof PyError && ["KeyError", "IndexError", "AttributeError", "TypeError"].includes(error.pyType)) return own();
-      throw error;
-    }
+    // a collection this compiler minted (`desugar`) can have no line of its own
+    const own = lc.line === null || lc.col === null ? null : new Span(this.path, lc.line + 1, lc.col + 1);
+    if (key === undefined) return own;
+    const pos = typeof key === "number" && !(node instanceof Map) ? lc.item(key) : of === "key" ? lc.key(key) : lc.value(key);
+    // a key with no position of its own is located at its collection
+    if (pos === undefined) return own;
     return pos === null ? null : new Span(this.path, pos[0] + 1, pos[1] + 1);
   }
 
@@ -156,12 +146,7 @@ export class YamlDocument {
     let node: Data | undefined = this.data;
     let span = this.span(node);
     for (const part of parts) {
-      try {
-        // A node this compiler minted (`desugar`) can carry an `lc` with no line at all, which `span` does not survive.
-        span = this.span(node, part) ?? span;
-      } catch (error) {
-        if (!(error instanceof PyError)) throw error;
-      }
+      span = this.span(node, part) ?? span;
       if (node instanceof Map) {
         if (!node.has(part)) break;
         node = node.get(part);

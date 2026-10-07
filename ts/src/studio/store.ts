@@ -13,9 +13,6 @@
 // - `snapshot/<id>/<name>`: a point in time to go back to, naming its text
 //   and assets by hash the same way.
 //
-// The journal's records are the Python store's journal lines, field for
-// field, so a server can replay them later.
-//
 // **Undo and redo are journal records too.** A `change` adds a state; an
 // `undo` or `redo` moves to an earlier or later one, naming it by its
 // sequence number (`target`). Replaying the journal (`timeline`) gives the

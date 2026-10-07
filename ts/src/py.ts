@@ -71,7 +71,7 @@ function timestampRepr(iso: string): string {
 }
 
 /** Python's `str()` of a number: `1.0` for an integral float is not recoverable here, so integers print as integers. */
-export function pyStr(value: number): string {
+function pyStr(value: number): string {
   if (Number.isNaN(value)) return "nan";
   if (!Number.isFinite(value)) return value > 0 ? "inf" : "-inf";
   if (Number.isInteger(value) && Math.abs(value) < 1e16) return String(value);
@@ -170,23 +170,7 @@ function copyData(value: Data): Data {
   return value;
 }
 
-/** Python's `float.hex()`. */
-export function floatHex(value: number): string {
-  if (Number.isNaN(value)) return "nan";
-  if (!Number.isFinite(value)) return value > 0 ? "inf" : "-inf";
-  if (value === 0) return Object.is(value, -0) ? "-0x0.0p+0" : "0x0.0p+0";
-  const view = new DataView(new ArrayBuffer(8));
-  view.setFloat64(0, value);
-  const bits = view.getBigUint64(0);
-  const sign = bits >> 63n ? "-" : "";
-  const exponent = Number((bits >> 52n) & 0x7ffn);
-  const mantissa = bits & ((1n << 52n) - 1n);
-  const lead = exponent === 0 ? "0" : "1";
-  const e = exponent === 0 ? -1022 : exponent - 1023;
-  return `${sign}0x${lead}.${mantissa.toString(16).padStart(13, "0")}p${e >= 0 ? "+" : ""}${e}`;
-}
-
-/** An exception Python would raise outside `Refused` (`KeyError`, `IndexError`, ...), named so a crash compares across languages. */
+/** A broken assumption about YAML data's shape (`KeyError`, `IndexError`, ...): a bug in the caller, never the author's mistake, which `Refused` reports. */
 export class PyError extends Error {
   readonly pyType: string;
 
