@@ -24,7 +24,7 @@ import { aodColorChoice, type Element, type Expression, type Face, type StyleEnt
 import { type RingGroup, ringGroups } from "./ir/rings.ts";
 import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, type ResolvedFace } from "./layout.ts";
 import { Color, dimFraction, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
-import { degrees, radians, roundHalfEven, truthy } from "./py.ts";
+import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
 import { SAMPLE } from "./sample.ts";
 import type { IntBox } from "./units.ts";
@@ -549,9 +549,9 @@ export class Renderer {
   /** `visible:` on the sample readings: absent means hidden. */
   visible(expression: Expression | null, values: Values | null = null): boolean {
     if (expression === null) return true;
-    if (expression.constant !== null) return truthy(expression.constant);
+    if (expression.constant !== null) return expression.constant === true;
     if (expression.ast === null) return true;
-    return truthy(expr.evaluate(expression.ast, values ?? this.values));
+    return expr.evaluate(expression.ast, values ?? this.values) === true;
   }
 
   /** A colour expression's RGB at the sample readings; white when absent. */

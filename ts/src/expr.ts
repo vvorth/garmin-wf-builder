@@ -568,7 +568,7 @@ export function fold(node: Node, scope: Scope, foldColors = true): Node {
       const operand = fold(node.operand, scope, foldColors);
       if (operand.kind === "literal" && operand.value !== null) {
         if (node.op === "-") return literal(negate(operand.value), operand.type, node.offset);
-        return literal(!truthyValue(operand.value), "boolean", node.offset);
+        return literal(!isTrue(operand.value), "boolean", node.offset);
       }
       return { ...node, operand };
     }
@@ -615,13 +615,14 @@ export function fold(node: Node, scope: Scope, foldColors = true): Node {
   }
 }
 
-/** Python's truthiness of an expression value. */
-function truthyValue(v: ExprValue): boolean {
-  if (v === null || v === false || v === "") return false;
-  if (v instanceof PyFloat) return v.value !== 0;
-  if (typeof v === "bigint") return v !== 0n;
-  if (typeof v === "number") return v !== 0;
-  return true;
+/**
+ * A condition's value. `check` admits only a Boolean to `not`, `and`, `or`
+ * and `?:`, and every caller handles `null` first, so this never meets the
+ * values where truthiness rules differ (Monkey C treats `""` as true and
+ * `!` on a Number as `~`; Python treats `""` and `0` as false).
+ */
+function isTrue(v: ExprValue): boolean {
+  return v === true;
 }
 
 /** `value` as the number a numeric literal or reading holds; `TypeError` for anything else. */
@@ -676,8 +677,8 @@ function hostBinary(op: string, a: ExprValue, b: ExprValue): ExprValue {
     case ">=": return !less(a, b);
     case "==": return pyEquals(a, b);
     case "!=": return !pyEquals(a, b);
-    case "and": return truthyValue(a) && truthyValue(b);
-    case "or": return truthyValue(a) || truthyValue(b);
+    case "and": return isTrue(a) && isTrue(b);
+    case "or": return isTrue(a) || isTrue(b);
     default: throw new TypeError("unknown operator");
   }
 }
@@ -699,7 +700,7 @@ export function apply(op: string, a: ExprValue, b: ExprValue): [ExprValue, Type]
     if (error instanceof TypeError) return null;
     throw error;
   }
-  if (COMPARISON_OPS.has(op) || EQUALITY_OPS.has(op) || BOOLEAN_OPS.has(op)) return [truthyValue(result), "boolean"];
+  if (COMPARISON_OPS.has(op) || EQUALITY_OPS.has(op) || BOOLEAN_OPS.has(op)) return [isTrue(result), "boolean"];
   if (isWhole(result)) result = wrapNumber(result);
   return [result, op === "/" ? "float" : numericType(result)];
 }
@@ -787,12 +788,12 @@ export function evaluate(node: Node, values: ReadonlyMap<string, ExprValue>): Ex
     case "unary": {
       const inner = evaluate(node.operand, values);
       if (inner === null) return null;
-      return node.op === "-" ? negate(inner) : !truthyValue(inner);
+      return node.op === "-" ? negate(inner) : !isTrue(inner);
     }
     case "binary": {
       const left = evaluate(node.left, values), right = evaluate(node.right, values);
-      if (node.op === "and") return left !== null && right !== null ? truthyValue(left) && truthyValue(right) : null;
-      if (node.op === "or") return left !== null && right !== null ? truthyValue(left) || truthyValue(right) : null;
+      if (node.op === "and") return left !== null && right !== null ? isTrue(left) && isTrue(right) : null;
+      if (node.op === "or") return left !== null && right !== null ? isTrue(left) || isTrue(right) : null;
       if (left === null || right === null) return null;
       // `WfbMath.div`/`WfbMath.mod`: a zero divisor gives 0
       if (DIVISION_OPS.has(node.op) && pyEquals(right, 0)) return node.op === "/" ? new PyFloat(0) : 0;
@@ -802,7 +803,7 @@ export function evaluate(node: Node, values: ReadonlyMap<string, ExprValue>): Ex
     case "conditional": {
       const cond = evaluate(node.cond, values);
       if (cond === null) return null;
-      return evaluate(truthyValue(cond) ? node.then : node.otherwise, values);
+      return evaluate(isTrue(cond) ? node.then : node.otherwise, values);
     }
     case "call": {
       const args = node.args.map((a) => evaluate(a, values));
