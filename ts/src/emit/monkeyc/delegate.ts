@@ -9,7 +9,9 @@ import { DataElement } from "../../ir/model.ts";
 import { dataHoldMethod } from "../../ir/naming.ts";
 import type { ResolvedFace } from "../../layout.ts";
 import { Writer } from "../writer.ts";
-import { CONFIG_LAYOUT_METHOD, constPrefix, type EditorSlot, editorSlots, header, holdTargets, type SourceFile } from "./common.ts";
+import {
+  CONFIG_LAYOUT_METHOD, constPrefix, type EditorSlot, editorSlots, gatedHolds, header, HOLDS_SHOWN, holdTargets, maskLiteral, type SourceFile,
+} from "./common.ts";
 
 function emitOnWatchFaceConfigEdited(w: Writer, hasSlots = false): void {
   w.doc("The wearer changed something in the native editor.  Re-read the whole\n"
@@ -63,11 +65,12 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
     + "\n"
     + "Each region below is one element's own drawn box, resolved per device in\n"
     + "the Layout module, so what the finger must hit is what the eye sees.");
-  const needsView = hasConfig;
+  const gated = gatedHolds(face);
+  const needsView = hasConfig || gated.length > 0;
   w.block(`class ${face.entry}Delegate extends WatchUi.WatchFaceDelegate`, () => {
     if (needsView) {
-      w.doc("The view, so a config edit can be applied to it, or a\n"
-        + "`data` element's hold target read back.\n"
+      w.doc("The view, so a config edit can be applied to it, a `data`\n"
+        + "element's hold target read back, or what the last frame drew.\n"
         + "\n"
         + "Only declared when it is actually read from: `monkeyc -w` reports an\n"
         + "unused member variable (verified -- \"Member variable '_view' is not\n"
@@ -115,7 +118,9 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
         const prefix = constPrefix(element.id);
         w.blank();
         const layoutTest = element.layout !== null ? ` && _view.${CONFIG_LAYOUT_METHOD}() == ${face.layouts.indexOf(element.layout)}` : "";
-        const condition = hitTest(`${prefix}_HOLD`, layoutTest);
+        const bit = gated.indexOf(element);
+        const shownTest = bit >= 0 ? ` && (_view.${HOLDS_SHOWN} & ${maskLiteral((1 << bit) >>> 0)}) != 0` : "";
+        const condition = hitTest(`${prefix}_HOLD`, layoutTest + shownTest);
         if (element instanceof DataElement) {
           w.comment(`\`${element.id}\` -> whatever the wearer picked for slot ${element.slot}`);
           w.block(condition, () => {

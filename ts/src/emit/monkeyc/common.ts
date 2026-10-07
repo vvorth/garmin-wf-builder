@@ -1,6 +1,6 @@
 // Shared small helpers and types for the Monkey C generation.
 import type { Element, Expression, Face } from "../../ir/model.ts";
-import { aodColorChoice, DataElement, slotOf } from "../../ir/model.ts";
+import { aodColorChoice, DataElement, slotOf, walkElements } from "../../ir/model.ts";
 import { configDataIds, elementConstPrefix } from "../../ir/naming.ts";
 import * as kinds from "../../kinds/index.ts";
 import { type Placed, PlacedText, type ResolvedFace } from "../../layout.ts";
@@ -9,7 +9,7 @@ import { VERSION } from "../../version.ts";
 import type { WatchNumber } from "../../draw/program.ts";
 import { isFloat, val } from "../../draw/barrel.ts";
 import { Color } from "../../palette.ts";
-import { floatRepr } from "../../py.ts";
+import { floatRepr, truthy } from "../../py.ts";
 
 export { type Guards, NO_GUARDS } from "../../availability.ts";
 
@@ -197,6 +197,38 @@ export function header(face: Face, extra = ""): string {
 export function holdTargets(face: Face): Element[] {
   return face.walk().filter((e) => e.on_hold !== null);
 }
+
+/** The view's public bit mask of the hold targets drawn on the last frame. */
+export const HOLDS_SHOWN = "holdsShown";
+
+/**
+ * Hold targets a `visible:` can hide, each owning one bit of `HOLDS_SHOWN`
+ * in this order. A target that is or holds a static element is left out:
+ * the static buffer is painted outside `onUpdate`, which resets the mask.
+ */
+export function gatedHolds(face: Face): Element[] {
+  const statics = new Set(walkElements(face.staticRoots()));
+  const gated = holdTargets(face).filter((target) => {
+    const visible = target.visible;
+    if (visible === null || (visible.constant !== null && truthy(visible.constant))) return false;
+    return !walkElements([target]).some((e) => statics.has(e));
+  });
+  // ponytail: one 32-bit Number; a Long or a second field if a face ever needs more.
+  if (gated.length > 32) throw new Error(`${gated.length} hold targets with 'visible:'; at most 32 are supported`);
+  return gated;
+}
+
+/** The `HOLDS_SHOWN` bits `element` sets once its `visible:` holds: its own, and every enclosing target's. */
+export function shownMask(face: Face, element: Element): number {
+  let mask = 0;
+  gatedHolds(face).forEach((target, bit) => {
+    if (walkElements([target]).includes(element)) mask |= 1 << bit;
+  });
+  return mask >>> 0;
+}
+
+/** A `HOLDS_SHOWN` mask as Monkey C. */
+export const maskLiteral = (mask: number): string => `0x${mask.toString(16)}`;
 
 /** Every `data` element, in draw order. */
 export function dataElements(face: Face): DataElement[] {

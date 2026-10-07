@@ -29,6 +29,7 @@ import { type PreviewOptions, previewOptions, render } from "./preview.ts";
 import { ellipse, type Image, image as newImage } from "./raster/pillow.ts";
 import { visibleMask } from "./visible_area.ts";
 import { ringGroups } from "./ir/rings.ts";
+import { gatedHolds } from "./emit/monkeyc/common.ts";
 
 /** Checks an author may silence with `lint: {allow: [...], reason: "..."}`. */
 export const SUPPRESSIBLE: ReadonlySet<string> = new Set([
@@ -1057,15 +1058,18 @@ export function checkHoldTargets(resolved: ResolvedFace, bag: Bag): void {
     }
     return;
   }
+  const gated = new Set(gatedHolds(resolved.face));
   held.forEach((second, index) => {
     for (const first of held.slice(0, index)) {
       if (neverTogether(first.element, second.element)) continue;
       if (!intersects(first.box, second.box)) continue;
+      const opens = gated.has(first.element) ? `opens ${quoted(first.element.on_hold)} whenever ${first.id} is drawn` : `always opens ${quoted(first.element.on_hold)}`;
       emit(bag, second, diag("warning", "hold-overlap",
-        `${second.id}'s hold region overlaps ${first.id}'s on ${device.id}, so a touch in the shared area always opens ${quoted(first.element.on_hold)}`,
+        `${second.id}'s hold region overlaps ${first.id}'s on ${device.id}, so a touch in the shared area ${opens}`,
         second.element.span, {
           notes: [
-            "regions are tested in draw order and the first match wins, so the second target is unreachable where they overlap",
+            "regions are tested in draw order and the first match wins, so the second target is unreachable where they overlap"
+              + (gated.has(first.element) ? ` while ${first.id} is on screen` : ""),
             "a hold region is the element's own drawn box; move them apart, or drop one of the two 'on_hold:' declarations",
           ],
           confidence: "exact -- resolved geometry",

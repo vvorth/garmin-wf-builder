@@ -87,12 +87,13 @@ outer one runs, and everything downstream — reader hoisting, null guards, the
 host preview's evaluator, the linter's constant folding — works on it with no
 group-awareness at all.
 
-Two consequences are deliberate and recorded in `docs/limitations.md`: a hidden
+One consequence is deliberate and recorded in `docs/limitations.md`: a hidden
 element still occupies its box for every build-time geometric check (visibility
 is a runtime fact, and deciding whether two conditions can both hold is a
-satisfiability question), and it still owns its `on_hold:` hit region (the
-generated delegate has none of the frame's readings, and re-reading them at
-touch time would answer about a different moment than the pixels on screen).
+satisfiability question). Its `on_hold:` region does not outlive it: the view
+records which hold targets passed their `visible:` test on the last frame, and
+the delegate tests that record, so a hold answers about the pixels on screen
+without a second copy of the element's reads.
 
 > **Amendment (2026-09-25, plan 19 A4): each kind's code lives in one
 > module.** The vocabulary above is now a registry, `wfb/kinds/`: one

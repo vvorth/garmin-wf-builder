@@ -159,16 +159,15 @@ that reduces to it on a particular device — is the suppressible `dead-element`
 warning: the element is generated and never drawn. A constant `true` is not
 warned about; it is a normal thing to write while iterating.
 
-Two things `visible:` deliberately does **not** change, both recorded in
-[`docs/limitations.md`](../limitations.md):
+One thing `visible:` deliberately does **not** change, recorded in
+[`docs/limitations.md`](../limitations.md): the element still occupies its box
+for the geometry, overlap, safe-area and text-overflow checks, because
+visibility is a runtime fact and the linter reasons about build-time geometry.
 
-* the element still occupies its box for the geometry, overlap, safe-area and
-  text-overflow checks, because visibility is a runtime fact and the linter
-  reasons about build-time geometry;
-* it still owns its `on_hold:` hit region. The hit test lives in the delegate,
-  which has no access to the frame's readings, and re-reading them at touch time
-  would answer about a different moment than the one on screen anyway. A hold on
-  a hidden element opens its glance.
+Its `on_hold:` region does follow it: a hold reaches the element only while the
+last frame drew it, so a hold on the empty patch a hidden element leaves falls
+through to whatever target lies beneath. A `group`'s region counts as drawn
+when any member passed its `visible:` test.
 
 ### `static:` — draw it once, then blit it
 

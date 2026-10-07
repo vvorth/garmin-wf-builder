@@ -359,7 +359,7 @@
       }
     },
     "visible": {
-      "description": "Draw this element only while this expression is true. It must type as a boolean -- use a comparison ('activity.steps > 0'), 'and'/'or'/'not', or a '?:' whose branches are booleans; there is no truthiness rule, so a bare Number is an error. Absent means hidden: if the condition reads a source the device cannot supply, the element is not drawn. There is deliberately no 'absent:' for visibility -- 'absent:' picks a substitute *value*, and there is no substitute for existence. On a 'group' this gates the whole subtree: the condition is conjoined into every element beneath it. A hidden element still occupies its box for the geometry, overlap and safe-area checks, and still owns its 'on_hold:' region -- see docs/limitations.md.",
+      "description": "Draw this element only while this expression is true. It must type as a boolean -- use a comparison ('activity.steps > 0'), 'and'/'or'/'not', or a '?:' whose branches are booleans; there is no truthiness rule, so a bare Number is an error. Absent means hidden: if the condition reads a source the device cannot supply, the element is not drawn. There is deliberately no 'absent:' for visibility -- 'absent:' picks a substitute *value*, and there is no substitute for existence. On a 'group' this gates the whole subtree: the condition is conjoined into every element beneath it. A hidden element still occupies its box for the geometry, overlap and safe-area checks (see docs/limitations.md); a hold reaches it only while the last frame drew it.",
       "type": "string"
     },
     "lint": {

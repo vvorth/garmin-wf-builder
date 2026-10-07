@@ -104,7 +104,9 @@ draw at all -- `unsupported: hide` on a missing `face:` font or subscreen
 
 Regions are tested in draw order and the first match wins, so two overlapping
 regions make the second unreachable. That is a warning (`hold-overlap`), not
-something you have to notice on the wrist. A pair that can never be on
+something you have to notice on the wrist. A region whose element is hidden by
+`visible:` takes no touches until the element is drawn again, so where the
+first of two is hidden the second answers; the warning says so. A pair that can never be on
 screen together at all -- both belong to a `layouts:` entry, and the two
 entries differ -- is not checked regardless of geometry: a digital clock's
 hold target and analog hands' can share the exact same region on purpose

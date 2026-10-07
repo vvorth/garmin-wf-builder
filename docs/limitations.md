@@ -1176,10 +1176,10 @@ check that refuses suppression on purpose.
 ### `visible:` is a runtime fact, and the linter reasons about build-time geometry
 
 A hidden element still **occupies its box** for every geometric check: safe
-area, off-screen, text overflow, the partial-update clip rectangle, and (once it
-exists) overlap. Two elements that are `visible:` on mutually exclusive
-conditions, deliberately stacked in the same place, will still be reported as
-overlapping when that check lands, and both still count toward the clip.
+area, off-screen, text overflow, the partial-update clip rectangle, and
+`hold-overlap`. Two elements that are `visible:` on mutually exclusive
+conditions, deliberately stacked in the same place, both still count toward
+the clip, and two such hold targets are still reported as overlapping.
 
 `aod-burn-in` is the one exception to "occupies its
 box regardless": it is not a static-geometry check at all, but a render, so
@@ -1197,8 +1197,8 @@ which is a satisfiability question over arbitrary expressions on readings whose
 values are unknown at build time. Sizing the clip and the safe area for "every
 element that *could* draw" is the conservative answer, and conservative is the
 right direction for a budget whose overrun is permanent (§1). Suppress the
-warning on the element with `lint: {allow: [safe-area], reason: "..."}` where the
-overlap is intended.
+warning on the element with `lint: {allow: [safe-area], reason: "..."}` (or
+`hold-overlap`) where the placement is intended.
 
 The one thing that *is* folded is a condition with no readings in it at all:
 `visible:` that reduces to a constant `false` is the suppressible `dead-element`
@@ -1206,20 +1206,14 @@ warning, reported once against the outermost dead element (a group's condition
 is conjoined into its subtree, so warning per descendant would repeat one
 mistake N times).
 
-### A hold reaches an element that is not on screen
+### A hold on a static element ignores its `visible:`
 
-`on_hold:` on an element whose `visible:` is currently false still opens that
-element's glance. The hit test lives in the generated `WatchFaceDelegate`, which
-receives only the touch coordinates: it has no `Dc`, no frame, and none of the
-hoisted reader locals `onUpdate` builds, so gating it would mean re-reading every
-source the condition touches inside `onPress` — a second copy of the element's
-read plan, in a second file, free to drift from the first.
-
-It would also not buy correctness. `onPress` runs at touch time, not at draw
-time, so a re-evaluated condition answers about a different moment than the pixels
-the wearer is looking at; the two can disagree either way. The failure mode as it
-stands is bounded and recoverable — a hold on an empty patch of screen opens a
-glance, and back returns — so this is documented rather than gated.
+A hold reaches a target only while the last frame drew it: the view sets one
+bit per hold target as it passes its `visible:` test, clears them at the start
+of each `onUpdate`, and the delegate tests the bit. A static subtree is painted
+into its buffer outside `onUpdate`, so a hold target that is static, or holds a
+static element, is not gated, though a `visible:` there can read no data
+anyway. A face may gate at most 32 hold targets, one `Number`'s bits.
 
 ### Not checked at all
 

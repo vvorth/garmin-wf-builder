@@ -3,7 +3,7 @@
 import * as formatting from "../formatting.ts";
 import { localName } from "../ir/naming.ts";
 import { stringLiteral } from "../mcsource.ts";
-import { AodStyle, glyphYExpr, mcColor, mcFloat, NO_AOD, plus, shifted } from "../emit/monkeyc/common.ts";
+import { AodStyle, glyphYExpr, HOLDS_SHOWN, maskLiteral, mcColor, mcFloat, NO_AOD, plus, shifted } from "../emit/monkeyc/common.ts";
 import { val } from "./barrel.ts";
 import type { Cond, Num, Op, Paint, SlotText, Str, Text } from "./program.ts";
 import type { Writer } from "../emit/writer.ts";
@@ -159,6 +159,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
         const parts = [...op.locals.map((name) => `${name} == null`), op.negated];
         w.comment(`visible: ${e.text}` + (parts.length > 1 ? " -- absent means hidden" : ""));
         w.block(`if (${parts.join(" || ")})`, () => w.line("return;"));
+        if (op.shown !== 0) w.line(`${HOLDS_SHOWN} |= ${maskLiteral(op.shown)};  // on screen: a hold may reach it`);
         w.blank();
       }
       break;

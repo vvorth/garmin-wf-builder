@@ -19,8 +19,8 @@ import * as vocab from "../../vocab.ts";
 import * as usage from "../usage.ts";
 import { Writer } from "../writer.ts";
 import {
-  andList, aodFontField, aodOnlyFonts, AodStyle, CONFIG_LAYOUT_METHOD, constPrefix, describe, editorSlots, fontField, header,
-  holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile, vectorFontsUsedIn,
+  andList, aodFontField, aodOnlyFonts, AodStyle, CONFIG_LAYOUT_METHOD, constPrefix, describe, editorSlots, fontField, gatedHolds, header,
+  HOLDS_SHOWN, holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile, vectorFontsUsedIn,
 } from "./common.ts";
 import * as configMenu from "./config_menu.ts";
 import {
@@ -227,6 +227,16 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
         + "(a hardware fact, not a per-frame one) and cleared in onExitSleep --\n"
         + "see docs/guide/always-on-display.md.");
       w.line("private var _aod as Boolean = false;");
+      w.blank();
+    }
+    const gated = gatedHolds(face);
+    if (gated.length > 0) {
+      w.doc("One bit per hold target a `visible:` can hide ("
+        + gated.map((e, bit) => `${bit}: \`${e.id}\``).join(", ") + "),\n"
+        + "set as it passes that test and cleared at the start of each onUpdate, so\n"
+        + "the delegate's onPress reaches only what the last frame drew.  Public: a\n"
+        + "delegate cannot reach a private field.");
+      w.line(`var ${HOLDS_SHOWN} as Number = 0;`);
       w.blank();
     }
     emitInitialize(w, face, slots.length > 0, guards);
@@ -631,6 +641,7 @@ function emitOnUpdate(w: Writer, resolved: ResolvedFace, plan: ReadPlan, aod: bo
       + "default sets and restores it around its own drawing." : ""));
   w.block("function onUpdate(dc as Dc) as Void", () => {
     w.line("dc.clearClip();");
+    if (gatedHolds(resolved.face).length > 0) w.line(`${HOLDS_SHOWN} = 0;`);
     if (aaDefault !== null) w.line(`applyAntiAlias(dc, ${mcBool(aaDefault)});`);
     if (aod) {
       w.block("if (_aod)", () => emitAodBody(w, resolved, plan, guards, rings));

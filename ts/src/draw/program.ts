@@ -350,10 +350,10 @@ export interface SlotText {
 }
 export const SlotText = (fields: Omit<SlotText, "t">): SlotText => ({ t: "SlotText", ...fields });
 
-/** `visible:`: nothing more is drawn when the condition does not hold. */
-export interface VisibleGuard { t: "VisibleGuard"; expr: Expression; locals: string[]; negated: string }
-export const VisibleGuard = (expr: Expression, locals: readonly string[], negated: string): VisibleGuard =>
-  ({ t: "VisibleGuard", expr, locals: [...locals], negated });
+/** `visible:`: nothing more is drawn when the condition does not hold; when it does, the hold targets in `shown` are marked on screen. */
+export interface VisibleGuard { t: "VisibleGuard"; expr: Expression; locals: string[]; negated: string; shown: number }
+export const VisibleGuard = (expr: Expression, locals: readonly string[], negated: string, shown = 0): VisibleGuard =>
+  ({ t: "VisibleGuard", expr, locals: [...locals], negated, shown });
 
 /** The element hides while a reading it is bound to is absent. */
 export interface NullGuard { t: "NullGuard"; locals: string[]; sources: string[]; note: string }

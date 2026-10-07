@@ -5,7 +5,7 @@
 // Every kind that draws overrides `ElementKind.lower`. `program` puts the
 // element's own guards (`visible:`, absence, `antialias:`) around it.
 import * as catalog from "../catalog.ts";
-import { AodStyle, type RingPass } from "../emit/monkeyc/common.ts";
+import { AodStyle, type RingPass, shownMask } from "../emit/monkeyc/common.ts";
 import type { Writer } from "../emit/writer.ts";
 import { printOps } from "./printer.ts";
 import { ReadPlan } from "../emit/monkeyc/readplan.ts";
@@ -49,7 +49,8 @@ export function program(ctx: DrawContext, placed: Placed, plan: ReadPlan, antial
   const visible = element.visible;
   if (visible !== null) {
     const always = visible.constant !== null && truthy(visible.constant);
-    ops.push(VisibleGuard(visible, plan.visibleGuards(placed), always ? "" : negated(visible)));
+    ops.push(VisibleGuard(visible, plan.visibleGuards(placed), always ? "" : negated(visible),
+      always ? 0 : shownMask(plan.resolved.face, element)));
   }
   if (kind.name === "data") return [...ops, ...lowered(ctx, placed)];
   const paths = pathsByLocal();
