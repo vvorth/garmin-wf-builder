@@ -76,8 +76,10 @@ FROM ts AS sdk
 # Node's fetch honours https_proxy and no_proxy only when asked to.
 ENV NODE_USE_ENV_PROXY=1
 
-ARG SDK_VERSION=9.2.0
-ARG SDK_FILE=connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip
+# Empty, the newest Linux SDK in Garmin's sdks.json; SDK_VERSION pins a
+# release, SDK_FILE names the archive outright.
+ARG SDK_VERSION=
+ARG SDK_FILE=
 ARG SDK_BASE_URL=https://developer.garmin.com/downloads/connect-iq/sdks
 ARG WFB_NERD_FONTS_BASE_URL=https://github.com/ryanoasis/nerd-fonts/releases/download
 ARG WFB_FONTS_MIRROR=""
@@ -88,8 +90,14 @@ RUN set -eux; \
         echo "${EXTRA_CA_CERT_B64}" | base64 -d >> /etc/ssl/certs/ca-certificates.crt; \
         export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt; \
     fi; \
+    if [ -z "${SDK_FILE}" ]; then \
+        SDK_FILE="$(node -e 'fetch(process.argv[2] + "/sdks.json").then((r) => r.json()).then((list) => { \
+            const ok = list.filter((s) => s.linux && (!process.argv[1] || s.version === process.argv[1])); \
+            ok.sort((a, b) => a.version.localeCompare(b.version, "en", { numeric: true })); \
+            console.log(ok.at(-1).linux); })' "${SDK_VERSION}" "${SDK_BASE_URL}")"; \
+    fi; \
     node tools/fetch-sdk.ts "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq --device-reference /tmp/sdk-doc; \
-    echo "${SDK_VERSION}" > /opt/ciq/SDK_VERSION; \
+    echo "${SDK_FILE}" | sed 's/^connectiq-sdk-lin-\([0-9.]*\)-.*/\1/' > /opt/ciq/SDK_VERSION; \
     test -x /opt/ciq/bin/monkeyc; \
     WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" node tools/fetch-icon-font.ts /opt/icons; \
     node tools/extract-device-reference.ts --sdk /tmp/sdk-doc \

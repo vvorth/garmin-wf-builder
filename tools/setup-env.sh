@@ -2,8 +2,9 @@
 # Rebuild the Connect IQ build environment for garmin-wf-builder.
 #
 # Idempotent: safe to re-run. Runs on Linux and macOS. Installs
-#   - Connect IQ SDK 9.2.0        -> ~/ciq/sdks/9.2.0   (Linux: downloaded;
-#                                    macOS: found where the SDK Manager put it)
+#   - the newest Connect IQ SDK   -> ~/ciq/sdks/<version> (Linux: downloaded,
+#     (SDK_VERSION=x.y.z pins one)   newest per Garmin's sdks.json; macOS: the
+#                                    newest the SDK Manager installed)
 #   - a developer signing key     -> ~/ciq/developer_key.der (generated)
 #   - device definitions          -> ~/.Garmin/ConnectIQ/Devices (Linux: copied;
 #                                    macOS: read in place from the SDK Manager's
@@ -26,9 +27,9 @@
 
 set -euo pipefail
 
-SDK_VERSION="9.2.0"
-SDK_FILE="connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip"
-SDK_URL="https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}"
+# Unset, the newest SDK; SDK_VERSION=x.y.z in the environment pins one.
+SDK_VERSION="${SDK_VERSION:-}"
+SDK_BASE_URL="https://developer.garmin.com/downloads/connect-iq/sdks"
 KEY_DER="${HOME}/ciq/developer_key.der"
 
 # Where the SDK Manager keeps its downloads, and so where monkeyc looks for
@@ -45,7 +46,6 @@ case "$(uname -s)" in
         GARMIN_HOME="${HOME}/.Garmin/ConnectIQ"
         ;;
 esac
-SDK_ROOT="${HOME}/ciq/sdks/${SDK_VERSION}"
 DEVICES_DEST="${GARMIN_HOME}/Devices"
 FONTS_DEST="${GARMIN_HOME}/Fonts"
 # Only the development sandbox has this file; everywhere else the exports are
@@ -100,23 +100,24 @@ fi
 echo "found: ${tools[*]} java"
 
 # ---------------------------------------------------------------- SDK --------
-say "Connect IQ SDK ${SDK_VERSION}"
+say "Connect IQ SDK ${SDK_VERSION:-(newest)}"
+# The newest of a list of names that differ only from a version on: sort -V.
+newest() { sort -V | tail -n 1; }
 if [ "${IS_MAC}" = true ]; then
     # Garmin publishes no unauthenticated macOS SDK download this script has
     # checked, so on a Mac the SDK Manager's own install is used in place:
     # Sdks/connectiq-sdk-mac-<version>-<date>-<hash>/.
     SDK_ROOT=""
-    for cand in "${GARMIN_HOME}/Sdks/connectiq-sdk-mac-${SDK_VERSION}-"*; do
-        [ -x "${cand}/bin/monkeyc" ] && SDK_ROOT="${cand}"
-    done
+    cand="$(ls "${GARMIN_HOME}/Sdks" 2>/dev/null | grep "^connectiq-sdk-mac-${SDK_VERSION:+${SDK_VERSION}-}" | newest || true)"
+    [ -n "${cand}" ] && [ -x "${GARMIN_HOME}/Sdks/${cand}/bin/monkeyc" ] && SDK_ROOT="${GARMIN_HOME}/Sdks/${cand}"
     if [ -z "${SDK_ROOT}" ]; then
         installed="$(ls "${GARMIN_HOME}/Sdks" 2>/dev/null | tr '\n' ' ' || true)"
         cat >&2 <<EOF
-ERROR: Connect IQ SDK ${SDK_VERSION} is not installed.
+ERROR: Connect IQ SDK ${SDK_VERSION:-(any version)} is not installed.
 
 Install it with Garmin's Connect IQ SDK Manager
 (https://developer.garmin.com/connect-iq/sdk/): sign in, open the SDK tab and
-download ${SDK_VERSION}. It lands in
+download ${SDK_VERSION:-the newest}. It lands in
   ${GARMIN_HOME}/Sdks/
 where this script looks for it. Installed there now:
   ${installed:-(none)}
@@ -124,18 +125,37 @@ EOF
         exit 1
     fi
     echo "found at ${SDK_ROOT}"
-elif [ -x "${SDK_ROOT}/bin/monkeyc" ]; then
-    echo "already installed at ${SDK_ROOT}"
 else
-    mkdir -p "${SDK_ROOT}"
-    tmp="$(mktemp -d)"
-    echo "downloading ${SDK_FILE} (~204 MB)…"
-    curl -fSL --retry 3 -o "${tmp}/sdk.zip" "${SDK_URL}"
-    echo "extracting…"
-    unzip -q -o "${tmp}/sdk.zip" -d "${SDK_ROOT}"
-    rm -rf "${tmp}"
-    chmod +x "${SDK_ROOT}"/bin/* 2>/dev/null || true
-    echo "installed to ${SDK_ROOT}"
+    # Garmin's catalogue of releases; offline, the newest SDK already here.
+    SDK_FILE="$(curl -fsSL --retry 3 "${SDK_BASE_URL}/sdks.json" 2>/dev/null \
+        | grep -o "connectiq-sdk-lin-${SDK_VERSION:+${SDK_VERSION}-}[^\"]*\.zip" | newest || true)"
+    if [ -n "${SDK_FILE}" ]; then
+        SDK_VERSION="$(echo "${SDK_FILE}" | sed 's/^connectiq-sdk-lin-\([0-9.]*\)-.*/\1/')"
+    elif [ -z "${SDK_VERSION}" ]; then
+        SDK_VERSION="$(ls "${HOME}/ciq/sdks" 2>/dev/null | newest || true)"
+        [ -n "${SDK_VERSION}" ] && echo "note: ${SDK_BASE_URL}/sdks.json unreachable; using the newest installed SDK"
+    fi
+    if [ -z "${SDK_VERSION}" ]; then
+        echo "ERROR: ${SDK_BASE_URL}/sdks.json is unreachable and no SDK is installed in ~/ciq/sdks." >&2
+        exit 1
+    fi
+    SDK_ROOT="${HOME}/ciq/sdks/${SDK_VERSION}"
+    if [ -x "${SDK_ROOT}/bin/monkeyc" ]; then
+        echo "already installed at ${SDK_ROOT}"
+    elif [ -z "${SDK_FILE}" ]; then
+        echo "ERROR: SDK ${SDK_VERSION} is not installed and ${SDK_BASE_URL}/sdks.json lists no Linux SDK for it." >&2
+        exit 1
+    else
+        mkdir -p "${SDK_ROOT}"
+        tmp="$(mktemp -d)"
+        echo "downloading ${SDK_FILE} (~204 MB)…"
+        curl -fSL --retry 3 -o "${tmp}/sdk.zip" "${SDK_BASE_URL}/${SDK_FILE}"
+        echo "extracting…"
+        unzip -q -o "${tmp}/sdk.zip" -d "${SDK_ROOT}"
+        rm -rf "${tmp}"
+        chmod +x "${SDK_ROOT}"/bin/* 2>/dev/null || true
+        echo "installed to ${SDK_ROOT}"
+    fi
 fi
 
 # ------------------------------------------------------- developer key -------
@@ -399,6 +419,8 @@ say "system fonts"
 say "environment"
 if [ "${IS_MAC}" = false ] && [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
     grep -qF "CIQ_SDK=${SDK_ROOT}" "${PERSIST}" 2>/dev/null || {
+        # A newer SDK replaces the old one's lines, so PATH finds one monkeyc.
+        sed -i '/^export CIQ_SDK=/d; \#^export PATH=.*/ciq/sdks/[^/]*/bin$#d' "${PERSIST}"
         echo "export CIQ_SDK=${SDK_ROOT}" >> "${PERSIST}"
         echo "export PATH=\$PATH:${SDK_ROOT}/bin" >> "${PERSIST}"
         echo "appended CIQ_SDK and PATH to ${PERSIST}"

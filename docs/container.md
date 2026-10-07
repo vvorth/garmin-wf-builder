@@ -284,8 +284,8 @@ SDK and `node_modules` with its development tools, so the image can run
 
 | Argument | Default | Purpose |
 |---|---|---|
-| `SDK_VERSION` | `9.2.0` | recorded in the image at `/opt/ciq/SDK_VERSION` |
-| `SDK_FILE` | the 9.2.0 Linux zip | the archive to download |
+| `SDK_VERSION` | empty: the newest | the release to fetch, looked up in Garmin's `sdks.json`; the one fetched is recorded at `/opt/ciq/SDK_VERSION` |
+| `SDK_FILE` | empty: from `SDK_VERSION` | the archive to download, named outright (a mirror without `sdks.json`) |
 | `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
@@ -308,13 +308,12 @@ install all go through the proxy.
 
 ### Upgrading the SDK
 
-Point the build at a newer archive:
+A build fetches the newest SDK Garmin lists. Docker caches that step, so
+once a newer SDK is out, rebuild without the cache, or pin a release:
 
 ```sh
-docker build \
-  --build-arg SDK_VERSION=9.3.0 \
-  --build-arg SDK_FILE=connectiq-sdk-lin-9.3.0-<date>-<hash>.zip \
-  -t garmin-wf-builder:9.3.0 .
+docker build --no-cache -t garmin-wf-builder .
+docker build --build-arg SDK_VERSION=9.2.0 -t garmin-wf-builder:9.2.0 .
 ```
 
 Then re-run the test suite in the image before trusting it — the generated code

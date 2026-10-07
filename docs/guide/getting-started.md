@@ -22,7 +22,7 @@ on the file `wfb new` writes for you here.
 | | |
 |---|---|
 | **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first, and installs Node 24 itself when yours cannot run TypeScript. |
-| **macOS** | `tools/setup-env.sh` runs natively. Install SDK 9.2.0 and your devices with Garmin's SDK Manager first (step 1): the script uses both where the SDK Manager put them. You need Java 21 or newer (`brew install --cask temurin@21`); the script installs Node 24 itself when yours cannot run TypeScript. The Docker image works too, tested with [OrbStack](https://orbstack.dev). |
+| **macOS** | `tools/setup-env.sh` runs natively. Install the newest SDK and your devices with Garmin's SDK Manager first (step 1): the script uses both where the SDK Manager put them. You need Java 21 or newer (`brew install --cask temurin@21`); the script installs Node 24 itself when yours cannot run TypeScript. The Docker image works too, tested with [OrbStack](https://orbstack.dev). |
 | **Windows** | Not tested. |
 | **A Garmin account** | Needed once, to download the device definitions (step 1). |
 | **A watch** | any Connect IQ watch that can run a watch face ([which watches](#which-watches)), and its USB cable. |
@@ -35,8 +35,8 @@ hand:
 
 1. Install Garmin's
    [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/), sign
-   in, and download the devices you build for. On macOS, download SDK 9.2.0
-   there too.
+   in, and download the devices you build for. On macOS, download the newest
+   SDK there too.
 2. The SDK Manager saves them here:
    - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
    - Linux: `~/.Garmin/ConnectIQ/Devices`

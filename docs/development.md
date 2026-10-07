@@ -44,7 +44,8 @@ docker run --rm -v "$PWD:/work" \
 
 See [`docs/container.md`](container.md). The local install:
 
-Installs the Connect IQ SDK 9.2.0 (on macOS: finds the SDK Manager's own
+Installs the newest Connect IQ SDK in Garmin's `sdks.json`, or the one
+`SDK_VERSION=x.y.z` names (on macOS: finds the SDK Manager's newest
 install), generates a developer key, installs the device definitions (on macOS:
 reads the SDK Manager's in place), copies Garmin's own font files in from
 `vendor/fonts/` if present (Linux only, optional — see below), downloads the Nerd Fonts icon font
@@ -86,7 +87,7 @@ fonts_root`, owned by the `DeviceDatabase` the command builds): a box is always 
 it downloads the Linux SDK and copies devices and fonts into
 `~/.Garmin/ConnectIQ`. On macOS it never downloads or copies either: the SDK
 is the SDK Manager's own
-`~/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-9.2.0-*`,
+`~/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-<version>-*`,
 and devices and fonts are read in place from that tree, which `monkeyc` and
 `wfb` both look in already; a device in `vendor/devices/` that the SDK Manager
 lacks is reported, not copied. It appends `CIQ_SDK`/`PATH` to

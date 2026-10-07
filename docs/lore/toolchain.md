@@ -23,7 +23,7 @@ build claims into this project.
 Reference build commands:
 
 ```sh
-export CIQ_SDK=~/ciq/sdks/9.2.0
+export CIQ_SDK=~/ciq/sdks/9.2.0          # whatever setup-env.sh installed
 $CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix8solar47mm \
     -o out.prg -y ~/ciq/developer_key.der -w -l 3 -O z
 $CIQ_SDK/bin/monkeyc … --build-stats 0     # memory measurement
@@ -221,7 +221,7 @@ why each part matters:
 
 | Piece | Location | Notes |
 |---|---|---|
-| Connect IQ SDK 9.2.0 | `~/ciq/sdks/9.2.0` | Downloaded unauthenticated from `developer.garmin.com`. 204 MB. |
+| Connect IQ SDK, newest (9.2.0 as of 2026-10-07) | `~/ciq/sdks/<version>` | Downloaded unauthenticated from `developer.garmin.com`, the newest Linux release its `sdks.json` lists unless `SDK_VERSION` pins one; offline, the newest already installed. A newer SDK replaces `CIQ_SDK`/`PATH` in `/etc/sandbox-persistent.sh`. 204 MB. |
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
