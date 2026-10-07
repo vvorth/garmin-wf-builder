@@ -64,16 +64,6 @@ export function deleteOp(tree, ids) {
   return paths.length === 1 ? { op: "delete", path: paths[0] } : { op: "delete", paths };
 }
 
-// Layers lists each block front to back, the frontmost (drawn last) on
-// top, so a row's top half is in front of it in draw order. Where a row
-// dropped at `fraction` of its height (0 top, 1 bottom) sends the dragged
-// element, as `dropTarget` answers but for that order: `next` is the
-// sibling drawn after it, the row shown above. `where` is the edge drawn.
-export function shownDrop(node, fraction, next = null) {
-  const { where, target } = dropTarget(node, 1 - fraction, next);
-  return { where: { before: "after", after: "before" }[where] || where, target };
-}
-
 // The YAML of the elements `ids` name, as copied: each one's own lines
 // out of `text` (`node.line` to `node.end`), in document order, a group
 // standing for its children, every one moved to the first column.

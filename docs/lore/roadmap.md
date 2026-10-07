@@ -139,7 +139,7 @@ or AOD-related has been observed on a watch or in the simulator.
   types labelled and grouped, the face drawn showing any one choice,
   `PreviewOptions.picks`), styles and fonts,
   faces kept per browser in its own storage (IndexedDB), structure (add any type, reorder, static and
-  dynamic, groups; Layers listed front to back), copy and paste of
+  dynamic, groups; Layers listed in draw order), copy and paste of
   elements as YAML between faces (`ts/src/edit/structure.ts` `paste`),
   keyboard shortcuts with a "?" list (`ts/app/keys.js`), a YAML tab with
   the schema, a history with undo and snapshots that survives reloads

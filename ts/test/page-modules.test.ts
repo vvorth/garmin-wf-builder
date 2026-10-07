@@ -87,10 +87,8 @@ test("the tree offers its blocks siblings and drop zones", async () => {
   assert.deepEqual(result["drops"], [{"where": "before", "target": {"block": ["elements"], "before": "a"}}, {"where": "after", "target": {"block": ["elements"], "before": "g"}}, {"where": "into", "target": {"block": ["elements", "g", "children"], "before": null}}, {"where": "after", "target": {"block": ["elements"], "before": null}}]);
 });
 
-test("layers shown front to back drop and step by draw order", async () => {
-  const result = await run("\n      const el = (id, path, children = []) => ({kind: \"element\", id, type: children.length ? \"group\" : \"circle\", path, children});\n      const t = [{kind: \"block\", label: \"elements\", path: [\"elements\"], children: [\n        el(\"a\", [\"elements\", \"a\"]), el(\"b\", [\"elements\", \"b\"]), el(\"c\", [\"elements\", \"c\"])]}];\n      const b = t[0].children[1];\n      console.log(JSON.stringify({\n        // b is shown under c: its top half is in front of it, before c in draw order\n        top: treeMod.shownDrop(b, 0.2, \"c\"), bottom: treeMod.shownDrop(b, 0.8, \"c\"),\n        forward: treeMod.stepOp(t, b.path, 1), backward: treeMod.stepOp(t, b.path, -1),\n        frontmost: treeMod.stepOp(t, [\"elements\", \"c\"], 1),\n      }));\n    ");
-  assert.deepEqual(result["top"], {"where": "before", "target": {"block": ["elements"], "before": "c"}});
-  assert.deepEqual(result["bottom"], {"where": "after", "target": {"block": ["elements"], "before": "b"}});
+test("layers step by draw order", async () => {
+  const result = await run("\n      const el = (id, path, children = []) => ({kind: \"element\", id, type: children.length ? \"group\" : \"circle\", path, children});\n      const t = [{kind: \"block\", label: \"elements\", path: [\"elements\"], children: [\n        el(\"a\", [\"elements\", \"a\"]), el(\"b\", [\"elements\", \"b\"]), el(\"c\", [\"elements\", \"c\"])]}];\n      const b = t[0].children[1];\n      console.log(JSON.stringify({\n        forward: treeMod.stepOp(t, b.path, 1), backward: treeMod.stepOp(t, b.path, -1),\n        frontmost: treeMod.stepOp(t, [\"elements\", \"c\"], 1),\n      }));\n    ");
   assert.deepEqual(result["forward"], {"op": "move", "path": ["elements", "b"], "block": ["elements"], "before": null});
   assert.deepEqual(result["backward"], {"op": "move", "path": ["elements", "b"], "block": ["elements"], "before": "a"});
   assert.equal(result["frontmost"], null);

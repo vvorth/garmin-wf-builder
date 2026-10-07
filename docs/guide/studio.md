@@ -248,21 +248,20 @@ A key overridden on the watch in view says so under its value.
 
 The tree lists the face's blocks: `static` and `elements`, then each
 layout's own two, with groups as folders. Within each block and group the
-rows run front to back, as in other design tools: the top row is drawn
-last, over the ones below it (the YAML lists them the other way, in
-drawing order). A block the face does not have yet is listed empty, as
+rows run in drawing order, as the YAML lists them: the top row is drawn
+first, under the ones below it. A block the face does not have yet is listed empty, as
 somewhere an element can go.
 
 - **+ add…** adds an element of any type in front of the selection (or
   at the front of `elements`). A graph asks for its series, a data
   element for its slot and hands for their set (both declared in the
   Face tab).
-- With an element selected: **↑** brings it forward and **↓** sends it
-  backward (**Ctrl+]**, **Ctrl+[**), **Duplicate** (Ctrl+D), **Delete**
+- With an element selected: **↑** sends it backward and **↓** brings it
+  forward (**Ctrl+[**, **Ctrl+]**), **Duplicate** (Ctrl+D), **Delete**
   (Del), **move to…** any block or group. Delete, like the arrow keys,
   acts on everything selected, as one change.
-- Drag a row onto another to put it in front of it (upper half) or
-  behind it (lower half); onto a group's middle to put it inside; onto a
+- Drag a row onto another to put it behind it (upper half) or in front
+  of it (lower half); onto a group's middle to put it inside; onto a
   block's name to put it in front of everything in the block.
 - **Group** (**Ctrl+G**): select more elements beside the first (Ctrl-,
   Cmd- or Shift-click), then Group. The new group has no position or size

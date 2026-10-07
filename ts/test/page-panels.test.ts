@@ -121,7 +121,7 @@ test("a drop on the layers moves a row and ignores anything else", async () => {
   assert.deepEqual(result["ops"], [{"op": "move", "path": ["elements", "clock"], "block": ["static"], "before": null}]);
 });
 
-test("the layers list front to back and up brings forward", async () => {
+test("the layers list in draw order and down brings forward", async () => {
   const doc = summary(instantiate("minimal", "T"));
   const elements = doc["tree"].find((b: any) => eq(b["label"], "elements"))["children"];
   const first = elements[0]["id"];
@@ -136,8 +136,8 @@ test("the layers list front to back and up brings forward", async () => {
         drawn=\${null} onSelect=\${() => {}} onStructure=\${(op) => ops.push(op)} />\`, root);
       const cls = (e) => e.attributes.class || "";
       const rows = root.all((e) => cls(e).startsWith("item")).map((e) => e.textContent.trim());
-      root.all((e) => e.localName === "button" && e.textContent === "↑")[0].click();
       root.all((e) => e.localName === "button" && e.textContent === "↓")[0].click();
+      root.all((e) => e.localName === "button" && e.textContent === "↑")[0].click();
       console.log(JSON.stringify({ rows, ops }));
     `;
   const done = node(script);
@@ -145,7 +145,7 @@ test("the layers list front to back and up brings forward", async () => {
   const result = JSON.parse(done.stdout);
   const shown = elements.map((e: any) => e["id"]);
   assert.ok(len(shown) > 1);
-  assert.deepEqual(result["rows"].slice(-len(shown)), [...elements].reverse().map((e: any) => (e["id"] + e["type"])));
+  assert.deepEqual(result["rows"].slice(-len(shown)), elements.map((e: any) => (e["id"] + e["type"])));
   assert.deepEqual(result["ops"], [{"op": "move", "path": ["elements", first], "block": ["elements"], "before": (len(shown) > 2 ? shown[2] : null)}]);
 });
 
