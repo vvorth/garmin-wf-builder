@@ -12,7 +12,7 @@
 // Angles are degrees with 12 o'clock = 0 and clockwise positive, because
 // that is how a watch designer thinks. Garmin's `drawArc` uses 3 o'clock = 0
 // and counter-clockwise positive; `Angle.toGarmin` converts.
-import { degrees, formatG, isNumber, num, floorMod, quoted, roundHalfEven } from "./py.ts";
+import { degrees, formatG, isNumber, num, floorMod, quoted } from "./py.ts";
 
 export class UnitError extends Error {}
 
@@ -79,10 +79,20 @@ export function atLeastOnePx(length: Length | null, value: number, enabled: bool
 /** The units a size resolved before layout may use: `%` and `pt` need context that does not exist yet. */
 export const SIZE_UNITS = ["px", "%r"] as const;
 
+/**
+ * A screen position or length in whole pixels: half up, toward +infinity,
+ * as the watch rounds the coordinates it computes itself (`WfbGeom.rotatedX`,
+ * `Math.round`). It is shift-invariant, so a box of whole width keeps that
+ * width wherever it lands: half to even drew a 13 px box at x 123.5 as 12 px.
+ */
+export function roundPx(value: number): number {
+  return Math.floor(value + 0.5);
+}
+
 /** Resolve a `px`/`%r` length to whole device pixels, with no box in scope. */
 export function pixelSize(length: Length | null, minorRadius: number, fallback = 24.0): number {
-  if (length === null) return roundHalfEven(fallback);
-  return Math.max(1, roundHalfEven(length.resolve(UNUSED_BOX, "minor", minorRadius)));
+  if (length === null) return roundPx(fallback);
+  return Math.max(1, roundPx(length.resolve(UNUSED_BOX, "minor", minorRadius)));
 }
 
 /** Degrees, 12 o'clock = 0, clockwise positive. */
@@ -178,19 +188,13 @@ export class Box {
   }
 
   /**
-   * Snap to whole pixels: each edge rounded half to even, the width and
-   * height the difference of the rounded edges. With `min1px`, a box at
-   * least 1 px wide or high never rounds to 0 there (the one tie
-   * `atLeastOnePx`'s own clamp would otherwise lose).
+   * Snap to whole pixels: each edge by `roundPx`, the width and height the
+   * difference of the rounded edges, so a box at least 1 px wide or high
+   * never rounds to 0 there.
    */
-  rounded(min1px = false): IntBox {
-    const left = roundHalfEven(this.x), top = roundHalfEven(this.y);
-    let width = roundHalfEven(this.right) - left, height = roundHalfEven(this.bottom) - top;
-    if (min1px) {
-      if (this.width >= 1 && width < 1) width = 1;
-      if (this.height >= 1 && height < 1) height = 1;
-    }
-    return new IntBox(left, top, width, height);
+  rounded(): IntBox {
+    const left = roundPx(this.x), top = roundPx(this.y);
+    return new IntBox(left, top, roundPx(this.right) - left, roundPx(this.bottom) - top);
   }
 }
 

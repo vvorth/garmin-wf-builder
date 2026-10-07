@@ -9,8 +9,8 @@ import { type Element, type Expression, Text, TextSegment } from "../ir/model.ts
 import {
   HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
 } from "../layout.ts";
-import { quoted, roundHalfEven as round, str } from "../py.ts";
-import type { Box } from "../units.ts";
+import { quoted, str } from "../py.ts";
+import { type Box, roundPx as round } from "../units.ts";
 import type { Reading } from "../template.ts";
 import { type Common, ElementKind, type Refusal, register, ringFont, TextRun } from "./base.ts";
 import {

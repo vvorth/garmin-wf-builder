@@ -14,8 +14,8 @@ import type { Device } from "../devices/device.ts";
 import {
   type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
 } from "../layout.ts";
-import { deepEqual, formatG, num, floorMod, roundHalfEven as round } from "../py.ts";
-import { Box, IntBox } from "../units.ts";
+import { deepEqual, formatG, num, floorMod } from "../py.ts";
+import { Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type Refusal, register, TextRun } from "./base.ts";
 import {
   AnyOf, AodDimmed, AodPart, AodPick, ArcSpan, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Continue, type DrawContext,

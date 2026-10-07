@@ -4,8 +4,8 @@ import type { Builder } from "../ir/builder/index.ts";
 import { dedupAppend } from "../ir/builder/state.ts";
 import { type Element, type Expression, HandsElement } from "../ir/model.ts";
 import { type Placed, PlacedHands, ResolvedHand, type Resolver, rotatableParts } from "../layout.ts";
-import { quoted, roundHalfEven as round, str } from "../py.ts";
-import { Box } from "../units.ts";
+import { quoted, str } from "../py.ts";
+import { Box, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, register } from "./base.ts";
 import {
   AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, type DrawContext, HandAngle, If, Let, type Num, NumLocal,

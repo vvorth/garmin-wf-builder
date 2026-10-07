@@ -102,7 +102,7 @@ static:
     color: color.silver
     parts: [{ type: line, at: { dy: -94%r }, to: { dy: -89%r }, thickness: 1px }]
   rim_serration:
-    lint: { allow: [contrast], reason: "deliberately faint flange serration, as on the original dial" }
+    lint: { allow: [contrast, safe-area], reason: "deliberately faint flange serration at the very rim, as on the original dial" }
     type: pattern
     pattern: radial
     at: { anchor: center }

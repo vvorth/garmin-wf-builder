@@ -115,7 +115,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   - `src/py.ts` holds Python's semantics where output depends on them:
     - truthiness, `quoted` (a value as a message shows it), `str`, `==` (`deepEqual`), `json.dumps` and
       `splitlines`;
-    - `f"{x:.6f}"` and `round()`, half to even;
+    - `f"{x:.6f}"` and `round()`, half to even, for font metrics; screen
+      pixels snap half up (`roundPx` in `units.ts`), as the watch rounds;
 - `src/data/` holds the tables the browser needs without a file system.
   `catalog.json`, `complications.json`, `icons.json` and
   `font-registry.json` are the source themselves; `runtime-lib.json`,

@@ -6,8 +6,8 @@ import { allKeys } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, Shape } from "../ir/model.ts";
 import { arcBox, alignmentShift, type Placed, PlacedShape, type Resolver, strokePad } from "../layout.ts";
 import { Position } from "../ir/model.ts";
-import { roundHalfEven as round, truthy } from "../py.ts";
-import { Box } from "../units.ts";
+import { truthy } from "../py.ts";
+import { Box, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, type LiveHandle, type LiveHandleInput, type Refusal, register, shapeOf } from "./base.ts";
 import {
   AodDimmed, AodPick, AodRestyled, ArcSpan, Blank, Const, type DrawContext, FillPolygon, Grown, IfAod, Lit, type Num, type Op,
@@ -209,7 +209,7 @@ class ShapeKind extends ElementKind<Shape> {
       return placed(box.rounded(), sx, sy, { rx, ry });
     }
     const corner = round(r.length(element.corner_radius, parent, "minor", 0));
-    const rect = sized.rounded(min1px);
+    const rect = sized.rounded();
     if (element.filled) return placed(rect, sx, sy, { corner_radius: corner });
     const pad = strokePad(pen);
     const outer = new Box(rect.x - pad, rect.y - pad, rect.width + 2 * pad, rect.height + 2 * pad).rounded();

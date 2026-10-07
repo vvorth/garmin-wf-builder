@@ -18,8 +18,8 @@ import { ANGLES, EXTENTS } from "../edit/geometry.ts";
 import { forPlaced } from "../kinds/index.ts";
 import type { LiveHandle } from "../kinds/base.ts";
 import type { Placed } from "../layout.ts";
-import { formatG, roundHalfEven } from "../py.ts";
-import { Length } from "../units.ts";
+import { formatG } from "../py.ts";
+import { Length, roundPx } from "../units.ts";
 
 export interface Handle {
   kind: "end" | "size" | "angle";
@@ -89,7 +89,7 @@ function rawHandles(placed: Placed): Handle[] {
         const theta = degrees * Math.PI / 180;
         out.push({
           kind: "angle", key, cx, cy, start, sweep,
-          x: roundHalfEven(cx + radius * Math.sin(theta)), y: roundHalfEven(cy - radius * Math.cos(theta)),
+          x: roundPx(cx + radius * Math.sin(theta)), y: roundPx(cy - radius * Math.cos(theta)),
         });
       }
     }

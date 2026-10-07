@@ -12,12 +12,12 @@ import {
   type DataElement,
 } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
-import { degrees, hypot, floorMod, radians, roundHalfEven } from "./py.ts";
+import { degrees, hypot, floorMod, radians } from "./py.ts";
 import * as units from "./units.ts";
 import { visibleMask } from "./visible_area.ts";
-import { Angle, type Axis, Box, IntBox, type Length } from "./units.ts";
+import { Angle, type Axis, Box, IntBox, type Length, roundPx } from "./units.ts";
 
-const round = roundHalfEven;
+const round = roundPx;
 
 export class Placed {
   element!: Element;
@@ -804,7 +804,7 @@ export class Resolver {
         if (element instanceof Group) {
           const box = this.groupBox(element, here);
           this.items.push(Placed.create({
-            element, box: box.rounded(element.resolved_min_1px), center: [round(box.centerX), round(box.centerY)], depth,
+            element, box: box.rounded(), center: [round(box.centerX), round(box.centerY)], depth,
           }));
           const inner = ring + (element.outline !== null ? element.outline.width : 0);
           this.resolveList(element.items, box, depth + 1, reason, inner);

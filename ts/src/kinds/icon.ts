@@ -7,9 +7,9 @@ import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, IconElement } from "../ir/model.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
-import { quoted, roundHalfEven as round, str } from "../py.ts";
+import { quoted, str } from "../py.ts";
 import * as units from "../units.ts";
-import { Box } from "../units.ts";
+import { Box, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
 import {
   AodDimmed, AodRestyled, Blank, Comment, Const, type DrawContext, Font, Glyph, IconChoice, IfNotNull, LoadFont, type Op,

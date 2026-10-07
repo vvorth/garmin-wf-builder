@@ -5,11 +5,11 @@ import type { Builder } from "../ir/builder/index.ts";
 import { allKeys } from "../ir/builder/glyphs.ts";
 import { type Element, type Expression, GRAPH_AREA_MAX_SAMPLES, Graph } from "../ir/model.ts";
 import { type Placed, PlacedGraph, type Resolver } from "../layout.ts";
-import { isFloat, isInt, isNumber, num, quoted, roundHalfEven as round, str } from "../py.ts";
+import { isFloat, isInt, isNumber, num, quoted, str } from "../py.ts";
 import type { Box } from "../units.ts";
 import * as series from "../series.ts";
 import type { SeriesDef } from "../series.ts";
-import { Duration, UnitError } from "../units.ts";
+import { Duration, UnitError, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, register } from "./base.ts";
 import {
   AodPick, AodRestyled, Blank, Comment, Const, Conv, type DrawContext, type Num, NumLocal, type Op, Paren, Read, SeriesDraw,
@@ -123,7 +123,7 @@ class GraphKind extends ElementKind<Graph> {
     const aodThickness = r.aodExtent(element, "thickness", parent, 2);
     const aodBarWidth = r.aodExtent(element, "bar_width", parent, 3);
     return PlacedGraph.create({
-      element, box: box.rounded(min1px), center: [round(cx), round(cy)], depth, thickness, bar_width: barWidth,
+      element, box: box.rounded(), center: [round(cx), round(cy)], depth, thickness, bar_width: barWidth,
       size: [round(box.width), round(box.height)], aod_thickness: aodThickness, aod_bar_width: aodBarWidth,
     });
   }

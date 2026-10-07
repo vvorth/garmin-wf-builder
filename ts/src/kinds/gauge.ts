@@ -7,8 +7,8 @@ import * as expr from "../expr.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
-import { degrees, formatG, isNumber, num, quoted, roundHalfEven as round, str } from "../py.ts";
-import { Box, IntBox } from "../units.ts";
+import { degrees, formatG, isNumber, num, quoted, str } from "../py.ts";
+import { Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
 import {
@@ -525,7 +525,7 @@ class GaugeKind extends ElementKind<Gauge> {
     }
     const [sized, sx, sy] = r.sizedBox(element, parent, cx, cy);
     const placed = PlacedGauge.create({
-      element, box: sized.rounded(min1px), center: [round(sx), round(sy)], depth, size: [round(sized.width), round(sized.height)],
+      element, box: sized.rounded(), center: [round(sx), round(sy)], depth, size: [round(sized.width), round(sized.height)],
     });
     if (element.style === "segments" || element.style === "scale") resolveTicked(r, element, placed, parent);
     return placed;

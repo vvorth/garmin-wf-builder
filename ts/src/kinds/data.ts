@@ -10,9 +10,9 @@ import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
 import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, PlacedData, type Resolver } from "../layout.ts";
-import { formatG, quoted, roundHalfEven as round, str, truthy } from "../py.ts";
+import { formatG, quoted, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
-import { Box, IntBox } from "../units.ts";
+import { Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 import {
   AodRestyled, Assign, Bin, Blank, Cmp, Comment, type Cond, Const, type DrawContext, Font, FontHeight, If, IsPulsing, Let, Lit,

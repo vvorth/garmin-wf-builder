@@ -122,7 +122,8 @@ for (const device of TARGETS) {
 test("a move keeps the author's unit", () => {
   const v = view(SHAPES, read(SHAPES), "fenix8solar47mm");
   assert.ok(move(v, "card", 0, 5).patch.text.includes("at: { anchor: center, dy: -20% }"));
-  assert.ok(move(v, "outer_arc", 7, 0).patch.text.includes("at: { anchor: center, dx: 5.5%r }"));
+  // 7 px is 5.38%r here; 5%r is 6.5 px, which rounds up to 7, so the rounder value lands
+  assert.ok(move(v, "outer_arc", 7, 0).patch.text.includes("at: { anchor: center, dx: 5%r }"));
 });
 
 test("an extent cannot shrink below one pixel", () => {
