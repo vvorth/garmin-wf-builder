@@ -8,7 +8,9 @@ back here.
 
 ## Open
 
-None.
+| Plan | What it does |
+|---|---|
+| [32 — GUIv2](32-gui-v2.md) | `wfb studio` coverage and navigation: two widget bugs, a second-level Face-tab nav, element-side cards for hand sets/schemes/pattern parts, a command palette, `overrides:` visibility, `curve:`, layouts creation. Built from `docs/research/33-gui-v2.md` |
 
 ## Built and deleted
 
