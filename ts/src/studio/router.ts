@@ -25,7 +25,7 @@ import { skinFor } from "../preview.ts";
 import { quoted } from "../py.ts";
 import * as starters from "../starters.ts";
 import { BundleError, bundle, readUpload, toZip } from "./bundle.ts";
-import { type Document, frameKey, type FrameKey, StaleVersion, type Studio } from "./document.ts";
+import { base64, type Document, frameKey, type FrameKey, StaleVersion, type Studio } from "./document.ts";
 import { devices, vocabulary } from "./inspect.ts";
 import { plain } from "./json.ts";
 import { StoreError, UnknownDocument, UnknownSnapshot } from "./store.ts";
@@ -117,12 +117,6 @@ function key(args: Json, scale: number | null = null): FrameKey {
     asleep: args["asleep"] === true, aod: args["aod"] === true,
     scale: Math.min(4, Math.max(1, scale ?? (args["scale"] === undefined ? 2 : int(args, "scale")))), picks: picks(text(args, "picks")),
   });
-}
-
-function base64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
 }
 
 /** The devices a face's text targets and the vector faces its fonts name, as far as it parses. */

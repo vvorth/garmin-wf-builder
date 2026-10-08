@@ -17,6 +17,12 @@ import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js"
 import { HelpDialog } from "./help.js";
 import { SHORTCUTS } from "./keys.js";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
+import { FacePanel, Inspector } from "./panels.js";
+import { typeLabel } from "./values.js";
+import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
+import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.js";
+import { TAB } from "./session.js";
+import { latestText } from "./textsync.js";
 
 // What this browser remembers between visits: the zoom, how many CSS
 // pixels make a real inch on its screen, and the side panels' widths.
@@ -43,12 +49,6 @@ function Splitter({ width, sign, fallback, onWidth }) {
     onPointerUp=${() => { if (start.current) { start.current = null; onWidth(width, true); } }}
     onDblClick=${() => onWidth(fallback, true)}></div>`;
 }
-import { FacePanel, Inspector } from "./panels.js";
-import { typeLabel } from "./values.js";
-import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
-import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.js";
-import { TAB } from "./session.js";
-import { latestText } from "./textsync.js";
 
 // `text` on the clipboard, or, where the page may not write it (a
 // browser that refuses, or a page served over plain http from another
@@ -63,6 +63,12 @@ async function copyOrDownload(text, filename) {
   }
 }
 
+
+// `set(key)`: an input's handler writing its value (a checkbox's checked) to `view[key]`.
+const setter = (setView) => (key) => (e) => {
+  const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+  setView((v) => ({ ...v, [key]: value }));
+};
 
 function route() {
   const m = location.hash.match(/^#\/face\/([0-9a-f]{32})$/);
@@ -305,6 +311,92 @@ function ShortcutHelp({ onClose }) {
   </${Modal}>`;
 }
 
+// The right column's upper section: the selection's place and keys.
+function PropertiesSection({ folded, onFold, extra, element, box, drawn, doc, device, vocab, scope, onScope, onEdit, onError,
+                             onReveal, onSelect }) {
+  return html`
+    <section class="props-section">
+      <h3 class="fold" onClick=${() => onFold(!folded)} aria-expanded=${!folded}
+          title=${folded ? "Show the selection's properties" : "Fold the properties away"}>
+        ${folded ? "▸" : "▾"} Properties${extra.length ? html` <span class="dim">· ${extra.length + 1} selected</span>` : null}</h3>
+      ${folded ? null : html`<div class="section-scroll">
+        ${element ? html`<div class="body dim where">
+            in <code>${element.path.slice(0, -1).join(".")}</code>, line ${element.line}
+            ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
+            ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
+          </div>` : null}
+        <${Inspector} doc=${doc} element=${element} device=${device} vocab=${vocab}
+                      scope=${scope} onScope=${onScope} onEdit=${onEdit} onError=${onError}
+                      onReveal=${onReveal} onSelect=${onSelect} />
+      </div>`}
+    </section>`;
+}
+
+// The right column's lower section: the Diagnostics and History tabs.
+function ReportsSection({ folded, onFold, tab, onTab, doc, filter, onFilter, onSelect, onError, onSend, onChanged }) {
+  return html`
+    <section class="lower-section">
+      <div class="tabs">
+        <button class=${tab === "diagnostics" && !folded ? "on" : ""}
+                onClick=${() => { onTab("diagnostics"); onFold(false); }}>
+          ${diagnosticsLabel(doc.diagnostics, filter)}</button>
+        <button class=${tab === "history" && !folded ? "on" : ""}
+                onClick=${() => { onTab("history"); onFold(false); }}>History</button>
+        <button class="fold-button" onClick=${() => onFold(!folded)} aria-expanded=${!folded}
+                title=${folded ? "Show Diagnostics and History" : "Fold Diagnostics and History away"}>
+          ${folded ? "▴" : "▾"}</button>
+      </div>
+      ${folded ? null : html`<div class="section-scroll">${tab === "diagnostics"
+        ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${onSelect}
+                               filter=${filter} onFilter=${onFilter} />`
+        : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)} onSend=${onSend}
+                           onChanged=${onChanged} />`}</div>`}
+    </section>`;
+}
+
+// The Preview popover: what the face is drawn at (the time and date, each
+// slot's reading, asleep, AOD, the skin), its button saying what is set.
+function PreviewMenu({ view, setView, time, date, clock, setClock, slots, vocab, deviceInfo }) {
+  const set = setter(setView);
+  // what the Preview button's label says is set: whatever is not the default
+  const previewed = [
+    view.now ? "now" : [time && time.slice(0, 5), date].filter(Boolean).join(" "),
+    ...slots.filter((sl) => (view.picks || {})[sl.name] && view.picks[sl.name] !== sl.default)
+      .map((sl) => typeLabel(vocab, view.picks[sl.name])),
+    view.asleep && "asleep", view.aod && "AOD", view.skin && "skin",
+  ].filter(Boolean);
+  return html`
+    <${Popover} label=${html`Preview${previewed.length ? html`<span class="set"> · ${previewed.join(" · ")}</span>` : null} ▾`}
+                title="What the face is drawn at: the time and date, each slot's reading, asleep, AOD, the skin"
+                className="preview">
+      <div class="preview-grid">
+        <label>Time <input type="time" step="1" value=${time} disabled=${view.now} onChange=${set("time")} /></label>
+        <label title="the day the date is drawn at; empty, a sample day">Date
+          <input type="date" value=${date} disabled=${view.now} onChange=${set("date")} /></label>
+        <label title="draw the face at this computer's time and date, as it goes on">
+          <input type="checkbox" checked=${view.now}
+                 onChange=${(e) => {
+                   // switched off, the face stays at the moment it last drew
+                   if (e.target.checked) { setClock(clockNow()); setView((v) => ({ ...v, now: true })); }
+                   else setView((v) => ({ ...v, now: false, time: clock.time, date: clock.date }));
+                 }} /> now</label>
+        ${slots.map((sl) => html`<label title=${`what the slot ${sl.name} is drawn showing; the wearer picks it on the watch`}>${sl.name}
+          <select value=${(view.picks || {})[sl.name] || sl.default}
+                  onChange=${(e) => setView((v) => ({ ...v, picks: { ...(v.picks || {}), [sl.name]: e.target.value } }))}>
+            ${(Array.isArray(sl.choices) ? sl.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
+              .map((t) => html`<option value=${t}>${t === sl.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
+          </select></label>`)}
+        <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
+        <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
+        <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
+          <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
+                 onChange=${set("skin")} /> skin</label>
+        ${previewed.length ? html`<button class="reset-preview" onClick=${() => setView((v) => ({ ...v, time: "", date: "", now: false,
+            picks: {}, asleep: false, aod: false, skin: false }))}>Back to the sample moment</button>` : null}
+      </div>
+    </${Popover}>`;
+}
+
 function Editor({ docId, onError, onNotice }) {
   const [doc, setDoc] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -514,17 +606,10 @@ function Editor({ docId, onError, onNotice }) {
   }, [frame, selected]);
 
   if (!doc) return html`<div class="home dim">Loading…</div>`;
-  const set = (key) => (e) => setView({ ...view, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  const set = setter(setView);
   const saved = saveState({ queue, yaml: yamlSaving });
   const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), {});
   const h = doc.history;
-  // what the Preview button's label says is set: whatever is not the default
-  const previewed = [
-    view.now ? "now" : [time && time.slice(0, 5), date].filter(Boolean).join(" "),
-    ...slots.filter((sl) => (view.picks || {})[sl.name] && view.picks[sl.name] !== sl.default)
-      .map((sl) => typeLabel(vocab, view.picks[sl.name])),
-    view.asleep && "asleep", view.aod && "AOD", view.skin && "skin",
-  ].filter(Boolean);
 
   return html`<div class="editor">
     <div>
@@ -601,35 +686,8 @@ function Editor({ docId, onError, onNotice }) {
               <option value="">default</option>
               ${doc.styles.map((s) => html`<option value=${s.name}>${s.label}</option>`)}
             </select></label>` : null}
-          <${Popover} label=${html`Preview${previewed.length ? html`<span class="set"> · ${previewed.join(" · ")}</span>` : null} ▾`}
-                      title="What the face is drawn at: the time and date, each slot's reading, asleep, AOD, the skin"
-                      className="preview">
-            <div class="preview-grid">
-              <label>Time <input type="time" step="1" value=${time} disabled=${view.now} onChange=${set("time")} /></label>
-              <label title="the day the date is drawn at; empty, a sample day">Date
-                <input type="date" value=${date} disabled=${view.now} onChange=${set("date")} /></label>
-              <label title="draw the face at this computer's time and date, as it goes on">
-                <input type="checkbox" checked=${view.now}
-                       onChange=${(e) => {
-                         // switched off, the face stays at the moment it last drew
-                         if (e.target.checked) { setClock(clockNow()); setView({ ...view, now: true }); }
-                         else setView({ ...view, now: false, time: clock.time, date: clock.date });
-                       }} /> now</label>
-              ${slots.map((sl) => html`<label title=${`what the slot ${sl.name} is drawn showing; the wearer picks it on the watch`}>${sl.name}
-                <select value=${(view.picks || {})[sl.name] || sl.default}
-                        onChange=${(e) => setView({ ...view, picks: { ...(view.picks || {}), [sl.name]: e.target.value } })}>
-                  ${(Array.isArray(sl.choices) ? sl.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
-                    .map((t) => html`<option value=${t}>${t === sl.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
-                </select></label>`)}
-              <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
-              <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
-              <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
-                <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
-                       onChange=${set("skin")} /> skin</label>
-              ${previewed.length ? html`<button class="reset-preview" onClick=${() => setView({ ...view, time: "", date: "", now: false,
-                  picks: {}, asleep: false, aod: false, skin: false })}>Back to the sample moment</button>` : null}
-            </div>
-          </${Popover}>
+          <${PreviewMenu} view=${view} setView=${setView} time=${time} date=${date} clock=${clock} setClock=${setClock}
+                          slots=${slots} vocab=${vocab} deviceInfo=${deviceInfo} />
           <label class="zoom">Zoom
             <input type="range" min=${MIN_ZOOM} max=${MAX_ZOOM} step="0.01" value=${view.zoom}
                    list="zoom-notches" onInput=${(e) => setZoom(Number(e.target.value))} />
@@ -657,42 +715,16 @@ function Editor({ docId, onError, onNotice }) {
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
             </div>`}
         <${Strip} doc=${doc} view=${{ ...view, time, date }} picks=${picks}
-                  onDevice=${(d) => setView({ ...view, device: d })} />
+                  onDevice=${(d) => setView((v) => ({ ...v, device: d }))} />
       </div>
       <${Splitter} width=${panels.right} sign=${-1} fallback=${340} onWidth=${panelWidth("right")} />
       <div class=${"panel right" + (fold.props ? " props-folded" : "") + (fold.lower ? " lower-folded" : "")}>
-        <section class="props-section">
-          <h3 class="fold" onClick=${() => setFolded("props", !fold.props)} aria-expanded=${!fold.props}
-              title=${fold.props ? "Show the selection's properties" : "Fold the properties away"}>
-            ${fold.props ? "▸" : "▾"} Properties${extra.length ? html` <span class="dim">· ${extra.length + 1} selected</span>` : null}</h3>
-          ${fold.props ? null : html`<div class="section-scroll">
-            ${element ? html`<div class="body dim where">
-                in <code>${element.path.slice(0, -1).join(".")}</code>, line ${element.line}
-                ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
-                ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
-              </div>` : null}
-            <${Inspector} doc=${doc} element=${element} device=${view.device} vocab=${vocab}
-                          scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError}
-                          onReveal=${showLines} onSelect=${select} />
-          </div>`}
-        </section>
-        <section class="lower-section">
-          <div class="tabs">
-            <button class=${tab === "diagnostics" && !fold.lower ? "on" : ""}
-                    onClick=${() => { setTab("diagnostics"); setFolded("lower", false); }}>
-              ${diagnosticsLabel(doc.diagnostics, diagFilter)}</button>
-            <button class=${tab === "history" && !fold.lower ? "on" : ""}
-                    onClick=${() => { setTab("history"); setFolded("lower", false); }}>History</button>
-            <button class="fold-button" onClick=${() => setFolded("lower", !fold.lower)} aria-expanded=${!fold.lower}
-                    title=${fold.lower ? "Show Diagnostics and History" : "Fold Diagnostics and History away"}>
-              ${fold.lower ? "▴" : "▾"}</button>
-          </div>
-          ${fold.lower ? null : html`<div class="section-scroll">${tab === "diagnostics"
-            ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${setSelected}
-                                   filter=${diagFilter} onFilter=${setDiagFilter} />`
-            : html`<${History} doc=${doc} onError=${onError} onOpen=${(id) => go(id)} onSend=${send}
-                               onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />`}</div>`}
-        </section>
+        <${PropertiesSection} folded=${fold.props} onFold=${(f) => setFolded("props", f)} extra=${extra}
+          element=${element} box=${box} drawn=${drawn} doc=${doc} device=${view.device} vocab=${vocab}
+          scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError} onReveal=${showLines} onSelect=${select} />
+        <${ReportsSection} folded=${fold.lower} onFold=${(f) => setFolded("lower", f)} tab=${tab} onTab=${setTab}
+          doc=${doc} filter=${diagFilter} onFilter=${setDiagFilter} onSelect=${setSelected} onError=${onError}
+          onSend=${send} onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />
       </div>
     </div>
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
