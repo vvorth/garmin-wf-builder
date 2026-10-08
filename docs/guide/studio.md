@@ -298,6 +298,10 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
 
 ### The Face tab
 
+Its own row of buttons, one per section below, shows one section at a
+time -- the browser remembers which, so switching to Layers and back
+does not reset it.
+
 - **Targets**: add any installed watch that can run a face, or remove one.
 - **Colours**: each colour with what uses it (click an element to select
   it). Click a name to rename it: every `color.<name>` in the face

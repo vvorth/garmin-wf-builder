@@ -91,6 +91,8 @@ export async function render(summary: unknown, body: string): Promise<any[]> {
       const within = (e, c) => { for (let p = e.parentNode; p; p = p.parentNode) if (cls(p) === c) return true; return false; };
       const settle = () => new Promise((r) => setTimeout(r, 5));
       const click = async (e) => { e.click(); await settle(); };
+      // the Face tab's nav: switch to the section whose title starts with \`title\`
+      const openSection = async (title) => { await click(find((e) => e.localName === "button" && e.textContent.startsWith(title))[0]); };
       // a name typed into the open inline input, then Enter
       const typeName = async (value) => {
         const inputs = find((e) => e.localName === "input" && cls(e).startsWith("inline-name"));

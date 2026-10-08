@@ -256,12 +256,12 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
 
 // -- the Face panel ------------------------------------------------------------------
 
-function Section({ title, children, open = true }) {
-  const [shown, setShown] = useState(open);
-  return html`<div class="section">
-    <div class="section-head" onClick=${() => setShown(!shown)}>${shown ? "▾" : "▸"} ${title}</div>
-    ${shown ? html`<div class="section-body">${children}</div>` : null}
-  </div>`;
+// Which Face-tab section is open, as this browser last left it.
+function useFaceSection(defaultKey) {
+  const [key, setKey] = useState(() => {
+    try { return localStorage.getItem("wfb-face-section") || defaultKey; } catch (_) { return defaultKey; }
+  });
+  return [key, (k) => { setKey(k); try { localStorage.setItem("wfb-face-section", k); } catch (_) { /* private mode */ } }];
 }
 
 // A catalogue icon drawn with the icon font (`/api/icon-font`), or its
@@ -545,8 +545,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
   const users = (list) => list.map((u, i) => html`${i ? ", " : ""}${u.includes(".") ? html`<code>${u}</code>`
     : html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(u); }}>${u}</a>`}`);
 
-  return html`<div class="face-panel">
-    <${Section} title=${`Targets (${(g.targets || []).length})`}>
+  const SECTIONS = [
+    { key: "targets", title: "Targets", count: (g.targets || []).length, body: html`
       <ul class="rows">${(g.targets || []).map((t) => html`<li>
         <span>${(devices.find((d) => d.id === t) || {}).name || t}</span> <code class="dim">${t}</code>
         ${(g.target_problems || {})[t] ? html`<span class="warn" title=${g.target_problems[t]}>⚠ not available here</span>` : null}
@@ -564,9 +564,9 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         ⚠ ${vocab.unreadable_devices.length} installed watch${vocab.unreadable_devices.length > 1 ? "es" : ""}
         could not be read, so ${vocab.unreadable_devices.length > 1 ? "they are" : "it is"} not offered
         (${vocab.unreadable_devices.map((d) => d.id).join(", ")})</div>` : null}
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Colours (${palette.length})`}>
+    { key: "colours", title: "Colours", count: palette.length, body: html`
       <ul class="rows">${palette.map((p) => html`<li class="swatch-row">
           <${InlineName} value=${p.name} title=${`click to rename (every color.${p.name} follows)`}
             onRename=${(n) => onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." })} />
@@ -585,18 +585,18 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         <button disabled=${!unused.length} title=${unused.length ? `remove ${unused.map((p) => p.name).join(", ")}` : "every colour is in use"}
           onClick=${() => ask(`Remove ${unused.map((p) => p.name).join(", ")}?`, "Remove").then((yes) => { if (yes) onEdit({ op: "remove_unused" }); })}>Remove unused</button>
       </div>
-    </${Section}>
+    ` },
 
-    <${Section} title="Colour settings">
+    { key: "colour_settings", title: "Colour settings", body: html`
       ${["accent_color", "data_color"].map((axis) => html`<${AxisRow} axis=${axis} entry=${(g.axes || {})[axis]}
         palette=${palette} onEdit=${onEdit} />`)}
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Schemes (${schemes.names.length})`}>
+    { key: "schemes", title: "Schemes", count: schemes.names.length, body: html`
       <${Schemes} schemes=${schemes} palette=${palette} styles=${styles} ctx=${ctx} onEdit=${onEdit} />
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Styles (${styles.entries.length})`}>
+    { key: "styles", title: "Styles", count: styles.entries.length, body: html`
       ${styles.entries.length ? html`<ul class="rows">${styles.entries.map((e) => html`<li class="style">
         <label title="the style the face starts in"><input type="radio" name="default-style" checked=${styles.default === e.name}
           onChange=${() => onEdit({ op: "set", path: ["config", "style", "default"], value: e.name })} /> ${e.name}</label>
@@ -622,20 +622,20 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
             : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
         }} />` : null}
       ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Hand sets (${(g.hands || []).length})`}>
+    { key: "hand_sets", title: "Hand sets", count: (g.hands || []).length, body: html`
       <${HandSets} doc=${doc} ctx=${ctx} onEdit=${onEdit} onSelect=${onSelect} onReveal=${onReveal || (() => {})} />
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Slots (${(g.slots || []).length})`}>
+    { key: "slots", title: "Slots", count: (g.slots || []).length, body: html`
       ${(g.slots || []).length ? (g.slots || []).map((s) => html`<${SlotCard} slot=${s} vocab=${vocab}
           onEdit=${onEdit} onSelect=${onSelect} />`)
         : html`<div class="dim note">A slot shows whichever complication the wearer picks on the watch.</div>`}
       <${NewSlot} vocab=${vocab} taken=${(g.slots || []).map((s) => s.name)} onEdit=${onEdit} />
-    </${Section}>
+    ` },
 
-    <${Section} title=${`Fonts (${(g.fonts || []).length})`}>
+    { key: "fonts", title: "Fonts", count: (g.fonts || []).length, body: html`
       <ul class="rows">${(g.fonts || []).map((f) => html`<li class="font">
         <code>font.${f.name}</code>
         <span class="dim">${f.source || f.face || ""}</span>
@@ -656,6 +656,15 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
       <input type="file" accept=".ttf,.otf" hidden ref=${replaceFile} onChange=${(e) => {
         const file = e.target.files[0]; e.target.value = ""; if (file) onUpload(file, { reference: replaceFor.current });
       }} />
-    </${Section}>
+    ` },
+  ];
+
+  const [activeKey, setActiveKey] = useFaceSection(SECTIONS[0].key);
+  const active = SECTIONS.find((s) => s.key === activeKey) || SECTIONS[0];
+
+  return html`<div class="face-panel">
+    <div class="tabs face-nav">${SECTIONS.map((s) => html`<button key=${s.key} class=${s.key === active.key ? "on" : ""}
+        onClick=${() => setActiveKey(s.key)}>${s.title}${s.count != null ? html`<span class="count">${s.count}</span>` : null}</button>`)}</div>
+    <div class="face-section-body">${active.body}</div>
   </div>`;
 }
