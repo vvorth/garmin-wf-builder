@@ -259,6 +259,11 @@ overrides](placement.md#per-device-and-per-shape-overrides)):
 
 A key overridden on the watch in view says so under its value.
 
+A `color:`/`track_color:`/`visible:` override, on any selector (not only
+the watch in view), is listed below the keys, read-only, with its value
+and **edit in YAML** to its lines — these are not edited from Properties
+yet, only shown.
+
 ### Layers
 
 The tree lists the face's blocks: `static` and `elements`, then each

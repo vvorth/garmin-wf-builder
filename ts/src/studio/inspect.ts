@@ -141,6 +141,28 @@ function field(key: string, path: Path, type: string, node: Json, value: unknown
   return out;
 }
 
+/** Every selector's non-geometry overrides (`color`/`track_color`/`visible`), read-only, with its line span to jump to in the YAML tab. */
+function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): Json[] {
+  const raw = isMap(data) ? data.get("overrides") : undefined;
+  if (!isMap(raw)) return [];
+  const out: Json[] = [];
+  for (const selector of keysOf(raw)) {
+    const entry = g(raw, selector);
+    if (!isMap(entry)) continue;
+    const keys: Json = {};
+    for (const k of keysOf(entry)) if (!GEOMETRY.has(String(k))) keys[String(k)] = entry.get(k);
+    if (Object.keys(keys).length === 0) continue;
+    const held = index.at([...element, "overrides", selector as string]);
+    const until = Math.max(index.valueEnd(held) - 1, 0);
+    out.push({
+      selector: String(selector), keys,
+      line: held.key.start.line + 1,
+      end: (index.text.slice(0, until).match(/\n/g)?.length ?? 0) + 1,
+    });
+  }
+  return out;
+}
+
 function dataAt(data: unknown, path: Path): unknown {
   for (const step of path) {
     if (isMap(data) && data.has(step)) data = data.get(step);
@@ -176,6 +198,7 @@ export function inspect(text: string, element: Path, device: Device | null): Jso
   }
   return {
     element: [...element], id: element[element.length - 1], type, fields, unknown, overrides,
+    overridden: nonGeometryOverrides(index, element, data),
     device: device?.id ?? null, shape: device?.shape ?? null,
   };
 }

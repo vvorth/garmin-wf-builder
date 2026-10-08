@@ -244,6 +244,13 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
     ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}
     ${slotCard ? html`<${SlotCard} slot=${slotCard} vocab=${vocab} onEdit=${onEdit} onSelect=${onSelect} />` : null}
     ${ins.fields.map((f) => html`<${Field} field=${f} ins=${ins} scope=${scope} ctx=${ctx} onEdit=${onEdit} />`)}
+    ${(ins.overridden || []).map((o) => html`<div class="field" key=${o.selector}>
+      <div class="name">overrides <code>${o.selector}</code></div>
+      <div class="value">
+        ${Object.entries(o.keys).map(([k, v]) => html`<code>${k}: ${JSON.stringify(v)}</code>`)}
+        <a href="#" title="edit this override in the YAML tab" onClick=${(e) => { e.preventDefault(); onReveal(o.line, o.end); }}>edit in YAML</a>
+      </div>
+    </div>`)}
   </div>`;
 }
 

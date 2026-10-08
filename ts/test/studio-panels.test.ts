@@ -113,6 +113,20 @@ test("the inspector reports the overrides the device reads", () => {
   assert.deepEqual(Object.keys(on("fenix8solar47mm")), ["shape"]);
 });
 
+test("a non-geometry override is visible read-only, regardless of the device viewed; a geometry one is not duplicated there", () => {
+  const text = starters.instantiate("minimal", "V").replace("    at: { anchor: center }\n    color: color.text\n",
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px }, color: color.off, visible: false }, "shape:round": { track_color: color.off } }\n');
+  const clock = indexFor(text).elements().find((e) => e.name === "clock")!.path;
+  const overridden = (id: string | null): any => JSON.parse(JSON.stringify(
+    inspect(text, clock, id ? db.get(id) : null)["overridden"], (_, v) => (v instanceof Map ? Object.fromEntries(v) : v)));
+  const onFr955 = overridden("fr955");
+  assert.deepEqual(onFr955.find((o: any) => o.selector === "fr955").keys, { color: "color.off", visible: false });
+  assert.deepEqual(onFr955.find((o: any) => o.selector === "shape:round").keys, { track_color: "color.off" });
+  // the same, regardless of which device (or none) is being viewed
+  assert.deepEqual(overridden(null), onFr955);
+  assert.deepEqual(overridden("fenix8solar47mm"), onFr955);
+});
+
 // -- the Face panel --
 
 test("the Face panel lists colours, schemes, styles and fonts", () => {
