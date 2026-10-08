@@ -11,7 +11,7 @@ const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], Arrow
 // `["ungroup"]`, `["forward"]` and `["backward"]` (one step in draw
 // order), `["zoom", +1 | -1]`, `["zoomFit"]`, `["zoomReal"]`,
 // `["nudge", dx, dy]` (one pixel, ten with Shift), `["remove"]`,
-// `["deselect"]` and `["help"]`. Copy, cut and paste are the browser's own
+// `["deselect"]`, `["help"]` and `["commandPalette"]`. Copy, cut and paste are the browser's own
 // events, not key presses (`app.js`).
 export function shortcutFor(e) {
   const key = (e.key || "").toLowerCase();
@@ -26,6 +26,7 @@ export function shortcutFor(e) {
     if (key === "=" || key === "+") return ["zoom", 1];
     if (key === "-" || key === "_") return ["zoom", -1];
     if (key === "0") return ["zoomFit"];
+    if (key === "k") return ["commandPalette"];
     return null;
   }
   if (e.altKey) return null;
@@ -72,5 +73,8 @@ export const SHORTCUTS = [
     ["Ctrl+=, Ctrl+-", "zoom in, out"], ["Ctrl+wheel", "zoom about the pointer"],
     ["Ctrl+0", "fit the watch in view"], ["1", "the watch's real size"],
     ["Space+drag, middle drag", "pan"], ["?", "this list"],
+  ]],
+  ["Find", [
+    ["Ctrl+K", "jump to any element, colour, font, slot, hand set or style by name"],
   ]],
 ];

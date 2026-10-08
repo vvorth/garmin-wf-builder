@@ -151,6 +151,13 @@ the middle button, or hold **Space** and drag; the wheel scrolls too.
 **?** (or the **?** button in the top bar) lists every shortcut. None of
 them acts while you type in a field or the YAML tab.
 
+**Ctrl+K** (**Cmd+K**) opens a search over every element (by id, its type
+shown beside it), colour, role, font, slot, hand set and style name: type
+any part of a name, arrow keys move the highlight, Enter picks it.
+Picking an element selects it, exactly as clicking it in Layers or on the
+face would; picking anything else switches to the Face tab, open at the
+section that lists it.
+
 **Help** (in the top bar, and beside the title on the faces page) opens
 this guide and the README in a popup: links between pages open there,
 with **Back** to return and **Contents** for the chapter list; a link to

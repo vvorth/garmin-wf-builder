@@ -268,6 +268,10 @@ input[type="range"].wide { width: 100%; }
 .modal .choices { list-style: none; margin: 0; padding: 0; }
 .modal .choices li { padding: 3px 0; }
 .modal pre.log { max-height: 260px; overflow: auto; font-size: 11px; background: var(--bg); padding: 8px; border-radius: 6px; white-space: pre-wrap; }
+.modal.palette input { width: 100%; box-sizing: border-box; }
+.palette-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; }
+.palette-list li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+.palette-list li.on, .palette-list li:hover { background: var(--line); }
 .card-box { border: 2px solid var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--dim); }
 /* the colour picker */
 .chip-button { display: inline-flex; gap: 6px; align-items: center; padding: 2px 8px; }

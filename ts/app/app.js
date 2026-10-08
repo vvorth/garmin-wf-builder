@@ -299,6 +299,49 @@ function DownloadMenu({ doc, onError }) {
   </div>`;
 }
 
+// Ctrl/Cmd+K: a fuzzy-find over every element (by id, its type as the
+// hint), colour, role, font, slot, hand set and style name. Choosing one
+// does exactly what clicking it already does: an element is selected, as
+// in Layers or on the face; anything else jumps to its Face-tab section
+// (the same jump a colour role's own link gives from Properties).
+function CommandPalette({ doc, onSelect, onFaceSection, onClose }) {
+  const [q, setQ] = useState("");
+  const [index, setIndex] = useState(0);
+  const input = useRef(null);
+  useEffect(() => { if (input.current && input.current.focus) input.current.focus(); }, []);
+  const g = doc.globals || {};
+  const items = [
+    ...blocksOf(doc.tree).nodes.map((n) => ({ key: `element:${n.id}`, label: n.id, hint: n.type, pick: () => onSelect(n.id) })),
+    ...(g.palette || []).map((p) => ({ key: `colour:${p.name}`, label: p.name, hint: "colour", pick: () => onFaceSection("colours") })),
+    ...((g.schemes && g.schemes.roles) || []).map((r) => ({ key: `role:${r}`, label: r, hint: "role", pick: () => onFaceSection("schemes") })),
+    ...(g.fonts || []).map((f) => ({ key: `font:${f.name}`, label: f.name, hint: "font", pick: () => onFaceSection("fonts") })),
+    ...(g.slots || []).map((s) => ({ key: `slot:${s.name}`, label: s.name, hint: "slot", pick: () => onFaceSection("slots") })),
+    ...(g.hand_sets || []).map((h) => ({ key: `hand_set:${h}`, label: h, hint: "hand set", pick: () => onFaceSection("hand_sets") })),
+    ...((g.styles && g.styles.entries) || []).map((s) => ({ key: `style:${s.name}`, label: s.name, hint: "style", pick: () => onFaceSection("styles") })),
+  ];
+  const needle = q.trim().toLowerCase();
+  const matches = (needle ? items.filter((it) => it.label.toLowerCase().includes(needle)) : items).slice(0, 50);
+  const choose = (it) => { if (it) { it.pick(); onClose(); } };
+  return html`<${Modal} title="Jump to…" onClose=${onClose} className="palette">
+    <div class="modal-body">
+      <input ref=${input} type="text" class="mono" placeholder="an element, colour, font, slot, hand set or style"
+        value=${q} onInput=${(e) => { setQ(e.target.value); setIndex(0); }}
+        onKeyDown=${(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          else if (e.key === "ArrowDown") { e.preventDefault(); setIndex((i) => Math.min(i + 1, matches.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+          else if (e.key === "Enter") { e.preventDefault(); choose(matches[index]); }
+        }} />
+      <ul class="rows palette-list">
+        ${matches.map((it, i) => html`<li key=${it.key} class=${i === index ? "on" : ""} onClick=${() => choose(it)}>
+          <span>${it.label}</span><span class="dim">${it.hint}</span>
+        </li>`)}
+        ${!matches.length ? html`<li class="dim">No match.</li>` : null}
+      </ul>
+    </div>
+  </${Modal}>`;
+}
+
 // Every shortcut, for "?" and the top bar's button.
 function ShortcutHelp({ onClose }) {
   return html`<${Modal} title="Keyboard shortcuts" onClose=${onClose}>
@@ -597,12 +640,13 @@ function Editor({ docId, onError, onNotice }) {
     zoomReal: () => { if (!real) return false; toggleReal(); },
     // the help, or a popover, closes first
     deselect: () => {
-      if (dialog === "keys") { setDialog(null); return; }
+      if (dialog === "keys" || dialog === "palette") { setDialog(null); return; }
       if (dialog || document.querySelector(".popover-body, .modal-back")) return false;
       if (!chosen.length) return false;
       deselect();
     },
     help: () => setDialog(dialog === "keys" ? null : "keys"),
+    commandPalette: () => setDialog(dialog === "palette" ? null : "palette"),
   });
   // Copied elements are their YAML, so they paste into another face, or
   // into a text editor. A paste goes in front of the selection, in its
@@ -761,6 +805,8 @@ function Editor({ docId, onError, onNotice }) {
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab} device=${view.device}
                                                onClose=${() => setDialog(null)} />` : null}
     ${dialog === "keys" ? html`<${ShortcutHelp} onClose=${() => setDialog(null)} />` : null}
+    ${dialog === "palette" && doc ? html`<${CommandPalette} doc=${doc} onSelect=${select}
+        onFaceSection=${openFaceSection} onClose=${() => setDialog(null)} />` : null}
     ${dialog === "help" ? html`<${HelpDialog} start="docs/guide/studio.md" onClose=${() => setDialog(null)} />` : null}
     ${dialog === "calibrate" ? html`<${CalibrateDialog} current=${pxPerInch} onClose=${() => setDialog(null)}
         onSave=${(v) => {

@@ -91,6 +91,25 @@ test("shortcuts group open the list and copy and paste elements as yaml", async 
   assert.ok((eq(paste["op"], "paste") && eq(paste["text"], text) && eq(paste["block"], ["elements"])));
 });
 
+test("Ctrl+K finds an element by a substring of its id and selects it, exactly as clicking it would", async () => {
+  const face = faceFixture();
+  const doc = face["summary"];
+  const printed = await page(face, `#/face/${doc["id"]}`, "\n      out(press(\"k\", { ctrlKey: true }));\n      await settle();\n      out(app.textContent.includes(\"Jump to\"));\n      const input = find((e) => e.localName === \"input\" && e.attributes.placeholder && e.attributes.placeholder.includes(\"element\"))[0];\n      input.value = \"seco\"; input.dispatch(\"input\", { target: input }); await settle();\n      input.dispatch(\"keydown\", { key: \"Enter\", target: input }); await settle();\n      out(app.textContent.includes(\"Jump to\"));\n      out(requests.find(([op, args]) => op === \"inspect\" && JSON.stringify(args.element) === JSON.stringify([\"elements\", \"seconds\"])) !== undefined);\n    ");
+  assert.equal(printed[0], true);        // the key press was handled, not left to the browser
+  assert.equal(printed[1], true);        // the palette opened
+  assert.equal(printed[2], false);       // ...and closed once a result was chosen
+  assert.equal(printed[3], true);        // the seconds element was selected, as a click on it would be
+});
+
+test("Ctrl+K also finds a slot, jumping to its Face-tab section", async () => {
+  const text = instantiate("minimal", "T") + "\nconfig:\n  slots:\n    top: { default: steps, choices: any }\n";
+  const face = { summary: summary(text), vocabulary: {}, home: { templates: [], store: "this browser", shared: true, documents: [] } };
+  const doc = face["summary"];
+  const printed = await page(face, `#/face/${doc["id"]}`, "\n      press(\"k\", { ctrlKey: true }); await settle();\n      const input = find((e) => e.localName === \"input\" && e.attributes.placeholder && e.attributes.placeholder.includes(\"element\"))[0];\n      input.value = \"top\"; input.dispatch(\"input\", { target: input }); await settle();\n      input.dispatch(\"keydown\", { key: \"Enter\", target: input }); await settle();\n      out(storage.get(\"wfb-face-section\"));\n      out(find((e) => e.localName === \"button\" && e.textContent.startsWith(\"Face\")).some((b) => cls(b) === \"on\"));\n    ");
+  assert.equal(printed[0], "slots");
+  assert.equal(printed[1], true);
+});
+
 test("the preview draws one frame at a time, the one the watch has, and the sample moment resets only the time", async () => {
   const face = faceFixture();
   face.summary.targets = ["fenix847mm", "fr955"];
