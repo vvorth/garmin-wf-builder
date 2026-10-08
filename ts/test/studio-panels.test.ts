@@ -81,6 +81,29 @@ test("widgets follow the schema", () => {
   for (const t of ["text", "circle", "gauge", "group", "hands"]) assert.ok(elementSchema(t), t);
 });
 
+test("a pattern's step resolves whichever oneOf branch its value matches; a graph's series is a picker", () => {
+  const patterns = readText("examples/features/patterns/face.yaml");
+  const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+  const f = (text: string, id: string): Record<string, any> => fieldsOf(inspect(text, pathOf(text, id), null));
+
+  const angleStep = f(patterns, "hour_ticks")["step"];
+  assert.equal(angleStep.widget, "angle");
+  assert.equal(angleStep.value, "30deg");
+
+  const dxStep = f(patterns, "twelve")["step"];
+  assert.equal(dxStep.widget, "object");
+  assert.deepEqual(Object.fromEntries(dxStep.children.map((c: any) => [c.key, c.widget])), { dx: "length", dy: "length" });
+
+  const noStep = f(patterns, "minute_ticks")["step"];
+  assert.equal(noStep.widget, "angle");
+
+  const graph = readText("examples/features/graph/face.yaml");
+  const series = f(graph, "hr_graph")["series"];
+  assert.equal(series.widget, "enum");
+  assert.ok(series.enum.includes("heart_rate") && series.enum.includes("steps"));
+  assert.equal(series.value, "heart_rate");
+});
+
 test("the inspector reports the overrides the device reads", () => {
   const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px } }, "shape:round": { at: { dx: 1px } } }\n');

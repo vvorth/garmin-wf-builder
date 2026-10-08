@@ -45,7 +45,7 @@ const WIDGET_BY_REF: Record<string, string> = {
   visible: "expression", expression: "expression",
 };
 /** Objects shown as their own keys, one level down. */
-const NESTED = new Set(["position", "size"]);
+const NESTED = new Set(["position", "size", "patternStep"]);
 /** Keys the inspector leaves out: structure, and the overrides the chooser writes. */
 const SKIPPED = new Set(["children", "overrides"]);
 
@@ -89,12 +89,24 @@ function hidden(type: string): Set<string> {
   return out;
 }
 
-function widget(key: string, type: string, node: Json): [string, Json] {
-  const [ref, resolved] = deref(node);
+/** Whether `value`'s shape (object vs. scalar) matches a resolved branch's own schema type. */
+function shapeMatches(resolved: Json, value: unknown): boolean {
+  return resolved["type"] === "object" ? isMap(value) : isScalar(value);
+}
+
+function widget(key: string, type: string, node: Json, value: unknown): [string, Json] {
+  let [ref, resolved] = deref(node);
+  if (ref === null && Array.isArray(resolved["oneOf"])) {
+    const branches = (resolved["oneOf"] as Json[]).map((b) => deref(b)).filter(([r]) => r !== null && (r in WIDGET_BY_REF || NESTED.has(r)));
+    const present = value !== null && value !== undefined;
+    const picked = (present && branches.find(([, b]) => shapeMatches(b, value))) || branches[0];
+    if (picked) [ref, resolved] = picked;
+  }
   if (key === "type") return ["readonly", resolved];
   if ((ref !== null && NESTED.has(ref)) || (key === "icon" && type === "data")) return ["object", resolved];
   if (ref !== null && ref in WIDGET_BY_REF) return [WIDGET_BY_REF[ref]!, resolved];
   if (key === "text" && type === "text") return ["template", resolved];
+  if (key === "series" && type === "graph") return ["enum", { ...resolved, enum: series.names() }];
   if (key === "slot") return ["slot", resolved];
   if (key === "set" && type === "hands") return ["handset", resolved];
   if (key === "font") return ["font", resolved];
@@ -109,7 +121,7 @@ function widget(key: string, type: string, node: Json): [string, Json] {
 }
 
 function field(key: string, path: Path, type: string, node: Json, value: unknown, required: boolean): Json {
-  const [kind, resolved] = widget(key, type, node);
+  const [kind, resolved] = widget(key, type, node, value);
   const out: Json = {
     key, path: [...path], widget: kind, description: node["description"] || resolved["description"] || "",
     value, present: value !== null && value !== undefined, required,
