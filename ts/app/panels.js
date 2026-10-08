@@ -659,6 +659,9 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
             ? { op: "set", path: ["config", "style", "choices", n], value: entry }
             : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
         }} />` : null}
+      <${AddName} label="+ Layout" placeholder="layout name"
+        suggest=${() => { let n = "layout", i = 2; while (g.layouts.includes(n)) n = `layout${i++}`; return n; }}
+        onAdd=${(n) => onEdit({ op: "add_layout", name: n })} />
       ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
     ` },
 

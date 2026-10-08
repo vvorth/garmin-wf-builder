@@ -405,6 +405,32 @@ test("the last slot deleted takes its config block with it", async () => {
   assert.notEqual(doc.analysis().face, null);
 });
 
+test("+ Layout adds an empty layout, bootstrapping a style to name it when there is none yet", async () => {
+  const doc = make(await newStudio());
+  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
+  assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout"]);
+  assert.equal((globalsOf(doc.text, db)["styles"] as any).entries[0].layout, "layout");
+  assert.notEqual(doc.analysis().face, null);
+});
+
+test("+ Layout adds a second, unreferenced layout without touching an existing style", async () => {
+  const doc = make(await newStudio());
+  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
+  doc.edit({ op: "add_layout", name: "layout2" }, doc.version);
+  assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout", "layout2"]);
+  assert.equal((globalsOf(doc.text, db)["styles"] as any).entries.length, 1);
+  assert.notEqual(doc.analysis().face, null);
+});
+
+test("a layout with no style referencing it is deleted through the existing structural delete path", async () => {
+  const doc = make(await newStudio());
+  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
+  doc.edit({ op: "add_layout", name: "layout2" }, doc.version);
+  doc.edit({ op: "remove", path: ["layouts", "layout2"] }, doc.version);
+  assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout"]);
+  assert.notEqual(doc.analysis().face, null);
+});
+
 // -- the server --
 
 // The browser's devices are the server's digest plus each device's skin

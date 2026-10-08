@@ -62,6 +62,12 @@ test("a styles label is set and cleared", async () => {
   assert.deepEqual(printed[1], [{"op": "set", "path": ["config", "style", "choices", "l", "label"], "value": "Day"}, {"op": "remove", "path": ["config", "style", "choices", "d", "label"]}]);
 });
 
+test("+ Layout adds a layout from the Styles section", async () => {
+  const text = summary(instantiate("minimal", "T"));
+  const printed = await render(text, "\n      await openSection(\"Styles\");\n      await click(find((e) => e.localName === \"button\" && e.textContent.startsWith(\"+ Layout\"))[0]);\n      await typeName(\"layout\");\n      out(edits);\n    ");
+  assert.deepEqual(printed[0], [{"op": "add_layout", "name": "layout"}]);
+});
+
 test("hand sets are listed added and shown in the yaml", async () => {
   const text = summary(instantiate("analog", "T"));
   const printed = await render(text, "\n      await openSection(\"Hand sets\");\n      const thumb = find((e) => e.localName === \"img\" && cls(e) === \"hand-thumb\")[0];\n      const args = JSON.parse(thumb.attributes[\"data-args\"]);\n      out([args.name, args.device]);\n      out(root.textContent.includes(\"placed by\"));\n      await click(find((e) => e.localName === \"a\" && e.textContent === \"Edit in YAML\")[0]);\n      const select = find((e) => e.localName === \"select\" && e.textContent.startsWith(\"from a preset\"))[0];\n      select.value = \"baton\"; select.dispatch(\"change\", { target: select }); await settle();\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Hand set\")[0]);\n      await typeName(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Duplicate\")[0]);\n      out(edits);\n    ");

@@ -350,7 +350,10 @@ does not reset it.
     names each copy, for you to delete or change.
 - **Styles**: the default, each style's label (the name the wearer sees;
   cleared, the entry has none), layout and scheme, add (shaped like the
-  others), delete ([styles and layouts](styles-and-layouts.md)).
+  others), delete ([styles and layouts](styles-and-layouts.md)). **+
+  Layout** adds an empty one, listed here and in Layers with nothing in it
+  yet; with no style yet to name it, it also adds one pointing at the new
+  layout, so it is never declared unreachable.
 - **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
   as at 10:09:42, on the face's first watch; each hand's colour through
   the picker, and how many parts it has; the elements placing it (click

@@ -19,7 +19,7 @@ import { type Baker, move, resize, type Scope, target, turn, View } from "../edi
 import { Gate, Loaded, loadText } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
-  deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
+  chain, deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
   renameSlot, setValue,
 } from "../edit/patch.ts";
 import * as schemes from "../edit/schemes.ts";
@@ -176,6 +176,14 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   duplicate_hand_set: (_, index, op) => hands.duplicateHandSet(index, text(op, "name")),
   rename_hand_set: (_, index, op) => hands.renameHandSet(index, text(op, "name"), text(op, "to")),
   delete_hand_set: (_, index, op) => hands.deleteHandSet(index, text(op, "name")),
+  // an empty layout, plus a style naming it when there is no `config: style:` yet to make it reachable
+  // (`layouts:` with no style naming any entry, or a style's `layout:` with no `layouts:` at all, are each a build error)
+  add_layout: (_, index, op) => {
+    const name = text(op, "name");
+    const withLayout = setValue(index, ["layouts", name], new Map(), { block: true });
+    if (index.get(["config", "style"]) !== undefined) return withLayout;
+    return chain(withLayout, (i) => setValue(i, ["config", "style"], toData({ default: name, choices: { [name]: { layout: name } } }), { block: true }));
+  },
 };
 
 /** JSON from the browser as YAML data: objects as `Map`s, as the patch engine reads mappings. */
