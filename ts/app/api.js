@@ -52,9 +52,7 @@ export async function call(op, args = {}, body = null) {
 }
 
 function refused(response) {
-  const error = new Error((response.json && response.json.error) || `${response.status}`);
-  error.status = response.status;
-  return error;
+  return Object.assign(new Error((response.json && response.json.error) || `${response.status}`), { status: response.status });
 }
 
 export async function api(op, args = {}, body = null) {

@@ -588,7 +588,7 @@ awake-only build.
 ```sh
 cd ts
 npm test                 # the fast suite: node:test over test/, no Garmin toolchain
-npm run typecheck        # tsc, strict
+npm run typecheck        # tsc, strict; then app/ as checked JavaScript (tsconfig.app.json)
 npm run test:slow        # every slow-test design, example and fixture through monkeyc
 ```
 

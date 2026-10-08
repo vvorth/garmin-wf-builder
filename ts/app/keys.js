@@ -49,6 +49,7 @@ export function typingIn(target) {
 
 // What the "?" overlay lists, in groups: each `[keys, what]`, "Ctrl"
 // standing for Cmd on a Mac.
+/** @type {[string, [string, string][]][]} */
 export const SHORTCUTS = [
   ["Edit", [
     ["Ctrl+Z", "undo"], ["Ctrl+Shift+Z, Ctrl+Y", "redo"],

@@ -111,7 +111,6 @@ export function newer(current, incoming) {
 // its message saying so, since nothing else would.
 export function droppedError(error, later) {
   if (!(later > 0)) return error;
-  const shown = new Error(`${error.message} (${later} later change${later > 1 ? "s were" : " was"} not sent)`);
-  shown.status = error.status;
-  return shown;
+  return Object.assign(new Error(`${error.message} (${later} later change${later > 1 ? "s were" : " was"} not sent)`),
+    { status: error.status });
 }

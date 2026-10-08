@@ -7,7 +7,7 @@ the editor, in TypeScript on Node; `../wfb` runs `src/cli.ts`.
 
 ```sh
 npm test                    # node:test over test/**/*.test.ts
-npm run typecheck           # tsc --noEmit, strict
+npm run typecheck           # tsc --noEmit, strict; then app/ as checked JavaScript (tsconfig.app.json)
 npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
 npm run bundle              # dist/wfb.js and dist/worker.js, the browser bundles (not committed)
 ```

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.ts\"",
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . && tsc -p tsconfig.app.json",
     "bundle": "esbuild src/browser.ts --bundle --format=esm --platform=browser --target=es2023 --sourcemap --outfile=dist/wfb.js && esbuild src/studio/worker.ts --bundle --format=esm --platform=browser --target=es2023 --sourcemap --outfile=dist/worker.js",
     "test:slow": "node --test --test-timeout=7200000 \"slow/*.test.ts\""
   },

@@ -1,0 +1,14 @@
+{
+  "//": "The studio page (app/), plain ES modules checked as JavaScript; npm run typecheck runs it after tsconfig.json.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "strict": false,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "types": [],
+    "paths": { "/dist/raster.js": ["./app/dist-raster.d.ts"] }
+  },
+  "include": ["app/*.js"]
+}
