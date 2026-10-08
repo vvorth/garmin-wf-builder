@@ -416,9 +416,7 @@ function Editor({ docId, onError, onNotice }) {
   // moving, deleting or grouping together
   const [extra, setExtra] = useState([]);
   const [view, setView] = useState({ device: null, style: "", time: "", date: "", now: false, asleep: false,
-                                     aod: false, skin: storedSkin(), zoom: storedZoom() });
-  // the worker draws at a whole scale; the browser shows it at the zoom
-  const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
+                                     aod: false, skin: storedSkin(), zoom: storedZoom(), real: false });
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
   const [dialog, setDialog] = useState(null);           // "build" | "calibrate" | "keys"
   const [vocab, setVocab] = useState({});
@@ -457,6 +455,11 @@ function Editor({ docId, onError, onNotice }) {
     }
   }, [doc]);
   const deviceInfo = (vocab.devices || []).find((d) => d.id === view.device);
+  const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
+  // 1:1 stays on from watch to watch, each at its own real size; off, the zoom set before
+  const zoom = view.real && real ? real : view.zoom;
+  // the worker draws at a whole scale; the browser shows it at the zoom
+  const scale = serverScale(zoom, window.devicePixelRatio || 1);
   const { frame, busy, skin, clock, setClock, time, date, picks } = useFrame({ docId, doc, view, scale, deviceInfo, onError });
   useEffect(() => {
     try { localStorage.setItem("wfb-skin", view.skin ? "1" : "0"); } catch (_) { /* private mode */ }
@@ -468,13 +471,13 @@ function Editor({ docId, onError, onNotice }) {
     if (view.asleep && amoled) setView((v) => ({ ...v, asleep: false, aod: true }));
     else if (view.aod && !amoled) setView((v) => ({ ...v, asleep: true, aod: false }));
   }, [deviceInfo && deviceInfo.id]);
-  const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
-  // the slider's steps are hundredths; real size is set exactly
-  const setZoom = (z, exact = false) => {
-    const zoom = clampZoom(exact ? z : Math.round(z * 100) / 100);
+  // a zoom of its own turns 1:1 off; the slider's steps are hundredths
+  const setZoom = (z) => {
+    const zoom = clampZoom(Math.round(z * 100) / 100);
     try { localStorage.setItem("wfb-zoom", String(zoom)); } catch (_) { /* private mode */ }
-    setView((v) => ({ ...v, zoom }));
+    setView((v) => ({ ...v, zoom, real: false }));
   };
+  const toggleReal = () => setView((v) => ({ ...v, real: !v.real }));
 
   // the device and scope a gesture is written for, as they were when it was made
   const where = useRef({});
@@ -584,9 +587,9 @@ function Editor({ docId, onError, onNotice }) {
     ungroup: element && element.type === "group" ? () => structure({ op: "ungroup", path: element.path }) : null,
     forward: element ? () => { const op = stepOp(doc.tree, element.path, 1); if (op) structure(op); } : null,
     backward: element ? () => { const op = stepOp(doc.tree, element.path, -1); if (op) structure(op); } : null,
-    zoom: (by) => setZoom(view.zoom * (by > 0 ? 1.25 : 0.8)),
+    zoom: (by) => setZoom(zoom * (by > 0 ? 1.25 : 0.8)),
     zoomFit: fit,
-    zoomReal: () => { if (!real) return false; setZoom(real, true); },
+    zoomReal: () => { if (!real) return false; toggleReal(); },
     // the help, or a popover, closes first
     deselect: () => {
       if (dialog === "keys") { setDialog(null); return; }
@@ -619,7 +622,7 @@ function Editor({ docId, onError, onNotice }) {
 
   // the top bar's error count: Diagnostics, open, showing the errors
   const showErrors = () => { setTab("diagnostics"); setDiagFilter("error"); setFolded("lower", false); };
-  const panZoom = usePanZoom({ zoom: view.zoom, setZoom, active: pane === "face", onBackground: deselect });
+  const panZoom = usePanZoom({ zoom, setZoom, active: pane === "face", onBackground: deselect });
 
   const drawn = useMemo(() => frame && new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)), [frame]);
   const box = useMemo(() => {
@@ -711,17 +714,17 @@ function Editor({ docId, onError, onNotice }) {
           <${PreviewMenu} view=${view} setView=${setView} time=${time} date=${date} clock=${clock} setClock=${setClock}
                           slots=${slots} vocab=${vocab} deviceInfo=${deviceInfo} />
           <label class="zoom">Zoom
-            <input type="range" min=${MIN_ZOOM} max=${MAX_ZOOM} step="0.01" value=${view.zoom}
+            <input type="range" min=${MIN_ZOOM} max=${MAX_ZOOM} step="0.01" value=${zoom}
                    list="zoom-notches" onInput=${(e) => setZoom(Number(e.target.value))} />
             <datalist id="zoom-notches">
               ${[1, 2, 3].map((n) => html`<option value=${n} />`)}
               ${real ? html`<option value=${real} />` : null}
             </datalist>
-            <span class="mono">${view.zoom.toFixed(view.zoom < 1 ? 3 : 2)}×</span></label>
-          <button class=${real && Math.abs(view.zoom - real) < 0.005 ? "on" : ""} disabled=${!real}
+            <span class="mono">${zoom.toFixed(zoom < 1 ? 3 : 2)}×</span></label>
+          <button class=${view.real && real ? "on" : ""} disabled=${!real} aria-pressed=${!!(view.real && real)}
                   title=${real ? `the watch's real size, ${screenMm(deviceInfo.width, deviceInfo.ppi).toFixed(1)} mm across, on this screen`
                                : "this watch's files give no pixel density"}
-                  onClick=${() => setZoom(real, true)}>1:1</button>
+                  onClick=${toggleReal}>1:1</button>
           <button class="reset" title="Calibrate real size with a bank card" aria-label="Calibrate real size with a bank card" onClick=${() => setDialog("calibrate")}>⚙</button>
         </div>
         ${pane === "yaml"
@@ -731,7 +734,7 @@ function Editor({ docId, onError, onNotice }) {
               ${busy ? html`<div class="busy">rendering…</div>` : null}
               ${frame ? html`<${Canvas} frame=${frame} selected=${selected}
                                         extra=${extra} tree=${doc.tree} queue=${queue}
-                                        zoom=${view.zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
+                                        zoom=${zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
                                         onPick=${select} onDrag=${onDrag} />`
                       : html`<div class="empty">${doc.loads ? "No frame yet." :
                           "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}

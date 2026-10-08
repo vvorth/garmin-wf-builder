@@ -134,6 +134,9 @@ without smoothing, so every watch pixel is a visible block, as it is
 while you drag. **1:1**
 shows the watch at its real size: its screen's pixels over its pixels per
 inch, from its device files (a watch whose files give none has no 1:1).
+It is a switch: while on, every watch you pick is shown at its own real
+size; clicking it again, or **1**, goes back to the zoom you had, and
+zooming any other way turns it off from the size shown.
 A browser cannot measure its screen, and takes 96 of its pixels as an
 inch, which is right on some screens and not others. **⚙** calibrates it:
 hold a bank card to the screen and drag until the box matches; the

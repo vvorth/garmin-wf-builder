@@ -123,3 +123,25 @@ test("the preview draws one frame at a time, the one the watch has, and the samp
   assert.deepEqual(printed[2], [["AOD"], true, "", false]);
   assert.deepEqual(printed[3], [["awake", false, false], ["asleep", true, false], ["AOD", false, true]]);
 });
+
+test("1:1 is a toggle that stays on from watch to watch until turned off or zoomed away", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fenix8solar47mm", "fr955"];
+  const devices = [
+    { id: "fenix8solar47mm", name: "fenix8solar47mm", display: "mip", skin: false, ppi: 192, width: 260 },
+    { id: "fr955", name: "fr955", display: "mip", skin: false, ppi: 96, width: 260 },
+  ];
+  const printed = await page({ ...face, devices }, `#/face/${face.summary.id}`, `
+      const real = () => button("1:1");
+      const state = () => [find((e) => e.localName === "span" && cls(e) === "mono" && e.textContent.endsWith("×"))[0].textContent,
+                           cls(real())];
+      const watch = (id) => click(find((e) => e.localName === "button" && e.attributes.title === id)[0]);
+      out(state());
+      await click(real()); out(state());
+      await watch("fr955"); out(state());
+      await click(real()); out(state());
+      await click(real()); await watch("fenix8solar47mm"); out(state());
+      press("=", { ctrlKey: true }); await settle(); out(state());
+    `);
+  assert.deepEqual(printed, [["2.00×", ""], ["0.500×", "on"], ["1.00×", "on"], ["2.00×", ""], ["0.500×", "on"], ["0.630×", ""]]);
+});
