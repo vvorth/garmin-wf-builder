@@ -90,3 +90,36 @@ test("shortcuts group open the list and copy and paste elements as yaml", async 
   assert.ok((eq(forward["op"], "move") && eq(forward["path"], ["elements", "clock"])));
   assert.ok((eq(paste["op"], "paste") && eq(paste["text"], text) && eq(paste["block"], ["elements"])));
 });
+
+test("the preview draws one frame at a time, the one the watch has, and the sample moment resets only the time", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fenix847mm", "fr955"];
+  const devices = [
+    { id: "fenix847mm", name: "fenix847mm", display: "amoled", skin: true, ppi: null },
+    { id: "fr955", name: "fr955", display: "mip", skin: true, ppi: null },
+  ];
+  const printed = await page({ ...face, devices }, `#/face/${face.summary.id}`, `
+      const radios = () => find((e) => e.localName === "input" && e.attributes.type === "radio")
+        .map((e) => [e.parentNode.textContent.trim(), "checked" in e.attributes, "disabled" in e.attributes]);
+      const change = async (e) => { e.dispatch("change", { target: e }); await settle(); };
+      const input = (pred) => find((e) => e.localName === "input" && pred(e))[0];
+      await click(button("Preview"));
+      out(radios());
+      // AOD on the AMOLED watch, then skin and a time
+      await change(input((e) => e.attributes.type === "radio" && e.parentNode.textContent.trim() === "AOD"));
+      const skin = input((e) => e.attributes.type === "checkbox" && e.parentNode.textContent.trim() === "skin");
+      skin.type = "checkbox"; skin.checked = true; await change(skin);
+      const time = input((e) => e.attributes.type === "time");
+      time.value = "08:30:00"; time.dispatch("change", { target: time }); await settle();
+      out([radios(), localStorage.getItem("wfb-skin")]);
+      await click(button("Back to the sample moment"));
+      out([radios().filter(([, on]) => on).map(([label]) => label), skin.checked, time.value, !!button("Back to the sample moment")]);
+      // the MIP watch: its asleep frame stands for AOD
+      await click(find((e) => e.localName === "button" && e.attributes.title === "fr955")[0]);
+      out(radios());
+    `);
+  assert.deepEqual(printed[0], [["awake", true, false], ["asleep", false, true], ["AOD", false, false]]);
+  assert.deepEqual(printed[1], [[["awake", false, false], ["asleep", false, true], ["AOD", true, false]], "1"]);
+  assert.deepEqual(printed[2], [["AOD"], true, "", false]);
+  assert.deepEqual(printed[3], [["awake", false, false], ["asleep", true, false], ["AOD", false, true]]);
+});

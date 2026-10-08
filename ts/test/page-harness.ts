@@ -120,7 +120,7 @@ export function faceFixture(): { summary: any; vocabulary: any; home: any } {
  * The whole page loaded at `route` over a stand-in worker, then `body` run
  * (every request the page makes is in `requests`): what it printed.
  */
-export async function page(face: { summary: any; vocabulary: any; home: any }, route: string, body: string): Promise<any[]> {
+export async function page(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string, body: string): Promise<any[]> {
   return printed(`
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
@@ -139,11 +139,14 @@ export async function page(face: { summary: any; vocabulary: any; home: any }, r
         for (const f of listeners.keydown || []) f(event);
         return event.prevented;
       };
+      // this page's own storage, empty at load
+      const storage = new Map();
+      globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); } };
       globalThis.location = { hash: ${JSON.stringify(route)}, href: "http://studio/", reload() {} };
       const summary = ${JSON.stringify(face["summary"])};
       const answers = {
         home: ${JSON.stringify(face["home"])},
-        vocabulary: ${JSON.stringify({ ...face["vocabulary"], devices: [] })},
+        vocabulary: ${JSON.stringify({ ...face["vocabulary"], devices: face["devices"] ?? [] })},
       };
       answers[\`get \${summary.id}\`] = summary;
       // every request the page made, [op, args]; \`sent()\` the changes among them

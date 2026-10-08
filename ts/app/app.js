@@ -30,6 +30,7 @@ function stored(key, fallback) {
   try { const v = Number(localStorage.getItem(key)); return v > 0 ? v : fallback; } catch (_) { return fallback; }
 }
 const storedZoom = () => clampZoom(stored("wfb-zoom", 2));
+const storedSkin = () => stored("wfb-skin", 0) === 1;
 const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
 const PANEL_MIN = 180;
 const PANEL_MAX = 720;
@@ -354,10 +355,17 @@ function ReportsSection({ folded, onFold, tab, onTab, doc, filter, onFilter, onS
     </section>`;
 }
 
+// Whether the watch's low-power frame is AOD (AMOLED) rather than asleep.
+const isAmoled = (deviceInfo) => !!deviceInfo && ["amoled", "oled"].includes(String(deviceInfo.display).toLowerCase());
+
+// Which frame the preview draws: awake, asleep (MIP) or AOD (AMOLED), one at a time.
+const previewMode = (view) => (view.aod ? "aod" : view.asleep ? "asleep" : "awake");
+
 // The Preview popover: what the face is drawn at (the time and date, each
 // slot's reading, asleep, AOD, the skin), its button saying what is set.
 function PreviewMenu({ view, setView, time, date, clock, setClock, slots, vocab, deviceInfo }) {
   const set = setter(setView);
+  const amoled = isAmoled(deviceInfo);
   // what the Preview button's label says is set: whatever is not the default
   const previewed = [
     view.now ? "now" : [time && time.slice(0, 5), date].filter(Boolean).join(" "),
@@ -386,13 +394,17 @@ function PreviewMenu({ view, setView, time, date, clock, setClock, slots, vocab,
             ${(Array.isArray(sl.choices) ? sl.choices.map((c) => c.type) : (vocab.complication_types || []).map((t) => t.name))
               .map((t) => html`<option value=${t}>${t === sl.default ? `${typeLabel(vocab, t)} (first)` : typeLabel(vocab, t)}</option>`)}
           </select></label>`)}
-        <label><input type="checkbox" checked=${view.asleep} onChange=${set("asleep")} /> asleep</label>
-        <label><input type="checkbox" checked=${view.aod} onChange=${set("aod")} /> AOD</label>
+        <div class="preview-mode" role="radiogroup" title="awake, or the watch's low-power frame: asleep on an always-on (MIP) screen, AOD on an AMOLED one">
+          ${[["awake", "awake", true], ["asleep", "asleep", !amoled], ["aod", "AOD", amoled]].map(([mode, label, fits]) => html`
+            <label title=${fits ? "" : amoled ? "an AMOLED watch has no asleep frame: its low-power frame is AOD" : "only an AMOLED watch has an AOD frame"}>
+              <input type="radio" name="preview-mode" checked=${previewMode(view) === mode} disabled=${!fits}
+                     onChange=${() => setView((v) => ({ ...v, asleep: mode === "asleep", aod: mode === "aod" }))} /> ${label}</label>`)}
+        </div>
         <label title=${deviceInfo && !deviceInfo.skin ? "this watch's files have no skin" : "the watch drawn round the screen"}>
           <input type="checkbox" checked=${view.skin} disabled=${deviceInfo && !deviceInfo.skin}
                  onChange=${set("skin")} /> skin</label>
-        ${previewed.length ? html`<button class="reset-preview" onClick=${() => setView((v) => ({ ...v, time: "", date: "", now: false,
-            picks: {}, asleep: false, aod: false, skin: false }))}>Back to the sample moment</button>` : null}
+        ${view.now || time || date ? html`<button class="reset-preview" title="the sample time and date; the frame and the skin stay"
+            onClick=${() => setView((v) => ({ ...v, time: "", date: "", now: false }))}>Back to the sample moment</button>` : null}
       </div>
     </${Popover}>`;
 }
@@ -404,7 +416,7 @@ function Editor({ docId, onError, onNotice }) {
   // moving, deleting or grouping together
   const [extra, setExtra] = useState([]);
   const [view, setView] = useState({ device: null, style: "", time: "", date: "", now: false, asleep: false,
-                                     aod: false, skin: false, zoom: storedZoom() });
+                                     aod: false, skin: storedSkin(), zoom: storedZoom() });
   // the worker draws at a whole scale; the browser shows it at the zoom
   const scale = serverScale(view.zoom, window.devicePixelRatio || 1);
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
@@ -446,6 +458,16 @@ function Editor({ docId, onError, onNotice }) {
   }, [doc]);
   const deviceInfo = (vocab.devices || []).find((d) => d.id === view.device);
   const { frame, busy, skin, clock, setClock, time, date, picks } = useFrame({ docId, doc, view, scale, deviceInfo, onError });
+  useEffect(() => {
+    try { localStorage.setItem("wfb-skin", view.skin ? "1" : "0"); } catch (_) { /* private mode */ }
+  }, [view.skin]);
+  // another watch: its own low-power frame stands for the one shown, asleep for AOD and back
+  useEffect(() => {
+    if (!deviceInfo) return;
+    const amoled = isAmoled(deviceInfo);
+    if (view.asleep && amoled) setView((v) => ({ ...v, asleep: false, aod: true }));
+    else if (view.aod && !amoled) setView((v) => ({ ...v, asleep: true, aod: false }));
+  }, [deviceInfo && deviceInfo.id]);
   const real = deviceInfo ? realZoom(deviceInfo.ppi, pxPerInch) : null;
   // the slider's steps are hundredths; real size is set exactly
   const setZoom = (z, exact = false) => {

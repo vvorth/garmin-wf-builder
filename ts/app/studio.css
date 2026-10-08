@@ -359,6 +359,9 @@ input.inline-name.invalid { border-color: var(--error); }
 .preview-grid { display: grid; grid-template-columns: 1fr; gap: 8px; min-width: 240px; }
 .preview-grid label { display: flex; gap: 8px; align-items: center; justify-content: space-between; color: var(--dim); font-size: 12px; }
 .preview-grid label:has(input[type="checkbox"]) { justify-content: flex-start; }
+.preview-mode { display: flex; gap: 12px; }
+.preview-mode label { justify-content: flex-start; gap: 4px; }
+.preview-mode label:has(input:disabled) { opacity: 0.5; }
 .preview-grid select { max-width: 60%; }
 
 /* -- undo, redo and the line of history ------------------------------------------ */
