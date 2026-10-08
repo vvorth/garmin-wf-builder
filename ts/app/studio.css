@@ -90,7 +90,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .tree .type { color: var(--dim); font-size: 11px; }
 .tree .item.undrawn { opacity: .5; }
 
-.stage { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+.stage { display: grid; grid-template-rows: auto 1fr; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .controls label { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 12px; }
 /* the watch is centred by its own auto margins, so when it is larger than
@@ -162,6 +162,8 @@ button:disabled:hover { border-color: var(--line); }
 .field .req { color: var(--warning); margin-left: 2px; }
 .field .value { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
 .field .value > input[type="text"] { flex: 1; min-width: 0; }
+/* a select is as wide as its longest option unless told otherwise */
+.field .value > select { min-width: 0; max-width: 100%; }
 .field.object { grid-template-columns: 1fr; }
 .field.object > .children { border-left: 1px solid var(--line); margin-left: 4px; }
 .field.object > .children .field { padding-left: 8px; }
@@ -176,8 +178,8 @@ input[type="color"] { width: 28px; height: 24px; padding: 0 2px; }
 .align { display: inline-flex; flex-direction: column; gap: 2px; }
 .align-row { display: flex; gap: 2px; }
 .align button { width: 16px; height: 16px; padding: 0; border-radius: 3px; }
-.template { display: flex; gap: 4px; width: 100%; }
-.template input { flex: 1; min-width: 0; }
+.template { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
+.template input { flex: 1 1 10em; min-width: 0; }
 .template select { max-width: 7em; }
 code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--dim); }
 .face-panel .section-head { padding: 8px 12px; cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); border-bottom: 1px solid var(--line); }
@@ -268,7 +270,9 @@ input[type="range"].wide { width: 100%; }
 .card-box { border: 2px solid var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--dim); }
 /* the colour picker */
 .chip-button { display: inline-flex; gap: 6px; align-items: center; padding: 2px 8px; }
-.popover-body.pop { width: 248px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.popover-body.pop { width: 248px; min-width: 0; flex-direction: column; gap: 8px; }
+/* only while open: a display set on a closed popover would draw it */
+.popover-body.pop:popover-open { display: flex; }
 .pop-custom input.hex { width: 6.5em; }
 .pop-custom input.codepoint { width: 7em; }
 .pop-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin-bottom: 4px; }
@@ -320,7 +324,7 @@ button.star.on { color: var(--warning); }
 .topbar .save.unsaved { color: var(--error); font-weight: 600; }
 button.save.unsaved { font-size: 12px; padding: 1px 8px; border-color: var(--error); background: none; }
 .diag-filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
-.diag-filter button { font-size: 11px; padding: 2px 8px; }
+.diag-filter button { font-size: 11px; padding: 2px 8px; flex: none; }
 .diag-filter button.on { border-color: var(--accent); color: var(--text); }
 .diag-filter button.error { color: var(--error); }
 .diag-filter button.warning { color: var(--warning); }
@@ -375,7 +379,7 @@ input.inline-name.invalid { border-color: var(--error); }
 .panel.right { display: flex; flex-direction: column; overflow: hidden; }
 .panel.right section { display: flex; flex-direction: column; min-height: 0; }
 .panel.right .section-scroll { overflow: auto; min-height: 0; }
-.props-section { flex: 0 1 auto; max-height: 60%; }
+.props-section { flex: 0 0 auto; max-height: 60%; }
 .panel.right.lower-folded .props-section { flex: 1 1 auto; max-height: none; }
 .lower-section { flex: 1 1 auto; }
 .panel.right.lower-folded .lower-section { flex: 0 0 auto; }

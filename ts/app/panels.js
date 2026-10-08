@@ -235,8 +235,10 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
     <div class="ins-head">
       <code>${ins.id}</code> <span class="dim">${ins.type}</span>
       <div class="scope" title="Where at:, size:, radius: and align: edits and drags are written; with all targets, a drag goes where the viewed device reads the key">
-        ${[["all", "all targets"], ["device", ins.device], ["shape", ins.shape]].map(([s, label]) => html`
-          <button class=${scope === s ? "on" : ""} onClick=${() => setScope(s)}>${label}</button>`)}
+        ${[["all", "all targets", "the element's own key, for every target"],
+           ["device", ins.device, `an override for ${ins.device} only`],
+           ["shape", `${ins.shape} screens`, `an override for every ${ins.shape} watch`]].map(([s, label, what]) => html`
+          <button class=${scope === s ? "on" : ""} title=${what} onClick=${() => setScope(s)}>${label}</button>`)}
       </div>
     </div>
     ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}

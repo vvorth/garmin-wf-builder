@@ -69,6 +69,7 @@ LICENSE-htm           htm (Apache-2.0)
 LICENSE-preact        Preact (MIT)
 codemirror.module.js  $cm_versions (tools/studio-frontend, esbuild, markdown as plain text)
 LICENSES-codemirror   every package in codemirror.module.js, with its version
+LICENSES-pillow       Pillow 12.3.0 (MIT-CMU): ts/src/raster/pillow.ts (bundled as /dist/raster.js) follows its ImageDraw.py and libImaging/Draw.c
 marked.esm.js         marked@$MARKED_VERSION lib/marked.esm.js (the Help popup's markdown)
 LICENSE-marked        marked (MIT)
 EOF

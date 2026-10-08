@@ -11,13 +11,25 @@
 
 import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
 import {
-  Annotation, EditorSelection, EditorView, basicSetup, forceLinting, linter, lintGutter, yaml,
-  yamlSchema,
+  Annotation, EditorSelection, EditorView, HighlightStyle, basicSetup, forceLinting, linter, lintGutter,
+  syntaxHighlighting, tags, yaml, yamlSchema,
 } from "./vendor/codemirror.module.js";
 import { elementAtLine, flatten } from "./hit.js";
 import * as sync from "./textsync.js";
 import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.js";
 import { api, call } from "./api.js";
+
+// The text's colours on the studio's dark background, in its own palette:
+// CodeMirror's default style is made for a light one, and its keys and
+// tags are dark blue there.
+const highlight = syntaxHighlighting(HighlightStyle.define([
+  { tag: [tags.definition(tags.propertyName), tags.propertyName], color: "#8ab4f8" },
+  { tag: [tags.string, tags.special(tags.string)], color: "#a5d6a7" },
+  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "#f5c04a" },
+  { tag: tags.comment, color: "#8b93a1", fontStyle: "italic" },
+  { tag: [tags.meta, tags.labelName, tags.typeName, tags.keyword], color: "#d4a5f5" },
+  { tag: [tags.punctuation, tags.separator, tags.squareBracket, tags.brace], color: "#9aa1ac" },
+]));
 
 const DEBOUNCE = 300;
 // A change the pane makes itself (a reload, a selection from outside): not
@@ -214,9 +226,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         parent: host.current,
         doc: opened.text,
         extensions: [
-          basicSetup, yaml(), yamlSchema(s), lintGutter(),
+          basicSetup, highlight, yaml(), yamlSchema(s), lintGutter(),
           linter((v) => lintFrom(v, state.current.doc.diagnostics), { delay: 0 }),
-          typed, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto" } }),
+          typed, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto" } }, { dark: true }),
         ],
       });
       // the effects below ran before the view existed: catch up with them

@@ -232,7 +232,7 @@ or off. **×** removes a key, back to its default. A key no control covers,
 such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
 
 The three buttons above the keys, **all targets**, the watch in view
-(by its id) and its shape, say where `at:`, `size:`, `radius:` and
+(by its id) and its shape (**round screens**, say), say where `at:`, `size:`, `radius:` and
 `align:` changes go ([per-device and per-shape
 overrides](placement.md#per-device-and-per-shape-overrides)):
 

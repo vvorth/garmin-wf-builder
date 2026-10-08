@@ -6,3 +6,5 @@ export { basicSetup } from "codemirror";
 export { yaml } from "@codemirror/lang-yaml";
 export { linter, lintGutter, setDiagnostics, forceLinting } from "@codemirror/lint";
 export { yamlSchema, yamlSchemaLinter, yamlSchemaHover, yamlCompletion } from "codemirror-json-schema/yaml";
+export { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+export { tags } from "@lezer/highlight";
