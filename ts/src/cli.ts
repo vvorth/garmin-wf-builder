@@ -763,7 +763,14 @@ function newCommand(args: Namespace): number {
   const text = starters.instantiate(template, name);
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, text);
+  const files = starters.files(template);
+  for (const [path, bytes] of files) {
+    const assetPath = join(dirname(destination), path);
+    mkdirSync(dirname(assetPath), { recursive: true });
+    writeFileSync(assetPath, bytes);
+  }
   out(`created ${destination}  (from the ${quoted(template)} template)`);
+  if (files.size > 0) out(`  with ${[...files.keys()].join(", ")}`);
   out();
   out("next:");
   out(`  wfb preview ${destination} --watch     # render as you edit`);

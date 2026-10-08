@@ -245,6 +245,7 @@ wfb new --list                    # what else there is
 | `themed` | colour schemes, accent and data colours, and two complication slots the wearer sets on the watch ([configuration](configuration.md)) |
 | `palette` | all 64 MIP colours as named swatches ([the list](mip-palette.md)), two schemes, and accent and data colours |
 | `amoled` | adds an AMOLED target (`fenix847mm`) with a sparse always-on frame ([always-on display](always-on-display.md)) |
+| `showcase` | three layouts switched by Styles -- a classic analog dial, a dense digital dashboard, and a vintage roman dial with curved numerals; two baked fonts come with it |
 
 Every template builds warning-free on each of its targets.
 

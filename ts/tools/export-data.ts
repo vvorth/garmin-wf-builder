@@ -1,9 +1,10 @@
 // Regenerates the tables in src/data/ that are copies of files elsewhere,
 // so the browser has them without a file system: the support barrel
 // (`runtime-lib/*.mc`), the starters `wfb new` and the editor's New offer
-// (`templates/*.yaml`, with `templates/blurbs.json`), and the hand presets
-// (`templates/hands/sets.yaml`). The other tables in src/data/ are the
-// source themselves.
+// (`templates/*.yaml`, with `templates/blurbs.json`, and any binary assets a
+// template needs under `templates/assets/<name>/`, base64), and the hand
+// presets (`templates/hands/sets.yaml`). The other tables in src/data/ are
+// the source themselves.
 //
 //   node ts/tools/export-data.ts           # rewrite them
 //   node ts/tools/export-data.ts --check   # exit 1, naming the stale ones
@@ -16,6 +17,14 @@ const TEMPLATES = join(TS, "templates");
 const read = (path: string): string => readFileSync(path, "utf8");
 const yamlNames = (dir: string): string[] => readdirSync(dir).filter((n) => n.endsWith(".yaml")).sort();
 
+/** `assets/<filename>` -> base64, for a template's own asset directory, if it has one. */
+function templateFiles(name: string): Record<string, string> | undefined {
+  const dir = join(TEMPLATES, "assets", name);
+  if (!existsSync(dir)) return undefined;
+  return Object.fromEntries(readdirSync(dir).sort()
+    .map((n) => [`assets/${n}`, readFileSync(join(dir, n)).toString("base64")]));
+}
+
 export function tables(): Record<string, unknown> {
   const blurbs = JSON.parse(read(join(TEMPLATES, "blurbs.json"))) as Record<string, string>;
   return {
@@ -23,7 +32,8 @@ export function tables(): Record<string, unknown> {
       .map((n) => [n, read(join(REPO_ROOT, "runtime-lib", n))])),
     "templates.json": Object.fromEntries(yamlNames(TEMPLATES).map((n) => {
       const name = n.slice(0, -5);
-      return [name, { blurb: blurbs[name] ?? "", text: read(join(TEMPLATES, n)) }];
+      const files = templateFiles(name);
+      return [name, { blurb: blurbs[name] ?? "", text: read(join(TEMPLATES, n)), ...(files ? { files } : {}) }];
     })),
     "hand-sets.json": { text: read(join(TEMPLATES, "hands", "sets.yaml")) },
   };

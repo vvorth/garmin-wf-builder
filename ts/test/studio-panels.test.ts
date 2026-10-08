@@ -13,7 +13,7 @@ import { NodeFontFiles } from "../src/fonts/node.ts";
 import { readFontFile } from "../src/node.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
-import { bundle } from "../src/studio/bundle.ts";
+import { bundle, missing } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect } from "../src/studio/inspect.ts";
 import { allowHostList, digest, start } from "../src/studio/server.ts";
@@ -436,6 +436,15 @@ test("a layout with no style referencing it is deleted through the existing stru
 // The browser's devices are the server's digest plus each device's skin
 // (sent with its extras); a digest missing a tag the compiler reads shows
 // as diagnostics the CLI does not give.
+test("a template with its own font assets (showcase) arrives with them, through the new request", async () => {
+  const full = await Client.open();
+  const summary = await full.create("showcase", "S");
+  const doc = full.studio.document(summary.id);
+  assert.deepEqual(Object.keys(doc.head.assets).sort(), ["assets/ChivoMono-Bold.ttf", "assets/Dynalight-Regular.ttf", "assets/OFL.txt"]);
+  assert.deepEqual(missing(doc.text, { has: (p: string) => p in doc.head.assets }), []);
+  assert.notEqual(doc.analysis().face, null);
+});
+
 test("a studio over the device digest diagnoses every template as one over the device files", async () => {
   const full = await Client.open();
   const made = [];

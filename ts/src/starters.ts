@@ -4,9 +4,14 @@ import { uuid } from "./uuid.ts";
 import { quoted } from "./py.ts";
 import templates from "./data/templates.json" with { type: "json" };
 
-const TEMPLATES = templates as Record<string, { blurb: string; text: string }>;
+const TEMPLATES = templates as Record<string, { blurb: string; text: string; files?: Record<string, string> }>;
 
 export class UnknownTemplate extends Error {}
+
+function base64Bytes(text: string): Uint8Array {
+  const binary = atob(text);
+  return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+}
 
 /** Every template name, sorted. */
 export function names(): string[] {
@@ -27,4 +32,11 @@ export function instantiate(template: string, name: string): string {
   const found = Object.hasOwn(TEMPLATES, template) ? TEMPLATES[template] : undefined;
   if (found === undefined) throw new UnknownTemplate(`no template ${quoted(template)}`);
   return found.text.replaceAll("__UUID__", uuid()).replaceAll("__NAME__", name);
+}
+
+/** The template's own files (a baked font's source, say), by their bundle-relative path; empty for most templates. */
+export function files(template: string): Map<string, Uint8Array> {
+  const found = Object.hasOwn(TEMPLATES, template) ? TEMPLATES[template] : undefined;
+  if (found === undefined) throw new UnknownTemplate(`no template ${quoted(template)}`);
+  return new Map(Object.entries(found.files ?? {}).map(([path, b64]) => [path, base64Bytes(b64)]));
 }

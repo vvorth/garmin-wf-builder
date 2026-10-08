@@ -7,6 +7,7 @@
  "minimal": "a background and the time -- the smallest face worth building",
  "navy_classic": "a navy sunray dress dial: polygon hands, batons, a day/date window at 3",
  "palette": "all 64 MIP colours as named swatches, with a colour scheme and colour axes",
+ "showcase": "three layouts switched by Styles -- a classic analog dial, a dense digital dashboard, and a vintage roman dial",
  "sport": "time, a heart-rate graph and four readouts, distance in the wearer's units",
  "themed": "light/dark schemes, accent colours and two complication slots set on the watch"
 }

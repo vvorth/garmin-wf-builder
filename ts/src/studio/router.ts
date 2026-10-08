@@ -228,7 +228,8 @@ export class Router {
       case "new": {
         const template = text(args, "template") || "minimal";
         const faceName = text(args, "name").trim() || "My Face";
-        return await this.created(studio.create(bundle(faceName, starters.instantiate(template, faceName)), `new from the ${template} template`));
+        return await this.created(studio.create(
+          bundle(faceName, starters.instantiate(template, faceName), starters.files(template)), `new from the ${template} template`));
       }
       case "upload": {
         const filename = text(args, "filename");
