@@ -184,12 +184,14 @@ input[type="color"] { width: 28px; height: 24px; padding: 0 2px; }
 code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--dim); }
 .face-panel .face-nav { flex-wrap: wrap; }
 .face-panel .face-nav button { flex: none; padding: 6px 10px; }
-.face-panel .face-section-body { padding: 8px 12px; }
+.face-panel .face-section-body { padding: 8px 12px; position: relative; }
+.face-section-guide { position: absolute; top: 8px; right: 12px; font-size: 11px; color: var(--dim); text-decoration: none; }
+.face-section-guide:hover { color: var(--accent); }
 .face-panel .rows { list-style: none; margin: 0 0 8px; padding: 0; }
 .face-panel .rows li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; }
 .face-panel .rows .name { cursor: pointer; min-width: 5em; }
 .face-panel .rows .name:hover { color: var(--accent); }
-.face-panel .rows li.slot { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.face-panel .rows li.slot, .face-panel .rows li.style { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .face-panel .slot-head, .face-panel .slot-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 0; }
 .face-panel .slot-line > .dim:first-child { min-width: 5em; }
 .face-panel .choices { list-style: none; margin: 0 0 0 5em; padding: 0; }

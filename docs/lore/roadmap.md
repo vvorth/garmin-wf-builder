@@ -147,7 +147,8 @@ or AOD-related has been observed on a watch or in the simulator.
   shapes, a non-geometry override (`color:`/`track_color:`/`visible:`)
   shown read-only — each with a jump to its lines in the YAML tab —
   styles and layouts (`+ Layout` bootstraps a style naming it when none
-  exists yet) and fonts. The Face tab is a row of sections, one shown at
+  exists yet) and fonts. Each section has its own "? Guide" link to the
+  matching guide chapter. The Face tab is a row of sections, one shown at
   a time, the browser remembering which; Ctrl+K opens a fuzzy-find over
   every element, colour, role, font, slot, hand set and style name,
   picking one exactly as clicking it already would.

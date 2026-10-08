@@ -11,9 +11,22 @@ import {
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
 import { api } from "./api.js";
 import { ask } from "./dialogs.js";
+import { HelpDialog } from "./help.js";
 
 const ALIGN = [["top_left", "top", "top_right"], ["left", "center", "right"],
                ["bottom_left", "bottom", "bottom_right"]];
+
+// The Face tab's own guide chapter, by section: its "? Guide" link.
+const FACE_SECTION_GUIDE = {
+  targets: "docs/guide/getting-started.md",
+  colours: "docs/guide/colors.md",
+  colour_settings: "docs/guide/configuration.md",
+  schemes: "docs/guide/colors.md",
+  styles: "docs/guide/styles-and-layouts.md",
+  hand_sets: "docs/guide/analog-hands.md",
+  slots: "docs/guide/configuration.md",
+  fonts: "docs/guide/fonts.md",
+};
 
 // A text input that commits on Enter or when it loses focus, and resets
 // when the value it shows changes underneath it.
@@ -584,7 +597,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
     : html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(u); }}>${u}</a>`}`);
 
   const SECTIONS = [
-    { key: "targets", title: "Targets", count: (g.targets || []).length, body: html`
+    { key: "targets", title: "Target devices", count: (g.targets || []).length, body: html`
       <ul class="rows">${(g.targets || []).map((t) => html`<li>
         <span>${(devices.find((d) => d.id === t) || {}).name || t}</span> <code class="dim">${t}</code>
         ${(g.target_problems || {})[t] ? html`<span class="warn" title=${g.target_problems[t]}>⚠ not available here</span>` : null}
@@ -630,27 +643,36 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
         palette=${palette} onEdit=${onEdit} />`)}
     ` },
 
-    { key: "schemes", title: "Schemes", count: schemes.names.length, body: html`
+    { key: "schemes", title: "Colour schemes", count: schemes.names.length, body: html`
       <${Schemes} schemes=${schemes} palette=${palette} styles=${styles} ctx=${ctx} onEdit=${onEdit} />
     ` },
 
     { key: "styles", title: "Styles", count: styles.entries.length, body: html`
       ${styles.entries.length ? html`<ul class="rows">${styles.entries.map((e) => html`<li class="style">
-        <label title="the style the face starts in"><input type="radio" name="default-style" checked=${styles.default === e.name}
-          onChange=${() => onEdit({ op: "set", path: ["config", "style", "default"], value: e.name })} /> ${e.name}</label>
-        <${Commit} value=${e.label} placeholder="label" width="8em"
-          onCommit=${(t) => onEdit(t.trim()
-            ? { op: "set", path: ["config", "style", "choices", e.name, "label"], value: t.trim() }
-            : { op: "remove", path: ["config", "style", "choices", e.name, "label"] })} />
-        ${g.layouts.length ? html`<select value=${e.layout || ""} onChange=${(ev) => onEdit(ev.target.value
-            ? { op: "set", path: ["config", "style", "choices", e.name, "layout"], value: ev.target.value }
-            : { op: "remove", path: ["config", "style", "choices", e.name, "layout"] })}>
-          <option value="">no layout</option>${g.layouts.map((l) => html`<option value=${l}>${l}</option>`)}</select>` : null}
-        ${schemes.names.length ? html`<select value=${e.scheme || ""} onChange=${(ev) => onEdit(ev.target.value
-            ? { op: "set", path: ["config", "style", "choices", e.name, "scheme"], value: ev.target.value }
-            : { op: "remove", path: ["config", "style", "choices", e.name, "scheme"] })}>
-          <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select>` : null}
-        <button class="reset" title="delete this style" aria-label="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
+        <div class="slot-head">
+          <code>${e.name}</code>
+          <button class="reset" title="delete this style" aria-label="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
+        </div>
+        <label class="slot-line" title="the one style the face opens in; the wearer's own pick, where the watch has a picker, starts here too">
+          <input type="radio" name="default-style" checked=${styles.default === e.name}
+            onChange=${() => onEdit({ op: "set", path: ["config", "style", "default"], value: e.name })} />
+          <span class="dim">starting style</span>
+        </label>
+        <div class="slot-line"><span class="dim">label the wearer sees</span>
+          <${Commit} value=${e.label} placeholder="label" width="8em"
+            onCommit=${(t) => onEdit(t.trim()
+              ? { op: "set", path: ["config", "style", "choices", e.name, "label"], value: t.trim() }
+              : { op: "remove", path: ["config", "style", "choices", e.name, "label"] })} /></div>
+        ${g.layouts.length ? html`<div class="slot-line"><span class="dim">layout</span>
+          <select value=${e.layout || ""} onChange=${(ev) => onEdit(ev.target.value
+              ? { op: "set", path: ["config", "style", "choices", e.name, "layout"], value: ev.target.value }
+              : { op: "remove", path: ["config", "style", "choices", e.name, "layout"] })}>
+            <option value="">no layout</option>${g.layouts.map((l) => html`<option value=${l}>${l}</option>`)}</select></div>` : null}
+        ${schemes.names.length ? html`<div class="slot-line"><span class="dim">colour scheme</span>
+          <select value=${e.scheme || ""} onChange=${(ev) => onEdit(ev.target.value
+              ? { op: "set", path: ["config", "style", "choices", e.name, "scheme"], value: ev.target.value }
+              : { op: "remove", path: ["config", "style", "choices", e.name, "scheme"] })}>
+            <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select></div>` : null}
       </li>`)}</ul>` : html`<div class="dim">${g.layouts.length || schemes.names.length ? "No styles yet." : "Styles pair a layout with a colour scheme; this face has neither yet."}</div>`}
       ${g.layouts.length || schemes.names.length ? html`<${AddName} label="+ Style" placeholder="style name"
         onAdd=${(n) => {
@@ -702,10 +724,17 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
 
   const [activeKey, setActiveKey] = useFaceSection(SECTIONS[0].key);
   const active = SECTIONS.find((s) => s.key === activeKey) || SECTIONS[0];
+  const [helpTopic, setHelpTopic] = useState(null);
+  const guide = FACE_SECTION_GUIDE[active.key];
 
   return html`<div class="face-panel">
     <div class="tabs face-nav">${SECTIONS.map((s) => html`<button key=${s.key} class=${s.key === active.key ? "on" : ""}
         onClick=${() => setActiveKey(s.key)}>${s.title}${s.count != null ? html`<span class="count">${s.count}</span>` : null}</button>`)}</div>
-    <div class="face-section-body">${active.body}</div>
+    <div class="face-section-body">
+      ${guide ? html`<a href="#" class="face-section-guide" title="Open the guide to this section"
+          onClick=${(e) => { e.preventDefault(); setHelpTopic(guide); }}>? Guide</a>` : null}
+      ${active.body}
+    </div>
+    ${helpTopic ? html`<${HelpDialog} start=${helpTopic} onClose=${() => setHelpTopic(null)} />` : null}
   </div>`;
 }

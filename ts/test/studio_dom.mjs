@@ -49,7 +49,39 @@ class Element extends Node {
   showPopover() { if (!this.popoverOpen) { this.popoverOpen = true; this.dispatch("toggle", { newState: "open" }); } }
   hidePopover() { if (this.popoverOpen) { this.popoverOpen = false; this.dispatch("toggle", { newState: "closed" }); } }
   getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
-  querySelector() { return null; }   // no selectors here: nothing is found
+  // Enough CSS to cover the app's own selectors: a comma list of
+  // descendant chains (space-separated), each step a tag name, `.class`es
+  // and `[attr]`/`[attr="value"]`, any of which may be omitted.
+  querySelectorAll(sel) {
+    const matchers = sel.split(",").map((s) => chainMatcher(s.trim()));
+    return this.all((e) => matchers.some((m) => m(e)));
+  }
+  querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+}
+const SIMPLE = /^([a-zA-Z0-9_-]*)((?:\.[a-zA-Z0-9_-]+)*)((?:\[[a-zA-Z0-9_-]+(?:="[^"]*")?\])*)$/;
+function simpleMatcher(sel) {
+  const m = SIMPLE.exec(sel);
+  if (!m) return () => false;
+  const [, tag, classes, attrs] = m;
+  const classList = classes ? classes.slice(1).split(".") : [];
+  const attrList = [...attrs.matchAll(/\[([a-zA-Z0-9_-]+)(?:="([^"]*)")?\]/g)].map((mm) => [mm[1], mm[2]]);
+  return (e) => (!tag || e.localName === tag.toLowerCase())
+    && classList.every((c) => (e.attributes.class || "").split(/\s+/).includes(c))
+    && attrList.every(([k, v]) => k in e.attributes && (v === undefined || e.attributes[k] === v));
+}
+function chainMatcher(sel) {
+  const steps = sel.split(/\s+/).filter(Boolean).map(simpleMatcher);
+  return (e) => {
+    let node = e;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (i === steps.length - 1) { if (!steps[i](node)) return false; continue; }
+      let p = node.parentNode;
+      while (p && !steps[i](p)) p = p.parentNode;
+      if (!p) return false;
+      node = p;
+    }
+    return true;
+  };
 }
 export function install() {
   const document = {

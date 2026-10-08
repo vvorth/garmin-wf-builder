@@ -281,7 +281,10 @@ The tree lists the face's blocks: `static` and `elements`, then each
 layout's own two, with groups as folders. Within each block and group the
 rows run in drawing order, as the YAML lists them: the top row is drawn
 first, under the ones below it. A block the face does not have yet is listed empty, as
-somewhere an element can go.
+somewhere an element can go. A row for an element the current frame does
+not draw (hidden, absent, a different style's layout, asleep with no
+`aod:`) is dimmed; a group dims only when none of its own children draw,
+since a group never draws itself.
 
 - **+ add…** adds an element of any type in front of the selection (or
   at the front of `elements`). A graph asks for its series, a data
@@ -311,9 +314,10 @@ refused with its reason ([static content](elements.md#static--draw-it-once-then-
 
 Its own row of buttons, one per section below, shows one section at a
 time -- the browser remembers which, so switching to Layers and back
-does not reset it.
+does not reset it. Each section's own **? Guide** link opens Help at the
+guide chapter for it.
 
-- **Targets**: add any installed watch that can run a face, or remove one.
+- **Target devices**: add any installed watch that can run a face, or remove one.
 - **Colours**: each colour with what uses it (click an element to select
   it). Click a name to rename it: every `color.<name>` in the face
   follows. Its chip opens the picker, and a new colour reaches **every**
@@ -333,7 +337,7 @@ does not reset it.
   own colour picker, and on a watch without one (fr955) it lists every
   colour in the palette. **Make it a list** replaces it with the face's
   colours that no target dithers.
-- **Schemes** ([colour schemes](colors.md#colour-schemes)): colours that
+- **Colour schemes** ([colour schemes](colors.md#colour-schemes)): colours that
   follow the style the wearer picks. Each change below is one change, with
   one **Undo**, because a scheme is written in several places at once.
   - With none yet: tick the colours that should follow the style and
@@ -355,12 +359,13 @@ does not reset it.
     a scheme goes, and one that names a layout stays, even when that
     leaves two alike. The confirmation says how many; Diagnostics then
     names each copy, for you to delete or change.
-- **Styles**: the default, each style's label (the name the wearer sees;
-  cleared, the entry has none), layout and scheme, add (shaped like the
-  others), delete ([styles and layouts](styles-and-layouts.md)). **+
-  Layout** adds an empty one, listed here and in Layers with nothing in it
-  yet; with no style yet to name it, it also adds one pointing at the new
-  layout, so it is never declared unreachable.
+- **Styles**: each style's own card -- the radio for the one the face
+  opens in, the label the wearer sees, its layout and its colour scheme,
+  each captioned -- add (shaped like the others), delete ([styles and
+  layouts](styles-and-layouts.md)). **+ Layout** adds an empty one, listed
+  here and in Layers with nothing in it yet; with no style yet to name it,
+  it also adds one pointing at the new layout, so it is never declared
+  unreachable.
 - **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
   as at 10:09:42, on the face's first watch; each hand's colour through
   the picker, and how many parts it has; the elements placing it (click

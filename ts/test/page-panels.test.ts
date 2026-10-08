@@ -15,6 +15,17 @@ test("the colours say who uses them and a pick changes the swatch", async () => 
   assert.deepEqual(printed[4], [{"op": "set_swatch", "name": "bg", "value": "#FFFFAA"}]);
 });
 
+test("every Face-tab section offers an unintrusive link to its guide chapter", async () => {
+  const text = summary(instantiate("minimal", "T"));
+  const printed = await render(text, "\n      const fetched = [];\n      globalThis.fetch = (url) => { fetched.push(url); return Promise.resolve({ ok: false, text: async () => \"\" }); };\n      const opened = [];\n      for (const title of [\"Target devices\", \"Colours\", \"Colour settings\", \"Colour schemes\", \"Styles\", \"Hand sets\", \"Slots\", \"Fonts\"]) {\n        await openSection(title);\n        const link = find((e) => cls(e) === \"face-section-guide\")[0];\n        await click(link);\n        await settle();\n        opened.push(find((e) => e.localName === \"strong\" && e.textContent === \"Help\").length > 0);\n        const close = find((e) => e.localName === \"button\" && e.attributes[\"aria-label\"] === \"Close\")[0];\n        if (close) await click(close);\n      }\n      out(opened);\n      out(fetched);\n    ");
+  assert.deepEqual(printed[0], [true, true, true, true, true, true, true, true]);
+  assert.deepEqual(printed[1], [
+    "/help/docs/guide/getting-started.md", "/help/docs/guide/colors.md", "/help/docs/guide/configuration.md",
+    "/help/docs/guide/colors.md", "/help/docs/guide/styles-and-layouts.md", "/help/docs/guide/analog-hands.md",
+    "/help/docs/guide/configuration.md", "/help/docs/guide/fonts.md",
+  ]);
+});
+
 test("add a colour and an accent setting", async () => {
   const text = summary(instantiate("minimal", "T"));
   const printed = await render(text, "\n      await openSection(\"Colours\");\n      const add = find((e) => cls(e).includes(\"chip-button\") && e.textContent === \"+ Colour\")[0];\n      await click(add);\n      const grid = find((e) => cls(e).includes(\"swatch\") && cls(e.parentNode) === \"pop-grid\");\n      await click(grid[15]);                                  // red\n      await openSection(\"Colour settings\");\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Accent colour\")[0]);\n      out(edits);\n    ");
@@ -36,21 +47,21 @@ test("an axis lists the palette as ticks and any offers a list", async () => {
 
 test("a scheme cell picks through use color", async () => {
   const text = summary((instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark } }\n"));
-  const printed = await render(text, "\n      await openSection(\"Schemes\");\n      const cell = find((e) => cls(e).includes(\"chip-button\") && e.textContent === \"text\")[0];\n      await click(cell);\n      out(find((e) => cls(e) === \"pop-roles\").length);        // no roles in a scheme's value\n      await click(find((e) => cls(e).includes(\"swatch\") && cls(e.parentNode) === \"pop-swatches\")[2]);\n      out(edits);\n    ");
+  const printed = await render(text, "\n      await openSection(\"Colour schemes\");\n      const cell = find((e) => cls(e).includes(\"chip-button\") && e.textContent === \"text\")[0];\n      await click(cell);\n      out(find((e) => cls(e) === \"pop-roles\").length);        // no roles in a scheme's value\n      await click(find((e) => cls(e).includes(\"swatch\") && cls(e.parentNode) === \"pop-swatches\")[2]);\n      out(edits);\n    ");
   assert.deepEqual(printed[0], 0);
   assert.deepEqual(printed[1], [{"op": "use_color", "path": ["theme", "schemes", "dark", "colors", "ink"], "value": "color.dim"}]);
 });
 
 test("colours are made switchable from the schemes section", async () => {
   const text = summary(instantiate("minimal", "T"));
-  const printed = await render(text, "\n      await openSection(\"Schemes\");\n      const boxes = find((e) => e.localName === \"input\" && e.attributes.type === \"checkbox\");\n      boxes[0].dispatch(\"change\"); await settle();           // bg\n      boxes[1].dispatch(\"change\"); await settle();           // text\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make switchable…\")[0]);\n      out(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);   // suggested\n      await typeName(\"night\");\n      out(edits);\n    ");
+  const printed = await render(text, "\n      await openSection(\"Colour schemes\");\n      const boxes = find((e) => e.localName === \"input\" && e.attributes.type === \"checkbox\");\n      boxes[0].dispatch(\"change\"); await settle();           // bg\n      boxes[1].dispatch(\"change\"); await settle();           // text\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make switchable…\")[0]);\n      out(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);   // suggested\n      await typeName(\"night\");\n      out(edits);\n    ");
   assert.deepEqual(printed[0], "dark");
   assert.deepEqual(printed[1], [{"op": "make_switchable", "names": ["bg", "text"], "scheme": "night"}]);
 });
 
 test("the schemes table adds renames and removes", async () => {
   const text = summary((instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n    light:\n      colors: { ink: color.bg }\n\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark }, l: { scheme: light } }\n"));
-  const printed = await render(text, "\n      await openSection(\"Schemes\");\n      let asked = \"\";\n      globalThis.confirm = (m) => { asked = m; return true; };\n      const button = (label) => find((e) => e.localName === \"button\" && e.textContent === label)[0];\n      const name = (text) => find((e) => cls(e) === \"name renamable\" && e.textContent === text)[0];\n      await click(button(\"+ Scheme\")); await typeName(\"dusk\");\n      await click(button(\"+ Role\")); await typeName(\"hot\");\n      await click(name(\"light\")); await typeName(\"day\");\n      await click(name(\"ink\")); await typeName(\"pen\");\n      // Escape keeps the name, and an invalid one is not sent\n      await click(name(\"dark\"));\n      let input = find((e) => cls(e).startsWith(\"inline-name\"))[0];\n      input.value = \"night\"; input.dispatch(\"keydown\", { key: \"Escape\", target: input }); await settle();\n      input.dispatch(\"blur\", { target: input }); await settle();\n      await click(name(\"dark\")); await typeName(\"2nd\");\n      await click(button(\"Remove schemes…\"));\n      out(edits);\n      out(asked);\n    ");
+  const printed = await render(text, "\n      await openSection(\"Colour schemes\");\n      let asked = \"\";\n      globalThis.confirm = (m) => { asked = m; return true; };\n      const button = (label) => find((e) => e.localName === \"button\" && e.textContent === label)[0];\n      const name = (text) => find((e) => cls(e) === \"name renamable\" && e.textContent === text)[0];\n      await click(button(\"+ Scheme\")); await typeName(\"dusk\");\n      await click(button(\"+ Role\")); await typeName(\"hot\");\n      await click(name(\"light\")); await typeName(\"day\");\n      await click(name(\"ink\")); await typeName(\"pen\");\n      // Escape keeps the name, and an invalid one is not sent\n      await click(name(\"dark\"));\n      let input = find((e) => cls(e).startsWith(\"inline-name\"))[0];\n      input.value = \"night\"; input.dispatch(\"keydown\", { key: \"Escape\", target: input }); await settle();\n      input.dispatch(\"blur\", { target: input }); await settle();\n      await click(name(\"dark\")); await typeName(\"2nd\");\n      await click(button(\"Remove schemes…\"));\n      out(edits);\n      out(asked);\n    ");
   assert.deepEqual(printed[0], [{"op": "add_scheme", "name": "dusk"}, {"op": "add_role", "name": "hot", "value": "#FFFFFF"}, {"op": "rename_scheme", "name": "light", "to": "day"}, {"op": "rename_role", "name": "ink", "to": "pen"}, {"op": "remove_theme", "keep": "dark"}]);
   assert.deepEqual(printed[1], "Every role becomes a palette colour with dark's value.\n2 styles naming only a scheme will go.");
 });
