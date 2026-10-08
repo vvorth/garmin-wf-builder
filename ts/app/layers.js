@@ -9,7 +9,7 @@
 // checks and records.
 
 import { html, useState } from "./vendor/preact-htm.module.js";
-import { PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, siblingsOf, stepOp } from "./tree.js";
+import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, siblingsOf, stepOp } from "./tree.js";
 
 const NEEDS = { graph: ["series", "series"], data: ["slot", "slots"], hands: ["set", "hand_sets"] };
 
@@ -30,7 +30,7 @@ function Row({ node, next, ctx, depth }) {
   };
   return html`<li>
     <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") +
-                 (drawn && node.type !== "group" && !drawn.has(node.id) ? " undrawn" : "")}
+                 (drawn && !anyDrawn(node, drawn) ? " undrawn" : "")}
          draggable="true" title=${`line ${node.line}`}
          onClick=${(e) => ctx.onSelect(node.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey)}
          onDragStart=${(e) => { e.dataTransfer.setData(PATH_TYPE, JSON.stringify(node.path)); e.dataTransfer.effectAllowed = "move"; }}

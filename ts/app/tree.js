@@ -14,6 +14,14 @@ export function blocksOf(tree) {
   return { nodes, destinations };
 }
 
+// Whether `node` shows anything in the frame `drawn` names: itself, when
+// it is a leaf -- a group never draws itself, so it shows as drawn when
+// any descendant does (recursively, for a group nested in a group).
+export function anyDrawn(node, drawn) {
+  if (node.type !== "group") return drawn.has(node.id);
+  return (node.children || []).some((c) => anyDrawn(c, drawn));
+}
+
 // The ids beside the element at `path`, itself included, in order.
 export function siblingsOf(tree, path) {
   const parent = JSON.stringify(path.slice(0, -1));

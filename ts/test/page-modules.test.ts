@@ -87,6 +87,14 @@ test("the tree offers its blocks siblings and drop zones", async () => {
   assert.deepEqual(result["drops"], [{"where": "before", "target": {"block": ["elements"], "before": "a"}}, {"where": "after", "target": {"block": ["elements"], "before": "g"}}, {"where": "into", "target": {"block": ["elements", "g", "children"], "before": null}}, {"where": "after", "target": {"block": ["elements"], "before": null}}]);
 });
 
+test("a group shows drawn exactly when a descendant does -- its own drawn flag is never meaningful", async () => {
+  const result = await run("\n      const leaf = (id) => ({id, type: \"circle\", children: []});\n      const group = (id, children) => ({id, type: \"group\", children});\n      const drawnSet = new Set([\"a\", \"c\"]);\n      console.log(JSON.stringify({\n        drawnLeaf: treeMod.anyDrawn(leaf(\"a\"), drawnSet),\n        undrawnLeaf: treeMod.anyDrawn(leaf(\"b\"), drawnSet),\n        groupWithDrawnChild: treeMod.anyDrawn(group(\"g1\", [leaf(\"b\"), leaf(\"c\")]), drawnSet),\n        groupWithNoneDrawn: treeMod.anyDrawn(group(\"g2\", [leaf(\"b\")]), drawnSet),\n        emptyGroup: treeMod.anyDrawn(group(\"g3\", []), drawnSet),\n        nestedGroupDrawnDeep: treeMod.anyDrawn(group(\"outer\", [group(\"inner\", [leaf(\"c\")])]), drawnSet),\n        nestedGroupNoneDrawn: treeMod.anyDrawn(group(\"outer\", [group(\"inner\", [leaf(\"b\")])]), drawnSet),\n      }));\n    ");
+  assert.deepEqual(result, {
+    drawnLeaf: true, undrawnLeaf: false, groupWithDrawnChild: true, groupWithNoneDrawn: false,
+    emptyGroup: false, nestedGroupDrawnDeep: true, nestedGroupNoneDrawn: false,
+  });
+});
+
 test("layers step by draw order", async () => {
   const result = await run("\n      const el = (id, path, children = []) => ({kind: \"element\", id, type: children.length ? \"group\" : \"circle\", path, children});\n      const t = [{kind: \"block\", label: \"elements\", path: [\"elements\"], children: [\n        el(\"a\", [\"elements\", \"a\"]), el(\"b\", [\"elements\", \"b\"]), el(\"c\", [\"elements\", \"c\"])]}];\n      const b = t[0].children[1];\n      console.log(JSON.stringify({\n        forward: treeMod.stepOp(t, b.path, 1), backward: treeMod.stepOp(t, b.path, -1),\n        frontmost: treeMod.stepOp(t, [\"elements\", \"c\"], 1),\n      }));\n    ");
   assert.deepEqual(result["forward"], {"op": "move", "path": ["elements", "b"], "block": ["elements"], "before": null});
