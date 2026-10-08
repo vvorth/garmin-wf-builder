@@ -576,7 +576,7 @@ export class Document {
   }
 
   diagnostics(): Json[] {
-    return this.analysis().bag.items.map((d) => this.diagnostic(d));
+    return this.analysis().bag.shown().map((d) => this.diagnostic(d));
   }
 
   private diagnostic(d: Diagnostic): Json {

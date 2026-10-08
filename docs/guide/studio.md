@@ -100,7 +100,8 @@ the bottom. **Messages**, in the bottom right corner, keeps every one,
 newest first, and counts those you have not seen.
 
 **Diagnostics** are the compiler's errors, warnings and notes, most severe
-first; the tab counts each kind, and when there is more than one kind,
+first, one finding the same on several targets listed once ("-- and the
+same on …"); the tab counts each kind, and when there is more than one kind,
 chips above the list show one at a time. The chosen kind stays chosen when
 you visit History and come back, and the tab says so (**· warnings
 only**). Clicking a diagnostic selects the element it is about. When the

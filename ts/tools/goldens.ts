@@ -39,7 +39,8 @@ interface Files {
 }
 
 /** Diagnostics as text, without colour, every note in full. */
-const rendered = (bag: Bag): string => bag.render({ verbose: true });
+// every device's own diagnostics, unmerged: a golden pins what each target found
+const rendered = (bag: Bag): string => bag.render({ verbose: true, merge: false });
 
 /** One design loaded, resolved and linted on `devices` (its targets when null): its diagnostics. */
 function diagnose(path: string, text: string, files: Files, devices: string[] | null): string {

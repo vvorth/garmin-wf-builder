@@ -109,9 +109,54 @@ function renderNote(note: string, color: boolean, width: number | null): string[
   return [`      ${label} ${lines[0]!}`, ...lines.slice(1).map((line) => NOTE_INDENT + line)];
 }
 
+/** `id` as a word of its own: `fr955` in "on fr955." but not in "fr955s". */
+function naming(id: string): RegExp {
+  return new RegExp(`(?<![\\w-])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`, "g");
+}
+
+/**
+ * `items` with each set of diagnostics that differ only in which one of
+ * `devices` they name merged into the first of them, which says where else
+ * it holds: "… which fr955 lacks -- and the same on fenix8solar47mm". A
+ * check run per device says the same thing once per target, and the
+ * repeats bury what differs. Order is kept; nothing else is merged.
+ */
+export function mergedAcrossDevices(items: readonly Diagnostic[], devices: readonly string[]): Diagnostic[] {
+  if (devices.length < 2) return [...items];
+  const patterns = devices.map((id) => [id, naming(id)] as const);
+  const out: Diagnostic[] = [];
+  const groups = new Map<string, { at: number; also: string[] }>();
+  for (const d of items) {
+    const named = patterns.filter(([, re]) => d.message.search(re) >= 0);
+    if (named.length !== 1) {
+      out.push(d);
+      continue;
+    }
+    const [id, re] = named[0]!;
+    const mask = (text: string): string => text.replace(re, "\0");
+    const key = JSON.stringify([d.severity, d.code, d.span?.toString() ?? null, mask(d.message), d.notes.map(mask), d.confidence]);
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { at: out.length, also: [] });
+      out.push(d);
+    } else if (!group.also.includes(id) && out[group.at]!.message.search(re) < 0) {
+      group.also.push(id);
+    }
+  }
+  for (const { at, also } of groups.values()) {
+    if (also.length === 0) continue;
+    const d = out[at]!;
+    out[at] = new Diagnostic(d.severity, d.code, `${d.message} -- and the same on ${also.join(", ")}`, d.span,
+      { notes: d.notes, confidence: d.confidence });
+  }
+  return out;
+}
+
 /** Collects diagnostics across a build and decides whether it may proceed. */
 export class Bag {
   items: Diagnostic[] = [];
+  /** The devices the design was checked for (`selectDevices`), whose repeats `render` and `summary` merge. */
+  devices: readonly string[] = [];
   /** Each registered file's lines, for rendering a diagnostic's source excerpt. */
   sources = new Map<string, string[]>();
 
@@ -140,6 +185,7 @@ export class Bag {
   only(keep: (d: Diagnostic) => boolean): Bag {
     const view = new Bag();
     view.sources = this.sources;
+    view.devices = this.devices;
     view.items = this.items.filter(keep);
     return view;
   }
@@ -152,14 +198,20 @@ export class Bag {
     return this.errors.length === 0;
   }
 
+  /** The diagnostics as shown: repeats across `devices` merged (`mergedAcrossDevices`). */
+  shown(): Diagnostic[] {
+    return mergedAcrossDevices(this.items, this.devices);
+  }
+
   /**
-   * Every diagnostic, notes first and errors last. Without `verbose`, notes
+   * Every diagnostic as `shown` (each one, with `merge` off), notes first and errors last. Without `verbose`, notes
    * are their header lines alone, as one block. A diagnostic repeating an
    * earlier one's `(code, notes, confidence)` collapses its notes to one
    * "same notes as" line.
    */
-  render({ color = false, width = null, verbose = true }: { color?: boolean; width?: number | null; verbose?: boolean } = {}): string {
-    const ordered = this.items.map((d, i) => [d, i] as const)
+  render({ color = false, width = null, verbose = true, merge = true }:
+    { color?: boolean; width?: number | null; verbose?: boolean; merge?: boolean } = {}): string {
+    const ordered = (merge ? this.shown() : this.items).map((d, i) => [d, i] as const)
       .sort((a, b) => RENDER_ORDER[a[0].severity] - RENDER_ORDER[b[0].severity] || a[1] - b[1]).map(([d]) => d);
     const seen = new Set<string>();
     const pieces: string[] = [];
@@ -182,11 +234,12 @@ export class Bag {
     return pieces.join("\n\n");
   }
 
-  /** "N errors, N warnings, N notes", or "no diagnostics". */
+  /** "N errors, N warnings, N notes" of those `shown`, or "no diagnostics". */
   summary({ color = false }: { color?: boolean } = {}): string {
     const parts: string[] = [];
+    const shown = this.shown();
     for (const severity of ["error", "warning", "note"] as const) {
-      const n = this.items.filter((d) => d.severity === severity).length;
+      const n = shown.filter((d) => d.severity === severity).length;
       if (n) parts.push(style(`${n} ${severity}${n !== 1 ? "s" : ""}`, SEVERITY_STYLE[severity]!, color));
     }
     return parts.length > 0 ? parts.join(", ") : "no diagnostics";

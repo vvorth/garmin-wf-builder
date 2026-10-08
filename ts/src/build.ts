@@ -39,6 +39,7 @@ export const BASE_API_LEVEL = "3.1.0";
  */
 export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: readonly string[] | null = null): Device[] {
   const wanted = only !== null && only.length > 0 ? [...new Set(only)] : [...face.targets];
+  bag.devices = wanted;
   const devices: Device[] = [];
   for (const deviceId of wanted) {
     let device: Device;

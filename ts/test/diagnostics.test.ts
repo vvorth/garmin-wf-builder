@@ -147,3 +147,32 @@ test("duplicate ids, the source line rendered, one error for a missing required 
   assert.equal(missing.length, 1);
   assert.ok(missing[0]!.message.includes("missing required key 'text'"));
 });
+
+test("diagnostics that differ only in the device they name show once, saying where else they hold", () => {
+  const span = new Span("face.yaml", 3, 1);
+  const bag = new Bag();
+  bag.devices = ["fenix8solar47mm", "fenix8solar51mm", "fr955"];
+  bag.warning("api-gated", "x needs 'sec', which fenix8solar47mm lacks", span, { notes: ["checked against fenix8solar47mm's own file"] });
+  bag.warning("api-gated", "x needs 'sec', which fenix8solar51mm lacks", span, { notes: ["checked against fenix8solar51mm's own file"] });
+  bag.note("graphics-pool", "67,600 B on fenix8solar47mm", span);
+  bag.note("graphics-pool", "78,400 B on fenix8solar51mm", span);
+  bag.warning("api-gated", "x needs 'sec', which fr955 lacks", span, { notes: ["checked against fr955's own file"] });
+  // the same words at another line, or naming two devices, or a longer id, stay apart
+  bag.warning("api-gated", "x needs 'sec', which fr955 lacks", new Span("face.yaml", 9, 1), { notes: ["checked against fr955's own file"] });
+  bag.note("pair", "fr955 and fenix8solar47mm differ", span);
+  bag.note("pair", "fr955s is not fr955", span);
+  assert.deepEqual(bag.shown().map((d) => d.message), [
+    "x needs 'sec', which fenix8solar47mm lacks -- and the same on fenix8solar51mm, fr955",
+    "67,600 B on fenix8solar47mm",
+    "78,400 B on fenix8solar51mm",
+    "x needs 'sec', which fr955 lacks",
+    "fr955 and fenix8solar47mm differ",
+    "fr955s is not fr955",
+  ]);
+  assert.deepEqual(bag.shown()[0]!.notes, ["checked against fenix8solar47mm's own file"]);
+  assert.equal(bag.summary(), "2 warnings, 4 notes");
+  assert.equal(bag.items.length, 8);
+  // one device: nothing to merge
+  bag.devices = ["fr955"];
+  assert.equal(bag.shown().length, 8);
+});
