@@ -5,6 +5,7 @@
  "dashboard": "time, a goal ring, two data clusters and a battery bar",
  "gauge": "a battery needle gauge over the top half, the time below it",
  "minimal": "a background and the time -- the smallest face worth building",
+ "navy_classic": "a navy sunray dress dial: polygon hands, batons, a day/date window at 3",
  "palette": "all 64 MIP colours as named swatches, with a colour scheme and colour axes",
  "sport": "time, a heart-rate graph and four readouts, distance in the wearer's units",
  "themed": "light/dark schemes, accent colours and two complication slots set on the watch"

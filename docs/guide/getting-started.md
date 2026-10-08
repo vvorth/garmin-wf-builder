@@ -238,6 +238,7 @@ wfb new --list                    # what else there is
 | `dashboard` (the default) | the time, a step-goal ring, heart-rate and step readouts, a battery bar |
 | `minimal` | a background and the time |
 | `analog` | a three-hand dial: minute and hour ticks, twelve numerals, a date window |
+| `navy_classic` | a navy sunray dress dial: polygon hands, batons, a day/date window at 3 |
 | `sport` | the time, a heart-rate graph, four icon-and-value readouts (distance in the wearer's own units) |
 | `gauge` | a battery needle gauge across the top half, the time below it |
 | `calendar` | the time over a Monday-first month of dots, today lit |
