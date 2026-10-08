@@ -23,7 +23,9 @@ Faces are opened in the editor itself, from its home screen
 | Flag | What it does |
 |---|---|
 | `-p`, `--port` | the port (default 8765) |
-| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since whoever reaches the port can run builds. The server answers only a request addressed to an IP address, `localhost` or this host, and takes a build only from its own page, so a web page elsewhere cannot use it |
+| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since whoever reaches the port can run builds. The server answers only a request addressed to an IP address, `localhost`, this host or an `--allow-host` name, and takes a build only from its own page, so a web page elsewhere cannot use it |
+| `--allow-host NAME` | also answer requests addressed to `NAME`: the name you reach a remote machine by, or a proxy's (repeatable). Run on a remote machine as `wfb studio --host 0.0.0.0 --allow-host studio-box` and open `http://studio-box:8765/` |
+| `--allow-any-host` | answer requests addressed by any name, for debugging; it warns, since a web page whose name points at this computer can then read the editor (builds still come only from its own page) |
 | `--devices-dir` | the device definitions, as for `wfb build` |
 | `--fonts` | Garmin's own font files, as for `wfb preview` |
 

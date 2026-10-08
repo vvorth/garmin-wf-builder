@@ -415,3 +415,23 @@ test("the server answers only requests addressed to it, and builds only for its 
     await server.close();
   }
 });
+
+test("--allow-host adds names a request may address the server by; --allow-any-host takes any", async () => {
+  const named = await start({ host: "0.0.0.0", allowHosts: ["Studio-Box", "proxy.example"], port: 0, db, fontsDir: null });
+  const any = await start({ host: "127.0.0.1", allowAnyHost: true, port: 0, db, fontsDir: null });
+  try {
+    const box = `studio-box:${named.port}`;
+    for (const host of [box, `STUDIO-BOX:${named.port}`, `proxy.example:${named.port}`]) {
+      assert.equal(await statusOf(named.port, "GET", "/api/schema", { Host: host }), 200, host);
+    }
+    assert.equal(await statusOf(named.port, "GET", "/api/schema", { Host: `attacker.example:${named.port}` }), 403);
+    // its own page, at that name, may build; another site's page may not
+    assert.equal(await statusOf(named.port, "POST", "/api/build?device=fr955", { Host: `Studio-Box:${named.port}`, Origin: `http://${box}` }), 400);
+    assert.equal(await statusOf(named.port, "POST", "/api/build?device=fr955", { Host: box, Origin: "https://attacker.example" }), 403);
+    assert.equal(await statusOf(any.port, "GET", "/api/schema", { Host: `anything.example:${any.port}` }), 200);
+    assert.equal(await statusOf(any.port, "POST", "/api/build?device=fr955", { Host: `anything.example:${any.port}`, Origin: "https://attacker.example" }), 403);
+  } finally {
+    await named.close();
+    await any.close();
+  }
+});

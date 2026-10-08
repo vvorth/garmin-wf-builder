@@ -20,8 +20,9 @@
 //   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`,
 //   for the newest builds.
 //
-// Every request must name an IP address, `localhost` or the listening host
-// in `Host`, and a build must come from the server's own page (`allowed`).
+// Every request must name an IP address, `localhost`, the listening host or
+// an `--allow-host` name in `Host`, and a build must come from the server's
+// own page (`allowed`).
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { isIP } from "node:net";
@@ -65,20 +66,26 @@ function hostName(header: string | undefined): string | null {
   }
 }
 
+/** The names `allowed` answers besides an IP address: `localhost`, the listening host and every `--allow-host`, as `hostName` reads them. */
+export function hostNames(listenHost: string, allowHosts: readonly string[] = []): Set<string> {
+  return new Set(["localhost", ...[listenHost, ...allowHosts].map((h) => hostName(h)).filter((h): h is string => h !== null)]);
+}
+
 /**
- * Whether a request may be answered: addressed to an IP address,
- * `localhost` or the host the server was told to listen on (a name only a
- * DNS answer could point here is how a web page elsewhere reaches a
- * loopback server: DNS rebinding), and, for a build, sent by this server's
- * own page (a browser names the page's origin on a cross-site POST).
+ * Whether a request may be answered: addressed to an IP address or one of
+ * `names` (`hostNames`; null, any name: `--allow-any-host`; another name
+ * only a DNS answer could point here is how a web page elsewhere reaches a
+ * loopback server: DNS rebinding), and,
+ * for a build, sent by this server's own page (a browser names the page's
+ * origin on a cross-site POST).
  */
-export function allowed(request: IncomingMessage, listenHost: string): boolean {
+export function allowed(request: IncomingMessage, names: ReadonlySet<string> | null): boolean {
   const name = hostName(request.headers.host);
-  if (name === null || !(isIP(name) !== 0 || name === "localhost" || name === listenHost)) return false;
+  if (name === null || !(names === null || isIP(name) !== 0 || names.has(name))) return false;
   const origin = request.headers.origin;
   if (request.method !== "GET" && request.method !== "HEAD" && origin !== undefined) {
     try {
-      return new URL(origin).host === request.headers.host;
+      return new URL(origin).host === new URL(`http://${request.headers.host}`).host;
     } catch {
       return false;
     }
@@ -198,6 +205,10 @@ function readBody(request: IncomingMessage): Promise<Uint8Array> {
 
 interface Options {
   host: string;
+  /** More names a request may address the server by: a remote machine's, a proxy's (`--allow-host`). */
+  allowHosts?: readonly string[];
+  /** Answer whatever name a request is addressed by (`--allow-any-host`): for debugging, open to DNS rebinding. */
+  allowAnyHost?: boolean;
   port: number;
   db: DeviceDatabase;
   fontsDir: string | null;
@@ -206,6 +217,10 @@ interface Options {
 /** Run the server until Ctrl-C. */
 export async function serve(options: Options): Promise<void> {
   const { host, port } = options;
+  if (options.allowAnyHost) {
+    console.error("warning: --allow-any-host answers requests addressed by any name, so a web page whose name points at this "
+      + "computer can read the editor; use --allow-host NAME for a name you trust");
+  }
   const running = await start(options);
   const shown = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host.includes(":") ? `[${host}]` : host;
   console.log(`wfb studio on http://${shown}:${running.port}/  (faces are kept in the browser)`);
@@ -221,11 +236,12 @@ export async function serve(options: Options): Promise<void> {
 }
 
 /** The server listening (`port` 0: any free port); `close` stops it and removes its builds. */
-export async function start({ host, port, db, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
+export async function start({ host, allowHosts = [], allowAnyHost = false, port, db, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
   const fonts = new NodeFontFiles(fontsDir);
   let digested: Buffer | null = null;
   const extrasCache = new Map<string, Buffer>();
   const builds = new Map<string, Built>();
+  const names = allowAnyHost ? null : hostNames(host, allowHosts);
   let building = false;
   const scratch = mkdtempSync(join(tmpdir(), "wfb-studio-builds-"));
   const worker = await bundle("studio/worker.ts");
@@ -287,7 +303,9 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
 
   const server = createServer(async (request, response) => {
     try {
-      if (!allowed(request, host)) return sendJson(response, 403, { error: "this server answers only its own page, at an IP address or localhost" });
+      if (!allowed(request, names)) {
+        return sendJson(response, 403, { error: "this server answers only its own page, at an IP address, localhost, --host or an --allow-host name" });
+      }
       const url = new URL(request.url ?? "/", "http://wfb");
       const path = url.pathname;
       if (path === "/" || path === "/index.html") return sendFile(response, APP, "index.html");
