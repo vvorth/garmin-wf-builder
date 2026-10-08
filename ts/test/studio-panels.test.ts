@@ -10,7 +10,14 @@ import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, type Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect } from "../src/studio/inspect.ts";
-import { start } from "../src/studio/server.ts";
+import { digest, start } from "../src/studio/server.ts";
+import { DeviceDatabase } from "../src/devices/device.ts";
+import { MemoryDeviceFiles } from "../src/devices/files.ts";
+import { NodeFontFiles } from "../src/fonts/node.ts";
+import { readFontFile } from "../src/node.ts";
+import { ICON_FONT } from "../src/emit/resources.ts";
+import { Studio } from "../src/studio/document.ts";
+import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
 
 const SHAPES = "examples/features/shapes/face.yaml";
@@ -324,6 +331,29 @@ test("the last slot deleted takes its config block with it", async () => {
 });
 
 // -- the server --
+
+// The browser's devices are the server's digest plus each device's skin
+// (sent with its extras); a digest missing a tag the compiler reads shows
+// as diagnostics the CLI does not give.
+test("a studio over the device digest diagnoses every template as one over the device files", async () => {
+  const full = await Client.open();
+  const made = [];
+  for (const template of starters.names()) made.push([template, await full.create(template)] as const);
+  const ids = [...new Set(made.flatMap(([, doc]) => doc.targets as string[]))];
+  const sent = digest(db, ids);
+  const files = new MemoryDeviceFiles();
+  for (const [id, folder] of Object.entries(sent.devices)) {
+    for (const [name, text] of Object.entries(folder)) files.add(id, name, text);
+    const skin = db.get(id).skinName;
+    if (skin !== null) files.add(id, skin, db.files.file(id, skin)!);
+  }
+  for (const [id, page] of Object.entries(sent.references)) files.addReference(id, page);
+  const digested = new Client(new Studio(await Store.open(new MemoryBackend()), new DeviceDatabase(files, new NodeFontFiles()),
+    () => readFontFile(ICON_FONT)));
+  for (const [template, doc] of made) {
+    assert.deepEqual((await digested.create(template)).diagnostics, doc.diagnostics, template);
+  }
+});
 
 test("the server sends the app, the device digest, a device's extras, and refuses a second build", async () => {
   const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });

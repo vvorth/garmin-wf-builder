@@ -54,22 +54,32 @@ const TYPES: Record<string, string> = {
 };
 /** What `/help/` serves: the files a doc links to, never the compiler or the user's licensed `vendor/`. */
 const HELP = /^(README\.md|LICENSE|docs\/.+|examples\/.+)$/;
-/** The `api.debug.xml` tags `Device` reads: a function, a scope, a module. */
-const DIGEST_TAG = /<(functionEntry|apiScopeEntry|dataEntry)\b[^>]*>/g;
+/** The `api.debug.xml` tags `Device` reads: a function, a scope, a module, and a field (a symbol-table entry). */
+const DIGEST_TAG = /<(functionEntry|apiScopeEntry|dataEntry)\b[^>]*>|<entry\b[^>]*\bfield="true"[^>]*>/g;
+const ENTRY_SYMBOL = /\bsymbol="([^"]*)"/;
 
 const base64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
 
-/** Every installed device's files and the reference, as the browser's `MemoryDeviceFiles` takes them. */
-function digest(db: DeviceDatabase): unknown {
+/** A digest tag as `Device` needs it: a field entry cut to its symbol, every other tag whole. */
+function digestTag(tag: string): string {
+  if (!tag.startsWith("<entry")) return tag;
+  const symbol = ENTRY_SYMBOL.exec(tag);
+  return symbol === null ? "" : `<entry field="true" symbol="${symbol[1]}"/>`;
+}
+
+/** Every installed device's files (or the `only` named) and the reference, as the browser's `MemoryDeviceFiles` takes them. */
+export function digest(db: DeviceDatabase, only?: readonly string[]): {
+  devices: Record<string, Record<string, string>>; references: Record<string, unknown>; listing: ReturnType<typeof listDevices>;
+} {
   const devices: Record<string, Record<string, string>> = {};
-  for (const id of db.ids()) {
+  for (const id of only ?? db.ids()) {
     const files: Record<string, string> = {};
     for (const name of ["compiler.json", "simulator.json"]) {
       const bytes = db.files.file(id, name);
       if (bytes !== undefined) files[name] = new TextDecoder().decode(bytes);
     }
     const xml = db.files.file(id, `${id}.api.debug.xml`);
-    if (xml !== undefined) files[`${id}.api.debug.xml`] = [...new TextDecoder().decode(xml).matchAll(DIGEST_TAG)].map((m) => m[0]).join("\n");
+    if (xml !== undefined) files[`${id}.api.debug.xml`] = [...new TextDecoder().decode(xml).matchAll(DIGEST_TAG)].map((m) => digestTag(m[0])).filter(Boolean).join("\n");
     devices[id] = files;
   }
   const references: Record<string, unknown> = {};
