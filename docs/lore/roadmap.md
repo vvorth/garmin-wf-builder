@@ -131,7 +131,9 @@ or AOD-related has been observed on a watch or in the simulator.
   open and download a bundle (`.zip` with `face.yaml` and `assets/`, or a
   plain `.yaml`), the canvas's drags (move, resize, an arc's angles, a
   line's ends, snapping) written in the author's units to the key the
-  viewed watch reads, every key in an inspector, targets, colours (a
+  viewed watch reads, every key in an inspector, an element's own id
+  renamed there too (nothing else names it, so only its one YAML key
+  changes; refused on a face-wide duplicate), targets, colours (a
   picker over the face's colours, the 64 named MIP colours and custom
   ones, each picked colour a named swatch, `ts/src/edit/colors.ts`), the
   accent and data colour settings as explicit lists, schemes (made,

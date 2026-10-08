@@ -245,6 +245,11 @@ written and a notice says so.
 
 ### Properties
 
+Its own id, at the top, renames the same way a colour's name does: click
+it, type the new one, Enter. Nothing else in the format names an element
+by its id, so this only ever changes the one YAML key; a name already
+used anywhere else in the face (every id must be unique) is refused.
+
 The selection's keys, every one the format offers for its type, each with
 a control: a number and its unit, an angle, the 3×3 alignment picker, a
 colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a

@@ -383,6 +383,17 @@ test("a slot rename repoints its elements and nothing else", async () => {
   assert.notEqual(doc.analysis().face, null);
 });
 
+test("an element is renamed in place; a name already used anywhere else is refused", async () => {
+  const doc = make(await newStudio());
+  doc.edit({ op: "rename", path: ["elements", "clock"], to: "timer" }, doc.version);
+  assert.ok(!("clock" in dataOf(doc).elements) && "timer" in dataOf(doc).elements);
+  assert.notEqual(doc.analysis().face, null);
+  const before = doc.text;
+  // "background" is a sibling of "timer" now only via the static: block, not elements: -- still a duplicate id face-wide
+  assert.throws(() => doc.edit({ op: "rename", path: ["elements", "timer"], to: "background" }, doc.version), /duplicate element id/);
+  assert.equal(doc.text, before);
+});
+
 test("a slot edit the face cannot take is refused", async () => {
   const doc = make(await newStudio());
   doc.edit({ op: "set", path: ["config", "slots", "top"], value: { default: "steps", choices: ["steps"] } }, doc.version);

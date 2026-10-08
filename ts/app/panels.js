@@ -254,7 +254,9 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   const handCard = setField && (ctx.globals.hands || []).find((h) => h.name === setField.value);
   return html`<div class="inspector">
     <div class="ins-head">
-      <code>${ins.id}</code> <span class="dim">${ins.type}</span>
+      <${InlineName} value=${ins.id} title="click to rename"
+        onRename=${async (n) => { if (await onEdit({ op: "rename", path: ins.element, to: n })) onSelect(n); }} />
+      <span class="dim">${ins.type}</span>
       <div class="scope" title="Where at:, size:, radius: and align: edits and drags are written; with all targets, a drag goes where the viewed device reads the key">
         ${[["all", "all targets", "the element's own key, for every target"],
            ["device", ins.device, `an override for ${ins.device} only`],

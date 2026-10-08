@@ -193,6 +193,13 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
       const find = (pred) => app.all(pred);
       const button = (text) => find((e) => e.localName === "button" && e.textContent.trim().startsWith(text))[0];
       const click = async (e) => { e.click(); await settle(); };
+      // a name typed into the open inline input, then Enter
+      const typeName = async (value) => {
+        const inputs = find((e) => e.localName === "input" && cls(e).startsWith("inline-name"));
+        const input = inputs[inputs.length - 1];
+        input.value = value; input.dispatch("input", { target: input }); await settle();
+        input.dispatch("keydown", { key: "Enter", target: input }); await settle();
+      };
       const out = (v) => console.log(JSON.stringify(v));
       ${body}
     `);
