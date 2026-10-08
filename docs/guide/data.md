@@ -352,15 +352,22 @@ inlining the hex would throw away the point of having a palette.
 
 The spec after a placeholder's `:` follows Python's, familiar and unambiguous.
 
+Every spec and code, each with what it draws, is one table per kind of reading in
+[Text: format specs](text.md#format-specs-every-option).
+
 | `text:` | Renders |
 |---|---|
 | `"{activity.steps}"` | the value's own `toString()` |
-| `"{activity.steps:d}"`, `"{time.hour:02d}"` | an integer, optionally zero-padded |
-| `"{weather.temperature:.1f}"` | a float |
+| `"{activity.steps:d}"`, `"{time.hour:02d}"` | an integer, optionally zero-padded (`5d` pads with spaces) |
+| `"{weather.temperature:.1f}"` | a float with that many decimals, rounded; a bare `f` is one decimal |
+| `"{weather.temperature:06.2f}"` | width and decimals together, zero-padded |
+| `"{date.day_of_week:s}"` | the value's own `toString()`, as no spec |
 | `"{activity.steps:d} steps"` | literal text around the placeholder |
 
-Any other numeric spec (`"{activity.steps:zz}"`) is an error naming the ones
-that work. Strftime codes go after the `:` too, as in
+A numeric spec is `[0][width][.precision]` followed by `d`, `f` or `s`. `d`
+truncates a Float toward zero. A sign (`+d`), a thousands separator (`,d`),
+hex (`x`) and alignment (`<`, `^`) are not supported, and any other spec
+(`"{activity.steps:zz}"`) is an error naming the ones that work. Strftime codes go after the `:` too, as in
 `"{time.clock:%H:%M}"`.
 
 Date values (`date.today`) use their own codes — separate from the time codes

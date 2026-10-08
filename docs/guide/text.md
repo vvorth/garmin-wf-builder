@@ -102,7 +102,7 @@ line, so draw each line as its own element.
 
 The placeholder is an **expression** over data sources (the language is in
 [Data binding](data.md)), then optionally `:` and a **format spec**, exactly
-the specs [Formats](data.md#formats) lists. The expression ends at the first
+the specs [Format specs: every option](#format-specs-every-option) lists. The expression ends at the first
 `:` outside parentheses, brackets and quotes, so a ternary is written in
 parentheses: `"{(activity.steps > 0 ? activity.steps : 0):d}"`. Literal text
 may sit on either side of the placeholder. `{unit}` is not a placeholder: it
@@ -152,6 +152,93 @@ time from the SDK's published device reference, the installed device's
 `simulator.json`, or its `.cft` font -- or, for a device the SDK's reference
 has no page for at all, derived from a located real `.ttf`/`.otf`'s own
 `head`/`hhea` tables when the user's own licensed Garmin fonts are installed.
+
+#### Format specs: every option
+
+Everything that may follow the `:` in a placeholder. Which table applies
+depends on what the reading is: a **clock** (`time.clock`), a **date**
+(`date.today`), or a **number** (everything else numeric, `time.hour`
+included). `wfb sources` shows each source's type. A code a table does not
+list is an error that names the ones it does.
+
+**Numbers** -- `[0][width][.precision]` then `d`, `f` or `s`:
+
+| Spec | Value | Draws | Note |
+|---|---|---|---|
+| *(none)* | `1234`, `3.5`, `"Thu"` | `1234`, `3.5`, `Thu` | the value's own `toString()`; the only choice for a string or a boolean |
+| `d` | `1234` | `1234` | a whole number; a Float truncates toward zero (`3.7` draws `3`) |
+| `5d` | `42` | `   42` | at least 5 characters, padded with spaces on the left |
+| `02d`, `05d` | `7`, `42` | `07`, `00042` | padded with zeros |
+| `f` | `3.14159` | `3.1` | **one** decimal (Python's default is six) |
+| `.0f`, `.2f` | `3.6`, `3.14159` | `4`, `3.14` | that many decimals, rounded |
+| `6.2f`, `06.2f` | `3.14159` | `  3.14`, `003.14` | width and decimals, spaces or zeros |
+| `.1f` | `42` (a Number) | `42.0` | a whole number is converted to a Float first |
+| `s` | anything | as *(none)* | the value's own `toString()` |
+
+Not supported: a sign (`+d`), a thousands separator (`,d`), hex (`x`),
+percent (`%` as a spec), left or centre alignment (`<`, `^`). For a
+percentage, put the sign in the text: `"{system.battery:d}%"`.
+
+**A clock** (`time.clock`), at `14:05:09`:
+
+| Code | Draws | Meaning |
+|---|---|---|
+| `%H` | `14` | hour, 24-hour, zero-padded |
+| `%I` | `02` | hour, 12-hour, zero-padded |
+| `%l` | `2` | hour, 12-hour, unpadded (lower-case L) |
+| `%h` | `14`, or `2` on a 12-hour watch | the hour the wearer asked for: follows the watch's 12/24-hour setting |
+| `%M` | `05` | minute, zero-padded |
+| `%S` | `09` | second, zero-padded |
+| `%p` | `PM` | `AM` or `PM` |
+| `%%` | `%` | a literal percent sign |
+
+`"{time.clock:%h:%M}"` is the clock most faces want. There is no unpadded
+minute or second, no `%-H` on a clock, and no seconds-free 12-hour code
+beyond `%I`/`%l`.
+
+**A date** (`date.today`), on Thursday 3 September 2026:
+
+| Code | Draws | Meaning |
+|---|---|---|
+| `%a` | `Thu` | abbreviated weekday, in the watch's language |
+| `%b` | `Sep` | abbreviated month, in the watch's language |
+| `%d` | `03` | day of the month, zero-padded |
+| `%e` | `3` | day of the month, unpadded |
+| `%m` | `09` | month number, zero-padded |
+| `%Y` | `2026` | four-digit year |
+| `%y` | `26` | two-digit year |
+| `%%` | `%` | a literal percent sign |
+
+There is no full weekday or month name (`%A`, `%B`), no day of the year
+(`%j`) and no week number. `%M` is a minute and `%m` a month, so each table
+refuses the other's code rather than drawing the wrong one.
+
+**A number of seconds** -- the same `%` codes on a number read it as a
+duration or a time of day (a race prediction, recovery time,
+`complication.sunrise`):
+
+| Code | 3900 s draws | Meaning |
+|---|---|---|
+| `%H`, `%M`, `%S` | `01`, `65`, `3900` | hours, minutes, seconds, zero-padded |
+| `%-H`, `%-M`, `%-S` | `1`, `65`, `3900` | the same, unpadded |
+| `%h`, `%I`, `%l`, `%p` | `01`, `01`, `1`, `AM` | the time of day, as on a clock |
+| `%%` | `%` | a literal percent sign |
+
+The largest unit in a spec carries the whole total and the smaller ones
+wrap: `%M:%S` on 3900 s is `65:00`, `%H:%M:%S` is `01:05:00`. A negative
+duration draws a `-` first (`%-M:%S` on -75 is `-1:15`); a time-of-day code
+never does. Beware a number that is not seconds: `{time.hour:%H}` reads 14
+as 14 seconds and draws `00`, so write `{time.hour:02d}`.
+
+**Around the codes:**
+
+| Write | Draws |
+|---|---|
+| `"{time.clock:%H:%M} UTC"`, `"{date.today:%a, %e %b}"` | literal text inside a spec or around the placeholder is kept |
+| `"{{x}}"` | the literal `{x}`: a brace is written twice |
+| `"{heart_rate.current:d}{unit}"` | `{unit}` is the reading's unit label, with [`units:`](data.md#units) |
+
+The full rules, with absence and units, are in [Formats](data.md#formats).
 
 #### `outline:` — the stamped ring
 
