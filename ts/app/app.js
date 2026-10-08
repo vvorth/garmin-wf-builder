@@ -189,7 +189,7 @@ function Home({ onError }) {
                   <button class="danger" onClick=${() => remove(d)}>Delete</button>
                 </li>`)}
             </ul>`}
-        <div class="dim small store-note">Faces and their history are kept in <code>${home.store}</code> until you delete them</div>
+        <div class="dim small store-note">Faces and their history are kept in ${home.store} for <code>${location.origin}</code>${" "}until you delete them; another address or port has a library of its own</div>
       </div>
     </div>`;
 }
@@ -757,5 +757,9 @@ function App() {
                    onClear=${() => { setLog([]); setUnseen(0); }} />
     <${AskHost} />`;
 }
+
+// The faces live only in this browser's storage, which it may clear when
+// the disk runs low unless asked to keep it; a refusal changes nothing.
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 render(html`<${App} />`, document.getElementById("app"));

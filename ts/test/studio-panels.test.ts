@@ -2,21 +2,21 @@
 // vocabulary, and the server the worker asks for what only it has.
 import assert from "node:assert/strict";
 import { readdirSync, statSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
+import { DeviceDatabase } from "../src/devices/device.ts";
+import { MemoryDeviceFiles } from "../src/devices/files.ts";
 import { indexFor, Refused } from "../src/edit/spans.ts";
+import { ICON_FONT } from "../src/emit/resources.ts";
+import { NodeFontFiles } from "../src/fonts/node.ts";
+import { readFontFile } from "../src/node.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
-import { type Document, StaleVersion, type Studio } from "../src/studio/document.ts";
+import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect } from "../src/studio/inspect.ts";
 import { digest, start } from "../src/studio/server.ts";
-import { DeviceDatabase } from "../src/devices/device.ts";
-import { MemoryDeviceFiles } from "../src/devices/files.ts";
-import { NodeFontFiles } from "../src/fonts/node.ts";
-import { readFontFile } from "../src/node.ts";
-import { ICON_FONT } from "../src/emit/resources.ts";
-import { Studio } from "../src/studio/document.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
 
@@ -380,6 +380,37 @@ test("the server sends the app, the device digest, a device's extras, and refuse
     for (const outside of ["ts/package.json", "docs%2F..%2Fts%2Fpackage.json", "docs%2F..%2F..%2Fetc%2Fpasswd"]) {
       assert.equal((await fetch(url("/help/" + outside))).status, 404, outside);
     }
+  } finally {
+    await server.close();
+  }
+});
+
+/** The status `method path` gets with exactly these headers (`fetch` would set `Host` itself). */
+function statusOf(port: number, method: string, path: string, headers: Record<string, string>): Promise<number> {
+  return new Promise((done, fail) => {
+    const r = httpRequest({ host: "127.0.0.1", port, method, path, headers, setHost: false }, (response) => {
+      response.resume();
+      done(response.statusCode ?? 0);
+    });
+    r.on("error", fail);
+    r.end(method === "POST" ? "not a zip" : undefined);
+  });
+}
+
+test("the server answers only requests addressed to it, and builds only for its own page", async () => {
+  const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
+  const at = `127.0.0.1:${server.port}`;
+  try {
+    for (const host of [at, `localhost:${server.port}`, `[::1]:${server.port}`, `192.168.1.20:${server.port}`]) {
+      assert.equal(await statusOf(server.port, "GET", "/api/schema", { Host: host }), 200, host);
+    }
+    // a name a DNS answer points here: a page on that site reaching the loopback server
+    assert.equal(await statusOf(server.port, "GET", "/api/schema", { Host: `attacker.example:${server.port}` }), 403);
+    // no Host at all: Node's own parser refuses it
+    assert.equal(await statusOf(server.port, "GET", "/api/schema", {}), 400);
+    // a build from another site's page is refused before its body is read; from the server's own, it is read
+    assert.equal(await statusOf(server.port, "POST", "/api/build?device=fr955", { Host: at, Origin: "https://attacker.example" }), 403);
+    assert.equal(await statusOf(server.port, "POST", "/api/build?device=fr955", { Host: at, Origin: `http://${at}` }), 400);
   } finally {
     await server.close();
   }

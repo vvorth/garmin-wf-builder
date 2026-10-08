@@ -11,16 +11,29 @@ const waiting = new Map();
 const listeners = new Set();
 let next = 0;
 let worker = null;
+let loaded = false;      // the worker has answered once
+let failed = null;       // the answer every request gets once the worker failed to load
 
 // Started on the first request, so a module that only draws (and its tests) needs none.
 function started() {
   if (worker === null) {
     worker = new Worker("/dist/worker.js", { type: "module" });
     worker.onmessage = (e) => {
+      loaded = true;
       const { id, response, event, data } = e.data;
       if (event) { for (const f of listeners) f(event, data); return; }
       waiting.get(id)(response);
       waiting.delete(id);
+    };
+    // The worker did not load (the server stopped, say): every request
+    // waiting, and every one after, is answered with that, not left hanging.
+    // An error once it has answered is its own, and its request says so.
+    worker.onerror = (e) => {
+      if (loaded) return;
+      e.preventDefault();
+      failed = { status: 503, json: { error: "the editor's worker did not start: is wfb studio still running? Reload the page once it is" } };
+      for (const answer of waiting.values()) answer(failed);
+      waiting.clear();
     };
   }
   return worker;
@@ -32,6 +45,7 @@ export async function call(op, args = {}, body = null) {
   const bytes = body instanceof Blob ? new Uint8Array(await body.arrayBuffer()) : body;
   const id = next++;
   return new Promise((resolve) => {
+    if (failed) { resolve(failed); return; }
     waiting.set(id, resolve);
     started().postMessage({ id, request: { op, args, body: bytes, tab: TAB } });
   });

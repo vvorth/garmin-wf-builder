@@ -17,9 +17,14 @@
 // - `GET /help/<path>`: the README, `LICENSE`, `docs/` and `examples/`,
 //   read-only, for the Help popup;
 // - `POST /api/build?device=&stem=`: a face's bundle in, built with
-//   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`.
+//   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`,
+//   for the newest builds.
+//
+// Every request must name an IP address, `localhost` or the listening host
+// in `Host`, and a build must come from the server's own page (`allowed`).
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -47,6 +52,39 @@ async function bundle(entry: string): Promise<Uint8Array> {
   return built.outputFiles[0]!.contents;
 }
 const LOOPBACK = ["127.0.0.1", "localhost", "::1"];
+/** The builds kept for download; an older one's files are removed. */
+const KEPT_BUILDS = 20;
+
+/** `Host`'s name, brackets off an IPv6 address; null when it is missing or unreadable. */
+function hostName(header: string | undefined): string | null {
+  if (!header) return null;
+  try {
+    return new URL(`http://${header}`).hostname.replace(/^\[(.*)\]$/, "$1");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a request may be answered: addressed to an IP address,
+ * `localhost` or the host the server was told to listen on (a name only a
+ * DNS answer could point here is how a web page elsewhere reaches a
+ * loopback server: DNS rebinding), and, for a build, sent by this server's
+ * own page (a browser names the page's origin on a cross-site POST).
+ */
+export function allowed(request: IncomingMessage, listenHost: string): boolean {
+  const name = hostName(request.headers.host);
+  if (name === null || !(isIP(name) !== 0 || name === "localhost" || name === listenHost)) return false;
+  const origin = request.headers.origin;
+  if (request.method !== "GET" && request.method !== "HEAD" && origin !== undefined) {
+    try {
+      return new URL(origin).host === request.headers.host;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".map": "application/json", ".ttf": "font/ttf", ".png": "image/png", ".svg": "image/svg+xml",
@@ -232,8 +270,14 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
     const stats = result?.memory.get(device);
     const ok = result !== null && bag.ok() && prg !== null;
     const log = bag.render({ verbose: true }) + (result !== null && result.products.size === 0 && bag.ok() ? "\n\nthe build left no .prg" : "");
-    if (ok) builds.set(id, { prg: prg!, name: `${stem}-${device}.prg`, work });
-    else rmSync(work, { recursive: true, force: true });
+    if (ok) {
+      builds.set(id, { prg: prg!, name: `${stem}-${device}.prg`, work });
+      // a Map keeps insertion order: the first is the oldest
+      for (const [old, kept] of [...builds].slice(0, Math.max(0, builds.size - KEPT_BUILDS))) {
+        rmSync(kept.work, { recursive: true, force: true });
+        builds.delete(old);
+      }
+    } else rmSync(work, { recursive: true, force: true });
     return {
       ok, device, log: log.trim(), seconds: Number(formatFixed((performance.now() - started) / 1000, 1)),
       memory: stats ? `${stats.total.toLocaleString("en-US")} B / ${stats.limit.toLocaleString("en-US")} B (${formatFixed(100 * stats.total / stats.limit, 1)}%)` : null,
@@ -243,6 +287,7 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
 
   const server = createServer(async (request, response) => {
     try {
+      if (!allowed(request, host)) return sendJson(response, 403, { error: "this server answers only its own page, at an IP address or localhost" });
       const url = new URL(request.url ?? "/", "http://wfb");
       const path = url.pathname;
       if (path === "/" || path === "/index.html") return sendFile(response, APP, "index.html");
@@ -286,7 +331,7 @@ export async function start({ host, port, db, fontsDir }: Options): Promise<{ po
       const download = /^\/api\/builds\/([0-9a-f]+)$/.exec(path);
       if (download) {
         const done = builds.get(download[1]!);
-        if (done === undefined || !existsSync(done.prg)) return sendJson(response, 404, { error: "there is no such build; builds last until the editor stops" });
+        if (done === undefined || !existsSync(done.prg)) return sendJson(response, 404, { error: `there is no such build; the newest ${KEPT_BUILDS} builds last until the editor stops` });
         return send(response, 200, readFileSync(done.prg), "application/octet-stream", { "Content-Disposition": `attachment; filename="${done.name}"` });
       }
       sendJson(response, 404, { error: "not found" });

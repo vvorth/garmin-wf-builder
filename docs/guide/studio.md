@@ -23,7 +23,7 @@ Faces are opened in the editor itself, from its home screen
 | Flag | What it does |
 |---|---|
 | `-p`, `--port` | the port (default 8765) |
-| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since whoever reaches the port can run builds |
+| `--host` | the address to listen on (default `127.0.0.1`, this computer only); anything else warns, since whoever reaches the port can run builds. The server answers only a request addressed to an IP address, `localhost` or this host, and takes a build only from its own page, so a web page elsewhere cannot use it |
 | `--devices-dir` | the device definitions, as for `wfb build` |
 | `--fonts` | Garmin's own font files, as for `wfb preview` |
 
@@ -39,9 +39,14 @@ with its history and snapshots, is kept in that browser's own storage
 Tabs of one browser share those faces: a change made in one tab shows in
 every other tab that has the face open, and editing it there carries on
 from that change.
-Each browser has its own faces: to edit one in another browser, download
-it there and open it. Clearing the browser's site data deletes them, so
-download a face you want to keep elsewhere.
+Each browser has its own faces, and so does each address: the faces
+opened at `http://127.0.0.1:8765/` are not the ones at
+`http://localhost:8765/` or on another port, and the home screen names
+the address its library belongs to. To edit a face in another browser,
+or at another address, download it there and open it. The editor asks
+the browser to keep its storage even when the disk runs low; clearing
+the browser's site data still deletes the faces, so download a face you
+want to keep elsewhere.
 
 ## Faces in and out
 
