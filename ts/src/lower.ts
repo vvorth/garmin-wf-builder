@@ -285,6 +285,7 @@ class Lowering {
       for (const patch of overrides.values()) {
         if (isDict(patch)) {
           this.align(patch);
+          for (const key of ["color", "track_color"]) this.exprKey(patch, key);
           anchor(patch.get("at"));
         }
       }

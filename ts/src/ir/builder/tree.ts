@@ -5,27 +5,29 @@ import * as catalog from "../../catalog.ts";
 import * as complications from "../../complications.ts";
 import type { Span } from "../../diagnostics.ts";
 import type { Data, DataKey } from "../../edit/yaml.ts";
+import * as expr from "../../expr.ts";
 import type { Common, SchemaPath } from "../../kinds/base.ts";
 import * as kinds from "../../kinds/index.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../../kinds/shape.ts";
 import { quoted, str, truthy } from "../../py.ts";
-import { DataElement, type Element, HOLD_AUTO, type Position, ROLE_VALUE, Shape } from "../model.ts";
+import { DataElement, type Element, Expression, HOLD_AUTO, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
 import { elementConstPrefix, elementMethodName } from "../naming.ts";
 import { ringGroups } from "../rings.ts";
 import type { Builder } from "./index.ts";
 import { lintSuppression, mapping, type Node } from "./state.ts";
 import { StaticPass } from "./static.ts";
 
-/** The keys an `overrides:` patch may carry. */
+/** The geometry keys an `overrides:` patch may carry. */
 const OVERRIDE_FIELDS = ["at", "size", "radius", "align"];
+
+/** The colour keys an `overrides:` patch may carry, where the element writes them. */
+const COLOR_FIELDS = ["color", "track_color"] as const;
+
+/** Kinds whose own `color:` is what they draw in; a `pattern`'s or `hands`' parts carry their own. */
+const COLOR_KINDS = new Set(["shape", "text", "gauge", "icon", "data", "graph"]);
 
 /** Kinds whose `align:` is a `TEXT_JUSTIFY_*` flag in the shared view, so no override may change it. */
 const GLYPH_KINDS = new Set(["text", "icon", "data"]);
-
-/** The key `Element.overrides` holds one `[shape, device]` selector pair under: Python's `str` of the pair as a list. */
-export function overrideKey(shape: string | null, device: string | null): string {
-  return quoted([shape, device]);
-}
 
 /** `patch` deep-merged over `base`: mappings key by key, anything else replaced. */
 function merged(base: Node, patch: Node): Node {
@@ -122,41 +124,117 @@ export class ElementTree extends StaticPass {
 
   // -- overrides --------------------------------------------------------------
 
-  /** `overrides:`: each selector's patch checked, then merged and parsed once per `[shape, device]` pair. */
+  /** `overrides:`: each selector's patch checked, then merged and parsed once per `[display, shape, device]` combination. */
   private buildOverrides(node: Node, element: Element): boolean {
     const raw = node.get("overrides") as Node;
-    const shapes = new Map<string, Node>();
-    const devices = new Map<string, Node>();
+    const displays = new Map<string, Node>(), shapes = new Map<string, Node>(), devices = new Map<string, Node>();
+    const colors = new Map<Node, Map<string, Expression>>();
     const selectors: [string, Span | null][] = [];
     let ok = true;
     for (const [rawSelector, patch] of raw) {
       const selector = str(rawSelector);
       selectors.push([selector, this.doc.span(raw, selector, "key") ?? this.doc.span(raw, selector)]);
-      if (selector.startsWith("shape:")) shapes.set(selector.slice("shape:".length), patch as Node);
+      if (selector.startsWith("display:")) displays.set(selector.slice("display:".length), patch as Node);
+      else if (selector.startsWith("shape:")) shapes.set(selector.slice("shape:".length), patch as Node);
       else devices.set(selector, patch as Node);
-      ok = this.checkOverridePatch(node, element, selector, patch as Node) && ok;
+      ok = this.checkOverridePatch(node, element, selector, patch as Node, colors) && ok;
     }
     element.override_selectors = selectors;
     if (!ok) return false;
-    const combos: [string | null, string | null][] = [
-      ...[...shapes.keys()].map((shape): [string, null] => [shape, null]),
-      ...[...devices.keys()].map((device): [null, string] => [null, device]),
-      ...[...shapes.keys()].flatMap((shape) => [...devices.keys()].map((device): [string, string] => [shape, device])),
-    ];
-    for (const [shape, device] of combos) {
-      const patches = [shapes.get(shape ?? ""), devices.get(device ?? "")].filter((p): p is Node => p !== undefined);
-      element.overrides.set(overrideKey(shape, device), this.overrideFields(node, element, patches));
+    const own = element as unknown as Record<string, Expression | null>;
+    const variants = new Map<string, number>();
+    element.variant_colors = [];
+    for (const display of [null, ...displays.keys()]) {
+      for (const shape of [null, ...shapes.keys()]) {
+        for (const device of [null, ...devices.keys()]) {
+          if (display === null && shape === null && device === null) continue;
+          // Least specific first, so a device id's patch lands over its shape's, and both over the display's.
+          const patches = [displays.get(display ?? ""), shapes.get(shape ?? ""), devices.get(device ?? "")]
+            .filter((p): p is Node => p !== undefined);
+          const key = overrideKey(display, shape, device);
+          element.overrides.set(key, this.overrideFields(node, element, patches));
+          const visible = patches.filter((p) => p.has("visible")).at(-1)?.get("visible");
+          if (visible === false) element.override_hidden.add(key);
+          const picked = new Map<string, Expression>();
+          for (const field of COLOR_FIELDS) {
+            const patch = patches.filter((p) => colors.get(p)?.has(field)).at(-1);
+            if (patch !== undefined && colors.get(patch)!.get(field)!.code !== own[field]!.code) picked.set(field, colors.get(patch)!.get(field)!);
+          }
+          if (picked.size === 0) continue;
+          const signature = quoted(COLOR_FIELDS.map((field) => picked.get(field)?.code ?? null));
+          if (!variants.has(signature)) {
+            variants.set(signature, variants.size + 1);
+            element.variant_colors[variants.size] = picked;
+          }
+          element.override_variants.set(key, variants.get(signature)!);
+        }
+      }
     }
+    if (variants.size > 0) this.combineVariantColors(element);
     return true;
   }
 
-  /** One selector's patch: only keys this element writes (or takes), and every value valid. */
-  private checkOverridePatch(node: Node, element: Element, selector: string, patch: Node): boolean {
+  /**
+   * Each overridden colour key as one expression every target shares: the
+   * variant `Layout.<ID>_VARIANT` names on this device, else the element's own.
+   */
+  private combineVariantColors(element: Element): void {
+    const own = element as unknown as Record<string, Expression | null>;
+    const constant = `Layout.${variantConstant(element.id)}`;
+    const base = new Map<string, Expression>();
+    for (const field of COLOR_FIELDS) {
+      const variants = element.variant_colors.map((picked, index) => [index, picked?.get(field)] as const)
+        .filter((pair): pair is readonly [number, Expression] => pair[1] !== undefined);
+      if (variants.length === 0) continue;
+      const mine = own[field]!;
+      base.set(field, mine);
+      // One branch per distinct colour, however many variants pick it.
+      const byCode = new Map<string, [number[], Expression]>();
+      for (const [index, color] of variants) {
+        const entry = byCode.get(color.code) ?? [[], color];
+        entry[0].push(index);
+        byCode.set(color.code, entry);
+      }
+      const branches = [...byCode.values()];
+      const code = branches.reduceRight((rest, [indices, color]) =>
+        `((${indices.map((index) => `${constant} == ${index}`).join(" || ")}) ? ${color.code} : ${rest})`, mine.code);
+      const all = [mine, ...branches.map(([, color]) => color)];
+      own[field] = Expression.create({
+        ...mine, code, constant: null,
+        value: new expr.Value("color", all.some((e) => e.nullable)),
+        sources: [...new Set(all.flatMap((e) => e.sources))].sort(),
+        barrel: new Set(all.flatMap((e) => [...e.barrel])),
+        modules: new Set(all.flatMap((e) => [...e.modules])),
+      });
+    }
+    element.variant_colors[0] = base;
+    for (const picked of element.variant_colors) for (const [field, color] of base) if (!picked.has(field)) picked.set(field, color);
+  }
+
+  /** One selector's patch: only keys this element writes (or takes), and every value valid; its colours land in `colors`. */
+  private checkOverridePatch(node: Node, element: Element, selector: string, patch: Node,
+    colors: Map<Node, Map<string, Expression>>): boolean {
     const label = `${element.id}.overrides.${selector}`;
     const errorsBefore = this.bag.errors.length;
     for (const key of patch.keys() as Iterable<string>) {
       const span = this.doc.span(patch, key, "key") ?? this.doc.span(patch, key);
-      if (key === "align") {
+      if ((COLOR_FIELDS as readonly string[]).includes(key)) {
+        if (!COLOR_KINDS.has(element.kind)) {
+          this.bag.error("overrides", `${label}: a ${kindName(element)} takes no '${key}:' override`, span, {
+            notes: ["a pattern's and a hand set's colours are their parts' own"],
+          });
+        } else if (!node.has(key)) {
+          this.bag.error("overrides", `${label}: '${key}:' is not a key this element writes`, span, {
+            notes: ["an override changes the element's own colour; it cannot add a key the element does not have"],
+          });
+        } else {
+          const color = this.colorExpression(patch, key);
+          if (color !== null) {
+            if (!colors.has(patch)) colors.set(patch, new Map());
+            colors.get(patch)!.set(key, color);
+          }
+        }
+      } else if (key === "align") {
         if (GLYPH_KINDS.has(element.kind)) {
           this.bag.error("overrides", `${label}: 'align:' on a ${kindName(element)} is the draw call's `
             + "justification, which every target shares", span, { notes: ["move it with 'at:' instead"] });

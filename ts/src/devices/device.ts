@@ -203,6 +203,11 @@ export class Device {
     return ["amoled", "oled"].includes(this.displayType.toLowerCase());
   }
 
+  /** What a `display:` override selector names: `amoled` (AMOLED or OLED), else the `displayType` itself (`mip`, `lcd`). */
+  get displayClass(): string {
+    return this.isAmoled ? "amoled" : this.displayType.toLowerCase();
+  }
+
   get supportsPartialUpdate(): boolean {
     return !this.isAmoled;
   }

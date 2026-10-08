@@ -5,9 +5,9 @@
 import { Device, FontMetric } from "./devices/device.ts";
 import type { Span } from "./diagnostics.ts";
 import type { BakedFont } from "./fonts/bmfont.ts";
-import { overrideKey } from "./ir/builder/tree.ts";
+
 import {
-  type AnyHandPart, type Curve, drawSortKey, type Element, type Expression, type Face, type FontSpec, type Gauge, type Graph,
+  type AnyHandPart, type Curve, drawSortKey, overrideKeyFor, type Element, Expression, type Face, type FontSpec, type Gauge, type Graph,
   Group, type HandsElement, type IconElement, make, type PatternElement, Position, type Shape, type Text, type TextPart,
   type DataElement,
 } from "./ir/model.ts";
@@ -649,6 +649,7 @@ export class SubPixelLength {
 /** `ResolvedFace.hidden` reasons: the code of the lint that reports each. */
 export const HIDDEN_BY_SUBSCREEN = "subscreen";
 export const HIDDEN_BY_FONT = "font-unavailable";
+export const HIDDEN_BY_OVERRIDE = "overrides";
 
 /** Something this device's resolve could not check. */
 export class ResolveWarning {
@@ -795,6 +796,7 @@ export class Resolver {
     for (const original of elements) {
       const element = this.forDevice(original);
       let here = parent, reason = hidden;
+      if (reason === null && original.override_hidden.has(overrideKeyFor(original, this.device))) reason = HIDDEN_BY_OVERRIDE;
       if (element.inSubscreen) {
         const window = this.device.subscreen;
         if (window === null) reason = HIDDEN_BY_SUBSCREEN;
@@ -827,16 +829,17 @@ export class Resolver {
     }
   }
 
-  /** `element` with this device's `overrides:` applied: a device id's patch, else its shape's. */
+  /** `element` with this device's `overrides:` applied: its geometry, and its colours pinned to this device's variant. */
   forDevice<E extends Element>(element: E): E {
-    if (element.overrides.size === 0) return element;
-    const shape = this.device.shape, device = this.device.id;
-    const pick = (key: string): Map<string, unknown> | undefined => {
-      const fields = element.overrides.get(key);
-      return fields !== undefined && fields.size > 0 ? fields : undefined;
-    };
-    const fields = pick(overrideKey(shape, device)) ?? pick(overrideKey(null, device)) ?? pick(overrideKey(shape, null));
-    return fields !== undefined ? replaceFields(element, fields) : element;
+    if (element.override_selectors.length === 0) return element;
+    const key = overrideKeyFor(element, this.device);
+    const fields = new Map(element.overrides.get(key) ?? []);
+    const picked = element.variant_colors[element.override_variants.get(key) ?? 0];
+    const own = element as unknown as Record<string, Expression>;
+    for (const [field, chosen] of picked ?? []) {
+      fields.set(field, Expression.create({ ...own[field]!, constant: chosen.constant, ast: chosen.ast, varies: true }));
+    }
+    return fields.size > 0 ? replaceFields(element, fields) : element;
   }
 
   /** Record every `SubPixelLength` and `ResolveWarning` inside `body` against `owner`. */

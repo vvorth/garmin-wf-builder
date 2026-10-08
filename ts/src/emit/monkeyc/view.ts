@@ -1,6 +1,6 @@
 // `<Face>View.mc`: the generated view's fields, lifecycle methods and one
 // method per drawn element.
-import { type Guards, NO_GUARDS } from "../../availability.ts";
+import { type Guards, NO_GUARDS, shownGuarded } from "../../availability.ts";
 import { READERS } from "../../catalog.ts";
 import * as complications from "../../complications.ts";
 import { Device } from "../../devices/device.ts";
@@ -263,10 +263,10 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     for (const placed of resolved.items) {
       if (placed.kind === "group") continue;
       w.blank();
-      emitElementMethod(w, resolved, placed, plan, aaDefault, aod, guards.subscreen_hidden.has(placed.id));
+      emitElementMethod(w, resolved, placed, plan, aaDefault, aod, guards);
       for (const width of rings.widths(placed.id)) {
         w.blank();
-        emitElementMethod(w, resolved, placed, plan, aaDefault, aod, guards.subscreen_hidden.has(placed.id), width);
+        emitElementMethod(w, resolved, placed, plan, aaDefault, aod, guards, width);
       }
     }
   });
@@ -940,7 +940,7 @@ function emitComplicationCallback(w: Writer): void {
 
 /** `draw<Id>`, or with `ringWidth` its `ring<Id>` twin: the reads, then the element's draw program. */
 function emitElementMethod(w: Writer, resolved: ResolvedFace, placed: Placed, plan: ReadPlan, aaDefault: boolean | null, aod: AodStyle,
-  subscreenGuarded: boolean, ringWidth: number | null = null): void {
+  guards: Guards, ringWidth: number | null = null): void {
   const element = placed.element;
   let signature: string;
   if (ringWidth !== null) {
@@ -951,8 +951,9 @@ function emitElementMethod(w: Writer, resolved: ResolvedFace, placed: Placed, pl
     signature = `private function ${method(placed.id)}(dc as Dc${plan.parameters(placed)}) as Void`;
   }
   w.block(signature, () => {
-    if (subscreenGuarded) {
-      w.comment("anchor: subscreen, unsupported: hide -- false on a device without the window");
+    if (shownGuarded(guards, placed.id)) {
+      w.comment(guards.subscreen_hidden.has(placed.id) ? "anchor: subscreen, unsupported: hide -- false on a device without the window"
+        : "overrides: visible: false -- false on a device it is hidden on");
       w.block(`if (!Layout.${constPrefix(placed.id)}_SHOWN)`, () => w.line("return;"));
       w.blank();
     }

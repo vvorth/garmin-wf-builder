@@ -96,11 +96,14 @@ or AOD-related has been observed on a watch or in the simulator.
   element). `jitter:` was built and removed on 2026-09-23 in favour of the
   mask. `docs/guide/always-on-display.md`, `docs/research/11`, `15`.
 - **Per-device `overrides:`** (ADR 0004 §4) -- an element's `at:`,
-  `size:`, `radius:` and `align:` patched per device id or `shape:<s>`,
-  deep-merged (device over shape over the element), parsed in
+  `size:`, `radius:`, `align:`, `color:`, `track_color:` and `visible:`
+  patched per device id, `shape:<s>` or `display:<amoled|mip|lcd>`,
+  deep-merged (device over shape over display over the element), parsed in
   `buildOverrides` into `Element.overrides` and applied per
-  device by `Resolver.for_device`, so only `Layout.mc` changes; the
-  selectors are checked by `lint.check_override_selectors` (an unknown
+  device by `Resolver.forDevice`, so only `Layout.mc` changes: geometry
+  as layout constants, `visible: false` as `<ID>_SHOWN`, a colour as
+  `<ID>_VARIANT` choosing one branch of a shared ternary. The
+  selectors are checked by `lint.checkOverrideSelectors` (an unknown
   device is an error, `override-unreachable` a warning).
   `docs/guide/placement.md`.
 - **SDK version recorded** (ADR 0009 §4) -- the device reference records
@@ -190,8 +193,8 @@ built.
 
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
-2. `overrides:` beyond geometry (`color:`, `visible:`, a font, `touch:`/
-   `api:` selectors), and `align:` on `text`/`icon`/`data`, whose
+2. `overrides:` of a font, part colours or a `visible:` condition, the
+   `touch:`/`api:` selectors, and `align:` on `text`/`icon`/`data`, whose
    justification is shared code: build errors.
 3. Ticks drawn by a `style: scale` gauge itself (a radial `pattern`
    does them today).

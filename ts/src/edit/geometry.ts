@@ -3,7 +3,8 @@
 //
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,
-// then the element's own key), unless the caller names the scope. Every
+// then the `display:` one, then the element's own key), unless the caller
+// names the scope. Every
 // unit is linear in pixels, so a pixel delta is a division; the value is
 // rounded to the coarsest step that still lands on the dragged pixel, which
 // is checked by placing the patched text through the real layout.
@@ -63,7 +64,7 @@ export function target(index: SpanIndex, element: Path, key: Path, device: Devic
   if (scope === "device") return [...element, ...byDevice, ...key];
   if (scope === "shape") return [...element, ...byShape, ...key];
   if (scope === "auto") {
-    for (const selector of [byDevice, byShape]) {
+    for (const selector of [byDevice, byShape, ["overrides", `display:${device.displayClass}`]]) {
       if (index.get([...element, ...selector, ...key]) !== undefined) return [...element, ...selector, ...key];
     }
   }

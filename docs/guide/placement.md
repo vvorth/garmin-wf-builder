@@ -309,39 +309,54 @@ the battery ring and number anchored to the subscreen.*
 
 ## Per-device and per-shape overrides
 
-One design targets watches of different sizes and shapes, and relative units
-(`%`, `%r`) keep most of it right everywhere. When one element still needs to
-sit differently on one watch or one screen shape, `overrides:` patches its
-geometry there. The rest of the design is unchanged:
+One design targets watches of different sizes, shapes and screens, and
+relative units (`%`, `%r`) keep most of it right everywhere. When one
+element still needs to sit differently, take another colour, or not draw at
+all on one watch, one screen shape or one kind of screen, `overrides:`
+patches it there. The rest of the design is unchanged:
 
 ```yaml
 date:
   type: text
   text: "{date.today:%a %d}"
   at: { anchor: center, dy: 30%r }
+  color: color.fg
   absent: hide
   overrides:
+    "display:amoled": { color: color.accent }    # every AMOLED target
     "shape:rectangle": { at: { dy: 22% } }       # every rectangular target
     fr955: { at: { anchor: bottom, dy: -18% } }  # this one watch
 ```
 
-- **The selector** is a device id (`wfb devices` lists them) or
+- **The selector** is a device id (`wfb devices` lists them),
   `shape:round`, `shape:rectangle`, `shape:semi-octagon` or
-  `shape:semi-round`. A device id that is not installed is a build error.
+  `shape:semi-round`, or the screen type: `display:amoled` (AMOLED and
+  OLED), `display:mip` or `display:lcd`, read from each watch's own device
+  files. A device id that is not installed is a build error.
   A selector that matches no device in the build is the
   `override-unreachable` warning, which `lint: {allow: [...]}` on the
   element can accept (a design whose rectangle overrides are for a later
   target, for example).
-- **The keys** are geometry only: `at:`, `size:`, `radius:` and `align:`.
-  An override changes a key the element already has: `size:` and `radius:`
-  only where the element writes them, `at:` and `align:` wherever the
-  element takes them. Colours, fonts, data and anything else stay the same
-  on every watch.
+- **The keys** are geometry (`at:`, `size:`, `radius:`, `align:`), colour
+  (`color:`, `track_color:`) and `visible:`. An override changes a key the
+  element already has: `size:`, `radius:`, `color:` and `track_color:` only
+  where the element writes them, `at:` and `align:` wherever the element
+  takes them. `color:` is a shape's, a text's, an icon's, a data element's,
+  a gauge's or a graph's own; a `pattern`'s and a `hands` set's colours are
+  their parts', which no override reaches. Fonts, data and anything else
+  stay the same on every watch.
+- **`visible: false`** hides the element on those watches, and a group's
+  whole subtree with it; it draws nothing there and a hold cannot reach it.
+  `visible: true` undoes a broader selector's `false` (a `display:amoled`
+  hide, then one AMOLED watch that keeps it). It is a plain `true` or
+  `false`: the element's own `visible:` condition still applies on every
+  watch.
 - **It merges.** A mapping merges key by key into the element's own
   (`at: { dy: 22% }` above keeps `anchor: center`), and anything else
   replaces it. `align:` replaces the element's alignment whole. For a
-  device that matches both, the device id's patch goes over the shape's,
-  and both over the element's own keys.
+  device that matches several, the device id's patch goes over the shape's,
+  the shape's over the screen type's, and all of them over the element's
+  own keys.
 - **`align:` cannot be overridden on `text`, `icon` or `data`.** Their
   alignment is the draw call's justification, which is shared by every
   target. Move them with `at:`.
@@ -350,5 +365,10 @@ date:
 - A `group`'s override moves or resizes the group's own box, and its
   children with it.
 
-Each watch's override lands in its own layout constants, so it costs
-nothing at runtime, and `wfb preview -d <device>` shows it.
+Each watch's override lands in its own layout constants, and `wfb preview
+-d <device>` shows it. Geometry costs nothing at runtime. A hidden element
+costs one test of a constant at the top of its draw. An overridden colour
+is one choice among the colours the build uses, picked by a constant (the
+view is shared by every target, so each target's colour must be in it).
+The always-on frame (`aod:`) is separate: it restyles the sleep frame only,
+while `display:amoled` changes the awake one too.

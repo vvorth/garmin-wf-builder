@@ -48,7 +48,7 @@ export type AodDim = [number, number] | null;
 /** A colour dimmed: a pre-dimmed literal for a constant, else `WfbColor.dim`. */
 function dimColorCode(expression: Expression | null, code: string, dim: [number, number]): string {
   const [num, den] = dim;
-  if (expression === null || expression.isConstant) {
+  if (expression === null || (expression.isConstant && !expression.varies)) {
     const value = expression !== null ? expression.constant : 0xffffff;
     return Color.parse(value).dim(num, den).asMonkeyc();
   }

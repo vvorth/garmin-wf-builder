@@ -37,7 +37,6 @@ export {
   PATTERN_PART_GEOMETRY_KEYS, PATTERN_PART_REJECTED_SHAPES,
 } from "./hands.ts";
 export { andPaths, dedupAppend, NamedRegistry, type FileExists } from "./state.ts";
-export { overrideKey } from "./tree.ts";
 
 /** The semantic pass: a schema-valid document in, a `Face` out, every mistake reported on the author's own line. */
 export class Builder extends ElementTree {

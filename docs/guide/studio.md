@@ -111,9 +111,12 @@ face has errors, the top bar counts them; click the count to see them.
 
 The bar above the centre picks the watch, the style and the zoom.
 **Preview ▾** holds the rest of what the face is drawn at: the time and
-date, what each slot shows, asleep, always-on and the skin; its label
+date, what each slot shows, which frame is drawn and the skin; its label
 lists whatever is not the default, and **Back to the sample moment**
-resets them. A slot is drawn showing its first type until you pick
+puts the sample time and date back, leaving the rest as it is.
+The frame is one of **awake**, **asleep** and **AOD**: asleep is an
+always-on (MIP) watch's low-power frame and AOD an AMOLED watch's, so each
+watch offers only its own, and switching watch swaps one for the other. A slot is drawn showing its first type until you pick
 another of its choices there: the watch draws whatever the wearer picks,
 so check each choice fits. The faces in the strip under it switch the
 watch on a click.
@@ -151,7 +154,8 @@ with **Back** to return and **Contents** for the chapter list; a link to
 an example face or any other file opens in a new tab.
 
 **Skin** draws the watch round its screen, as the simulator does, at the
-same zoom; some watches' files have no skin, and the box is then off.
+same zoom; some watches' files have no skin, and the box is then off. The
+editor remembers it.
 
 ### On the face
 

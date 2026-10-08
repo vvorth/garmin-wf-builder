@@ -8,7 +8,7 @@
 // target lacks reads as absent there, like every nullable source.
 import { CATALOG, READERS, type Source } from "./catalog.ts";
 import { Device, DeviceError } from "./devices/device.ts";
-import { CONFIG_SYMBOL, type Element, type Face, type FontSpec, Graph } from "./ir/model.ts";
+import { CONFIG_SYMBOL, type Element, type Face, type FontSpec, Graph, overrideKeyFor } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
 import { ACQUISITION } from "./series.ts";
 
@@ -151,12 +151,15 @@ export interface Guards {
   config_menu: boolean;
   /** Elements in the subscreen window, when some target has none. */
   subscreen_hidden: ReadonlySet<string>;
+  /** Elements some target hides with `overrides: visible: false`, their subtrees included. */
+  override_hidden: ReadonlySet<string>;
 }
 
 /** The "nothing is missing" `Guards`. */
 export const NO_GUARDS: Guards = {
   complications: false, fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
   display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, subscreen_hidden: new Set(),
+  override_hidden: new Set(),
 };
 
 /** Every element laid out in the subscreen window: each top-level `anchor: subscreen` element and its subtree. */
@@ -167,6 +170,28 @@ export function subscreenElementIds(face: Face): Set<string> {
     for (const child of element.children()) add(child);
   };
   for (const element of face.elements) if (element.inSubscreen) add(element);
+  return out;
+}
+
+/** Whether `<ID>_SHOWN` gates this element's draw method. */
+export function shownGuarded(guards: Guards, id: string): boolean {
+  return guards.subscreen_hidden.has(id) || guards.override_hidden.has(id);
+}
+
+/** Every element some device in `devices` hides with `overrides: visible: false`, and its subtree. */
+export function overrideHiddenIds(face: Face, devices: readonly Device[]): Set<string> {
+  const out = new Set<string>();
+  const add = (element: Element): void => {
+    out.add(element.id);
+    for (const child of element.children()) add(child);
+  };
+  const visit = (elements: readonly Element[]): void => {
+    for (const element of elements) {
+      if (devices.some((d) => element.override_hidden.has(overrideKeyFor(element, d)))) add(element);
+      else visit(element.children());
+    }
+  };
+  visit(face.elements);
   return out;
 }
 
@@ -198,5 +223,6 @@ export function computeGuards(face: Face, devices: readonly Device[]): Guards {
     partial_update_unsupported: !devices.some((d) => d.supportsPartialUpdate),
     config_menu: face.hasConfig && devices.some((d) => !has(d, CONFIG_SYMBOL) && has(d, SETTINGS_MENU_SYMBOL)),
     subscreen_hidden: devices.some((d) => d.subscreen === null) ? subscreenElementIds(face) : new Set(),
+    override_hidden: overrideHiddenIds(face, devices),
   };
 }

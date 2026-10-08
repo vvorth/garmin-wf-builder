@@ -88,16 +88,19 @@ function diag(severity: Severity, code: string, message: string, span: Span | nu
 export function checkOverrideSelectors(face: Face, installed: Iterable<string>, devices: readonly Device[], bag: Bag): void {
   const known = new Set(installed);
   const shapes = new Set(devices.map((d) => d.shape));
+  const displays = new Set(devices.map((d) => d.displayClass));
   const ids = new Set(devices.map((d) => d.id));
   for (const element of walkElements(face.elements)) {
     for (const [selector, span] of element.override_selectors) {
       let reachable: boolean;
       if (selector.startsWith("shape:")) {
         reachable = shapes.has(selector.slice("shape:".length));
+      } else if (selector.startsWith("display:")) {
+        reachable = displays.has(selector.slice("display:".length));
       } else if (!known.has(selector)) {
         bag.error("overrides", `${element.id}: 'overrides:' names ${quoted(selector)}, which is not an installed device`, span, {
           notes: ["'wfb devices' lists the installed devices; a shape is written 'shape:round', 'shape:rectangle', "
-            + "'shape:semi-octagon' or 'shape:semi-round'"],
+            + "'shape:semi-octagon' or 'shape:semi-round', and a screen type 'display:amoled', 'display:mip' or 'display:lcd'"],
         });
         continue;
       } else {

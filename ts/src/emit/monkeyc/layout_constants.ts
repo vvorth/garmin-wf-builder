@@ -2,12 +2,12 @@
 // from: the shared helpers.
 import type { WatchNumber } from "../../draw/program.ts";
 import { flt } from "../../draw/barrel.ts";
-import { type Guards, NO_GUARDS, vectorFontFace } from "../../availability.ts";
-import { discPerimeterOffsets, type Element, slotOf } from "../../ir/model.ts";
+import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace } from "../../availability.ts";
+import { discPerimeterOffsets, type Element, overrideKeyFor, slotOf, variantConstant } from "../../ir/model.ts";
 import { ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
 import {
-  HIDDEN_BY_SUBSCREEN, type Placed, type PlacedGauge, type PlacedGraph, type PlacedHands, type PlacedPattern, type PlacedShape,
+  HIDDEN_BY_OVERRIDE, HIDDEN_BY_SUBSCREEN, type Placed, type PlacedGauge, type PlacedGraph, type PlacedHands, type PlacedPattern, type PlacedShape,
   type ResolvedFace, type ResolvedHandPart,
 } from "../../layout.ts";
 import { commentText } from "../../mcsource.ts";
@@ -178,7 +178,7 @@ export function emitLayout(resolved: ResolvedFace, guards: Guards = NO_GUARDS, p
   const w = new Writer();
   w.doc(header(face, `Device:    ${device.id} -- ${device.width}x${device.height} ${device.shape}, ${device.displayType}, family ${device.deviceFamily}`)).blank();
   const perItem = resolved.items.map((placed): [Placed, Constants] =>
-    [placed, [...shownConstants(resolved, placed, guards), ...kinds.forPlaced(placed).layoutConstants(constPrefix(placed.id), placed), ...holdConstants(resolved, placed)]]);
+    [placed, [...shownConstants(resolved, placed, guards), ...variantConstants(resolved, placed), ...kinds.forPlaced(placed).layoutConstants(constPrefix(placed.id), placed), ...holdConstants(resolved, placed)]]);
   const needsGraphics = perItem.some(([, constants]) => constants.some(([, value]) => value instanceof McLiteral && value.type.includes("Graphics.")));
   const imports = needsGraphics ? ["import Toybox.Graphics;", "import Toybox.Lang;"] : ["import Toybox.Lang;"];
   const menuSlots = guards.config_menu && face.config_data.size > 0;
@@ -258,14 +258,23 @@ export function emitLayout(resolved: ResolvedFace, guards: Guards = NO_GUARDS, p
   return { path: `source-${device.id}/Layout.mc`, text: w.render() };
 }
 
-/** `<ID>_SHOWN` for an element in the subscreen window, when some target has none. */
+/** `<ID>_SHOWN` for an element some target does not draw: no subscreen window there, or `overrides: visible: false`. */
 function shownConstants(resolved: ResolvedFace, placed: Placed, guards: Guards): Constants {
-  if (!guards.subscreen_hidden.has(placed.id) || placed.kind === "group") return [];
+  if (!shownGuarded(guards, placed.id) || placed.kind === "group") return [];
   const reason = resolved.hidden.get(placed.id) ?? null;
-  const note = reason === null ? "drawn in the subscreen window"
+  const note = reason === null ? (guards.subscreen_hidden.has(placed.id) ? "drawn in the subscreen window" : "drawn on this device")
     : reason === HIDDEN_BY_SUBSCREEN ? "no subscreen on this device: 'unsupported: hide'"
-      : "its font has no face on this device: 'unsupported: hide'";
+      : reason === HIDDEN_BY_OVERRIDE ? "'overrides: visible: false' on this device"
+        : "its font has no face on this device: 'unsupported: hide'";
   return [[`${constPrefix(placed.id)}_SHOWN`, reason === null, note]];
+}
+
+/** `<ID>_VARIANT`: which of the element's `overrides:` colours this device draws in, 0 for its own. */
+function variantConstants(resolved: ResolvedFace, placed: Placed): Constants {
+  const element = placed.element;
+  if (element.variant_colors.length === 0) return [];
+  const variant = element.override_variants.get(overrideKeyFor(element, resolved.device)) ?? 0;
+  return [[variantConstant(element.id), variant, variant === 0 ? "its own colour" : "'overrides:' colour on this device"]];
 }
 
 /** The hit rectangle for an `on_hold:` element: its own drawn box, or empty where it does not draw. */

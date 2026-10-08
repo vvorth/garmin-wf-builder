@@ -542,10 +542,10 @@
       "type": "boolean"
     },
     "overrides": {
-      "description": "Per-device geometry (docs/guide/placement.md, 'Per-device and per-shape overrides'): each key is a device id ('wfb devices') or 'shape:round', 'shape:rectangle', 'shape:semi-octagon' or 'shape:semi-round'; each value patches this element's own at:/size:/radius:/align:, a mapping merged key by key. A device id's patch goes over its shape's. An override changes only keys the element has, and never 'align:' on text, icon or data.",
+      "description": "Per-device and per-screen changes (docs/guide/placement.md, 'Per-device and per-shape overrides'): each key is a device id ('wfb devices'), 'shape:round', 'shape:rectangle', 'shape:semi-octagon' or 'shape:semi-round', or 'display:amoled', 'display:mip' or 'display:lcd'; each value patches this element's own at:/size:/radius:/align: (a mapping merged key by key), color:/track_color:, or visible:. A device id's patch goes over its shape's, and a shape's over its display's. An override changes only keys the element has, and never 'align:' on text, icon or data. 'visible: false' hides the element (a group: its subtree) on those watches; 'visible: true' undoes a broader selector's false, and the element's own 'visible:' still applies.",
       "type": "object",
       "propertyNames": {
-        "pattern": "^(shape:(round|rectangle|semi-octagon|semi-round)|[a-z0-9_]+)$"
+        "pattern": "^(shape:(round|rectangle|semi-octagon|semi-round)|display:(amoled|mip|lcd)|[a-z0-9_]+)$"
       },
       "additionalProperties": {
         "type": "object",
@@ -563,6 +563,16 @@
           },
           "align": {
             "$ref": "#/$defs/align"
+          },
+          "color": {
+            "$ref": "#/$defs/colorExpression"
+          },
+          "track_color": {
+            "$ref": "#/$defs/colorExpression"
+          },
+          "visible": {
+            "description": "false: not drawn on these watches. Only a literal: a condition belongs in the element's own 'visible:'.",
+            "type": "boolean"
           }
         }
       }

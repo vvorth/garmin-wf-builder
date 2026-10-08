@@ -26,7 +26,7 @@ own chapter, linked below.
 
 Z-order is document order, with an optional `z:` override. Every element takes
 `type`, `at`, `sleep_update`, `z`, `visible`, `lint`, `overrides` (per-device
-geometry, [Placement](placement.md#per-device-and-per-shape-overrides)) and
+geometry, colour and visibility, [Placement](placement.md#per-device-and-per-shape-overrides)) and
 `unsupported` (accepted only where something can be unavailable). Its id is its key.
 
 | Key | Where | Values | Default | Meaning |

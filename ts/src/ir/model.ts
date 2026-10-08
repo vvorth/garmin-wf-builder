@@ -7,6 +7,7 @@
 // then the given fields, as a dataclass's constructor does.
 import * as catalog from "../catalog.ts";
 import * as complications from "../complications.ts";
+import type { Device } from "../devices/device.ts";
 import type { Span } from "../diagnostics.ts";
 import type * as expr from "../expr.ts";
 import * as icons from "../icons.ts";
@@ -14,7 +15,8 @@ import type { Color } from "../palette.ts";
 import type { SeriesDef } from "../series.ts";
 import * as units from "../units.ts";
 import type { Angle, Length } from "../units.ts";
-import { configField, fontResourceId, pascal } from "./naming.ts";
+import { quoted } from "../py.ts";
+import { configField, elementConstPrefix, fontResourceId, pascal } from "./naming.ts";
 
 /** Build an instance of `cls` from its defaults and `init`. */
 export function make<T extends object>(cls: new () => T, init: Partial<T>): T {
@@ -92,6 +94,12 @@ export class Expression {
   ast: expr.Node | null = null;
   /** What the author wrote, when it is not `text` alone: a template's placeholder expression. */
   author: string | null = null;
+  /**
+   * Set on one device's copy of a colour `overrides:` changes: `code` picks
+   * the colour by a `Layout` constant, so every target shares it, while
+   * `constant` and `ast` are this device's own.
+   */
+  varies = false;
 
   static create(init: Partial<Expression>): Expression { return make(Expression, init); }
 
@@ -351,7 +359,26 @@ export class ConfigDataSlot {
 
 // -- elements ---------------------------------------------------------------------
 
-export type OverrideKey = string; // `JSON.stringify([shape, device])`
+export type OverrideKey = string;
+
+/** The key `Element.overrides` holds one `[display, shape, device]` selector combination under. */
+export function overrideKey(display: string | null, shape: string | null, device: string | null): OverrideKey {
+  return quoted([display, shape, device]);
+}
+
+/** The `Element.overrides` key on `device`: every selector the element names that `device` matches. */
+export function overrideKeyFor(element: Element, device: Device): OverrideKey {
+  const named = new Set(element.override_selectors.map(([selector]) => selector));
+  const match = (selector: string, value: string): string | null => named.has(selector) ? value : null;
+  return overrideKey(match(`display:${device.displayClass}`, device.displayClass), match(`shape:${device.shape}`, device.shape),
+    match(device.id, device.id));
+}
+
+/** The `Layout` constant picking an element's colour variant on each device. */
+export function variantConstant(elementId: string): string {
+  return `${elementConstPrefix(elementId)}_VARIANT`;
+}
+
 
 export class Element {
   /** The `boundExpressions` roles an `absent:` policy on this kind governs. */
@@ -367,8 +394,14 @@ export class Element {
   lint_reason: string | null = null;
   on_hold: string | null = null;
   unsupported: string | null = null;
-  /** `overrides:`: the geometry fields this element takes on a device, keyed by `[shape, device]`. */
+  /** `overrides:`: the geometry fields this element takes on a device, keyed by `[display, shape, device]`. */
   overrides: Map<OverrideKey, Map<string, unknown>> = new Map();
+  /** `overrides:` `color:`/`track_color:`: each selector combination's `Layout.<ID>_VARIANT`; absent is 0, the element's own. */
+  override_variants: Map<OverrideKey, number> = new Map();
+  /** Each `_VARIANT`'s own colour per overridden key, by index; `[0]` is the element's own. Empty without a colour override. */
+  variant_colors: Map<string, Expression>[] = [];
+  /** `overrides:` `visible: false`: the selector combinations this element does not draw on. */
+  override_hidden: Set<OverrideKey> = new Set();
   override_selectors: [string, Span | null][] = [];
   visible: Expression | null = null;
   static = false;
