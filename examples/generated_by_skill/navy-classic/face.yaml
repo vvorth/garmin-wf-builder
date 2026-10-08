@@ -16,7 +16,12 @@ face:
   version: 1.0.0
 
 build:
-  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955, fenix847mm]
+
+defaults:
+  aod:
+    dim: 0.6
+
 resources:
   fonts:
     label: { face: [RobotoCondensedBold], size: 10%r }
@@ -207,7 +212,9 @@ elements:
     set: main
     at: { anchor: center }
     seconds: awake
-    antialias: true
+    # antialias: true
+    aod:
+      visible: true
   hub:
     lint: { allow: [contrast], reason: "the axle sits on the silver second-hand disc, not on the dial" }
     type: circle
