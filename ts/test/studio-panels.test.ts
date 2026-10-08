@@ -16,7 +16,7 @@ import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect } from "../src/studio/inspect.ts";
-import { digest, start } from "../src/studio/server.ts";
+import { allowHostList, digest, start } from "../src/studio/server.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
 
@@ -413,6 +413,14 @@ test("the server answers only requests addressed to it, and builds only for its 
     assert.equal(await statusOf(server.port, "POST", "/api/build?device=fr955", { Host: at, Origin: `http://${at}` }), 400);
   } finally {
     await server.close();
+  }
+});
+
+test("--allow-host takes names repeated or comma separated, and refuses what is not a name", () => {
+  assert.deepEqual(allowHostList(["studio-box,studio-box.lan", " proxy.example ", "a,,b"]), ["studio-box", "studio-box.lan", "proxy.example", "a", "b"]);
+  assert.deepEqual(allowHostList([]), []);
+  for (const bad of ["studio-box:8765", "http://studio-box", "a b", "box/path"]) {
+    assert.throws(() => allowHostList([bad]), /takes host names, comma separated/, bad);
   }
 });
 

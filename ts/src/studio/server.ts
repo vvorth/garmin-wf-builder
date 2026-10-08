@@ -66,6 +66,18 @@ function hostName(header: string | undefined): string | null {
   }
 }
 
+/**
+ * `--allow-host`'s values as names: each value one name or several, comma
+ * separated. A name is letters, digits, dots and dashes; anything else (a
+ * port, a path, a space) is refused, since no request would ever match it.
+ */
+export function allowHostList(values: readonly string[]): string[] {
+  const names = values.flatMap((v) => v.split(",")).map((n) => n.trim()).filter(Boolean);
+  const bad = names.filter((n) => !/^[A-Za-z0-9.-]+$/.test(n));
+  if (bad.length > 0) throw new Error(`--allow-host takes host names, comma separated; not ${bad.map((n) => `'${n}'`).join(", ")}`);
+  return names;
+}
+
 /** The names `allowed` answers besides an IP address: `localhost`, the listening host and every `--allow-host`, as `hostName` reads them. */
 export function hostNames(listenHost: string, allowHosts: readonly string[] = []): Set<string> {
   return new Set(["localhost", ...[listenHost, ...allowHosts].map((h) => hostName(h)).filter((h): h is string => h !== null)]);

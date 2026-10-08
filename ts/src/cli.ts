@@ -223,7 +223,7 @@ const COMMAND_LIST: readonly Command[] = [
   ], [{ dest: "name", optional: true, help: "the face's name, e.g. \"My Face\"" }]),
   command("studio", studioCommand, [
     { flags: ["--host"], default: "127.0.0.1", help: "the address to listen on (default: 127.0.0.1, loopback only)" },
-    { flags: ["--allow-host"], kind: "append", dest: "allow_host", metavar: "NAME", help: "also answer requests addressed to NAME (a remote machine's or a proxy's name); repeatable. IP addresses and localhost are always answered" },
+    { flags: ["--allow-host"], kind: "append", dest: "allow_host", metavar: "NAME", help: "also answer requests addressed to NAME (a remote machine's or a proxy's name); repeatable, or several names comma separated. IP addresses and localhost are always answered" },
     { flags: ["--allow-any-host"], kind: "flag", dest: "allow_any_host", help: "answer requests addressed by any name, for debugging: a web page whose name points at this computer can then read the editor (warns)" },
     { flags: ["-p", "--port"], type: INT, default: 8765, help: "the port to listen on (default: 8765)" },
     DEVICES_DIR,
@@ -713,7 +713,14 @@ async function simulateCommand(args: Namespace): Promise<number> {
 }
 
 async function studioCommand(args: Namespace): Promise<number> {
-  const { serve } = await import("./studio/server.ts");
+  const { allowHostList, serve } = await import("./studio/server.ts");
+  let allowHosts: string[];
+  try {
+    allowHosts = allowHostList((args["allow_host"] as string[] | null) ?? []);
+  } catch (e) {
+    error((e as Error).message);
+    return 1;
+  }
   let db: DeviceDatabase;
   try {
     db = discoverDb(args["devices_dir"] as string | null, args["fonts_dir"] as string | null);
@@ -723,7 +730,7 @@ async function studioCommand(args: Namespace): Promise<number> {
     return 1;
   }
   await serve({
-    host: args["host"] as string, allowHosts: (args["allow_host"] as string[] | null) ?? [], allowAnyHost: args["allow_any_host"] === true,
+    host: args["host"] as string, allowHosts, allowAnyHost: args["allow_any_host"] === true,
     port: args["port"] as number, db,
     fontsDir: (args["fonts_dir"] as string | null) ?? null,
   });
