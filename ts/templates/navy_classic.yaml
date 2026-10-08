@@ -1,19 +1,27 @@
-# A navy sunray-dial dress watch: three polygon hands, a silver flange and
-# rim serration, batons and dots for the hours, and a day/date window at 3.
+# Navy Classic -- a three-hand dress face with a day-date window at 3,
+# modelled on a photo of a navy sunray-dial automatic (build/preview/test.png).
+# The original's brand wordmarks and shield are left out; the face's own
+# name sits where the model name was.
 #
-# Preview a flattering time with:  wfb preview <file> --time 10:10:37
+# Preview:  ./wfb preview faces/navy-classic/face.yaml --time 10:10:37
+# Build:    ./wfb build faces/navy-classic/face.yaml
 #
-# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
 format: 2
 
 face:
-  id: __UUID__
-  name: __NAME__
+  id: 5eb11642-3050-493b-958a-dd82d4a61df4
+  name: Navy Classic
   version: 1.0.0
 
 build:
-  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955, fenix847mm]
+
+defaults:
+  aod:
+    dim: 0.6
+
 resources:
   fonts:
     label: { face: [RobotoCondensedBold], size: 10%r }
@@ -62,6 +70,13 @@ resources:
               - { dx: -3%r, dy: 30%r }
               - { dx: 3%r, dy: 30%r }
               - { dx: 1%r, dy: -90%r }
+        # - { shape: line, at: { dy: 12%r }, to: { dy: -89%r }, thickness: 3px }
+        # - shape: polygon
+        #   points:
+        #     - { dx: -1%r, dy: 8%r }
+        #     - { dx: -3%r, dy: 30%r }
+        #     - { dx: 3%r, dy: 30%r }
+        #     - { dx: 1%r, dy: 8%r }
           - { type: circle, radius: 2.5%r }
 
 static:
@@ -197,7 +212,9 @@ elements:
     set: main
     at: { anchor: center }
     seconds: awake
-    antialias: true
+    # antialias: true
+    aod:
+      visible: true
   hub:
     lint: { allow: [contrast], reason: "the axle sits on the silver second-hand disc, not on the dial" }
     type: circle
