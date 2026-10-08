@@ -44,7 +44,7 @@ test("every key an element has is a field", () => {
     for (const entry of index.elements()) {
       const result = inspect(text, entry.path, fr955);
       assert.deepEqual(result["unknown"], [], `${path}: ${entry.name}`);
-      const shown = new Set([...(result["fields"] as any[]).map((f) => f.key), "children", "overrides"]);
+      const shown = new Set([...(result["fields"] as any[]).map((f) => f.key), "children", "overrides", "parts"]);
       let data: any = index.data;
       for (const step of entry.path) data = data.get(step);
       for (const key of data.keys()) assert.ok(shown.has(key), `${path}: ${entry.name}.${key}`);
@@ -125,6 +125,20 @@ test("a non-geometry override is visible read-only, regardless of the device vie
   // the same, regardless of which device (or none) is being viewed
   assert.deepEqual(overridden(null), onFr955);
   assert.deepEqual(overridden("fenix8solar47mm"), onFr955);
+});
+
+test("a pattern's parts are a read-only count and shapes, not a field; other elements have none", () => {
+  const patterns = readText("examples/features/patterns/face.yaml");
+  const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+  const hourTicks = inspect(patterns, pathOf(patterns, "hour_ticks"), null);
+  assert.deepEqual((hourTicks["parts"] as any).shapes, ["rectangle"]);
+  assert.equal((hourTicks["parts"] as any).count, 1);
+  assert.ok((hourTicks["parts"] as any).line < (hourTicks["parts"] as any).end);
+  assert.ok(!(hourTicks["fields"] as any[]).some((f) => f.key === "parts"));
+
+  const clock = starters.instantiate("minimal", "P");
+  const text = inspect(clock, indexFor(clock).elements().find((e) => e.name === "clock")!.path, null);
+  assert.equal(text["parts"], null);
 });
 
 // -- the Face panel --

@@ -314,7 +314,7 @@ function ShortcutHelp({ onClose }) {
 
 // The right column's upper section: the selection's place and keys.
 function PropertiesSection({ folded, onFold, extra, element, box, drawn, doc, device, vocab, scope, onScope, onEdit, onError,
-                             onReveal, onSelect }) {
+                             onReveal, onSelect, onFaceSection }) {
   return html`
     <section class="props-section">
       <h3 class="fold" onClick=${() => onFold(!folded)} aria-expanded=${!folded}
@@ -328,7 +328,7 @@ function PropertiesSection({ folded, onFold, extra, element, box, drawn, doc, de
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} device=${device} vocab=${vocab}
                       scope=${scope} onScope=${onScope} onEdit=${onEdit} onError=${onError}
-                      onReveal=${onReveal} onSelect=${onSelect} />
+                      onReveal=${onReveal} onSelect=${onSelect} onFaceSection=${onFaceSection} />
       </div>`}
     </section>`;
 }
@@ -424,6 +424,11 @@ function Editor({ docId, onError, onNotice }) {
   const slots = (doc && doc.globals && doc.globals.slots) || [];
   useEffect(() => { api("vocabulary").then(setVocab, onError); }, []);
   const [left, setLeft] = useState("layers");
+  // jump to a Face-tab section (e.g. from a colour role in Properties): FacePanel remounts and reads it fresh
+  const openFaceSection = useCallback((key) => {
+    try { localStorage.setItem("wfb-face-section", key); } catch (_) { /* private mode */ }
+    setLeft("face");
+  }, []);
   const [pane, setPane] = useState("face");
   const [tab, setTab] = useState("diagnostics");
   // the Diagnostics tab's severity filter, kept across tabs, reset per face
@@ -746,7 +751,8 @@ function Editor({ docId, onError, onNotice }) {
       <div class=${"panel right" + (fold.props ? " props-folded" : "") + (fold.lower ? " lower-folded" : "")}>
         <${PropertiesSection} folded=${fold.props} onFold=${(f) => setFolded("props", f)} extra=${extra}
           element=${element} box=${box} drawn=${drawn} doc=${doc} device=${view.device} vocab=${vocab}
-          scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError} onReveal=${showLines} onSelect=${select} />
+          scope=${scope} onScope=${setScope} onEdit=${edit} onError=${onError} onReveal=${showLines} onSelect=${select}
+          onFaceSection=${openFaceSection} />
         <${ReportsSection} folded=${fold.lower} onFold=${(f) => setFolded("lower", f)} tab=${tab} onTab=${setTab}
           doc=${doc} filter=${diagFilter} onFilter=${setDiagFilter} onSelect=${setSelected} onError=${onError}
           onSend=${send} onChanged=${(updated) => updated ? accept(updated) : loadDoc()} />

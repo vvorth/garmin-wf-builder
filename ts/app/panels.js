@@ -153,11 +153,16 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
     case "length": return html`<${Quantity} value=${value} like=${like} units=${LENGTH_UNITS} bareUnit="px" onCommit=${onCommit} />`;
     case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
     case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
-    case "color":
+    case "color": {
       // an expression choosing a colour is edited as text
-      return value != null && !colorName(value) && !parseHex(value)
-        ? html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`
-        : html`<${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />`;
+      if (value != null && !colorName(value) && !parseHex(value)) return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
+      const ref = colorName(value);
+      const isRole = ref && !(ctx.globals.palette || []).some((p) => p.name === ref) && (ctx.globals.roles || []).includes(ref);
+      return html`<span class="color-field"><${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />
+        ${isRole ? html`<span class="dim">role <code>${ref}</code></span>
+          ${ctx.onFaceSection ? html`<a href="#" title="jump to the Schemes section"
+            onClick=${(e) => { e.preventDefault(); ctx.onFaceSection("schemes"); }}>Schemes</a>` : null}` : null}</span>`;
+    }
     case "template": return html`<${Template} value=${value} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
     case "icon": return html`<${IconPop} value=${value} vocab=${ctx.vocab} onPick=${(v) => v && onCommit(v)} />`;
@@ -214,7 +219,7 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   </div>`;
 }
 
-export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal, onSelect }) {
+export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal, onSelect, onFaceSection }) {
   const [ins, setIns] = useState(null);
   const setScope = onScope;
   useEffect(() => {
@@ -227,10 +232,13 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
-  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal };
+  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection };
   // the slot this element draws, edited right here as in the Face tab
   const slotField = ins.fields.find((f) => f.key === "slot");
   const slotCard = slotField && (ctx.globals.slots || []).find((s) => s.name === slotField.value);
+  // a `hands` element's own set, likewise
+  const setField = ins.type === "hands" && ins.fields.find((f) => f.key === "set");
+  const handCard = setField && (ctx.globals.hands || []).find((h) => h.name === setField.value);
   return html`<div class="inspector">
     <div class="ins-head">
       <code>${ins.id}</code> <span class="dim">${ins.type}</span>
@@ -243,7 +251,15 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
     </div>
     ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}
     ${slotCard ? html`<${SlotCard} slot=${slotCard} vocab=${vocab} onEdit=${onEdit} onSelect=${onSelect} />` : null}
+    ${handCard ? html`<${HandSetCard} set=${handCard} doc=${doc} ctx=${ctx} onEdit=${onEdit} onReveal=${onReveal} />` : null}
     ${ins.fields.map((f) => html`<${Field} field=${f} ins=${ins} scope=${scope} ctx=${ctx} onEdit=${onEdit} />`)}
+    ${ins.parts ? html`<div class="field">
+      <div class="name">parts</div>
+      <div class="value">
+        <span class="dim">${ins.parts.count} part${ins.parts.count === 1 ? "" : "s"}: ${ins.parts.shapes.join(", ")}</span>
+        <a href="#" title="a pattern's parts are edited in the YAML" onClick=${(e) => { e.preventDefault(); onReveal(ins.parts.line, ins.parts.end); }}>edit in YAML</a>
+      </div>
+    </div>` : null}
     ${(ins.overridden || []).map((o) => html`<div class="field" key=${o.selector}>
       <div class="name">overrides <code>${o.selector}</code></div>
       <div class="value">
@@ -464,6 +480,32 @@ function AxisRow({ axis, entry, palette, onEdit }) {
   </div>`;
 }
 
+// A hand set's hands, each with its colour (a part may set its own) and
+// part count: the row every hand set is shown by, in the Face tab's list
+// and, for the `hands` element placing it, the Inspector's card.
+function handColorRows(set, ctx, onEdit) {
+  return Object.entries(set.hands).map(([hand, h]) => html`<div class="slot-line">
+    <span class="dim">${hand}</span>
+    <${ColorPop} value=${h.color} ctx=${ctx} title=${`the ${hand} hand's colour (a part may set its own)`}
+      onPick=${(v) => onEdit({ op: "use_color", path: ["resources", "hand_sets", set.name, hand, "color"], value: v })} />
+    <span class="dim">${h.parts} part${h.parts === 1 ? "" : "s"}</span></div>`);
+}
+
+// The card a selected `hands` element shows above its keys: the set drawn
+// alone, its hands' colours, and a link to its parts in the YAML tab.
+export function HandSetCard({ set, doc, ctx, onEdit, onReveal }) {
+  const device = (doc.targets || [])[0] || "";
+  return html`<div class="hand-set-card">
+    <${WorkerImage} class="hand-thumb" alt=${set.name} title="drawn alone at 10:09:42"
+      op="handset" args=${{ id: doc.id, name: set.name, device, scale: 1, v: doc.version }} />
+    <div class="hand-body">
+      ${handColorRows(set, ctx, onEdit)}
+      <div class="slot-line"><a href="#" title="a hand's parts are edited in the YAML"
+        onClick=${(e) => { e.preventDefault(); onReveal(set.line, set.end); }}>edit the set</a></div>
+    </div>
+  </div>`;
+}
+
 // `resources: hand_sets:`: each set drawn alone, its hands' colours, what
 // places it, and its parts in the YAML; new ones from a preset.
 function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
@@ -482,11 +524,7 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }) {
           <button title="a copy, to change without touching this one" onClick=${() => onEdit({ op: "duplicate_hand_set", name: s.name })}>Duplicate</button>
           <button class="reset" title="delete (refused while an element places it)" aria-label="delete (refused while an element places it)" onClick=${() => onEdit({ op: "delete_hand_set", name: s.name })}>×</button>
         </div>
-        ${Object.entries(s.hands).map(([hand, h]) => html`<div class="slot-line">
-          <span class="dim">${hand}</span>
-          <${ColorPop} value=${h.color} ctx=${ctx} title=${`the ${hand} hand's colour (a part may set its own)`}
-            onPick=${(v) => onEdit({ op: "use_color", path: ["resources", "hand_sets", s.name, hand, "color"], value: v })} />
-          <span class="dim">${h.parts} part${h.parts === 1 ? "" : "s"}</span></div>`)}
+        ${handColorRows(s, ctx, onEdit)}
         <div class="slot-line"><span class="dim">placed by</span>
           ${s.placed_by.length ? s.placed_by.map((id) => html`<a href="#" onClick=${(e) => { e.preventDefault(); onSelect(id); }}>${id}</a>`)
                                : html`<span class="dim">nothing</span>`}</div>

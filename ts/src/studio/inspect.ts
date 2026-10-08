@@ -46,8 +46,8 @@ const WIDGET_BY_REF: Record<string, string> = {
 };
 /** Objects shown as their own keys, one level down. */
 const NESTED = new Set(["position", "size", "patternStep"]);
-/** Keys the inspector leaves out: structure, and the overrides the chooser writes. */
-const SKIPPED = new Set(["children", "overrides"]);
+/** Keys the inspector leaves out: structure, the overrides the chooser writes, and a pattern's parts (its own compact summary). */
+const SKIPPED = new Set(["children", "overrides", "parts"]);
 
 const isMap = (v: unknown): v is Map<unknown, unknown> => v instanceof Map;
 const g = (m: unknown, k: unknown): unknown => (m instanceof Map ? m.get(k) : undefined);
@@ -163,6 +163,20 @@ function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): J
   return out;
 }
 
+/** A pattern's parts, read-only: how many and of what shape, with a line span to jump to in the YAML tab. */
+function patternPartsSummary(index: SpanIndex, type: string, element: Path, data: unknown): Json | null {
+  if (type !== "pattern" || !isMap(data) || !data.has("parts")) return null;
+  const parts = data.get("parts");
+  if (!Array.isArray(parts)) return null;
+  const held = index.at([...element, "parts"]);
+  const until = Math.max(index.valueEnd(held) - 1, 0);
+  return {
+    count: parts.length, shapes: parts.map((p) => (isMap(p) ? String(p.get("type") ?? "") : "")),
+    line: held.key.start.line + 1,
+    end: (index.text.slice(0, until).match(/\n/g)?.length ?? 0) + 1,
+  };
+}
+
 function dataAt(data: unknown, path: Path): unknown {
   for (const step of path) {
     if (isMap(data) && data.has(step)) data = data.get(step);
@@ -199,6 +213,7 @@ export function inspect(text: string, element: Path, device: Device | null): Jso
   return {
     element: [...element], id: element[element.length - 1], type, fields, unknown, overrides,
     overridden: nonGeometryOverrides(index, element, data),
+    parts: patternPartsSummary(index, type, element, data),
     device: device?.id ?? null, shape: device?.shape ?? null,
   };
 }

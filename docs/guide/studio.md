@@ -243,7 +243,10 @@ a control: a number and its unit, an angle, the 3×3 alignment picker, a
 colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a
 reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
 **edit the set**, its lines in the YAML tab), a list of choices, on
-or off. **×** removes a key, back to its default. A key no control covers,
+or off. A colour bound to a scheme role, rather than one of the face's
+swatches, names the role and jumps to the Schemes section. A `pattern`
+element's `parts:` shows its count and shapes read-only, with the same
+jump. **×** removes a key, back to its default. A key no control covers,
 such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
 
 The three buttons above the keys, **all targets**, the watch in view
@@ -356,7 +359,8 @@ does not reset it.
   lines selected: a hand's parts are edited there. **+ Hand set** adds one
   of four presets, `classic`, `baton`, `dauphine` and `subdial` (a small
   seconds hand), in the face's own colours; on a face with no hands yet it
-  also places it at the centre.
+  also places it at the centre. A `hands` element shows the same card
+  above its keys.
 - **Slots**: the complication slots the wearer points at a reading on the
   watch ([the Data axis](configuration.md#the-data-axis)), one card each;
   the same card shows above the keys of an element drawing the slot.

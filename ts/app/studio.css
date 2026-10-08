@@ -294,11 +294,11 @@ input[type="range"].wide { width: 100%; }
 .face-panel .axis-choices { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0 5em; font-size: 12px; }
 .face-panel .axis-choices label { display: inline-flex; gap: 4px; align-items: center; }
 /* hand sets */
-.face-panel li.hand-set { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+.face-panel li.hand-set, .hand-set-card { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
 .hand-thumb { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; background: #000; border-radius: 8px; flex: none; }
 .hand-body { flex: 1; min-width: 0; }
-.handset { display: inline-flex; gap: 8px; align-items: center; }
-.handset a, .face-panel li.hand-set a { color: var(--accent); }
+.handset, .color-field { display: inline-flex; gap: 8px; align-items: center; }
+.handset a, .face-panel li.hand-set a, .hand-set-card a { color: var(--accent); }
 /* icons, and a slot's card */
 @font-face { font-family: "wfb-icons"; src: url("/api/icon-font") format("truetype"); }
 .glyph { font-family: "wfb-icons"; font-size: 16px; line-height: 1; display: inline-block; min-width: 1em; text-align: center; }
