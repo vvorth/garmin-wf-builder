@@ -242,12 +242,13 @@ The selection's keys, every one the format offers for its type, each with
 a control: a number and its unit, an angle, the 3×3 alignment picker, a
 colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a
 reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
-**edit the set**, its lines in the YAML tab), a list of choices, on
+**edit the set**, its lines in the YAML tab), a `text` element's `curve:`
+(style, angle, and for `radial`, the radius), a list of choices, on
 or off. A colour bound to a scheme role, rather than one of the face's
 swatches, names the role and jumps to the Schemes section. A `pattern`
 element's `parts:` shows its count and shapes read-only, with the same
 jump. **×** removes a key, back to its default. A key no control covers,
-such as a list, `aod:` or `curve:`, shows its value; edit it in the YAML.
+such as a list or `aod:`, shows its value; edit it in the YAML.
 
 The three buttons above the keys, **all targets**, the watch in view
 (by its id) and its shape (**round screens**, say), say where `at:`, `size:`, `radius:` and

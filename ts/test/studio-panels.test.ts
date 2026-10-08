@@ -104,6 +104,30 @@ test("a pattern's step resolves whichever oneOf branch its value matches; a grap
   assert.equal(series.value, "heart_rate");
 });
 
+test("a text element's curve: is a small object widget, angled or radial, not the yaml fallback", () => {
+  const text = readText("examples/features/vector-text/face.yaml");
+  const pathOf = (id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+  const f = (id: string): Record<string, any> => fieldsOf(inspect(text, pathOf(id), null));
+
+  const angled = f("solar_badge")["curve"];
+  assert.equal(angled.widget, "object");
+  assert.deepEqual(Object.fromEntries(angled.children.map((c: any) => [c.key, [c.widget, c.value]])), {
+    style: ["enum", "angled"], angle: ["angle", "35deg"], radius: ["length", null], direction: ["enum", null],
+  });
+
+  const radial = f("wordmark")["curve"];
+  assert.deepEqual(Object.fromEntries(radial.children.map((c: any) => [c.key, [c.widget, c.value]])), {
+    style: ["enum", "radial"], angle: ["angle", "165deg"], radius: ["length", "60%r"], direction: ["enum", "counter_clockwise"],
+  });
+
+  // an element with no curve: still offers the key, each child addable on its own
+  const minimal = starters.instantiate("minimal", "C");
+  const clock = [...indexFor(minimal).elements().find((e) => e.name === "clock")!.path];
+  const plain = fieldsOf(inspect(minimal, clock, null))["curve"];
+  assert.equal(plain.widget, "object");
+  assert.ok(plain.children.every((c: any) => c.value === null));
+});
+
 test("the inspector reports the overrides the device reads", () => {
   const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px } }, "shape:round": { at: { dx: 1px } } }\n');

@@ -45,7 +45,7 @@ const WIDGET_BY_REF: Record<string, string> = {
   visible: "expression", expression: "expression",
 };
 /** Objects shown as their own keys, one level down. */
-const NESTED = new Set(["position", "size", "patternStep"]);
+const NESTED = new Set(["position", "size", "patternStep", "curve"]);
 /** Keys the inspector leaves out: structure, the overrides the chooser writes, and a pattern's parts (its own compact summary). */
 const SKIPPED = new Set(["children", "overrides", "parts"]);
 
