@@ -136,12 +136,22 @@ or AOD-related has been observed on a watch or in the simulator.
   ones, each picked colour a named swatch, `ts/src/edit/colors.ts`), the
   accent and data colour settings as explicit lists, schemes (made,
   added, renamed and removed with their roles and styles as one patch
-  each, `ts/src/edit/schemes.ts`), hand sets (from four presets, drawn
+  each, `ts/src/edit/schemes.ts`; a colour bound to a role names it and
+  jumps here from Properties), hand sets (from four presets, drawn
   alone, renamed with every `set:`, `ts/src/edit/hands.ts`; parts in the
-  YAML), slots (one card in the Face tab and on the element drawing it,
+  YAML; the same card shows on a `hands` element placing one), slots (one
+  card in the Face tab and on the element drawing it,
   types labelled and grouped, the face drawn showing any one choice,
-  `PreviewOptions.picks`), styles and fonts,
-  faces kept per browser in its own storage (IndexedDB), structure (add any type, reorder, static and
+  `PreviewOptions.picks`), a `text` element's `curve:` as a small widget
+  (style, angle, radius), a pattern's `parts:` as a read-only count and
+  shapes, a non-geometry override (`color:`/`track_color:`/`visible:`)
+  shown read-only — each with a jump to its lines in the YAML tab —
+  styles and layouts (`+ Layout` bootstraps a style naming it when none
+  exists yet) and fonts. The Face tab is a row of sections, one shown at
+  a time, the browser remembering which; Ctrl+K opens a fuzzy-find over
+  every element, colour, role, font, slot, hand set and style name,
+  picking one exactly as clicking it already would.
+  Faces are kept per browser in its own storage (IndexedDB), structure (add any type, reorder, static and
   dynamic, groups; Layers listed in draw order), copy and paste of
   elements as YAML between faces (`ts/src/edit/structure.ts` `paste`),
   keyboard shortcuts with a "?" list (`ts/app/keys.js`), a YAML tab with

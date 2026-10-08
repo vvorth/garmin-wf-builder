@@ -5,9 +5,9 @@
 looking like clutter, easy to use.
 
 **Status (2026-10-08): research complete, decisions below adopted by the
-user the same day.** Plan 32 builds the buildable slices
-(`docs/plans/32-gui-v2.md`); three items are deliberately deferred to their
-own research (§5).
+user the same day, and all seven buildable slices built the same day**
+(plan 32, `git show 19ae010:docs/plans/32-gui-v2.md`); three items are
+deliberately deferred to their own research (§5).
 
 **Short answer.**
 

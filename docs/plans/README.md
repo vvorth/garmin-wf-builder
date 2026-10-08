@@ -10,7 +10,6 @@ back here.
 
 | Plan | What it does |
 |---|---|
-| [32 — GUIv2](32-gui-v2.md) | `wfb studio` coverage and navigation: two widget bugs, a second-level Face-tab nav, element-side cards for hand sets/schemes/pattern parts, a command palette, `overrides:` visibility, `curve:`, layouts creation. Built from `docs/research/33-gui-v2.md` |
 
 ## Built and deleted
 
@@ -47,3 +46,4 @@ records its own slices and decisions. Its commits are
 | 29 live centred boxes and gauge arcs | `git show 0b280bf:docs/plans/29-live-centred-boxes-and-gauges.md` (options A–C and C1–C4 for centred boxes are kept for a later plan) |
 | 30 the editor's gaps | `git show 07446be:docs/plans/30-editor-gaps.md` |
 | 31 TypeScript migration | `git show 7aea248:docs/plans/31-typescript-migration.md` (commits `git log --grep "port slice"`; slice 10's open shape rules are in `docs/research/probes/garmin-raster/README.md`) |
+| 32 GUIv2 | `git show 19ae010:docs/plans/32-gui-v2.md` (commits `git log --grep "plan 32"`; built from `docs/research/33-gui-v2.md`) |
