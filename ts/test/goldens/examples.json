@@ -3305,18 +3305,20 @@
   }
  },
  "examples/generated_by_skill/navy-classic/face.yaml": {
-  "diagnostics": "examples/generated_by_skill/navy-classic/face.yaml:77:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   77 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/navy-classic/face.yaml:77:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   77 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/navy-classic/face.yaml:77:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   77 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
+  "diagnostics": "examples/generated_by_skill/navy-classic/face.yaml:82:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   82 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/navy-classic/face.yaml:82:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   82 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/navy-classic/face.yaml:82:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   82 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above\n\nexamples/generated_by_skill/navy-classic/face.yaml:209:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.0% of pixels and 0.3% of luminance at 10:08 (Garmin's 10% rule) -- top contributor: hands (100.0%)\n  209 |   hands:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,561 lit pixels at 10:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nexamples/generated_by_skill/navy-classic/face.yaml:82:1: note[graphics-pool]: the static content buffers 412,232 B of the 3,145,728 B graphics pool (13.1%) on fenix847mm\n   82 | static:\n        ^\n      note: 454x454 pixels at the display's own 16 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
-    "manifest.xml": "5354f4a3115679738807db721989cefa",
-    "monkey.jungle": "f11fc18b5976c4fa51105396e0f0a404",
+    "manifest.xml": "065c09767b5258178a09bef3df0fdbd2",
+    "monkey.jungle": "f4cef4fcb360f1a0cfc481eecb5f8d49",
     "resources/strings/strings.xml": "5828b9c64a8f61df9e53848764dd6cd1",
     "source/NavyClassicApp.mc": "12cade5c8d962bbdb0c37b4a54a78d5d",
     "source/Palette.mc": "7cd4dd9ee2ead97663e2fb9f739ddf62",
     "source-fenix8solar47mm/Layout.mc": "126d3ad465dbbe25a5010936d6cf8577",
     "source-fenix8solar51mm/Layout.mc": "95887d331efe69fdb8dd07decf7c6e85",
     "source-fr955/Layout.mc": "33ea508e8f832dfc6f245a310412fa3f",
-    "source/NavyClassicView.mc": "2532e06756f68ac90a39cea83dcd227c",
+    "source-fenix847mm/Layout.mc": "49e208c594bfbb332db7a42d0f051465",
+    "source/NavyClassicView.mc": "bad3e4a9e6e3d74494cbeb37e03caa80",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbHands.mc": "033c27e16d6db41add507bc09c9185ec",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
@@ -3324,7 +3326,9 @@
     "resources-fenix8solar51mm/drawables/drawables.xml": "f116d6ad42d7159051c79e17776e9a72",
     "resources-fenix8solar51mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
-    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc"
+    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
+    "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7"
    },
    "amoled-mix": {
     "refused": [
@@ -3341,7 +3345,8 @@
     "source/Palette.mc": "7cd4dd9ee2ead97663e2fb9f739ddf62",
     "source-fenix947mm/Layout.mc": "ffe6838591c3f6eabd4d287b4997516e",
     "source-fr955/Layout.mc": "33ea508e8f832dfc6f245a310412fa3f",
-    "source/NavyClassicView.mc": "969b2de5979e1cdaa640c41906de2b2f",
+    "source/NavyClassicView.mc": "bad3e4a9e6e3d74494cbeb37e03caa80",
+    "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbHands.mc": "033c27e16d6db41add507bc09c9185ec",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
@@ -3354,28 +3359,32 @@
    "default": {
     "fenix8solar47mm": "fae9805c69917667aa6eb67ed2a7cfd4",
     "fenix8solar51mm": "2c16b3b8290948b353650ac999486ce2",
-    "fr955": "b886955f00fe22fdf312f2cb5f0dae0b"
+    "fr955": "b886955f00fe22fdf312f2cb5f0dae0b",
+    "fenix847mm": "aa5fc5ee538fb991bed1d67d942ac63e"
    },
    "asleep": {
     "fenix8solar47mm": "4f46735921d4f1438e2fd858ba9ba76a",
     "fenix8solar51mm": "044d3a6d8fcca88af5899fd0a80c367d",
-    "fr955": "b25bb14a9f1dc9c3d45171aaa70f50aa"
+    "fr955": "b25bb14a9f1dc9c3d45171aaa70f50aa",
+    "fenix847mm": "b9d6fc76320459bacdb34e9cda8dd84a"
    },
    "time": {
     "fenix8solar47mm": "35ea1ec8930880189b327fe0351c7818",
     "fenix8solar51mm": "49d61fc0ac3e49dadf3b5a485d35b03d",
-    "fr955": "f98e9394cc7a02370578aa77f96c3031"
+    "fr955": "f98e9394cc7a02370578aa77f96c3031",
+    "fenix847mm": "0f30e4f6ebfa20237ccc6c0155d57fdd"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
     "fenix8solar51mm": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
-    "fr955": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
+    "fr955": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
+    "fenix847mm": "refused: 'Navy Classic' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+    "fenix847mm": "710bbfbdbce281aea6a1d29e21f9de3f"
    },
    "aod-minute-7": {
-    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+    "fenix847mm": "f829c629430d674743967df22a91f372"
    }
   }
  },
