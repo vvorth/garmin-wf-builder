@@ -217,6 +217,17 @@ test("the canvas draws what a frame does not show yet", async () => {
   assert.equal(result["untouched"], true);
 });
 
+test("the page's declaration of /dist/raster.js names the rasteriser's real exports", async () => {
+  // `app/dist-raster.d.ts` is written by hand: the real module must have
+  // each function it declares (run time), with a type the declaration's
+  // callers may rely on (compile time, under `npm run typecheck`).
+  const real = await import("../src/raster/canvas.ts");
+  const declared: typeof import("../app/dist-raster.d.ts") = real;
+  for (const name of ["composite", "drawOps", "image", "inflateTiles", "inkOf", "liveOps", "translateOps"] as const) {
+    assert.equal(typeof declared[name], "function", name);
+  }
+});
+
 test("the yaml tab sends against the version its text was typed over", async () => {
   // Text typed over version 1 is sent against version 1 even after a
   // change elsewhere (the inspector) made the face version 2, so the

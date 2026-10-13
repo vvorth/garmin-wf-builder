@@ -1,4 +1,4 @@
-// What the editor's canvas (`ts/app/canvas.js`) draws with: the preview's
+// What the editor's canvas (`ts/app/canvas.ts`) draws with: the preview's
 // own rasteriser, and the frame's layers moved, inked and dragged. The
 // studio server bundles this module for the page (`/dist/raster.js`), so
 // the browser draws with the very code the preview does.

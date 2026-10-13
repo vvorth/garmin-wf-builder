@@ -178,7 +178,7 @@ test("the thumbnails wait for the face to settle", async () => {
       const document = install();
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Strip, STRIP_SETTLE_MS } = await import(${JSON.stringify(appUri("canvas.js"))});
+      const { Strip, STRIP_SETTLE_MS } = await import(${JSON.stringify(appUri("canvas.ts"))});
       const root = document.createElement("div");
       const doc = (version) => ({ id: "f", version, targets: ["a", "b"] });
       const show = (version, view = {}) => render(html\`<\${Strip} doc=\${doc(version)} view=\${{ device: "a", ...view }}

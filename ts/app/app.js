@@ -10,7 +10,7 @@ import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useSh
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
 import { inFlight, newer, saveState } from "./outbox.ts";
-import { Canvas, Strip } from "./canvas.js";
+import { Canvas, Strip } from "./canvas.ts";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
 import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js";
