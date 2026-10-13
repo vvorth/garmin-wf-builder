@@ -24,6 +24,10 @@ import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.js"
 import { TAB } from "./session.js";
 import { latestText } from "./textsync.js";
 
+/** @typedef {import("../src/studio/protocol.ts").Summary} Summary */
+/** @typedef {import("../src/studio/protocol.ts").Home} Home */
+/** @typedef {import("../src/studio/protocol.ts").Vocabulary} Vocabulary */
+
 // What this browser remembers between visits: the zoom, how many CSS
 // pixels make a real inch on its screen, and the side panels' widths.
 function stored(key, fallback) {
@@ -103,6 +107,7 @@ function ago(seconds) {
 // -- home ----------------------------------------------------------------------------
 
 function Home({ onError }) {
+  /** @type {[Home | null, (home: Home) => void]} */
   const [home, setHome] = useState(null);
   const [template, setTemplate] = useState("minimal");
   const [name, setName] = useState("My Face");
@@ -313,7 +318,7 @@ function CommandPalette({ doc, onSelect, onFaceSection, onClose }) {
   const [index, setIndex] = useState(0);
   const input = useRef(null);
   useEffect(() => { if (input.current && input.current.focus) input.current.focus(); }, []);
-  const g = doc.globals || {};
+  const g = doc.globals;
   const items = [
     ...blocksOf(doc.tree).nodes.map((n) => ({ key: `element:${n.id}`, label: n.id, hint: n.type, pick: () => onSelect(n.id) })),
     ...(g.palette || []).map((p) => ({ key: `colour:${p.name}`, label: p.name, hint: "colour", pick: () => onFaceSection("colours") })),
@@ -457,6 +462,8 @@ function PreviewMenu({ view, setView, time, date, clock, setClock, slots, vocab,
 }
 
 function Editor({ docId, onError, onNotice }) {
+  // the face as the worker last answered (`protocol.ts`'s Summary)
+  /** @type {[Summary | null, (next: Summary | null | ((current: Summary | null) => Summary | null)) => void]} */
   const [doc, setDoc] = useState(null);
   const [selected, setSelected] = useState(null);
   // more elements selected with Ctrl/Cmd (or Shift on the face), for
@@ -466,6 +473,7 @@ function Editor({ docId, onError, onNotice }) {
                                      aod: false, skin: storedSkin(), zoom: storedZoom(), real: false });
   const [pxPerInch, setPxPerInch] = useState(storedPxPerInch());
   const [dialog, setDialog] = useState(null);           // "build" | "calibrate" | "keys"
+  /** @type {[Partial<Vocabulary>, (words: Vocabulary) => void]} */
   const [vocab, setVocab] = useState({});
   // the face's slots, which the Preview popover picks a type for
   const slots = (doc && doc.globals && doc.globals.slots) || [];
@@ -705,7 +713,7 @@ function Editor({ docId, onError, onNotice }) {
   if (!doc) return html`<div class="home dim">Loading…</div>`;
   const set = setter(setView);
   const saved = saveState({ queue, yaml: yamlSaving });
-  const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), {});
+  const counts = doc.diagnostics.reduce((a, d) => ({ ...a, [d.severity]: (a[d.severity] || 0) + 1 }), /** @type {Record<string, number>} */ ({}));
   const h = doc.history;
 
   return html`<div class="editor">

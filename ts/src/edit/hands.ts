@@ -129,12 +129,21 @@ export function summaryNames(index: SpanIndex): string[] {
   return [...sets(index).keys()].map(String);
 }
 
+/** One hand set for the Face panel: each hand's part count and colour as written, the elements placing it, and its lines. */
+export interface HandSetSummary {
+  name: string;
+  hands: Record<string, { parts: number; color: Data }>;
+  placed_by: string[];
+  line: number;
+  end: number;
+}
+
 /** Each hand set: its hands (parts and colour) and the elements placing it, for the Face panel. */
-export function summary(index: SpanIndex): Record<string, unknown>[] {
-  const out: Record<string, unknown>[] = [];
+export function summary(index: SpanIndex): HandSetSummary[] {
+  const out: HandSetSummary[] = [];
   for (const [name, original] of sets(index)) {
     const entry = original instanceof Map ? original : new Map<DataKey, Data>();
-    const hands: Record<string, unknown> = {};
+    const hands: HandSetSummary["hands"] = {};
     for (const h of HANDS) {
       const hand = entry.get(h);
       if (hand instanceof Map) {

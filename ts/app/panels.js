@@ -13,6 +13,10 @@ import { api } from "./api.js";
 import { ask } from "./dialogs.js";
 import { HelpDialog } from "./help.js";
 
+/** @typedef {import("../src/studio/protocol.ts").Summary} Summary */
+/** @typedef {import("../src/studio/protocol.ts").Inspect} Inspect */
+/** @typedef {import("../src/studio/protocol.ts").Vocabulary} Vocabulary */
+
 const ALIGN = [["top_left", "top", "top_right"], ["left", "center", "right"],
                ["bottom_left", "bottom", "bottom_right"]];
 
@@ -255,7 +259,13 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   </div>`;
 }
 
+/**
+ * @param {{doc: Summary, element: any, device: string | null, vocab: Partial<Vocabulary>, scope: string, onScope: Function,
+ *   onEdit: Function, onError: (error: Error) => void, onReveal: Function, onSelect: Function, onFaceSection: Function}} props
+ */
 export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal, onSelect, onFaceSection }) {
+  // the selected element's keys as the worker answered them (`protocol.ts`'s Inspect)
+  /** @type {[Inspect | null, (ins: Inspect | null) => void]} */
   const [ins, setIns] = useState(null);
   const setScope = onScope;
   useEffect(() => {
@@ -268,7 +278,7 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
-  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
+  const ctx = { globals: doc.globals, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
                 elementType: ins.type };
   // the slot this element draws, edited right here as in the Face tab
   const slotField = ins.fields.find((f) => f.key === "slot");
@@ -596,13 +606,17 @@ function NewSlot({ vocab, taken, onEdit }) {
   </div>`;
 }
 
-// The Face tab: one section at a time (`section`, a key below, and
-// `onSection` to switch), as the editor holds it.
+/**
+ * The Face tab: one section at a time (`section`, a key below, and
+ * `onSection` to switch), as the editor holds it.
+ * @param {{doc: Summary, vocab: Partial<Vocabulary>, onEdit: Function, onUpload: Function, onSelect: Function, onStructure: Function,
+ *   onReveal?: Function, section?: string | null, onSection?: Function}} props
+ */
 export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure, onReveal, section, onSection }) {
-  const g = doc.globals || {};
-  const palette = g.palette || [];
-  const schemes = g.schemes || { names: [], roles: [], colors: {} };
-  const styles = g.styles || { entries: [] };
+  const g = doc.globals;
+  const palette = g.palette;
+  const schemes = g.schemes;
+  const styles = g.styles;
   const devices = vocab.devices || [];
   const [adding, setAdding] = useState("");
   // a font file chosen and waiting for its name

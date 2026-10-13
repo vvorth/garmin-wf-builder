@@ -122,13 +122,15 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     let answered = false;
     try {
       const response = await call("text", { id: s.doc.id, version: step.version, text: step.text });
-      const body = response.json || {};
-      response.ok = response.status < 400;
-      box.sync = sync.answered(box.sync, step.text, response.status, body.version);
+      const ok = response.status === 200;
+      // the face, when the worker took the text; else why it did not
+      const face = response.status === 200 ? response.json : null;
+      const refusal = response.status === 200 ? null : response.json;
+      box.sync = sync.answered(box.sync, step.text, response.status, face ? face.version : null);
       answered = true;
-      if (response.ok) {
+      if (ok) {
         show(null);
-        onDoc(body);
+        onDoc(face);
       } else if (response.status === 409) {
         // changed elsewhere since the pane's text was typed over: the
         // text stays, and the author chooses (`choose`)
@@ -136,9 +138,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         onDoc(await api("get", { id: s.doc.id }));
       } else if (response.status === 400) {
         // not YAML yet: keep typing; nothing was recorded
-        show({ kind: "invalid", message: body.error || "the text is not YAML" });
+        show({ kind: "invalid", message: refusal.error || "the text is not YAML" });
       } else {
-        show({ kind: "failed", message: body.error || `${response.status}` });
+        show({ kind: "failed", message: refusal.error || `${response.status}` });
       }
     } catch (e) {
       if (!answered) box.sync = sync.failed(box.sync, step.text);

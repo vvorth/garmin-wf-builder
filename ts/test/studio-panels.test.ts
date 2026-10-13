@@ -17,13 +17,14 @@ import { bundle, missing } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect, vocabulary } from "../src/studio/inspect.ts";
 import { allowHostList, digest, start } from "../src/studio/server.ts";
+import type { Inspect } from "../src/studio/protocol.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
 
 const SHAPES = "examples/features/shapes/face.yaml";
 const make = (studio: Studio, template = "minimal"): Document => studio.create(bundle("T", starters.instantiate(template, "T")), "new");
 const elementPath = (doc: Document, id: string): (string | number)[] => [...indexFor(doc.text).elements().find((e) => e.name === id)!.path];
-const fieldsOf = (result: Record<string, unknown>): Record<string, any> => Object.fromEntries((result["fields"] as any[]).map((f) => [f.key, f]));
+const fieldsOf = (result: Inspect): Record<string, any> => Object.fromEntries(result.fields.map((f) => [f.key, f]));
 
 function faces(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(join(ROOT, dir)).sort()) {

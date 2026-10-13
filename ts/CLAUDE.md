@@ -88,7 +88,10 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` and
     `drag.ts`; `server.ts` (Node) sends the app, the devices' digest, a
     device's skin and font files, the docs for Help (`/help/`), and builds.
-    `app/` is the page, plain ES
+    `protocol.ts` is the one place the page/worker contract lives: every
+    request's arguments and every answer, event and refusal as TypeScript
+    interfaces, which the worker's builders return and the page names in
+    JSDoc. `app/` is the page, plain ES
     modules served as they are; `test/studio-client.ts` runs the worker's
     router in Node for the studio tests.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:

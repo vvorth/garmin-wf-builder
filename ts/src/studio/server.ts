@@ -40,6 +40,7 @@ import { build as runBuild, Toolchain } from "../node_build.ts";
 import { formatFixed } from "../py.ts";
 import { MAX_UPLOAD_BYTES } from "./bundle.ts";
 import { devices as listDevices } from "./inspect.ts";
+import type { BuildResult } from "./protocol.ts";
 
 const APP = join(REPO_ROOT, "ts", "app");
 const SRC = join(REPO_ROOT, "ts", "src");
@@ -273,7 +274,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
     send(response, 200, readFileSync(path), TYPES[extname(path)] ?? "application/octet-stream");
   };
 
-  const build = async (zip: Uint8Array, device: string, stem: string): Promise<unknown> => {
+  const build = async (zip: Uint8Array, device: string, stem: string): Promise<BuildResult> => {
     const id = crypto.randomUUID().replace(/-/g, "");
     const work = join(scratch, id);
     const files = unzipSync(zip);

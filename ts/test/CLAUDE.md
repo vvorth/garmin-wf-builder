@@ -27,7 +27,9 @@ Loaded automatically when working under `ts/test/`.
   design written inline (`load`, `face`, `resolved`, `generated`, `view`,
   `drawn`, `MINIMAL`). Reach for these before writing a private copy.
 - **The editor:** `edit.test.ts` runs the patch engine over the example
-  corpus; `studio*.test.ts` the worker and server. `page-*.test.ts` run the
+  corpus; `studio*.test.ts` the worker and server; `protocol.test.ts` holds
+  every answer and event the worker sends to the shapes
+  `src/studio/protocol.ts` declares. `page-*.test.ts` run the
   page itself in Node (`page-harness.ts`): its pure modules, its panels
   rendered with preact over a minimal DOM (`studio_dom.mjs`) with their
   controls clicked, and the whole page against a stand-in worker answering

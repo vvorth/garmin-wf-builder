@@ -29,15 +29,27 @@ import { hasSkin } from "../preview.ts";
 import { DATA_SAMPLE } from "../sample.ts";
 import * as series from "../series.ts";
 import { schema } from "../validate.ts";
-import { jsonDumps } from "./json.ts";
+import { jsonDumps, plain } from "./json.ts";
+import type {
+  Axes, AxisEntry, ComplicationType, DeviceInfo, Field, Globals, HandSet, Inspect, OverrideSummary, PartsSummary, SlotEntry, StyleEntry,
+  UnreadableDevice, Value, Widget, Words,
+} from "./protocol.ts";
 
+/** A schema node, as JSON. */
 type Json = Record<string, unknown>;
+
+/** Author data as the answer carries it: a mapping an object, a whole float a number. */
+const value = (data: unknown): Value => plain(data ?? null) as Value;
+/** A mapping as an object of values; anything else is empty. */
+const mapping = (data: unknown): Record<string, Value> => (data instanceof Map ? plain(data) as Record<string, Value> : {});
+/** A name as written, when it is text. */
+const name = (data: unknown): string | null => (typeof data === "string" ? data : null);
 
 /** The keys an override may patch: edited with the "all targets / this device / this shape / this display class" chooser. */
 export const GEOMETRY: ReadonlySet<string> = new Set(["at", "size", "radius", "align"]);
 
 /** `$defs` entries that pick a widget, by the name the schema refers to. */
-const WIDGET_BY_REF: Record<string, string> = {
+const WIDGET_BY_REF: Record<string, Widget> = {
   length: "length", handLength: "length", patternLength: "length",
   angle: "angle",
   align: "align",
@@ -94,7 +106,7 @@ function shapeMatches(resolved: Json, value: unknown): boolean {
   return resolved["type"] === "object" ? isMap(value) : isScalar(value);
 }
 
-function widget(key: string, type: string, node: Json, value: unknown): [string, Json] {
+function widget(key: string, type: string, node: Json, value: unknown): [Widget, Json] {
   let [ref, resolved] = deref(node);
   if (ref === null && Array.isArray(resolved["oneOf"])) {
     const branches = (resolved["oneOf"] as Json[]).map((b) => deref(b)).filter(([r]) => r !== null && (r in WIDGET_BY_REF || NESTED.has(r)));
@@ -121,37 +133,36 @@ function widget(key: string, type: string, node: Json, value: unknown): [string,
   return ["yaml", resolved];
 }
 
-function field(key: string, path: Path, type: string, node: Json, value: unknown, required: boolean): Json {
-  const [kind, resolved] = widget(key, type, node, value);
-  const out: Json = {
-    key, path: [...path], widget: kind, description: node["description"] || resolved["description"] || "",
-    value, present: value !== null && value !== undefined, required,
-    default: "default" in resolved ? resolved["default"] : node["default"] ?? null,
+function field(key: string, path: Path, type: string, node: Json, raw: unknown, required: boolean): Field {
+  const [kind, resolved] = widget(key, type, node, raw);
+  const present = raw !== null && raw !== undefined;
+  // a structured value under a scalar's widget is shown as its text instead
+  const shown: Widget = ["icon", "complication", "color", "yaml"].includes(kind) && present && !isScalar(raw) ? "yaml" : kind;
+  const out: Field = {
+    key, path: [...path], widget: shown, description: String(node["description"] || resolved["description"] || ""),
+    value: value(raw), present, required,
+    default: value("default" in resolved ? resolved["default"] : node["default"]),
     geometry: path.length > 0 ? GEOMETRY.has(String(path[0])) : false,
   };
-  if (value === undefined) out["value"] = null;
-  if ("enum" in resolved) out["enum"] = resolved["enum"];
+  if ("enum" in resolved) out.enum = value(resolved["enum"]) as Value[];
   if (kind === "object") {
     const props = (resolved["properties"] ?? {}) as Record<string, Json>;
-    out["children"] = Object.entries(props).map(([k, sub]) => field(k, [...path, k], type, sub, isMap(value) ? value.get(k) ?? null : null, false));
+    out.children = Object.entries(props).map(([k, sub]) => field(k, [...path, k], type, sub, isMap(raw) ? raw.get(k) ?? null : null, false));
   }
-  if (["icon", "complication", "color", "yaml"].includes(out["widget"] as string) && value !== null && value !== undefined && !isScalar(value)) {
-    out["widget"] = "yaml";
-  }
-  if (out["widget"] === "yaml" && value !== null && value !== undefined) out["text"] = typeof value === "string" ? value : jsonDumps(value);
+  if (shown === "yaml" && present) out.text = typeof raw === "string" ? raw : jsonDumps(raw);
   return out;
 }
 
 /** Every selector's non-geometry overrides (`color`/`track_color`/`visible`), read-only, with its line span to jump to in the YAML tab. */
-function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): Json[] {
+function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): OverrideSummary[] {
   const raw = isMap(data) ? data.get("overrides") : undefined;
   if (!isMap(raw)) return [];
-  const out: Json[] = [];
+  const out: OverrideSummary[] = [];
   for (const selector of keysOf(raw)) {
     const entry = g(raw, selector);
     if (!isMap(entry)) continue;
-    const keys: Json = {};
-    for (const k of keysOf(entry)) if (!GEOMETRY.has(String(k))) keys[String(k)] = entry.get(k);
+    const keys: Record<string, Value> = {};
+    for (const k of keysOf(entry)) if (!GEOMETRY.has(String(k))) keys[String(k)] = value(entry.get(k));
     if (Object.keys(keys).length === 0) continue;
     const held = index.at([...element, "overrides", selector as string]);
     const until = Math.max(index.valueEnd(held) - 1, 0);
@@ -165,7 +176,7 @@ function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): J
 }
 
 /** A pattern's parts, read-only: how many and of what shape, with a line span to jump to in the YAML tab. */
-function patternPartsSummary(index: SpanIndex, type: string, element: Path, data: unknown): Json | null {
+function patternPartsSummary(index: SpanIndex, type: string, element: Path, data: unknown): PartsSummary | null {
   if (type !== "pattern" || !isMap(data) || !data.has("parts")) return null;
   const parts = data.get("parts");
   if (!Array.isArray(parts)) return null;
@@ -188,10 +199,14 @@ function dataAt(data: unknown, path: Path): unknown {
 }
 
 /** The inspector for the element at `element`: its fields in schema order, and each geometry key's overrides on `device`. */
-export function inspect(text: string, element: Path, device: Device | null): Json {
+export function inspect(text: string, element: Path, device: Device | null): Inspect {
   const index = indexFor(text);
   const data = dataAt(index.data, element);
-  if (!isMap(data) || !data.has("type")) return { element: [...element], fields: [], error: "not an element" };
+  const out: Inspect = {
+    element: [...element], id: String(element[element.length - 1]), type: "", fields: [], unknown: [], overrides: {}, overridden: [], parts: null,
+    device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null, error: null,
+  };
+  if (!isMap(data) || !data.has("type")) return { ...out, error: "not an element" };
   const type = String(data.get("type"));
   const branch = elementSchema(type) ?? { properties: {} };
   const hide = hidden(type);
@@ -202,20 +217,20 @@ export function inspect(text: string, element: Path, device: Device | null): Jso
     .filter((k) => !SKIPPED.has(k) && (!hide.has(k) || data.has(k))
       && (data.has(k) || !String(props[k]!["description"] ?? "").startsWith("Not accepted")))
     .map((k) => field(k, [k], type, props[k]!, data.has(k) ? data.get(k) : null, required.has(k)));
-  const unknown = [...data.keys()].filter((k) => !(String(k) in props));
-  const overrides: Json = {};
+  const unknown = [...data.keys()].filter((k) => !(String(k) in props)).map(String);
+  const overrides: Inspect["overrides"] = {};
   if (device !== null) {
     const [deviceSel, shapeSel, displaySel] = selectorPaths(device);
     for (const [scope, selector] of [["device", deviceSel], ["shape", shapeSel], ["display", displaySel]] as const) {
       const patch = dataAt(data, selector);
-      if (isMap(patch)) overrides[scope] = { selector: selector[1], keys: patch };
+      if (isMap(patch)) overrides[scope] = { selector: String(selector[1]), keys: mapping(patch) };
     }
   }
   return {
-    element: [...element], id: element[element.length - 1], type, fields, unknown, overrides,
+    ...out, type, fields, unknown, overrides,
     overridden: nonGeometryOverrides(index, element, data),
     parts: patternPartsSummary(index, type, element, data),
-    device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null,
+    display: device?.displayClass ?? null,
   };
 }
 
@@ -233,16 +248,16 @@ function legalOn(value: unknown, devices: readonly Device[]): string[] {
   return devices.filter((d) => !color.isPaletteLegal(d.displayColors)).map((d) => d.id);
 }
 
-function slots(index: SpanIndex): Json[] {
-  const out: Json[] = [];
+function slots(index: SpanIndex): SlotEntry[] {
+  const out: SlotEntry[] = [];
   const entries = g(g(index.data, "config"), "slots");
-  for (const name of keysOf(entries)) {
-    const entry = isMap(g(entries, name)) ? g(entries, name) : new Map();
+  for (const slot of keysOf(entries)) {
+    const entry = isMap(g(entries, slot)) ? g(entries, slot) : new Map();
     const raw = g(entry, "choices");
     const choices = Array.isArray(raw)
-      ? raw.map((c) => (isMap(c) ? { type: c.get("type") ?? null, icon: c.get("icon") ?? null } : { type: c, icon: null }))
-      : raw ?? null;
-    out.push({ name, label: g(entry, "label") ?? null, default: g(entry, "default") ?? null, choices, drawn_by: slotDrawers(index, String(name)) });
+      ? raw.map((c) => (isMap(c) ? { type: name(c.get("type")), icon: name(c.get("icon")) } : { type: name(c), icon: null }))
+      : name(raw);
+    out.push({ name: String(slot), label: name(g(entry, "label")), default: name(g(entry, "default")), choices, drawn_by: slotDrawers(index, String(slot)) });
   }
   return out;
 }
@@ -266,91 +281,97 @@ function problem(value: unknown): string | null {
   return null;
 }
 
-function axes(data: unknown): Json {
+function axes(data: unknown): Axes {
   const config = g(data, "config");
-  const out: Json = {};
+  const out: Axes = { accent_color: null, data_color: null };
   for (const [axis, role] of [["accent_color", "accent"], ["data_color", "data"]] as const) {
     const entry = g(config, axis);
-    if (!isMap(entry)) {
-      out[axis] = null;
-      continue;
-    }
+    if (!isMap(entry)) continue;
     const raw = entry.get("choices");
-    const choices = typeof raw === "string" ? raw : (Array.isArray(raw) ? raw : []).map((c) => (isMap(c) ? c.get("color") : c));
-    out[axis] = { default: entry.get("default") ?? null, choices, raw: raw ?? null, role: entry.get("role") || role, own_role: entry.has("role") };
+    const choices = typeof raw === "string" ? raw : (Array.isArray(raw) ? raw : []).map((c) => value(isMap(c) ? c.get("color") : c));
+    const own = entry.get("role");
+    const axisEntry: AxisEntry = { default: name(entry.get("default")), choices, raw: value(raw), role: own ? String(own) : role, own_role: entry.has("role") };
+    out[axis] = axisEntry;
   }
   return out;
 }
 
+/** `globalsOf` for a text that does not parse: nothing in it. */
+const NO_GLOBALS: Globals = {
+  palette: [], schemes: { names: [], roles: [], colors: {} }, styles: { default: null, entries: [] }, layouts: [], fonts: [], slots: [], roles: [],
+  axes: { accent_color: null, data_color: null }, displays: [], hand_sets: [], hands: [], targets: [], target_problems: {},
+};
+
 /** The face's colours, schemes, styles, layouts, fonts, slots and targets. */
-export function globalsOf(text: string, db: DeviceDatabase): Json {
+export function globalsOf(text: string, db: DeviceDatabase): Globals {
   let index: SpanIndex;
   try {
     index = indexFor(text);
   } catch (error) {
-    if (error instanceof Refused) return {};
+    if (error instanceof Refused) return NO_GLOBALS;
     throw error;
   }
   const data = index.data;
-  if (!isMap(data)) return {};
-  const targets = (g(g(data, "build"), "targets") ?? []) as unknown[];
+  if (!isMap(data)) return NO_GLOBALS;
+  const written = g(g(data, "build"), "targets");
+  const targets = Array.isArray(written) ? written.map(String) : [];
   const devices: Device[] = [];
   const targetProblems: Record<string, string> = {};
-  for (const target of Array.isArray(targets) ? targets : []) {
+  for (const target of targets) {
     try {
-      devices.push(db.get(String(target)));
+      devices.push(db.get(target));
     } catch (error) {
       if (!(error instanceof DeviceError)) throw error;
-      targetProblems[String(target)] = error.message;
+      targetProblems[target] = error.message;
     }
   }
   const resources = g(data, "resources");
-  const palette = keysOf(g(resources, "palette")).map((name) => {
-    const entry = g(g(resources, "palette"), name);
-    const value = isMap(entry) ? entry.get("value") : entry;
+  const palette = keysOf(g(resources, "palette")).map((key) => {
+    const entry = g(g(resources, "palette"), key);
+    const color = isMap(entry) ? entry.get("value") : entry;
     return {
-      name, value, label: isMap(entry) ? entry.get("label") ?? null : null, long: isMap(entry),
-      dithers_on: legalOn(value, devices), used_by: colors.userNames(index, String(name)),
-      automatic: automatic(String(name), value), problem: problem(value), launcher: colors.LAUNCHER.has(String(name)),
+      name: String(key), value: value(color), label: isMap(entry) ? value(entry.get("label")) : null, long: isMap(entry),
+      dithers_on: legalOn(color, devices), used_by: colors.userNames(index, String(key)),
+      automatic: automatic(String(key), color), problem: problem(color), launcher: colors.LAUNCHER.has(String(key)),
     };
   });
   const schemes = g(g(data, "theme"), "schemes");
-  const roles: unknown[] = [];
+  const roles: string[] = [];
   for (const scheme of keysOf(schemes).map((k) => g(schemes, k))) {
-    for (const role of keysOf(g(scheme, "colors"))) if (!roles.includes(role)) roles.push(role);
+    for (const role of keysOf(g(scheme, "colors")).map(String)) if (!roles.includes(role)) roles.push(role);
   }
   const style = g(g(data, "config"), "style");
-  const fonts = keysOf(g(resources, "fonts")).map((name) => {
-    const spec = g(g(resources, "fonts"), name);
-    return { name, source: g(spec, "source") ?? null, face: g(spec, "face") ?? null, size: g(spec, "size") ?? null };
+  const fonts = keysOf(g(resources, "fonts")).map((key) => {
+    const spec = g(g(resources, "fonts"), key);
+    return { name: String(key), source: name(g(spec, "source")), face: value(g(spec, "face")), size: value(g(spec, "size")) };
+  });
+  const entries: StyleEntry[] = keysOf(g(style, "choices")).map((key) => {
+    const e = g(g(style, "choices"), key);
+    return { name: String(key), label: name(g(e, "label")), layout: name(g(e, "layout")), scheme: name(g(e, "scheme")) };
   });
   return {
     palette,
     schemes: {
-      names: keysOf(schemes), roles,
-      colors: Object.fromEntries(keysOf(schemes).map((n) => [String(n), g(g(schemes, n), "colors") ?? new Map()])),
+      names: keysOf(schemes).map(String), roles,
+      colors: Object.fromEntries(keysOf(schemes).map((n) => [String(n), mapping(g(g(schemes, n), "colors"))])),
     },
-    styles: {
-      default: g(style, "default") ?? null,
-      entries: keysOf(g(style, "choices")).map((n) => {
-        const e = g(g(style, "choices"), n);
-        return { name: n, ...(isMap(e) ? Object.fromEntries([...e].map(([k, v]) => [String(k), v])) : {}) };
-      }),
-    },
-    layouts: keysOf(g(data, "layouts")),
+    styles: { default: name(g(style, "default")), entries },
+    layouts: keysOf(g(data, "layouts")).map(String),
     fonts,
     slots: slots(index),
     roles: colors.roles(index),
     axes: axes(data),
     displays: [...new Set(devices.map((d) => d.displayColors).filter((c): c is number => Boolean(c)))].sort((a, b) => a - b),
-    hand_sets: keysOf(g(resources, "hand_sets")),
-    hands: hands.summary(index),
+    hand_sets: keysOf(g(resources, "hand_sets")).map(String),
+    hands: hands.summary(index).map((set): HandSet => ({
+      ...set, hands: Object.fromEntries(Object.entries(set.hands).map(([hand, h]) => [hand, { parts: h.parts, color: value(h.color) }])),
+    })),
     targets,
     target_problems: targetProblems,
   };
 }
 
-function complicationType(name: string): Json {
+function complicationType(name: string): ComplicationType {
   const sample = DATA_SAMPLE.get(name);
   return {
     name, label: complications.label(name), category: complications.category(name),
@@ -359,11 +380,13 @@ function complicationType(name: string): Json {
   };
 }
 
-let words: Json | null = null;
+let words: Words | null = null;
 
 /** What the pickers offer: data sources by namespace, icon names and complication types. Device-independent. */
-export function vocabulary(): Json {
+export function vocabulary(): Words {
   if (words === null) {
+    const glyphs: Record<string, number> = {};
+    for (const [name, icon] of icons.CATALOG) glyphs[name] = icon.codepoint.codePointAt(0) ?? 0;
     words = {
       sources: Object.fromEntries(catalog.namespaces()),
       icons: [...icons.CATALOG.keys()].sort(),
@@ -371,19 +394,19 @@ export function vocabulary(): Json {
       series: series.names(),
       types: elementTypes(),
       mip: MIP64_NAMED.map(([name, value, label]) => ({ name, value, label })),
-      hand_presets: [...hands.presets().keys()],
+      hand_presets: [...hands.presets().keys()].map(String),
       categories: [...complications.CATEGORIES],
       complication_types: complications.names().map(complicationType),
-      icon_glyphs: Object.fromEntries([...icons.CATALOG].map(([name, icon]) => [name, icon.codepoint.codePointAt(0)])),
+      icon_glyphs: glyphs,
     };
   }
   return words;
 }
 
 /** Every installed device that can run a face, for the targets list, and every one whose files could not be read. */
-export function devices(db: DeviceDatabase): [Json[], { id: string; reason: string }[]] {
-  const out: Json[] = [];
-  const unreadable: { id: string; reason: string }[] = [];
+export function devices(db: DeviceDatabase): [DeviceInfo[], UnreadableDevice[]] {
+  const out: DeviceInfo[] = [];
+  const unreadable: UnreadableDevice[] = [];
   for (const id of db.ids()) {
     let device: Device;
     try {
@@ -401,7 +424,7 @@ export function devices(db: DeviceDatabase): [Json[], { id: string; reason: stri
       fonts: [...device.systemFonts.keys()],
     });
   }
-  const name = (d: Json): string => String(d["name"]).toLowerCase();
-  return [out.sort((a, b) => (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0)), unreadable];
+  const lower = (d: DeviceInfo): string => d.name.toLowerCase();
+  return [out.sort((a, b) => (lower(a) < lower(b) ? -1 : lower(a) > lower(b) ? 1 : 0)), unreadable];
 }
 

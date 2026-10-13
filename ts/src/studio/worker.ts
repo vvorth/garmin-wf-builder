@@ -18,7 +18,8 @@ import { setIconFontGlyphs } from "../icons.ts";
 import { loadSchema } from "../validate.ts";
 import { Studio } from "./document.ts";
 import type { devices } from "./inspect.ts";
-import { type Request, type Response, Router } from "./router.ts";
+import type { BuildResult, Event, Request, Response } from "./protocol.ts";
+import { Router } from "./router.ts";
 import { type Backend, MemoryBackend, Store } from "./store.ts";
 
 /** The store's records in one IndexedDB object store. */
@@ -141,9 +142,9 @@ async function start(): Promise<Router> {
     if (iconFont === null) throw new Error("the icon font is not installed on the server");
     return iconFont;
   });
-  const emit = (event: string, data: Record<string, unknown>): void => {
-    channel.postMessage({ event, data });
-    self.postMessage({ event, data });
+  const emit = (event: Event): void => {
+    channel.postMessage(event);
+    self.postMessage(event);
   };
   const router = new Router(studio, {
     prepare: async (ids, faces = []) => {
@@ -153,23 +154,23 @@ async function start(): Promise<Router> {
       const response = await fetch(`/api/build?device=${encodeURIComponent(device)}&stem=${encodeURIComponent(stem)}`, { method: "POST", body: zip as Uint8Array<ArrayBuffer> });
       const body = await response.json() as Record<string, unknown>;
       if (!response.ok) throw Object.assign(new Error(String(body["error"])), { status: response.status });
-      return body;
+      return body as unknown as BuildResult;
     },
     emit,
     devices: () => digest.listing,
   });
   // timed snapshots and compaction, in turn with the requests, announced once written
-  const later: [string, Record<string, unknown>][] = [];
-  studio.onEvent = (event, data) => later.push([event, data]);
+  const later: Event[] = [];
+  studio.onEvent = (event, data) => later.push({ event, data } as Event);
   setInterval(() => {
     void router.exclusive(async () => {
       studio.tick();
       try {
         await store.flush();
       } catch (error) {
-        later.push(["error", { message: (error as Error).message }]);
+        later.push({ event: "error", data: { message: (error as Error).message } });
       }
-      for (const [event, data] of later.splice(0)) emit(event, data);
+      for (const event of later.splice(0)) emit(event);
     });
   }, Math.max(1, Math.min(30, studio.snapshotSeconds / 4)) * 1000);
   return router;
@@ -190,15 +191,15 @@ self.onmessage = async (message: MessageEvent<{ id: number; request: Request }>)
 
 // Another tab's worker changed a face: read it again, in turn with this
 // tab's requests, then tell the page.
-channel.onmessage = async (message: MessageEvent<{ event: string; data: Record<string, unknown> }>) => {
-  const { event, data } = message.data;
+channel.onmessage = async (message: MessageEvent<Event>) => {
+  const event = message.data;
   const router = await ready;
   void router.exclusive(async () => {
     try {
-      if (typeof data["id"] === "string") await router.studio.reload(data["id"]);
+      if (typeof event.data.id === "string") await router.studio.reload(event.data.id);
     } catch {
       // the face is read again when next asked for, and that answer says what failed
     }
-    self.postMessage({ event, data });
+    self.postMessage(event);
   });
 };

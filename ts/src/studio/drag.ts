@@ -16,25 +16,12 @@
 // All coordinates are device pixels.
 import { ANGLES, EXTENTS } from "../edit/geometry.ts";
 import { forPlaced } from "../kinds/index.ts";
-import type { LiveHandle } from "../kinds/base.ts";
 import type { Placed } from "../layout.ts";
 import { formatG } from "../py.ts";
 import { Length, roundPx } from "../units.ts";
+import type { Handle } from "./protocol.ts";
 
-export interface Handle {
-  kind: "end" | "size" | "angle";
-  part?: "at" | "to";
-  key?: string | string[];
-  axis?: "x" | "y";
-  gain?: number;
-  x: number;
-  y: number;
-  cx?: number;
-  cy?: number;
-  start?: number;
-  sweep?: number;
-  live?: LiveHandle | null;
-}
+export type { Handle };
 
 /** `align`'s and `vertical_align`'s values, as the edge a growing box moves: the handle's side and its gain. */
 const X: Record<string, [string, number]> = { left: ["right", 1], center: ["right", 2], right: ["left", -1] };

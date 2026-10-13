@@ -1,5 +1,5 @@
 {
-  "//": "The studio page (app/), plain ES modules checked as JavaScript; npm run typecheck runs it after tsconfig.json.",
+  "//": "The studio page (app/), plain ES modules checked as JavaScript; npm run typecheck runs it after tsconfig.json. The page names the worker's payload types (src/studio/protocol.ts) in JSDoc; strict stays off because the page's own untyped parameters would be some 900 implicit-any errors.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "allowJs": true,

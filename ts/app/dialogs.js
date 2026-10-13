@@ -50,8 +50,8 @@ export function BuildDialog({ doc, vocab, device, onClose }) {
     setState({ phase: "building" });
     try {
       const r = await call("build", { id: doc.id, device: chosen, version: doc.version });
+      if (r.status !== 200) { setState({ phase: "failed", error: r.json.error }); return; }
       const body = r.json;
-      if (r.status >= 400) { setState({ phase: "failed", error: body.error }); return; }
       if (body.ok && body.download) {
         const a = document.createElement("a");
         a.href = body.download;

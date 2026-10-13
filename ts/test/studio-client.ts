@@ -12,7 +12,8 @@ import { NodeFontFiles } from "../src/fonts/node.ts";
 import { installAssets, readFontFile } from "../src/node.ts";
 import * as starters from "../src/starters.ts";
 import { type Document, Studio } from "../src/studio/document.ts";
-import { type Response, Router } from "../src/studio/router.ts";
+import type { Event, Request } from "../src/studio/protocol.ts";
+import { Router } from "../src/studio/router.ts";
 import { type Backend, MemoryBackend, Store } from "../src/studio/store.ts";
 
 installAssets();
@@ -34,21 +35,27 @@ export async function newStudio(backend: Backend = new MemoryBackend(), options:
   return new Studio(await Store.open(backend), db, () => readFontFile(ICON_FONT), options);
 }
 
-/** A reply, its JSON typed loosely, as a test reads it. */
-export type Reply = Response & { json: any };
+/** A reply, typed loosely, as a test reads it. */
+export interface Reply {
+  status: number;
+  json: any;
+  body?: Uint8Array;
+  type?: string;
+  filename?: string;
+}
 
 export class Client {
   readonly studio: Studio;
   readonly router: Router;
-  readonly events: [string, Record<string, unknown>][] = [];
+  readonly events: [Event["event"], Record<string, unknown>][] = [];
   tab: string | null = null;
 
   constructor(studio: Studio) {
     this.studio = studio;
     this.router = new Router(studio, {
       prepare: async () => {},
-      build: async () => ({ ok: false, log: "no builds in tests" }),
-      emit: (event, data) => this.events.push([event, data]),
+      build: async (_zip, device) => ({ ok: false, device, log: "no builds in tests", seconds: 0, memory: null, download: null }),
+      emit: (event) => this.events.push([event.event, event.data]),
     });
   }
 
@@ -59,7 +66,7 @@ export class Client {
   /** `op` with `args`, and a file's bytes as the page sends them. */
   async call(op: string, args: Record<string, unknown> = {}, body: Uint8Array | string | null = null): Promise<Reply> {
     const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
-    return await this.router.handle({ op, args, body: bytes, tab: this.tab }) as Reply;
+    return await this.router.handle({ op, args, body: bytes, tab: this.tab } as Request) as Reply;
   }
 
   /** A face from a template, as its summary; throws unless it was made. */

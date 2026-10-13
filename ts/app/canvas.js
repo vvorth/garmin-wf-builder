@@ -20,6 +20,10 @@ import {
   angleAt, dragHint, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.js";
 
+/** @typedef {import("../src/studio/protocol.ts").Frame} Frame */
+/** @typedef {import("../src/studio/protocol.ts").Skin} Skin */
+/** @typedef {import("../src/studio/protocol.ts").Summary} Summary */
+
 const ACCENT = "#4f9cf9";
 const GUIDE = "#f5c04a";
 const GRID_PERCENT = 5;     // the %r grid a move and a length snap to
@@ -40,9 +44,12 @@ async function decodePng(src) {
   return { width: data.width, height: data.height, data: data.data };
 }
 
-// A frame's layers, ready to draw and hit-test: its tiles inflated, a
-// fallback layer's image decoded. A JSON layer's ink is worked out the
-// first time a press lands in its box (`inkAt`).
+/**
+ * A frame's layers, ready to draw and hit-test: its tiles inflated, a
+ * fallback layer's image decoded. A JSON layer's ink is worked out the
+ * first time a press lands in its box (`inkAt`).
+ * @param {Frame} frame
+ */
 async function prepare(frame) {
   const tiles = await raster.inflateTiles(frame.tiles);
   const boxes = new Map(frame.items.map((i) => [i.id, i.box]));
@@ -305,15 +312,20 @@ function changed(gesture) {
   return Math.abs(gesture.degrees - (gesture.key === "sweep" ? gesture.handle.sweep : gesture.handle.start)) >= 0.5;
 }
 
-// `zoom`: screen (CSS) pixels per watch pixel; the frame was drawn at
-// `frame.scale` and is shown at the zoom. `skin`: the watch drawn round the
-// screen, at the frame's scale, with where the screen sits in it.
-// `selected` and `extra`: the selection, `extra` being the elements added
-// to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
-// carries. `queue`: the editor's outbox. `onPick(id, additive)`;
-// `onDrag(ids, gesture, {item, moving, preview})` adds a gesture to it.
-// Escape cancels a drag under way, and goes no further (with none, the
-// editor's own Escape deselects).
+/**
+ * `frame`: the face as the worker drew it (`protocol.ts`'s Frame).
+ * `zoom`: screen (CSS) pixels per watch pixel; the frame was drawn at
+ * `frame.scale` and is shown at the zoom. `skin`: the watch drawn round the
+ * screen, at the frame's scale, with where the screen sits in it.
+ * `selected` and `extra`: the selection, `extra` being the elements added
+ * to it with Ctrl/Cmd/Shift; `tree`: the face's blocks, for what a group
+ * carries. `queue`: the editor's outbox. `onPick(id, additive)`;
+ * `onDrag(ids, gesture, {item, moving, preview})` adds a gesture to it.
+ * Escape cancels a drag under way, and goes no further (with none, the
+ * editor's own Escape deselects).
+ * @param {{frame: Frame, selected: string | null, extra?: string[], tree?: Summary["tree"], queue?: any[],
+ *   onPick: (id: string | null, additive: boolean) => void, onDrag: Function, zoom?: number, skin?: Skin | null}} props
+ */
 export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onPick, onDrag,
                          zoom = frame.scale, skin = null }) {
   const overlay = useRef(null);
@@ -471,11 +483,14 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
 // How long the face must stay unchanged before the strip draws it again.
 export const STRIP_SETTLE_MS = 250;
 
-// One small frame per target, the selected device marked; a click views it.
-// The thumbnails follow the face once it has been still for
-// `STRIP_SETTLE_MS`: long enough that a run of drags is not a run of
-// thumbnails per target. (An edit never waits on them: the worker answers
-// thumbnails last, so the settle is only this coalescing.)
+/**
+ * One small frame per target, the selected device marked; a click views it.
+ * The thumbnails follow the face once it has been still for
+ * `STRIP_SETTLE_MS`: long enough that a run of drags is not a run of
+ * thumbnails per target. (An edit never waits on them: the worker answers
+ * thumbnails last, so the settle is only this coalescing.)
+ * @param {{doc: Summary, view: any, picks: string, onDevice: (device: string) => void}} props
+ */
 export function Strip({ doc, view, picks, onDevice }) {
   const [version, setVersion] = useState(doc.version);
   useEffect(() => { setVersion(doc.version); }, [doc.id]);

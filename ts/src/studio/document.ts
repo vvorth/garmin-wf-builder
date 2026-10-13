@@ -37,7 +37,10 @@ import { frameItems, pngBytes, previewOptions, type PreviewOptions, render, reso
 import { assetPath, type Bundle, bundle, FACE, inside, missing, references } from "./bundle.ts";
 import { describe, handles } from "./drag.ts";
 import { GEOMETRY, globalsOf, inspect } from "./inspect.ts";
-import { jsonDumps } from "./json.ts";
+import { jsonDumps, plain } from "./json.ts";
+import type {
+  Diagnostic as ShownDiagnostic, EventData, EventName, Frame, FrameItem, FrameLayer, History, Inspect, Summary, TreeBlock, TreeNode, Value,
+} from "./protocol.ts";
 import { canRedo, canUndo, CHANGE, type Change, REDO, type Snapshot, type Store, UNDO, UnknownDocument } from "./store.ts";
 
 /** A change asked for against a version that is no longer the head. */
@@ -268,21 +271,21 @@ function blockPaths(index: SpanIndex): [Path, string][] {
   return out;
 }
 
-function children(index: SpanIndex, block: Entry): Json[] {
-  const out: Json[] = [];
+function children(index: SpanIndex, block: Entry): TreeNode[] {
+  const out: TreeNode[] = [];
   for (const entry of index.entries()) {
     if (entry.path.length !== block.path.length + 1 || !entry.path.slice(0, -1).every((s, i) => s === block.path[i])) continue;
     if (!isElement(index, entry)) continue;
     let data: unknown = index.data;
     for (const step of entry.path) data = (data as Map<unknown, unknown>).get(step);
     const end = index.text.slice(0, index.valueEnd(entry)).split("\n").length - 1;
-    const node: Json = {
-      kind: "element", id: entry.name, type: (data as Map<unknown, unknown>).get("type") ?? null, path: [...entry.path],
-      line: entry.key.start.line + 1, end, children: [] as Json[],
+    const node: TreeNode = {
+      kind: "element", id: entry.name, type: plain((data as Map<unknown, unknown>).get("type") ?? null) as Value, path: [...entry.path],
+      line: entry.key.start.line + 1, end, children: [],
     };
     for (const sub of ELEMENT_BLOCKS) {
       const childBlock = index.get([...entry.path, sub]);
-      if (childBlock !== undefined) (node["children"] as Json[]).push(...children(index, childBlock));
+      if (childBlock !== undefined) node.children.push(...children(index, childBlock));
     }
     out.push(node);
   }
@@ -475,11 +478,11 @@ export class Document {
   }
 
   /** The line of history, its newest `limit` states (all with `null`), and every snapshot. */
-  history(limit: number | null = HISTORY_SHOWN): Json {
+  history(limit: number | null = HISTORY_SHOWN): History {
     const store = this.studio.store;
     const line = store.timeline(this.id);
     const first = limit === null ? 0 : Math.max(0, line.states.length - limit);
-    const states: Json[] = [];
+    const states: History["states"] = [];
     for (let i = line.states.length - 1; i >= first; i--) {
       const c = line.states[i]!;
       states.push({ seq: c.seq, time: c.time, label: c.label, current: i === line.cursor, redo: i > line.cursor });
@@ -761,12 +764,12 @@ export class Document {
     return analysis;
   }
 
-  diagnostics(): Json[] {
+  diagnostics(): ShownDiagnostic[] {
     return this.analysis().bag.shown().map((d) => this.diagnostic(d));
   }
 
-  private diagnostic(d: Diagnostic): Json {
-    const out: Json = { severity: d.severity, code: d.code, message: d.message, notes: [...d.notes] };
+  private diagnostic(d: Diagnostic): ShownDiagnostic {
+    const out: ShownDiagnostic = { severity: d.severity, code: d.code, message: d.message, notes: [...d.notes] };
     if (d.span !== null) Object.assign(out, { file: d.span.path, line: d.span.line, col: d.span.col });
     return out;
   }
@@ -802,15 +805,15 @@ export class Document {
    * frame's `tiles`, or, for one with an op the browser does not draw (an
    * outlined group's ring), its image cropped to its ink.
    */
-  frame(key: FrameKey): Json {
-    return this.cached("frame", key, () => {
+  frame(key: FrameKey): Frame {
+    return this.cached("frame", key, (): Frame => {
       const [resolved, options] = this.placed(key);
       const entry = resolveStyleEntry(resolved.face, options.style);
       const drawn = new Set(frameItems(resolved, options, entry).map((p) => p.id));
       const layout = entry !== null ? entry.layout : null;
       // A group the author wrote; the `static:` block's and a layout's own groups are containers, not elements.
       const authored = indexFor(this.text).elementIds();
-      const items: Json[] = [];
+      const items: FrameItem[] = [];
       for (const placed of resolved.items) {
         if (!drawn.has(placed.id) && !(placed.kind === "group" && authored.has(placed.id) && inLayout(placed, layout))) continue;
         const box = placed.box;
@@ -820,7 +823,7 @@ export class Document {
           box: [box.x, box.y, box.width, box.height], center: [...placed.center], handles: handles(placed),
         });
       }
-      const stack: Json[] = [];
+      const stack: FrameLayer[] = [];
       let tiles = null;
       for (const layer of layers(resolved, options, { paintAll: false })) {
         tiles = layer.tiles ?? tiles;
@@ -966,7 +969,7 @@ export class Document {
   // -- what the editor shows --
 
   /** The face's element blocks in draw order, each element with its children. */
-  tree(): Json[] {
+  tree(): TreeBlock[] {
     let index: SpanIndex;
     try {
       index = indexFor(this.text);
@@ -974,18 +977,16 @@ export class Document {
       if (error instanceof Refused) return [];
       throw error;
     }
-    return blockPaths(index).map(([p, label]) => {
+    return blockPaths(index).map(([p, label]): TreeBlock => {
       const entry = index.get(p);
       return { kind: "block", label, path: [...p], line: entry ? entry.key.start.line + 1 : null, children: entry ? children(index, entry) : [] };
     });
   }
 
-  summary(): Json {
+  summary(): Summary {
     const analysis = this.analysis();
     const face = analysis.face;
-    const styles = face !== null && face.config_style !== null
-      ? face.config_style.entries.map((e) => ({ name: e.name, label: (e as { label?: string | null }).label || e.name }))
-      : [];
+    const styles = face !== null && face.config_style !== null ? face.config_style.entries.map((e) => ({ name: e.name, label: e.label || e.name })) : [];
     return {
       id: this.id, name: this.name, version: this.version, text: this.text, missing: this.missing(),
       loads: face !== null, targets: [...analysis.resolved.keys()], styles, tree: this.tree(),
@@ -994,7 +995,7 @@ export class Document {
     };
   }
 
-  inspect(element: unknown, deviceId: string | null): Json {
+  inspect(element: unknown, deviceId: string | null): Inspect {
     return inspect(this.text, path(element), deviceId ? this.studio.db.get(deviceId) : null);
   }
 }
@@ -1010,7 +1011,7 @@ export class Studio {
   readonly memo: BakeMemo = new WeakMap();
   readonly snapshotSeconds: number;
   readonly keepChanges: number;
-  onEvent: (name: string, data: Json) => void = () => {};
+  onEvent: <E extends EventName>(name: E, data: EventData<E>) => void = () => {};
   private readonly open = new Map<string, Document>();
   private readonly icon: () => FontFile;
   private readonly fontFiles = new Map<string, FontFile>();

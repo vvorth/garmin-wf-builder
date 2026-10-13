@@ -199,7 +199,9 @@ ts/                   the compiler, its tests and tools: one package for the
     build.ts, node_build.ts  the pipeline, and writing and compiling a project (Node)
     cli.ts                `wfb`, over node:util's parseArgs; term.ts behind it
     studio/               the editor's worker (the history store, open documents, the
-                          requests) and its server (devices, fonts, builds)
+                          requests) and its server (devices, fonts, builds);
+                          protocol.ts is the page/worker contract, every request
+                          and answer as TypeScript interfaces
     browser.ts            the browser bundle's entry (npm run bundle -> dist/wfb.js)
     data/                 tables the browser needs without a file system
                           (font-registry.json: device font name -> free font)
@@ -285,7 +287,9 @@ browser reader is the preview's rasteriser itself (`ts/src/raster/`:
 Garmin's own rules in `garmin.ts` where simulator captures pin them,
 Pillow's primitives and paste elsewhere), which `wfb studio` bundles for
 the page from `ts/src/raster/canvas.ts`.
-The editor's frame (`ts/src/studio/document.ts`, `Document.frame`) carries its
+The editor's frame (`ts/src/studio/document.ts`, `Document.frame`; its shape
+is `Frame` in `ts/src/studio/protocol.ts`, as every payload the worker
+sends to the page is) carries its
 layers this way: `layers(..., paint_all=False)` paints only a layer with an
 op outside `BROWSER_OPS` (an outlined group's ring), and the browser draws
 the rest, works out where each leaves ink for hit-testing (`raster.inkOf`,

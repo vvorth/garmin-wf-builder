@@ -7,7 +7,8 @@
 //
 // An answer is `{status, json}`, or `{status, body, type, filename}` for a
 // file; a refusal's status says why: 400 refused, 404 no such face or
-// snapshot, 409 the face moved on (stale), 507 the store failed.
+// snapshot, 409 the face moved on (stale), 507 the store failed. Every
+// request's arguments and every answer's shape is `./protocol.ts`.
 //
 // Requests are answered one at a time (`exclusive`), so no two interleave
 // over one face; a build waits its turn only to check and pack the face, and
@@ -34,41 +35,30 @@ import { BundleError, bundle, readUpload, toZip } from "./bundle.ts";
 import { base64, type Document, frameKey, type FrameKey, StaleVersion, type Studio } from "./document.ts";
 import { devices, vocabulary } from "./inspect.ts";
 import { plain } from "./json.ts";
+import type {
+  Answer, BuildResult, Event, EventData, EventName, Home, Op, RefusedResponse, Request, Response, Skin, Vocabulary,
+} from "./protocol.ts";
 import { StoreError, UnknownDocument, UnknownSnapshot } from "./store.ts";
 
+export type { Request, Response };
+
+/** A request's arguments as they arrive: checked field by field below. */
 type Json = Record<string, unknown>;
-
-export interface Request {
-  op: string;
-  args?: Json;
-  /** A file's bytes: an upload or an asset. */
-  body?: Uint8Array | null;
-  /** The tab asking, which `changed` names so it can skip its own change. */
-  tab?: string | null;
-}
-
-export interface Response {
-  status: number;
-  /** A JSON answer, or bytes with their type. */
-  json?: unknown;
-  body?: Uint8Array;
-  type?: string;
-  /** A download's file name. */
-  filename?: string;
-}
 
 export interface Host {
   /** Load whatever the named devices need before the compiler reads them (fonts, skins, the vector `faces` named); nothing in Node. */
   prepare(deviceIds: readonly string[], faces?: readonly string[]): Promise<void>;
   /** Build a face's bundle for one watch on the server. */
-  build(zip: Uint8Array, device: string, version: number, stem: string): Promise<Json>;
-  emit(event: string, data: Json): void;
+  build(zip: Uint8Array, device: string, version: number, stem: string): Promise<BuildResult>;
+  /** Tell the page, and the other tabs, what the studio did. */
+  emit(event: Event): void;
   /** The installed devices as the vocabulary lists them, when the host has them listed already (`inspect.devices`). */
   devices?(): ReturnType<typeof devices>;
 }
 
-const json = (value: unknown, status = 200): Response => ({ status, json: plain(value) });
-const error = (status: number, message: string): Response => ({ status, json: { error: message } });
+// `plain` guards the answer against a stray `Map`; the builders already return the protocol's shapes.
+const json = <T extends Answer<Op>>(value: T): { status: 200; json: T } => ({ status: 200, json: plain(value) as T });
+const error = (status: RefusedResponse["status"], message: string): RefusedResponse => ({ status, json: { error: message } });
 
 function int(args: Json, name: string): number {
   const value = args[name];
@@ -159,8 +149,9 @@ const PRIORITY: Record<string, number> = { get: 1, inspect: 1, frame: 1, handset
 /** For a frame or thumbnail, what it draws: its arguments but `v`, the version the page asked at, with their keys sorted; `null` for any other request. */
 function sameAsk({ op, args = {} }: Request): string | null {
   if (op !== "frame" && op !== "thumbnail") return null;
-  const keys = Object.keys(args).filter((k) => k !== "v").sort();
-  return JSON.stringify([op, keys.map((k) => [k, args[k] ?? null])]);
+  const fields = args as Record<string, unknown>;
+  const keys = Object.keys(fields).filter((k) => k !== "v").sort();
+  return JSON.stringify([op, keys.map((k) => [k, fields[k] ?? null])]);
 }
 
 export class Router {
@@ -173,10 +164,10 @@ export class Router {
   }
 
   /** What this request did, announced once its writes are on disk: another tab's worker reads them then. */
-  private announced: [string, Json][] = [];
+  private announced: Event[] = [];
 
-  private emit(event: string, data: Json): void {
-    this.announced.push([event, data]);
+  private emit<E extends EventName>(event: E, data: EventData<E>): void {
+    this.announced.push({ event, data } as Event);
   }
 
   // One request at a time across every face; render is synchronous, so only a worker per face would let a slow frame not hold up another face.
@@ -230,7 +221,7 @@ export class Router {
     try {
       const answer = await this.route(request);
       await this.studio.store.flush();
-      for (const [event, data] of this.announced) this.host.emit(event, data);
+      for (const event of this.announced) this.host.emit(event);
       return answer;
     } catch (e) {
       if (e instanceof UnknownDocument) return error(404, "there is no such face; it may have been deleted");
@@ -258,17 +249,20 @@ export class Router {
     return json(doc.summary());
   }
 
-  private async route({ op, args = {}, body = null, tab = null }: Request): Promise<Response | (() => Promise<Response>)> {
+  private async route(request: Request): Promise<Response | (() => Promise<Response>)> {
+    const { op, body = null, tab = null } = request;
+    // the page's arguments are data: each is read by name and checked for its type below
+    const args = (request.args ?? {}) as Json;
     const studio = this.studio;
     switch (op) {
       case "home":
-        return json({
+        return json<Home>({
           templates: starters.names().map((n) => ({ name: n, blurb: starters.blurb(n) })),
           documents: studio.store.documents(), store: "this browser", shared: true,
         });
       case "vocabulary": {
         const [installed, unreadable] = this.host.devices?.() ?? devices(studio.db);
-        return json({ ...vocabulary(), devices: installed, unreadable_devices: unreadable });
+        return json<Vocabulary>({ ...vocabulary(), devices: installed, unreadable_devices: unreadable });
       }
       case "skin": {
         const device = text(args, "device");
@@ -278,7 +272,7 @@ export class Router {
         if (found === null) return error(404, `${device}'s files have no skin`);
         const [image, [x, y]] = found;
         const png = encodePng(image.width, image.height, new Uint8Array(image.data.buffer, image.data.byteOffset, image.data.byteLength), 4);
-        return json({ device, scale, image: "data:image/png;base64," + base64(png), width: image.width, height: image.height, x, y });
+        return json<Skin>({ device, scale, image: "data:image/png;base64," + base64(png), width: image.width, height: image.height, x, y });
       }
       case "new": {
         const template = text(args, "template") || "minimal";
