@@ -539,7 +539,12 @@ test("a target the face cannot draw on is refused with the compiler's reason", a
 test("a font file that does not bake is refused, not stored", async () => {
   const doc = make(await newStudio());
   const before = [doc.text, doc.version, Object.keys(doc.head.assets)];
+  // not a font at all: refused by its first bytes
   assert.throws(() => doc.addAsset("bad.ttf", new TextEncoder().encode("not a font"), null, doc.version, ["bad", "10%r"]),
-    (e: Error) => e instanceof Refused && /unknown file format/.test(e.message));
+    (e: Error) => e instanceof Refused && /not a TrueType or OpenType font file/.test(e.message));
+  // an sfnt signature over garbage: refused by the bake, through the gate
+  const garbage = new Uint8Array([0x4f, 0x54, 0x54, 0x4f, ...new TextEncoder().encode("not a font, just the signature")]);
+  assert.throws(() => doc.addAsset("bad.otf", garbage, null, doc.version, ["bad", "10%r"]),
+    (e: Error) => e instanceof Refused && /add the font bad from assets\/bad\.otf: /.test(e.message));
   assert.deepEqual([doc.text, doc.version, Object.keys(doc.head.assets)], before);
 });
