@@ -7,10 +7,9 @@ in the GUI, others are not supported at all. Research how to make it a
 full-featured GUI, with full freedom to change the YAML format and to
 rewrite the GUI from scratch if needed.
 
-**Status (2026-10-13): research complete; the decisions in §10 are open
-and wait for the user.** Plan 33 (`docs/plans/33-full-editor.md`) is
-written against the recommended answers and starts only once they are
-taken.
+**Status (2026-10-13): research complete; the user took every decision in
+§10 as recommended the same day.** Plan 33 (`docs/plans/33-full-editor.md`)
+builds it, slice by slice.
 
 **Method.** Three audits of the code as it stands at `695d1e9` (every file
 under `ts/app/`, `ts/src/studio/`, `ts/src/edit/`, the schema, the guide

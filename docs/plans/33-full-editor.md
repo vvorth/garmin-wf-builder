@@ -1,9 +1,9 @@
 # Plan 33 — A full-featured editor: `wfb studio` rebuilt over its engine
 
-**Status: proposed, waiting on the user's decisions D1–D11 in
-`docs/research/34-full-editor.md` §10.** Written against the recommended
-answers; a decision that goes the other way removes or reshapes the slice
-that depends on it (noted per slice). Nothing here is built.
+**Status: open, in progress.** The user took every decision D1–D11 of
+`docs/research/34-full-editor.md` §10 as recommended on 2026-10-13 and
+asked for the slices to be built in order, unattended, starting with 0a.
+Each slice's status is noted at its heading as it ships.
 
 **Scope.** Keep the engine (`ts/src/edit/`, `store.ts`, `router.ts`,
 `worker.ts`, `gate.ts`, `bundle.ts`, the rasteriser). Replace the page
@@ -218,8 +218,16 @@ desugaring pass).
 
 ## Decisions recorded
 
-None yet. The user's answers to D1–D11 are recorded here as they are
-taken, with the date.
+**2026-10-13:** D1 B (rewrite the page and inspector over the engine); D2
+engine additions now; D3 the editing context decides where an edit goes;
+D4 id-keyed parts and `mirror:`; D5 all four shape clean-ups; D6
+whole-key `overrides:` with writable `display:`; D7 F8 and F9; D8 rule
+lists built with the condition editor; D9 editor-only state in browser
+storage; D10 Playwright with the user's device files, and a probe of the
+fixture device; D11 engine first, format changes alongside the editor
+slice that needs each. Work proceeds slice by slice without further
+sign-off; subagents build, and every subagent's result is re-verified
+before it is integrated.
 
 ## Not in this plan
 
