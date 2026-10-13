@@ -125,3 +125,20 @@ export function rangeIds(blocks, from, to) {
   if (a < 0) return [to];
   return outermost(blocks, order.slice(Math.min(a, b), Math.max(a, b) + 1));
 }
+
+// The handle a press at device pixel (x, y) takes on `item`, the selected
+// element, or null when the press moves it instead. A handle takes a press
+// within `zone` screen pixels of it (`zoom` screen pixels per device
+// pixel). A size handle's zone covers the whole body of an element thinner
+// than two zones along the handle's axis (a 4-px bar), where a press
+// inside the element's box would otherwise never move it: there the press
+// is a move, and the handle takes only a press outside the box. A line's
+// ends and an arc's angle handles sit at the element's ends and always
+// take a press near them.
+export function handleAt(item, x, y, zoom, zone) {
+  const near = (h) => Math.abs((h.x - x) * zoom) <= zone && Math.abs((h.y - y) * zoom) <= zone;
+  const [bx, by, bw, bh] = item.box || [0, 0, 0, 0];
+  const inside = x >= bx && y >= by && x < bx + bw && y < by + bh;
+  const covered = (h) => h.kind === "size" && inside && (h.axis === "y" ? bh : bw) * zoom < 2 * zone;
+  return item.handles.find((h) => near(h) && !covered(h)) || null;
+}

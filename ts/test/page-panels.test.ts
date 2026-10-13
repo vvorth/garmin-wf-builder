@@ -4,6 +4,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantiate, len, node, page, render, repoText, run, summary, testUri } from "./page-harness.ts";
+import { inspect } from "../src/studio/inspect.ts";
+import { plain } from "../src/studio/json.ts";
+import { installAssets } from "../src/node.ts";
 
 test("the colours say who uses them and a pick changes the swatch", async () => {
   const text = summary(instantiate("minimal", "T"));
@@ -244,4 +247,93 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
   assert.deepEqual(notes_only, "Diagnostics ✕ 1⚠ 2ℹ 1 · notes only");
   assert.deepEqual(no_notes, "Diagnostics ✕ 1⚠ 2", "a filter on an absent severity is not claimed");
   assert.ok((eq(held, ["erroran error"]) && eq(asked, ["note"])));
+});
+
+test("a unit change converts an angle, asks for a length, and offers pt only where a font is in scope", async () => {
+  // Switching the unit select used to write the old number in the new
+  // unit (`360deg` became `360turn`, `-50%r` became `-50px`). Degrees and
+  // turns convert; a length in another unit clears the number box,
+  // showing the old value as its placeholder, and writes nothing until a
+  // number is typed. `pt` is a font's own unit, so a rectangle is not
+  // offered it.
+  const text = instantiate("minimal", "T") + `
+  bar:
+    type: rectangle
+    at: { anchor: center, dx: -50%r }
+    size: { width: 60%r, height: 3%r }
+    color: color.dim
+
+  ring:
+    type: arc
+    at: { anchor: center }
+    radius: 40%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: color.dim
+`;
+  const doc = summary(text);
+  installAssets();
+  const inspected: Record<string, unknown> = {};
+  for (const id of ["bar", "ring", "clock"]) inspected[id] = plain(inspect(text, ["elements", id], null));
+  const script = `
+      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
+      const document = install();
+      const focused = [];
+      const make = document.createElement;
+      document.createElement = (n) => { const e = make(n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
+      const inspected = ${JSON.stringify(inspected)};
+      // the worker, answering inspect from the payloads above
+      globalThis.Worker = class {
+        postMessage({ id, request }) {
+          const { op, args } = request;
+          const json = op === "inspect" ? inspected[args.element[args.element.length - 1]] : {};
+          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
+        }
+      };
+      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
+      const edits = [];
+      const root = document.createElement("div");
+      const settle = () => new Promise((r) => setTimeout(r, 5));
+      const cls = (e) => e.attributes.class || "";
+      const show = async (id) => {
+        render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", id] }} device="" vocab=\${{}}
+          scope="all" onScope=\${() => {}} onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }}
+          onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
+        await settle(); await settle();
+      };
+      // the number box and unit select of the field named \`key\`
+      const qty = (key) => {
+        const field = root.all((e) => cls(e).startsWith("field") && e.childNodes[0] && e.childNodes[0].textContent === key)[0];
+        const box = field.all((e) => e.localName === "input")[0];
+        const select = field.all((e) => e.localName === "select")[0];
+        return { box, select, units: select.all((e) => e.localName === "option").map((o) => o.textContent) };
+      };
+      const pick = async (q, unit) => { q.select.value = unit; q.select.dispatch("change", { target: q.select }); await settle(); };
+      const type = async (q, text) => { q.box.value = text; q.box.dispatch("input", { target: q.box }); q.box.dispatch("blur", { target: q.box }); await settle(); };
+      const out = (v) => console.log(JSON.stringify(v));
+
+      await show("ring");
+      await pick(qty("sweep"), "turn");
+      out(edits.splice(0));
+      await show("bar");
+      out(qty("dx").units);
+      let dx = qty("dx");
+      await pick(dx, "px");
+      dx = qty("dx");
+      out([edits.length, dx.box.attributes.value ?? "", dx.box.attributes.placeholder, focused.splice(0)]);
+      await type(dx, "-80");
+      out(edits.splice(0));
+      await show("clock");
+      out(qty("dx").units);
+    `;
+  const done = node(script);
+  assert.deepEqual(done.returncode, 0, done.stderr.slice(-1500));
+  const [turned, barUnits, cleared, typed, clockUnits] = done.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  assert.deepEqual(turned, [{ op: "set", element: ["elements", "ring"], path: ["sweep"], scope: "all", device: null, value: "1turn" }]);
+  assert.deepEqual(barUnits, ["px", "%", "%r"], "a rectangle has no font for pt to measure against");
+  assert.deepEqual(cleared, [0, "", "-50", ["-50"]], "nothing written; the old number is the placeholder of the focused, empty box");
+  assert.deepEqual(typed, [{ op: "set", element: ["elements", "bar"], path: ["at", "dx"], scope: "all", device: null, value: "-80px" }]);
+  assert.deepEqual(clockUnits, ["px", "%", "%r", "pt"]);
 });

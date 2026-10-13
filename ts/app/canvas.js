@@ -13,7 +13,7 @@
 
 import { WorkerImage } from "./ui.js";
 import { html, useEffect, useMemo, useRef, useState } from "./vendor/preact-htm.module.js";
-import { elementOf, moveHandle, movedBy, together, topmost } from "./hit.js";
+import { elementOf, handleAt, moveHandle, movedBy, together, topmost } from "./hit.js";
 import { offsets, shiftItems, unshown } from "./outbox.js";
 import * as raster from "/dist/raster.js";
 import {
@@ -379,7 +379,8 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
              sx: e.clientX, sy: e.clientY };
   };
 
-  // A press on a handle drags it; on the move handle, the whole selection
+  // A press on a handle drags it (`handleAt`: inside a thin element it is
+  // a move); on the move handle, the whole selection
   // (a group with its children); on an element that is itself selected,
   // the whole selection too, and if it turns out to be a click, just that
   // element. A press anywhere else, a selected group's member included,
@@ -391,8 +392,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     const chosen = [selected, ...extra].filter(Boolean);
     const grip = moveHandle(seen.items, chosen, (GRIP + 2) / zoom);
     const onGrip = grip && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
-    const near = (h) => Math.abs((h.x - p.x) * zoom) <= HANDLE + 2 && Math.abs((h.y - p.y) * zoom) <= HANDLE + 2;
-    const handle = !onGrip && item && !extra.length ? item.handles.find(near) : null;
+    const handle = !onGrip && item && !extra.length ? handleAt(item, p.x, p.y, zoom, HANDLE + 2) : null;
     const under = handle || onGrip ? null : pick(seen, usable, p.x, p.y, by);
     if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       if (under) onPick(under, true);

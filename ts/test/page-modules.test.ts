@@ -292,3 +292,87 @@ test("diagnostics are counted and filtered most severe first", async () => {
   const result = await run("\n      const items = [{severity: \"note\", m: 1}, {severity: \"error\", m: 2},\n                     {severity: \"warning\", m: 3}, {severity: \"error\", m: 4}];\n      console.log(JSON.stringify({\n        counts: values.severityCounts(items),\n        all: values.shownDiagnostics(items).map((d) => d.m),\n        errors: values.shownDiagnostics(items, \"error\").map((d) => d.m),\n      }));\n    ");
   assert.deepEqual(result, {"counts": {"error": 2, "warning": 1, "note": 1}, "all": [2, 4, 3, 1], "errors": [2, 4]});
 });
+
+test("a press inside a thin element moves it; a handle takes a press outside it or on a big one", async () => {
+  // A 4-px bar at zoom 2 is 8 screen pixels tall, inside the 7-px zone of
+  // its height handle on both sides: a press on the bar used to resize it.
+  // A line's ends and an arc's angle handles sit at the element's ends and
+  // keep winning.
+  const result = await run(`
+      const zone = 7, z = 2;
+      const bar = { id: "bar", box: [20, 100, 100, 4], center: [70, 102], handles: [
+        { kind: "size", key: ["size", "width"], axis: "x", gain: 2, x: 120, y: 102 },
+        { kind: "size", key: ["size", "height"], axis: "y", gain: 2, x: 70, y: 104 },
+      ] };
+      const big = { id: "big", box: [20, 20, 100, 100], center: [70, 70], handles: [
+        { kind: "size", key: ["size", "width"], axis: "x", gain: 2, x: 120, y: 70 },
+        { kind: "size", key: ["size", "height"], axis: "y", gain: 2, x: 70, y: 120 },
+      ] };
+      const line = { id: "line", box: [20, 100, 100, 2], center: [20, 100], handles: [
+        { kind: "end", part: "at", x: 20, y: 100 }, { kind: "end", part: "to", x: 120, y: 100 },
+      ] };
+      const dot = { id: "dot", box: [68, 68, 4, 4], center: [70, 70], handles: [
+        { kind: "size", key: ["radius"], axis: "x", gain: 1, x: 72, y: 70 },
+      ] };
+      const arc = { id: "arc", box: [30, 30, 80, 80], center: [70, 70], handles: [
+        { kind: "size", key: ["radius"], axis: "x", gain: 1, x: 110, y: 70 },
+        { kind: "angle", key: "start_angle", cx: 70, cy: 70, start: 0, sweep: 90, x: 70, y: 30 },
+        { kind: "angle", key: "sweep", cx: 70, cy: 70, start: 0, sweep: 90, x: 110, y: 70 },
+      ] };
+      const key = (h) => (h === null ? null : h.key || h.part);
+      console.log(JSON.stringify({
+        barMiddle: key(hit.handleAt(bar, 70, 102, z, zone)),
+        barBelow: key(hit.handleAt(bar, 70, 106, z, zone)),
+        barEnd: key(hit.handleAt(bar, 119, 102, z, zone)),
+        bigEdge: key(hit.handleAt(big, 119, 70, z, zone)),
+        bigMiddle: key(hit.handleAt(big, 70, 70, z, zone)),
+        lineMiddle: key(hit.handleAt(line, 70, 100, z, zone)),
+        lineEnd: key(hit.handleAt(line, 119, 100, z, zone)),
+        dot: key(hit.handleAt(dot, 70, 70, z, zone)),
+        arcRim: key(hit.handleAt(arc, 109, 70, z, zone)),
+        arcTop: key(hit.handleAt(arc, 70, 31, z, zone)),
+      }));
+    `);
+  assert.deepEqual(result, {
+    barMiddle: null, barBelow: ["size", "height"], barEnd: ["size", "width"],
+    bigEdge: ["size", "width"], bigMiddle: null,
+    lineMiddle: null, lineEnd: "to",
+    dot: null,
+    arcRim: ["radius"], arcTop: "start_angle",
+  });
+});
+
+test("a unit converts where no device is needed, and the lengths a kind offers", async () => {
+  const result = await run(`
+      const c = values.convertQuantity;
+      console.log(JSON.stringify({
+        turn: c(360, "deg", "turn"), deg: c(0.25, "turn", "deg"), same: c(12, "px", "px"),
+        rad: c(90, "deg", "rad"), px: c(-50, "%r", "px"), pct: c(50, "%", "%r"), pt: c(12, "px", "pt"),
+        text: values.lengthUnitsFor("text"), data: values.lengthUnitsFor("data"), rect: values.lengthUnitsFor("rectangle"),
+        none: values.lengthUnitsFor(undefined),
+      }));
+    `);
+  assert.deepEqual(result, {
+    turn: 1, deg: 90, same: 12, rad: null, px: null, pct: null, pt: null,
+    text: ["px", "%", "%r", "pt"], data: ["px", "%", "%r", "pt"], rect: ["px", "%", "%r"], none: ["px", "%", "%r"],
+  });
+});
+
+test("leaving the page is questioned while a change is on its way", async () => {
+  // A change queued or sent and not answered, or the YAML tab's text not
+  // yet taken, is lost with the page; text the worker refused was answered
+  // and is shown as not saved already.
+  const result = await run(`
+      const f = outbox.inFlight;
+      console.log(JSON.stringify([
+        f({}),
+        f({ queue: [{ state: "done" }] }),
+        f({ queue: [{ state: "sent" }] }),
+        f({ queue: [{ state: "done" }, { state: "queued" }] }),
+        f({ yaml: "send" }),
+        f({ yaml: "held" }),
+        f({ yaml: "wait" }),
+      ]));
+    `);
+  assert.deepEqual(result, [false, false, true, true, true, false, false]);
+});

@@ -5,7 +5,7 @@
 
 import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
 import {
-  ANGLE_UNITS, LENGTH_UNITS, afterRemovingSchemes, at, colorName, formatQuantity,
+  ANGLE_UNITS, afterRemovingSchemes, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.js";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
@@ -29,41 +29,59 @@ const FACE_SECTION_GUIDE = {
 };
 
 // A text input that commits on Enter or when it loses focus, and resets
-// when the value it shows changes underneath it.
-function Commit({ value, onCommit, placeholder, mono, list, width }) {
+// when the value it shows changes underneath it. `focus` true takes the
+// focus, so the author can type at once.
+function Commit({ value, onCommit, placeholder, mono, list, width, focus = false }) {
   const [text, setText] = useState(value ?? "");
+  const input = useRef(null);
   useEffect(() => setText(value ?? ""), [value]);
+  useEffect(() => { if (focus && input.current && input.current.focus) input.current.focus(); }, [focus]);
   // The input's own value, not the state: a blur can arrive before the
   // re-render that typing schedules.
   const commit = (e) => { if (e.target.value !== (value ?? "")) onCommit(e.target.value); };
   return html`<input type="text" class=${mono ? "mono" : ""} value=${text} placeholder=${placeholder || ""}
-    list=${list} style=${width ? `width:${width}` : ""}
+    list=${list} style=${width ? `width:${width}` : ""} ref=${input}
     onInput=${(e) => setText(e.target.value)} onBlur=${commit}
     onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") setText(value ?? ""); }} />`;
 }
 
 // A number and its unit. An absent value starts in the unit of ``like`` (the
 // value an override would replace), so an override is written in the
-// author's own unit.
+// author's own unit. Choosing another unit converts the number where the
+// two units are commensurable without the watch (`convertQuantity`) and
+// writes it; otherwise nothing is written: the number box empties, shows
+// the old number as its placeholder and takes the focus, and the value is
+// written once a number is typed in the new unit. A value in a unit the
+// key no longer offers keeps its unit listed.
 function Quantity({ value, units, bareUnit, onCommit, placeholder, like }) {
   const q = parseQuantity(value, bareUnit);
   const l = parseQuantity(like, bareUnit);
   const initial = q ? q.unit : l && units.includes(l.unit) ? l.unit : units[0];
   const [unit, setUnit] = useState(initial);
-  useEffect(() => setUnit(initial), [value, like]);
+  const [pending, setPending] = useState(false);   // a unit chosen, its number not typed yet
+  useEffect(() => { setUnit(initial); setPending(false); }, [value, like]);
   const send = (numberText, u) => {
     if (numberText === "") return;
     const out = formatQuantity(Number(numberText), u, bareUnit, q ? q.bare : false);
     if (out !== null) onCommit(out);
   };
+  const choose = (to) => {
+    setUnit(to);
+    if (!q) return;
+    const converted = convertQuantity(q.number, q.unit, to);
+    setPending(converted === null);
+    if (converted !== null && to !== q.unit) send(String(converted), to);
+  };
   if (value != null && !q) {
     return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
   }
+  const offered = q && !units.includes(q.unit) ? [...units, q.unit] : units;
   return html`<span class="qty">
-    <${Commit} value=${q ? String(q.number) : ""} placeholder=${placeholder ?? (l ? String(l.number) : "")} width="5em"
+    <${Commit} value=${q && !pending ? String(q.number) : ""} width="5em" focus=${pending}
+      placeholder=${pending ? String(q.number) : placeholder ?? (l ? String(l.number) : "")}
       onCommit=${(t) => send(t, unit)} />
-    <select value=${unit} onChange=${(e) => { setUnit(e.target.value); if (q) send(String(q.number), e.target.value); }}>
-      ${units.map((u) => html`<option value=${u}>${u}</option>`)}
+    <select value=${unit} onChange=${(e) => choose(e.target.value)}>
+      ${offered.map((u) => html`<option value=${u}>${u}</option>`)}
     </select>
   </span>`;
 }
@@ -163,7 +181,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
   </select>`;
   switch (field.widget) {
     case "readonly": return html`<code>${String(value)}</code>`;
-    case "length": return html`<${Quantity} value=${value} like=${like} units=${LENGTH_UNITS} bareUnit="px" onCommit=${onCommit} />`;
+    case "length": return html`<${Quantity} value=${value} like=${like} units=${lengthUnitsFor(ctx.elementType)} bareUnit="px" onCommit=${onCommit} />`;
     case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
     case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
     case "color": {
@@ -245,7 +263,8 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
-  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection };
+  const ctx = { globals: doc.globals || {}, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
+                elementType: ins.type };
   // the slot this element draws, edited right here as in the Face tab
   const slotField = ins.fields.find((f) => f.key === "slot");
   const slotCard = slotField && (ctx.globals.slots || []).find((s) => s.name === slotField.value);
@@ -286,14 +305,6 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
 }
 
 // -- the Face panel ------------------------------------------------------------------
-
-// Which Face-tab section is open, as this browser last left it.
-function useFaceSection(defaultKey) {
-  const [key, setKey] = useState(() => {
-    try { return localStorage.getItem("wfb-face-section") || defaultKey; } catch (_) { return defaultKey; }
-  });
-  return [key, (k) => { setKey(k); try { localStorage.setItem("wfb-face-section", k); } catch (_) { /* private mode */ } }];
-}
 
 // A catalogue icon drawn with the icon font (`/api/icon-font`), or its
 // name when the catalogue has no such icon.
@@ -579,7 +590,9 @@ function NewSlot({ vocab, taken, onEdit }) {
   </div>`;
 }
 
-export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure, onReveal }) {
+// The Face tab: one section at a time (`section`, a key below, and
+// `onSection` to switch), as the editor holds it.
+export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure, onReveal, section, onSection }) {
   const g = doc.globals || {};
   const palette = g.palette || [];
   const schemes = g.schemes || { names: [], roles: [], colors: {} };
@@ -724,7 +737,12 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onStructure,
     ` },
   ];
 
-  const [activeKey, setActiveKey] = useFaceSection(SECTIONS[0].key);
+  // the open section is the editor's (`section`, `onSection`), so a jump
+  // from elsewhere switches it while the tab is showing; rendered alone,
+  // the panel keeps its own
+  const [own, setOwn] = useState(SECTIONS[0].key);
+  const activeKey = section ?? own;
+  const setActiveKey = onSection ?? setOwn;
   const active = SECTIONS.find((s) => s.key === activeKey) || SECTIONS[0];
   const [helpTopic, setHelpTopic] = useState(null);
   const guide = FACE_SECTION_GUIDE[active.key];

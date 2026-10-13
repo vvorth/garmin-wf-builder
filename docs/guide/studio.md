@@ -156,7 +156,7 @@ shown beside it), colour, role, font, slot, hand set and style name: type
 any part of a name, arrow keys move the highlight, Enter picks it.
 Picking an element selects it, exactly as clicking it in Layers or on the
 face would; picking anything else switches to the Face tab, open at the
-section that lists it.
+section that lists it (a Face tab already showing switches section).
 
 **Help** (in the top bar, and beside the title on the faces page) opens
 this guide and the README in a popup: links between pages open there,
@@ -179,7 +179,11 @@ it. Its handles resize it:
 | angle | an arc's two ends | `start_angle:`, `sweep:` |
 | end | a line's two ends | `at:`, `to:` |
 
-A polygon has no handles; its `points:` are edited in the YAML.
+A polygon has no handles; its `points:` are edited in the YAML. A handle
+takes a press within a few pixels of it, except where that zone would
+cover the element itself: pressing inside a thin bar, thinner than the
+zone, moves the bar, and its size handle takes a press just outside it.
+A line's ends keep their handles; a press on its middle moves it.
 
 **Selecting.** Click an element to select it; a click on the space
 around the watch, or **Escape**, selects nothing. Ctrl-, Cmd- or
@@ -241,11 +245,16 @@ face says how far the drag has gone and whether it snaps.
 the pixel you dropped it on, on the watch you are looking at. A key written
 in `pt` cannot be dragged (a `pt` has no size outside its font). When no
 value in the key's unit lands exactly on that pixel, the nearest one is
-written and a notice says so. A change the watch cannot lay out, such as a
-`pt` length on an element with no font in scope or a target one of the
-face's fonts has no face on, is refused with the reason, like any other
-change the compiler would not take; typed in the YAML tab, it is kept and
-shown as an error on its line.
+written and a notice says so. In Properties, choosing another unit for a
+number converts it where no watch is needed to (degrees and turns) and
+writes it; otherwise (`px`, `%`, `%r`, `pt`, radians) the number box
+empties, shows the old number as a hint, and nothing is written until you
+type the number in the new unit. `pt` is offered only on a `text` or
+`data` element, whose font it measures against. A change the watch cannot
+lay out, such as a `pt` length on an element with no font in scope or a
+target one of the face's fonts has no face on, is refused with the reason,
+like any other change the compiler would not take; typed in the YAML tab,
+it is kept and shown as an error on its line.
 
 ### Properties
 
@@ -457,7 +466,8 @@ is never renamed or removed for you.
 
 **YAML** above the face shows the design's text, with completion and
 explanations from the format's schema and the compiler's diagnostics in
-the gutter. What you type is saved a moment (300 ms) after you stop, and
+the gutter. What you type is saved a moment (300 ms) after you stop, or
+at once when you leave or reload the page, and
 a burst of typing, saves less than 10 seconds apart, is one step for
 **Undo** outside the tab. Text that
 is not YAML for a moment (an open bracket) is not saved, and says so under
@@ -498,7 +508,9 @@ does; in the container, mount `/keys` for it.
 ## History
 
 Every change is recorded as you make it, so closing the tab or stopping
-the editor loses nothing. The top bar says so: **saved**, **saving…**
+the editor loses nothing; while a change is still on its way, the browser
+asks before you close or reload the page, since leaving then would lose
+it. The top bar says so: **saved**, **saving…**
 while a change is on its way, or **not saved** while the YAML tab holds
 text the editor could not record; click it to open the YAML tab, where
 the reason is under the text or in a banner above it. The status's

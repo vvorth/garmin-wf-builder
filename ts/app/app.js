@@ -9,7 +9,7 @@ import { api, download, listen, saveBlob } from "./api.js";
 import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
-import { newer, saveState } from "./outbox.js";
+import { inFlight, newer, saveState } from "./outbox.js";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
@@ -30,6 +30,10 @@ function stored(key, fallback) {
   try { const v = Number(localStorage.getItem(key)); return v > 0 ? v : fallback; } catch (_) { return fallback; }
 }
 const storedZoom = () => clampZoom(stored("wfb-zoom", 2));
+// the Face-tab section this browser last left open, or the first
+const storedFaceSection = () => {
+  try { return localStorage.getItem("wfb-face-section") || "targets"; } catch (_) { return "targets"; }
+};
 const storedSkin = () => stored("wfb-skin", 0) === 1;
 const storedPxPerInch = () => stored("wfb-css-px-per-inch", CSS_PX_PER_INCH);
 const PANEL_MIN = 180;
@@ -467,11 +471,15 @@ function Editor({ docId, onError, onNotice }) {
   const slots = (doc && doc.globals && doc.globals.slots) || [];
   useEffect(() => { api("vocabulary").then(setVocab, onError); }, []);
   const [left, setLeft] = useState("layers");
-  // jump to a Face-tab section (e.g. from a colour role in Properties): FacePanel remounts and reads it fresh
-  const openFaceSection = useCallback((key) => {
+  // the Face tab's open section, remembered by this browser
+  const [faceSection, setFaceSectionState] = useState(storedFaceSection());
+  const setFaceSection = useCallback((key) => {
+    setFaceSectionState(key);
     try { localStorage.setItem("wfb-face-section", key); } catch (_) { /* private mode */ }
-    setLeft("face");
   }, []);
+  // jump to a Face-tab section (Ctrl+K, a colour role in Properties),
+  // whether or not the Face tab is showing
+  const openFaceSection = useCallback((key) => { setFaceSection(key); setLeft("face"); }, [setFaceSection]);
   const [pane, setPane] = useState("face");
   const [tab, setTab] = useState("diagnostics");
   // the Diagnostics tab's severity filter, kept across tabs, reset per face
@@ -570,6 +578,20 @@ function Editor({ docId, onError, onNotice }) {
   // change is in the outbox.
   const [yamlSaving, setYamlSaving] = useState("idle");
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
+  // A change on its way to the worker dies with the page, so while one is
+  // (`outbox.inFlight`) the browser asks before leaving. The YAML tab
+  // flushes its own text on the same event.
+  const yamlSavingRef = useRef("idle");
+  yamlSavingRef.current = yamlSaving;
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!inFlight({ queue: queued.current, yaml: yamlSavingRef.current })) return;
+      e.preventDefault();
+      e.returnValue = "A change is still being saved.";
+    };
+    addEventListener("beforeunload", onBeforeUnload);
+    return () => removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
   // where the YAML tab was, per face, while the editor is open
   const yamlMemory = useRef({});
   const [copied, setCopied] = useState(null);
@@ -742,7 +764,8 @@ function Editor({ docId, onError, onNotice }) {
           ? html`<${Layers} doc=${doc} vocab=${vocab} selected=${selected} extra=${extra} drawn=${drawn}
                             onSelect=${select} onStructure=${structure} />`
           : html`<${FacePanel} doc=${doc} vocab=${vocab} onEdit=${edit} onUpload=${upload}
-                               onSelect=${select} onStructure=${structure} onReveal=${showLines} />`}</div>
+                               onSelect=${select} onStructure=${structure} onReveal=${showLines}
+                               section=${faceSection} onSection=${setFaceSection} />`}</div>
       </div>
       <${Splitter} width=${panels.left} sign=${1} fallback=${280} onWidth=${panelWidth("left")} />
       <div class="stage">

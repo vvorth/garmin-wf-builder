@@ -98,6 +98,14 @@ export function saveState({ inflight = 0, queue = [], yaml = "idle" }) {
   return "saved";
 }
 
+// Whether leaving the page now would lose a change: one queued or sent
+// and not yet answered, or the YAML tab's text not yet taken ("saving").
+// Text the worker refused ("unsaved") was answered: the page already
+// shows it as not saved.
+export function inFlight(state) {
+  return saveState(state) === "saving";
+}
+
 // Whether `incoming`, a face from the worker, may replace `current`, the
 // one shown: answers can arrive out of order, and an older face shown over
 // a newer one would aim the next change at a version that is gone. Another

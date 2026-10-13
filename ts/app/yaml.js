@@ -192,6 +192,22 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: text }, annotations: remote.of(true) });
   };
 
+  // Leaving or reloading the page kills the worker with it: text waiting
+  // out the debounce is sent at once (the editor asks the browser to
+  // confirm leaving while it is on its way).
+  useEffect(() => {
+    const flush = () => {
+      const st = state.current;
+      if (!st.timer) return;
+      clearTimeout(st.timer);
+      st.timer = null;
+      send();
+    };
+    addEventListener("pagehide", flush);
+    addEventListener("beforeunload", flush);
+    return () => { removeEventListener("pagehide", flush); removeEventListener("beforeunload", flush); };
+  }, [doc.id]);
+
   useEffect(() => {
     let alive = true;
     loadSchema().then((s) => {

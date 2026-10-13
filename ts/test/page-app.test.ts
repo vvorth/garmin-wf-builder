@@ -173,3 +173,43 @@ test("1:1 is a toggle that stays on from watch to watch until turned off or zoom
     `);
   assert.deepEqual(printed, [["2.00×", ""], ["0.500×", "on"], ["1.00×", "on"], ["2.00×", ""], ["0.500×", "on"], ["0.630×", ""]]);
 });
+
+test("a jump switches the section of a Face tab already open", async () => {
+  // The Face tab open at Fonts, Ctrl+K picking a style shows Styles: the
+  // section is the page's state, not something the tab reads once when it
+  // opens.
+  const text = instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n\nconfig:\n  style:\n    default: nightly\n    choices: { nightly: { scheme: dark } }\n";
+  const face = { summary: summary(text), vocabulary: {}, home: { templates: [], store: "this browser", shared: true, documents: [] } };
+  const printed = await page(face, `#/face/${face.summary.id}`, `
+      const nav = () => find((e) => e.localName === "button" && e.parentNode && cls(e.parentNode) === "tabs face-nav");
+      const open = () => nav().filter((b) => cls(b) === "on").map((b) => b.textContent.replace(/\\d+$/, ""));
+      await click(find((e) => e.localName === "button" && e.textContent === "Face")[0]);
+      await click(nav().find((b) => b.textContent.startsWith("Fonts")));
+      out(open());
+      press("k", { ctrlKey: true }); await settle();
+      const input = find((e) => e.localName === "input" && e.attributes.placeholder && e.attributes.placeholder.includes("element"))[0];
+      input.value = "nightly"; input.dispatch("input", { target: input }); await settle();
+      input.dispatch("keydown", { key: "Enter", target: input }); await settle();
+      out([open(), storage.get("wfb-face-section")]);
+    `);
+  assert.deepEqual(printed[0], ["Fonts"]);
+  assert.deepEqual(printed[1], [["Styles"], "styles"]);
+});
+
+test("the browser asks before leaving while a change is on its way, and not once it is answered", async () => {
+  const face = faceFixture();
+  const doc = face["summary"];
+  const printed = await page(face, `#/face/${doc["id"]}`, DEFERRED_FETCH + `
+      const leave = () => {
+        const event = { prevented: false, preventDefault() { this.prevented = true; } };
+        for (const f of listeners.beforeunload || []) f(event);
+        return event.prevented;
+      };
+      out(leave());
+      press("z", { ctrlKey: true }); await settle();
+      out(leave());
+      await release(0);
+      out(leave());
+    `);
+  assert.deepEqual(printed, [false, true, false]);
+});

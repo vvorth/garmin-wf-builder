@@ -25,6 +25,24 @@ export function formatQuantity(number, unit, bareUnit, bare) {
 export const LENGTH_UNITS = ["px", "%", "%r", "pt"];
 export const ANGLE_UNITS = ["deg", "rad", "turn"];
 
+// `number` in unit `from` as the same quantity in unit `to`, or null where
+// the two are not commensurable without a device: degrees and turns are
+// (a turn is 360 degrees); `px`, `%`, `%r` and `pt` each measure against
+// something only the watch knows (its screen, the parent box, a font),
+// and a radian would round.
+export function convertQuantity(number, from, to) {
+  if (from === to) return number;
+  if (from === "deg" && to === "turn") return number / 360;
+  if (from === "turn" && to === "deg") return number * 360;
+  return null;
+}
+
+// The length units a key of an element of `type` may be written in: `pt`
+// measures against the element's own font, which only text and data have.
+export function lengthUnitsFor(type) {
+  return type === "text" || type === "data" ? LENGTH_UNITS : LENGTH_UNITS.filter((u) => u !== "pt");
+}
+
 // `#RGB` or `#RRGGBB` (the `#` optional, as the schema allows) -> [r, g, b].
 export function parseHex(value) {
   if (typeof value !== "string") return null;
