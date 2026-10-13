@@ -272,23 +272,28 @@ reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
 or off. A colour bound to a scheme role, rather than one of the face's
 swatches, names the role and jumps to the Schemes section. A `pattern`
 element's `parts:` shows its count and shapes read-only, with the same
-jump. **×** removes a key, back to its default; the last key of a device
-or shape override takes the emptied override with it, so none is left
-behind as `at: {}`. A key no control covers,
+jump. **×** removes a key, back to its default; the last key of a device,
+shape or display-class override takes the emptied override with it, so
+none is left behind as `at: {}`. A key no control covers,
 such as a list or `aod:`, shows its value; edit it in the YAML.
 
-The three buttons above the keys, **all targets**, the watch in view
-(by its id) and its shape (**round screens**, say), say where `at:`, `size:`, `radius:` and
-`align:` changes go ([per-device and per-shape
+The four buttons above the keys, **all targets**, the watch in view
+(by its id), its shape (**round screens**, say) and its display class
+(**AMOLED screens**, **MIP screens** or **LCD screens**), say where `at:`,
+`size:`, `radius:` and `align:` changes go ([per-device and per-shape
 overrides](placement.md#per-device-and-per-shape-overrides)):
 
 - **all targets** writes the element's own key. A drag on the face goes
-  where the watch you are looking at reads the key, its override if it has
-  one.
-- the watch's or the shape's button writes that override, creating it
-  when needed, in the unit of the value it replaces.
+  where the watch you are looking at reads the key, its most specific
+  override if it has one (the watch's, then the shape's, then the display
+  class's).
+- the watch's, the shape's or the display class's button writes that
+  override (`fr955:`, `shape:round`, `display:amoled`), creating it when
+  needed, in the unit of the value it replaces. A selector with a colon in
+  it is written as a quoted key.
 
-A key overridden on the watch in view says so under its value.
+A key overridden on the watch in view says so under its value, naming the
+selector it reads (the device, the shape or the display class).
 
 A `color:`/`track_color:`/`visible:` override, on any selector (not only
 the watch in view), is listed below the keys, read-only, with its value

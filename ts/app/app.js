@@ -486,7 +486,8 @@ function Editor({ docId, onError, onNotice }) {
   const [diagFilter, setDiagFilter] = useState("all");
   const [fold, setFolded] = useFold();
   // where an inspector edit or a drag writes geometry: "all" (a drag then
-  // writes where the viewed device reads it), the device, or its shape
+  // writes where the viewed device reads it), the device, its shape, or
+  // its display class
   const [scope, setScope] = useState("all");
 
   // A face from the worker, shown unless it is older than the one shown

@@ -159,6 +159,20 @@ test("the target is the most specific source", () => {
   assert.deepEqual(target(index, card, ["at", "dx"], fr955), [...card, "at", "dx"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fr955, "all"), [...card, "at", "dy"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fenix, "shape"), [...card, "overrides", "shape:round", "at", "dy"]);
+  assert.deepEqual(target(index, card, ["at", "dy"], fenix, "display"), [...card, "overrides", "display:mip", "at", "dy"]);
+});
+
+test("a display override is a target: named by its scope, and found by auto when it is the only one", () => {
+  const text = setValue(new SpanIndex(read(SHAPES)), ["elements", "card", "overrides", "display:amoled", "at", "dy"], "-17%").text;
+  const index = new SpanIndex(text);
+  const card = ["elements", "card"];
+  const amoled = db.get("fenix847mm"), mip = db.get("fr955");
+  assert.deepEqual(target(index, card, ["at", "dy"], amoled), [...card, "overrides", "display:amoled", "at", "dy"]);
+  assert.deepEqual(target(index, card, ["at", "dy"], mip), [...card, "at", "dy"]);
+  assert.deepEqual(target(index, card, ["at", "dy"], mip, "display"), [...card, "overrides", "display:mip", "at", "dy"]);
+  // the device and shape selectors still come first
+  const shaped = setValue(new SpanIndex(text), ["elements", "card", "overrides", "shape:round", "at", "dy"], "-18%").text;
+  assert.deepEqual(target(new SpanIndex(shaped), card, ["at", "dy"], amoled), [...card, "overrides", "shape:round", "at", "dy"]);
 });
 
 const cardCenter = (text: string, device: string): number[] => view(SHAPES, text, device).placed("card").center;

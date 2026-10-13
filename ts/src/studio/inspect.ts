@@ -33,7 +33,7 @@ import { jsonDumps } from "./json.ts";
 
 type Json = Record<string, unknown>;
 
-/** The keys an override may patch: edited with the "all targets / this device / this shape" chooser. */
+/** The keys an override may patch: edited with the "all targets / this device / this shape / this display class" chooser. */
 export const GEOMETRY: ReadonlySet<string> = new Set(["at", "size", "radius", "align"]);
 
 /** `$defs` entries that pick a widget, by the name the schema refers to. */
@@ -205,8 +205,8 @@ export function inspect(text: string, element: Path, device: Device | null): Jso
   const unknown = [...data.keys()].filter((k) => !(String(k) in props));
   const overrides: Json = {};
   if (device !== null) {
-    const [deviceSel, shapeSel] = selectorPaths(device);
-    for (const [scope, selector] of [["device", deviceSel], ["shape", shapeSel]] as const) {
+    const [deviceSel, shapeSel, displaySel] = selectorPaths(device);
+    for (const [scope, selector] of [["device", deviceSel], ["shape", shapeSel], ["display", displaySel]] as const) {
       const patch = dataAt(data, selector);
       if (isMap(patch)) overrides[scope] = { selector: selector[1], keys: patch };
     }
@@ -215,7 +215,7 @@ export function inspect(text: string, element: Path, device: Device | null): Jso
     element: [...element], id: element[element.length - 1], type, fields, unknown, overrides,
     overridden: nonGeometryOverrides(index, element, data),
     parts: patternPartsSummary(index, type, element, data),
-    device: device?.id ?? null, shape: device?.shape ?? null,
+    device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null,
   };
 }
 

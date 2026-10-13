@@ -10,12 +10,12 @@
 // -- one device, one set of switches -- is rendered on demand and kept for
 // that version.
 import { resolveAll, selectDevices } from "../build.ts";
-import type { DeviceDatabase } from "../devices/device.ts";
+import type { Device, DeviceDatabase } from "../devices/device.ts";
 import { Bag, type Diagnostic } from "../diagnostics.ts";
 import { inLayout } from "../draw/frames.ts";
 import { layers } from "../draw/layers.ts";
 import * as colors from "../edit/colors.ts";
-import { type Baker, move, resize, type Scope, target, turn, View } from "../edit/geometry.ts";
+import { type Baker, move, resize, type Scope, SCOPES, selectorFor, target, turn, View } from "../edit/geometry.ts";
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
@@ -248,6 +248,16 @@ function children(index: SpanIndex, block: Entry): Json[] {
     out.push(node);
   }
   return out;
+}
+
+/**
+ * Where a gesture's history label says it was written: the device for a
+ * drag that goes where that device reads the key, else the override
+ * selector (`shape:round`, `display:amoled`). Refuses an unknown scope.
+ */
+function writtenOn(device: Device, scope: string): string {
+  if (!(SCOPES as readonly string[]).includes(scope)) throw new Refused(`scope '${scope}' is not auto, all, device, shape or display`);
+  return scope === "shape" || scope === "display" ? selectorFor(device, scope) : device.id;
 }
 
 export class Document {
@@ -507,7 +517,9 @@ export class Document {
     if (op["element"] === undefined || op["element"] === null) return p;
     const element = path(op["element"]);
     const scope = op["scope"] ?? "all";
-    if (scope !== "all" && scope !== "device" && scope !== "shape") throw new Refused(`scope '${String(scope)}' is not all, device or shape`);
+    if (scope !== "all" && scope !== "device" && scope !== "shape" && scope !== "display") {
+      throw new Refused(`scope '${String(scope)}' is not all, device, shape or display`);
+    }
     if (scope === "all") return [...element, ...p];
     if (p.length === 0 || !GEOMETRY.has(String(p[0]))) {
       throw new Refused(`${p.map(String).join(".")} cannot be overridden per device; only at:, size:, radius: and align: can`);
@@ -787,8 +799,8 @@ export class Document {
    */
   drag(elementId: string, gesture: Json, deviceId: string, scope: string, expected: number): [Change, boolean] {
     this.check(expected);
-    if (!["auto", "all", "device", "shape"].includes(scope)) throw new Refused(`scope '${scope}' is not auto, all, device or shape`);
     const device = this.studio.db.get(deviceId);
+    const where = writtenOn(device, scope);
     const analysis = this.analysis();
     const view = new View(FACE, this.text, device, this.exists, this.baker, { loaded: analysis.loaded, resolved: analysis.resolved.get(deviceId) ?? null });
     const kind = gesture["kind"];
@@ -809,7 +821,7 @@ export class Document {
     else if (kind === "resize") converted = resize(view, elementId, (need("key") as unknown[]).map(String), int("delta"), scope as Scope);
     else converted = turn(view, elementId, String(need("key")), Number(need("degrees")), scope as Scope);
     const after = this.admit(converted.patch, view.tried);
-    const change = this.commit(converted.patch.text, this.headAssets(), describe(gesture, elementId, deviceId), expected, after);
+    const change = this.commit(converted.patch.text, this.headAssets(), describe(gesture, elementId, where), expected, after);
     return [change, converted.landed];
   }
 
@@ -820,10 +832,10 @@ export class Document {
    */
   moveAll(elementIds: string[], dx: number, dy: number, deviceId: string, scope: string, expected: number): [Change, boolean] {
     this.check(expected);
-    if (!["auto", "all", "device", "shape"].includes(scope)) throw new Refused(`scope '${scope}' is not auto, all, device or shape`);
+    const device = this.studio.db.get(deviceId);
+    const where = writtenOn(device, scope);
     let ids = [...new Set(elementIds)];
     if (ids.length === 0) throw new Refused("a move needs at least one element");
-    const device = this.studio.db.get(deviceId);
     const analysis = this.analysis();
     const face = analysis.face;
     if (face !== null) {
@@ -852,7 +864,7 @@ export class Document {
       resolved = null;
     }
     const after = this.admit(patch!, view!.tried);
-    const label = describe({ kind: "move", dx, dy }, ids.join(", "), deviceId);
+    const label = describe({ kind: "move", dx, dy }, ids.join(", "), where);
     return [this.commit(patch!.text, this.headAssets(), label, expected, after), landed];
   }
 

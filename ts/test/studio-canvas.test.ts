@@ -109,6 +109,30 @@ test("a drag on one device can leave the others alone", async () => {
   assert.deepEqual(items(frameOf(doc, "fenix8solar47mm"))["dot"].center, other);
 });
 
+test("a this-display drag writes the display selector and moves only that display class", async () => {
+  const aod = "examples/features/aod/face.yaml";
+  const doc = (await newStudio()).create(readUpload("face.yaml", read(aod)), "open");
+  const centerOn = (device: string): number[] => items(frameOf(doc, device))["accent_dot"].center;
+  const before = { fenix847mm: centerOn("fenix847mm"), fr955: centerOn("fr955") };
+  const [change, landed] = doc.drag("accent_dot", { kind: "move", dx: 0, dy: -6 }, "fenix847mm", "display", doc.version);
+  assert.ok(landed);
+  assert.equal(change.label, "move accent_dot by (+0, -6) px on display:amoled");
+  const dot = dataOf(doc).elements.accent_dot;
+  assert.deepEqual(Object.keys(dot.overrides), ["display:amoled"]);
+  assert.deepEqual(Object.keys(dot.overrides["display:amoled"]), ["at"]);
+  assert.ok(doc.text.includes('"display:amoled"'), "a selector with a colon is a quoted key");
+  assert.deepEqual(centerOn("fenix847mm"), [before.fenix847mm[0]!, before.fenix847mm[1]! - 6]);
+  assert.deepEqual(centerOn("fr955"), before.fr955);
+  // auto now finds the display override on an AMOLED watch, and leaves fr955's own key alone
+  doc.drag("accent_dot", { kind: "move", dx: 0, dy: -2 }, "fenix847mm", "auto", doc.version);
+  assert.deepEqual(Object.keys(dot.overrides), ["display:amoled"]);
+  assert.deepEqual(centerOn("fr955"), before.fr955);
+  // a selection move takes the scope too
+  const [all] = doc.moveAll(["accent_dot"], 3, 0, "fr955", "display", doc.version);
+  assert.equal(all.label, "move accent_dot by (+3, +0) px on display:mip");
+  assert.deepEqual(Object.keys(dataOf(doc).elements.accent_dot.overrides).sort(), ["display:amoled", "display:mip"]);
+});
+
 test("refused drags leave the face alone", async () => {
   const doc = await shapes();
   const before = [doc.text, doc.version];

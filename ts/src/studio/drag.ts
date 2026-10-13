@@ -99,16 +99,16 @@ function rawHandles(placed: Placed): Handle[] {
 
 const signed = (n: number): string => (n >= 0 ? `+${n}` : String(n));
 
-/** A drag in the author's terms, for the history: "move clock by (+6, -3) px on fr955". */
-export function describe(gesture: Loose, elementId: string, device: string): string {
+/** A drag in the author's terms, for the history: "move clock by (+6, -3) px on fr955", `where` the device or the override selector it was written on. */
+export function describe(gesture: Loose, elementId: string, where: string): string {
   const kind = gesture["kind"];
   if (kind === "move") {
     const part = gesture["part"] ?? "both";
     const what = part === "both" ? elementId : `${elementId}'s ${part === "at" ? "start" : "end"}`;
-    return `move ${what} by (${signed(Number(gesture["dx"]))}, ${signed(Number(gesture["dy"]))}) px on ${device}`;
+    return `move ${what} by (${signed(Number(gesture["dx"]))}, ${signed(Number(gesture["dy"]))}) px on ${where}`;
   }
   if (kind === "resize") {
-    return `resize ${elementId}.${(gesture["key"] as string[]).join(".")} by ${signed(Number(gesture["delta"]))} px on ${device}`;
+    return `resize ${elementId}.${(gesture["key"] as string[]).join(".")} by ${signed(Number(gesture["delta"]))} px on ${where}`;
   }
-  return `turn ${elementId}.${String(gesture["key"])} to ${formatG(Number(gesture["degrees"]))}° on ${device}`;
+  return `turn ${elementId}.${String(gesture["key"])} to ${formatG(Number(gesture["degrees"]))}° on ${where}`;
 }

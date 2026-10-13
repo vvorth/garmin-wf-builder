@@ -20,7 +20,13 @@ import { number, type Patch, patch as makePatch, setScalars, setValue } from "./
 import { dotted, indexFor, isElement, type Path, Refused, type SpanIndex } from "./spans.ts";
 import type { Data } from "./yaml.ts";
 
-export type Scope = "auto" | "all" | "device" | "shape";
+/**
+ * Where a geometry edit is written: `all` the element's own key, `device`,
+ * `shape` and `display` the viewed device's override of that selector, and
+ * `auto` the most specific source the viewed device reads.
+ */
+export type Scope = "auto" | "all" | "device" | "shape" | "display";
+export const SCOPES: readonly Scope[] = ["auto", "all", "device", "shape", "display"];
 
 /** Rounding steps, coarsest first, per unit. */
 export const LENGTH_STEPS: Readonly<Record<string, readonly number[]>> = {
@@ -54,17 +60,25 @@ export const EXTENTS: ReadonlyMap<string, (p: Placed) => number> = new Map([
 
 // -- the override target ------------------------------------------------------------
 
-export function selectorPaths(device: Device): [Path, Path] {
-  return [["overrides", device.id], ["overrides", `shape:${device.shape}`]];
+/** The `overrides:` selectors `device` reads, most specific first: its id, its shape, its display class. */
+export function selectorPaths(device: Device): [Path, Path, Path] {
+  return [["overrides", device.id], ["overrides", `shape:${device.shape}`], ["overrides", `display:${device.displayClass}`]];
+}
+
+/** The selector a named override scope writes on `device`: `fr955`, `shape:round`, `display:amoled`. */
+export function selectorFor(device: Device, scope: "device" | "shape" | "display"): string {
+  const [byDevice, byShape, byDisplay] = selectorPaths(device);
+  return String((scope === "device" ? byDevice : scope === "shape" ? byShape : byDisplay)[1]);
 }
 
 /** The author path a geometry `key` of `element` is written to on `device`. */
 export function target(index: SpanIndex, element: Path, key: Path, device: Device, scope: Scope = "auto"): Path {
-  const [byDevice, byShape] = selectorPaths(device);
+  const [byDevice, byShape, byDisplay] = selectorPaths(device);
   if (scope === "device") return [...element, ...byDevice, ...key];
   if (scope === "shape") return [...element, ...byShape, ...key];
+  if (scope === "display") return [...element, ...byDisplay, ...key];
   if (scope === "auto") {
-    for (const selector of [byDevice, byShape, ["overrides", `display:${device.displayClass}`]]) {
+    for (const selector of [byDevice, byShape, byDisplay]) {
       if (index.get([...element, ...selector, ...key]) !== undefined) return [...element, ...selector, ...key];
     }
   }

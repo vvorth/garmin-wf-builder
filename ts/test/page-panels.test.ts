@@ -7,6 +7,7 @@ import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantia
 import { inspect } from "../src/studio/inspect.ts";
 import { plain } from "../src/studio/json.ts";
 import { installAssets } from "../src/node.ts";
+import { db } from "./studio-client.ts";
 
 test("the colours say who uses them and a pick changes the swatch", async () => {
   const text = summary(instantiate("minimal", "T"));
@@ -336,4 +337,62 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
   assert.deepEqual(cleared, [0, "", "-50", ["-50"]], "nothing written; the old number is the placeholder of the focused, empty box");
   assert.deepEqual(typed, [{ op: "set", element: ["elements", "bar"], path: ["at", "dx"], scope: "all", device: null, value: "-80px" }]);
   assert.deepEqual(clockUnits, ["px", "%", "%r", "pt"]);
+});
+
+test("the scope buttons offer the display class as a fourth override, and a key overridden there says so", async () => {
+  const text = instantiate("minimal", "T").replace("targets: [fenix8solar47mm]", "targets: [fenix847mm, fr955]").replace("    at: { anchor: center }\n    color: color.text\n",
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { "display:amoled": { at: { dy: 2px } } }\n');
+  const doc = summary(text);
+  installAssets();
+  const inspected: Record<string, unknown> = {};
+  for (const id of ["fenix847mm", "fr955"]) inspected[id] = plain(inspect(text, ["elements", "clock"], db.get(id)));
+  const script = `
+      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
+      const document = install();
+      const inspected = ${JSON.stringify(inspected)};
+      // the worker, answering inspect for the device asked about
+      globalThis.Worker = class {
+        postMessage({ id, request }) {
+          const { op, args } = request;
+          const json = op === "inspect" ? inspected[args.device] : {};
+          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
+        }
+      };
+      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
+      const scopes = [];
+      const root = document.createElement("div");
+      const settle = () => new Promise((r) => setTimeout(r, 5));
+      const cls = (e) => e.attributes.class || "";
+      const show = async (device, scope) => {
+        render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", "clock"] }} device=\${device} vocab=\${{ devices: [] }}
+          scope=\${scope} onScope=\${(s) => scopes.push(s)} onEdit=\${() => Promise.resolve(true)}
+          onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
+        await settle(); await settle();
+      };
+      const buttons = () => root.all((e) => cls(e) === "scope")[0].all((e) => e.localName === "button");
+      const out = (v) => console.log(JSON.stringify(v));
+
+      await show("fenix847mm", "all");
+      out(buttons().map((b) => [b.textContent, b.attributes.title]));
+      buttons()[3].dispatch("click"); await settle();
+      out(scopes.splice(0));
+      out(root.all((e) => cls(e) === "note").map((n) => n.textContent));
+      await show("fr955", "all");
+      out(buttons().map((b) => b.textContent));
+      out(root.all((e) => cls(e) === "note").map((n) => n.textContent));
+    `;
+  const done = node(script);
+  assert.deepEqual(done.returncode, 0, done.stderr.slice(-1500));
+  const [amoledButtons, picked, amoledNotes, mipButtons, mipNotes] = done.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  assert.deepEqual(amoledButtons, [
+    ["all targets", "the element's own key, for every target"],
+    ["fenix847mm", "an override for fenix847mm only"],
+    ["round screens", "an override for every round watch"],
+    ["AMOLED screens", "an override for every AMOLED watch"],
+  ]);
+  assert.deepEqual(picked, ["display"]);
+  assert.deepEqual(amoledNotes, ["overridden on this display class"]);
+  assert.deepEqual(mipButtons, ["all targets", "fr955", "round screens", "MIP screens"]);
+  assert.deepEqual(mipNotes, []);
 });

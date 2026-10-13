@@ -148,6 +148,18 @@ test("the inspector reports the overrides the device reads", () => {
   assert.deepEqual(Object.keys(on("fenix8solar47mm")), ["shape"]);
 });
 
+test("the inspector reports the display override the device reads, and names the device's display class", () => {
+  const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { "display:amoled": { at: { dy: 2px } }, "display:mip": { at: { dx: 1px } } }\n');
+  const clock = indexFor(text).elements().find((e) => e.name === "clock")!.path;
+  const on = (id: string): any => JSON.parse(JSON.stringify(inspect(text, clock, db.get(id)), (_, v) => (v instanceof Map ? Object.fromEntries(v) : v)));
+  assert.deepEqual(on("fenix847mm").overrides, { display: { selector: "display:amoled", keys: { at: { dy: "2px" } } } });
+  assert.deepEqual(on("fr955").overrides, { display: { selector: "display:mip", keys: { at: { dx: "1px" } } } });
+  assert.equal(on("fenix847mm").display, "amoled");
+  assert.equal(on("fr955").display, "mip");
+  assert.equal(inspect(text, clock, null)["display"], null);
+});
+
 test("a non-geometry override is visible read-only, regardless of the device viewed; a geometry one is not duplicated there", () => {
   const text = starters.instantiate("minimal", "V").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px }, color: color.off, visible: false }, "shape:round": { track_color: color.off } }\n');
@@ -214,9 +226,10 @@ test("a geometry edit goes to the scope asked for", async () => {
   const clock = elementPath(doc, "clock");
   doc.edit({ op: "set", element: clock, path: ["at", "dy"], value: "-5%r", scope: "device", device: "fr955" }, doc.version);
   doc.edit({ op: "set", element: clock, path: ["at", "dy"], value: "3%r", scope: "shape", device: "fr955" }, doc.version);
+  doc.edit({ op: "set", element: clock, path: ["at", "dy"], value: "1%r", scope: "display", device: "fr955" }, doc.version);
   doc.edit({ op: "set", element: clock, path: ["at", "dx"], value: 2, scope: "all" }, doc.version);
   const d = dataOf(doc).elements.clock;
-  assert.deepEqual(d.overrides, { fr955: { at: { dy: "-5%r" } }, "shape:round": { at: { dy: "3%r" } } });
+  assert.deepEqual(d.overrides, { fr955: { at: { dy: "-5%r" } }, "shape:round": { at: { dy: "3%r" } }, "display:mip": { at: { dy: "1%r" } } });
   assert.equal(d.at.dx, 2);
   const center = (device: string): number[] => doc.analysis().resolved.get(device)!.items.find((p) => p.id === "clock")!.center;
   assert.notDeepEqual(center("fr955"), center("fenix8solar47mm"));

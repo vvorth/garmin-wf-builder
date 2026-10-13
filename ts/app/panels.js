@@ -220,6 +220,9 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
   }
 }
 
+/** A `display:` selector's class as the buttons name it: `amoled` is "AMOLED", `mip` "MIP", `lcd` "LCD". */
+const displayLabel = (cls) => String(cls || "").toUpperCase();
+
 function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
   const overridden = field.geometry && scope !== "all";
   const override = overridden ? at(ins.overrides[scope] && ins.overrides[scope].keys, field.path) : undefined;
@@ -233,7 +236,9 @@ function Field({ field, ins, scope, ctx, onEdit, depth = 0 }) {
       </div>
     </div>`;
   }
-  const local = ["device", "shape"].map((s) => ins.overrides[s] && at(ins.overrides[s].keys, field.path) !== undefined ? s : null).filter(Boolean);
+  // the override scopes the viewed device reads this key from, as the note names them
+  const local = Object.entries({ device: "device", shape: "shape", display: "display class" })
+    .map(([s, name]) => ins.overrides[s] && at(ins.overrides[s].keys, field.path) !== undefined ? name : null).filter(Boolean);
   return html`<div class=${"field" + (value == null ? " absent" : "")}>
     <div class="name" title=${field.description}>${field.key}${field.required ? html`<span class="req">*</span>` : null}</div>
     <div class="value">
@@ -279,7 +284,8 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
       <div class="scope" title="Where at:, size:, radius: and align: edits and drags are written; with all targets, a drag goes where the viewed device reads the key">
         ${[["all", "all targets", "the element's own key, for every target"],
            ["device", ins.device, `an override for ${ins.device} only`],
-           ["shape", `${ins.shape} screens`, `an override for every ${ins.shape} watch`]].map(([s, label, what]) => html`
+           ["shape", `${ins.shape} screens`, `an override for every ${ins.shape} watch`],
+           ["display", `${displayLabel(ins.display)} screens`, `an override for every ${displayLabel(ins.display)} watch`]].map(([s, label, what]) => html`
           <button class=${scope === s ? "on" : ""} title=${what} onClick=${() => setScope(s)}>${label}</button>`)}
       </div>
     </div>
