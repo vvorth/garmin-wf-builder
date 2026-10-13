@@ -60,13 +60,29 @@ function composed(text: string): YamlNode | null | undefined {
 }
 
 /** Positions shift with every edit, so an error is known by what it says. */
-function errorKeys(loaded: Loaded): Map<string, number> {
+function errorKeys(diagnostics: readonly Diagnostic[]): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const d of loaded.errors) {
+  for (const d of diagnostics) {
+    if (d.severity !== "error") continue;
     const key = JSON.stringify([d.code, d.message]);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+/** The first error among `after` that `before` does not have (one more of the same counts), or `null`; warnings and notes never count. */
+export function freshError(before: readonly Diagnostic[], after: readonly Diagnostic[]): Diagnostic | null {
+  const had = errorKeys(before);
+  const fresh = new Map([...errorKeys(after)].map(([key, n]): [string, number] => [key, n - (had.get(key) ?? 0)])
+    .filter(([, n]) => n > 0));
+  if (fresh.size === 0) return null;
+  return after.find((d) => d.severity === "error" && fresh.has(JSON.stringify([d.code, d.message])))!;
+}
+
+/** Why `what` is refused for `error`: its message and the author's line. */
+export function refusal(what: string, error: Diagnostic): string {
+  const where = error.span !== null ? ` (line ${error.span.line})` : "";
+  return `${what}: ${error.message}${where}`;
 }
 
 /** Accepts or refuses patches to one text of one design. */
@@ -88,14 +104,8 @@ export class Gate {
       throw new Refused(`${patch.what}: the edit would change more than intended`);
     }
     const loaded = after !== null && after.text === patch.text ? after : loadText(this.path, patch.text, this.fileExists);
-    const before = errorKeys(this.before);
-    const fresh = new Map([...errorKeys(loaded)].map(([key, n]): [string, number] => [key, n - (before.get(key) ?? 0)])
-      .filter(([, n]) => n > 0));
-    if (fresh.size > 0) {
-      const first = loaded.errors.find((d) => fresh.has(JSON.stringify([d.code, d.message])))!;
-      const where = first.span !== null ? ` (line ${first.span.line})` : "";
-      throw new Refused(`${patch.what}: ${first.message}${where}`);
-    }
+    const fresh = freshError(this.before.errors, loaded.errors);
+    if (fresh !== null) throw new Refused(refusal(patch.what, fresh));
     if (loaded.face === null && this.before.face !== null) throw new Refused(`${patch.what}: the design no longer loads`);
     return loaded;
   }

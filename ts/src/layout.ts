@@ -634,6 +634,20 @@ interface Owner {
   element: Element;
 }
 
+/**
+ * A length the layout cannot resolve (a `pt` with no font in scope), thrown
+ * out of the resolve with the span of the element being placed, so the
+ * caller can report it against the author's line instead of crashing.
+ */
+export class ResolveError extends Error {
+  readonly span: Span | null;
+
+  constructor(message: string, span: Span | null) {
+    super(message);
+    this.span = span;
+  }
+}
+
 /** A nonzero %/%r extent that resolved below 1 px on this device with `min_1px` off. */
 export class SubPixelLength {
   owner = "";
@@ -842,12 +856,15 @@ export class Resolver {
     return fields.size > 0 ? replaceFields(element, fields) : element;
   }
 
-  /** Record every `SubPixelLength` and `ResolveWarning` inside `body` against `owner`. */
+  /** Record every `SubPixelLength` and `ResolveWarning` inside `body` against `owner`, and a unit error as `owner`'s `ResolveError`. */
   private ownedBy<T>(owner: Owner, body: () => T): T {
     const previous = this.owner;
     this.owner = owner;
     try {
       return body();
+    } catch (error) {
+      if (error instanceof units.UnitError) throw new ResolveError(error.message, owner.span);
+      throw error;
     } finally {
       this.owner = previous;
     }

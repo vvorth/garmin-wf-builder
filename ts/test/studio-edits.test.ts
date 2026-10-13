@@ -436,3 +436,77 @@ test("a set is drawn alone", async () => {
   assert.equal(missing.status, 400);
   assert.match(missing.json.error, /no hand set called nope/);
 });
+
+// -- the gate covers the resolve --
+
+/** The minimal starter's background with a `pt` width: legal to load, impossible to lay out (no font in scope). */
+function withPtWidth(text: string): string {
+  const typed = text.replace("size: { width: 100%, height: 100% }", "size: { width: 4pt, height: 100% }");
+  assert.notEqual(typed, text);
+  return typed;
+}
+
+const errorsOf = (summary: any): any[] => summary.diagnostics.filter((d: any) => d.severity === "error");
+
+test("a pt length with no font in scope is refused, not committed", async () => {
+  const doc = make(await newStudio());
+  refusedAlone(doc, [[/pt units need a reference font/,
+    () => edit(doc, { op: "set", element: ["static", "background"], path: ["size", "width"], value: "4pt" })]]);
+  assert.deepEqual(errorsOf(doc.summary()), []);
+  assert.deepEqual(doc.summary()["targets"], ["fenix8solar47mm", "fenix8solar51mm", "fr955"]);
+});
+
+test("a pt length typed in the YAML is recorded, reported on its line, and undone", async () => {
+  const client = await Client.open();
+  const doc = make(client.studio);
+  const typed = withPtWidth(doc.text);
+  const line = typed.split("\n").findIndex((l) => l.startsWith("  background:")) + 1;
+  assert.equal((await client.call("text", { id: doc.id, version: doc.version, text: typed })).status, 200);
+  const got = await client.call("get", { id: doc.id });
+  assert.equal(got.status, 200);
+  assert.equal(got.json.text, typed);
+  assert.ok(got.json.loads);
+  const errors = errorsOf(got.json);
+  assert.ok(errors.length > 0 && errors.every((d) => /pt units need a reference font/.test(d.message)), JSON.stringify(errors));
+  assert.equal(errors[0].line, line);
+  assert.deepEqual(got.json.targets, []);
+  const frame = await client.call("frame", { id: doc.id, device: "fenix8solar47mm" });
+  assert.equal(frame.status, 400);
+  assert.match(frame.json.error, /not drawn/);
+  const undone = await client.call("undo", { id: doc.id, version: got.json.version });
+  assert.equal(undone.status, 200);
+  assert.deepEqual(errorsOf(undone.json), []);
+  assert.equal(undone.json.targets.length, 3);
+});
+
+test("the cover of a face that does not lay out is no picture, not a crash", async () => {
+  const client = await Client.open();
+  const doc = make(client.studio);
+  doc.replaceText(withPtWidth(doc.text), doc.version);
+  assert.equal(doc.cover(), null);
+  assert.equal((await client.call("cover", { id: doc.id })).status, 404);
+});
+
+test("a drag on a face that does not lay out is refused with the reason", async () => {
+  const doc = make(await newStudio());
+  doc.replaceText(withPtWidth(doc.text), doc.version);
+  assert.throws(() => doc.drag("clock", { kind: "move", dx: 5, dy: 0 }, "fenix8solar47mm", "auto", doc.version),
+    (e: Error) => e instanceof Refused && /pt units need a reference font/.test(e.message));
+});
+
+test("a target the face cannot draw on is refused with the compiler's reason", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  const targets = dataOf(doc).build.targets;
+  assert.ok(!targets.includes("fr255"));
+  refusedAlone(doc, [[/'font: font\.romandial' has no usable face on fr255/,
+    () => edit(doc, { op: "set", path: ["build", "targets"], value: [...targets, "fr255"] })]]);
+  assert.deepEqual(errorsOf(doc.summary()), []);
+});
+
+test("a font file that does not bake is refused, not stored", async () => {
+  const doc = make(await newStudio());
+  const before = [doc.text, doc.version, Object.keys(doc.head.assets)];
+  assert.throws(() => doc.addAsset("bad.ttf", new TextEncoder().encode("not a font"), null, doc.version, ["bad", "10%r"]),
+    (e: Error) => e instanceof Refused && /unknown file format/.test(e.message));
+  assert.deepEqual([doc.text, doc.version, Object.keys(doc.head.assets)], before);
+});

@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/devices/node.ts";
-import { Gate, loadText } from "../src/edit/gate.ts";
+import { Diagnostic, Span } from "../src/diagnostics.ts";
+import { freshError, Gate, loadText, refusal } from "../src/edit/gate.ts";
 import { addElement, DEFAULTS, patch as makePatch, setValue } from "../src/edit/patch.ts";
 import { addSlot } from "../src/edit/slots.ts";
 import { indexFor, parse, Refused, SpanIndex } from "../src/edit/spans.ts";
@@ -60,6 +61,20 @@ test("the gate ignores errors the text already had, and refuses a new one", () =
   assert.ok(after.face === null && after.errors.length > 0);
   const worse = setValue(new SpanIndex(broken), ["elements", "b", "color"], "color.nope");
   assert.throws(() => gate.check(worse), (e: unknown) => e instanceof Refused && /nope/.test(e.message));
+});
+
+test("a fresh error is one the text before did not have, known by what it says", () => {
+  const error = (message: string, line: number | null = null): Diagnostic =>
+    new Diagnostic("error", "resolve", message, line !== null ? new Span("face.yaml", line, 1) : null);
+  const pt = error("pt units need a reference font; none is in scope here", 12);
+  // the same error on another line is the same error; one more of it is new; a warning never counts
+  assert.equal(freshError([pt], [error(pt.message, 30)]), null);
+  assert.equal(freshError([pt], [pt, error(pt.message, 30)])!.message, pt.message);
+  assert.equal(freshError([], [new Diagnostic("warning", "x", "a warning")]), null);
+  const other = error("'font: font.romandial' has no usable face on fr255");
+  assert.equal(freshError([pt], [pt, other]), other);
+  assert.equal(refusal("set a.b to 4pt", pt), "set a.b to 4pt: pt units need a reference font; none is in scope here (line 12)");
+  assert.equal(refusal("add fr255", other), "add fr255: 'font: font.romandial' has no usable face on fr255");
 });
 
 test("a load reuses the index and still sees a merge key", () => {

@@ -241,7 +241,11 @@ face says how far the drag has gone and whether it snaps.
 the pixel you dropped it on, on the watch you are looking at. A key written
 in `pt` cannot be dragged (a `pt` has no size outside its font). When no
 value in the key's unit lands exactly on that pixel, the nearest one is
-written and a notice says so.
+written and a notice says so. A change the watch cannot lay out, such as a
+`pt` length on an element with no font in scope or a target one of the
+face's fonts has no face on, is refused with the reason, like any other
+change the compiler would not take; typed in the YAML tab, it is kept and
+shown as an error on its line.
 
 ### Properties
 

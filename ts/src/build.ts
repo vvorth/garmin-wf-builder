@@ -4,7 +4,7 @@ import type { Bag } from "./diagnostics.ts";
 import { compareVersions, type Device, type DeviceDatabase, DeviceError } from "./devices/device.ts";
 import { FontFileError } from "./fonts/bake.ts";
 import type { BakedFont } from "./fonts/bmfont.ts";
-import { resolve, type ResolvedFace } from "./layout.ts";
+import { resolve, ResolveError, type ResolvedFace } from "./layout.ts";
 import * as lint from "./lint.ts";
 import { desugar } from "./desugar.ts";
 import type { YamlNode } from "./edit/yaml.ts";
@@ -80,6 +80,7 @@ export function resolveAll(face: Face, devices: readonly Device[], bag: Bag, bak
   lint.runDesign(face, bag);
   const resolved = new Map<string, ResolvedFace>();
   const baked = new Map<string, Map<string, BakedFont>>();
+  const failed = new Set<string>();
   for (const device of devices) {
     let fonts: Map<string, BakedFont>;
     try {
@@ -90,7 +91,17 @@ export function resolveAll(face: Face, devices: readonly Device[], bag: Bag, bak
       continue;
     }
     baked.set(device.id, fonts);
-    const result = resolve(face, device, fonts);
+    let result: ResolvedFace;
+    try {
+      result = resolve(face, device, fonts);
+    } catch (error) {
+      if (!(error instanceof ResolveError)) throw error;
+      // What the layout cannot resolve is an error on the author's line, said once however many targets hit it.
+      const key = JSON.stringify([error.message, error.span?.toString() ?? null]);
+      if (!failed.has(key)) bag.error("resolve", error.message, error.span);
+      failed.add(key);
+      continue;
+    }
     resolved.set(device.id, result);
     lint.run(result, bag);
   }

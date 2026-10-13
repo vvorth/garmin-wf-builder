@@ -12,7 +12,7 @@ import type { Device } from "../devices/device.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FileExists } from "../ir/builder/index.ts";
 import { type Element, type Face, Group, Position, Shape } from "../ir/model.ts";
-import { type Placed, type ResolvedFace, Resolver, resolve } from "../layout.ts";
+import { type Placed, type ResolvedFace, ResolveError, Resolver, resolve } from "../layout.ts";
 import { degrees, formatFixed, formatG, hypot, radians, roundHalfEven } from "../py.ts";
 import { type Axis, Box, Length, UnitError } from "../units.ts";
 import { type Loaded, loadText } from "./gate.ts";
@@ -168,9 +168,15 @@ export class View {
     }
   }
 
+  /** `loaded` laid out on the device; refused, with the reason, when it cannot be. */
   place(loaded: Loaded, rebake = false): ResolvedFace {
     const face = loaded.face!;
-    return resolve(face, this.device, rebake ? this.bake(face, this.device) : this.fonts);
+    try {
+      return resolve(face, this.device, rebake ? this.bake(face, this.device) : this.fonts);
+    } catch (error) {
+      if (error instanceof ResolveError) throw new Refused(error.message);
+      throw error;
+    }
   }
 
   placed(elementId: string, resolved: ResolvedFace | null = null): Placed {

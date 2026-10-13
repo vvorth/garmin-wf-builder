@@ -16,7 +16,7 @@ import { inLayout } from "../draw/frames.ts";
 import { layers } from "../draw/layers.ts";
 import * as colors from "../edit/colors.ts";
 import { type Baker, move, resize, type Scope, target, turn, View } from "../edit/geometry.ts";
-import { Gate, Loaded, loadText } from "../edit/gate.ts";
+import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
   chain, deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
@@ -72,11 +72,14 @@ export function frameKey(fields: Partial<FrameKey> & { device: string }): FrameK
   return { style: null, time: null, date: null, asleep: false, aod: false, scale: 2, picks: [], ...fields };
 }
 
-/** One version through the pipeline. */
+/** One text through the whole pipeline: the load, one resolve per target and the lint. */
 export interface Analysis {
-  version: number;
+  /** The load alone, with its own diagnostics: what the gate and a drag compare against. */
+  loaded: Loaded;
   face: Face | null;
+  /** Every diagnostic: the load's, then the resolve's and the lint's. */
   bag: Bag;
+  /** Each target the text laid out on. */
   resolved: Map<string, ResolvedFace>;
 }
 
@@ -232,13 +235,12 @@ export class Document {
   name: string;
   head: Change;
   text: string;
-  private analysisCache: Analysis | null = null;
+  /** This version's analysis, and the one the gate made of the text about to become the head. */
+  private analysisCache: [number, Analysis] | null = null;
+  private seed: Analysis | null = null;
   /** Frames, layers and thumbnails of this version, by what and key, least recently used first. */
   private readonly frames = new Map<string, unknown>();
   private readonly handSets = new Map<string, Uint8Array>();
-  /** This version's load, with its own diagnostics only, and the gate's load of the text about to become the head. */
-  private loaded: Loaded | null = null;
-  private seed: Loaded | null = null;
   /** When the last snapshot was taken, and of which version. */
   lastSnapshot: [number, number | null];
 
@@ -296,17 +298,35 @@ export class Document {
 
   // -- changes --
 
-  /** Record a change against version `expected`; `loaded` is `text` as the gate loaded it; `merge` takes the head's place. */
-  commit(text: string, assets: ReadonlyMap<string, Uint8Array | string>, label: string, expected: number, loaded: Loaded | null = null, merge = false): Change {
+  /** Record a change against version `expected`; `analysed` is `text` through the pipeline, when the gate ran it; `merge` takes the head's place. */
+  commit(text: string, assets: ReadonlyMap<string, Uint8Array | string>, label: string, expected: number, analysed: Analysis | null = null, merge = false): Change {
     this.check(expected);
     const change = this.moved(this.studio.store.append(this.id, label, text, assets, merge));
-    this.seed = loaded;
+    this.seed = analysed;
     return change;
   }
 
   private gate(): Gate {
-    const before = this.loaded !== null && this.loaded.text === this.text ? this.loaded : null;
-    return new Gate(FACE, this.text, this.exists, before);
+    return new Gate(FACE, this.text, this.exists, this.analysis().loaded);
+  }
+
+  /**
+   * `patch` through the gate, then through the rest of the pipeline:
+   * refused the same way for an error the resolve or the lint reports that
+   * the face does not already have (a `pt` length with no font in scope, a
+   * target a font has no face on). A face that does not load is only held
+   * to the gate: it is being mended, and whatever the resolve then finds
+   * shows in its diagnostics.
+   */
+  private admit(patch: Patch, after: Loaded | null = null): Analysis {
+    const loaded = this.gate().check(patch, after);
+    const before = this.analysis();
+    const analysed = this.analyseText(loaded.text, this.headAssets(), loaded);
+    if (before.face !== null) {
+      const fresh = freshError(before.bag.errors, analysed.bag.errors);
+      if (fresh !== null) throw new Refused(refusal(patch.what, fresh));
+    }
+    return analysed;
   }
 
   /** Refuse a change asked for against `expected` unless that is the version the face is at. */
@@ -436,7 +456,12 @@ export class Document {
     } else {
       label = `add ${rel}`;
     }
-    return this.commit(t, assets, label, expected);
+    // The file is read only now, by the bake: one that is not a font the face can use is refused here, not stored.
+    const before = this.analysis();
+    const analysed = this.analyseText(t, assets);
+    const fresh = before.face !== null && analysed.face !== null ? freshError(before.bag.errors, analysed.bag.errors) : null;
+    if (fresh !== null) throw new Refused(refusal(label, fresh));
+    return this.commit(t, assets, label, expected, analysed);
   }
 
   /** One edit from the inspector or the Face panel, gated and recorded (`EDITS`). */
@@ -446,7 +471,7 @@ export class Document {
     const handler = typeof kind === "string" && Object.hasOwn(EDITS, kind) ? EDITS[kind] : undefined;
     if (handler === undefined) throw new Refused(`unknown edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
     const patch = handler(this, indexFor(this.text), op);
-    const after = this.gate().check(patch);
+    const after = this.admit(patch);
     return this.commit(patch.text, this.headAssets(), patch.what, expected, after);
   }
 
@@ -477,8 +502,8 @@ export class Document {
     this.check(expected);
     if (t === this.text) return this.head;
     indexFor(t);
-    const loaded = loadText(FACE, t, this.exists);
-    return this.commit(t, this.headAssets(), TEXT_EDIT, expected, loaded, this.typing());
+    const analysed = this.analyseText(t, this.headAssets());
+    return this.commit(t, this.headAssets(), TEXT_EDIT, expected, analysed, this.typing());
   }
 
   private typing(): boolean {
@@ -537,7 +562,7 @@ export class Document {
     } else {
       throw new Refused(`unknown structural edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
     }
-    const after = this.gate().check(patch);
+    const after = this.admit(patch);
     return [this.commit(patch.text, this.headAssets(), patch.what, expected, after), select];
   }
 
@@ -565,22 +590,37 @@ export class Document {
 
   // -- the pipeline --
 
+  /** This version through the pipeline, once: the gate's own run of the text is taken over when it has one. */
   analysis(): Analysis {
-    if (this.analysisCache !== null && this.analysisCache.version === this.version) return this.analysisCache;
+    if (this.analysisCache !== null && this.analysisCache[0] === this.version) return this.analysisCache[1];
     const seed = this.seed;
     this.seed = null;
-    const loaded = seed !== null && seed.text === this.text ? seed : loadText(FACE, this.text, this.exists);
-    // What the gate compares against: the load's own diagnostics, before the resolve and the lint add theirs.
-    const copy = new Bag();
-    copy.items = [...loaded.bag.items];
-    this.loaded = new Loaded(loaded.text, loaded.face, copy);
-    const bag = loaded.bag;
-    const analysis: Analysis = { version: this.version, face: loaded.face, bag, resolved: new Map() };
-    if (loaded.face !== null) {
+    const analysis = seed !== null && seed.loaded.text === this.text ? seed : this.analyseText(this.text, this.headAssets());
+    this.analysisCache = [this.version, analysis];
+    return analysis;
+  }
+
+  /**
+   * `text` through the whole pipeline with the face's files at `assets`;
+   * `loaded` is that text already loaded, when the caller has it. Nothing
+   * the resolve throws escapes: what it cannot lay out is an error in the
+   * bag, so a face that does not lay out still reads, lists its diagnostics
+   * and can be undone, and `resolved` holds the targets that did.
+   */
+  analyseText(text: string, assets: ReadonlyMap<string, Uint8Array | string>, loaded: Loaded | null = null): Analysis {
+    const { exists, read } = this.files(assets);
+    if (loaded === null || loaded.text !== text) loaded = loadText(FACE, text, exists);
+    const bag = new Bag();
+    bag.items = [...loaded.bag.items];
+    const analysis: Analysis = { loaded, face: loaded.face, bag, resolved: new Map() };
+    if (loaded.face === null) return analysis;
+    const baker: Baker = (face, device) => bakeFonts(face, device, read, this.studio.memo);
+    try {
       const devices = selectDevices(loaded.face, this.studio.db, bag);
-      if (devices.length > 0) analysis.resolved = resolveAll(loaded.face, devices, bag, this.baker)[0];
+      if (devices.length > 0) analysis.resolved = resolveAll(loaded.face, devices, bag, baker)[0];
+    } catch (error) {
+      bag.error("resolve", error instanceof Error ? error.message : String(error));
     }
-    this.analysisCache = analysis;
     return analysis;
   }
 
@@ -720,7 +760,7 @@ export class Document {
     if (!["auto", "all", "device", "shape"].includes(scope)) throw new Refused(`scope '${scope}' is not auto, all, device or shape`);
     const device = this.studio.db.get(deviceId);
     const analysis = this.analysis();
-    const view = new View(FACE, this.text, device, this.exists, this.baker, { loaded: this.loaded, resolved: analysis.resolved.get(deviceId) ?? null });
+    const view = new View(FACE, this.text, device, this.exists, this.baker, { loaded: analysis.loaded, resolved: analysis.resolved.get(deviceId) ?? null });
     const kind = gesture["kind"];
     const part = gesture["part"] ?? "both";
     if (part !== "both" && part !== "at" && part !== "to") throw new Refused(`part '${String(part)}' is not both, at or to`);
@@ -738,7 +778,7 @@ export class Document {
     if (kind === "move") converted = move(view, elementId, int("dx"), int("dy"), scope as Scope, part);
     else if (kind === "resize") converted = resize(view, elementId, (need("key") as unknown[]).map(String), int("delta"), scope as Scope);
     else converted = turn(view, elementId, String(need("key")), Number(need("degrees")), scope as Scope);
-    const after = this.gate().check(converted.patch, view.tried);
+    const after = this.admit(converted.patch, view.tried);
     const change = this.commit(converted.patch.text, this.headAssets(), describe(gesture, elementId, deviceId), expected, after);
     return [change, converted.landed];
   }
@@ -755,7 +795,7 @@ export class Document {
     if (ids.length === 0) throw new Refused("a move needs at least one element");
     const device = this.studio.db.get(deviceId);
     const analysis = this.analysis();
-    const face = this.loaded !== null ? this.loaded.face : null;
+    const face = analysis.face;
     if (face !== null) {
       const insideMoved = new Set<string>();
       const walk = (elements: readonly Element[], movedAbove: boolean): void => {
@@ -767,7 +807,7 @@ export class Document {
       walk(face.elements, false);
       ids = ids.filter((i) => !insideMoved.has(i));
     }
-    let t = this.text, loaded = this.loaded, resolved: ResolvedFace | null = analysis.resolved.get(deviceId) ?? null;
+    let t = this.text, loaded: Loaded | null = analysis.loaded, resolved: ResolvedFace | null = analysis.resolved.get(deviceId) ?? null;
     let landed = true;
     let patch: Patch | null = null;
     let view: View | null = null;
@@ -781,7 +821,7 @@ export class Document {
       loaded = view.tried;
       resolved = null;
     }
-    const after = this.gate().check(patch!, view!.tried);
+    const after = this.admit(patch!, view!.tried);
     const label = describe({ kind: "move", dx, dy }, ids.join(", "), deviceId);
     return [this.commit(patch!.text, this.headAssets(), label, expected, after), landed];
   }

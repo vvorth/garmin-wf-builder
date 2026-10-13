@@ -105,7 +105,11 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   - `src/edit/` is the patch engine: `spans`, `patch`, `structure`,
     `colors`, `schemes`, `hands`, `slots`, `geometry` (pixel drags, with
     the font baker passed in), and `gate`, which loads each patched text
-    through `build.ts`'s `load`.
+    through `build.ts`'s `load`; `studio/document.ts` then resolves and
+    lints the gated text too (`admit`), so a resolve-time error (a `pt`
+    with no font in scope, a target a font has no face on) is refused as
+    well, and a text that has one still reads: the resolve's throw is a
+    diagnostic, never a thrown request.
   - `src/ir/` is the IR. `model.ts` keeps snake_case field names, as the
     goldens spell them; a class is built with `Class.create({...})`.
     `builder/` is the semantic pass, one layer per module, and `src/kinds/` each kind's
