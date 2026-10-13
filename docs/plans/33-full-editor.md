@@ -64,6 +64,11 @@ after; the fast suite green.
 
 ## Slice 0 — The engine's three additions (D2)
 
+**Shipped 2026-10-13** (`git log --grep "slice 0"` and the four commits
+after 0a: `display:` selectors, the batched edit and router lanes, list
+items, `protocol.ts`). Every existing edit op is a batch step; the page
+still reads the contract through JSDoc until slice 1.
+
 1. **List-item primitives** in `ts/src/edit/patch.ts`: `insertItem(path,
    index, data)`, `removeItem(path, index)`, `moveItem(path, from, to)` for
    block and flow sequences, byte-exact like the mapping primitives (an
