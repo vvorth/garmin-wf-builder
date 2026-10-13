@@ -15,7 +15,7 @@ import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, missing } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
-import { elementSchema, globalsOf, inspect } from "../src/studio/inspect.ts";
+import { elementSchema, globalsOf, inspect, vocabulary } from "../src/studio/inspect.ts";
 import { allowHostList, digest, start } from "../src/studio/server.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
@@ -128,6 +128,17 @@ test("a text element's curve: is a small object widget, angled or radial, not th
   assert.ok(plain.children.every((c: any) => c.value === null));
 });
 
+test("on_hold on a data element offers auto only", () => {
+  const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+  const text = starters.instantiate("minimal", "T").replace("elements:\n", "config:\n  slots:\n    top:\n      default: steps\n      choices: any\nelements:\n  reading:\n    type: data\n    slot: top\n    at: { anchor: center }\n    color: color.text\n");
+  const f = (id: string): Record<string, any> => fieldsOf(inspect(text, pathOf(text, id), null));
+  assert.equal(f("reading")["on_hold"].widget, "complication");
+  assert.deepEqual(f("reading")["on_hold"].enum, ["auto"]);
+  assert.equal(f("clock")["on_hold"].widget, "complication");
+  assert.deepEqual(f("clock")["on_hold"].enum, vocabulary()["complications"]);
+  assert.ok((f("clock")["on_hold"].enum as string[]).length > 10);
+});
+
 test("the inspector reports the overrides the device reads", () => {
   const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px } }, "shape:round": { at: { dx: 1px } } }\n');
@@ -221,7 +232,7 @@ test("an edit the gate refuses leaves the face alone", async () => {
   const doc = make(await newStudio());
   const before = [doc.text, doc.version];
   assert.throws(() => doc.edit({ op: "set", path: ["elements", "clock", "color"], value: "color.nope" }, doc.version), /color\.nope/);
-  assert.throws(() => doc.edit({ op: "remove", path: ["resources", "palette", "bg"] }, doc.version), /color\.bg/);
+  assert.throws(() => doc.edit({ op: "remove", path: ["resources", "palette", "bg"] }, doc.version), /the colour bg is used by 1 element: background/);
   assert.throws(() => doc.edit({ op: "rename", path: ["resources", "palette", "bg"], to: "1x", prefix: "color." }, doc.version), /not a name/);
   assert.throws(() => doc.edit({ op: "explode" }, doc.version), /unknown edit/);
   assert.throws(() => doc.edit({ op: "remove", path: ["elements", "clock", "visible"] }, doc.version), /is not set/);

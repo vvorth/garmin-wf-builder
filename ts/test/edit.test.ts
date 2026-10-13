@@ -190,6 +190,30 @@ test("keys are added in their mapping's own style; quotes and a missing final ne
   }
 });
 
+test("removing the last key of an override prunes the emptied mappings, up through overrides itself", () => {
+  const base = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n    at: { anchor: center }\n");
+  const g = gate("face.yaml", base);
+  // as the device scope writes it: a flow override nested three deep
+  const written = setValue(new SpanIndex(base), ["elements", "a", "overrides", "fenix8solar47mm", "at", "dx"], "10%r");
+  assert.ok(written.text.includes("    overrides: { fenix8solar47mm: { at: { dx: 10%r } } }\n"));
+  const gone = remove(new SpanIndex(written.text), ["elements", "a", "overrides", "fenix8solar47mm", "at", "dx"]);
+  g.check(gone);
+  assert.equal(gone.text, base);
+  assert.ok(sameData(parse(gone.text), gone.expected));
+  // a sibling key keeps the override, and only the emptied mapping goes
+  const two = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n    at: { anchor: center }\n"
+    + "    overrides: { fr955: { at: { dx: 1px }, size: { width: 2px } } }\n");
+  const kept = remove(new SpanIndex(two), ["elements", "a", "overrides", "fr955", "at", "dx"]);
+  assert.ok(kept.text.includes("    overrides: { fr955: { size: { width: 2px } } }\n"), kept.text);
+  assert.ok(sameData(parse(kept.text), kept.expected));
+  // the same in block style, through a flow leaf
+  const block = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n    at: { anchor: center }\n"
+    + "    overrides:\n      fr955:\n        at: { dx: 1px }\n");
+  const pruned = remove(new SpanIndex(block), ["elements", "a", "overrides", "fr955", "at", "dx"]);
+  assert.equal(pruned.text, base);
+  assert.ok(sameData(parse(pruned.text), pruned.expected));
+});
+
 test("scalars already written are set together in place", () => {
   const text = minimal("elements:\n  a:\n    type: circle\n    at: { dx: 10, dy: '20' }\n    radius: 5\n");
   const index = new SpanIndex(text);

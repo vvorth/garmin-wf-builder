@@ -179,7 +179,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }) {
     case "template": return html`<${Template} value=${value} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
     case "icon": return html`<${IconPop} value=${value} vocab=${ctx.vocab} onPick=${(v) => v && onCommit(v)} />`;
-    case "complication": return enumSelect(ctx.vocab.complications || []);
+    case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
     case "handset": {
       const set = (ctx.globals.hands || []).find((h) => h.name === value);

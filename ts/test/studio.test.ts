@@ -316,6 +316,26 @@ test("an asset against an old version is refused", async () => {
   assert.equal((await client.call("get", { id: doc.id })).json.version, 2);
 });
 
+test("a file uploaded as a font must be a TrueType or OpenType file", async () => {
+  const client = await Client.open();
+  const doc = await client.upload("face.yaml", read(SHOWCASE));
+  const zip = new Uint8Array(100);
+  zip.set([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00]);
+  const before = await client.call("get", { id: doc.id });
+  for (const args of [{ font: "mono", size: "12%r" }, { reference: "assets/ChivoMono-Bold.ttf" }]) {
+    const r = await client.call("assets", { id: doc.id, filename: "font.zip", version: 1, ...args }, zip);
+    assert.equal(r.status, 400, JSON.stringify(r.json));
+    assert.equal(r.json.error, "font.zip is not a TrueType or OpenType font file");
+  }
+  const again = await client.call("get", { id: doc.id });
+  assert.equal(again.json.version, 1);
+  assert.deepEqual(again.json, before.json);
+  assert.ok(!client.studio.document(doc.id).bundle().files.has("assets/font.zip"));
+  const ok = await client.call("assets", { id: doc.id, filename: "OpenSans.ttf", version: 1, font: "sans", size: "12%r" }, read("ts/test/fixtures/slice/assets/OpenSans-Regular.ttf"));
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.ok(client.studio.document(doc.id).text.includes("source: assets/OpenSans.ttf"));
+});
+
 test("frames and refusals", async () => {
   const client = await Client.open();
   const doc = await client.create("minimal", "F");

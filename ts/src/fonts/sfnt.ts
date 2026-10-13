@@ -17,6 +17,16 @@ export interface Sfnt {
 /** The two sfnt versions read here: TrueType outlines and OpenType/CFF ones. */
 const VERSIONS = [0x00010000, 0x4f54544f];
 
+/** Every sfnt signature a font file may start with: the two above, Apple's `true`, and a collection's `ttcf`. */
+const SIGNATURES = [...VERSIONS, 0x74727565, 0x74746366];
+
+/** Whether `bytes` start as a TrueType or OpenType font file does. Never throws. */
+export function isSfnt(bytes: Uint8Array): boolean {
+  if (bytes.byteLength < 12) return false;
+  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return SIGNATURES.includes(data.getUint32(0));
+}
+
 /** fontTools' `getBestCmap` order of `(platform, encoding)` subtables. */
 const CMAP_PREFERENCE: readonly (readonly [number, number])[] = [[3, 10], [0, 6], [0, 4], [3, 1], [0, 3], [0, 2], [0, 1], [0, 0]];
 

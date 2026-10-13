@@ -18,7 +18,7 @@
 // removed by either.
 import { Color, ColorError, MIP64_NAMED, mip64Name } from "../palette.ts";
 import { get, or } from "../py.ts";
-import { chain, patch, type Patch, remove, renameReference, setValue } from "./patch.ts";
+import { chain, patch, type Patch, referencePattern, remove, renameReference, setValue } from "./patch.ts";
 import { dotted, type Path, pathKey, Refused, SpanIndex, type Step } from "./spans.ts";
 import type { Data, DataKey } from "./yaml.ts";
 
@@ -106,21 +106,21 @@ function walk(data: Data, path: Step[]): [Step[], string][] {
   return typeof data === "string" ? [[path, data]] : [];
 }
 
-function refersTo(text: string, name: string): boolean {
-  for (const m of text.matchAll(REFERENCE)) if (m[1] === name) return true;
-  return false;
+/** Whether `text` names `<prefix><name>` whole, inside an expression too. */
+function refersTo(text: string, name: string, prefix: string): boolean {
+  return referencePattern(prefix, name).test(text);
 }
 
-/** The path of every string value that names `color.<name>`. */
-export function users(index: SpanIndex, name: string): Path[] {
-  return walk(index.data, []).filter(([, text]) => refersTo(text, name)).map(([path]) => path);
+/** The path of every string value that names `color.<name>` (or `<prefix><name>`: `font.`, say). */
+export function users(index: SpanIndex, name: string, prefix = "color."): Path[] {
+  return walk(index.data, []).filter(([, text]) => refersTo(text, name, prefix)).map(([path]) => path);
 }
 
-/** Who uses `color.<name>`, as the author knows them: the id of the element holding each reference, else the reference's dotted path. */
-export function userNames(index: SpanIndex, name: string): string[] {
+/** Who uses `color.<name>` (or `<prefix><name>`), as the author knows them: the id of the element holding each reference, else the reference's dotted path. */
+export function userNames(index: SpanIndex, name: string, prefix = "color."): string[] {
   const elements = new Map(index.elements().map((e) => [pathKey(e.path), e.name]));
   const out: string[] = [];
-  for (const path of users(index, name)) {
+  for (const path of users(index, name, prefix)) {
     let holder: string | undefined;
     for (let n = path.length; n > 0; n--) {
       holder = elements.get(pathKey(path.slice(0, n)));

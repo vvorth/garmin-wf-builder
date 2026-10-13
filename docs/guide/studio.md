@@ -263,7 +263,9 @@ reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
 or off. A colour bound to a scheme role, rather than one of the face's
 swatches, names the role and jumps to the Schemes section. A `pattern`
 element's `parts:` shows its count and shapes read-only, with the same
-jump. **×** removes a key, back to its default. A key no control covers,
+jump. **×** removes a key, back to its default; the last key of a device
+or shape override takes the emptied override with it, so none is left
+behind as `at: {}`. A key no control covers,
 such as a list or `aod:`, shows its value; edit it in the YAML.
 
 The three buttons above the keys, **all targets**, the watch in view
@@ -298,7 +300,10 @@ since a group never draws itself.
 - **+ add…** adds an element of any type in front of the selection (or
   at the front of `elements`). A graph asks for its series, a data
   element for its slot and hands for their set (both declared in the
-  Face tab).
+  Face tab). A type that cannot be static (a data element, a graph, hands,
+  a gauge reading a value) is never put in a `static` block: with a
+  static element selected it goes to the front of the sibling `elements`
+  (the layout's own, when the selection is a layout's).
 - With an element selected: **↑** sends it backward and **↓** brings it
   forward (**Ctrl+[**, **Ctrl+]**), **Duplicate** (Ctrl+D), **Delete**
   (Del), **move to…** any block or group. Delete, like the arrow keys,
@@ -372,9 +377,10 @@ guide chapter for it.
   opens in, the label the wearer sees, its layout and its colour scheme,
   each captioned -- add (shaped like the others), delete ([styles and
   layouts](styles-and-layouts.md)). **+ Layout** adds an empty one, listed
-  here and in Layers with nothing in it yet; with no style yet to name it,
-  it also adds one pointing at the new layout, so it is never declared
-  unreachable.
+  here and in Layers with nothing in it yet, and keeps it reachable: with
+  no style yet to name it, it also adds one pointing at the new layout;
+  on a face whose styles name only schemes, every style that picks no
+  layout now picks the new one, as one change.
 - **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
   as at 10:09:42, on the face's first watch; each hand's colour through
   the picker, and how many parts it has; the elements placing it (click
@@ -406,7 +412,9 @@ guide chapter for it.
   - **+ Slot** asks what the new slot shows first, then its name, and adds
     a data element drawing it, as one change.
 - **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**
-  (then its name), delete ([fonts](fonts.md)).
+  (then its name), **×** deletes it, refused while an element uses it
+  ([fonts](fonts.md)). A file that is not a TrueType or OpenType font (its
+  first bytes say so) is refused before anything is stored.
 
 A name is always edited in place: click it, type, then **Enter** (or
 click away) to rename and **Escape** to keep it. A new name (a scheme, a

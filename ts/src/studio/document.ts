@@ -19,16 +19,17 @@ import { type Baker, move, resize, type Scope, target, turn, View } from "../edi
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
-  chain, deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
+  chain, dataAt, deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
   renameSlot, setValue,
 } from "../edit/patch.ts";
 import * as schemes from "../edit/schemes.ts";
 import * as slots from "../edit/slots.ts";
 import { ELEMENT_BLOCKS, type Entry, indexFor, isElement, type Path, Refused, sameData, type SpanIndex } from "../edit/spans.ts";
-import { add, group, moveToBlock, paste, ungroup } from "../edit/structure.ts";
+import { add, group, moveToBlock, paste, staticForbidden, staticStep, ungroup } from "../edit/structure.ts";
 import type { Data } from "../edit/yaml.ts";
 import { type BakeMemo, bakeFonts, ICON_FONT } from "../emit/resources.ts";
 import type { FontFile } from "../fonts/files.ts";
+import { isSfnt } from "../fonts/sfnt.ts";
 import { Group, type Element, type Face } from "../ir/model.ts";
 import type { ResolvedFace } from "../layout.ts";
 import { encodePng } from "../png.ts";
@@ -143,6 +144,19 @@ function shownValue(value: unknown): string {
 
 const withWhat = (p: Patch, what: string): Patch => ({ ...p, what });
 
+/** The `resources:` entries something refers to by name, each with the prefix a reference is written with and its name for people. */
+const REFERENCED: Record<string, [prefix: string, noun: string]> = { palette: ["color.", "colour"], fonts: ["font.", "font"] };
+
+/** Refuse to remove a colour or font while something uses it, naming the first few users. */
+function refuseUsed(index: SpanIndex, p: Path): void {
+  if (p.length !== 3 || p[0] !== "resources" || typeof p[1] !== "string" || !Object.hasOwn(REFERENCED, p[1])) return;
+  const [prefix, noun] = REFERENCED[p[1]]!;
+  const used = colors.userNames(index, String(p[2]), prefix);
+  if (used.length === 0) return;
+  const shown = used.length > 5 ? [...used.slice(0, 5), "..."] : used;
+  throw new Refused(`the ${noun} ${String(p[2])} is used by ${used.length} element${used.length === 1 ? "" : "s"}: ${shown.join(", ")}; change them first`);
+}
+
 /** Every edit `Document.edit` takes, each from its op's fields: one patch, labelled as the history lists it. */
 const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch> = {
   set: (doc, index, op) => {
@@ -152,6 +166,7 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   remove: (doc, index, op) => {
     const p = doc.editPath(index, op);
     if (index.get(p) === undefined) throw new Refused(`${dotted(p)} is not set`);
+    refuseUsed(index, p);
     return withWhat(isSlot(p) ? removeSlot(index, String(p[2])) : remove(index, p), `remove ${dotted(p)}`);
   },
   rename: (doc, index, op) => {
@@ -179,13 +194,19 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   duplicate_hand_set: (_, index, op) => hands.duplicateHandSet(index, text(op, "name")),
   rename_hand_set: (_, index, op) => hands.renameHandSet(index, text(op, "name"), text(op, "to")),
   delete_hand_set: (_, index, op) => hands.deleteHandSet(index, text(op, "name")),
-  // an empty layout, plus a style naming it when there is no `config: style:` yet to make it reachable
-  // (`layouts:` with no style naming any entry, or a style's `layout:` with no `layouts:` at all, are each a build error)
+  // an empty layout, made reachable: a style naming it when there is no `config: style:` yet, else every style
+  // that picks no layout now picks this one (`layouts:` with no style naming any entry, a style's `layout:`
+  // with no `layouts:` at all, and a style without `layout:` once there are layouts, are each a build error)
   add_layout: (_, index, op) => {
     const name = text(op, "name");
-    const withLayout = setValue(index, ["layouts", name], new Map(), { block: true });
-    if (index.get(["config", "style"]) !== undefined) return withLayout;
-    return chain(withLayout, (i) => setValue(i, ["config", "style"], toData({ default: name, choices: { [name]: { layout: name } } }), { block: true }));
+    let result = setValue(index, ["layouts", name], new Map(), { block: true });
+    if (index.get(["config", "style"]) === undefined) {
+      return chain(result, (i) => setValue(i, ["config", "style"], toData({ default: name, choices: { [name]: { layout: name } } }), { block: true }));
+    }
+    const choices = dataAt(index.data, ["config", "style", "choices"]);
+    const unpicked = choices instanceof Map ? [...choices].filter(([, e]) => !(e instanceof Map && e.has("layout"))).map(([k]) => String(k)) : [];
+    for (const entry of unpicked) result = chain(result, (i) => setValue(i, ["config", "style", "choices", entry, "layout"], name));
+    return unpicked.length === 0 ? result : withWhat(result, `add the layout ${name}, picked by ${unpicked.join(", ")}`);
   },
 };
 
@@ -433,6 +454,7 @@ export class Document {
    */
   addAsset(filename: string, data: Uint8Array, reference: string | null, expected: number, font: [string, string] | null = null): Change {
     this.check(expected);
+    if ((reference !== null || font !== null) && !isSfnt(data)) throw new Refused(`${filename} is not a TrueType or OpenType font file`);
     const assets = new Map<string, Uint8Array | string>(Object.entries(this.head.assets));
     const rel = assetPath(assets, filename);
     assets.set(rel, data);
@@ -522,8 +544,16 @@ export class Document {
       return [...indexFor(p.text).elementIds()].find((id) => !before.has(id)) ?? null;
     };
     if (kind === "add") {
-      const block = path(op["block"] || ["elements"]);
-      patch = add(index, String(op["type"]), block, (op["before"] as string) || null, null, (op["choice"] as string | undefined) ?? null);
+      const type = String(op["type"]);
+      let block = path(op["block"] || ["elements"]);
+      let before = (op["before"] as string) || null;
+      // a type the compiler refuses in a `static:` block goes to the front of that block's sibling `elements:` instead
+      const at = staticStep(block);
+      if (at !== -1 && staticForbidden(type)) {
+        block = [...block.slice(0, at), "elements"];
+        before = null;
+      }
+      patch = add(index, type, block, before, null, (op["choice"] as string | undefined) ?? null);
       select = added(patch);
     } else if (kind === "delete" && op["paths"] !== undefined && op["paths"] !== null) {
       if (!Array.isArray(op["paths"])) throw new Refused("a delete of several is a list of paths");

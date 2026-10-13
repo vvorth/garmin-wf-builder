@@ -300,6 +300,37 @@ test("structure through the requests", async () => {
   assert.ok("hand_sets" in r.json.globals && "slots" in r.json.globals);
 });
 
+test("a type that cannot be static is added to the sibling elements block instead", async () => {
+  const client = await Client.open();
+  const doc = await client.create("minimal", "S");
+  let version = doc.version;
+  const structure = async (edit: unknown): Promise<any> => {
+    const r = await client.call("structure", { id: doc.id, version, edit });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    version = r.json.version;
+    return r.json;
+  };
+  const edit = await client.call("edit", { id: doc.id, version, edit: { op: "add_slot", name: "top", default: "steps" } });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  version = edit.json.version;
+  const r = await structure({ op: "add", type: "data", block: ["static"], before: "background", choice: "top" });
+  assert.equal(r.select, "new_data2");
+  const d = dataOf(client.studio.document(doc.id));
+  assert.deepEqual(Object.keys(d.static), ["background"]);
+  assert.deepEqual(Object.keys(d.elements), ["clock", "seconds", "new_data", "new_data2"]);
+  for (const [type, choice] of [["gauge", null], ["graph", "steps"], ["hands", null]] as const) {
+    if (type === "hands") {
+      const set = await client.call("edit", { id: doc.id, version, edit: { op: "add_hand_set", name: "dial", preset: "classic" } });
+      version = set.json.version;
+    }
+    const added = await structure({ op: "add", type, block: ["static"], ...(choice ? { choice } : {}), ...(type === "hands" ? { choice: "dial" } : {}) });
+    assert.ok(added.select in dataOf(client.studio.document(doc.id)).elements, type);
+  }
+  // a static type still goes where it was asked
+  const shape = await structure({ op: "add", type: "rectangle", block: ["static"], before: "background" });
+  assert.deepEqual(Object.keys(dataOf(client.studio.document(doc.id)).static), [shape.select, "background"]);
+});
+
 test("a selection of several is deleted as one change", async () => {
   const doc = (await newStudio()).create(bundle("T", minimal()), "new");
   const [original, version] = [doc.text, doc.version];

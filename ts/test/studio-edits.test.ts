@@ -14,7 +14,7 @@ import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
 import { type Document, frameKey, type Studio } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
-import { Client, dataOf, newStudio, openExample, SHOWCASE } from "./studio-client.ts";
+import { Client, dataOf, newStudio, openExample, read, SHOWCASE } from "./studio-client.ts";
 
 const SLOT_GAUGE = "examples/features/slot-gauge/face.yaml";
 
@@ -139,7 +139,7 @@ test("colour refusals leave the face alone", async () => {
   const doc = make(await newStudio(), minimal() + '\ntheme:\n  schemes:\n    dark:\n      colors: { ink: "#FFFFFF" }\n'
     + "\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark } }\n");
   refusedAlone(doc, [
-    [/color\.dim/, () => edit(doc, { op: "remove", path: ["resources", "palette", "dim"] })],
+    [/the colour dim is used by 1 element: seconds/, () => edit(doc, { op: "remove", path: ["resources", "palette", "dim"] })],
     [/both a palette swatch and a colour role/, () => edit(doc, { op: "rename", path: ["resources", "palette", "dim"], to: "ink", prefix: "color." })],
     [/no colour called/, () => edit(doc, { op: "set_swatch", name: "nope", value: "#000000" })],
     [/is not a colour/, () => pick(doc, "clock", "orange-ish")],
@@ -204,6 +204,19 @@ test("a scheme is added, renamed and deleted with its styles", async () => {
   edit(doc, { op: "delete_scheme", name: "day" });
   assert.deepEqual(Object.keys(dataOf(doc).theme.schemes), ["dark"]);
   assert.deepEqual(Object.keys(dataOf(doc).config.style.choices), ["dark"]);
+});
+
+test("+ Layout on a face whose styles name only schemes points every style at the new layout", async () => {
+  const doc = switchable(await newStudio());
+  edit(doc, { op: "add_scheme", name: "light" });
+  assert.deepEqual(dataOf(doc).config.style.choices, { dark: { scheme: "dark" }, light: { scheme: "light" } });
+  const states = (doc.history()["total"] as number);
+  edit(doc, { op: "add_layout", name: "alt" });
+  assert.deepEqual(dataOf(doc).config.style.choices, { dark: { scheme: "dark", layout: "alt" }, light: { scheme: "light", layout: "alt" } });
+  assert.deepEqual(dataOf(doc).layouts, { alt: {} });
+  assert.notEqual(doc.analysis().face, null);
+  assert.equal(doc.history()["total"], states + 1);
+  assert.equal((doc.history()["states"] as any[])[0].label, "add the layout alt, picked by dark, light");
 });
 
 test("a new scheme on a face with layouts gets a style per layout", async () => {
@@ -307,6 +320,26 @@ test("a slot is added with a data element drawing it", async () => {
     [/already/, () => edit(doc, { op: "add_slot", name: "top", default: "steps" })],
     [/not a complication type/, () => edit(doc, { op: "add_slot", name: "other", default: "nope" })],
   ]);
+});
+
+test("a colour or font something uses is not deleted", async () => {
+  const studio = await newStudio();
+  const doc = make(studio, minimal().replace("resources:\n", "resources:\n  fonts:\n    big:\n      source: assets/OpenSans-Regular.ttf\n      size: 20%r\n    spare:\n      source: assets/OpenSans-Regular.ttf\n      size: 10%r\n")
+    .replace("font: FONT_NUMBER_HOT", "font: font.big"));
+  doc.commit(doc.text, new Map([["assets/OpenSans-Regular.ttf", read("ts/test/fixtures/slice/assets/OpenSans-Regular.ttf")]]), "font file", doc.version);
+  assert.notEqual(doc.analysis().face, null);
+  refusedAlone(doc, [
+    [/^the colour text is used by 1 element: clock; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "text"] })],
+    [/^the colour bg is used by 1 element: background; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "bg"] })],
+    [/^the font big is used by 1 element: clock; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "fonts", "big"] })],
+  ]);
+  edit(doc, { op: "set", path: ["elements", "seconds", "color"], value: "color.text" });
+  refusedAlone(doc, [[/^the colour text is used by 2 elements: clock, seconds; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "text"] })]]);
+  edit(doc, { op: "remove", path: ["resources", "fonts", "spare"] });
+  assert.deepEqual(Object.keys(dataOf(doc).resources.fonts), ["big"]);
+  // dim lost its last user above, so it goes
+  edit(doc, { op: "remove", path: ["resources", "palette", "dim"] });
+  assert.deepEqual(Object.keys(dataOf(doc).resources.palette), ["bg", "text"]);
 });
 
 function frameLayers(doc: Document, picks: [string, string][] = []): [Record<string, any>, any] {

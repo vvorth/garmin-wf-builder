@@ -19,6 +19,8 @@
 // block the same way, as written: an id the face already has is renamed,
 // and anything else the copy needs (a colour, a font, a slot) is the
 // gate's to refuse.
+import * as catalog from "../catalog.ts";
+import * as kinds from "../kinds/index.ts";
 import { deepCopy, quoted, splitlines } from "../py.ts";
 import * as seriesCatalog from "../series.ts";
 import {
@@ -50,6 +52,24 @@ const NO_COLOR: ReadonlySet<string> = new Set(["group", "hands"]);
 
 export function elementTypes(): string[] {
   return [...new Set([...DEFAULTS.keys(), ...MORE_DEFAULTS.keys()])].sort();
+}
+
+/**
+ * Whether the compiler would refuse a new element of `type` inside a
+ * `static:` subtree: its kind cannot be static at all, or the `value:` it
+ * starts with binds a reading, which a buffer drawn once would freeze.
+ */
+export function staticForbidden(type: string): boolean {
+  const kind = kinds.PRIMITIVES.includes(type) ? "shape" : type;
+  if (kinds.names().includes(kind) && kinds.get(kind).staticForbidden !== null) return true;
+  const value = (DEFAULTS.get(type) ?? MORE_DEFAULTS.get(type))?.get("value");
+  return typeof value === "string" && catalog.get(value) !== undefined;
+}
+
+/** Where `block`'s `static:` step is (the top level's, or a layout's), or -1 for a block that is not inside one. */
+export function staticStep(block: Path): number {
+  if (block[0] === "static") return 0;
+  return block[0] === "layouts" && block[2] === "static" ? 2 : -1;
 }
 
 /** A range the series can show: a week of days, half a day of hours, four hours of heart rate. */

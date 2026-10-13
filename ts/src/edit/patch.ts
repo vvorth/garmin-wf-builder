@@ -394,11 +394,16 @@ export function chain(first: Patch, then: (index: SpanIndex) => Patch): Patch {
   return patch(second.text, second.expected, `${first.what}; ${second.what}`);
 }
 
+/**
+ * Remove the entry at `path`. A mapping the removal empties, flow or
+ * block, goes with its own key, and so on upward: the last `dx:` of an
+ * override leaves no `at: {}`, `fr955: {}` or `overrides: {}` behind.
+ */
 export function removeOn(index: SpanIndex, path: Path): Patch {
   const entry = index.at(path);
   const expected = withData(index);
   const holder = index.holder(entry.parent);
-  if (!entry.isFlow && entry.parent.pairs.length === 1 && holder !== undefined) {
+  if (entry.parent.pairs.length === 1 && holder !== undefined) {
     const removed = removeOn(index, holder.path);
     return patch(removed.text, removed.expected, `remove ${dotted(entry.path)}`);
   }
@@ -628,7 +633,7 @@ export function setScalars(index: SpanIndex, values: [Path, Data][]): Patch | un
   return patch(text, expected, "set " + values.map(([p]) => dotted(p)).join(", "));
 }
 
-/** Remove the key at `path`. The last entry of a block mapping takes its mapping's key with it. */
+/** Remove the key at `path`. The last entry of a mapping, flow or block, takes its mapping's key with it, and so on upward. */
 export function remove(index: SpanIndex, path: Path): Patch {
   return endedPatch(index, (i) => removeOn(i, path));
 }

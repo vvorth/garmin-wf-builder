@@ -111,7 +111,8 @@ function widget(key: string, type: string, node: Json, value: unknown): [string,
   if (key === "set" && type === "hands") return ["handset", resolved];
   if (key === "font") return ["font", resolved];
   if (key === "icon") return ["icon", resolved];
-  if (key === "on_hold") return ["complication", resolved];
+  // a data element's hold opens the wearer's own pick, so `auto` is its only target
+  if (key === "on_hold") return ["complication", { ...resolved, enum: type === "data" ? ["auto"] : ["auto", ...complications.names()] }];
   if ("enum" in resolved) return ["enum", resolved];
   const kind = resolved["type"];
   if (kind === "boolean") return ["bool", resolved];
