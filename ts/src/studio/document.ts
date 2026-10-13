@@ -19,8 +19,8 @@ import { type Baker, move, resize, type Scope, SCOPES, selectorFor, target, turn
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
-  chain, dataAt, deleteElement, deleteElements, duplicateElement, moveElement, type Patch, remove, removeSlot, renameKey, renameReference,
-  renameSlot, setValue,
+  chain, dataAt, deleteElement, deleteElements, duplicateElement, insertItem, moveElement, moveItem, type Patch, remove, removeItem,
+  removeSlot, renameKey, renameReference, renameSlot, setValue,
 } from "../edit/patch.ts";
 import * as schemes from "../edit/schemes.ts";
 import * as slots from "../edit/slots.ts";
@@ -139,6 +139,13 @@ const dotted = (p: Path): string => p.map(String).join(".");
 const isSlot = (p: Path): boolean => p.length === 3 && p[0] === "config" && p[1] === "slots";
 const text = (op: Json, key: string): string => String(op[key] || "").trim();
 
+/** The list index an op's field `key` names: a whole number, or refused. */
+function listIndex(op: Json, key: string): number {
+  const value = op[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new Refused(`'${key}' must be a list index (a whole number), not ${jsonDumps(value ?? null)}`);
+  return value;
+}
+
 function shownValue(value: unknown): string {
   const t = typeof value === "string" ? value : jsonDumps(value);
   return t.length <= 40 ? t : t.slice(0, 37) + "...";
@@ -178,6 +185,20 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(to)) throw new Refused(`'${to}' is not a name: letters, digits and _, not starting with a digit`);
     const patch = isSlot(p) ? renameSlot(index, String(p[2]), to) : prefix ? renameReference(index, p, to, prefix) : renameKey(index, p, to);
     return withWhat(patch, `rename ${dotted(p)} to ${to}`);
+  },
+  // list items: `at` counts from 0, the list's length appends; a missing list is made around its first item
+  insert_item: (doc, index, op) => {
+    const p = doc.editPath(index, op);
+    const at = listIndex(op, "at");
+    return withWhat(insertItem(index, p, at, toData(op["value"]), { block: op["block"] === true }), `insert ${dotted(p)}.${at}: ${shownValue(op["value"])}`);
+  },
+  remove_item: (doc, index, op) => {
+    const p = doc.editPath(index, op);
+    return removeItem(index, p, listIndex(op, "at"));
+  },
+  move_item: (doc, index, op) => {
+    const p = doc.editPath(index, op);
+    return moveItem(index, p, listIndex(op, "from"), listIndex(op, "to"));
   },
   use_color: (doc, index, op) => colors.useColor(index, doc.editPath(index, op), String(op["value"] ?? "")),
   add_swatch: (_, index, op) => colors.addSwatch(index, String(op["value"] ?? ""))[0],

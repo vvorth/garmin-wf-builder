@@ -10,10 +10,13 @@ import { Bag } from "../src/diagnostics.ts";
 import { Gate, loadText } from "../src/edit/gate.ts";
 import { move, turn, View } from "../src/edit/geometry.ts";
 import {
-  addElement, chain, DEFAULTS, deleteElement, duplicateElement, faceColor, moveElement, type Patch, patch as makePatch, remove, renameKey,
-  renameReference, rewriteScalars, setScalars, setValue, child, deleteChild, flow, setChild, ShapeError,
+  addElement, chain, dataAt, DEFAULTS, deleteElement, duplicateElement, faceColor, insertItem, listSpan, moveElement, moveItem, type Patch,
+  patch as makePatch, remove, removeItem, renameKey, renameReference, rewriteScalars, setScalars, setValue, child, deleteChild, flow,
+  setChild, ShapeError,
 } from "../src/edit/patch.ts";
-import { type Entry, parse, type Path, Refused, sameData, SpanIndex } from "../src/edit/spans.ts";
+import { type Entry, parse, type Path, Refused, sameData, SpanIndex, type Step } from "../src/edit/spans.ts";
+import { type Data } from "../src/edit/yaml.ts";
+import { deepCopy } from "../src/py.ts";
 import { add, elementTypes, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
 import { readFontFile, repoFileExists } from "../src/node.ts";
@@ -26,19 +29,20 @@ const read = (p: string): string => readFileSync(join(REPO_ROOT, p), "utf8");
 const bake = (face: any, d: any): any => bakeFonts(face, d, (p) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p)));
 const gate = (path: string, text: string): Gate => new Gate(path, text, repoFileExists);
 
-/** Every example face but the user's playground. */
-const FACES: string[] = (() => {
+/** Every design under `examples/` but the user's playground; `FACES` the faces among them. */
+const DESIGNS: string[] = (() => {
   const out: string[] = [];
   const walk = (dir: string): void => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
       const rel = `${dir}/${name}`;
       if (statSync(join(REPO_ROOT, rel)).isDirectory()) walk(rel);
-      else if (name === "face.yaml" && !rel.includes("/dashboard/")) out.push(rel);
+      else if (name.endsWith(".yaml") && !rel.includes("/dashboard/")) out.push(rel);
     }
   };
   walk("examples");
   return out;
 })();
+const FACES: string[] = DESIGNS.filter((p) => p.endsWith("/face.yaml"));
 
 const minimal = (elements: string, staticBlock = ""): string =>
   "format: 2\nface: { id: 9c1d5f30-6a72-4b18-8d4e-0f2a71c93b64, name: Edit, version: 1.0.0 }\nbuild: { targets: [fenix8solar47mm] }\n"
@@ -429,4 +433,210 @@ test("a key written back reads back as the same key: null, a bool, a number and 
   const written = flow(new Map(keys.map((k, i) => [k, i])) as never);
   const back = (parse(`k: ${written}\n`) as Map<unknown, Map<unknown, unknown>>).get("k")!;
   assert.deepEqual([...back.keys()], keys, written);
+});
+
+// -- list items --
+
+/** The path of every list in `data`, outer before inner. */
+function listPaths(data: Data, here: Step[] = []): Path[] {
+  if (data instanceof Map) return [...data].flatMap(([k, v]) => listPaths(v, [...here, k as Step]));
+  if (Array.isArray(data)) return [here, ...data.flatMap((v, i) => listPaths(v, [...here, i]))];
+  return [];
+}
+
+/** `p` parses to its expected data, which is `want`, and leaves everything outside `[start, end)` of `text` alone. */
+function listPatch(p: Patch, want: Data, text: string, [start, end]: [number, number], label: string): void {
+  assert.ok(sameData(parse(p.text), p.expected), `${label}: ${p.what} does not parse to its data\n${p.text}`);
+  assert.ok(sameData(p.expected, want), `${label}: ${p.what} expects the wrong data`);
+  assert.ok(p.text.startsWith(text.slice(0, start)) && p.text.endsWith(text.slice(end)), `${label}: ${p.what} changed text outside the list`);
+}
+
+test("every list in the corpus takes an item at either end, loses each, and reorders, byte-exact outside it and round-tripping", () => {
+  let lists = 0;
+  for (const path of DESIGNS) {
+    const text = read(path);
+    const index = new SpanIndex(text);
+    for (const list of listPaths(index.data)) {
+      const label = `${path} ${list.join(".")}`;
+      const items = dataAt(index.data, list) as Data[];
+      const span = listSpan(index, list);
+      const changed = (change: (copy: Data[]) => void): Data => {
+        const copy = deepCopy(index.data);
+        change(dataAt(copy, list) as Data[]);
+        return copy;
+      };
+      const probe = deepCopy(items[0]!);
+      // an item at either end, then taken out again: the text as it was
+      for (const at of [0, items.length]) {
+        const inserted = insertItem(index, list, at, probe);
+        listPatch(inserted, changed((l) => l.splice(at, 0, probe)), text, span, label);
+        assert.equal(removeItem(new SpanIndex(inserted.text), list, at).text, text, `${label}: insert at ${at} then remove`);
+      }
+      // each item out
+      for (let at = 0; at < items.length; at++) {
+        const removed = removeItem(index, list, at);
+        if (items.length > 1) {
+          listPatch(removed, changed((l) => l.splice(at, 1)), text, span, label);
+        } else {
+          assert.ok(sameData(parse(removed.text), removed.expected), `${label}: ${removed.what}`);
+          const entry = index.get(list);
+          const flowList = (index.at(list).value as { flow?: boolean }).flow === true;
+          if (entry !== undefined && !flowList) assert.equal(index.get(list) !== undefined && dataAt(removed.expected, list.slice(0, -1)) instanceof Map && (dataAt(removed.expected, list.slice(0, -1)) as Map<unknown, unknown>).has(list[list.length - 1]), false, `${label}: the emptied list's key stays`);
+          else assert.deepEqual(dataAt(removed.expected, list), [], label);
+        }
+      }
+      // first to last and back, last to first and back: the text as it was
+      if (items.length > 1) {
+        const last = items.length - 1;
+        for (const [from, to] of [[0, last], [last, 0]]) {
+          const moved = moveItem(index, list, from!, to!);
+          listPatch(moved, changed((l) => { const [m] = l.splice(from!, 1); l.splice(to!, 0, m!); }), text, span, label);
+          assert.equal(moveItem(new SpanIndex(moved.text), list, to!, from!).text, text, `${label}: move ${from} to ${to} and back`);
+        }
+      }
+      lists++;
+    }
+  }
+  assert.ok(lists > 100, `${lists} lists`);
+});
+
+test("a block list of block mappings takes a block item, matching its neighbours", () => {
+  const text = minimal("elements:\n  a:\n    type: pattern\n    pattern: radial\n    count: 4\n    color: color.fg\n    parts:\n      - type: polygon\n        points:\n          - { dx: -3%r, dy: -56%r }\n          - { dy: -64%r }\n          - { dx: 3%r, dy: -56%r }\n          - { dy: -50%r }\n      - type: circle\n        radius: 2%r\n");
+  const index = new SpanIndex(text);
+  const g = gate("face.yaml", text);
+  const part = new Map<string, Data>([["type", "polygon"], ["points", [new Map([["dx", "1%r"]]), new Map([["dy", "2%r"]]), new Map([["dx", "3%r"]])]]]);
+  const added = insertItem(index, ["elements", "a", "parts"], 2, part);
+  g.check(added);
+  assert.ok(added.text.endsWith("      - type: circle\n        radius: 2%r\n      - type: polygon\n        points:\n          - { dx: 1%r }\n          - { dy: 2%r }\n          - { dx: 3%r }\n"), added.text);
+  const first = insertItem(index, ["elements", "a", "parts"], 0, new Map<string, Data>([["type", "circle"], ["radius", "1%r"]]));
+  g.check(first);
+  assert.ok(first.text.includes("    parts:\n      - type: circle\n        radius: 1%r\n      - type: polygon\n"), first.text);
+  // a point among `- { dx: .., dy: .. }` lines is one more such line
+  const point = insertItem(index, ["elements", "a", "parts", 0, "points"], 1, new Map([["dx", "0%r"], ["dy", "-60%r"]]));
+  g.check(point);
+  assert.ok(point.text.includes("          - { dx: -3%r, dy: -56%r }\n          - { dx: 0%r, dy: -60%r }\n          - { dy: -64%r }\n"), point.text);
+  const gone = removeItem(index, ["elements", "a", "parts", 0, "points"], 0);
+  g.check(gone);
+  assert.ok(gone.text.includes("        points:\n          - { dy: -64%r }\n          - { dx: 3%r, dy: -56%r }\n          - { dy: -50%r }\n      - type: circle\n"), gone.text);
+  const swapped = moveItem(index, ["elements", "a", "parts"], 1, 0);
+  g.check(swapped);
+  assert.ok(swapped.text.includes("    parts:\n      - type: circle\n        radius: 2%r\n      - type: polygon\n        points:\n"), swapped.text);
+  assert.equal(moveItem(new SpanIndex(swapped.text), ["elements", "a", "parts"], 0, 1).text, text);
+});
+
+test("an item's comment lines travel with it, and a list's comments and blank lines stay in place", () => {
+  const text = "parts:\n  # the first\n  - { a: 1 }   # on its line\n\n  # the second\n  - b: 2\n    c: 3\n\n  # after the last\nnext: 1\n";
+  const index = new SpanIndex(text);
+  const moved = moveItem(index, ["parts"], 0, 1);
+  assert.equal(moved.text, "parts:\n  # the second\n  - b: 2\n    c: 3\n\n  # the first\n  - { a: 1 }   # on its line\n\n  # after the last\nnext: 1\n");
+  assert.ok(sameData(parse(moved.text), moved.expected));
+  assert.equal(removeItem(index, ["parts"], 0).text, "parts:\n\n  # the second\n  - b: 2\n    c: 3\n\n  # after the last\nnext: 1\n");
+  // the blank lines around a removed item stay, as around a removed mapping entry
+  assert.equal(removeItem(index, ["parts"], 1).text, "parts:\n  # the first\n  - { a: 1 }   # on its line\n\n\n  # after the last\nnext: 1\n");
+  assert.equal(insertItem(index, ["parts"], 2, "z").text, "parts:\n  # the first\n  - { a: 1 }   # on its line\n\n  # the second\n  - b: 2\n    c: 3\n  - z\n\n  # after the last\nnext: 1\n");
+});
+
+test("a flow list takes, loses and reorders items with its own separators", () => {
+  const text = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n    lint: { allow: [safe-area], reason: on purpose }\n");
+  const index = new SpanIndex(text);
+  const g = gate("face.yaml", text);
+  const targets = ["build", "targets"];
+  const front = insertItem(index, targets, 0, "fr955");
+  g.check(front);
+  assert.ok(front.text.includes("build: { targets: [fr955, fenix8solar47mm] }\n"));
+  const back = insertItem(index, targets, 1, "fr955");
+  g.check(back);
+  assert.ok(back.text.includes("build: { targets: [fenix8solar47mm, fr955] }\n"));
+  const three = new SpanIndex(insertItem(new SpanIndex(back.text), targets, 1, "fenix8solar51mm").text);
+  assert.ok(three.text.includes("[fenix8solar47mm, fenix8solar51mm, fr955]"));
+  assert.ok(moveItem(three, targets, 2, 0).text.includes("[fr955, fenix8solar47mm, fenix8solar51mm]"));
+  assert.ok(moveItem(three, targets, 0, 2).text.includes("[fenix8solar51mm, fr955, fenix8solar47mm]"));
+  assert.ok(removeItem(three, targets, 1).text.includes("[fenix8solar47mm, fr955]"));
+  assert.ok(removeItem(three, targets, 2).text.includes("[fenix8solar47mm, fenix8solar51mm]"));
+  // a list inside a flow mapping; its last item out leaves `[]`
+  const allow = ["elements", "a", "lint", "allow"];
+  const more = insertItem(index, allow, 1, "contrast");
+  g.check(more);
+  assert.ok(more.text.includes("lint: { allow: [safe-area, contrast], reason: on purpose }\n"));
+  const none = removeItem(index, allow, 0);
+  assert.ok(none.text.includes("lint: { allow: [], reason: on purpose }\n"));
+  assert.ok(sameData(parse(none.text), none.expected));
+  assert.ok(insertItem(new SpanIndex(none.text), allow, 0, "contrast").text.includes("lint: { allow: [contrast], reason: on purpose }\n"));
+  // a multi-line flow list keeps its line breaks
+  const wrapped = "a: [one, two,\n    three]\n";
+  assert.equal(insertItem(new SpanIndex(wrapped), ["a"], 2, "x").text, "a: [one, two,\n    x,\n    three]\n");
+  assert.equal(insertItem(new SpanIndex(wrapped), ["a"], 3, "x").text, "a: [one, two,\n    three,\n    x]\n");
+  assert.equal(removeItem(new SpanIndex(wrapped), ["a"], 2).text, "a: [one, two]\n");
+  assert.equal(insertItem(new SpanIndex("a: [ ]\n"), ["a"], 0, 1).text, "a: [1]\n");
+});
+
+test("the last item of a block list takes the list's key with it, and the first key of a block item leaves the dash", () => {
+  const index = new SpanIndex("a:\n  parts:\n    - { x: 1 }\n  skip:\n    - 0\nb:\n  only:\n    - 1\n");
+  const parts = removeItem(index, ["a", "parts"], 0);
+  assert.equal(parts.text, "a:\n  skip:\n    - 0\nb:\n  only:\n    - 1\n");
+  assert.ok(sameData(parse(parts.text), parts.expected));
+  const only = removeItem(index, ["b", "only"], 0);
+  assert.equal(only.text, "a:\n  parts:\n    - { x: 1 }\n  skip:\n    - 0\n");
+  assert.ok(sameData(parse(only.text), only.expected));
+  const item = new SpanIndex("parts:\n  - type: polygon  # shaft\n    color: x\n  - type: circle\n");
+  const headless = remove(item, ["parts", 0, "type"]);
+  assert.equal(headless.text, "parts:\n  - color: x\n  - type: circle\n");
+  assert.ok(sameData(parse(headless.text), headless.expected));
+  const emptied = remove(item, ["parts", 1, "type"]);
+  assert.equal(emptied.text, "parts:\n  - type: polygon  # shaft\n    color: x\n  - {}\n");
+  assert.ok(sameData(parse(emptied.text), emptied.expected));
+});
+
+test("the first item makes its list: flow under a missing or empty key, block when asked", () => {
+  const text = minimal("elements:\n  a:\n    type: pattern\n    pattern: radial\n    count: 4\n    skip:\n    color: color.fg\n    parts:\n      - { type: circle, radius: 1%r }\n");
+  const index = new SpanIndex(text);
+  const allow = insertItem(index, ["elements", "a", "lint", "allow"], 0, "safe-area");
+  assert.ok(allow.text.includes("      - { type: circle, radius: 1%r }\n    lint: { allow: [safe-area] }\n"), allow.text);
+  assert.ok(sameData(parse(allow.text), allow.expected));
+  const skip = insertItem(index, ["elements", "a", "skip"], 0, 0);
+  assert.ok(skip.text.includes("    skip: [0]\n"), skip.text);
+  assert.ok(sameData(parse(skip.text), skip.expected));
+  const block = insertItem(index, ["elements", "a", "skip"], 0, 0, { block: true });
+  assert.ok(block.text.includes("    skip:\n      - 0\n    color: color.fg\n"), block.text);
+  assert.ok(sameData(parse(block.text), block.expected));
+  const made = insertItem(index, ["elements", "a", "lint", "allow"], 0, "safe-area", { block: true });
+  assert.ok(made.text.includes("    lint:\n      allow:\n        - safe-area\n"), made.text);
+  assert.ok(sameData(parse(made.text), made.expected));
+  assert.throws(() => insertItem(index, ["elements", "a", "skip"], 1, 0), /has no items yet/);
+});
+
+test("a value inside a list item is set in place, a key added to it, and a whole item replaced", () => {
+  const text = minimal("elements:\n  a:\n    type: pattern\n    pattern: radial\n    count: 4\n    color: color.fg\n    parts:\n      - type: circle\n        radius: 2%r\n      - { type: circle, radius: 1%r }\n");
+  const index = new SpanIndex(text);
+  const g = gate("face.yaml", text);
+  const parts = ["elements", "a", "parts"];
+  const inPlace = setValue(index, [...parts, 0, "radius"], "3%r");
+  g.check(inPlace);
+  assert.ok(inPlace.text.includes("      - type: circle\n        radius: 3%r\n"));
+  const added = setValue(index, [...parts, 0, "at", "dy"], "10%r");
+  g.check(added);
+  assert.ok(added.text.includes("        radius: 2%r\n        at: { dy: 10%r }\n      - { type: circle, radius: 1%r }\n"), added.text);
+  const flowAdded = setValue(index, [...parts, 1, "at", "dy"], "10%r");
+  g.check(flowAdded);
+  assert.ok(flowAdded.text.includes("      - { type: circle, radius: 1%r, at: { dy: 10%r } }\n"), flowAdded.text);
+  const whole = setValue(index, [...parts, 1], new Map([["type", "circle"], ["radius", "4%r"]]));
+  g.check(whole);
+  assert.ok(whole.text.includes("      - { type: circle, radius: 4%r }\n"), whole.text);
+  const target = setValue(index, ["build", "targets", 0], "fr955");
+  g.check(target);
+  assert.ok(target.text.includes("build: { targets: [fr955] }\n"));
+  assert.throws(() => setValue(index, [...parts, 0], new Map([["type", "circle"]])), /block item/);
+  assert.throws(() => setValue(index, [...parts, 2, "radius"], "1%r"), /not in the file/);
+});
+
+test("list edits refuse what they cannot do", () => {
+  const index = new SpanIndex("a: [1, 2]\nb:\n  - - x\n    - y\nc: 1\n");
+  assert.throws(() => insertItem(index, ["a"], 3, 0), /has 2 items/);
+  assert.throws(() => insertItem(index, ["a"], -1, 0), /has 2 items/);
+  assert.throws(() => removeItem(index, ["a"], 2), /no item 2/);
+  assert.throws(() => moveItem(index, ["a"], 0, 2), /no item 2/);
+  assert.throws(() => insertItem(index, ["c"], 0, 0), /not a list/);
+  assert.throws(() => removeItem(index, ["d"], 0), /not in the file/);
+  assert.throws(() => insertItem(index, ["b", 0], 0, "z"), /shares a line/);
+  assert.equal(moveItem(index, ["a"], 1, 1).text, index.text);
 });

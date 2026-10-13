@@ -190,9 +190,10 @@ ts/                   the compiler, its tests and tools: one package for the
                           the host evaluator, the barrel's arithmetic transcribed
     raster/               the preview's rasteriser: Garmin's own rules (garmin.ts)
                           where simulator captures pin them, Pillow's elsewhere
-    edit/                 the editor's patch engine: the span index, text patches, the
-                          gate, pixel drags written in the author's units, and
-                          structure (blocks, groups, new elements)
+    edit/                 the editor's patch engine: the span index, text patches (a
+                          key set, removed or renamed; a list item inserted, removed
+                          or moved), the gate, pixel drags written in the author's
+                          units, and structure (blocks, groups, new elements)
     emit/                 Monkey C, resources, manifest, jungle
     preview.ts            the host-side renderer over the resolved IR
     build.ts, node_build.ts  the pipeline, and writing and compiling a project (Node)

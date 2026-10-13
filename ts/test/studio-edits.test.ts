@@ -628,3 +628,45 @@ test("a batch through the requests is one announced change", async () => {
   assert.match(refused.json.error, /^step 1, remove elements\.nope: /);
   assert.equal((await client.call("batch", { id: doc.id, version: 1, label: "x", edits: BATCH_STEPS })).status, 409);
 });
+
+// -- list items --
+
+test("a list item is inserted, moved and removed through the document, each one undoable change", async () => {
+  const client = await Client.open();
+  const doc = make(client.studio);
+  const edit = (version: number, edit: unknown) => client.call("edit", { id: doc.id, version, edit });
+  const texts = [doc.text];
+  let r = await edit(doc.version, { op: "insert_item", path: ["build", "targets"], at: 0, value: "fr245" });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(dataOf(doc).build.targets, ["fr245", "fenix8solar47mm", "fenix8solar51mm", "fr955"]);
+  assert.equal(r.json.history.states[0].label, "insert build.targets.0: fr245");
+  texts.push(doc.text);
+  r = await edit(doc.version, { op: "move_item", path: ["build", "targets"], from: 0, to: 3 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(dataOf(doc).build.targets, ["fenix8solar47mm", "fenix8solar51mm", "fr955", "fr245"]);
+  assert.equal(r.json.history.states[0].label, "move build.targets.0 to 3");
+  texts.push(doc.text);
+  r = await edit(doc.version, { op: "remove_item", path: ["build", "targets"], at: 3 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(dataOf(doc).build.targets, ["fenix8solar47mm", "fenix8solar51mm", "fr955"]);
+  assert.equal(r.json.history.states[0].label, "remove build.targets.3");
+  assert.equal(doc.text, texts[0]);
+  assert.equal(doc.history()["total"], 4);
+  for (const text of [texts[2], texts[1], texts[0]]) {
+    const undone = await client.call("undo", { id: doc.id, version: doc.version });
+    assert.equal(undone.status, 200);
+    assert.equal(doc.text, text);
+  }
+  // through an element: the path is the element's own
+  await edit(doc.version, { op: "set", element: ["elements", "clock"], path: ["lint"], value: { allow: ["safe-area"], reason: "on purpose" } });
+  const withLint = await edit(doc.version, { op: "insert_item", element: ["elements", "clock"], path: ["lint", "allow"], at: 1, value: "text-overflow" });
+  assert.equal(withLint.status, 200, JSON.stringify(withLint.json));
+  assert.deepEqual(dataOf(doc).elements.clock.lint, { allow: ["safe-area", "text-overflow"], reason: "on purpose" });
+  assert.ok(doc.text.includes("    lint: { allow: [safe-area, text-overflow], reason: on purpose }\n"), doc.text);
+  const bad = await edit(doc.version, { op: "remove_item", path: ["build", "targets"], at: 7 });
+  assert.equal(bad.status, 400);
+  assert.match(bad.json.error, /no item 7/);
+  const noAt = await edit(doc.version, { op: "insert_item", path: ["build", "targets"], value: "x" });
+  assert.equal(noAt.status, 400);
+  assert.match(noAt.json.error, /at/);
+});

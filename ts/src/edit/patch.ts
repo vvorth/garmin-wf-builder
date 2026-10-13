@@ -8,11 +8,16 @@
 // does not change, so comments, quoting, flow or block style and blank
 // lines outside the edit stay byte for byte.
 //
-// Three rules, each found on the example corpus:
+// Four rules, each found on the example corpus:
 //
 // - a block value ends where the next token starts (`SpanIndex.valueEnd`);
 // - removing the last entry of a block mapping removes the mapping's own
-//   key too, since an emptied block mapping parses as null;
+//   key too, since an emptied block mapping parses as null, and so does
+//   removing the last item of a block sequence;
+// - a list item is whole lines, from its own comment lines to its value's
+//   last line, as a mapping entry is; moving items permutes those lines
+//   and leaves the blank lines and shallower comments between them where
+//   they are;
 // - a duplicate renames every element id inside it, the element's own and
 //   each descendant's, or a copied group's children clash with the
 //   original's.
@@ -24,7 +29,9 @@ import {
   dotted, type Entry, indentOf, isElement, lineEnd, lineStart, type Path, pathKey, parse, Refused,
   sameData, SpanIndex, type Step,
 } from "./spans.ts";
-import { type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, Timestamp, type YamlNode } from "./yaml.ts";
+import {
+  type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, type SequenceNode, Timestamp, type YamlNode,
+} from "./yaml.ts";
 
 /** A patched text and the data it must parse to. */
 export interface Patch {
@@ -201,14 +208,35 @@ export function lastEntry(index: SpanIndex, mapping: MappingNode): Entry {
   return entry;
 }
 
-function mappingAt(index: SpanIndex, path: Path): MappingNode {
-  if (path.length === 0) {
-    if (index.root === null || index.root.kind !== "mapping") throw new Refused("the file is not a mapping");
-    return index.root;
+/**
+ * The node at `path`: the root, an entry's value, or a list item reached
+ * through its indices from the deepest entry on the way (the index holds
+ * entries for keys only, inside list items too, never for items).
+ */
+export function nodeAt(index: SpanIndex, path: Path): YamlNode | undefined {
+  let node: YamlNode | null = index.root;
+  let from = 0;
+  for (let depth = path.length; depth > 0; depth--) {
+    const entry = index.get(path.slice(0, depth));
+    if (entry !== undefined) {
+      node = entry.value;
+      from = depth;
+      break;
+    }
   }
-  const entry = index.at(path);
-  if (entry.value.kind !== "mapping") throw new Refused(`${dotted(path)} is not a mapping`);
-  return entry.value;
+  for (let i = from; i < path.length; i++) {
+    const step = path[i];
+    if (node === null || node.kind !== "sequence" || typeof step !== "number") return undefined;
+    node = node.items[step] ?? null;
+  }
+  return node ?? undefined;
+}
+
+function mappingAt(index: SpanIndex, path: Path): MappingNode {
+  const node = nodeAt(index, path);
+  if (node === undefined) throw new Refused(path.length === 0 ? "the file is empty" : `${dotted(path)} is not in the file`);
+  if (node.kind !== "mapping") throw new Refused(path.length === 0 ? "the file is not a mapping" : `${dotted(path)} is not a mapping`);
+  return node;
 }
 
 /** The index of `needle` in `text` from `from`; absent, a `ShapeError`. */
@@ -240,7 +268,7 @@ function insertKey(index: SpanIndex, mapping: MappingNode, key: string, value: D
   const indent = blockIndent(mapping);
   const end = index.valueEnd(after ?? lastEntry(index, mapping));
   let line: string;
-  if (block && value instanceof Map && value.size > 0) {
+  if (block && (value instanceof Map || Array.isArray(value)) && truthy(value)) {
     line = " ".repeat(indent) + `${keyText(key)}:\n` + blockText(value, indent + 2);
     if (mapping === index.root && !text.slice(0, end).endsWith("\n\n")) line = "\n" + line;
   } else {
@@ -257,40 +285,53 @@ function quoteStyle(node: ScalarNode): string | null {
 
 function setValueOn(index: SpanIndex, path: Path, value: Data, block = false): Patch {
   const expected = withData(index);
+  const what = `set ${dotted(path)}`;
+  const text = index.text;
   const entry = index.get(path);
-  if (entry !== undefined) {
+  // an entry's value, or a whole list item (a path ending in an index)
+  const node = entry?.value ?? (typeof path[path.length - 1] === "number" ? nodeAt(index, path) : undefined);
+  if (node !== undefined) {
+    const empty = node.kind === "scalar" && node.value === "" && node.style === null;
+    if (entry === undefined && empty) throw new Refused(`${dotted(path)} is an empty item; edit it in the text`);
     setChild(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
-    const node = entry.value;
     let replacement: string;
     if (node.kind === "scalar" && !(value instanceof Map) && !Array.isArray(value)) {
       replacement = scalar(value, quoteStyle(node));
     } else if (node.kind === "scalar" || node.flow) {
       replacement = flow(value);
+    } else if (entry !== undefined) {
+      return patch(replaceBlock(index, entry, value), expected, what);
     } else {
-      return patch(replaceBlock(index, entry, value), expected, `set ${dotted(path)}`);
+      throw new Refused(`${dotted(path)} is a block item: remove it and insert the new one`);
     }
     let start = node.start.index, end = node.end.index;
-    if (node.kind === "scalar" && node.value === "" && node.style === null) {
-      // an empty value (`key:`) has a zero-width node: write after the colon
-      start = end = indexOf(index.text, ":", entry.key.end.index) + 1;
+    if (entry !== undefined && empty) {
+      if (block && !entry.isFlow && (value instanceof Map || Array.isArray(value)) && truthy(value)) {
+        // an empty value (`key:`) under a block mapping takes block lines after the key's own line
+        const after = lineEnd(text, entry.key.start.index);
+        return patch(text.slice(0, after) + blockText(value, entry.key.start.column + 2) + text.slice(after), expected, what);
+      }
+      // an empty value has a zero-width node: write after the colon
+      start = end = indexOf(text, ":", entry.key.end.index) + 1;
       replacement = " " + replacement;
     }
-    return patch(index.text.slice(0, start) + replacement + index.text.slice(end), expected, `set ${dotted(path)}`);
+    return patch(text.slice(0, start) + replacement + text.slice(end), expected, what);
   }
   // the deepest existing ancestor that is a mapping
   let depth = path.length - 1;
   for (; depth >= 0; depth--) {
-    if (depth === 0 || index.get(path.slice(0, depth)) !== undefined) break;
+    if (depth === 0 || nodeAt(index, path.slice(0, depth)) !== undefined) break;
   }
   const prefix = path.slice(0, depth);
-  const mapping = mappingAt(index, prefix);
   const rest = path.slice(depth);
-  if (rest.some((step) => typeof step !== "string")) throw new Refused(`cannot create the list item ${dotted(path)}`);
+  if (nodeAt(index, prefix)?.kind === "sequence" && typeof rest[0] === "number") throw new Refused(`${dotted(path.slice(0, depth + 1))} is not in the file`);
+  const mapping = mappingAt(index, prefix);
+  if (rest.some((step) => typeof step !== "string")) throw new Refused(`cannot create the list item ${dotted(path)}; insert it`);
   const holder = dataAt(expected, prefix);
   if (!(holder instanceof Map)) throw new Refused(`${dotted(prefix)} is not a mapping`);
   holder.set(rest[0]!, nested(rest.slice(1), value));
-  const text = insertKey(index, mapping, String(rest[0]), nested(rest.slice(1), value), undefined, block);
-  return patch(text, expected, `set ${dotted(path)}`);
+  const added = insertKey(index, mapping, String(rest[0]), nested(rest.slice(1), value), undefined, block);
+  return patch(added, expected, what);
 }
 
 /**
@@ -426,8 +467,189 @@ export function removeOn(index: SpanIndex, path: Path): Patch {
     else start = pairs[i - 1]![1].end.index; // eat the preceding ", "
     return patch(text.slice(0, start) + text.slice(end), expected, `remove ${dotted(entry.path)}`);
   }
+  const lead = text.slice(lineStart(text, entry.key.start.index), entry.key.start.index);
+  if (lead.trim() !== "") {
+    // the first key of a block list item shares its line with the dash (`- type: polygon`):
+    // the next key moves up onto that line, or `{}` is left when there is none
+    const pairs = entry.parent.pairs;
+    const next = pairs.length > 1 ? pairs[1]![0] : undefined;
+    const end = next !== undefined ? next.start.index : index.valueEnd(entry);
+    return patch(text.slice(0, entry.key.start.index) + (next !== undefined ? "" : "{}\n") + text.slice(end), expected, `remove ${dotted(entry.path)}`);
+  }
   const [start, end] = index.entryRange(entry);
   return patch(text.slice(0, start) + text.slice(end), expected, `remove ${dotted(entry.path)}`);
+}
+
+// -- list items -------------------------------------------------------------
+
+function sequenceAt(index: SpanIndex, path: Path): SequenceNode {
+  const node = nodeAt(index, path);
+  if (node === undefined) throw new Refused(`${dotted(path)} is not in the file`);
+  if (node.kind !== "sequence") throw new Refused(`${dotted(path)} is not a list`);
+  return node;
+}
+
+/**
+ * Each item of a block sequence as whole lines: from its leading comment
+ * lines at the dash's indent to its value's last line, trailing blank
+ * lines and shallower comments left to what follows (as `entryRange` cuts
+ * a mapping entry). The dashes are found in the text: the lines inside
+ * the sequence holding `-` at its column with nothing but spaces before.
+ */
+function blockItemRanges(index: SpanIndex, seq: SequenceNode, path: Path): [number, number][] {
+  const text = index.text;
+  const first = lineStart(text, seq.start.index);
+  if (text.slice(first, seq.start.index).trim() !== "") throw new Refused(`${dotted(path)} shares a line with its parent; edit it in the text`);
+  const column = seq.start.index - first;
+  const dashes: number[] = [];
+  for (let p = first; p < seq.end.index; p = lineEnd(text, p)) {
+    const line = text.slice(p, lineEnd(text, p)).replace(/\n$/, "");
+    if (line.slice(0, column).trim() === "" && line[column] === "-" && (line.length === column + 1 || line[column + 1] === " ")) dashes.push(p + column);
+  }
+  if (dashes.length !== seq.items.length || dashes.some((d, i) => d >= seq.items[i]!.start.index)) {
+    throw new Refused(`${dotted(path)} has an item the editor cannot place; edit it in the text`);
+  }
+  return dashes.map((dash, i) => {
+    let start = lineStart(text, dash);
+    while (start > 0) {
+      const prev = lineStart(text, start - 1);
+      const line = text.slice(prev, start - 1);
+      if (line.trim().startsWith("#") && line.length - line.trimStart().length === column) start = prev;
+      else break;
+    }
+    const endIndex = seq.items[i]!.end.index;
+    const head = lineStart(text, endIndex);
+    let end = text.slice(head, endIndex).trim() === "" && head > dash ? head : lineEnd(text, Math.max(endIndex - 1, 0));
+    const dashLine = lineStart(text, dash);
+    while (end > dashLine) {
+      const last = lineStart(text, end - 1);
+      if (last <= dashLine) break;
+      const line = text.slice(last, end).replace(/\n$/, "");
+      const stripped = line.trim();
+      if (stripped === "" || (stripped.startsWith("#") && line.length - line.trimStart().length <= column)) end = last;
+      else break;
+    }
+    return [start, end];
+  });
+}
+
+/** Each item's characters: a flow item's own, a block item's whole lines (`blockItemRanges`). */
+function itemRanges(index: SpanIndex, seq: SequenceNode, path: Path): [number, number][] {
+  return seq.flow ? seq.items.map((item) => [item.start.index, item.end.index]) : blockItemRanges(index, seq, path);
+}
+
+/** The characters of the list at `path` an item edit may touch: its items from the first's own comment lines to the last's end. */
+export function listSpan(index: SpanIndex, path: Path): [number, number] {
+  const seq = sequenceAt(index, path);
+  if (seq.flow) return [seq.start.index, seq.end.index];
+  const ranges = blockItemRanges(index, seq, path);
+  return [ranges[0]![0], ranges[ranges.length - 1]![1]];
+}
+
+/** The separator the new item at `at` of a flow sequence takes: the one between the neighbours it lands by, or `, `. */
+function flowSeparator(text: string, items: YamlNode[], at: number): string {
+  const k = Math.min(Math.max(at - 1, 0), items.length - 2);
+  if (k < 0) return ", ";
+  const gap = text.slice(items[k]!.end.index, items[k + 1]!.start.index);
+  return gap.includes("#") ? ", " : gap;
+}
+
+function listIndex(path: Path, seq: SequenceNode, at: number, insert: boolean): void {
+  const length = seq.items.length;
+  if (insert ? Number.isInteger(at) && at >= 0 && at <= length : Number.isInteger(at) && at >= 0 && at < length) return;
+  const n = `${length} item${length === 1 ? "" : "s"}`;
+  throw new Refused(insert ? `${dotted(path)} has ${n}: insert at 0 to ${length}` : `${dotted(path)} has ${n}; there is no item ${at}`);
+}
+
+function insertItemOn(index: SpanIndex, path: Path, at: number, value: Data, block: boolean): Patch {
+  const what = `insert ${dotted(path)}.${at}`;
+  const node = nodeAt(index, path);
+  if (node === undefined || (node.kind === "scalar" && node.value === "" && node.style === null && index.get(path) !== undefined)) {
+    // no list yet (the key is missing or empty): the first item makes it, as `setValue` writes a list
+    if (at !== 0) throw new Refused(`${dotted(path)} has no items yet: insert at 0`);
+    const made = setValueOn(index, path, [value], block);
+    return patch(made.text, made.expected, what);
+  }
+  if (node.kind !== "sequence") throw new Refused(`${dotted(path)} is not a list`);
+  listIndex(path, node, at, true);
+  const expected = withData(index);
+  const list = dataAt(expected, path);
+  if (!Array.isArray(list)) throw new ShapeError("not a list");
+  list.splice(at, 0, value);
+  const text = index.text;
+  const items = node.items;
+  if (node.flow) {
+    if (items.length === 0) return patch(text.slice(0, node.start.index) + `[${flow(value)}]` + text.slice(node.end.index), expected, what);
+    const sep = flowSeparator(text, items, at);
+    if (at === items.length) {
+      const end = items[items.length - 1]!.end.index;
+      return patch(text.slice(0, end) + sep + flow(value) + text.slice(end), expected, what);
+    }
+    const start = items[at]!.start.index;
+    return patch(text.slice(0, start) + flow(value) + sep + text.slice(start), expected, what);
+  }
+  const ranges = blockItemRanges(index, node, path);
+  const column = node.start.index - lineStart(text, node.start.index);
+  const blockItems = items.some((item) => item.kind === "mapping" && !item.flow);
+  const body = blockItems && value instanceof Map && value.size > 0 ? blockText(value, column + 2).slice(column + 2) : `${flow(value)}\n`;
+  const line = " ".repeat(column) + "- " + body;
+  const where = at === items.length ? ranges[items.length - 1]![1] : ranges[at]![0];
+  return patch(text.slice(0, where) + line + text.slice(where), expected, what);
+}
+
+function removeItemOn(index: SpanIndex, path: Path, at: number): Patch {
+  const what = `remove ${dotted(path)}.${at}`;
+  const node = sequenceAt(index, path);
+  listIndex(path, node, at, false);
+  const text = index.text;
+  const items = node.items;
+  if (items.length === 1) {
+    const holder = index.holder(node);
+    if (!node.flow && holder !== undefined) {
+      // an emptied block sequence cannot be written: its key goes, as an emptied block mapping's does
+      const removed = removeOn(index, holder.path);
+      return patch(removed.text, removed.expected, what);
+    }
+  }
+  const expected = withData(index);
+  deleteChild(dataAt(expected, path), at);
+  if (items.length === 1) {
+    const end = node.flow ? node.end.index : blockItemRanges(index, node, path)[0]![1];
+    return patch(text.slice(0, node.start.index) + (node.flow ? "[]" : "[]\n") + text.slice(end), expected, what);
+  }
+  if (node.flow) {
+    let start = items[at]!.start.index, end = items[at]!.end.index;
+    if (at + 1 < items.length) end = items[at + 1]!.start.index; // eat the following separator
+    else start = items[at - 1]!.end.index; // eat the preceding one
+    return patch(text.slice(0, start) + text.slice(end), expected, what);
+  }
+  const [start, end] = blockItemRanges(index, node, path)[at]!;
+  return patch(text.slice(0, start) + text.slice(end), expected, what);
+}
+
+function moveItemOn(index: SpanIndex, path: Path, from: number, to: number): Patch {
+  const what = `move ${dotted(path)}.${from} to ${to}`;
+  const node = sequenceAt(index, path);
+  listIndex(path, node, from, false);
+  listIndex(path, node, to, false);
+  const expected = withData(index);
+  const list = dataAt(expected, path);
+  if (!Array.isArray(list)) throw new ShapeError("not a list");
+  const [moved] = list.splice(from, 1);
+  list.splice(to, 0, moved!);
+  const text = index.text;
+  if (from === to) return patch(text, expected, what);
+  // the items' own text permutes; what lies between two slots (a separator, blank lines, a shallower comment) stays in its slot
+  const ranges = itemRanges(index, node, path);
+  const order = ranges.map((_, i) => i);
+  order.splice(from, 1);
+  order.splice(to, 0, from);
+  let out = text.slice(0, ranges[0]![0]);
+  for (let slot = 0; slot < order.length; slot++) {
+    out += text.slice(...ranges[order[slot]!]!);
+    if (slot + 1 < order.length) out += text.slice(ranges[slot]![1], ranges[slot + 1]![0]);
+  }
+  return patch(out + text.slice(ranges[ranges.length - 1]![1]), expected, what);
 }
 
 // -- element patches --------------------------------------------------------
@@ -641,6 +863,33 @@ export function setScalars(index: SpanIndex, values: [Path, Data][]): Patch | un
 /** Remove the key at `path`. The last entry of a mapping, flow or block, takes its mapping's key with it, and so on upward. */
 export function remove(index: SpanIndex, path: Path): Patch {
   return endedPatch(index, (i) => removeOn(i, path));
+}
+
+/**
+ * Insert `value` as item `at` (0 to the length; the length appends) of the
+ * list at `path`, in the list's own style: `- item` on its own line at the
+ * list's indent, a mapping in block style when the list's items are block
+ * mappings and in flow style otherwise, or between a flow list's brackets
+ * with the separator its neighbours use. A list the file does not have yet
+ * (the key missing, or empty) is made around its first item, in flow style
+ * or, with `block` under a block mapping, as block lines.
+ */
+export function insertItem(index: SpanIndex, path: Path, at: number, value: Data, { block = false } = {}): Patch {
+  return endedPatch(index, (i) => insertItemOn(i, path, at, value, block));
+}
+
+/**
+ * Remove item `at` of the list at `path`, a block item with its own comment
+ * lines. The last item of a block list takes the list's key with it (and so
+ * on upward, as `remove` does); a flow list is left as `[]`.
+ */
+export function removeItem(index: SpanIndex, path: Path, at: number): Patch {
+  return endedPatch(index, (i) => removeItemOn(i, path, at));
+}
+
+/** Move item `from` of the list at `path` to position `to`, a block item with its own comment lines. */
+export function moveItem(index: SpanIndex, path: Path, from: number, to: number): Patch {
+  return endedPatch(index, (i) => moveItemOn(i, path, from, to));
 }
 
 /** Delete an element with its leading comment lines. A block's only element takes the block's key with it. */
