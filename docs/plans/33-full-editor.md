@@ -24,6 +24,11 @@ not do" shrinks to sideloading and sharing between browsers.
 
 ## Slice 0a — Stop the bleeding (no decision needed)
 
+**Shipped 2026-10-13** (`git log --grep "slice 0a"`; the three commits after
+the decisions). Every defect below has its regression test; the gate now
+runs the whole pipeline (`Document.admit`), so a resolve-time error is
+refused like a load-time one and a text that has one still reads.
+
 The four defects of research 34 §2.4 that lose work or corrupt a face are
 fixed in the editor as it stands, before and independently of the rewrite,
 each with the regression test that was missing:
