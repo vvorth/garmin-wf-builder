@@ -28,7 +28,7 @@ Face Studio and Google's Watch Face Designer (§9).
 | 1 | **The engine under the editor is sound and should stay.** YAML text is canonical, every edit is a byte-exact text patch checked by a full load (`ts/src/edit/`), the compiler runs in a worker, history is a journal in IndexedDB, and the browser rasterises the compiler's own draw program. All of it is corpus-tested. A whole-document re-serialisation is not an alternative: the `yaml` Document API reproduces **3 of 24** example faces byte for byte (§2.5, VERIFIED) | rewrite nothing below `ts/src/studio/document.ts`'s `EDITS` table |
 | 2 | **The crippling is in one layer: the inspector, the per-feature edit ops and the page.** The inspector can edit only *a scalar at a known path whose `$defs` name or key name is in a hand-kept table*; everything else is a read-only "edit this in the YAML" block. Measured over the schema: of ≈481 key slots, **≈240 (50%) get a control, 58 are shown read-only and 133 are invisible** — `aod:` on all 14 element types, `outline:` on 13, every hand part, pattern part, polygon point, gauge band and needle, `defaults:`, `face:` (§2.1, VERIFIED by script) | this layer is replaced, not patched again |
 | 3 | **The editor has one flat form for one state.** A face has variants — device, screen shape, awake/asleep/AOD frame, style and layout, the wearer's picks — and the format expresses them as `overrides:`, `aod:` and `layouts:`. The GUI can *view* each (the Preview menu) but writes to only one of them, and to that one for four keys (§2.2) | the editing context (what you look at) must decide where an edit goes |
-| 4 | **The two most interactive files have no automated test.** `canvas.js` and `yaml.js` are "checked by hand" (`ts/test/CLAUDE.md`), and nothing drives a browser. The live session found the defects where the tests are not (§2.4) | browser-driven tests become part of the bar |
+| 4 | **The two most interactive files have no automated test**, and the gate does not cover the whole pipeline. `canvas.js` and `yaml.js` are "checked by hand" (`ts/test/CLAUDE.md`), and nothing drives a browser. A live session found 13 defects, one of which bricks a face (choosing the `pt` unit commits a text the worker can no longer read) and two of which lose work (§2.4) | fix the four worst now; browser-driven tests become part of the bar |
 | 5 | **The format is mostly GUI-neutral; a few shapes fight a direct-manipulation editor.** Anonymous `parts:` lists, three-way `oneOf` values (`outline:`, `icon:`, `absent:`, `range:`, `step:`), merge-vs-replace rules in `overrides:`, and opaque expression strings. Each has a small, hand-writable alternative (§5) | ten format changes are proposed, each a separate decision; none is a precondition for the rewrite |
 
 The recommendation (§6–§7): keep the engine; add to it a list-item
@@ -227,8 +227,57 @@ development machines and in this container; nothing uses them.
 
 ### 2.4 What breaks — a live session
 
-_(This section is filled from the headless-Chromium session's report;
-see the live-audit appendix at the end of this file.)_
+The editor was driven in headless Chromium (Playwright 1.56, 1600×1000,
+zoom 2×) against the real server and worker with the user's 22 device
+files: every example face (24) and template (11) opened; every Layers row
+of every face inspected; 83 moves, 71 handle drags and 166 nudges, each
+undone to byte-identical text; every Properties control, Layers action,
+Face-tab section, YAML-tab path, view-bar control, Ctrl+K, History,
+Download and one `monkeyc` build. No console error, page error or failed
+request was logged in any run. VERIFIED (2026-10-13); the harness and
+screenshots were kept outside the repository.
+
+**Most of the documented surface works as documented**, including the
+hard parts: unit-preserving drags that land on the pixel, snapping, Alt
+and Escape, group moves, overrides written for the viewed device, the
+colour picker's three groups and automatic naming, compound scheme edits,
+slot cards from both sides, text merging in the YAML tab, undo across
+tabs and across two tabs of one browser, rapid drags recorded in order.
+Timings: first frame 70 ms (gauge) to 1.7 s (showcase); a move 337 ms
+median from mouse-up to the new version; a handle 198 ms; a nudge 48 ms; a
+Properties edit 150–600 ms; the showcase built for `fenix8solar47mm` in
+5.2 s.
+
+**Defects found**, worst first:
+
+| # | What | Severity | Cause (verified in code unless marked) |
+|---|---|---|---|
+| 1 | **Switching a length's unit to `pt` in Properties (offered on every length), or typing `4pt` in the YAML, bricks the face**: the change is committed, then every `get`/`frame`/`cover` throws `pt units need a reference font; none is in scope here`; Undo is disabled, a reload sits on "Loading…" for ever, the library cover is blank, and the face cannot be opened again (Download still works) | data loss | the gate loads the patched text (parse → schema → IR, `gate.ts:86-101`) where `pt` is legal; `Length.resolve` throws `UnitError` later (`ts/src/units.ts:55`) inside `resolveAll`, which `Document.analysis()` calls uncaught (`document.ts:578-580`), and `analysis()` feeds every read. The same hole lets a target the face cannot draw on be added silently (defect 12) |
+| 2 | **Changing a unit keeps the number**: `sweep: 360deg` → `360turn`, `dx: -50%r` → `-50px`, written at once with no message | wrong result | `ts/app/panels.js:65`: `onChange … send(String(q.number), e.target.value)` |
+| 3 | **A thin element cannot be moved**: a press on a 4-px bar resizes it (`height: 3%r → 5%r`) | wrong result | `canvas.js:394-395` tests the handles' 7-px zone before the ink pick, with no exclusion for an element smaller than the zone |
+| 4 | **Ctrl+K and the Properties "Schemes" link do not switch the Face-tab section when the Face tab is already open** | wrong result | `openFaceSection` writes `localStorage` and switches tab; `useFaceSection` reads it only in its `useState` initialiser (`app.js:469-474`, `panels.js:291-297`) |
+| 5 | **+ Layout is refused on a face whose styles name only schemes** (`config.style.choices.dark: needs 'layout:'`) | missing feature | `add_layout` (`document.ts:181-186`) adds a style only when none exists; it never gives existing entries a `layout:` |
+| 6 | **Any file is accepted as a font** ("+ Font from a file…" with a zip): written, and the face stops drawing with `unknown file format` | wrong result | `addAsset` stores any bytes (`document.ts:409-418`); only the input's `accept` attribute guards |
+| 7 | **`curve:` and a polar `at:` cannot be created from Properties**: each half of a required pair is refused alone (`missing required key 'radius'`) | missing feature | nested-object children are set one key at a time; no compound edit supplies the sibling |
+| 8 | Removing a device override with × leaves `overrides: {fenix8solar47mm: {at: {}}}` behind | cosmetic | `remove` prunes nothing above the key |
+| 9 | Controls that can never succeed are offered and then refused: `on_hold` types other than `auto` on `data`, `unsupported` on a rectangle, `anchor: subscreen` on a `static:` element (with a message about "a group's child"), a bar gauge switched to `arc` ("carries bar-only key: size"), deleting the starting style, removing one style's scheme | refused with reason | the inspector offers the schema branch's keys without the compiler's per-kind rules |
+| 10 | **+ add…** with a `static:` element selected refuses `data`/`gauge`/`graph`/`hands` instead of placing them in `elements:` | refused with reason | the add goes in front of the selection |
+| 11 | **A drag or YAML typing followed within a second by a reload is lost** (the guide promises nothing is lost) | data loss, narrow | the outbox posts to the in-page worker with no `beforeunload` flush (`hooks.js:30-87`); the YAML debounce is 300 ms |
+| 12 | Adding a target the face cannot draw on is accepted silently; the face stops loading | low | as 1: resolve-time errors are outside the gate |
+| 13 | Small: non-numeric text in a number box is ignored silently; a face whose targets are not installed shows an empty Device select and "No frame yet" with Build enabled; a slot's ★ is two history entries; `+ Slot` on the minimal template places an element off screen; deleting a used colour or font shows the raw compiler error rather than the guide's "refused while something uses it" | cosmetic | — |
+
+Defects 1, 2, 11 and 12 are the "some things break"; 5, 7, 9 and 10 are
+the ceiling of §2.2 seen from the author's chair (a required pair, a
+compound edit, per-kind rules the schema branch does not carry); 3 and 4
+are the untested files of §2.3. The dead ends the session hit most, in
+order: `absent:` (15 of 35 faces; read-only on `text`/`gauge`/`pattern`
+though editable on `data`), `outline:`, `graph.range` (required, every
+graph), `curve:`/polar `at:` from scratch, `aod:`, polygon points, `lint:`,
+`gauge.needle`/`bands`, `pattern.skip`, `icon: {for:}`, parts.
+
+Not finished in the session: the YAML tab's two-tab conflict flow
+("Keep my text / Take the face"), a drag on a `pt`-keyed text (blocked by
+defect 1), and the bare-`.yaml` download warning. UNVERIFIED.
 
 ### 2.5 Re-serialising the document is still not an option
 

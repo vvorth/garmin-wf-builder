@@ -22,6 +22,41 @@ not do" shrinks to sideloading and sharing between browsers.
 
 ---
 
+## Slice 0a — Stop the bleeding (no decision needed)
+
+The four defects of research 34 §2.4 that lose work or corrupt a face are
+fixed in the editor as it stands, before and independently of the rewrite,
+each with the regression test that was missing:
+
+1. **The gate covers the whole pipeline** (defects 1 and 12): `Gate.check`
+   runs the resolve as well as the load (or `Document.analysis()` catches a
+   resolve-time error into the bag as a diagnostic on the author's line),
+   so a `pt` length with no font in scope, or a target the face cannot
+   draw on, is refused with its reason and never committed. A face already
+   bricked opens again: a read that fails degrades to "the face does not
+   load" with the error shown, not a thrown request. `ts/test/gate.test.ts`
+   drives both red first.
+2. **A unit change converts or asks** (defect 2): the unit select converts
+   the number through the device's pixel equivalent where the units are
+   commensurable (`px`, `%`, `%r` on the viewed device; `deg`/`turn`) and
+   otherwise clears the number until one is typed; `pt` is offered only on
+   a key whose element has a font in scope.
+3. **Nothing in flight is lost on reload** (defect 11): the outbox flushes
+   on `beforeunload`/`pagehide` through the worker, the YAML pane's
+   debounce flushes with it, and the page shows "saving…" until the
+   worker has committed.
+4. **A thin element moves** (defect 3): a press inside an element smaller
+   than the handle zone is a move; handles win only outside the ink.
+
+With them, the small ones that are one-line fixes: the Face-tab section
+follows Ctrl+K while the tab is open (defect 4), a font upload is checked
+for an sfnt header (defect 6), an emptied override is pruned (defect 8),
+"+ add…" of a live type with a `static:` selection goes to `elements:`
+(defect 10).
+
+**Gate:** each defect's reproduction, as a test, is red before and green
+after; the fast suite green.
+
 ## Slice 0 — The engine's three additions (D2)
 
 1. **List-item primitives** in `ts/src/edit/patch.ts`: `insertItem(path,
@@ -169,6 +204,7 @@ every push; the "checked by hand" sentence leaves `ts/test/CLAUDE.md` and
 ## Order and dependencies
 
 ```
+0a stop the bleeding (independent, first)
 0 engine ──► 1 page at parity ──► 2 Properties v2 + context ──► 3 parts/points ──► 4 data editors ──► 5 the rest
                  │                                                                                      
                  └──► 6 browser tests (opened at 1, grown through 5, CI at the end)
