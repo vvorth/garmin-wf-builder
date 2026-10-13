@@ -17,7 +17,7 @@ import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.ts"
 import { HelpDialog } from "./help.ts";
 import { SHORTCUTS } from "./keys.ts";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.ts";
-import { FacePanel, Inspector } from "./panels.js";
+import { FacePanel, Inspector } from "./panels.ts";
 import { typeLabel } from "./values.ts";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.ts";
 import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.ts";

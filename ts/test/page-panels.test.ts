@@ -300,7 +300,7 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
       };
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
       const edits = [];
       const root = document.createElement("div");
       // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
@@ -368,7 +368,7 @@ test("the scope buttons offer the display class as a fourth override, and a key 
       };
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
       const scopes = [];
       const root = document.createElement("div");
       // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs

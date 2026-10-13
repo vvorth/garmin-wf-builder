@@ -676,11 +676,11 @@ export interface AssetArgs extends VersionArgs {
   size?: string;
 }
 
-/** Where an element's key is edited: the element, and for a geometry key the scope and device of its override. */
+/** Where an element's key is edited: the element, and for a geometry key the scope and device of its override (`null` while no device is viewed; read only in a scope other than `all`). */
 export interface ElementTarget {
   element?: Path;
   scope?: Scope;
-  device?: string;
+  device?: string | null;
 }
 
 /** One edit from the inspector or the Face panel, as `Document.edit` takes it. */

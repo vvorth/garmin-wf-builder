@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHIVO, Client, minimalText, newStudio, openExample, read, type Reply, SHOWCASE } from "./studio-client.ts";
+import type { EditOp } from "../src/studio/protocol.ts";
 
 // -- the checks ----------------------------------------------------------------
 
@@ -225,6 +226,9 @@ test("every answer the worker sends has the protocol's shape", async () => {
   summary(take(await ok("edit", { id, version, edit: { op: "set", path: ["face", "version"], value: "9.9.9" } })), "edit");
   const text = nodes.find((n) => n.type === "text" && drawn.items.some((i: any) => i.id === n.id && i.drawn));
   assert.ok(text, "a drawn text element");
+  // an element's own key, as the inspector sends it: `device` is null while no device is viewed
+  const own: EditOp = { op: "set", element: text.path, path: ["z"], scope: "all", device: null, value: 3 };
+  summary(take(await ok("edit", { id, version, edit: own })), "edit an element's key");
   dragged(take(await ok("drag", { id, version, device, element: text.id, gesture: { kind: "move", part: "both", dx: 1, dy: 0 } })), "drag");
   structured(take(await ok("structure", { id, version, edit: { op: "duplicate", path: text.path } })), "structure");
   // a text that is YAML but no face: the summary, its globals included, is whole

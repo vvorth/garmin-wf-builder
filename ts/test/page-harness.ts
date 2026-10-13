@@ -84,7 +84,7 @@ export async function render(summary: unknown, body: string): Promise<any[]> {
       const document = install();
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { FacePanel } = await import(${JSON.stringify(appUri("panels.js"))});
+      const { FacePanel } = await import(${JSON.stringify(appUri("panels.ts"))});
       const edits = [];
       const root = document.createElement("div");
       render(html\`<\${FacePanel} doc=\${${JSON.stringify(summary)}} vocab=\${${JSON.stringify({ ...vocabulary(), devices: [] })}}
