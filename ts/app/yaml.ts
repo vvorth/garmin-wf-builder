@@ -10,13 +10,17 @@
 // YAML, refused, or in a conflict) is kept there too and shown again.
 
 import { html } from "htm/preact";
+import type { VNode } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   Annotation, EditorSelection, EditorView, HighlightStyle, basicSetup, forceLinting, linter, lintGutter,
   syntaxHighlighting, tags, yaml, yamlSchema,
 } from "./vendor/codemirror.module.js";
+import type { Diagnostic as LintDiagnostic, JSONSchema7 } from "./vendor/codemirror.module.js";
+import type { Diagnostic, Refusal, Summary } from "../src/studio/protocol.ts";
 import { elementAtLine, flatten } from "./hit.ts";
 import * as sync from "./textsync.ts";
+import type { PlanKind, SyncState } from "./textsync.ts";
 import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.ts";
 import { api, call } from "./api.ts";
 
@@ -33,20 +37,23 @@ const highlight = syntaxHighlighting(HighlightStyle.define([
 ]));
 
 const DEBOUNCE = 300;
+// how a conflict's diff marks each line
+const MARKS = { same: "  ", del: "- ", add: "+ " };
 // A change the pane makes itself (a reload, a selection from outside): not
 // the author's typing, so it is neither sent nor followed.
-const remote = Annotation.define();
+const remote = Annotation.define<boolean>();
 
-let schema = null;
-function loadSchema() {
-  schema = schema || fetch("/api/schema").then((r) => r.json());
+let schema: Promise<JSONSchema7> | null = null;
+function loadSchema(): Promise<JSONSchema7> {
+  // `r.json()` is untyped: the schema is whatever the server serves
+  schema = schema || fetch("/api/schema").then((r) => r.json() as Promise<JSONSchema7>);
   return schema;
 }
 
 // wfb's diagnostics as CodeMirror's, by line and column.
-function lintFrom(view, items) {
+function lintFrom(view: EditorView, items: readonly Diagnostic[]): LintDiagnostic[] {
   const doc = view.state.doc;
-  return items.filter((d) => d.line && d.line <= doc.lines).map((d) => {
+  return items.filter((d): d is Diagnostic & { line: number } => !!d.line && d.line <= doc.lines).map((d) => {
     const line = doc.line(d.line);
     const from = Math.min(line.from + Math.max(0, (d.col || 1) - 1), line.to);
     return { from, to: Math.max(from, line.to), severity: d.severity === "note" ? "info" : d.severity,
@@ -54,25 +61,103 @@ function lintFrom(view, items) {
   });
 }
 
+/** A position in the text by line and column, so an edit made meanwhile moves it little. */
+type Spot = [line: number, col: number];
+
+/** Where the pane was: the top line shown (and how far into it), and the cursor. */
+interface Scrolled {
+  top: number;
+  into: number;
+  anchor: Spot;
+  head: Spot;
+}
+
+/** `Scrolled`, with the element selected then and when the pane left. */
+export interface Place extends Scrolled {
+  selected: string | null;
+  at: number;
+}
+
 // Where the pane was: the top line shown (and how far into it), and the
 // cursor, by line and column so an edit made meanwhile moves it little.
-function remember(v) {
+function remember(v: EditorView): Scrolled {
   const d = v.state.doc;
   const block = v.lineBlockAtHeight(v.scrollDOM.scrollTop);
-  const spot = (pos) => { const l = d.lineAt(pos); return [l.number, pos - l.from]; };
+  const spot = (pos: number): Spot => { const l = d.lineAt(pos); return [l.number, pos - l.from]; };
   const sel = v.state.selection.main;
   return { top: d.lineAt(block.from).number, into: v.scrollDOM.scrollTop - block.top,
            anchor: spot(sel.anchor), head: spot(sel.head) };
 }
 
-function restore(v, place) {
+function restore(v: EditorView, place: Scrolled): void {
   const d = v.state.doc;
-  const pos = ([line, col]) => { const l = d.line(Math.min(line, d.lines)); return Math.min(l.from + col, l.to); };
+  const pos = ([line, col]: Spot): number => { const l = d.line(Math.min(line, d.lines)); return Math.min(l.from + col, l.to); };
   v.dispatch({ selection: EditorSelection.single(pos(place.anchor), pos(place.head)), annotations: remote.of(true) });
   const top = d.line(Math.min(place.top, d.lines)).from;
   // once laid out: the line's height is known only then
   v.requestMeasure({ read: () => v.lineBlockAt(top).top,
                      write: (y) => { v.scrollDOM.scrollTop = y + place.into; } });
+}
+
+/** Why the pane's text is not saved: not YAML, or the request failed. */
+export type Status = { kind: "invalid" | "failed"; message: string } | null;
+
+/** The open pane, as a send answered after the tab closed reaches it. */
+interface PaneHandle {
+  setStatus(status: Status): void;
+  setConflict(conflict: boolean): void;
+  settled(): void;
+  /** The pane's text now. */
+  text(): string | null;
+}
+
+/** The pane's text on its way to the worker, kept while the face is open. */
+export interface TextBox {
+  sync: SyncState;
+  /** The text the tab closed on, unsaved, or null. */
+  left: string | null;
+  status: Status;
+  /** A send is out. */
+  sending: boolean;
+  /** The open pane's display, or null while the tab is closed. */
+  pane: PaneHandle | null;
+}
+
+/** What the editor keeps for the pane while the face is open: its place, and its text's state. */
+export interface YamlMemory {
+  place?: Place;
+  text?: TextBox;
+}
+
+/** Lines the pane is asked to select, from a link elsewhere; `at` tells a new ask from the last. */
+export interface Reveal {
+  line: number;
+  end?: number | null | undefined;
+  at: number;
+}
+
+export interface YamlPaneProps {
+  doc: Summary;
+  selected: string | null;
+  reveal: Reveal | null;
+  memory: YamlMemory | null | undefined;
+  /** The face, when the worker took the text. */
+  onDoc(face: Summary): void;
+  /** The element the cursor is in. */
+  onSelect(id: string): void;
+  onError(e: unknown): void;
+  /** Whether the pane's text is saved: `textsync.plan`'s kind. */
+  onSaving(kind: PlanKind): void;
+}
+
+/** What each render leaves for the pane's listeners, which outlive it. */
+interface PaneState {
+  doc: Summary;
+  timer: number | null;
+  selectTimer: number | null;
+  onSaving: (kind: PlanKind) => void;
+  onSelect: (id: string) => void;
+  selected: string | null;
 }
 
 // `memory`: an object the editor keeps while the face is open, where the
@@ -81,20 +166,20 @@ function restore(v, place) {
 // closed, and text the worker did not take, reach the pane that reopens.
 // `onSaving(kind)` hears whether the pane's text is saved: `textsync.plan`'s
 // "idle" (saved), "send" (on its way) or "held"/"wait" (not saved).
-export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onError, onSaving }) {
-  const host = useRef(null);
-  const view = useRef(null);
-  const own = useRef({});
+export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onSaving }: YamlPaneProps): VNode {
+  const host = useRef<HTMLDivElement>(null);
+  const view = useRef<EditorView | null>(null);
+  const own = useRef<YamlMemory>({});
   // `sync`: `textsync`'s state; `left`: the text the tab closed on, unsaved;
   // `status`: why the text is not saved, `{kind: "invalid" | "failed",
   // message}`, kept until a send succeeds (a failed one offers to send
   // again); `sending`: a send is out; `pane`: the open pane's display, or
   // null while the tab is closed
-  const box = (memory || own.current).text ||=
+  const box: TextBox = (memory || own.current).text ||=
     { sync: sync.initial(doc), left: null, status: null, sending: false, pane: null };
-  const state = useRef(/** @type {{doc: any, timer: any, selectTimer: any, onSaving?: any, onSelect?: any, selected?: any}} */ ({ doc, timer: null, selectTimer: null }));
-  const [status, setStatus] = useState(box.left === null ? null : box.status);
-  const [conflict, setConflict] = useState(box.left !== null && box.sync.conflict);
+  const state = useRef<PaneState>({ doc, timer: null, selectTimer: null, onSaving, onSelect, selected });
+  const [status, setStatus] = useState<Status>(box.left === null ? null : box.status);
+  const [conflict, setConflict] = useState<boolean>(box.left !== null && box.sync.conflict);
   // whether the conflict banner lists the other change's lines
   const [showOther, setShowOther] = useState(false);
   useEffect(() => { if (!conflict) setShowOther(false); }, [conflict]);
@@ -102,18 +187,18 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   state.current.onSaving = onSaving;
   state.current.onSelect = onSelect;
   // the pane's text: the editor's while the tab is open, else what it left
-  const buffer = () => (view.current ? view.current.state.doc.toString() : box.left);
+  const buffer = (): string | null => (view.current ? view.current.state.doc.toString() : box.left);
   // tell the editor whether `text` (the pane's text now) is saved
-  const report = (text) => {
+  const report = (text: string | null): void => {
     const s = state.current;
-    if (s.onSaving) s.onSaving(box.sending ? "send" : text === null ? "idle" : sync.plan(box.sync, text).kind);
+    s.onSaving(box.sending ? "send" : text === null ? "idle" : sync.plan(box.sync, text).kind);
   };
-  const show = (st) => { box.status = st; if (box.pane) box.pane.setStatus(st); };
+  const show = (st: Status): void => { box.status = st; if (box.pane) box.pane.setStatus(st); };
   state.current.selected = selected;
 
   // Send the pane's text, if it is to be sent. With the tab closed, the
   // text it left is sent, and the answer is kept for when it reopens.
-  const send = async () => {
+  const send = async (): Promise<void> => {
     const s = state.current;
     const text = buffer();
     if (text === null || box.sending) return;
@@ -125,13 +210,13 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       const response = await call("text", { id: s.doc.id, version: step.version, text: step.text });
       const ok = response.status === 200;
       // the face, when the worker took the text; else why it did not
-      const face = response.status === 200 ? response.json : null;
-      const refusal = response.status === 200 ? null : response.json;
+      const face: Summary | null = response.status === 200 ? response.json ?? null : null;
+      const refusal: Refusal | null = response.status === 200 ? null : response.json;
       box.sync = sync.answered(box.sync, step.text, response.status, face ? face.version : null);
       answered = true;
       if (ok) {
         show(null);
-        onDoc(face);
+        if (face) onDoc(face);
       } else if (response.status === 409) {
         // changed elsewhere since the pane's text was typed over: the
         // text stays, and the author chooses (`choose`)
@@ -139,13 +224,13 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         onDoc(await api("get", { id: s.doc.id }));
       } else if (response.status === 400) {
         // not YAML yet: keep typing; nothing was recorded
-        show({ kind: "invalid", message: refusal.error || "the text is not YAML" });
+        show({ kind: "invalid", message: (refusal && refusal.error) || "the text is not YAML" });
       } else {
-        show({ kind: "failed", message: refusal.error || `${response.status}` });
+        show({ kind: "failed", message: (refusal && refusal.error) || `${response.status}` });
       }
     } catch (e) {
       if (!answered) box.sync = sync.failed(box.sync, step.text);
-      show({ kind: "failed", message: e.message || String(e) });
+      show({ kind: "failed", message: (e instanceof Error && e.message) || String(e) });
     } finally {
       box.sending = false;
       if (box.pane) box.pane.settled();
@@ -160,7 +245,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
 
   // A send was answered with the tab open: report it, and send again if
   // the author typed on meanwhile.
-  const settled = () => {
+  const settled = (): void => {
     const s = state.current;
     const text = buffer();
     report(text);
@@ -169,16 +254,16 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     }
   };
 
-  // The author's choice after a refused send: "mine" sends the pane's
-  // text over the newer face, "theirs" shows the newer face.
   // Send the held text again, after a failure the author has seen.
-  const retry = () => {
+  const retry = (): void => {
     box.sync = sync.retry(box.sync);
     if (view.current) report(view.current.state.doc.toString());
     send();
   };
 
-  const choose = (choice) => {
+  // The author's choice after a refused send: "mine" sends the pane's
+  // text over the newer face, "theirs" shows the newer face.
+  const choose = (choice: "mine" | "theirs"): void => {
     const s = state.current;
     const chosen = sync.resolve(box.sync, s.doc, choice);
     box.sync = chosen.state;
@@ -189,7 +274,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
     else send();
   };
 
-  const replace = (text) => {
+  const replace = (text: string): void => {
     const v = view.current;
     if (!v || v.state.doc.toString() === text) return;
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: text }, annotations: remote.of(true) });
@@ -199,9 +284,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   // out the debounce is sent at once (the editor asks the browser to
   // confirm leaving while it is on its way).
   useEffect(() => {
-    const flush = () => {
+    const flush = (): void => {
       const st = state.current;
-      if (!st.timer) return;
+      if (st.timer === null) return;
       clearTimeout(st.timer);
       st.timer = null;
       send();
@@ -220,11 +305,11 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
         const own = u.transactions.some((t) => t.annotation(remote));
         if (u.docChanged && !own) {
           report(u.state.doc.toString());
-          clearTimeout(st.timer);
+          if (st.timer !== null) clearTimeout(st.timer);
           st.timer = setTimeout(() => { st.timer = null; send(); }, DEBOUNCE);
         }
         if (u.selectionSet && !own && u.view.hasFocus) {
-          clearTimeout(st.selectTimer);
+          if (st.selectTimer !== null) clearTimeout(st.selectTimer);
           st.selectTimer = setTimeout(() => {
             const line = u.state.doc.lineAt(u.state.selection.main.head).number;
             const node = elementAtLine(st.doc.tree, line);
@@ -241,35 +326,38 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       box.pane = { setStatus, setConflict, settled, text: buffer };
       setConflict(box.sync.conflict);
       setStatus(box.status);
-      view.current = new EditorView({
+      const v = new EditorView({
         parent: host.current,
         doc: opened.text,
         extensions: [
           basicSetup, highlight, yaml(), yamlSchema(s), lintGutter(),
-          linter((v) => lintFrom(v, state.current.doc.diagnostics), { delay: 0 }),
+          linter((lv) => lintFrom(lv, state.current.doc.diagnostics), { delay: 0 }),
           typed, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto" } }, { dark: true }),
         ],
       });
+      view.current = v;
       // the effects below ran before the view existed: catch up with them
       follow(state.current.doc);
       if (!box.sending) settled();
       const place = memory && memory.place;
-      if (reveal && (!place || reveal.at > place.at)) showReveal(view.current);
-      else if (place && place.selected === selected) { restore(view.current, place); view.current.focus(); }
-      else showSelected(view.current);
+      if (reveal && (!place || reveal.at > place.at)) showReveal(v);
+      else if (place && place.selected === selected) { restore(v, place); v.focus(); }
+      else showSelected(v);
     });
     return () => {
       alive = false;
       const st = state.current;
-      clearTimeout(st.timer); clearTimeout(st.selectTimer);
+      if (st.timer !== null) clearTimeout(st.timer);
+      if (st.selectTimer !== null) clearTimeout(st.selectTimer);
       if (box.pane && box.pane.settled === settled) box.pane = null;
-      if (!view.current) return;
-      if (memory) memory.place = { ...remember(view.current), selected: st.selected, at: Date.now() };
+      const v = view.current;
+      if (!v) return;
+      if (memory) memory.place = { ...remember(v), selected: st.selected, at: Date.now() };
       // text not saved stays in `box` for the pane that reopens; text on
       // its way is sent from there
-      const left = sync.closed(box.sync, view.current.state.doc.toString());
+      const left = sync.closed(box.sync, v.state.doc.toString());
       box.left = left.left;
-      view.current.destroy();
+      v.destroy();
       view.current = null;
       if (left.kind === "send") send();
       else report(box.left);
@@ -278,7 +366,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
 
   // a change made elsewhere (the canvas, the inspector, undo) reaches the
   // pane when the author has nothing unsent
-  const follow = (face) => {
+  const follow = (face: Summary): void => {
     const v = view.current;
     if (!v) return;
     const followed = sync.follow(box.sync, face, v.state.doc.toString());
@@ -290,7 +378,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   useEffect(() => { follow(doc); }, [doc.version, doc.text]);
 
   // a selection made elsewhere selects the element's lines
-  const showSelected = (v) => {
+  const showSelected = (v: EditorView): void => {
     if (!selected || v.hasFocus) return;
     const node = flatten(doc.tree).find((n) => n.id === selected);
     if (!node || node.line > v.state.doc.lines) return;
@@ -302,7 +390,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   useEffect(() => { if (view.current) showSelected(view.current); }, [selected, doc.version]);
 
   // lines asked for from elsewhere (a hand set's "Edit in YAML")
-  const showReveal = (v) => {
+  const showReveal = (v: EditorView): void => {
     if (!reveal || reveal.line > v.state.doc.lines) return;
     const from = v.state.doc.line(reveal.line).from;
     const to = v.state.doc.line(Math.min(reveal.end || reveal.line, v.state.doc.lines)).to;
@@ -314,9 +402,9 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
 
   // the other change: from the text the pane's was typed over to the face now
   const other = conflict ? lineDiff(box.sync.acked, doc.text) : null;
-  const counts = other && diffCounts(other);
+  const counts = other ? diffCounts(other) : null;
   return html`<div class="yaml-pane">
-    ${conflict ? html`<div class="yaml-conflict" role="alert">
+    ${other && counts ? html`<div class="yaml-conflict" role="alert">
       <span>The face changed elsewhere while you were typing, so your text was not saved.
         The other change ${changeSummary(counts)}.</span>
       ${counts.added + counts.removed
@@ -326,7 +414,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
       <button onClick=${() => choose("theirs")} title="Discard your typing and show the face as it now is">Take the face as it is</button>
       ${showOther ? html`<pre class="yaml-diff">${hunks(other).map((o) => o.op === "gap"
         ? html`<div class="gap">⋯</div>`
-        : html`<div class=${o.op}>${{ same: "  ", del: "- ", add: "+ " }[o.op]}${o.text}</div>`)}</pre>` : null}
+        : html`<div class=${o.op}>${MARKS[o.op]}${o.text}</div>`)}</pre>` : null}
     </div>` : null}
     <div class="yaml-host" ref=${host}></div>
     ${status && status.kind === "invalid"

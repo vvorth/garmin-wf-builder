@@ -1,5 +1,5 @@
 {
-  "//": "The studio page (app/): TypeScript, bundled by esbuild (src/studio/server.ts, npm run bundle), checked strict like src/. It imports the worker's payload types from src/studio/protocol.ts. The .js modules it still has are pulled in through main.ts but not checked here: tsconfig.app-js.json checks them as JavaScript, non-strict, until they are converted. npm run typecheck runs both after tsconfig.json.",
+  "//": "The studio page (app/), TypeScript, strict; npm run typecheck runs it after tsconfig.json.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "allowJs": true,

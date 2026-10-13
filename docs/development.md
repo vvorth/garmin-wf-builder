@@ -210,8 +210,8 @@ ts/                   the compiler, its tests and tools: one package for the
   app/                  the editor's page (wfb studio): TypeScript with htm
                         templates over Preact (npm), main.ts its entry, which the
                         studio server bundles with esbuild as /dist/app.js (also
-                        npm run bundle -> dist/app.js); the .js modules still
-                        there are checked as JavaScript until converted; vendor/
+                        npm run bundle -> dist/app.js), every module strict
+                        TypeScript; vendor/
                         holds CodeMirror (built from tools/studio-frontend/ by
                         tools/vendor-studio-frontend.sh) and marked
   templates/            the starters for `wfb new` and the hand presets
@@ -597,7 +597,7 @@ awake-only build.
 ```sh
 cd ts
 npm test                 # the fast suite: node:test over test/, no Garmin toolchain
-npm run typecheck        # tsc, strict; then app/ (tsconfig.app.json, strict; its .js modules non-strict, tsconfig.app-js.json)
+npm run typecheck        # tsc, strict; then app/ (tsconfig.app.json, strict)
 npm run test:slow        # every slow-test design, example and fixture through monkeyc
 ```
 

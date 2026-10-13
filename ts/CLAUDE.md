@@ -7,7 +7,7 @@ the editor, in TypeScript on Node; `../wfb` runs `src/cli.ts`.
 
 ```sh
 npm test                    # node:test over test/**/*.test.ts
-npm run typecheck           # tsc --noEmit, strict; then app/ (tsconfig.app.json, strict; its .js modules non-strict, tsconfig.app-js.json)
+npm run typecheck           # tsc --noEmit, strict; then app/ (tsconfig.app.json, strict)
 npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
 npm run bundle              # dist/wfb.js, dist/worker.js and dist/app.js, the browser bundles (not committed)
 ```
@@ -98,9 +98,7 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     `app/main.ts` with esbuild when it starts and serves it as
     `/dist/app.js` (`/dist/raster.js` stays a separate module the page
     imports); `/static/` serves `index.html`, `studio.css` and `vendor/`
-    as files. The `.js` modules still in `app/` are checked as JavaScript
-    until converted (`tsconfig.app-js.json`); a `.js` module imports a
-    `.ts` one by its `.ts` name. `main.ts` sets `globalThis.wfbStudio =
+    as files. Every module in `app/` is TypeScript, strict. `main.ts` sets `globalThis.wfbStudio =
     {api, call}`: a test hook for browser tests that drive the worker
     from the page, not an API. The page tests (`test/page-*.test.ts`,
     `test/page-harness.ts`) run the page's modules in Node by file URL

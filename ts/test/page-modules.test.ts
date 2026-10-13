@@ -114,7 +114,7 @@ test("a drag says how far it went and how to stop snapping", async () => {
 });
 
 test("the vendored editor bundle exports what the yaml tab imports", async () => {
-  const source = appText("yaml.js");
+  const source = appText("yaml.ts");
   const imported = /import \{([^}]*)\}\s*from "\.\/vendor\/codemirror\.module\.js"/.exec(source)?.[1] ?? "";
   const names = [...imported.split(",").filter((n: any) => n.trim()).map((n: any) => n.trim())].sort();
   const result = await run(`

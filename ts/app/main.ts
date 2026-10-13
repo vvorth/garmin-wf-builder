@@ -4,7 +4,7 @@
 import { html } from "htm/preact";
 import { render } from "preact";
 import { api, call } from "./api.ts";
-import { App } from "./app.js";
+import { App } from "./app.ts";
 
 // The faces live only in this browser's storage, which it may clear when
 // the disk runs low unless asked to keep it; a refusal changes nothing.

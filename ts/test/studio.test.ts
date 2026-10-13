@@ -605,7 +605,7 @@ test("the page listens for every event the worker sends", async () => {
   const { readFileSync } = await import("node:fs");
   const sources = ["src/studio/router.ts", "src/studio/document.ts", "src/studio/worker.ts"].map((p) => readFileSync(p, "utf8")).join("\n");
   const sent = new Set([...sources.matchAll(/(?:emit|onEvent)\("(\w+)"/g)].map((m) => m[1]));
-  const page = readFileSync("app/app.js", "utf8");
+  const page = readFileSync("app/app.ts", "utf8");
   const handled = new Set([...page.matchAll(/name === "(\w+)"/g)].map((m) => m[1]));
   assert.ok(sent.size > 0);
   for (const event of sent) assert.ok(handled.has(event), `the page never handles '${event}'`);

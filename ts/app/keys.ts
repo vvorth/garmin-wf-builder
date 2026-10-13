@@ -26,7 +26,7 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRigh
 // The action a key press asks for, with its arguments, or null for any
 // other key: `forward` and `backward` are one step in draw order, `nudge`
 // one pixel (ten with Shift). Copy, cut and paste are the browser's own
-// events, not key presses (`app.js`).
+// events, not key presses (`app.ts`).
 export function shortcutFor(e: KeyPress): Shortcut | null {
   const key = (e.key || "").toLowerCase();
   if (e.ctrlKey || e.metaKey) {

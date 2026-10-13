@@ -7,7 +7,7 @@
 // edit made meanwhile (the inspector, the layers, undo) waits its turn
 // instead of being refused as stale. A gesture from the canvas or the
 // arrow keys is a `GestureEntry`; any other change is a `RequestEntry`,
-// `request` being what the editor sends (`app.js`). A gesture's entry is:
+// `request` being what the editor sends (`app.ts`). A gesture's entry is:
 // `gesture` is what is sent, `preview` the same gesture with what the
 // canvas draws it from; `where` the device and scope it is written for;
 // `item` the dragged item and `moving` every element it moves (a group's
