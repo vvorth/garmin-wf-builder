@@ -48,6 +48,8 @@ export const TEXT_EDIT = "edit the text";
 export const TEXT_MERGE_SECONDS = 10.0;
 /** How many of the newest changes a face's summary lists. */
 export const HISTORY_SHOWN = 100;
+/** How long a change's label is at most; a batch's label made of its steps' is cut to it. */
+export const LABEL_WIDTH = 120;
 /** `snapshotMinutes`' default. */
 export const SNAPSHOT_MINUTES = 5.0;
 /** How many documents stay open. */
@@ -209,6 +211,22 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     return unpicked.length === 0 ? result : withWhat(result, `add the layout ${name}, picked by ${unpicked.join(", ")}`);
   },
 };
+
+/** The structural ops `Document.structure` takes; a batch step may be one of these or an `EDITS` key. */
+const STRUCTURE = new Set(["add", "delete", "duplicate", "move", "group", "ungroup", "paste"]);
+
+/** A batch step as a refusal names it: its op and, when it has one, its path. */
+function stepName(step: Json): string {
+  const kind = typeof step["op"] === "string" ? step["op"] : jsonDumps(step["op"] ?? null);
+  const p = step["path"];
+  const where = Array.isArray(p) && p.length > 0 && p.every((s) => typeof s === "string" || typeof s === "number") ? ` ${dotted(p as Path)}` : "";
+  return `${kind}${where}`;
+}
+
+/** `t` at most `width` long, an ellipsis ending one cut. */
+function cut(t: string, width: number): string {
+  return t.length <= width ? t : t.slice(0, width - 3) + "...";
+}
 
 /** JSON from the browser as YAML data: objects as `Map`s, as the patch engine reads mappings. */
 export function toData(value: unknown): Data {
@@ -499,12 +517,63 @@ export class Document {
   /** One edit from the inspector or the Face panel, gated and recorded (`EDITS`). */
   edit(op: Json, expected: number): Change {
     this.check(expected);
+    const patch = this.editPatch(indexFor(this.text), op);
+    const after = this.admit(patch);
+    return this.commit(patch.text, this.headAssets(), patch.what, expected, after);
+  }
+
+  /** The patch an `EDITS` op makes on `index`'s text. */
+  private editPatch(index: SpanIndex, op: Json): Patch {
     const kind = op["op"];
     const handler = typeof kind === "string" && Object.hasOwn(EDITS, kind) ? EDITS[kind] : undefined;
     if (handler === undefined) throw new Refused(`unknown edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
-    const patch = handler(this, indexFor(this.text), op);
-    const after = this.admit(patch);
-    return this.commit(patch.text, this.headAssets(), patch.what, expected, after);
+    return handler(this, index, op);
+  }
+
+  /**
+   * Several edits as one change: each step, an `EDITS` op or a structural
+   * one, is made on the text the step before left, and the text they leave
+   * together passes the gate once and is recorded once, under `label` (or
+   * the steps' own labels joined). A step refused, or one whose text says
+   * more than its data, is named with its number; the face is left as it
+   * was. Returns the change and the id a structural step says to select.
+   */
+  batch(op: Json, expected: number): [Change, string | null] {
+    this.check(expected);
+    const steps = op["edits"];
+    if (!Array.isArray(steps) || steps.length === 0) throw new Refused("a batch needs at least one edit");
+    let t = this.text;
+    let last: Patch | null = null;
+    let select: string | null = null;
+    const whats: string[] = [];
+    steps.forEach((step: unknown, i: number) => {
+      if (step === null || typeof step !== "object" || Array.isArray(step)) throw new Refused(`step ${i + 1} is not an edit`);
+      const index = indexFor(t);
+      let patch: Patch;
+      try {
+        [patch, select] = this.stepPatch(index, step as Json, select);
+      } catch (error) {
+        if (error instanceof Refused) throw new Refused(`step ${i + 1}, ${stepName(step as Json)}: ${error.message}`);
+        throw error;
+      }
+      // the next step reads this text as data, so what this one wrote must be no more than its data says
+      if (!sameData(indexFor(patch.text).data, patch.expected)) throw new Refused(`step ${i + 1}, ${patch.what}: the edit would change more than intended`);
+      t = patch.text;
+      last = patch;
+      whats.push(patch.what);
+    });
+    const label = text(op, "label") || cut(whats.join("; "), LABEL_WIDTH);
+    const whole = withWhat(last!, label);
+    const after = this.admit(whole);
+    return [this.commit(whole.text, this.headAssets(), label, expected, after), select];
+  }
+
+  /** One batch step's patch, and the id to select after it: a structural step's own, else `select` as it was. */
+  private stepPatch(index: SpanIndex, step: Json, select: string | null): [Patch, string | null] {
+    const kind = step["op"];
+    if (typeof kind === "string" && Object.hasOwn(EDITS, kind)) return [this.editPatch(index, step), select];
+    if (typeof kind === "string" && STRUCTURE.has(kind)) return this.structurePatch(index, step);
+    throw new Refused(`unknown edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
   }
 
   /**
@@ -547,7 +616,13 @@ export class Document {
   /** One structural edit from the layer tree or the canvas, gated and recorded, and the id to select after it. */
   structure(op: Json, expected: number): [Change, string | null] {
     this.check(expected);
-    const index = indexFor(this.text);
+    const [patch, select] = this.structurePatch(indexFor(this.text), op);
+    const after = this.admit(patch);
+    return [this.commit(patch.text, this.headAssets(), patch.what, expected, after), select];
+  }
+
+  /** The patch a structural op (`STRUCTURE`) makes on `index`'s text, and the id to select after it. */
+  private structurePatch(index: SpanIndex, op: Json): [Patch, string | null] {
     const kind = op["op"];
     let select: string | null = null;
     let patch: Patch;
@@ -604,8 +679,7 @@ export class Document {
     } else {
       throw new Refused(`unknown structural edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
     }
-    const after = this.admit(patch);
-    return [this.commit(patch.text, this.headAssets(), patch.what, expected, after), select];
+    return [patch, select];
   }
 
   /** `t` with every font `source:` written as a key of `moved` rewritten to its value, each patch gated. */

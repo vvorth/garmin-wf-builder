@@ -12,9 +12,9 @@ import { runDesign } from "../src/lint.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
-import { type Document, frameKey, type Studio } from "../src/studio/document.ts";
+import { type Document, frameKey, LABEL_WIDTH, type Studio } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
-import { Client, dataOf, newStudio, openExample, read, SHOWCASE } from "./studio-client.ts";
+import { Client, dataOf, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
 
 const SLOT_GAUGE = "examples/features/slot-gauge/face.yaml";
 
@@ -547,4 +547,84 @@ test("a font file that does not bake is refused, not stored", async () => {
   assert.throws(() => doc.addAsset("bad.otf", garbage, null, doc.version, ["bad", "10%r"]),
     (e: Error) => e instanceof Refused && /add the font bad from assets\/bad\.otf: /.test(e.message));
   assert.deepEqual([doc.text, doc.version, Object.keys(doc.head.assets)], before);
+});
+
+// -- batches --
+
+const BATCH_STEPS = [
+  { op: "set", path: ["elements", "clock", "color"], value: "color.dim" },
+  { op: "set", path: ["face", "version"], value: "2.0.0" },
+  { op: "set", path: ["elements", "seconds", "color"], value: "color.text" },
+];
+
+test("a batch of edits is one change, labelled, and one undo", async () => {
+  const doc = make(await newStudio());
+  const [change] = doc.batch({ op: "batch", label: "restyle the clock", edits: BATCH_STEPS }, doc.version);
+  assert.equal(doc.version, 2);
+  assert.equal(change.label, "restyle the clock");
+  let d = dataOf(doc);
+  assert.deepEqual([d.elements.clock.color, d.face.version, d.elements.seconds.color], ["color.dim", "2.0.0", "color.text"]);
+  assert.equal((doc.history()["states"] as any[]).length, 2);
+  doc.undo(doc.version);
+  d = dataOf(doc);
+  assert.deepEqual([d.elements.clock.color, d.face.version, d.elements.seconds.color], ["color.text", "1.0.0", "color.dim"]);
+  // no label: the steps' own, joined
+  doc.batch({ op: "batch", edits: BATCH_STEPS.slice(0, 2) }, doc.version);
+  assert.equal(doc.head.label, "set elements.clock.color to color.dim; set face.version to 2.0.0");
+  // a long one is cut to the history's width
+  doc.batch({ op: "batch", edits: [1, 2, 3, 4, 5, 6].map((n) => ({ op: "set", path: ["face", "version"], value: `${n}.0.0` })) }, doc.version);
+  assert.equal(doc.head.label.length, LABEL_WIDTH);
+  assert.ok(doc.head.label.startsWith("set face.version to 1.0.0; ") && doc.head.label.endsWith("..."));
+});
+
+test("a batch mixes an edit with a structural one, each on the text the last left", async () => {
+  const doc = make(await newStudio());
+  doc.batch({ op: "batch", label: "a dim label", edits: [
+    { op: "add", type: "text" },
+    { op: "set", path: ["elements", "new_text", "color"], value: "color.dim" },
+    { op: "move", path: ["elements", "new_text"], block: ["elements"], before: "clock" },
+  ] }, doc.version);
+  const d = dataOf(doc);
+  assert.equal(d.elements.new_text.color, "color.dim");
+  assert.deepEqual(Object.keys(d.elements), ["new_text", "clock", "seconds"]);
+  assert.equal(doc.version, 2);
+});
+
+test("a batch refused at a step leaves the face alone and names the step", async () => {
+  const doc = make(await newStudio());
+  refusedAlone(doc, [
+    [/^step 2, remove elements\.nope\.color: elements\.nope\.color is not set$/, () => doc.batch({ op: "batch", label: "x", edits: [
+      { op: "set", path: ["face", "version"], value: "9.9.9" },
+      { op: "remove", path: ["elements", "nope", "color"] },
+    ] }, doc.version)],
+    [/^step 1, frobnicate: unknown edit 'frobnicate'$/, () => doc.batch({ op: "batch", label: "x", edits: [{ op: "frobnicate" }] }, doc.version)],
+    [/^a batch needs at least one edit$/, () => doc.batch({ op: "batch", label: "x", edits: [] }, doc.version)],
+    [/^a batch needs at least one edit$/, () => doc.batch({ op: "batch", label: "x" }, doc.version)],
+    [/^step 2 is not an edit$/, () => doc.batch({ op: "batch", label: "x", edits: [BATCH_STEPS[0], "set"] }, doc.version)],
+  ]);
+  assert.equal(versionOf(doc), "1.0.0");
+});
+
+test("a batch whose steps are each fine alone is refused by the gate for their combination", async () => {
+  const doc = make(await newStudio());
+  // the rename is fine, and so is picking dim against the face as it was; together the pick dangles
+  refusedAlone(doc, [[/^recolour: unknown colour 'color\.dim' \(line \d+\)$/, () => doc.batch({ op: "batch", label: "recolour", edits: [
+    { op: "rename", path: ["resources", "palette", "dim"], to: "grey", prefix: "color." },
+    { op: "set", path: ["elements", "clock", "color"], value: "color.dim" },
+  ] }, doc.version)]]);
+  assert.ok("dim" in palette(doc));
+});
+
+test("a batch through the requests is one announced change", async () => {
+  const client = await Client.open();
+  const doc = await client.create();
+  const r = await client.call("batch", { id: doc.id, version: 1, label: "restyle", edits: BATCH_STEPS });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.version, 2);
+  assert.equal(r.json.history.states[0].label, "restyle");
+  assert.deepEqual(client.events.filter(([n]) => n === "changed").map(([, d]) => d["version"]), [2]);
+  const refused = await client.call("batch", { id: doc.id, version: 2, label: "x", edits: [{ op: "remove", path: ["elements", "nope"] }] });
+  assert.equal(refused.status, 400);
+  assert.match(refused.json.error, /^step 1, remove elements\.nope: /);
+  assert.equal((await client.call("batch", { id: doc.id, version: 1, label: "x", edits: BATCH_STEPS })).status, 409);
 });

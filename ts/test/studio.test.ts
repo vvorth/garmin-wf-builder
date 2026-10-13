@@ -669,3 +669,61 @@ test("the library shows each face on its first target", async () => {
   const broken = await client.upload("b.yaml", "format: 2\n");
   assert.equal((await client.call("cover", { id: broken.id })).status, 404);
 });
+
+// -- the queue --
+
+/** The queue held until `release` is called: everything asked meanwhile waits in it. */
+function hold(client: Client): () => void {
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  void client.router.exclusive(() => held);
+  return release;
+}
+
+test("an edit is answered before the frame and the thumbnail queued ahead of it", async () => {
+  const client = await Client.open();
+  const doc = await client.create();
+  const release = hold(client);
+  const order: string[] = [];
+  const noting = (name: string) => (r: Awaited<ReturnType<Client["call"]>>) => { order.push(name); return r; };
+  const thumbnail = client.call("thumbnail", { id: doc.id, device: "fr955" }).then(noting("thumbnail"));
+  const frame = client.call("frame", { id: doc.id, device: "fr955", scale: 1 }).then(noting("frame"));
+  const edit = client.call("edit", { id: doc.id, version: 1, edit: { op: "set", path: ["face", "version"], value: "2.0.0" } }).then(noting("edit"));
+  release();
+  const [t, f, e] = await Promise.all([thumbnail, frame, edit]);
+  assert.deepEqual(order, ["edit", "frame", "thumbnail"]);
+  assert.deepEqual([t.status, f.status, e.status], [200, 200, 200]);
+  assert.equal(e.json.version, 2);
+  assert.equal(f.json.version, 2, "the frame drew the face after the edit");
+});
+
+test("a frame asked again for a newer version answers the older ask too", async () => {
+  const client = await Client.open();
+  const doc = await client.create();
+  const release = hold(client);
+  const args = { id: doc.id, device: "fr955", scale: 1 };
+  const first = client.call("frame", { ...args, v: 1 });
+  const edit = client.call("edit", { id: doc.id, version: 1, edit: { op: "set", path: ["face", "version"], value: "2.0.0" } });
+  const second = client.call("frame", { ...args, v: 2 });
+  const other = client.call("frame", { ...args, v: 2, style: "", device: "fenix8solar47mm" });
+  release();
+  const [a, e, b, c] = await Promise.all([first, edit, second, other]);
+  assert.equal(e.status, 200);
+  assert.equal(a, b, "one drawing answers both asks");
+  assert.equal(a.json.version, 2);
+  assert.notEqual(a, c);
+  assert.equal(c.json.device, "fenix8solar47mm");
+});
+
+test("requests of one priority are answered in the order asked", async () => {
+  const client = await Client.open();
+  const doc = await client.create();
+  const release = hold(client);
+  const order: number[] = [];
+  const asks = [1, 2, 3].map((n) => client.call("edit", { id: doc.id, version: n, edit: { op: "set", path: ["face", "version"], value: `${n}.0.0` } })
+    .then((r) => { order.push(r.status); return r; }));
+  release();
+  await Promise.all(asks);
+  assert.deepEqual(order, [200, 200, 200]);
+  assert.equal(versionOf(client.studio.document(doc.id)), "3.0.0");
+});

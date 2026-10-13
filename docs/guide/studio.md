@@ -93,9 +93,10 @@ remembers both widths. The right column's two parts fold away, each on
 its own: click **Properties**, or the **▾** at the end of the tabs. The
 browser remembers which are folded. The face's name in the top bar is
 renamed by clicking it, as in the library. The small frames below the
-face catch up with it once it has been still for a second, so a run of
-drags does not redraw them all each time; a click on one views that
-watch.
+face catch up with it once it has been still for a moment, so a run of
+drags does not redraw them all each time, and they are drawn after
+anything else the editor is asked, so they never delay a change; a click
+on one views that watch.
 
 Messages (a refused change's reason, a notice) show for a few seconds at
 the bottom. **Messages**, in the bottom right corner, keeps every one,

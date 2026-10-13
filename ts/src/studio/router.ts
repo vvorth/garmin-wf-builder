@@ -11,7 +11,13 @@
 //
 // Requests are answered one at a time (`exclusive`), so no two interleave
 // over one face; a build waits its turn only to check and pack the face, and
-// the server's compile runs outside it, so editing goes on meanwhile.
+// the server's compile runs outside it, so editing goes on meanwhile. The
+// queue has lanes (`PRIORITY`): a change, and a read that must see the
+// newest state, goes ahead of a frame waiting to be drawn, and a frame
+// ahead of a thumbnail, so a run of thumbnails never delays an edit; within
+// a lane, requests are answered in the order asked. A frame or thumbnail
+// asked again while an older ask for the same picture (its `v`, the face's
+// version, apart) is still waiting is drawn once, and both asks get it.
 //
 // Each answer waits for the store's writes, so an acknowledged change is
 // kept. What the studio did is announced through `emit` ("created",
@@ -137,6 +143,26 @@ function needs(text: string): [string[], string[]] {
   return [Array.isArray(targets) ? targets.map(String) : [], faces];
 }
 
+/** One ask waiting its turn: its lane, and the promise its asker holds; `pending` keeps asks in the order made. */
+interface Queued {
+  priority: number;
+  work: () => Promise<unknown>;
+  /** What picture this draws, when another ask for the same one may answer it (`sameAsk`). */
+  same: string | null;
+  resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
+}
+
+/** The queue's lanes: 1 for a read that may see the state a moment later, 2 for a thumbnail; everything else, every change among it, 0. */
+const PRIORITY: Record<string, number> = { get: 1, inspect: 1, frame: 1, handset: 1, cover: 1, thumbnail: 2 };
+
+/** For a frame or thumbnail, what it draws: its arguments but `v`, the version the page asked at, with their keys sorted; `null` for any other request. */
+function sameAsk({ op, args = {} }: Request): string | null {
+  if (op !== "frame" && op !== "thumbnail") return null;
+  const keys = Object.keys(args).filter((k) => k !== "v").sort();
+  return JSON.stringify([op, keys.map((k) => [k, args[k] ?? null])]);
+}
+
 export class Router {
   readonly studio: Studio;
   readonly host: Host;
@@ -153,19 +179,48 @@ export class Router {
     this.announced.push([event, data]);
   }
 
-  // ponytail: one request at a time across every face; render is synchronous, so only a worker per face would let a slow frame not hold up another face.
-  private queue: Promise<unknown> = Promise.resolve();
+  // One request at a time across every face; render is synchronous, so only a worker per face would let a slow frame not hold up another face.
+  private readonly pending: Queued[] = [];
+  private running = false;
 
-  /** Run `work` after everything queued before it: the worker's timed snapshots and other tabs' reloads take their turn here too. */
-  exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(work);
-    this.queue = run.catch(() => {});
-    return run;
+  /** Run `work` once the queue reaches it, ahead of everything of a lower priority (`exclusive` is the first lane): the worker's timed snapshots and other tabs' reloads take their turn here too. */
+  exclusive<T>(work: () => Promise<T>, priority = 0): Promise<T> {
+    return this.enqueue(priority, work, null);
   }
 
-  /** Answer one request, in turn; every refusal is JSON with its status, never a stack trace. */
+  private enqueue<T>(priority: number, work: () => Promise<T>, same: string | null): Promise<T> {
+    let resolve!: (value: unknown) => void, reject!: (error: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res as (value: unknown) => void; reject = rej; });
+    if (same !== null) {
+      // an older ask for the same picture, not yet started, takes this one's answer instead of being drawn too
+      const at = this.pending.findIndex((q) => q.same === same);
+      if (at >= 0) this.pending.splice(at, 1)[0]!.resolve(promise);
+    }
+    this.pending.push({ priority, work, same, resolve, reject });
+    void this.pump();
+    return promise;
+  }
+
+  /** Run what is queued, one at a time, the first lane with anything waiting first and the earliest ask within it. */
+  private async pump(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    while (this.pending.length > 0) {
+      let at = 0;
+      for (let i = 1; i < this.pending.length; i++) if (this.pending[i]!.priority < this.pending[at]!.priority) at = i;
+      const next = this.pending.splice(at, 1)[0]!;
+      try {
+        next.resolve(await next.work());
+      } catch (error) {
+        next.reject(error);
+      }
+    }
+    this.running = false;
+  }
+
+  /** Answer one request, in its lane's turn; every refusal is JSON with its status, never a stack trace. */
   async handle(request: Request): Promise<Response> {
-    const answer = await this.exclusive(() => this.answer(request));
+    const answer = await this.enqueue(PRIORITY[request.op] ?? 0, () => this.answer(request), sameAsk(request));
     return typeof answer === "function" ? await answer() : answer;
   }
 
@@ -273,6 +328,11 @@ export class Router {
         return this.changed(doc, tab);
       case "structure": {
         const [, select] = doc.structure(object(args, "edit"), int(args, "version"));
+        this.emit("changed", { id: doc.id, version: doc.version, tab });
+        return json({ ...doc.summary(), select });
+      }
+      case "batch": {
+        const [, select] = doc.batch({ op, label: args["label"], edits: args["edits"] }, int(args, "version"));
         this.emit("changed", { id: doc.id, version: doc.version, tab });
         return json({ ...doc.summary(), select });
       }

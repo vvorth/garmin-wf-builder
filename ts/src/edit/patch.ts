@@ -383,15 +383,20 @@ function rewriteScalarsOn(index: SpanIndex, fn: (s: string) => string, what: str
 }
 
 /**
- * `first` followed by `then` on its text, as one patch. `first`'s own text
- * is checked against its data before `then` builds on it, so the pair
- * keeps each one's guarantee.
+ * `first` followed by each of `then`, in turn, on the text the one before
+ * left, as one patch. Every text along the way is checked against its data
+ * before the next step builds on it, so the chain keeps each step's
+ * guarantee.
  */
-export function chain(first: Patch, then: (index: SpanIndex) => Patch): Patch {
-  const index = new SpanIndex(first.text);
-  if (!sameData(index.data, first.expected)) throw new Refused(`${first.what}: the edit would change more than intended`);
-  const second = then(index);
-  return patch(second.text, second.expected, `${first.what}; ${second.what}`);
+export function chain(first: Patch, ...then: ((index: SpanIndex) => Patch)[]): Patch {
+  let result = first;
+  for (const step of then) {
+    const index = new SpanIndex(result.text);
+    if (!sameData(index.data, result.expected)) throw new Refused(`${result.what}: the edit would change more than intended`);
+    const next = step(index);
+    result = patch(next.text, next.expected, `${result.what}; ${next.what}`);
+  }
+  return result;
 }
 
 /**

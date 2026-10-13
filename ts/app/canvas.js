@@ -469,12 +469,13 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
 }
 
 // How long the face must stay unchanged before the strip draws it again.
-export const STRIP_SETTLE_MS = 1000;
+export const STRIP_SETTLE_MS = 250;
 
 // One small frame per target, the selected device marked; a click views it.
 // The thumbnails follow the face once it has been still for
-// `STRIP_SETTLE_MS`, so a run of drags is not a run of thumbnails, each
-// taking the face's lock from the frame being edited.
+// `STRIP_SETTLE_MS`: long enough that a run of drags is not a run of
+// thumbnails per target. (An edit never waits on them: the worker answers
+// thumbnails last, so the settle is only this coalescing.)
 export function Strip({ doc, view, picks, onDevice }) {
   const [version, setVersion] = useState(doc.version);
   useEffect(() => { setVersion(doc.version); }, [doc.id]);
