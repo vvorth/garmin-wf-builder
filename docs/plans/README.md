@@ -10,6 +10,7 @@ back here.
 
 | Plan | What it does |
 |---|---|
+| [33 a full-featured editor](33-full-editor.md) | `wfb studio` rebuilt over its engine: list primitives, batched edits and a typed contract; the page in TypeScript; a generic schema form and an editing context that decides where `overrides:`/`aod:`/layout edits land; parts, points, template and condition editors; ten format changes; Playwright tests. Waits on research 34's decisions D1–D11 |
 
 ## Built and deleted
 
