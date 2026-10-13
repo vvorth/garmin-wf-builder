@@ -3,17 +3,31 @@
 // check them (test/page-modules.test.ts); `hooks.useShortcuts` acts on
 // them.
 
-const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+/** What a key press carries, as the editor reads it: `KeyboardEvent`'s keys and modifiers. */
+export interface KeyPress {
+  key?: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+}
 
-// The action a key press (`{key, ctrlKey, metaKey, shiftKey, altKey}`)
-// asks for, with its arguments, or null for any other key:
-// `["undo"]`, `["redo"]`, `["duplicate"]`, `["selectAll"]`, `["group"]`,
-// `["ungroup"]`, `["forward"]` and `["backward"]` (one step in draw
-// order), `["zoom", +1 | -1]`, `["zoomFit"]`, `["zoomReal"]`,
-// `["nudge", dx, dy]` (one pixel, ten with Shift), `["remove"]`,
-// `["deselect"]`, `["help"]` and `["commandPalette"]`. Copy, cut and paste are the browser's own
+/**
+ * An action and its arguments: `zoom` by a step in or out, `nudge` by
+ * pixels along each axis.
+ */
+export type Shortcut =
+  | ["undo"] | ["redo"] | ["duplicate"] | ["selectAll"] | ["group"] | ["ungroup"]
+  | ["forward"] | ["backward"] | ["zoom", 1 | -1] | ["zoomFit"] | ["zoomReal"]
+  | ["nudge", number, number] | ["remove"] | ["deselect"] | ["help"] | ["commandPalette"];
+
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+// The action a key press asks for, with its arguments, or null for any
+// other key: `forward` and `backward` are one step in draw order, `nudge`
+// one pixel (ten with Shift). Copy, cut and paste are the browser's own
 // events, not key presses (`app.js`).
-export function shortcutFor(e) {
+export function shortcutFor(e: KeyPress): Shortcut | null {
   const key = (e.key || "").toLowerCase();
   if (e.ctrlKey || e.metaKey) {
     if (key === "z") return [e.shiftKey ? "redo" : "undo"];
@@ -30,7 +44,7 @@ export function shortcutFor(e) {
     return null;
   }
   if (e.altKey) return null;
-  const arrow = ARROWS[e.key];
+  const arrow = e.key === undefined ? undefined : ARROWS[e.key];
   if (arrow) {
     const n = e.shiftKey ? 10 : 1;
     return ["nudge", arrow[0] * n, arrow[1] * n];
@@ -43,15 +57,17 @@ export function shortcutFor(e) {
 }
 
 // Whether a key press lands where it types (a field, the YAML tab), where
-// the editor's shortcuts stand aside.
-export function typingIn(target) {
-  return !!(target && target.closest && target.closest("input, textarea, select, .cm-editor"));
+// the editor's shortcuts stand aside. `target` is the event's target: an
+// element, or anything else (null, a window) that types nothing.
+export function typingIn(target: unknown): boolean {
+  // the DOM boundary: an event's target has `closest` only when it is an element
+  const t = target as { closest?: (selector: string) => unknown } | null | undefined;
+  return !!(t && typeof t.closest === "function" && t.closest("input, textarea, select, .cm-editor"));
 }
 
 // What the "?" overlay lists, in groups: each `[keys, what]`, "Ctrl"
 // standing for Cmd on a Mac.
-/** @type {[string, [string, string][]][]} */
-export const SHORTCUTS = [
+export const SHORTCUTS: [string, [string, string][]][] = [
   ["Edit", [
     ["Ctrl+Z", "undo"], ["Ctrl+Shift+Z, Ctrl+Y", "redo"],
     ["Ctrl+C, Ctrl+X, Ctrl+V", "copy, cut and paste elements, between faces too"],

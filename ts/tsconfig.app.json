@@ -1,14 +1,11 @@
 {
-  "//": "The studio page (app/), plain ES modules checked as JavaScript; npm run typecheck runs it after tsconfig.json. The page names the worker's payload types (src/studio/protocol.ts) in JSDoc; strict stays off because the page's own untyped parameters would be some 900 implicit-any errors.",
+  "//": "The studio page (app/): TypeScript, bundled by esbuild (src/studio/server.ts, npm run bundle), checked strict like src/. It imports the worker's payload types from src/studio/protocol.ts. The .js modules it still has are pulled in through main.ts but not checked here: tsconfig.app-js.json checks them as JavaScript, non-strict, until they are converted. npm run typecheck runs both after tsconfig.json.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": true,
-    "strict": false,
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false,
+    "checkJs": false,
     "types": [],
     "paths": { "/dist/raster.js": ["./app/dist-raster.d.ts"] }
   },
-  "include": ["app/*.js"]
+  "include": ["app/**/*.ts"]
 }

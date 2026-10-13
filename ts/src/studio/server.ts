@@ -4,8 +4,9 @@
 // (IndexedDB) and bundles in and out are all in its worker. The server
 // sends what only this computer has, and builds:
 //
-// - the app (`ts/app/`), and the worker and the canvas's rasteriser
-//   (`src/raster/canvas.ts`), bundled at start;
+// - the app (`ts/app/`, from `main.ts`), the worker and the canvas's
+//   rasteriser (`src/raster/canvas.ts`), each bundled at start and served
+//   under `/dist/`; `/static/` serves the page's files as they are;
 // - `GET /api/devices`: every installed device's `compiler.json`,
 //   `simulator.json` and a digest of its `api.debug.xml` (the symbol tags
 //   the compiler reads, a few percent of the file), and the SDK device
@@ -42,14 +43,18 @@ import { MAX_UPLOAD_BYTES } from "./bundle.ts";
 import { devices as listDevices } from "./inspect.ts";
 import type { BuildResult } from "./protocol.ts";
 
-const APP = join(REPO_ROOT, "ts", "app");
-const SRC = join(REPO_ROOT, "ts", "src");
+const TS = join(REPO_ROOT, "ts");
+const APP = join(TS, "app");
 
-/** A browser module, bundled at start from the sources, so a checkout serves its own. */
-async function bundle(entry: string): Promise<Uint8Array> {
+/**
+ * A browser module, bundled at start from the sources (`entry` relative to
+ * `ts/`), so a checkout serves its own. `external` names imports left for
+ * the browser to fetch as they are.
+ */
+async function bundle(entry: string, external: string[] = []): Promise<Uint8Array> {
   const esbuild = await import("esbuild");
   const built = await esbuild.build({
-    entryPoints: [join(SRC, entry)], bundle: true, format: "esm", platform: "browser", target: "es2023", write: false, logLevel: "silent",
+    entryPoints: [join(TS, entry)], bundle: true, format: "esm", platform: "browser", target: "es2023", write: false, logLevel: "silent", external,
   });
   return built.outputFiles[0]!.contents;
 }
@@ -257,8 +262,10 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
   const names = allowAnyHost ? null : hostNames(host, allowHosts);
   let building = false;
   const scratch = mkdtempSync(join(tmpdir(), "wfb-studio-builds-"));
-  const worker = await bundle("studio/worker.ts");
-  const raster = await bundle("raster/canvas.ts");
+  const worker = await bundle("src/studio/worker.ts");
+  const raster = await bundle("src/raster/canvas.ts");
+  // the page imports the rasteriser as `/dist/raster.js`, which the browser fetches as today
+  const app = await bundle("app/main.ts", ["/dist/raster.js"]);
 
   const send = (response: ServerResponse, status: number, body: string | Uint8Array, type: string, headers: Record<string, string> = {}): void => {
     response.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store", ...headers });
@@ -323,6 +330,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
       const path = url.pathname;
       if (path === "/" || path === "/index.html") return sendFile(response, APP, "index.html");
       if (path.startsWith("/static/")) return sendFile(response, APP, path.slice("/static/".length));
+      if (path === "/dist/app.js") return send(response, 200, app, "text/javascript; charset=utf-8");
       if (path === "/dist/worker.js") return send(response, 200, worker, "text/javascript; charset=utf-8");
       if (path === "/dist/raster.js") return send(response, 200, raster, "text/javascript; charset=utf-8");
       if (path.startsWith("/help/")) {

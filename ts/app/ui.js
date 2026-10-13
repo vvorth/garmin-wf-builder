@@ -2,9 +2,10 @@
 // edited in place, and a button that asks for a new name in place. None
 // of them uses the browser's own prompt().
 
-import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
-import { isIdentifier } from "./values.js";
-import { objectUrl } from "./api.js";
+import { html } from "htm/preact";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { isIdentifier } from "./values.ts";
+import { objectUrl } from "./api.ts";
 
 // An image the worker draws (`op`: a cover, a thumbnail, a hand set):
 // hidden while it loads, and when there is none. `args` may carry a key

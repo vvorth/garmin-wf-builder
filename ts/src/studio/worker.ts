@@ -1,5 +1,5 @@
 // The editor's worker: the compiler and the history store, answering the
-// page's requests (`../../app/api.js`) through `Router`. Bundled by
+// page's requests (`../../app/api.ts`) through `Router`. Bundled by
 // `npm run bundle` into `dist/worker.js`.
 //
 // It loads the schema, the icon font and every installed device's digest

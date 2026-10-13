@@ -7,8 +7,9 @@
 #
 #   ./tools/vendor-studio-frontend.sh
 #
-# - htm's `preact/standalone.module.js`: Preact (with hooks) and htm in one
-#   ES module, as htm publishes it. No bundler involved.
+# Preact and htm are not vendored: they are npm dependencies of ts/ (its
+# package.json), bundled into the page with these files by esbuild.
+#
 # - `codemirror.module.js`: CodeMirror 6, its YAML mode and
 #   codemirror-json-schema's YAML schema support, bundled by esbuild from
 #   tools/studio-frontend/ (pinned by its package-lock.json, `npm ci`), with
@@ -17,7 +18,6 @@
 # - marked's `lib/marked.esm.js`: the Help popup's markdown, as published.
 set -euo pipefail
 
-HTM_VERSION=3.1.1
 MARKED_VERSION=18.1.0
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,18 +26,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 cd "$work"
-npm pack --silent "htm@$HTM_VERSION" >/dev/null
-tar xzf "htm-$HTM_VERSION.tgz"
-preact_range="$(node -e "console.log(require('./package/package.json').devDependencies.preact)")"
-
 mkdir -p "$out"
-cp package/preact/standalone.module.js "$out/preact-htm.module.js"
-cp package/LICENSE "$out/LICENSE-htm"
-# The standalone module bundles Preact; its licence travels with it.
-npm pack --silent "preact@$preact_range" >/dev/null
-mkdir preact && tar xzf preact-*.tgz -C preact
-cp preact/package/LICENSE "$out/LICENSE-preact"
-
 npm pack --silent "marked@$MARKED_VERSION" >/dev/null
 mkdir marked && tar xzf "marked-$MARKED_VERSION.tgz" -C marked
 cp marked/package/lib/marked.esm.js "$out/marked.esm.js"
@@ -64,9 +53,6 @@ const p = require('./package.json').dependencies;
 console.log(Object.entries(p).filter(([k]) => k !== 'esbuild').map(([k, v]) => k + '@' + v).join(', '))")"
 
 cat > "$out/VERSIONS" <<EOF
-preact-htm.module.js  htm@$HTM_VERSION preact/standalone.module.js (Preact $preact_range bundled by htm)
-LICENSE-htm           htm (Apache-2.0)
-LICENSE-preact        Preact (MIT)
 codemirror.module.js  $cm_versions (tools/studio-frontend, esbuild, markdown as plain text)
 LICENSES-codemirror   every package in codemirror.module.js, with its version
 LICENSES-pillow       Pillow 12.3.0 (MIT-CMU): ts/src/raster/pillow.ts (bundled as /dist/raster.js) follows its ImageDraw.py and libImaging/Draw.c

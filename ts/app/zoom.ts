@@ -16,31 +16,31 @@ export const MIN_ZOOM = 0.2;
 export const MAX_ZOOM = 4;
 export const CSS_PX_PER_INCH = 96;
 // ISO/IEC 7810 ID-1, every bank card: 85.60 mm by 53.98 mm.
-export const CARD_MM = [85.6, 53.98];
+export const CARD_MM: readonly [number, number] = [85.6, 53.98];
 
-export function clampZoom(zoom) {
+export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
 // The scale to ask the worker for: the zoom in device pixels, rounded up.
-export function serverScale(zoom, devicePixelRatio = 1) {
+export function serverScale(zoom: number, devicePixelRatio = 1): number {
   return Math.min(4, Math.max(1, Math.ceil(zoom * devicePixelRatio - 1e-9)));
 }
 
 // The zoom that shows a watch of `ppi` at its real size, given how many
 // CSS pixels make a real inch on this screen; null when the watch's files
 // give no pixel density.
-export function realZoom(ppi, cssPxPerInch = CSS_PX_PER_INCH) {
-  if (!(ppi > 0)) return null;
+export function realZoom(ppi: number | null | undefined, cssPxPerInch: number = CSS_PX_PER_INCH): number | null {
+  if (ppi === null || ppi === undefined || !(ppi > 0)) return null;
   return cssPxPerInch / ppi;
 }
 
 // CSS pixels per real inch, from a card's measured width in CSS pixels.
-export function calibrate(cardWidthCssPx) {
+export function calibrate(cardWidthCssPx: number): number {
   return (cardWidthCssPx / CARD_MM[0]) * 25.4;
 }
 
 // The watch's screen in millimetres, for the label beside the notch.
-export function screenMm(width, ppi) {
-  return ppi > 0 ? (width / ppi) * 25.4 : null;
+export function screenMm(width: number, ppi: number | null | undefined): number | null {
+  return ppi !== null && ppi !== undefined && ppi > 0 ? (width / ppi) * 25.4 : null;
 }

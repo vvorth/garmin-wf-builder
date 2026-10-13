@@ -1,7 +1,7 @@
 // The YAML tab: the face's text in CodeMirror, with the format's schema
 // (completion, hovers, its own checks) and wfb's diagnostics in the gutter.
 // Typing is sent as the whole text, debounced, against the version it
-// was typed over (`textsync.js`); the worker records it. A change made
+// was typed over (`textsync.ts`); the worker records it. A change made
 // elsewhere meanwhile refuses the send, and the author chooses whose text
 // to keep. Selection follows the canvas and the layer tree, and
 // the cursor selects the element it is in. Leaving the tab keeps where it
@@ -9,15 +9,16 @@
 // unless another element was selected meanwhile; text not yet saved (not
 // YAML, refused, or in a conflict) is kept there too and shown again.
 
-import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
+import { html } from "htm/preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   Annotation, EditorSelection, EditorView, HighlightStyle, basicSetup, forceLinting, linter, lintGutter,
   syntaxHighlighting, tags, yaml, yamlSchema,
 } from "./vendor/codemirror.module.js";
-import { elementAtLine, flatten } from "./hit.js";
-import * as sync from "./textsync.js";
-import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.js";
-import { api, call } from "./api.js";
+import { elementAtLine, flatten } from "./hit.ts";
+import * as sync from "./textsync.ts";
+import { changeSummary, diffCounts, hunks, lineDiff } from "./linediff.ts";
+import { api, call } from "./api.ts";
 
 // The text's colours on the studio's dark background, in its own palette:
 // CodeMirror's default style is made for a light one, and its keys and
@@ -91,7 +92,7 @@ export function YamlPane({ doc, selected, reveal, memory, onDoc, onSelect, onErr
   // null while the tab is closed
   const box = (memory || own.current).text ||=
     { sync: sync.initial(doc), left: null, status: null, sending: false, pane: null };
-  const state = useRef({ doc, timer: null, selectTimer: null });
+  const state = useRef(/** @type {{doc: any, timer: any, selectTimer: any, onSaving?: any, onSelect?: any, selected?: any}} */ ({ doc, timer: null, selectTimer: null }));
   const [status, setStatus] = useState(box.left === null ? null : box.status);
   const [conflict, setConflict] = useState(box.left !== null && box.sync.conflict);
   // whether the conflict banner lists the other change's lines

@@ -3,13 +3,14 @@
 // worker, which patches the text, checks it and answers with the face;
 // a refused edit leaves the face as it was and says why.
 
-import { html, useState, useEffect, useRef } from "./vendor/preact-htm.module.js";
+import { html } from "htm/preact";
+import { useState, useEffect, useRef } from "preact/hooks";
 import {
   ANGLE_UNITS, afterRemovingSchemes, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
-} from "./values.js";
+} from "./values.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
-import { api } from "./api.js";
+import { api } from "./api.ts";
 import { ask } from "./dialogs.js";
 import { HelpDialog } from "./help.js";
 

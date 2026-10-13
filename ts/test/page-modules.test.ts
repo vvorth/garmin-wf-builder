@@ -1,5 +1,5 @@
-// The page's pure modules (`app/hit.js`, `outbox.js`, `textsync.js`,
-// `session.js` and the rest without a DOM), run in Node.
+// The page's pure modules (`app/hit.ts`, `outbox.ts`, `textsync.ts`,
+// `session.ts` and the rest without a DOM), run in Node.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantiate, len, node, page, render, repoText, run, summary, testUri } from "./page-harness.ts";
@@ -115,8 +115,7 @@ test("a drag says how far it went and how to stop snapping", async () => {
 
 test("the vendored editor bundle exports what the yaml tab imports", async () => {
   const source = appText("yaml.js");
-  const start = source.indexOf("import {", source.indexOf("preact-htm"));
-  const imported = source.slice((start + len("import {")), source.indexOf("}", start));
+  const imported = /import \{([^}]*)\}\s*from "\.\/vendor\/codemirror\.module\.js"/.exec(source)?.[1] ?? "";
   const names = [...imported.split(",").filter((n: any) => n.trim()).map((n: any) => n.trim())].sort();
   const result = await run(`
       const m = await import(${JSON.stringify(appUri("vendor/codemirror.module.js"))});

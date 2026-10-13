@@ -1,9 +1,10 @@
 // The Diagnostics tab: the compiler's diagnostics for the open face, and
 // the tab's label.
 
-import { html, useState } from "./vendor/preact-htm.module.js";
-import { elementAtLine } from "./hit.js";
-import { severityCounts, shownDiagnostics } from "./values.js";
+import { html } from "htm/preact";
+import { useState } from "preact/hooks";
+import { elementAtLine } from "./hit.ts";
+import { severityCounts, shownDiagnostics } from "./values.ts";
 
 const NAMES = { error: "errors", warning: "warnings", note: "notes" };
 

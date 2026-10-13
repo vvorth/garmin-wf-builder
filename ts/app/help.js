@@ -2,7 +2,8 @@
 // page opens it here, with Back to return; an image or any other file comes
 // from the server's `/help/`, and a link off this computer opens a new tab.
 
-import { html, useEffect, useRef, useState } from "./vendor/preact-htm.module.js";
+import { html } from "htm/preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { marked } from "./vendor/marked.esm.js";
 import { Modal } from "./dialogs.js";
 

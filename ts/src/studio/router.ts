@@ -1,6 +1,6 @@
 // The editor's requests, answered in the browser: an operation and its
 // arguments (`{op: "edit", args: {id, version, op}}`), as the page's
-// `api.js` sends them, mapped to the studio. The worker (`./worker.ts`)
+// `api.ts` sends them, mapped to the studio. The worker (`./worker.ts`)
 // runs it on every message; the tests run it directly. The arguments come
 // as the page wrote them, structured-cloned, so each is checked for its
 // type here.

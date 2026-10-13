@@ -4,7 +4,7 @@
 // bundles), so hit-testing reads where each layer leaves ink. During a
 // move the whole face is drawn here from the layers' ops, the dragged ones
 // translated; a resize, an angle or a line's end is drawn as an outline. On
-// release the gesture joins the editor's outbox (`outbox.js`), which sends
+// release the gesture joins the editor's outbox (`outbox.ts`), which sends
 // it to the worker, which writes it in the author's units and answers with
 // the new face, whose frame then replaces the preview. Until it does, the
 // canvas draws the gestures still on their way and takes the next press
@@ -12,13 +12,14 @@
 // lands.
 
 import { WorkerImage } from "./ui.js";
-import { html, useEffect, useMemo, useRef, useState } from "./vendor/preact-htm.module.js";
-import { elementOf, handleAt, moveHandle, movedBy, together, topmost } from "./hit.js";
-import { offsets, shiftItems, unshown } from "./outbox.js";
+import { html } from "htm/preact";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { elementOf, handleAt, moveHandle, movedBy, together, topmost } from "./hit.ts";
+import { offsets, shiftItems, unshown } from "./outbox.ts";
 import * as raster from "/dist/raster.js";
 import {
   angleAt, dragHint, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
-} from "./snap.js";
+} from "./snap.ts";
 
 /** @typedef {import("../src/studio/protocol.ts").Frame} Frame */
 /** @typedef {import("../src/studio/protocol.ts").Skin} Skin */
@@ -86,11 +87,11 @@ function inkAt(frame, prepared, layer, x, y) {
 // layer is read where it will be.
 function pick(frame, prepared, x, y, by = new Map()) {
   if (prepared) {
-    const layers = by.size ? prepared.layers.map((l) => {
+    const layers = /** @type {any[]} */ (by.size ? prepared.layers.map((l) => {
       const o = by.get(elementOf(l.id));
       return o ? { id: l.id, box: l.box && [l.box[0] + o[0], l.box[1] + o[1], l.box[2], l.box[3]],
                    base: l, off: o } : l;
-    }) : prepared.layers;
+    }) : prepared.layers);
     const hit = topmost(layers, x, y, (layer) => (layer.base
       ? inkAt(frame, prepared, layer.base, x - layer.off[0], y - layer.off[1])
       : inkAt(frame, prepared, layer, x, y)));
@@ -280,7 +281,7 @@ function gestureAt(frame, item, g, x, y, free) {
   }
   const h = g.handle;
   if (h.kind === "end") {
-    const point = { box: [h.x, h.y, 0, 0], center: [h.x, h.y] };
+    const point = { box: /** @type {[number, number, number, number]} */ ([h.x, h.y, 0, 0]), center: /** @type {[number, number]} */ ([h.x, h.y]) };
     const snapped = free ? { dx: Math.round(dx), dy: Math.round(dy), guides: { x: [], y: [] } }
       : snapMove(point, dx, dy, targets, 4);
     return { kind: "move", part: h.part, dx: snapped.dx, dy: snapped.dy, guides: snapped.guides };

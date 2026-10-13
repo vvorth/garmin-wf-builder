@@ -1,9 +1,10 @@
 // Dialogs: a question to confirm, building a face for one watch, and
 // calibrating real size.
 
-import { call } from "./api.js";
-import { html, useEffect, useState } from "./vendor/preact-htm.module.js";
-import { CARD_MM, CSS_PX_PER_INCH, calibrate } from "./zoom.js";
+import { call } from "./api.ts";
+import { html } from "htm/preact";
+import { useEffect, useState } from "preact/hooks";
+import { CARD_MM, CSS_PX_PER_INCH, calibrate } from "./zoom.ts";
 
 export function Modal({ title, onClose, children, className = "" }) {
   return html`<div class="modal-back" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -44,7 +45,7 @@ export function BuildDialog({ doc, vocab, device, onClose }) {
   const targets = doc.targets.map((t) => devices.find((d) => d.id === t) || { id: t, name: t });
   const others = devices.filter((d) => !doc.targets.includes(d.id));
   const [chosen, setChosen] = useState(device || doc.targets[0] || "");
-  const [state, setState] = useState({ phase: "choose" });
+  const [state, setState] = useState(/** @type {{phase: string, error?: string, result?: import("../src/studio/protocol.ts").BuildResult}} */ ({ phase: "choose" }));
 
   const build = async () => {
     setState({ phase: "building" });

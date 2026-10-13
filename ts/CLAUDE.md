@@ -7,9 +7,9 @@ the editor, in TypeScript on Node; `../wfb` runs `src/cli.ts`.
 
 ```sh
 npm test                    # node:test over test/**/*.test.ts
-npm run typecheck           # tsc --noEmit, strict; then app/ as checked JavaScript (tsconfig.app.json)
+npm run typecheck           # tsc --noEmit, strict; then app/ (tsconfig.app.json, strict; its .js modules non-strict, tsconfig.app-js.json)
 npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
-npm run bundle              # dist/wfb.js and dist/worker.js, the browser bundles (not committed)
+npm run bundle              # dist/wfb.js, dist/worker.js and dist/app.js, the browser bundles (not committed)
 ```
 
 Node runs the `.ts` sources directly (type stripping), so there is no build
@@ -83,17 +83,30 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     help; `term.ts` styles the output.
   - `src/studio/` is the editor's back end: `worker.ts` (the browser's
     Web Worker, which the server bundles when it starts) answers the page's
-    requests (an operation and its arguments, `app/api.js`'s `api(op,
+    requests (an operation and its arguments, `app/api.ts`'s `api(op,
     args)`; no URLs) through `router.ts`, over `document.ts`, `store.ts`
     (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` and
     `drag.ts`; `server.ts` (Node) sends the app, the devices' digest, a
     device's skin and font files, the docs for Help (`/help/`), and builds.
     `protocol.ts` is the one place the page/worker contract lives: every
     request's arguments and every answer, event and refusal as TypeScript
-    interfaces, which the worker's builders return and the page names in
-    JSDoc. `app/` is the page, plain ES
-    modules served as they are; `test/studio-client.ts` runs the worker's
-    router in Node for the studio tests.
+    interfaces, which the worker's builders return and the page imports.
+    `app/` is the page: TypeScript (`main.ts` the entry, rendering `App`
+    into `#app`), with Preact and htm from npm (`html` tagged
+    templates, never JSX, so Node runs the sources as they are) and
+    CodeMirror and marked vendored in `app/vendor/`. The server bundles
+    `app/main.ts` with esbuild when it starts and serves it as
+    `/dist/app.js` (`/dist/raster.js` stays a separate module the page
+    imports); `/static/` serves `index.html`, `studio.css` and `vendor/`
+    as files. The `.js` modules still in `app/` are checked as JavaScript
+    until converted (`tsconfig.app-js.json`); a `.js` module imports a
+    `.ts` one by its `.ts` name. `main.ts` sets `globalThis.wfbStudio =
+    {api, call}`: a test hook for browser tests that drive the worker
+    from the page, not an API. The page tests (`test/page-*.test.ts`,
+    `test/page-harness.ts`) run the page's modules in Node by file URL
+    over a minimal DOM, Preact resolved through `import.meta.resolve` so a
+    test shares the page's instance; `test/studio-client.ts` runs the
+    worker's router in Node for the studio tests.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point

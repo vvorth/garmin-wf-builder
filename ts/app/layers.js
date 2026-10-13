@@ -8,8 +8,9 @@
 // Every change is one structural edit the worker patches into the text,
 // checks and records.
 
-import { html, useState } from "./vendor/preact-htm.module.js";
-import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, siblingsOf, stepOp } from "./tree.js";
+import { html } from "htm/preact";
+import { useState } from "preact/hooks";
+import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, siblingsOf, stepOp } from "./tree.ts";
 
 const NEEDS = { graph: ["series", "series"], data: ["slot", "slots"], hands: ["set", "hand_sets"] };
 

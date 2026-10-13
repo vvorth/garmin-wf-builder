@@ -3,7 +3,7 @@
 // controls send the edits the worker expects. Nothing is drawn or laid out.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, instantiate, len, node, page, render, repoText, run, summary, testUri } from "./page-harness.ts";
+import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, htmPreactUri, instantiate, len, node, page, preactUri, render, repoText, run, summary, testUri } from "./page-harness.ts";
 import { inspect } from "../src/studio/inspect.ts";
 import { plain } from "../src/studio/json.ts";
 import { installAssets } from "../src/node.ts";
@@ -114,7 +114,8 @@ test("a drop on the layers moves a row and ignores anything else", async () => {
   const script = `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Layers } = await import(${JSON.stringify(appUri("layers.js"))});
       const ops = [];
       const root = document.createElement("div");
@@ -149,7 +150,8 @@ test("the layers list in draw order and down brings forward", async () => {
   const script = `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Layers } = await import(${JSON.stringify(appUri("layers.js"))});
       const ops = [];
       const root = document.createElement("div");
@@ -174,7 +176,8 @@ test("the thumbnails wait for the face to settle", async () => {
   const script = `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Strip, STRIP_SETTLE_MS } = await import(${JSON.stringify(appUri("canvas.js"))});
       const root = document.createElement("div");
       const doc = (version) => ({ id: "f", version, targets: ["a", "b"] });
@@ -205,14 +208,16 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
   const script = `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Diagnostics, diagnosticsLabel } = await import(${JSON.stringify(appUri("diagnostics.js"))});
       const root = document.createElement("div");
       render(html\`<\${Diagnostics} items=\${${JSON.stringify(items)}} tree=\${[]} onSelect=\${() => {}} />\`, root);
       const cls = (e) => e.attributes.class || "";
       const rows = () => root.all((e) => e.localName === "li").map((li) => li.textContent.trim());
       const chips = () => root.all((e) => e.localName === "button").map((b) => b.textContent.trim());
-      const settle = () => new Promise((r) => setTimeout(r, 5));
+      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
       const out = [chips(), rows()];
       root.all((e) => e.localName === "button" && e.textContent.startsWith("warnings"))[0].click();
       await settle();
@@ -281,8 +286,9 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
       const focused = [];
-      const make = document.createElement;
-      document.createElement = (n) => { const e = make(n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
+      // Preact creates every element through createElementNS
+      const makeNS = document.createElementNS;
+      document.createElementNS = (ns, n) => { const e = makeNS(ns, n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
       const inspected = ${JSON.stringify(inspected)};
       // the worker, answering inspect from the payloads above
       globalThis.Worker = class {
@@ -292,11 +298,13 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
           setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
         }
       };
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
       const edits = [];
       const root = document.createElement("div");
-      const settle = () => new Promise((r) => setTimeout(r, 5));
+      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
       const cls = (e) => e.attributes.class || "";
       const show = async (id) => {
         render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", id] }} device="" vocab=\${{}}
@@ -358,11 +366,13 @@ test("the scope buttons offer the display class as a fourth override, and a key 
           setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
         }
       };
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { Inspector } = await import(${JSON.stringify(appUri("panels.js"))});
       const scopes = [];
       const root = document.createElement("div");
-      const settle = () => new Promise((r) => setTimeout(r, 5));
+      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
       const cls = (e) => e.attributes.class || "";
       const show = async (device, scope) => {
         render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", "clock"] }} device=\${device} vocab=\${{ devices: [] }}

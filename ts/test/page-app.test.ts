@@ -1,4 +1,4 @@
-// The whole page (`app/app.js`) rendered with preact over the minimal DOM
+// The whole page (`app/main.ts`, rendering `app/app.js`) with preact over the minimal DOM
 // against a stand-in worker answering from a real face's summary: the home
 // screen and the editor render, and their menus send what the worker
 // expects. Nothing is drawn or laid out.

@@ -501,12 +501,28 @@ test("a studio over the device digest diagnoses every template as one over the d
   }
 });
 
+test("the server bundles the page as /dist/app.js: one module rendering into #app, Preact from npm, the rasteriser fetched apart", async () => {
+  const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.port}/dist/app.js`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /^text\/javascript/);
+    const bundle = await response.text();
+    assert.match(bundle, /getElementById\("app"\)/, "the entry's render is in the bundle");
+    assert.doesNotMatch(bundle, /vendor\/preact-htm/, "Preact comes from npm, not the vendored module");
+    assert.doesNotMatch(bundle, /^\s*import\b.*["']\.\//m, "every relative import is bundled in");
+    assert.match(bundle, /from\s*"\/dist\/raster\.js"/, "the rasteriser stays a separate module");
+  } finally {
+    await server.close();
+  }
+});
+
 test("the server sends the app, the device digest, a device's extras, and refuses a second build", async () => {
   const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
   const url = (path: string): string => `http://127.0.0.1:${server.port}${path}`;
   try {
-    assert.match(await (await fetch(url("/"))).text(), /app\.js/);
-    assert.equal((await fetch(url("/static/vendor/preact-htm.module.js"))).status, 200);
+    assert.match(await (await fetch(url("/"))).text(), /\/dist\/app\.js/);
+    assert.equal((await fetch(url("/static/studio.css"))).status, 200);
     assert.match(await (await fetch(url("/dist/raster.js"))).text(), /export\s*\{[^}]*\bliveOps\b/);
     assert.equal((await fetch(url("/static/../../package.json"))).status, 404);
     assert.match(await (await fetch(url("/dist/worker.js"))).text(), /wfb-studio/);

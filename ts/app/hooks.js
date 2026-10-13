@@ -3,19 +3,18 @@
 // at, the keyboard shortcuts, panning and zooming the face, and the right
 // column's folds.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState }
-  from "./vendor/preact-htm.module.js";
-import { api } from "./api.js";
-import { shortcutFor, typingIn } from "./keys.js";
-import { droppedError, enqueue, mark, next } from "./outbox.js";
-import { picksParam } from "./values.js";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { api } from "./api.ts";
+import { shortcutFor, typingIn } from "./keys.ts";
+import { droppedError, enqueue, mark, next } from "./outbox.ts";
+import { picksParam } from "./values.ts";
 
 // -- the outbox ------------------------------------------------------------------------
 
 // Every change to the face -- gestures from the canvas and the arrow keys,
 // edits from the panels and the layers, undo, redo, uploads and restores
 // -- sent one at a time, each against the version the one before produced
-// (`outbox.js`), so the canvas never waits for the worker and an edit made
+// (`outbox.ts`), so the canvas never waits for the worker and an edit made
 // while a drag is on its way is not refused as stale.
 //
 // `doc` and `frame` are the face and frame shown; `where` a ref holding

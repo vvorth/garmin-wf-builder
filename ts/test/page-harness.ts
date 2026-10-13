@@ -16,6 +16,10 @@ const APP = join(REPO_ROOT, "ts", "app");
 const SUMMARY = join(REPO_ROOT, "ts", "tools", "summary.ts");
 
 export const appUri = (name: string): string => pathToFileURL(join(APP, name)).href;
+// The page's view library as Node resolves it for the page's own modules,
+// so a script rendering a component itself shares their Preact instance.
+export const htmPreactUri: string = import.meta.resolve("htm/preact");
+export const preactUri: string = import.meta.resolve("preact");
 export const testUri = (name: string): string => pathToFileURL(join(import.meta.dirname, name)).href;
 export const appText = (name: string): string => readFileSync(join(APP, name), "utf8");
 export const repoText = (path: string): string => readFileSync(join(REPO_ROOT, path), "utf8");
@@ -46,9 +50,9 @@ function printed(script: string): unknown[] {
 
 const MODULES = ["hit", "values", "snap", "tree", "zoom", "outbox", "textsync", "session", "linediff", "keys"];
 
-/** `script` run with the page's pure modules imported (`tree.js` as `treeMod`): the one JSON value it prints. */
+/** `script` run with the page's pure modules imported (`tree.ts` as `treeMod`): the one JSON value it prints. */
 export async function run(script: string): Promise<any> {
-  const imports = MODULES.map((m) => `import * as ${m === "tree" ? "treeMod" : m} from ${JSON.stringify(appUri(`${m}.js`))};`).join("\n");
+  const imports = MODULES.map((m) => `import * as ${m === "tree" ? "treeMod" : m} from ${JSON.stringify(appUri(`${m}.ts`))};`).join("\n");
   return printed(`${imports}\n${script}`)[0];
 }
 
@@ -78,7 +82,8 @@ export async function render(summary: unknown, body: string): Promise<any[]> {
   return printed(`
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
-      const { html, render } = await import(${JSON.stringify(appUri("vendor/preact-htm.module.js"))});
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
       const { FacePanel } = await import(${JSON.stringify(appUri("panels.js"))});
       const edits = [];
       const root = document.createElement("div");
@@ -89,7 +94,10 @@ export async function render(summary: unknown, body: string): Promise<any[]> {
       const cls = (e) => e.attributes.class || "";
       const find = (pred) => root.all(pred);
       const within = (e, c) => { for (let p = e.parentNode; p; p = p.parentNode) if (cls(p) === c) return true; return false; };
-      const settle = () => new Promise((r) => setTimeout(r, 5));
+      // Quiet: a few timer turns, which covers an effect's work (rendered,
+      // then two timer turns). Counted in turns, not milliseconds, so a
+      // slow machine waits as long as it needs.
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
       const click = async (e) => { e.click(); await settle(); };
       // the Face tab's nav: switch to the section whose title starts with \`title\`
       const openSection = async (title) => { await click(find((e) => e.localName === "button" && e.textContent.startsWith(title))[0]); };
@@ -178,7 +186,7 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
           });
         }
       };
-      await import(${JSON.stringify(appUri("app.js"))});
+      await import(${JSON.stringify(appUri("main.ts"))});
       // Quiet: no answer on its way for a few timer turns, which covers an
       // effect's request (rendered, then two timer turns). Counted in turns,
       // not milliseconds, so a slow machine waits as long as it needs.

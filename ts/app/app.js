@@ -1,28 +1,28 @@
 // wfb studio's front end. The page asks and shows; its worker
-// (`api.js`) holds the face's text and runs the compiler, so nothing here
+// (`api.ts`) holds the face's text and runs the compiler, so nothing here
 // decides what a face looks like: every image comes from the worker's
 // renderer.
 
-import { html, render, useState, useEffect, useRef, useCallback, useMemo }
-  from "./vendor/preact-htm.module.js";
-import { api, download, listen, saveBlob } from "./api.js";
+import { html } from "htm/preact";
+import { useState, useEffect, useRef, useCallback, useMemo } from "preact/hooks";
+import { api, download, listen, saveBlob } from "./api.ts";
 import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
-import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.js";
+import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
-import { inFlight, newer, saveState } from "./outbox.js";
+import { inFlight, newer, saveState } from "./outbox.ts";
 import { Canvas, Strip } from "./canvas.js";
 import { Layers } from "./layers.js";
 import { YamlPane } from "./yaml.js";
 import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js";
 import { HelpDialog } from "./help.js";
-import { SHORTCUTS } from "./keys.js";
-import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.js";
+import { SHORTCUTS } from "./keys.ts";
+import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.ts";
 import { FacePanel, Inspector } from "./panels.js";
-import { typeLabel } from "./values.js";
+import { typeLabel } from "./values.ts";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
-import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.js";
-import { TAB } from "./session.js";
-import { latestText } from "./textsync.js";
+import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.ts";
+import { TAB } from "./session.ts";
+import { latestText } from "./textsync.ts";
 
 /** @typedef {import("../src/studio/protocol.ts").Summary} Summary */
 /** @typedef {import("../src/studio/protocol.ts").Home} Home */
@@ -585,12 +585,12 @@ function Editor({ docId, onError, onNotice }) {
                           [doc, selected]);
   // The YAML tab's own save state (`YamlPane`'s `onSaving`); every other
   // change is in the outbox.
-  const [yamlSaving, setYamlSaving] = useState("idle");
+  const [yamlSaving, setYamlSaving] = useState(/** @type {import("./textsync.ts").PlanKind} */ ("idle"));
   useEffect(() => { setYamlSaving("idle"); }, [docId]);
   // A change on its way to the worker dies with the page, so while one is
   // (`outbox.inFlight`) the browser asks before leaving. The YAML tab
   // flushes its own text on the same event.
-  const yamlSavingRef = useRef("idle");
+  const yamlSavingRef = useRef(/** @type {import("./textsync.ts").PlanKind} */ ("idle"));
   yamlSavingRef.current = yamlSaving;
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -868,7 +868,7 @@ function MessageLog({ log, unseen, onOpen, onClear }) {
   </div>`;
 }
 
-function App() {
+export function App() {
   const [docId, setDocId] = useState(route());
   const [toast, setToast] = useState(null);       // {message, kind}
   const [log, setLog] = useState([]);              // [{message, kind, at}], newest first
@@ -898,9 +898,3 @@ function App() {
                    onClear=${() => { setLog([]); setUnseen(0); }} />
     <${AskHost} />`;
 }
-
-// The faces live only in this browser's storage, which it may clear when
-// the disk runs low unless asked to keep it; a refusal changes nothing.
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-
-render(html`<${App} />`, document.getElementById("app"));
