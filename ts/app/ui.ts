@@ -2,24 +2,48 @@
 // edited in place, and a button that asks for a new name in place. None
 // of them uses the browser's own prompt().
 
+import type { ComponentChildren, JSX, VNode } from "preact";
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { Args } from "../src/studio/protocol.ts";
 import { isIdentifier } from "./values.ts";
 import { objectUrl } from "./api.ts";
+
+/** The operations whose answer is a PNG the page shows as an image. */
+export type ImageOp = "cover" | "thumbnail" | "handset";
+
+/** `op` and `args` name the image; everything else goes on the `<img>` (`class`, `alt`, `title`). */
+export interface WorkerImageProps extends JSX.HTMLAttributes<HTMLImageElement> {
+  op: ImageOp;
+  args: Args<ImageOp>;
+}
 
 // An image the worker draws (`op`: a cover, a thumbnail, a hand set):
 // hidden while it loads, and when there is none. `args` may carry a key
 // the worker ignores (`v`, the version) to draw it again.
-export function WorkerImage({ op, args, ...rest }) {
-  const [src, setSrc] = useState(null);
+export function WorkerImage({ op, args, ...rest }: WorkerImageProps): VNode {
+  const [src, setSrc] = useState<string | null>(null);
   const key = JSON.stringify(args);
   useEffect(() => {
-    let url = null, live = true;
+    let url: string | null = null, live = true;
     objectUrl(op, args).then((u) => { if (live) setSrc(url = u); else URL.revokeObjectURL(u); }, () => setSrc(null));
     return () => { live = false; if (url) URL.revokeObjectURL(url); };
   }, [op, key]);
   return html`<img alt="" ...${rest} data-op=${op} data-args=${key} src=${src || undefined}
     style=${src ? undefined : "visibility:hidden"} />`;
+}
+
+export interface PopoverProps {
+  label: ComponentChildren;
+  title?: string | undefined;
+  className?: string;
+  buttonClass?: string;
+  bodyClass?: string;
+  /** "left" or "right" edge, plus "up" to open above the button. */
+  align?: string;
+  /** What the popover shows, or a function of `close` for an item that closes it once chosen. */
+  children?: ComponentChildren | ((close: () => void) => ComponentChildren);
+  onOpen?: (() => void) | undefined;
 }
 
 // A button that opens `children` below it, in the browser's top layer
@@ -30,12 +54,13 @@ export function WorkerImage({ op, args, ...rest }) {
 // popover once chosen. `align`: "left" or "right" edge, plus "up" to open
 // above the button; `buttonClass` and `bodyClass` style the two halves.
 let popovers = 0;
-export function Popover({ label, title, className = "", buttonClass = "", bodyClass = "", align = "left", children, onOpen }) {
+export function Popover({ label, title, className = "", buttonClass = "", bodyClass = "", align = "left", children, onOpen }: PopoverProps): VNode {
   const [open, setOpen] = useState(false);
-  const id = useRef(null);
+  const id = useRef<string | null>(null);
   id.current ??= `popover-${++popovers}`;
-  const button = useRef(null), body = useRef(null);
-  const place = () => {
+  const button = useRef<HTMLButtonElement | null>(null), body = useRef<HTMLDivElement | null>(null);
+  const place = (): void => {
+    if (!button.current || !body.current) return;
     const r = button.current.getBoundingClientRect(), s = body.current.style;
     const up = align.includes("up"), right = align.includes("right");
     s.top = up ? "auto" : `${r.bottom + 4}px`;
@@ -43,15 +68,15 @@ export function Popover({ label, title, className = "", buttonClass = "", bodyCl
     s.left = right ? "auto" : `${r.left}px`;
     s.right = right ? `${innerWidth - r.right}px` : "auto";
   };
-  const onToggle = (e) => {
+  const onToggle = (e: JSX.TargetedToggleEvent<HTMLDivElement>): void => {
     const now = e.newState === "open";
     if (now) { place(); if (onOpen) onOpen(); }
     setOpen(now);
   };
-  const close = () => { if (body.current && body.current.hidePopover) body.current.hidePopover(); };
+  const close = (): void => { if (body.current && typeof body.current.hidePopover === "function") body.current.hidePopover(); };
   useEffect(() => {
     if (!open) return;
-    const scrolled = (e) => { if (!body.current.contains(e.target)) close(); };
+    const scrolled = (e: Event): void => { if (body.current && !body.current.contains(e.target as Node | null)) close(); };
     addEventListener("scroll", scrolled, true);
     return () => removeEventListener("scroll", scrolled, true);
   }, [open]);
@@ -63,28 +88,39 @@ export function Popover({ label, title, className = "", buttonClass = "", bodyCl
   </span>`;
 }
 
+export interface InlineNameProps {
+  value: string;
+  title?: string | undefined;
+  onRename: (name: string) => void;
+  /** Whether a name may be given; letters, digits and _ by default. */
+  valid?: (text: string) => boolean;
+  /** Why not, shown while it may not. */
+  why?: string;
+  className?: string;
+}
+
 // A name shown as text; a click turns it into an input, where Enter (or
 // leaving it) renames and Escape keeps the name. `valid(text)` says
 // whether a name may be given (letters, digits and _ by default); while it
 // may not, the input says why and Enter does nothing.
 export function InlineName({ value, title, onRename, valid = isIdentifier,
                              why = "letters, digits and _, not starting with a digit",
-                             className = "name" }) {
+                             className = "name" }: InlineNameProps): VNode {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value);
-  const input = useRef(null);
+  const input = useRef<HTMLInputElement | null>(null);
   // settled once Enter, Escape or leaving the input has decided: a blur
   // that follows Enter or Escape must not decide again
   const settled = useRef(false);
   useEffect(() => {
-    if (editing && input.current && input.current.focus) { input.current.focus(); input.current.select(); }
+    if (editing && input.current && typeof input.current.focus === "function") { input.current.focus(); input.current.select(); }
   }, [editing]);
   if (!editing) {
     return html`<span class=${className + " renamable"} title=${title || "click to rename"}
                       onClick=${() => { settled.current = false; setText(value); setEditing(true); }}>${value}</span>`;
   }
   const ok = valid(text.trim());
-  const commit = (raw) => {
+  const commit = (raw: string): void => {
     if (settled.current) return;
     settled.current = true;
     const name = raw.trim();
@@ -93,37 +129,52 @@ export function InlineName({ value, title, onRename, valid = isIdentifier,
   };
   return html`<input type="text" ref=${input} class=${"inline-name" + (ok ? "" : " invalid")} value=${text}
     title=${ok ? "Enter to rename, Escape to keep the name" : why} aria-invalid=${!ok}
-    onInput=${(e) => setText(e.target.value)}
-    onBlur=${(e) => commit(e.target.value)}
-    onKeyDown=${(e) => {
-      if (e.key === "Enter" && valid(e.target.value.trim())) commit(e.target.value);
+    onInput=${(e: JSX.TargetedInputEvent<HTMLInputElement>) => setText(e.currentTarget.value)}
+    onBlur=${(e: JSX.TargetedFocusEvent<HTMLInputElement>) => commit(e.currentTarget.value)}
+    onKeyDown=${(e: JSX.TargetedKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && valid(e.currentTarget.value.trim())) commit(e.currentTarget.value);
       else if (e.key === "Escape") { settled.current = true; setEditing(false); }
     }} />`;
+}
+
+export interface AddNameProps {
+  label: ComponentChildren;
+  title?: string | undefined;
+  /** The name offered when the input opens. */
+  suggest?: () => string;
+  onAdd: (name: string) => void;
+  onCancel?: (() => void) | undefined;
+  disabled?: boolean;
+  valid?: (text: string) => boolean;
+  placeholder?: string;
+  /** Shown as the input from the start. */
+  startOpen?: boolean;
 }
 
 // A button that, pressed, becomes an input for a new name, suggested by
 // `suggest()`; Enter or ✓ gives it to `onAdd`, Escape or × leaves it
 // (and tells `onCancel`). `startOpen`: shown as the input from the start.
 export function AddName({ label, title, suggest = () => "", onAdd, onCancel, disabled = false,
-                          valid = isIdentifier, placeholder = "name", startOpen = false }) {
-  const [text, setText] = useState(startOpen ? suggest() || "" : null);
-  const cancel = () => { setText(null); if (onCancel) onCancel(); };
-  const input = useRef(null);
+                          valid = isIdentifier, placeholder = "name", startOpen = false }: AddNameProps): VNode {
+  const [text, setText] = useState<string | null>(startOpen ? suggest() || "" : null);
+  const cancel = (): void => { setText(null); if (onCancel) onCancel(); };
+  const input = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    if (text !== null && input.current && input.current.focus) { input.current.focus(); input.current.select(); }
+    if (text !== null && input.current && typeof input.current.focus === "function") { input.current.focus(); input.current.select(); }
   }, [text === null]);
   if (text === null) {
     return html`<button disabled=${disabled} title=${title || ""} onClick=${() => setText(suggest() || "")}>${label}</button>`;
   }
   const ok = valid(text.trim());
-  const add = () => { if (ok) { onAdd(text.trim()); setText(null); } };
+  const add = (): void => { if (ok) { onAdd(text.trim()); setText(null); } };
   return html`<span class="add-name">
     <input type="text" ref=${input} class=${"inline-name" + (ok ? "" : " invalid")} value=${text}
       placeholder=${placeholder} aria-label=${label} aria-invalid=${!ok}
       title=${ok ? "Enter to add, Escape to cancel" : "letters, digits and _, not starting with a digit"}
-      onInput=${(e) => setText(e.target.value)}
-      onKeyDown=${(e) => {
-        if (e.key === "Enter") { if (valid(e.target.value.trim())) { onAdd(e.target.value.trim()); setText(null); } }
+      onInput=${(e: JSX.TargetedInputEvent<HTMLInputElement>) => setText(e.currentTarget.value)}
+      onKeyDown=${(e: JSX.TargetedKeyboardEvent<HTMLInputElement>) => {
+        const typed = e.currentTarget.value;
+        if (e.key === "Enter") { if (valid(typed.trim())) { onAdd(typed.trim()); setText(null); } }
         else if (e.key === "Escape") cancel();
       }} />
     <button class="primary" disabled=${!ok} title="add" onClick=${add}>✓</button>

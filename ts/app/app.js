@@ -6,20 +6,20 @@
 import { html } from "htm/preact";
 import { useState, useEffect, useRef, useCallback, useMemo } from "preact/hooks";
 import { api, download, listen, saveBlob } from "./api.ts";
-import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.js";
+import { clockNow, useClipboard, useFold, useFrame, useOutbox, usePanZoom, useShortcuts } from "./hooks.ts";
 import { flatten, movedBy, rangeIds, selectAll, together } from "./hit.ts";
-import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
+import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { inFlight, newer, saveState } from "./outbox.ts";
 import { Canvas, Strip } from "./canvas.ts";
-import { Layers } from "./layers.js";
+import { Layers } from "./layers.ts";
 import { YamlPane } from "./yaml.js";
-import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.js";
-import { HelpDialog } from "./help.js";
+import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.ts";
+import { HelpDialog } from "./help.ts";
 import { SHORTCUTS } from "./keys.ts";
 import { CSS_PX_PER_INCH, MAX_ZOOM, MIN_ZOOM, clampZoom, realZoom, screenMm, serverScale } from "./zoom.ts";
 import { FacePanel, Inspector } from "./panels.js";
 import { typeLabel } from "./values.ts";
-import { Diagnostics, diagnosticsLabel } from "./diagnostics.js";
+import { Diagnostics, diagnosticsLabel } from "./diagnostics.ts";
 import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.ts";
 import { TAB } from "./session.ts";
 import { latestText } from "./textsync.ts";
@@ -656,7 +656,7 @@ function Editor({ docId, onError, onNotice }) {
     nudge: onFace && chosen.length ? (dx, dy) => {
       const item = chosen.length > 1 ? together(frame.items, chosen) : frame.items.find((i) => i.id === chosen[0]);
       if (!item || !item.box) return false;
-      const gesture = { kind: "move", part: "both", dx, dy };
+      const gesture = /** @type {import("../src/studio/protocol.ts").Gesture} */ ({ kind: "move", part: "both", dx, dy });
       onDrag(chosen, gesture, { item, moving: movedBy(doc.tree, chosen), preview: gesture });
       return true;
     } : null,

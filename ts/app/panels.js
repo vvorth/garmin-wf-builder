@@ -9,10 +9,10 @@ import {
   ANGLE_UNITS, afterRemovingSchemes, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor,
   newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.ts";
-import { AddName, InlineName, Popover, WorkerImage } from "./ui.js";
+import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { api } from "./api.ts";
-import { ask } from "./dialogs.js";
-import { HelpDialog } from "./help.js";
+import { ask } from "./dialogs.ts";
+import { HelpDialog } from "./help.ts";
 
 /** @typedef {import("../src/studio/protocol.ts").Summary} Summary */
 /** @typedef {import("../src/studio/protocol.ts").Inspect} Inspect */

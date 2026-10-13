@@ -116,7 +116,7 @@ test("a drop on the layers moves a row and ignores anything else", async () => {
       const document = install();
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Layers } = await import(${JSON.stringify(appUri("layers.js"))});
+      const { Layers } = await import(${JSON.stringify(appUri("layers.ts"))});
       const ops = [];
       const root = document.createElement("div");
       render(html\`<\${Layers} doc=\${${JSON.stringify(doc)}} vocab=\${{}} selected=\${null} extra=\${[]}
@@ -152,7 +152,7 @@ test("the layers list in draw order and down brings forward", async () => {
       const document = install();
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Layers } = await import(${JSON.stringify(appUri("layers.js"))});
+      const { Layers } = await import(${JSON.stringify(appUri("layers.ts"))});
       const ops = [];
       const root = document.createElement("div");
       render(html\`<\${Layers} doc=\${${JSON.stringify(doc)}} vocab=\${{}} selected=\${${JSON.stringify(first)}} extra=\${[]}
@@ -210,7 +210,7 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
       const document = install();
       const { html } = await import(${JSON.stringify(htmPreactUri)});
       const { render } = await import(${JSON.stringify(preactUri)});
-      const { Diagnostics, diagnosticsLabel } = await import(${JSON.stringify(appUri("diagnostics.js"))});
+      const { Diagnostics, diagnosticsLabel } = await import(${JSON.stringify(appUri("diagnostics.ts"))});
       const root = document.createElement("div");
       render(html\`<\${Diagnostics} items=\${${JSON.stringify(items)}} tree=\${[]} onSelect=\${() => {}} />\`, root);
       const cls = (e) => e.attributes.class || "";

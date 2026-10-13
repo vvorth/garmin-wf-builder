@@ -11,7 +11,7 @@
 // against where they will put things. Nothing here decides where anything
 // lands.
 
-import { WorkerImage } from "./ui.js";
+import { WorkerImage } from "./ui.ts";
 import { html } from "htm/preact";
 import type { JSX, VNode } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
