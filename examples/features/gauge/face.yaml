@@ -57,7 +57,7 @@ static:
     step_angle: 24deg
     color: color.scale
     parts:
-      - { type: line, at: { dy: -84%r }, to: { dy: -76%r }, thickness: 2px }
+      tick: { type: line, at: { dy: -84%r }, to: { dy: -76%r }, thickness: 2px }
 
   battery_label:
     type: text
@@ -84,9 +84,10 @@ elements:
     sweep: 240deg
     color: "system.battery < 20 ? color.low : color.accent"
     needle:
-      - type: polygon
+      blade:
+        type: polygon
         points: [{ dx: -3%r, dy: 12%r }, { dx: -1%r, dy: -70%r },  dy: -74%r, { dx: 1%r, dy: -70%r }, { dx: 3%r, dy: 12%r }]
-      - { type: circle, radius: 5%r, color: color.fg }
+      hub: { type: circle, radius: 5%r, color: color.fg }
 
   hr_needle:
     type: gauge
@@ -99,5 +100,5 @@ elements:
     color: color.fg
     absent: { value: 0.0 }
     needle:
-      - { type: line, at: { dy: 3%r }, to: { dy: -18%r }, thickness: 2px }
-      - { type: circle, radius: 2%r }
+      needle: { type: line, at: { dy: 3%r }, to: { dy: -18%r }, thickness: 2px }
+      hub: { type: circle, radius: 2%r }

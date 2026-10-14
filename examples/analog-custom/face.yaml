@@ -74,7 +74,8 @@ resources:
       hour:
         # color: color.fg
         parts:
-          - type: polygon  # backgrouond colored outline, same shape, a little bigger
+          backdrop:
+            type: polygon  # backgrouond colored outline, same shape, a little bigger
             color: color.black
             points: # background
               - { dx: -1%r, dy: 21%r }
@@ -83,7 +84,8 @@ resources:
               - { dx: 2%r, dy: -71%r }   # the tip, straight up
               - { dx: 10%r, dy: -1%r }
               - { dx: 1%r, dy: 21%r }
-          - type: polygon
+          arrow:
+            type: polygon
             color: color.fg
             points: # arrow
               - { dx: 0%r, dy: 20%r }
@@ -91,7 +93,8 @@ resources:
               - { dx: -1%r, dy: -70%r }  # the tip, straight up
               - { dx: 1%r, dy: -70%r }   # the tip, straight up
               - { dx: 9%r, dy: -1%r }
-          - type: polygon
+          shade:
+            type: polygon
             color: color.track         #todo
             points: # shade
               - { dx: 0%r, dy: 16%r }
@@ -100,7 +103,8 @@ resources:
       minute:
         color: color.fg
         parts:
-          - type: polygon
+          backdrop:
+            type: polygon
             color: color.black
             points: # background
               - { dx: -2%r, dy: 18%r }
@@ -109,7 +113,8 @@ resources:
               - { dx: 2%r, dy: -96%r }   # the tip, straight up
               - { dx: 6%r, dy: -1%r }
               - { dx: 2%r, dy: 19%r }
-          - type: polygon
+          arrow:
+            type: polygon
             color: color.fg
             points: # arrow
               - { dx: -1%r, dy: 17%r }
@@ -118,7 +123,8 @@ resources:
               - { dx: 1%r, dy: -95%r }   # the tip, straight up
               - { dx: 5%r, dy: -1%r }
               - { dx: 1%r, dy: 18%r }
-          - type: polygon
+          shade:
+            type: polygon
             color: color.track         #todo
             points: # shade
               - { dx: 0%r, dy: 14%r }
@@ -130,22 +136,23 @@ resources:
         color: color.fg
         parts:
           # background
-          - { type: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: color.black }    #arrow bg
-          - { type: circle, at: { dy: 20%r }, radius: 5%r, color: color.black }    # counterweight bg
-          - { type: circle, radius: 4%r, color: color.black }    # centre cap bg
+          shaft_bg: { type: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: color.black }    #arrow bg
+          counterweight_bg: { type: circle, at: { dy: 20%r }, radius: 5%r, color: color.black }    # counterweight bg
+          cap_bg: { type: circle, radius: 4%r, color: color.black }    # centre cap bg
           # arrow
-          - { type: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r }  #arrow
-          - { type: circle, at: { dy: 20%r }, radius: 4%r }  # counterweight
-          - { type: circle, radius: 3%r }  # centre cap
-          - { type: circle, radius: 1%r, color: color.black }    # centre cap axle
-          - { type: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: color.accent }         #accented point
+          shaft: { type: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r }  #arrow
+          counterweight: { type: circle, at: { dy: 20%r }, radius: 4%r }  # counterweight
+          cap: { type: circle, radius: 3%r }  # centre cap
+          axle: { type: circle, radius: 1%r, color: color.black }    # centre cap axle
+          tip: { type: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: color.accent }         #accented point
 
 
     classic_generated:
       hour:
         # color: color.fg
         parts:
-          - type: polygon  # backgrouond colored outline, same shape, a little bigger
+          blade_bg:
+            type: polygon  # backgrouond colored outline, same shape, a little bigger
             color: color.bg
             points:
               - { dx: -5%r, dy: 8%r } # 6%r *behind* the axis: a tail
@@ -153,7 +160,8 @@ resources:
               - { dy: -47%r } # the tip, straight up
               - { dx: 4%r, dy: -40%r }
               - { dx: 5%r, dy: 8%r }
-          - type: polygon  # pointing at 12; origin = the axis
+          blade:
+            type: polygon  # pointing at 12; origin = the axis
             color: color.fg
             points:
               - { dx: -3%r, dy: 6%r } # 6%r *behind* the axis: a tail
@@ -164,16 +172,16 @@ resources:
       minute:
         color: color.fg
         parts:
-          - { type: rectangle, at: { dy: -30%r }, size: { width: 7%r, height: 74%r }, color: color.bg }
-          - { type: circle, radius: 6%r, color: color.bg }          # a hub
-          - { type: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 70%r } }
-          - { type: circle, radius: 4%r, color: color.light_gray }    # a hub
+          blade_bg: { type: rectangle, at: { dy: -30%r }, size: { width: 7%r, height: 74%r }, color: color.bg }
+          hub_bg: { type: circle, radius: 6%r, color: color.bg }          # a hub
+          blade: { type: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 70%r } }
+          hub: { type: circle, radius: 4%r, color: color.light_gray }    # a hub
 
     small_seconds:
       second:
         color: color.fg
         parts:
-          - { type: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }
+          needle: { type: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }
 
 # Shared: drawn underneath both layouts, in every one of them.
 
@@ -251,7 +259,7 @@ layouts:
         #     the turned ticks do not stair-step. Reported against this element,
         #     the first to draw anti-aliased, for the whole device."
         parts: # copy 0, as it looks at 12 o'clock; origin = at:
-          - { type: line, at: { dy: -98%r }, to: { dy: -93%r }, thickness: 1px }
+          tick: { type: line, at: { dy: -98%r }, to: { dy: -93%r }, thickness: 1px }
 
       hour_ticks:
         type: pattern
@@ -266,8 +274,9 @@ layouts:
           allow: [antialias-dither, safe-area]
           reason: "to look good; the hour dots sit on the rim on purpose"
         parts:
-          - { type: circle, at: { dy: 96%r }, radius: 3%r }
-          - type: text
+          dot: { type: circle, at: { dy: 96%r }, radius: 3%r }
+          numeral:
+            type: text
             text: "{(copy + 11) % 12 + 1}"
             font: font.hourfont
             at: { angle: 0deg, radius: 80%r }

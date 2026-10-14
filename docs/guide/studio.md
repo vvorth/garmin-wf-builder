@@ -308,7 +308,7 @@ cannot edit:
   key, and the keys it must have come with it (a `curve:` gets its `style`
   and `angle` at once). `overrides:` lists the selectors written and adds
   one by name (**+ key**), starting as a copy of the element's own `at:`.
-- A list (`points:`, a pattern's `parts:`, `lint: allow:`) shows its items,
+- A list (`points:`, `lint: allow:`) shows its items,
   each with **↑**, **↓** and **×**, and **+ add** puts a new one at the
   end: the schema's default, else an empty item of the right shape.
 - A key the format writes in more than one shape (`absent:` as `hide`, a
@@ -640,7 +640,7 @@ without end. A snapshot keeps what it needs, however old.
   ([getting started](getting-started.md)).
 - Edit a hand set's parts (in `resources:`, not on an element), except in
   the YAML tab; drag a polygon's points or a pattern's parts on the face
-  (they are edited as lists in Properties).
+  (they are edited as fields in Properties).
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
 - Share faces between browsers: each keeps its own (above).

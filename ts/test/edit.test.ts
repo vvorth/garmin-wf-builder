@@ -640,3 +640,25 @@ test("list edits refuse what they cannot do", () => {
   assert.throws(() => insertItem(index, ["b", 0], 0, "z"), /shares a line/);
   assert.equal(moveItem(index, ["a"], 1, 1).text, index.text);
 });
+
+test("an id-keyed part has a path and a span like any mapping entry, and a set on it patches its own line", () => {
+  const text = minimal("elements:\n  a:\n    type: pattern\n    pattern: radial\n    count: 4\n    color: color.fg\n    parts:\n      tick:\n        type: line\n        at: { dy: -90%r }\n        to: { dy: -80%r }\n      dot: { type: circle, at: { dy: -76%r }, radius: 1%r }\n");
+  const index = new SpanIndex(text);
+  const tick = index.at(["elements", "a", "parts", "tick"]);
+  assert.equal(tick.key.start.line, text.split("\n").findIndex((l) => l.includes("tick:")));
+  assert.deepEqual(tick.path, ["elements", "a", "parts", "tick"]);
+  assert.equal((at(index, ["elements", "a", "parts", "dot", "radius"]) as string), "1%r");
+  const g = gate("face.yaml", text);
+  const grown = setValue(index, ["elements", "a", "parts", "dot", "radius"], "2%r");
+  g.check(grown);
+  assert.ok(grown.text.includes("      dot: { type: circle, at: { dy: -76%r }, radius: 2%r }\n"), grown.text);
+  assert.equal(changedBlocks(text, grown.text), 1);
+  const moved = setValue(index, ["elements", "a", "parts", "tick", "to", "dy"], "-70%r");
+  g.check(moved);
+  assert.ok(moved.text.includes("        to: { dy: -70%r }\n"), moved.text);
+  assert.equal(changedBlocks(text, moved.text), 1);
+  // a part added by id is a new mapping entry, in the block's own style
+  const added = setValue(index, ["elements", "a", "parts", "hub"], new Map<string, Data>([["type", "circle"], ["radius", "3%r"]]));
+  g.check(added);
+  assert.ok(added.text.includes("      dot: { type: circle, at: { dy: -76%r }, radius: 1%r }\n      hub: { type: circle, radius: 3%r }\n"), added.text);
+});

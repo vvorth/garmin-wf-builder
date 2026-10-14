@@ -442,6 +442,8 @@ function transformed(x: number, y: number, ox: number, oy: number, s: number, c:
 /** What every resolved hand or pattern part carries; `shape` is a class constant, as Python's `ClassVar`. */
 export abstract class ResolvedPart {
   abstract get shape(): string;
+  /** The IR part's id: the author's key, or `partN` for the list form. */
+  id = "";
   color: Expression | null = null;
   /** The farthest ink from the frame's origin; 0 for a text part. */
   reach = 0.0;
@@ -920,15 +922,15 @@ export class Resolver {
     return new FontMetric(faceName || "vector", faceName, filename, fontPx);
   }
 
-  /** Every part of one `parts:` list, and the farthest reach among them. */
+  /** Every part of one `parts:` mapping (`owner` its path, `<element>.parts` or `<element>.needle`), and the farthest reach among them. */
   resolveParts(parts: readonly AnyHandPart[], owner: string, min1px: boolean): [ResolvedHandPart[], number] {
     const resolved: ResolvedHandPart[] = [];
     let reach = 0.0;
-    parts.forEach((part, index) => {
-      const p = this.ownedBy({ ...this.owner!, id: `${owner}.parts[${index}]`, span: part.span }, () => this.handPartGeometry(part, min1px));
+    for (const part of parts) {
+      const p = this.ownedBy({ ...this.owner!, id: `${owner}.${part.id}`, span: part.span }, () => this.handPartGeometry(part, min1px));
       resolved.push(p);
       reach = Math.max(reach, p.reach);
-    });
+    }
     return [resolved, reach];
   }
 
@@ -941,7 +943,7 @@ export class Resolver {
         return [roundHalfAway(x), roundHalfAway(y)];
       });
       const reach = points.length > 0 ? Math.max(...points.map(([x, y]) => hypot(x, y))) : 0.0;
-      return ResolvedPolygonPart.create({ color: part.color, reach, points });
+      return ResolvedPolygonPart.create({ id: part.id, color: part.color, reach, points });
     }
     if (part.shape === "rectangle") {
       let [cx, cy] = this.handPoint(part.at);
@@ -954,7 +956,7 @@ export class Resolver {
       const points = ([[cx - hw, cy - hh], [cx + hw, cy - hh], [cx + hw, cy + hh], [cx - hw, cy + hh]] as const)
         .map(([x, y]): [number, number] => [roundHalfAway(x), roundHalfAway(y)]);
       const reach = Math.max(...points.map(([x, y]) => hypot(x, y)));
-      return ResolvedPolygonPart.create({ color: part.color, reach, points });
+      return ResolvedPolygonPart.create({ id: part.id, color: part.color, reach, points });
     }
     if (part.shape === "line") {
       const [x1, y1] = this.handPoint(part.at);
@@ -962,7 +964,7 @@ export class Resolver {
       const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
       const reach = Math.max(hypot(x1, y1), hypot(x2, y2)) + thickness / 2.0;
       return ResolvedLinePart.create({
-        color: part.color, reach, x1: roundHalfAway(x1), y1: roundHalfAway(y1), x2: roundHalfAway(x2), y2: roundHalfAway(y2), thickness,
+        id: part.id, color: part.color, reach, x1: roundHalfAway(x1), y1: roundHalfAway(y1), x2: roundHalfAway(x2), y2: roundHalfAway(y2), thickness,
       });
     }
     if (part.shape === "arc") {
@@ -970,7 +972,7 @@ export class Resolver {
       const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
       const startAngle = (part.start_angle ?? new Angle(0.0)).degrees;
       const sweep = (part.sweep ?? new Angle(360.0)).degrees;
-      return ResolvedArcPart.create({ color: part.color, reach: radius + thickness / 2.0, radius, thickness, start_angle: startAngle, sweep });
+      return ResolvedArcPart.create({ id: part.id, color: part.color, reach: radius + thickness / 2.0, radius, thickness, start_angle: startAngle, sweep });
     }
     if (part.shape === "text") {
       const [x0, y0] = this.handPoint(part.at);
@@ -981,7 +983,7 @@ export class Resolver {
       }
       const outline = part.outline;
       return ResolvedTextPart.create({
-        color: part.color, reach: 0.0, x: roundHalfAway(x0), y: roundHalfAway(y0), font: font.resolved(),
+        id: part.id, color: part.color, reach: 0.0, x: roundHalfAway(x0), y: roundHalfAway(y0), font: font.resolved(),
         justify: Resolver.justify(part), align: part.align, vertical_align: part.vertical_align, line_height: font.lineHeight,
         texts: part.texts, widths: part.texts.map((t) => font.width(t)), curve,
         outline_width: outline !== null ? outline.width : 0, outline_color: outline !== null ? outline.color : null,
@@ -996,7 +998,7 @@ export class Resolver {
     const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
     const penReach = part.filled ? radius : radius + thickness / 2.0;
     return ResolvedCirclePart.create({
-      color: part.color, reach: hypot(cx, cy) + penReach, x: roundHalfAway(cx), y: roundHalfAway(cy), radius, thickness, filled: part.filled,
+      id: part.id, color: part.color, reach: hypot(cx, cy) + penReach, x: roundHalfAway(cx), y: roundHalfAway(cy), radius, thickness, filled: part.filled,
     });
   }
 

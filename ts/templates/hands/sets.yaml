@@ -11,7 +11,8 @@ classic:
   hour:
     color: color.fg
     parts:
-      - type: polygon
+      blade:
+        type: polygon
         points:
           - { dx: -3%r, dy: 8%r } # a short tail behind the axis
           - { dx: -2%r, dy: -40%r }
@@ -21,34 +22,35 @@ classic:
   minute:
     color: color.fg
     parts:
-      - { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
+      blade: { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
   second:
     color: color.accent
     parts:
-      - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
-      - { type: circle, at: { dy: 15%r }, radius: 3%r } # counterweight
+      needle: { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
+      counterweight: { type: circle, at: { dy: 15%r }, radius: 3%r }
 
 baton:
   hour:
     color: color.fg
     parts:
-      - { type: rectangle, at: { dy: -20%r }, size: { width: 5%r, height: 50%r } }
+      blade: { type: rectangle, at: { dy: -20%r }, size: { width: 5%r, height: 50%r } }
   minute:
     color: color.fg
     parts:
-      - { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
-      - { type: circle, radius: 4%r } # hub
+      blade: { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
+      hub: { type: circle, radius: 4%r }
   second:
     color: color.accent
     parts:
-      - { type: line, at: { dy: 12%r }, to: { dy: -86%r }, thickness: 1px }
-      - { type: circle, radius: 2%r }
+      needle: { type: line, at: { dy: 12%r }, to: { dy: -86%r }, thickness: 1px }
+      hub: { type: circle, radius: 2%r }
 
 dauphine:
   hour:
     color: color.fg
     parts:
-      - type: polygon # a long diamond, widest a third of the way out
+      blade:
+        type: polygon # a long diamond, widest a third of the way out
         points:
           - { dy: 5%r }
           - { dx: -5%r, dy: -14%r }
@@ -57,7 +59,8 @@ dauphine:
   minute:
     color: color.fg
     parts:
-      - type: polygon
+      blade:
+        type: polygon
         points:
           - { dy: 5%r }
           - { dx: -4%r, dy: -20%r }
@@ -66,11 +69,11 @@ dauphine:
   second:
     color: color.accent
     parts:
-      - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 1px }
-      - { type: circle, radius: 3%r }
+      needle: { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 1px }
+      hub: { type: circle, radius: 3%r }
 
 subdial: # a small seconds hand only, for a hands element placed off-centre
   second:
     color: color.fg
     parts:
-      - { type: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }
+      needle: { type: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }

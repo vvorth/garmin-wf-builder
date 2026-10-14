@@ -176,7 +176,8 @@ elements:
     start: 235deg
     step_angle: 12deg
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{copy + 1}"
         font: font.bezel
         color: color.bg
@@ -194,7 +195,8 @@ elements:
     start: 100deg
     step_angle: 12deg
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{copy + 1}"
         font: font.bezel
         color: color.bg

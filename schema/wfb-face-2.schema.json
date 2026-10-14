@@ -2149,13 +2149,28 @@
           "$ref": "#/$defs/length"
         },
         "needle": {
-          "description": "style: needle only -- the needle's parts, authored exactly like an analog hand's (docs/guide/analog-hands.md): pointing at 12 o'clock, in a frame whose origin is the axis ('at:'), drawn in this order. A part with no 'color:' takes the element's own 'color:'.",
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/$defs/handPart"
-          }
+          "description": "style: needle only -- the needle's parts, authored exactly like an analog hand's (docs/guide/analog-hands.md): a mapping of 1-16 parts keyed by id, drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis ('at:'). A part with no 'color:' takes the element's own 'color:'. A plain list of parts is accepted as shorthand; its parts are named part1, part2, ... in diagnostics.",
+          "oneOf": [
+            {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 16,
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/handPart"
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/handPart"
+              }
+            }
+          ]
         },
         "value": {
           "$ref": "#/$defs/expression"
@@ -2790,12 +2805,28 @@
           "$ref": "#/$defs/outline"
         },
         "parts": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/$defs/patternPart"
-          }
+          "description": "The template: a mapping of 1-16 parts keyed by id (a name the Layers tree and a diagnostic use), drawn in this order as copy 0 looks at 12 o'clock, in a frame whose origin is 'at:'. A plain list of parts is accepted as shorthand; its parts are named part1, part2, ... in diagnostics.",
+          "oneOf": [
+            {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 16,
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/patternPart"
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/patternPart"
+              }
+            }
+          ]
         },
         "z": {
           "$ref": "#/$defs/zOrder"
@@ -3051,7 +3082,7 @@
       }
     },
     "hand": {
-      "description": "One hand: a default colour for its parts, plus the parts themselves, drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis.",
+      "description": "One hand: a default colour for its parts, plus the parts themselves, keyed by id and drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis.",
       "type": "object",
       "required": [
         "parts"
@@ -3063,12 +3094,28 @@
           "$ref": "#/$defs/colorExpression"
         },
         "parts": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/$defs/handPart"
-          }
+          "description": "The hand's parts: a mapping of 1-16 parts keyed by id (a name the Layers tree and a diagnostic use), drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis. A plain list of parts is accepted as shorthand; its parts are named part1, part2, ... in diagnostics.",
+          "oneOf": [
+            {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 16,
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/handPart"
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/handPart"
+              }
+            }
+          ]
         }
       }
     },

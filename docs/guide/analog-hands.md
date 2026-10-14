@@ -15,7 +15,7 @@ watch. Ticks and numerals around the dial are `pattern` elements, covered in
 |---|---|---|---|---|
 | `hand_sets:` | `resources:`, beside `fonts:`/`palette:` | named hand sets | — | declares hand shapes; a `type: hands` element places one on screen |
 | `hour:` / `minute:` / `second:` | inside a hand set | `{color?, parts}` | — | at least one required; always drawn hour, then minute, then second |
-| `parts` | a hand | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in list order — keys per type below |
+| `parts` | a hand | 1–16 parts keyed by id, each a `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in document order — keys per type below; a plain list is accepted as shorthand |
 | `color` | a hand, or a part | `color.<name>`, a literal, a conditional (no data) | — | a part with neither its own nor its hand's colour is an error |
 | `set` | `type: hands` element | a `hand_sets:` entry's name | required | which set this element places |
 | `at` | `type: hands` element | anchor / `dx`,`dy` / `angle`,`radius` | — | the axis every hand in the set turns about |
@@ -33,10 +33,11 @@ resources:
       hour:                            # drawn pointing at 12, axis at (0, 0)
         color: color.fg
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points: [{ dx: -3%r, dy: 8%r }, { dx: -2%r, dy: -38%r }, { dy: -46%r }, { dx: 2%r, dy: -38%r }, { dx: 3%r, dy: 8%r }]
-      minute: { ... }          # rectangle + circle
-      second: { ... }          # line + circles, accent-coloured tip
+      minute: { ... }          # blade (a rectangle) + hub (a circle)
+      second: { ... }          # needle, counterweight, pivot, accent-coloured tip
 
 layouts:
   analog:
@@ -46,13 +47,13 @@ layouts:
         pattern: radial
         count: 60
         skip_every: 5                # leave room for the hour ticks
-        parts: [{ type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }]
+        parts: { tick: { type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px } }
       hour_numerals:
         type: pattern                # 12 numerals, one element
         pattern: radial
         count: 12
         parts:
-          - { type: text, text: "{(copy + 11) % 12 + 1}", font: font.dialfont, at: { dy: -78%r } }
+          numeral: { type: text, text: "{(copy + 11) % 12 + 1}", font: font.dialfont, at: { dy: -78%r } }
     elements:
       analog_hands: { type: hands, set: classic, at: { anchor: center }, seconds: awake, antialias: true }
 ```
@@ -73,8 +74,9 @@ resources:
     classic:                               # a named hand set
       hour:
         color: color.fg                    # default for this hand's parts
-        parts:                             # drawn in this order
-          - type: polygon                  # pointing at 12; origin = the axis
+        parts:                             # keyed by id, drawn in this order
+          blade:
+            type: polygon                  # pointing at 12; origin = the axis
             points:
               - {dx: -3%r, dy: 6%r}        # 6%r *behind* the axis: a tail
               - {dx: -2%r, dy: -38%r}
@@ -84,14 +86,14 @@ resources:
       minute:
         color: color.fg
         parts:
-          - {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
-          - {type: circle, radius: 4%r}    # a hub; `at:` defaults to the axis
+          blade: {type: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+          hub: {type: circle, radius: 4%r}    # `at:` defaults to the axis
       second:
         color: color.accent
         parts:
-          - {type: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
-          - {type: circle, at: {dy: 15%r}, radius: 3%r}     # counterweight
-          - {type: circle, radius: 2%r, color: color.black}
+          needle: {type: line, at: {dy: 15%r}, to: {dy: -82%r}, thickness: 2px}
+          counterweight: {type: circle, at: {dy: 15%r}, radius: 3%r}
+          pivot: {type: circle, radius: 2%r, color: color.black}
 
 elements:
   main_hands:
@@ -110,10 +112,16 @@ below.
 
 A set has any of `hour:`, `minute:`, `second:`, and needs at least one — a
 set with only `second:` is a valid small-seconds subdial. Each hand is
-`{color?, parts}`: 1 to 16 primitives (`polygon`/`rectangle`/`line`/`circle`,
-the four `Dc` calls this compiler can rotate — see the table below), drawn in
-list order. A part with no `color:` of its own inherits its hand's; a part
-with neither is an error.
+`{color?, parts}`: a mapping of 1 to 16 **parts, keyed by id** (`blade`,
+`hub`, `counterweight`, …), each a primitive (`polygon`/`rectangle`/`line`/
+`circle`, the four `Dc` calls this compiler can rotate — see the table
+below), drawn in document order. The id is a name like an element's (a
+letter or underscore, then letters, digits and underscores), unique within
+the hand: it is what a diagnostic calls the part
+(`hand_sets.classic.hour.parts.blade: …`) and what the editor lists. A plain
+list of parts (`- type: polygon …`) is accepted as shorthand; its parts are
+then `part1`, `part2`, … A part with no `color:` of its own inherits its
+hand's; a part with neither is an error.
 
 **The axis is the origin; that is the whole convention.** A hand is
 authored **as it looks at 12 o'clock**, and every coordinate in it is
@@ -253,10 +261,10 @@ config:
 resources:
   hand_sets:
     sport:                   # no `second:` at all: this set never shows seconds
-      hour: { parts: [...] }
-      minute: { parts: [...] }
+      hour: { parts: { blade: ... } }
+      minute: { parts: { blade: ... } }
     small_seconds:
-      second: { parts: [{ type: line, at: { dy: 3%r }, to: { dy: -20%r } }] }
+      second: { parts: { needle: { type: line, at: { dy: 3%r }, to: { dy: -20%r } } } }
 
 layouts:
   classic:

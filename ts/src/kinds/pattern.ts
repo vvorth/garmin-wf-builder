@@ -354,14 +354,14 @@ class PatternKind extends ElementKind<PatternElement> {
       // Any source is allowed here: `checkPatternAbsence` polices absence for the whole element.
       [elementColor, colorFailed] = b.ownedColor(node, elementId, false);
       ok = !colorFailed;
-      (Array.isArray(node.get("parts")) ? node.get("parts") as Data[] : []).forEach((rawPart, index) => {
-        const part = b.buildHandPart(rawPart as Node, elementId, index, elementColor, colorFailed, "pattern");
+      for (const rawPart of Array.isArray(node.get("parts")) ? node.get("parts") as Data[] : []) {
+        const part = b.buildHandPart(rawPart as Node, `${elementId}.parts`, elementColor, colorFailed, "pattern");
         if (part === null) {
           ok = false;
-          return;
+          continue;
         }
         parts.push(part);
-      });
+      }
     } finally {
       b.scope.bindings.delete(expr.COPY);
     }
@@ -395,7 +395,7 @@ class PatternKind extends ElementKind<PatternElement> {
   override resolve(r: Resolver, element: PatternElement, parent: Box, depth: number): Placed {
     const [cx, cy] = r.point(element.at, parent);
     const center: [number, number] = [round(cx), round(cy)];
-    let [parts, reach] = r.resolveParts(element.parts, element.id, element.resolved_min_1px);
+    let [parts, reach] = r.resolveParts(element.parts, `${element.id}.parts`, element.resolved_min_1px);
     let start: number, step: number, dx = 0, dy = 0;
     if (element.pattern === "radial") {
       [start, step] = [element.start_angle, element.step_angle];
@@ -443,7 +443,7 @@ class PatternKind extends ElementKind<PatternElement> {
     element.parts.forEach((part, index) => {
       if (part.shape !== "text" || !part.font_is_custom) return;
       const samples = drawn.map((i) => part.texts[i]!);
-      runs.push(new TextRun(`${element.id}.parts[${index}]`, part.font, {
+      runs.push(new TextRun(`${element.id}.parts.${part.id}`, part.font, {
         glyphs: new Set(samples.join("")), samples, part_index: index, span: part.span, unsupported: part.unsupported, curve: part.curve,
       }));
     });
@@ -569,9 +569,9 @@ class PatternKind extends ElementKind<PatternElement> {
   override contrastSubjects(placed: Placed): ContrastSubject[] {
     const p = placed as PlacedPattern;
     const ring = p.element.outline !== null ? p.element.outline.color : null;
-    return p.parts.map((part, index): ContrastSubject => {
+    return p.parts.map((part): ContrastSubject => {
       const outline = part.shape === "text" ? part.outline_color : null;
-      return [`${p.id}.parts[${index}]`, part.color, outline ?? ring, part.shape !== "text"];
+      return [`${p.id}.parts.${part.id}`, part.color, outline ?? ring, part.shape !== "text"];
     });
   }
 

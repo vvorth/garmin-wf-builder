@@ -116,14 +116,14 @@ function buildNeedle(b: Builder, node: Node, element: Gauge): boolean {
   }
   const colorFailed = node.has("color") && element.color === null;
   const parts: AnyHandPart[] = [];
-  (Array.isArray(node.get("needle")) ? node.get("needle") as Data[] : []).forEach((raw, index) => {
-    const part = b.buildHandPart(raw as Node, `${element.id}.needle`, index, element.color, colorFailed);
+  for (const raw of Array.isArray(node.get("needle")) ? node.get("needle") as Data[] : []) {
+    const part = b.buildHandPart(raw as Node, `${element.id}.needle`, element.color, colorFailed);
     if (part === null) {
       ok = false;
-      return;
+      continue;
     }
     parts.push(part);
-  });
+  }
   element.needle = parts;
   return ok;
 }
@@ -665,7 +665,7 @@ class GaugeKind extends ElementKind<Gauge> {
     const p = placed as PlacedGauge;
     if (p.element.style !== "needle") return super.contrastSubjects(placed);
     const ring = p.element.outline !== null ? p.element.outline.color : null;
-    return p.needle.map((part, index): ContrastSubject => [`${p.id}.needle[${index}]`, part.color, ring, true]);
+    return p.needle.map((part): ContrastSubject => [`${p.id}.needle.${part.id}`, part.color, ring, true]);
   }
 
   override describe(placed: Placed): string {

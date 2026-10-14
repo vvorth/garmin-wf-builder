@@ -111,7 +111,8 @@ resources:
       hour:
         color: color.fg
         parts:
-          - type: polygon                # pointing at 12; origin = the axis
+          blade:
+            type: polygon                # pointing at 12; origin = the axis
             points:
               - { dx: -3%r, dy: 6%r }     # a short tail behind the axis
               - { dx: -2%r, dy: -38%r }
@@ -125,11 +126,13 @@ resources:
           # sits on the axis, so the rectangle runs from the axis to the tip
           # without computing `dy: -length/2` by hand (docs/guide/placement.md
           # "Analog hands").
-          - type: rectangle
+          blade:
+            type: rectangle
             at: { dy: 0 }
             align: bottom
             size: { width: 3%r, height: 60%r }
-          - type: circle                  # the hub, on the axis by default
+          hub:
+            type: circle                  # the hub, on the axis by default
             radius: 4%r
             color: color.accent
 
@@ -159,11 +162,13 @@ static:
     count: 12
     color: color.dim
     parts:
-      - type: rectangle
+      tick:
+        type: rectangle
         at: { dy: -94%r }
         align: top
         size: { width: 2.5%r, height: 8%r }
-      - type: circle
+      dot:
+        type: circle
         at: { dy: -84%r }
         align: top_left
         radius: 1.2%r
@@ -178,7 +183,8 @@ static:
     count: 12
     color: color.fg
     parts:
-      - type: text
+      numeral:
+        type: text
         # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
         # spelling for Monkey C's unverified negative-`%` behaviour).
         text: "{(copy + 11) % 12 + 1}"

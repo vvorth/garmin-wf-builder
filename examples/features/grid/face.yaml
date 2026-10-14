@@ -52,7 +52,8 @@ static:
     step: { dx: 14%r }
     color: color.past
     parts:
-      - type: text
+      initial:
+        type: text
         text: >-
           {(copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" : copy == 3 ? "T" :
           copy == 4 ? "F" : copy == 5 ? "S" : "S")}
@@ -75,4 +76,4 @@ elements:
     step: { dx: 14%r, dy: 14%r }
     color: "copy == date.day - 1 ? color.today : (copy < date.day - 1 ? color.past : color.fg)"
     parts:
-      - { type: circle, radius: 4%r }
+      dot: { type: circle, radius: 4%r }

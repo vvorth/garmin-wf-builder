@@ -38,7 +38,8 @@ resources:
       hour:
         color: color.white
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -4%r, dy: 19%r }
               - { dx: -4%r, dy: -52%r }
@@ -46,11 +47,12 @@ resources:
               - { dx: 1%r, dy: -57%r }
               - { dx: 4%r, dy: -52%r }
               - { dx: 4%r, dy: 19%r }
-          - { type: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 1px, color: color.silver }
+          inlay: { type: line, at: { dy: 17%r }, to: { dy: -57%r }, thickness: 1px, color: color.silver }
       minute:
         color: color.white
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -3%r, dy: 12%r }
               - { dx: -3%r, dy: -80%r }
@@ -58,13 +60,14 @@ resources:
               - { dx: 1%r, dy: -83%r }
               - { dx: 3%r, dy: -80%r }
               - { dx: 3%r, dy: 12%r }
-          - { type: circle, radius: 5%r }
-          - { type: circle, radius: 4%r, color: color.silver }
-          - { type: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 1px, color: color.silver }
+          hub: { type: circle, radius: 5%r }
+          hub_center: { type: circle, radius: 4%r, color: color.silver }
+          inlay: { type: line, at: { dy: 10%r }, to: { dy: -83%r }, thickness: 1px, color: color.silver }
       second:
         color: color.silver
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: 0%r, dy: -90%r }
               - { dx: -3%r, dy: 30%r }
@@ -77,7 +80,7 @@ resources:
         #     - { dx: -3%r, dy: 30%r }
         #     - { dx: 3%r, dy: 30%r }
         #     - { dx: 1%r, dy: 8%r }
-          - { type: circle, radius: 2.5%r }
+          hub: { type: circle, radius: 2.5%r }
 
 static:
   background:
@@ -105,7 +108,7 @@ static:
     count: 60
     skip_every: 5
     color: color.silver
-    parts: [{ type: line, at: { dy: -94%r }, to: { dy: -89%r }, thickness: 1px }]
+    parts: { tick: { type: line, at: { dy: -94%r }, to: { dy: -89%r }, thickness: 1px } }
   rim_serration:
     lint: { allow: [contrast, safe-area], reason: "deliberately faint flange serration at the very rim, as on the original dial" }
     type: pattern
@@ -113,7 +116,7 @@ static:
     at: { anchor: center }
     count: 120
     color: color.steel
-    parts: [{ type: line, at: { dy: -99%r }, to: { dy: -96%r }, thickness: 1px }]
+    parts: { tick: { type: line, at: { dy: -99%r }, to: { dy: -96%r }, thickness: 1px } }
   hour_dots:
     type: pattern
     pattern: radial
@@ -121,7 +124,7 @@ static:
     count: 12
     skip: [3]
     color: color.white
-    parts: [{ type: circle, at: { dy: -92%r }, radius: 1.2%r }]
+    parts: { dot: { type: circle, at: { dy: -92%r }, radius: 1.2%r } }
   hour_batons:
     type: pattern
     pattern: radial
@@ -130,8 +133,8 @@ static:
     skip: [0, 3]
     color: color.white
     parts:
-      - { type: rectangle, at: { dy: -78%r }, size: { width: 6%r, height: 19%r }, color: color.silver }
-      - { type: rectangle, at: { dy: -78%r }, size: { width: 3.5%r, height: 17%r } }
+      frame: { type: rectangle, at: { dy: -78%r }, size: { width: 6%r, height: 19%r }, color: color.silver }
+      baton: { type: rectangle, at: { dy: -78%r }, size: { width: 3.5%r, height: 17%r } }
   baton_12:
     type: group
     at: { anchor: center }

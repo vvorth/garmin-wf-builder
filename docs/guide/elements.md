@@ -423,11 +423,13 @@ elements:
         count: 60
         color: color.fg
         parts:
-          - type: line
+          tick:
+            type: line
             at: {dy: -90%r}
             to: {dy: -86%r}
             thickness: 0.4%r  # inherits false from the element -> rounds to 0px
-          - type: circle
+          dot:
+            type: circle
             min_1px: true     # ...but this one part opts back in
             at: {dy: -84%r}
             radius: 0.4%r     # -> clamped to 1px

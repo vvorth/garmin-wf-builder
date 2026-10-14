@@ -44,7 +44,7 @@ static:
     step_angle: 18deg
     color: color.scale
     parts:
-      - { type: line, at: { dy: -94%r }, to: { dy: -84%r }, thickness: 2px }
+      tick: { type: line, at: { dy: -94%r }, to: { dy: -84%r }, thickness: 2px }
 
   empty_mark:
     type: text
@@ -73,9 +73,10 @@ elements:
     sweep: 180deg
     color: "system.battery < 20 ? color.low : color.accent"
     needle:
-      - type: polygon
+      blade:
+        type: polygon
         points: [{ dx: -3%r, dy: 10%r }, { dx: -1%r, dy: -74%r },  dy: -80%r, { dx: 1%r, dy: -74%r }, { dx: 3%r, dy: 10%r }]
-      - { type: circle, radius: 6%r, color: color.fg }    # the hub, drawn last
+      hub: { type: circle, radius: 6%r, color: color.fg }    # the hub, drawn last
 
   clock:
     type: text

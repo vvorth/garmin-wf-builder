@@ -97,12 +97,11 @@ override block restyles an element, it does not move it) and data bindings
 (a gauge's `value:`, `series:` — they would change what the sleep frame
 reads, and so its cost).
 
-**Hands and patterns restyle uniformly, not per part.** `hands.hour.parts[…]`
-and `pattern.parts[…]` are lists, and merging an override into a list by
-index is fragile — reordering the parts in the design would silently
-re-target the override. If per-part AOD control ever proves necessary, the
-next step is **wholesale list replacement** (`aod: {parts: [...]}`), never
-per-index patching. The awake-only second hand (`seconds: awake`) is
+**Hands and patterns restyle uniformly, not per part.** An `aod:` block
+restyles the `hands` element or the `pattern` as a whole; no key reaches
+one part of `hands.hour.parts` or `pattern.parts`. If per-part AOD control
+ever proves necessary, it would address a part by its id, never by its
+position. The awake-only second hand (`seconds: awake`) is
 unaffected by any of this: it is already hidden in AOD, the same as every
 other `awake`-only frame.
 

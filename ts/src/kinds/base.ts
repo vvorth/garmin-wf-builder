@@ -31,7 +31,7 @@ export class IconFont {
 
 /** One thing an element draws in a font it names: a custom `fonts:` entry or a synthetic icon font. */
 export class TextRun {
-  /** The element id, or `<pattern id>.parts[<i>]`. */
+  /** The element id, or `<pattern id>.parts.<part id>`. */
   label: string;
   /** A `fonts:` name, or an icon font key. */
   font: string;

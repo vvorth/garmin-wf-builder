@@ -471,7 +471,8 @@ test("a list's arrows, × and + add send move_item, remove_item and insert_item,
   // the reorder, through the worker's document: the two lines swap, nothing else moves
   const after = await applied(text, printed[1][0]!);
   const changed = changedLines(text, after);
-  assert.deepEqual(changed.map(([line]) => line), [128, 129]);
+  const first = text.split("\n").findIndex((l) => l.includes("dx: 21%, dy: -1%")) + 1;
+  assert.deepEqual(changed.map(([line]) => line), [first, first + 1]);
   assert.deepEqual(changed.map(([, before]) => before), ["          - { anchor: center, dx: 21%, dy: -1% }", "          - { anchor: center, dx: 27%, dy: -9% }"]);
   assert.deepEqual(changed.map(([, , now]) => now), ["          - { anchor: center, dx: 27%, dy: -9% }", "          - { anchor: center, dx: 21%, dy: -1% }"]);
 });
@@ -504,7 +505,8 @@ test("a choice is a segmented control with the written branch on; switching writ
   assert.deepEqual(printed[4], [{ op: "set", element: CLOCK, path: ["absent"], scope: "all", device: null, value: { text: "" } }]);
   // the switch, through the worker's document: one line changes
   const changed = changedLines(showcase, await applied(showcase, printed[2][0]!));
-  assert.deepEqual(changed, [[342, "    absent: {text: \"--\"}", "    absent: hide"]]);
+  const line = showcase.split("\n").findIndex((l) => l === "    absent: {text: \"--\"}") + 1;
+  assert.deepEqual(changed, [[line, "    absent: {text: \"--\"}", "    absent: hide"]]);
 });
 
 test("a scalar key holding a mapping is edited as its YAML in a text box, never sent to the YAML tab", async () => {

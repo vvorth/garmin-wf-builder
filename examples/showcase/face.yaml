@@ -77,7 +77,8 @@ resources:
       hour:
         color: color.fg
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -3%r, dy: 8%r }
               - { dx: -2%r, dy: -38%r }
@@ -87,15 +88,15 @@ resources:
       minute:
         color: color.fg
         parts:
-          - { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
-          - { type: circle, radius: 4%r }
+          blade: { type: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
+          hub: { type: circle, radius: 4%r }
       second:
         color: color.dim
         parts:
-          - { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 1px }
-          - { type: circle, at: { dy: 14%r }, radius: 3%r }
-          - { type: circle, radius: 2%r, color: color.accent }
-          - { type: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: color.accent }
+          needle: { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 1px }
+          counterweight: { type: circle, at: { dy: 14%r }, radius: 3%r }
+          pivot: { type: circle, radius: 2%r, color: color.accent }
+          tip: { type: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: color.accent }
 
   # A second hand set for the roman layout -- `classic` above is untouched,
   # since the analog layout still uses it. "Vintage" here means Breguet
@@ -130,38 +131,44 @@ resources:
         color: color.fg
         parts:
           # bg 
-          - type: polygon                     # tapered shaft, heavier than the minute's
+          blade_bg:
+            type: polygon                     # tapered shaft, heavier than the minute's
             color: color.black
             points:
               - { dx: -3%r, dy: 11%r }         # a short tail past the axis
               - { dx: -2.5%r, dy: -27%r }
               - { dx: 2.5%r, dy: -27%r }
               - { dx: 3%r, dy: 11%r }
-          - type: circle                       # the open "moon" ring -- bigger, chunkier
+          ring_bg:
+            type: circle                       # the open "moon" ring -- bigger, chunkier
             color: color.black
             at: { dy: -32%r }
             radius: 5%r
             filled: false
             thickness: 4px
-          - type: polygon                      # the point beyond the ring
+          point_bg:
+            type: polygon                      # the point beyond the ring
             color: color.black
             points:
               - { dx: -2.5%r, dy: -35%r }
               - { dy: -42%r }
               - { dx: 2.5%r, dy: -35%r }
         # fg 
-          - type: polygon                     # tapered shaft, heavier than the minute's
+          blade:
+            type: polygon                     # tapered shaft, heavier than the minute's
             points:
               - { dx: -2%r, dy: 10%r }         # a short tail past the axis
               - { dx: -1.5%r, dy: -26%r }
               - { dx: 1.5%r, dy: -26%r }
               - { dx: 2%r, dy: 10%r }
-          - type: circle                       # the open "moon" ring -- bigger, chunkier
+          ring:
+            type: circle                       # the open "moon" ring -- bigger, chunkier
             at: { dy: -32%r }
             radius: 4%r
             filled: false
             thickness: 2px
-          - type: polygon                      # the point beyond the ring
+          point:
+            type: polygon                      # the point beyond the ring
             points:
               - { dx: -1.5%r, dy: -34%r }
               - { dy: -40%r }
@@ -170,50 +177,60 @@ resources:
         color: color.fg
         parts:
           # bg
-          - type: circle                       # the hub: covers the hour/minute joint
+          hub_bg:
+            type: circle                       # the hub: covers the hour/minute joint
             color: color.black
             radius: 4%r                        # `at:` defaults to the axis
-          - type: polygon
+          blade_bg:
+            type: polygon
             color: color.black
             points:
               - { dx: -2.2%r, dy: 13%r }        # a longer tail than the hour's --
               - { dx: -2%r, dy: -45%r }         # the counterweight below reads as its mass
               - { dx: 2%r, dy: -45%r }
               - { dx: 2.2%r, dy: 13%r }
-          - type: circle                       # a small counterweight, past the axis
+          counterweight_bg:
+            type: circle                       # a small counterweight, past the axis
             color: color.black
             at: { dy: 12%r }
             radius: 3%r
-          - type: circle                       # the open "moon" ring -- bigger, chunkier
+          ring_bg:
+            type: circle                       # the open "moon" ring -- bigger, chunkier
             color: color.black
             at: { dy: -52%r }
             radius: 5.5%r
             filled: false
             thickness: 4px
-          - type: polygon                      # the point beyond the ring
+          point_bg:
+            type: polygon                      # the point beyond the ring
             color: color.black
             points:
               - { dx: -2%r, dy: -55%r }
               - { dy: -66%r }
               - { dx: 2%r, dy: -55%r }
         # fg
-          - type: circle                       # the hub: covers the hour/minute joint
+          hub:
+            type: circle                       # the hub: covers the hour/minute joint
             radius: 3%r                        # `at:` defaults to the axis
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -1.2%r, dy: 12%r }        # a longer tail than the hour's --
               - { dx: -1%r, dy: -44%r }         # the counterweight below reads as its mass
               - { dx: 1%r, dy: -44%r }
               - { dx: 1.2%r, dy: 12%r }
-          - type: circle                       # a small counterweight, past the axis
+          counterweight:
+            type: circle                       # a small counterweight, past the axis
             at: { dy: 12%r }
             radius: 2%r
-          - type: circle                       # the open "moon" ring -- bigger, chunkier
+          ring:
+            type: circle                       # the open "moon" ring -- bigger, chunkier
             at: { dy: -52%r }
             radius: 4.5%r
             filled: false
             thickness: 2px
-          - type: polygon                      # the point beyond the ring
+          point:
+            type: polygon                      # the point beyond the ring
             points:
               - { dx: -1%r, dy: -54%r }
               - { dy: -64%r }
@@ -228,9 +245,9 @@ resources:
         # color: color.dim
         color: color.accent
         parts:
-          - { type: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
-          - { type: circle, at: { dy: 16%r }, radius: 2.5%r }
-          - { type: circle, radius: 1.5%r, color: color.accent }
+          needle: { type: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
+          counterweight: { type: circle, at: { dy: 16%r }, radius: 2.5%r }
+          pivot: { type: circle, radius: 1.5%r, color: color.accent }
         # - { type: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: color.accent }
 
 # Shared: drawn underneath every layout, roman included -- two side
@@ -421,7 +438,7 @@ layouts:
             so the turned ticks do not stair-step -- reported against this
             element, the first to draw anti-aliased, for the whole device"
         parts:
-          - { type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }
+          tick: { type: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }
 
       hour_ticks:
         type: pattern
@@ -432,7 +449,7 @@ layouts:
         color: color.fg
         antialias: true
         parts:
-          - { type: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
+          tick: { type: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
 
       # Twelve numerals as one radial `type: text` pattern part, rather
       # than twelve polar `text` elements (docs/guide/patterns.md "Text parts").
@@ -443,7 +460,8 @@ layouts:
         count: 12
         color: color.fg
         parts:
-          - type: text
+          numeral:
+            type: text
             text: "{(copy + 11) % 12 + 1}"
             font: font.dialfont
             at: { dy: -78%r }
@@ -843,7 +861,8 @@ layouts:
         # skip: [2, 10]
         color: color.fg
         parts:
-          - type: text
+          numeral:
+            type: text
             text: >-
               {(copy == 0 ? "XII" : copy == 1 ? "I"   : copy == 2 ? "II" :
               copy == 3 ? "III" : copy == 4 ? "IV"  : copy == 5 ? "V" :

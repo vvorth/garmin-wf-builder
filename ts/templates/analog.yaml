@@ -34,7 +34,8 @@ resources:
       hour:
         color: color.fg
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -3%r, dy: 8%r } # a short tail behind the axis
               - { dx: -2%r, dy: -40%r }
@@ -44,12 +45,12 @@ resources:
       minute:
         color: color.fg
         parts:
-          - { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
+          blade: { type: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
       second:
         color: color.accent
         parts:
-          - { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
-          - { type: circle, at: { dy: 15%r }, radius: 3%r }  # counterweight
+          needle: { type: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
+          counterweight: { type: circle, at: { dy: 15%r }, radius: 3%r }  # counterweight
 
 static:
   background:
@@ -66,7 +67,7 @@ static:
     skip_every: 5 # leave the hour positions to hour_ticks
     color: color.dim
     parts: # copy 0, as it looks at 12 o'clock
-      - { type: line, at: { dy: -96%r }, to: { dy: -90%r }, thickness: 1px }
+      tick: { type: line, at: { dy: -96%r }, to: { dy: -90%r }, thickness: 1px }
 
   hour_ticks:
     type: pattern
@@ -75,7 +76,7 @@ static:
     count: 12
     color: color.fg
     parts:
-      - { type: rectangle, at: { dy: -90%r }, size: { width: 3%r, height: 10%r } }
+      tick: { type: rectangle, at: { dy: -90%r }, size: { width: 3%r, height: 10%r } }
 
   # One radial pattern instead of twelve text elements. `copy` is the copy's
   # index, 0 at 12 o'clock, so this draws 12, 1, 2, ... 11. The 3 is skipped:
@@ -88,7 +89,8 @@ static:
     skip: [3]
     color: color.dim
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{(copy + 11) % 12 + 1}"
         font: FONT_SMALL
         at: { dy: -70%r }

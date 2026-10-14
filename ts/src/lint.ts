@@ -867,15 +867,15 @@ export function checkDeadElement(resolved: ResolvedFace, bag: Bag): void {
   for (const placed of resolved.items) {
     if (!(placed.element instanceof PatternElement)) continue;
     if (alwaysFalse(placed.element.visible)) continue;
-    placed.element.parts.forEach((part, partIndex) => {
+    for (const part of placed.element.parts) {
       const expression = part.visible;
-      if (!alwaysFalse(expression)) return;
+      if (!alwaysFalse(expression)) continue;
       emit(bag, placed, diag("warning", "dead-element",
-        `${placed.id}.parts[${partIndex}]: 'visible: ${expression.text}' is always false, so this part is never drawn`,
+        `${placed.id}.parts.${part.id}: 'visible: ${expression.text}' is always false, so this part is never drawn`,
         expression.span ?? placed.element.span, {
           notes: ["delete the part, or fix the condition"], confidence: "exact -- constant-folded at build time",
         }));
-    });
+    }
   }
 }
 

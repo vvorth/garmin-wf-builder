@@ -40,7 +40,8 @@ elements:
     count: 12
     color: color.fg
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{(copy + 11) % 12 + 1}"
         font: font.dial
         curve: { style: angled, angle: 90deg }

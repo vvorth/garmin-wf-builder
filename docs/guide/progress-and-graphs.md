@@ -23,7 +23,7 @@ the same placement rule as every other element with a box.
 | `thickness` | length | required (`arc`; `segments`/`scale` on an arc) | pen width |
 | `start_angle` | angle | required (`arc`, `needle`) | where the ring starts, or where the needle points at 0 |
 | `sweep` | angle | required (`arc`, `needle`) | how far the ring sweeps, or the needle turns at full scale |
-| `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) | required (`needle`) | the needle, pointing at 12, axis at `at:` |
+| `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) keyed by id | required (`needle`) | the needle, pointing at 12, axis at `at:` |
 | `size` | size | required (`bar`; `segments`/`scale` on a bar) | the bar's box |
 | `count` | 2–60 | required (`segments`) | how many cells |
 | `gap` | length | `2px` (`segments`) | space between two cells |
@@ -142,18 +142,21 @@ battery_needle:
   sweep: 240deg                        # how far it turns at 100%, clockwise
   color: "system.battery < 20 ? color.low : color.accent"
   needle:                              # authored like an analog hand's parts
-    - type: polygon
+    blade:
+      type: polygon
       points: [{ dx: -3%r, dy: 12%r }, { dy: -74%r }, { dx: 3%r, dy: 12%r }]
-    - { type: circle, radius: 5%r, color: color.fg }      # a hub that turns with it
+    hub: { type: circle, radius: 5%r, color: color.fg }   # turns with it
 ```
 
 The needle points at `start_angle + fraction × sweep`, clockwise from 12,
 where the fraction is `value / max` clamped to 0–1 — the same mapping an
 `arc` fills with, so a needle and an arc with the same `start_angle` and
 `sweep` agree. `needle:` takes exactly what a [hand's
-`parts:`](analog-hands.md#analog-hands) takes: `polygon`, `rectangle`, `line`
-and `circle`, authored **as they look at 12 o'clock** with the axis at the
-origin, so the tip sits at a negative `dy`. A part with no `color:` takes
+`parts:`](analog-hands.md#analog-hands) takes: a mapping of parts keyed by
+id (a plain list is accepted as shorthand), each a `polygon`, `rectangle`,
+`line` or `circle`, authored **as they look at 12 o'clock** with the axis at
+the origin, so the tip sits at a negative `dy`. A diagnostic names a part
+`<element>.needle.<id>`. A part with no `color:` takes
 the element's own, which may read data like any gauge colour; a part's
 own colour may not, as on a hand.
 

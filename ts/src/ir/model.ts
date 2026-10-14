@@ -524,6 +524,8 @@ export class Shape extends Element {
 /** One primitive of a hand, or of a pattern template, in its own frame: drawn pointing at 12 o'clock. */
 export abstract class HandPart {
   abstract get shape(): string;
+  /** The author's key in the `parts:` mapping, or `partN` for the Nth item of the list form. */
+  id = "";
   color: Expression | null = null;
   span: Span | null = null;
   visible: Expression | null = null;
@@ -678,12 +680,12 @@ export class PatternElement extends Element {
     const isGlyph = this.kind !== "shape";
     const out: ColorRole[] = [];
     if (this.color !== null) out.push(role(this.id, this.color, "ink", isGlyph));
-    this.parts.forEach((part, index) => {
-      const label = `${this.id}.parts[${index}]`;
+    for (const part of this.parts) {
+      const label = `${this.id}.parts.${part.id}`;
       const partIsGlyph = part.shape === "text";
       if (part.color !== null) out.push(role(label, part.color, "ink", partIsGlyph));
       if (part.shape === "text" && part.outline !== null) out.push(role(label, part.outline.color, "ring", partIsGlyph));
-    });
+    }
     if (this.outline !== null) out.push(role(this.id, this.outline.color, "ring", isGlyph));
     if (this.aod !== null && this.aod.color !== null) out.push(role(this.id, this.aod.color, "ink", isGlyph, true));
     return out;
@@ -783,9 +785,9 @@ export class Gauge extends Element {
 
   override colorRoles(): ColorRole[] {
     const out = super.colorRoles();
-    this.needle.forEach((part, index) => {
-      if (part.color !== null && part.color !== this.color) out.push(role(`${this.id}.needle[${index}]`, part.color, "ink", false));
-    });
+    for (const part of this.needle) {
+      if (part.color !== null && part.color !== this.color) out.push(role(`${this.id}.needle.${part.id}`, part.color, "ink", false));
+    }
     this.bands.forEach(([, color], index) => out.push(role(`${this.id}.bands[${index}]`, color, "track", false)));
     return out;
   }

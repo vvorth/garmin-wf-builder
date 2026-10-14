@@ -16,8 +16,14 @@
 // two groups appended to the top-level `elements:`, their ids from
 // `layoutIds`. A layout body is left holding only what remains (`lint:`).
 //
+// The fourth is a hand's, a pattern's or a needle's `parts:`: the id-keyed
+// mapping becomes the list the builder walks, each part's key injected as
+// its `id`, exactly as an element mapping is; the list form, kept as
+// shorthand, gets the ids `part1`, `part2`, ... so every part the builder
+// sees is named.
+//
 // What the schema cannot see, a YAML alias giving one body two keys, is
-// reported here (`element-mapping`).
+// reported here (`element-mapping`, `parts`).
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { quoted } from "./py.ts";
@@ -43,7 +49,54 @@ export function desugar(doc: YamlDocument, bag: Bag): boolean {
   if (!isDict(data)) return true; // the format check reports this properly
   let ok = rewrite(doc, data, "elements", bag);
   ok = staticBlock(doc, data, bag) && ok;
-  return layoutsBlock(doc, data, bag) && ok;
+  ok = layoutsBlock(doc, data, bag) && ok;
+  return handSetParts(doc, data, bag) && ok;
+}
+
+/** The keys whose value is a part mapping or list, by the element type that owns them. */
+const PARTS_KEYS: ReadonlyMap<string, string> = new Map([["pattern", "parts"], ["gauge", "needle"]]);
+
+/** The generated id of the list form's `index`th part. */
+export function listPartId(index: number): string {
+  return `part${index + 1}`;
+}
+
+/** Every hand of every `resources: hand_sets:` entry: its `parts:` normalised. */
+function handSetParts(doc: YamlDocument, data: Dict, bag: Bag): boolean {
+  const resources = data.get("resources");
+  const sets = isDict(resources) ? resources.get("hand_sets") : undefined;
+  if (!isDict(sets)) return true;
+  let ok = true;
+  for (const spec of sets.values()) {
+    if (!isDict(spec)) continue;
+    for (const hand of spec.values()) if (isDict(hand)) ok = partsList(doc, hand, "parts", bag) && ok;
+  }
+  return ok;
+}
+
+/**
+ * `owner[key]`, a mapping of parts by id or a list of them, as the list the
+ * builder reads with an `id` in every part. A list item's id is its
+ * position's, so a diagnostic still says which item it means.
+ */
+function partsList(doc: YamlDocument, owner: Dict, key: string, bag: Bag): boolean {
+  const node = owner.get(key);
+  if (isDict(node)) {
+    const converted = toSequence(doc, node, bag, "parts");
+    if (converted === null) return false;
+    owner.set(key, converted);
+    return true;
+  }
+  if (!Array.isArray(node)) return true; // the schema reports this
+  const lc = lcOf(node);
+  const seen = new Map<object, DataKey>();
+  let ok = true;
+  node.forEach((body, index) => {
+    if (!isDict(body)) return; // the schema reports this
+    const pos = lc?.item(index) ?? null;
+    ok = injectId(body, listPartId(index), pos, doc.span(node, index), seen, bag, "parts") && ok;
+  });
+  return ok;
 }
 
 /** A `group` this pass mints around `children`, every key's position recorded at `span` (the author's own key). */
@@ -188,15 +241,18 @@ function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolea
   }
   if (Array.isArray(node)) {
     for (const body of node) {
+      if (!isDict(body)) continue;
       // A group is the only element that owns further elements.
-      if (isDict(body) && body.get("type") === "group") ok = rewrite(doc, body, "children", bag) && ok;
+      if (body.get("type") === "group") ok = rewrite(doc, body, "children", bag) && ok;
+      const partsKey = PARTS_KEYS.get(body.get("type") as string);
+      if (partsKey !== undefined) ok = partsList(doc, body, partsKey, bag) && ok;
     }
   }
   return ok;
 }
 
 /** The list the IR builder reads, built from `mapping` with every span carried across. */
-function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag): Data[] | null {
+function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-mapping"): Data[] | null {
   const seq: Data[] = [];
   const seqLc = ensureLc(seq);
   const lc = lcOf(mapping);
@@ -211,7 +267,7 @@ function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag): Data[] | null {
     const pos = keyPosition(mapping, name);
     if (pos !== null) seqLc.addIdxLineCol(index, [...pos]);
     const keySpan = doc.span(mapping, name, "key");
-    if (isDict(body)) ok = injectId(body, name, pos, keySpan, seen, bag) && ok;
+    if (isDict(body)) ok = injectId(body, name, pos, keySpan, seen, bag, code) && ok;
     seq.push(body);
     index++;
   }
@@ -219,11 +275,12 @@ function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag): Data[] | null {
 }
 
 function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySpan: Span | null,
-  seen: Map<object, DataKey>, bag: Bag): boolean {
+  seen: Map<object, DataKey>, bag: Bag, code: string): boolean {
   const earlier = seen.get(body);
   if (earlier !== undefined) {
-    bag.error("element-mapping", `the body under ${quoted(name)} is the same node as the one under ${quoted(earlier)}`, keySpan,
-      { notes: ["a YAML alias cannot give two elements two different ids; write the second one out"] });
+    const noun = code === "parts" ? "parts" : "elements";
+    bag.error(code, `the body under ${quoted(name)} is the same node as the one under ${quoted(earlier)}`, keySpan,
+      { notes: [`a YAML alias cannot give two ${noun} two different ids; write the second one out`] });
     return false;
   }
   seen.set(body, name);

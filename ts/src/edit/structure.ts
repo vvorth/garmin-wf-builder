@@ -41,7 +41,7 @@ export const MORE_DEFAULTS: ReadonlyMap<string, Map<DataKey, Data>> = new Map([
     ["at", m(["anchor", "center"])], ["size", m(["width", "40%"], ["height", "3%"])])],
   ["graph", m(["at", m(["anchor", "center"])], ["size", m(["width", "50%"], ["height", "20%"])])],
   ["pattern", m(["pattern", "radial"], ["at", m(["anchor", "center"])], ["count", 12],
-    ["parts", [m(["type", "line"], ["at", m(["dy", "-96%r"])], ["to", m(["dy", "-88%r"])], ["thickness", "2px"])]])],
+    ["parts", m(["tick", m(["type", "line"], ["at", m(["dy", "-96%r"])], ["to", m(["dy", "-88%r"])], ["thickness", "2px"])])])],
   ["data", m(["at", m(["anchor", "center"])])],
   ["hands", m(["at", m(["anchor", "center"])])],
   ["group", m(["children", new Map()])],

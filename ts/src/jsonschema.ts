@@ -271,6 +271,11 @@ const KEYWORDS: Record<string, Keyword> = {
       yield new ValidationError(`${quoted(instance)} ${mP === 1 ? "should be non-empty" : "does not have enough properties"}`);
     }
   },
+  *maxProperties(_v, mP, instance) {
+    if (instance instanceof Map && instance.size > (mP as number)) {
+      yield new ValidationError(`${quoted(instance)} ${mP === 0 ? "is expected to be empty" : "has too many properties"}`);
+    }
+  },
   *minimum(_v, minimum, instance) {
     if (isType(instance, "number") && numeric(instance) < (minimum as number)) {
       yield new ValidationError(`${quoted(instance)} is less than the minimum of ${quoted(minimum)}`);

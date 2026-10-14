@@ -290,11 +290,8 @@ function checkOutlines(doc: YamlDocument, bag: Bag): Path[] {
     check(element, here);
     const aod = element.get("aod");
     if (isDict(aod)) check(aod, [...here, "aod"], true);
-    const parts = element.get("parts");
-    if (element.get("type") === "pattern" && Array.isArray(parts)) {
-      parts.forEach((part, index) => {
-        if (isDict(part) && part.get("type") === "text") check(part, [...here, "parts", index]);
-      });
+    if (element.get("type") === "pattern") {
+      for (const [step, part] of partsOf(element)) if (part.get("type") === "text") check(part, [...here, "parts", step]);
     }
   });
   return bad;
@@ -346,14 +343,12 @@ function checkReserved(doc: YamlDocument, bag: Bag): Path[] {
   const ruleList = (value: unknown): boolean => Array.isArray(value) && value.length > 0
     && value.every((item) => isDict(item) && (item.has("when") || item.has("else")));
   const parts = (element: Dict, key: string, here: Path, pattern: boolean): void => {
-    const items = element.get(key);
-    if (!Array.isArray(items)) return;
-    items.forEach((part, index) => {
-      if (!isDict(part) || !part.has("outline")) return;
-      if (pattern && part.get("type") === "text") return;
+    for (const [step, part] of partsOf(element, key)) {
+      if (!part.has("outline")) continue;
+      if (pattern && part.get("type") === "text") continue;
       report(part, "outline", "'outline:' on a hand, needle or pattern part other than text is reserved and not implemented yet",
-        [...here, key, index, "outline"], "a text part of a pattern takes 'outline:' today");
-    });
+        [...here, key, step, "outline"], "a text part of a pattern takes 'outline:' today");
+    }
   };
   visitElements(doc, (element, here) => {
     for (const [key, message] of RESERVED_ELEMENT_KEYS) if (element.has(key)) report(element, key, message, [...here, key]);
@@ -495,7 +490,7 @@ function handUnit(value: unknown): string | null {
   return null;
 }
 
-/** `hands.a.minute.parts[0].radius`: a jsonschema-style path as an author reads it. */
+/** `hands.a.minute.parts.blade.radius`, `elements.ticks.parts[0].at`: a jsonschema-style path as an author reads it. */
 export function dottedPath(path: readonly Step[]): string {
   let out = "";
   for (const part of path) {
@@ -506,10 +501,13 @@ export function dottedPath(path: readonly Step[]): string {
   return out;
 }
 
-function* partsOf(element: Dict): Generator<[number, Dict]> {
-  const parts = element.get("parts");
+/** The parts under `container[key]`, each with the step that reaches it: its id in the mapping form, its index in the list form. */
+function* partsOf(container: Dict, key = "parts"): Generator<[Step, Dict]> {
+  const parts = container.get(key);
   if (Array.isArray(parts)) {
     for (let i = 0; i < parts.length; i++) if (isDict(parts[i])) yield [i, parts[i] as Dict];
+  } else if (isDict(parts)) {
+    for (const [id, part] of parts) if (typeof id === "string" && isDict(part)) yield [id, part];
   }
 }
 
@@ -887,18 +885,19 @@ function humanise(error: ValidationError): [string, string[]] {
       break;
     case "minItems":
     case "maxItems":
-      if (Array.isArray(error.instance)) {
-        // jsonschema's own wording repeats the whole array back: noise around a one-number fact.
-        const adjective = error.validator === "minItems" ? "at least" : "at most";
-        message = `needs ${adjective} ${String(error.validatorValue)} items, got ${error.instance.length}`;
-      } else {
-        message = error.message;
-      }
+    case "minProperties":
+    case "maxProperties": {
+      // jsonschema's own wording repeats the whole collection back: noise around a one-number fact.
+      const adjective = error.validator === "minItems" || error.validator === "minProperties" ? "at least" : "at most";
+      const noun = error.validator.endsWith("Items") ? "items" : "entries";
+      const size = Array.isArray(error.instance) ? error.instance.length : isDict(error.instance) ? error.instance.size : null;
+      message = size === null ? error.message : `needs ${adjective} ${String(error.validatorValue)} ${noun}, got ${size}`;
       break;
+    }
     default:
       message = error.message;
   }
-  if (description && ["pattern", "enum", "required", "anyOf", "type", "minItems", "maxItems"].includes(error.validator ?? "")) {
+  if (description && ["pattern", "enum", "required", "anyOf", "type", "minItems", "maxItems", "minProperties", "maxProperties"].includes(error.validator ?? "")) {
     notes.push(String(description));
   }
   return [message, notes];

@@ -47,7 +47,8 @@ resources:
       hour:
         color: color.fg
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points:
               - { dx: -4%r, dy: 8%r }
               - { dx: -3%r, dy: -40%r }
@@ -57,11 +58,11 @@ resources:
       minute:
         color: color.fg
         parts:
-          - { type: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 76%r } }
+          blade: { type: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 76%r } }
       second:
         color: color.heart
         parts:
-          - { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 2px }
+          needle: { type: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 2px }
 
 static:
   background:
@@ -79,7 +80,8 @@ static:
     color: color.accent
     outline: { color: color.ring }
     parts:
-      - type: polygon
+      triangle:
+        type: polygon
         points:
           - { dx: -3%r, dy: -80%r }
           - { dy: -70%r }

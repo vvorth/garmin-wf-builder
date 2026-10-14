@@ -109,14 +109,14 @@ export class HandParts extends ConfigAxes {
     const [handColor, colorFailed] = this.ownedColor(spec, where, true);
     let ok = !colorFailed;
     const parts: AnyHandPart[] = [];
-    list(spec.get("parts")).forEach((rawPart, index) => {
-      const part = this.buildHandPart(rawPart as Node, where, index, handColor, colorFailed);
+    for (const rawPart of list(spec.get("parts"))) {
+      const part = this.buildHandPart(rawPart as Node, `${where}.parts`, handColor, colorFailed);
       if (part === null) {
         ok = false;
-        return;
+        continue;
       }
       parts.push(part);
-    });
+    }
     if (!ok) return null;
     return Hand.create({ parts, color: handColor });
   }
@@ -142,14 +142,19 @@ export class HandParts extends ConfigAxes {
     return true;
   }
 
-  /** One primitive of a hand, or of a pattern template (`context: "pattern"`). */
-  buildHandPart(node: Node, where: string, index: number, defaultColor: Expression | null, defaultColorFailed: boolean,
+  /**
+   * One primitive of a hand, or of a pattern template (`context: "pattern"`).
+   * `partsWhere` is the author path of the `parts:` (or `needle:`) mapping;
+   * the part's own `id` (desugar's, for the list form) names it under that.
+   */
+  buildHandPart(node: Node, partsWhere: string, defaultColor: Expression | null, defaultColorFailed: boolean,
     context: "hand" | "pattern" = "hand"): AnyHandPart | null {
     const isHand = context === "hand";
     const noun = isHand ? "hand" : "pattern";
     const rejectedShapes = isHand ? HAND_PART_REJECTED_SHAPES : PATTERN_PART_REJECTED_SHAPES;
     const geometryKeys = isHand ? HAND_PART_GEOMETRY_KEYS : PATTERN_PART_GEOMETRY_KEYS;
-    const partWhere = `${where}.parts[${index}]`;
+    const id = str(node.get("id"));
+    const partWhere = `${partsWhere}.${id}`;
     const shape = node.get("type") as string;
     const span = this.doc.span(node);
     if (rejectedShapes.has(shape)) {
@@ -231,7 +236,7 @@ export class HandParts extends ConfigAxes {
 
     if (!ok) return null;
     const common = {
-      color: effectiveColor, span, visible: partVisible,
+      id, color: effectiveColor, span, visible: partVisible,
       min_1px: node.has("min_1px") ? truthy(node.get("min_1px")) : null,
     };
     if (shape === "polygon") return PolygonPart.create({ ...common, points, filled });

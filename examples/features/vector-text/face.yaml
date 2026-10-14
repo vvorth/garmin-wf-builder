@@ -130,7 +130,8 @@ elements:
     count: 12
     color: color.white
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{(copy + 11) % 12 + 1}"
         font: font.dial
         at: { dy: -82%r }

@@ -48,12 +48,13 @@ resources:
       hour:
         color: color.fill
         parts:
-          - type: polygon
+          blade:
+            type: polygon
             points: [{ dx: -2%r, dy: 2%r }, { dy: -7%r }, { dx: 2%r, dy: 2%r }]
       minute:
         color: color.fill
         parts:
-          - { type: rectangle, at: { dy: -4%r }, size: { width: 1%r, height: 10%r } }
+          blade: { type: rectangle, at: { dy: -4%r }, size: { width: 1%r, height: 10%r } }
 
 config:
   style:
@@ -159,7 +160,7 @@ layouts:
         step_angle: 45deg
         color: color.fill
         parts:
-          - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
+          tick: { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
 
       battery_plain:
         type: gauge
@@ -302,7 +303,7 @@ layouts:
         step_angle: 45deg
         color: color.fill
         parts:
-          - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
+          tick: { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
         outline: { color: color.ring, width: 1 }
 
       battery_ring1:
@@ -450,7 +451,7 @@ layouts:
         step_angle: 45deg
         color: color.fill
         parts:
-          - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
+          tick: { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
         outline: { color: color.ring, width: 2 }
 
       battery_ring2:

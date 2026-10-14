@@ -400,7 +400,7 @@ test("a second set is not placed again, and points are one a line", async () => 
   edit(doc, { op: "add_hand_set", name: "dial", preset: "dauphine" });
   edit(doc, { op: "add_hand_set", name: "small", preset: "subdial" });
   assert.deepEqual(Object.keys(handsElements(doc)), ["new_hands"]);
-  assert.ok(doc.text.includes("          - type: polygon\n            points:\n              - { dy: 5%r }\n"));
+  assert.ok(doc.text.includes("          blade:\n            type: polygon\n            points:\n              - { dy: 5%r }\n"), doc.text);
 });
 
 test("the accent is used where the face has one", async () => {

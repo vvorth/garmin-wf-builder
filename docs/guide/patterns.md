@@ -18,7 +18,7 @@ text can vary per copy.
 | `step` | `{dx, dy}` (linear/grid only) | required there | the offset between copies |
 | `start` | angle (radial only) | `0deg` | the angle of copy 0 |
 | `skip` / `skip_every` | copy indices / an integer | — | leave copies undrawn |
-| `parts` | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in list order — keys per type below |
+| `parts` | 1–16 parts keyed by id, each a `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in document order — keys per type below; a plain list is accepted as shorthand |
 | `color` | `color.<name>`, a literal, a conditional, plus `copy` and any data source | — | the default for every part without its own |
 | `absent` | `hide` | — | required once a colour or part `visible:` can read absent data |
 | `visible` (on a part) | boolean expression, `copy` bound | — | per-copy — see [Per-copy part `visible:`](#per-copy-part-visible) |
@@ -47,7 +47,8 @@ week_dots:
   count: 7
   step: { dx: 10%r }
   parts:
-    - type: circle
+    dot:
+      type: circle
       radius: 2%r
       color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.black"  # today lit
 test_visibility:                     # a move-bar meter
@@ -56,8 +57,8 @@ test_visibility:                     # a move-bar meter
   count: 5
   absent: hide                       # no move-bar reading: hide the whole row
   parts:
-    - { type: rectangle, size: { width: 4%r, height: 4%r },
-        visible: "copy <= activity.move_bar_level - 1" }   # per-copy visibility
+    lit: { type: rectangle, size: { width: 4%r, height: 4%r },
+           visible: "copy <= activity.move_bar_level - 1" }   # per-copy visibility
 ```
 
 ![patterns example](../screenshots/patterns.png)
@@ -83,7 +84,7 @@ static:
     color: color.gray          # the default for every part without its own
     antialias: true
     parts:                     # copy 0, drawn at 12 o'clock; origin = at:
-      - {type: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
+      tick: {type: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
 
 elements:
   week_dots:                                     # Monday to Sunday, today lit
@@ -94,12 +95,15 @@ elements:
     step: {dx: 10%r}                             # copy i sits at at + i * step
     color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.black"
     parts:
-      - {type: circle, radius: 2%r}
+      dot: {type: circle, radius: 2%r}
 ```
 
 A pattern is **one template drawn many times**: 1 to 16 primitives (its
-`parts:`) and a rule for where each copy goes. Hour and minute ticks, a
-segmented ring and a row of dots are each one element instead of sixty.
+`parts:`, a mapping keyed by id exactly as a [hand's](analog-hands.md#analog-hands)
+is, drawn in document order; a plain list is accepted as shorthand and its
+parts are then `part1`, `part2`, …) and a rule for where each copy goes.
+Hour and minute ticks, a segmented ring and a row of dots are each one
+element instead of sixty.
 
 **The template is authored like a hand** (see [Analog hands](analog-hands.md#analog-hands)):
 it is copy 0, drawn **as it looks at 12 o'clock**, in a frame whose
@@ -139,7 +143,7 @@ month:
   step: { dx: 14%r, dy: 14%r }                   # dx per column, dy per row
   color: "copy == date.day - 1 ? color.today : (copy < date.day - 1 ? color.past : color.fg)"
   parts:
-    - { type: circle, radius: 4%r }
+    dot: { type: circle, radius: 4%r }
 ```
 
 A grid is a linear pattern in two directions, and takes the same parts
@@ -225,7 +229,8 @@ static:
     count: 12                          # step_angle defaults to 30deg
     color: color.white
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{(copy + 11) % 12 + 1}" # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11"
         font: font.hourfont
         at: {dy: -55%r}                # copy 0's anchor, above the centre: +dy is down
@@ -260,7 +265,8 @@ elements:
     count: 12
     color: color.white
     parts:
-      - type: text
+      numeral:
+        type: text
         text: "{(copy + 11) % 12 + 1}"
         font: font.bezel
         at: {dy: -74%r}
@@ -389,9 +395,10 @@ elements:
     absent: hide                      # required: the lit part below reads
                                        # a source that can be absent
     parts:
-      - {type: rectangle, size: {width: 8%r, height: 8%r}, color: color.gray}
-      - {type: rectangle, size: {width: 6%r, height: 6%r}, color: color.black}
-      - type: rectangle
+      frame: {type: rectangle, size: {width: 8%r, height: 8%r}, color: color.gray}
+      gap: {type: rectangle, size: {width: 6%r, height: 6%r}, color: color.black}
+      lit:
+        type: rectangle
         size: {width: 4%r, height: 4%r}
         visible: "copy <= activity.move_bar_level - 1"
         color: color.orange
@@ -467,7 +474,7 @@ first.
   nothing on the pattern is ever absent (a note).
 
 A part `visible:` that folds to a build-time constant `false` is the
-suppressible `dead-element` lint, naming `<id>.parts[N]`: the part is never
+suppressible `dead-element` lint, naming `<id>.parts.<part>`: the part is never
 drawn, and emits no draw code at all.
 
 Per device, the `pattern-step` lint is an error when a linear step rounds

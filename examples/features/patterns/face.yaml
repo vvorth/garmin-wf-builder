@@ -110,7 +110,7 @@ static:
         the turned ticks do not stair-step. Reported against this element,
         the first to draw anti-aliased, for the whole device."
     parts: # copy 0, as it looks at 12 o'clock; origin = at:
-      - { type: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 1px }
+      tick: { type: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 1px }
 
   hour_ticks:
     type: pattern
@@ -122,7 +122,7 @@ static:
     color: color.white
     antialias: true
     parts:
-      - { type: rectangle, at: { dy: -88%r }, size: { width: 3%r, height: 12%r } }
+      tick: { type: rectangle, at: { dy: -88%r }, size: { width: 3%r, height: 12%r } }
 
   twelve:
     type: pattern
@@ -132,7 +132,7 @@ static:
     step: { dx: 6%r } # copy 1 is 6%r to the right
     color: color.orange
     parts:
-      - { type: rectangle, size: { width: 3%r, height: 12%r } }
+      bar: { type: rectangle, size: { width: 3%r, height: 12%r } }
 
   segments:
     type: pattern
@@ -143,7 +143,7 @@ static:
     antialias: true
     parts:
       # centred on the pattern's centre; the start angle turns with the copy
-      - { type: arc, radius: 72%r, thickness: 4px, start_angle: 3deg, sweep: 24deg }
+      segment: { type: arc, radius: 72%r, thickness: 4px, start_angle: 3deg, sweep: 24deg }
 
   diagonals:
     type: pattern
@@ -153,7 +153,8 @@ static:
     start: 45deg # copy 0 points at half past one
     color: color.orange
     parts:
-      - type: polygon  # a small triangle pointing outwards
+      triangle:
+        type: polygon  # a small triangle pointing outwards
         points:
           - { dx: -3%r, dy: -56%r }
           - { dy: -64%r }
@@ -172,7 +173,8 @@ static:
     count: 12
     color: color.white
     parts:
-      - type: text
+      numeral:
+        type: text
         # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
         # spelling for Monkey C's unverified negative-`%` behaviour,
         # docs/guide/patterns.md "Text parts").
@@ -192,7 +194,8 @@ static:
     step: { dx: 10%r }
     color: color.gray
     parts:
-      - type: text
+      initial:
+        type: text
         text: '{(copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" :
           copy == 3 ? "T" : copy == 4 ? "F" : copy == 5 ? "S" : "S")}'
         font: font.hourfont
@@ -216,10 +219,11 @@ elements:
     parts:
       # `copy` is the copy index, 0-6.  date.weekday is 1 = Sunday ..
       # 7 = Saturday, so (weekday + 5) % 7 is Monday = 0 .. Sunday = 6.
-      - type: circle
+      dot:
+        type: circle
         radius: 2%r
         color: "copy == (date.weekday + 5) % 7 ? color.cyan : color.black"
-      - { type: circle, radius: 4%r, filled: false, thickness: 1px, color: color.gray }
+      ring: { type: circle, radius: 4%r, filled: false, thickness: 1px, color: color.gray }
 
   # A 5-copy move-bar row: an always-drawn outline (the first two parts)
   # plus a lit third part that shows how many of the 5 copies are "on",
@@ -235,13 +239,16 @@ elements:
     step: { dx: 10%r }
     absent: hide      # required: the third part reads a source that can be absent
     parts:
-      - type: rectangle
+      frame:
+        type: rectangle
         size: { width: 8%r, height: 8%r }
         color: color.gray
-      - type: rectangle
+      gap:
+        type: rectangle
         size: { width: 6%r, height: 6%r }
         color: color.black
-      - type: rectangle
+      lit:
+        type: rectangle
         size: { width: 4%r, height: 4%r }
         # `copy` is the copy index, 0-4 (count: 5).
 

@@ -218,7 +218,9 @@ test("a pattern's parts are summarised with their lines beside the parts field; 
   assert.deepEqual((hourTicks["parts"] as any).shapes, ["rectangle"]);
   assert.equal((hourTicks["parts"] as any).count, 1);
   assert.ok((hourTicks["parts"] as any).line < (hourTicks["parts"] as any).end);
-  assert.equal((hourTicks["fields"] as any[]).find((f) => f.key === "parts").kind, "list");
+  // the field itself is the two-shape choice, the written mapping its chosen branch
+  const partsField = (hourTicks["fields"] as any[]).find((f) => f.key === "parts");
+  assert.deepEqual([partsField.kind, partsField.chosen, partsField.branches[0].kind], ["choice", 0, "object"]);
 
   const clock = starters.instantiate("minimal", "P");
   const text = inspect(clock, indexFor(clock).elements().find((e) => e.name === "clock")!.path, null);
@@ -302,27 +304,29 @@ test("a field is a tree: an object's children, a list's items, a choice's branch
   }
 });
 
-test("a pattern's parts are a list of part objects, each with its own fields", () => {
+test("a pattern's parts are an id-keyed mapping of part objects, each with its own fields; the list form is the other branch", () => {
   const showcase = readText("examples/showcase/face.yaml");
   const numerals = treeOf(showcase, "hour_numerals");
   const parts = numerals["parts"];
-  assert.equal(parts.kind, "list");
-  assert.equal(parts.items.length, 1);
-  const part = parts.items[0];
-  assert.deepEqual([part.kind, part.path], ["object", ["parts", 0]]);
+  assert.deepEqual([parts.kind, parts.chosen, parts.branches.map((b: any) => b.kind)], ["choice", 0, ["object", "list"]]);
+  const mapping = parts.branches[0];
+  assert.equal(mapping.children.length, 1);
+  const part = mapping.children[0];
+  assert.deepEqual([part.kind, part.path], ["object", ["parts", "numeral"]]);
   assert.ok(keysOf(part.children).includes("type") && keysOf(part.children).includes("points") && keysOf(part.children).includes("text"));
   assert.deepEqual([child(part, "type").widget, child(part, "type").value], ["enum", "text"]);
   assert.equal(child(part, "text").widget, "template");
   assert.deepEqual(child(part, "at").children.map((c: any) => [c.key, c.widget]), [["dx", "length"], ["dy", "length"], ["angle", "angle"], ["radius", "length"]]);
-  assert.equal(parts.item.kind, "object");
-  assert.deepEqual(parts.item.path, ["parts", 1]);
-  // a polygon part's points: a list of positions
+  // a new part is a new key: the template's own path is the empty id
+  assert.equal(mapping.item.kind, "object");
+  assert.deepEqual(mapping.item.path, ["parts", ""]);
+  // a polygon part's points: a list of positions under the part's id
   const patterns = readText("examples/features/patterns/face.yaml");
-  const polygon = treeOf(patterns, "diagonals")["parts"];
-  const points = child(polygon.items[0], "points");
+  const polygon = treeOf(patterns, "diagonals")["parts"].branches[0];
+  const points = child(child(polygon, "triangle"), "points");
   assert.equal(points.kind, "list");
   assert.ok(points.items.length >= 3);
-  assert.deepEqual(points.items[0].path, ["parts", 0, "points", 0]);
+  assert.deepEqual(points.items[0].path, ["parts", "triangle", "points", 0]);
   assert.equal(child(points.items[0], "dy").widget, "length");
   // the read-only summary stays for now
   assert.equal(inspect(showcase, pathOf(showcase, "hour_numerals"), null).parts!.count, 1);

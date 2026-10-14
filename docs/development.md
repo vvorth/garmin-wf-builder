@@ -149,7 +149,7 @@ comments quote keys and expressions as the author wrote them (`absent:`,
 | YAML load with source spans | `ts/src/yamlsrc.ts` | no |
 | JSON Schema, reported on author lines | `ts/src/validate.ts` | no |
 | Format 2 checks the schema cannot make (colours, templates) | `ts/src/lower.ts` | no |
-| Element blocks (`elements:`, `static:`, layouts) → one element list | `ts/src/desugar.ts` | no |
+| Element blocks (`elements:`, `static:`, layouts) → one element list; a hand's, pattern's or needle's `parts:` mapping → one list with each part's `id` | `ts/src/desugar.ts` | no |
 | Semantic pass (sources, types, nulls) | `ts/src/ir/` (`model.ts`, `naming.ts`, `builder/`), `ts/src/catalog.ts`, `ts/src/expr.ts` | no |
 | Per-device layout resolve | `ts/src/layout.ts` | device files |
 | Lint | `ts/src/lint.ts` | device files |

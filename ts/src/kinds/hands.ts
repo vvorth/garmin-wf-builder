@@ -39,7 +39,7 @@ class HandsKind extends ElementKind<HandsElement> {
     let reach = 0.0;
     for (const [name, hand] of handSet.hands()) {
       if (name === "second" && element.seconds === "never") continue; // not drawn
-      const [parts, handReach] = r.resolveParts(hand.parts, `${element.id}.${name}`, element.resolved_min_1px);
+      const [parts, handReach] = r.resolveParts(hand.parts, `${element.id}.${name}.parts`, element.resolved_min_1px);
       resolved.set(name, ResolvedHand.create({ parts: rotatableParts(parts, `${element.id}.${name}`) }));
       reach = Math.max(reach, handReach);
     }
@@ -163,7 +163,7 @@ class HandsKind extends ElementKind<HandsElement> {
     for (const hand of ["hour", "minute", "second"]) {
       const resolved = (p as unknown as Record<string, ResolvedHand | null>)[hand]!;
       if (resolved === null) continue;
-      resolved.parts.forEach((part, index) => out.push([`${p.id}.${hand}.parts[${index}]`, part.color, ring, true]));
+      for (const part of resolved.parts) out.push([`${p.id}.${hand}.parts.${part.id}`, part.color, ring, true]);
     }
     return out;
   }

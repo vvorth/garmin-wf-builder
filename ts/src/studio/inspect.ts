@@ -384,8 +384,10 @@ function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): O
 /** A pattern's parts, read-only: how many and of what shape, with a line span to jump to in the YAML tab. */
 function patternPartsSummary(index: SpanIndex, type: string, element: Path, data: unknown): PartsSummary | null {
   if (type !== "pattern" || !isMap(data) || !data.has("parts")) return null;
-  const parts = data.get("parts");
-  if (!Array.isArray(parts)) return null;
+  const written = data.get("parts");
+  // the id-keyed mapping, or the list form kept as shorthand
+  const parts = Array.isArray(written) ? written : isMap(written) ? [...written.values()] : null;
+  if (parts === null) return null;
   const held = index.at([...element, "parts"]);
   const until = Math.max(index.valueEnd(held) - 1, 0);
   return {

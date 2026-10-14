@@ -385,3 +385,94 @@ test("a codepoint is icon: {codepoint: \"U+XXXX\"}: the bare string names it, on
   assert.equal(errorsOf(GLYPH + "    icon: steps\n").length, 0);
   assert.equal(errorsOf(GLYPH + "    icon: {for: weather.condition}\n").length, 0);
 });
+
+// -- id-keyed parts --
+
+const HANDS = (parts: string): string => MINIMAL.replace("  palette:", `  hand_sets:
+    classic:
+      hour:
+        color: color.fg
+        parts:
+${parts}
+  palette:`) + "  dial:\n    type: hands\n    set: classic\n    at: {anchor: center}\n";
+const BLADE = "{ type: polygon, points: [{ dx: -3%r, dy: 8%r }, { dy: -46%r }, { dx: 3%r, dy: 8%r }] }";
+
+test("parts: the mapping form names a part by its id, the list form by partN, and both build the same hand", () => {
+  const named = face(HANDS(`          blade: ${BLADE}\n          hub: { type: circle, radius: 4%r }`));
+  assert.deepEqual(named.hands.get("classic")!.hour!.parts.map((p) => p.id), ["blade", "hub"]);
+  const listed = face(HANDS(`          - ${BLADE}\n          - { type: circle, radius: 4%r }`));
+  assert.deepEqual(listed.hands.get("classic")!.hour!.parts.map((p) => p.id), ["part1", "part2"]);
+  const strip = (hand: unknown): unknown => JSON.parse(JSON.stringify(hand, (k, v) => (k === "id" || k === "span" ? undefined : v)));
+  assert.deepEqual(strip(named.hands.get("classic")!.hour), strip(listed.hands.get("classic")!.hour));
+  // a part's error names the part, and points at the part's own line
+  const lineOf = (text: string, needle: string): number => text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+  const namedBad = HANDS(`          blade: ${BLADE}\n          hub: { type: circle, radius: 4%r, to: { dy: 1px } }`);
+  const byId = errorsOf(namedBad);
+  assert.equal(byId.length, 1, byId.map((d) => d.message).join("\n"));
+  assert.equal(byId[0]!.message, "hand_sets.classic.hour.parts.hub: 'to' is not used by a hand 'type: circle' part");
+  assert.equal(byId[0]!.span!.line, lineOf(namedBad, "hub:"), "the hub's own line");
+  const listedBad = HANDS(`          - ${BLADE}\n          - { type: circle, radius: 4%r, to: { dy: 1px } }`);
+  const byIndex = errorsOf(listedBad);
+  assert.equal(byIndex.length, 1, byIndex.map((d) => d.message).join("\n"));
+  assert.equal(byIndex[0]!.message, "hand_sets.classic.hour.parts.part2: 'to' is not used by a hand 'type: circle' part");
+  assert.equal(byIndex[0]!.span!.line, lineOf(listedBad, "- { type: circle"), "the second item's own line");
+});
+
+test("parts: a duplicate id is one error, 17 parts are refused, and a bad id is refused naming what a name is", () => {
+  const dup = errorsOf(HANDS(`          blade: ${BLADE}\n          blade: { type: circle, radius: 4%r }`));
+  assert.equal(dup.length, 1, dup.map((d) => d.message).join("\n"));
+  assert.ok(dup[0]!.message.includes("duplicate key"), dup[0]!.message);
+  const many = errorsOf(HANDS(Array.from({ length: 17 }, (_, i) => `          p${i}: { type: circle, radius: ${i + 1}px }`).join("\n")));
+  assert.equal(many.length, 1, many.map((d) => d.message).join("\n"));
+  assert.ok(many[0]!.message.includes("at most 16") && many[0]!.message.includes("17"), many[0]!.message);
+  const manyListed = errorsOf(HANDS(Array.from({ length: 17 }, (_, i) => `          - { type: circle, radius: ${i + 1}px }`).join("\n")));
+  assert.equal(manyListed.length, 1, manyListed.map((d) => d.message).join("\n"));
+  assert.ok(manyListed[0]!.message.includes("at most 16"), manyListed[0]!.message);
+  const bad = errorsOf(HANDS(`          my-blade: ${BLADE}`));
+  assert.equal(bad.length, 1, bad.map((d) => d.message).join("\n"));
+  assert.ok(bad[0]!.message.includes("'my-blade' is not a valid name"), bad[0]!.message);
+  assert.ok(bad[0]!.notes.some((n) => n.includes("a letter or underscore")), bad[0]!.notes.join("\n"));
+  // the part body is still checked under a mapping: a bad key is named by the part's id
+  const key = errorsOf(HANDS(`          blade: { type: polygon, points: [{ dx: -3%r, dy: 8%r }, { dy: -46%r }, { dx: 3%r, dy: 8%r }], radius: 2px }`));
+  assert.equal(key.length, 1, key.map((d) => d.message).join("\n"));
+  assert.equal(key[0]!.message, "hand_sets.classic.hour.parts.blade: 'radius' is not used by a hand 'type: polygon' part");
+});
+
+const TICKS = (parts: string): string => MINIMAL + `  ticks:
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 12
+    color: color.fg
+    parts:
+${parts}
+`;
+const NEEDLE = (parts: string): string => MINIMAL + `  battery:
+    type: gauge
+    style: needle
+    value: system.battery
+    max: 100
+    at: {anchor: center}
+    start_angle: 240deg
+    sweep: 240deg
+    color: color.fg
+    needle:
+${parts}
+`;
+
+test("parts: a pattern's parts and a gauge's needle take the mapping form too, and name their parts by id", () => {
+  const ticks = face(TICKS("      tick: { type: line, at: { dy: -90%r }, to: { dy: -80%r }, thickness: 2px }\n      dot: { type: circle, at: { dy: -76%r }, radius: 1%r }"));
+  const pattern = ticks.elements.find((e) => e.id === "ticks") as unknown as { parts: { id: string }[] };
+  assert.deepEqual(pattern.parts.map((p) => p.id), ["tick", "dot"]);
+  const partError = errorsOf(TICKS("      tick: { type: line, at: { dy: -90%r }, to: { dy: -80%r }, thickness: 2px, filled: true }"));
+  assert.equal(partError.length, 1, partError.map((d) => d.message).join("\n"));
+  assert.equal(partError[0]!.message, "ticks.parts.tick: 'filled' is not used by a pattern 'type: line' part");
+  const listed = errorsOf(TICKS("      - { type: line, at: { dy: -90%r }, to: { dy: -80%r }, thickness: 2px, filled: true }"));
+  assert.equal(listed[0]!.message, "ticks.parts.part1: 'filled' is not used by a pattern 'type: line' part");
+  const battery = face(NEEDLE(`      blade: ${BLADE}\n      hub: { type: circle, radius: 4%r }`));
+  const gauge = battery.elements.find((e) => e.id === "battery") as unknown as { needle: { id: string }[] };
+  assert.deepEqual(gauge.needle.map((p) => p.id), ["blade", "hub"]);
+  const needleError = errorsOf(NEEDLE(`      blade: ${BLADE}\n      hub: { type: circle, radius: 4%r, to: { dy: 1px } }`));
+  assert.equal(needleError.length, 1, needleError.map((d) => d.message).join("\n"));
+  assert.equal(needleError[0]!.message, "battery.needle.hub: 'to' is not used by a hand 'type: circle' part");
+});

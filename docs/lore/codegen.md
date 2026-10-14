@@ -92,6 +92,16 @@ These cost real time to discover; do not rediscover them.
   hide`, `ElementKind.draws_while_absent`) therefore wraps only its
   value-dependent drawing in `if (x != null && y != null) { ... }`, where
   `monkeyc` narrows the locals, confirmed by a strict warning-free build.
+- **A part is named by its id, and the id is never emitted.** `desugar.ts`
+  turns a hand's, a pattern's or a needle's `parts:` mapping into the list
+  the builder walks, each part's key injected as its `id` (as an element
+  mapping's keys are), and gives the list form's items `part1`, `part2`, ….
+  The id reaches the IR (`HandPart.id`), the resolved parts and every
+  diagnostic label (`<element>.parts.<id>`, `<element>.needle.<id>`,
+  `hand_sets.<set>.<hand>.parts.<id>`), but no generated Monkey C: a part
+  has no symbol of its own, and `Layout.mc`'s constants are still numbered
+  by position (`<PREFIX>_<n>_POINTS`), so renaming or re-keying parts
+  changes no output. The goldens hold this.
 - **The builder reads format 2 as written.** The IR builder reads the
   author's own keys and kind names -- `build: {targets:}`, `absent:`,
   `align: top_left`, `type: gauge`, `icon: {for:}`, `color.<name>` -- so a
