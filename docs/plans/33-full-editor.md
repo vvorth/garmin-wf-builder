@@ -118,6 +118,30 @@ same commit, never left as a second page.
 
 ## Slice 2 — Properties v2: the generic form and the editing context (D3, D5, D6)
 
+**In progress 2026-10-14.** Shipped so far: the five format changes
+(F3 `absent:` 37ddac9, F4 `outline:` 995c86c, F5 `icon:`
+b6568a3, F6 `range:`/`step_angle:` cb2a231, F7 whole-key `overrides:` b492d13), the
+icon picker writing `{codepoint}` (e93c344), and the worker half of
+Properties v2 (55e027b: the field tree with `kind`, `children`, `items`,
+`branches`/`chosen`; `effective` with provenance per editing context;
+the `aod` edit scope; `rename_layout`, `delete_layout`, `move_key`,
+`set_default_style`; `face`, `defaults` and `layout_entries` in the
+globals). Open: the page half (the generic form, the context bar, the
+new Face sections). Two notes for the record:
+
+- F3 and F5 mechanically rewrote `examples/dashboard/face.yaml`, the
+  user's playground (`absent:` and `icon:` spellings only; nothing else
+  in it changed). The generated Monkey C comments in
+  `ts/test/goldens/monkeyc/` still quote the old spellings until the
+  goldens are regenerated.
+- The goldens were frozen with five devices this container lacks
+  (`venusq2`, `instinct2`, `instinct2x`, `instinct3solar45mm`,
+  `instincte45mm`), so `WFB_UPDATE_GOLDENS=1` has not been run: the two
+  golden tests and one `display:` override test stay red with diffs read
+  and accounted for per format change (baseline 156 corpus designs from
+  the missing devices; F3 17, F6 11, F4 157, F5 about 177, F7 14). They
+  are regenerated once the user uploads those device folders.
+
 - **The generic form**: a recursive renderer over the schema branch —
   object → fieldset, list → list editor on the slice-0 primitives, `oneOf`/
   `anyOf` → segmented control over branches with the value's shape
