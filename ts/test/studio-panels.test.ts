@@ -108,6 +108,39 @@ test("a pattern's step_angle is an angle and its step a {dx, dy} object, whateve
   assert.equal(series.value, "heart_rate");
 });
 
+test("an icon written as {codepoint} keeps the icon widget with the object as its value, on an element and on a slot choice", () => {
+  // A codepoint is an object in the format; it used to fall to the yaml widget, and a slot choice's used to read as no icon.
+  const text = starters.instantiate("minimal", "I") + `
+  glyph:
+    type: icon
+    icon: { codepoint: "U+E241" }
+    size: 10%r
+    at: { anchor: center }
+    color: color.dim
+`;
+  const pathOf = (id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+  const icon = fieldsOf(inspect(text, pathOf("glyph"), null))["icon"];
+  assert.equal(icon.widget, "icon");
+  assert.deepEqual(icon.value, { codepoint: "U+E241" });
+  const named = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "heart"), pathOf("glyph"), null))["icon"];
+  assert.equal(named.widget, "icon");
+  assert.equal(named.value, "heart");
+
+  const slots = text + `
+config:
+  slots:
+    top:
+      default: steps
+      choices: [steps, { type: heart_rate, icon: { codepoint: "U+F0004" } }, { type: calories, icon: fire }]
+`;
+  const top = (globalsOf(slots, db) as any).slots.find((s: any) => s.name === "top");
+  assert.deepEqual(top.choices, [
+    { type: "steps", icon: null },
+    { type: "heart_rate", icon: { codepoint: "U+F0004" } },
+    { type: "calories", icon: "fire" },
+  ]);
+});
+
 test("a text element's curve: is a small object widget, angled or radial, not the yaml fallback", () => {
   const text = readText("examples/features/vector-text/face.yaml");
   const pathOf = (id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];

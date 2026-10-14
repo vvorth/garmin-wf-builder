@@ -255,6 +255,59 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
   assert.ok((eq(held, ["erroran error"]) && eq(asked, ["note"])));
 });
 
+test("the icon picker writes a codepoint as {codepoint: \"U+XXXX\"} and shows one written that way", async () => {
+  // A codepoint is an object in the format; the picker used to write the bare string, which the gate now refuses.
+  const text = instantiate("minimal", "T") + `
+  glyph:
+    type: icon
+    icon: { codepoint: "U+E241" }
+    size: 10%r
+    at: { anchor: center }
+    color: color.dim
+`;
+  const doc = summary(text);
+  installAssets();
+  const inspected = { glyph: plain(inspect(text, ["elements", "glyph"], null)) };
+  const script = `
+      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
+      const document = install();
+      const inspected = ${JSON.stringify(inspected)};
+      globalThis.Worker = class {
+        postMessage({ id, request }) {
+          const { op, args } = request;
+          const json = op === "inspect" ? inspected[args.element[args.element.length - 1]] : {};
+          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
+        }
+      };
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
+      const edits = [];
+      const root = document.createElement("div");
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
+      const cls = (e) => e.attributes.class || "";
+      render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", "glyph"] }} device="" vocab=\${{ icon_glyphs: { heart: 1 } }}
+        scope="all" onScope=\${() => {}} onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }}
+        onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
+      await settle(); await settle();
+      const field = root.all((e) => cls(e).startsWith("field") && e.childNodes[0] && e.childNodes[0].textContent.replace("*", "") === "icon")[0];
+      if (!field) throw new Error("no icon field among " + JSON.stringify(root.all((e) => cls(e) === "name").map((e) => e.textContent)));
+      const chip = field.all((e) => cls(e) === "chip-button")[0];
+      const shown = chip.textContent;
+      chip.click(); await settle();
+      const box = field.all((e) => e.localName === "input" && cls(e).includes("codepoint"))[0];
+      box.value = "U+F0004"; box.dispatch("input", { target: box }); await settle();
+      const use = field.all((e) => e.localName === "button" && e.textContent === "Use")[0];
+      use.click(); await settle();
+      console.log(JSON.stringify({ shown, edits }));
+    `;
+  const ran = node(script);
+  if (ran.returncode !== 0) throw new Error(ran.stderr.slice(-2000));
+  const out = JSON.parse(ran.stdout.trim().split("\n").pop()!);
+  assert.equal(out.shown, "U+E241", "a codepoint written as an object shows as its code");
+  assert.deepEqual(out.edits, [{ op: "set", element: ["elements", "glyph"], path: ["icon"], scope: "all", device: null, value: { codepoint: "U+F0004" } }]);
+});
+
 test("a unit change converts an angle, asks for a length, and offers pt only where a font is in scope", async () => {
   // Switching the unit select used to write the old number in the new
   // unit (`360deg` became `360turn`, `-50%r` became `-50px`). Degrees and

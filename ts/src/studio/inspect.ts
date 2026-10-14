@@ -30,7 +30,7 @@ import { DATA_SAMPLE } from "../sample.ts";
 import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
-import type {
+import type { IconSpelling,
   Axes, AxisEntry, ComplicationType, DeviceInfo, Field, Globals, HandSet, Inspect, OverrideSummary, PartsSummary, SlotEntry, StyleEntry,
   UnreadableDevice, Value, Widget, Words,
 } from "./protocol.ts";
@@ -44,6 +44,9 @@ const value = (data: unknown): Value => plain(data ?? null) as Value;
 const mapping = (data: unknown): Record<string, Value> => (data instanceof Map ? plain(data) as Record<string, Value> : {});
 /** A name as written, when it is text. */
 const name = (data: unknown): string | null => (typeof data === "string" ? data : null);
+/** An icon as written: a name, or `{codepoint}`. */
+const iconSpelling = (data: unknown): IconSpelling | null =>
+  typeof data === "string" ? data : isMap(data) && typeof data.get("codepoint") === "string" ? { codepoint: String(data.get("codepoint")) } : null;
 
 /** The keys an override may patch: edited with the "all targets / this device / this shape / this display class" chooser. */
 export const GEOMETRY: ReadonlySet<string> = new Set(["at", "size", "radius", "align"]);
@@ -137,7 +140,8 @@ function field(key: string, path: Path, type: string, node: Json, raw: unknown, 
   const [kind, resolved] = widget(key, type, node, raw);
   const present = raw !== null && raw !== undefined;
   // a structured value under a scalar's widget is shown as its text instead
-  const shown: Widget = ["icon", "complication", "color", "yaml"].includes(kind) && present && !isScalar(raw) ? "yaml" : kind;
+  const codepoint = kind === "icon" && isMap(raw) && raw.size === 1 && typeof raw.get("codepoint") === "string";
+  const shown: Widget = ["icon", "complication", "color", "yaml"].includes(kind) && present && !isScalar(raw) && !codepoint ? "yaml" : kind;
   const out: Field = {
     key, path: [...path], widget: shown, description: String(node["description"] || resolved["description"] || ""),
     value: value(raw), present, required,
@@ -255,7 +259,7 @@ function slots(index: SpanIndex): SlotEntry[] {
     const entry = isMap(g(entries, slot)) ? g(entries, slot) : new Map();
     const raw = g(entry, "choices");
     const choices = Array.isArray(raw)
-      ? raw.map((c) => (isMap(c) ? { type: name(c.get("type")), icon: name(c.get("icon")) } : { type: name(c), icon: null }))
+      ? raw.map((c) => (isMap(c) ? { type: name(c.get("type")), icon: iconSpelling(c.get("icon")) } : { type: name(c), icon: null }))
       : name(raw);
     out.push({ name: String(slot), label: name(g(entry, "label")), default: name(g(entry, "default")), choices, drawn_by: slotDrawers(index, String(slot)) });
   }

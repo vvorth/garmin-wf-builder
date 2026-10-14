@@ -14,7 +14,7 @@ import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { api } from "./api.ts";
 import { ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
-import type {
+import type { IconSpelling,
   Axes, EditOp, Field as FieldInfo, Globals, HandSet, Inspect, Path, PaletteEntry, Schemes as SchemesInfo, Scope,
   SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
@@ -305,7 +305,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps)
     }
     case "template": return html`<${Template} value=${shown(value)} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
-    case "icon": return html`<${IconPop} value=${value} vocab=${ctx.vocab} onPick=${(v: string | null) => v && onCommit(v)} />`;
+    case "icon": return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} onPick=${(v: IconSpelling | null) => v && onCommit(v)} />`;
     case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
     case "handset": {
@@ -472,27 +472,32 @@ export function Glyph({ name, vocab }: GlyphProps): VNode {
 }
 
 export interface IconPopProps {
-  /** The icon as written, or none. */
-  value?: Value | null | undefined;
+  /** The icon as written (a name, or `{codepoint}`), or none. */
+  value?: IconSpelling | null | undefined;
   vocab: Partial<Vocabulary>;
   /** Offer `none`, where the key takes it. */
   allowNone?: boolean;
   /** The icon drawn when none is written. */
   placeholder?: string | null | undefined;
-  /** A name, a codepoint (`U+XXXX`), `none`, or null to remove. */
-  onPick: (value: string | null) => void;
+  /** A name, `none`, a codepoint as `{codepoint: "U+XXXX"}`, or null to remove. */
+  onPick: (value: IconSpelling | null) => void;
 }
+
+/** What an icon spelling shows as: the name, or the codepoint. */
+const iconText = (value: IconSpelling | null | undefined): string | null =>
+  value === null || value === undefined ? null : typeof value === "string" ? value : value.codepoint;
 
 // An icon picker: every catalogue icon as a glyph, `none` where the key
 // takes it, and a codepoint (`U+XXXX`) typed in.
-export function IconPop({ value, vocab, allowNone = false, placeholder, onPick }: IconPopProps): VNode {
+export function IconPop({ value: spelled, vocab, allowNone = false, placeholder, onPick }: IconPopProps): VNode {
   const [code, setCode] = useState<string>("");
   const names = Object.keys(vocab.icon_glyphs || {}).sort();
+  const value = iconText(spelled);
   const label = html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
       <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
   return html`<${Popover} buttonClass="chip-button" bodyClass="pop" title=${value || placeholder || "pick an icon"} label=${label}
     onOpen=${() => setCode("")}>${(close: () => void) => {
-    const pick = (v: string | null) => { close(); setCode(""); onPick(v); };
+    const pick = (v: IconSpelling | null) => { close(); setCode(""); onPick(v); };
     return html`
       <div class="pop-grid icons">${names.map((n) => html`<button class=${"swatch icon" + (n === value ? " on" : "")}
         title=${n} aria-label=${n} aria-pressed=${n === value} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
@@ -500,7 +505,7 @@ export function IconPop({ value, vocab, allowNone = false, placeholder, onPick }
         ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}
         <input type="text" class="mono codepoint" aria-label="codepoint" placeholder="U+F0000" value=${code}
           onInput=${(e: InputEvent) => setCode(e.currentTarget.value)} />
-        <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick(code.trim().toUpperCase())}>Use</button>
+        <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick({ codepoint: code.trim().toUpperCase() })}>Use</button>
         ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"}
           aria-label=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
       </div>`;
@@ -537,7 +542,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
     if (!listed(name)) setChoices([...list, { type: name, icon: null }]);
     onEdit({ op: "set", path: [...path, "default"], value: name });
   };
-  const setIcon = (name: string, icon: string | null) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
+  const setIcon = (name: string, icon: IconSpelling | null) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
   const first = slot.default === null ? undefined : byName[slot.default];
   return html`<div class="slot-card">
     <div class="slot-head">
@@ -564,7 +569,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
             title=${isDefault ? "what the slot shows first stays on the list" : ""} onChange=${() => toggle(t.name)} />
           <button class=${"star" + (isDefault ? " on" : "")} title="show this first" onClick=${() => setDefault(t.name)}>${isDefault ? "★" : "☆"}</button>
           ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
-              onPick=${(v: string | null) => setIcon(t.name, v)} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
+              onPick=${(v: IconSpelling | null) => setIcon(t.name, v)} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
           <span class="label">${t.label}</span>
           <span class="dim mono">${t.sample || ""}</span>
         </div>`; })}

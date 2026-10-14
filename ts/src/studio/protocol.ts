@@ -169,9 +169,12 @@ export interface FontEntry {
 }
 
 /** One of a slot's `choices:`: a complication type and the icon drawn for it, when one is given. */
+/** An icon as the format spells it: a catalogue name (or `none` on a slot choice), or a codepoint. */
+export type IconSpelling = string | { codepoint: string };
+
 export interface SlotChoice {
   type: string | null;
-  icon: string | null;
+  icon: IconSpelling | null;
 }
 
 /** One `config: slots:` entry. */
