@@ -39,6 +39,18 @@ export type Path = (string | number)[];
 /** Where a geometry edit or a drag is written: the element's own key, or its override for the viewed device or its screen shape. */
 export type Scope = "all" | "device" | "shape" | "display";
 
+/** Where an element's key is edited: a `Scope`, or `aod`, the element's own `aod:` block (the always-on frame's restyling). */
+export type EditScope = Scope | "aod";
+
+/** The frame the editing context views: awake, an always-on (MIP) watch's low-power frame, or an AMOLED watch's AOD frame. */
+export type FrameName = "awake" | "asleep" | "aod";
+
+/** The editing context an inspect answers for: the frame viewed, and the style (`null` for the face's default). */
+export interface EditContext {
+  frame: FrameName;
+  style: string | null;
+}
+
 // -- the face's summary ------------------------------------------------------
 
 /** A block of elements in the Layers tree: `static:`, `elements:`, or a layout's own. */
@@ -146,9 +158,40 @@ export interface Schemes {
 /** One `config: style: choices:` entry: a name the author wrote is text, or `null` when absent or not text. */
 export interface StyleEntry {
   name: string;
+  /** Its position among the entries, from 0: the order the wearer's Style list shows. */
+  index: number;
   label: string | null;
   layout: string | null;
   scheme: string | null;
+}
+
+/** One `layouts:` entry: how many elements its two blocks hold, and the styles that pick it. */
+export interface LayoutEntry {
+  name: string;
+  /** The elements in its `elements:` block. */
+  elements: number;
+  /** The elements in its `static:` block. */
+  static: number;
+  /** The `config: style:` entries whose `layout:` names it. */
+  styles: string[];
+}
+
+/** `face:` as written: each `null` when absent or not text. */
+export interface FaceInfo {
+  name: string | null;
+  version: string | null;
+  id: string | null;
+}
+
+/** `defaults:` as written, each key `null` when absent. */
+export interface DefaultsInfo {
+  antialias: Value;
+  min_1px: Value;
+  aod: {
+    visible: Value;
+    dim: Value;
+    mask: Value;
+  };
 }
 
 export interface Styles {
@@ -226,10 +269,15 @@ export interface HandSet {
 
 /** The face as a whole, for the Face tab, the pickers and Ctrl+K; read from the text, so it is filled in even while the face does not load. */
 export interface Globals {
+  face: FaceInfo;
+  defaults: DefaultsInfo;
   palette: PaletteEntry[];
   schemes: Schemes;
   styles: Styles;
+  /** The `layouts:` names, in order. */
   layouts: string[];
+  /** Each layout's blocks and styles, in the same order. */
+  layout_entries: LayoutEntry[];
   fonts: FontEntry[];
   slots: SlotEntry[];
   /** Every colour role: the schemes' and the axes'. */
@@ -362,16 +410,48 @@ export interface Frame {
 
 // -- the inspector -------------------------------------------------------------
 
-/** The control a field is edited with; `yaml` is shown as its text and edited in the YAML tab. */
+/**
+ * The control a scalar field is edited with. `object` accompanies a field
+ * of kind `object`; `yaml` marks a value no scalar control covers (a list,
+ * or a value whose shape is not the schema's), shown as its text.
+ */
 export type Widget =
   | "readonly" | "object" | "length" | "angle" | "align" | "color" | "expression" | "template" | "enum"
   | "slot" | "handset" | "font" | "icon" | "complication" | "bool" | "number" | "text" | "yaml";
 
-/** One key of the selected element, in schema order. */
+/**
+ * What a field's schema branch is: a `scalar` (one control, `widget`), an
+ * `object` (`children`, every key present or not; one whose keys the author
+ * names, such as `overrides:` by selector, lists the keys present and the
+ * template a new key takes as `item`), a `list` (`item` the template,
+ * `items` one per item present) or a `choice` between schema branches
+ * (`branches`, each a field, and `chosen` the one the value's shape matches).
+ */
+export type FieldKind = "scalar" | "object" | "list" | "choice";
+
+/**
+ * Where a field's effective value comes from: the element's `own` key, its
+ * `override` for the viewed device (`selector` names it), its own `aod:`
+ * block, the nearest ancestor `group`'s `aod:` (`group` names it), the face's
+ * `defaults:`, or nowhere (`absent`).
+ */
+export type Provenance = "own" | "override" | "aod" | "group" | "defaults" | "absent";
+
+/** The value the editing context reads for a key, and where it comes from. */
+export interface Effective {
+  value: Value;
+  from: Provenance;
+  selector?: string;
+  group?: string;
+}
+
+/** One key of the selected element, in schema order; a node of the field tree. */
 export interface Field {
   key: string;
-  /** The key's path inside the element. */
+  /** The key's path inside the element; a list item's ends in its index. */
   path: Path;
+  kind: FieldKind;
+  /** A scalar's control; a choice's is its chosen (else first) branch's. */
   widget: Widget;
   description: string;
   /** The value as written, or `null` when the key is absent. */
@@ -382,10 +462,22 @@ export interface Field {
   default: Value;
   /** An `at:`, `size:`, `radius:` or `align:` key: editable per device through the scope chooser. */
   geometry: boolean;
+  /** What the editing context reads here, and from where. */
+  effective: Effective;
   /** The values an `enum` or `complication` widget offers. */
   enum?: Value[];
-  /** An `object` widget's own keys. */
+  /** An `object`'s keys, present or not (a keyed object's: the keys present). */
   children?: Field[];
+  /** A `list`'s item template (its path ends in the index an appended item takes), or a keyed `object`'s new-key template (its path ends in the empty key). */
+  item?: Field;
+  /** A `list`'s items present, each at its index. */
+  items?: Field[];
+  /** A `choice`'s branches, each a field over the same key. */
+  branches?: Field[];
+  /** The branch the present value's shape matches, or `null`. */
+  chosen?: number | null;
+  /** The tree is cut here: the branch goes deeper than the inspector follows. */
+  truncated?: true;
   /** A `yaml` widget's value as text. */
   text?: string;
 }
@@ -413,14 +505,18 @@ export interface PartsSummary {
   end: number;
 }
 
-/** The selected element's keys as widgets. With `error` set, `element` is not an element and the rest is empty. */
+/** The selected element's keys as a field tree, for one editing context. With `error` set, `element` is not an element and the rest is empty. */
 export interface Inspect {
   element: Path;
   id: string;
   type: string;
+  /** The context the fields' effective values are read for. */
+  context: EditContext;
   fields: Field[];
   /** Keys the format does not have for this type. */
   unknown: string[];
+  /** The keys this element's kind may restyle in its `aod:` block, besides `visible` and `dim`. */
+  aod_keys: string[];
   overrides: { device?: ScopeOverride; shape?: ScopeOverride; display?: ScopeOverride };
   overridden: OverrideSummary[];
   parts: PartsSummary | null;
@@ -679,10 +775,15 @@ export interface AssetArgs extends VersionArgs {
   size?: string;
 }
 
-/** Where an element's key is edited: the element, and for a geometry key the scope and device of its override (`null` while no device is viewed; read only in a scope other than `all`). */
+/**
+ * Where an element's key is edited: the element, and the scope: `all` the
+ * element's own key, `device`/`shape`/`display` a geometry key's override on
+ * `device` (`null` while no device is viewed; read only in those scopes), or
+ * `aod` the element's `aod:` block, for a key its kind may restyle there.
+ */
 export interface ElementTarget {
   element?: Path;
-  scope?: Scope;
+  scope?: EditScope;
   device?: string | null;
 }
 
@@ -709,6 +810,14 @@ export type EditOp =
   | { op: "rename_hand_set"; name: string; to: string }
   | { op: "delete_hand_set"; name: string }
   | { op: "add_layout"; name: string }
+  /** Renames the layout and every style's `layout: <name>`. */
+  | { op: "rename_layout"; name: string; to: string }
+  /** Removes the layout and every style naming it; `also_default` names the style to make the default when the default goes with it. */
+  | { op: "delete_layout"; name: string; also_default?: string }
+  /** Makes `name` the `config: style: default:`. */
+  | { op: "set_default_style"; name: string }
+  /** Moves a mapping entry to position `to` among its siblings. */
+  | ({ op: "move_key"; path: Path; to: number } & ElementTarget)
   | ({ op: "insert_item"; path: Path; at: number; value: Value; block?: boolean } & ElementTarget)
   | ({ op: "remove_item"; path: Path; at: number } & ElementTarget)
   | ({ op: "move_item"; path: Path; from: number; to: number } & ElementTarget);
@@ -742,9 +851,12 @@ export interface TextArgs extends VersionArgs {
   text: string;
 }
 
+/** The editing context an inspect answers for: `awake` and no style when absent. */
 export interface InspectArgs extends DocArgs {
   element: Path;
   device?: string;
+  frame?: FrameName;
+  style?: string;
 }
 
 export interface BuildArgs extends VersionArgs {

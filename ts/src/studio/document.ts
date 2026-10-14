@@ -19,8 +19,8 @@ import { type Baker, move, resize, type Scope, SCOPES, seeded, selectorFor, targ
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
-  chain, dataAt, deleteElement, deleteElements, duplicateElement, insertItem, moveElement, moveItem, type Patch, remove, removeItem,
-  removeSlot, renameKey, renameReference, renameSlot, setValue,
+  chain, dataAt, deleteElement, deleteElements, duplicateElement, insertItem, moveElement, moveItem, moveKey, type Patch, remove, removeItem,
+  removeSlot, renameKey, renameLayout, renameReference, renameSlot, setValue,
 } from "../edit/patch.ts";
 import * as schemes from "../edit/schemes.ts";
 import * as slots from "../edit/slots.ts";
@@ -36,10 +36,10 @@ import { encodePng } from "../png.ts";
 import { frameItems, pngBytes, previewOptions, type PreviewOptions, render, resolveStyleEntry } from "../preview.ts";
 import { assetPath, type Bundle, bundle, FACE, inside, missing, references } from "./bundle.ts";
 import { describe, handles } from "./drag.ts";
-import { GEOMETRY, globalsOf, inspect } from "./inspect.ts";
+import { aodKeys, GEOMETRY, globalsOf, inspect } from "./inspect.ts";
 import { jsonDumps, plain } from "./json.ts";
 import type {
-  Diagnostic as ShownDiagnostic, EventData, EventName, Frame, FrameItem, FrameLayer, History, Inspect, Summary, TreeBlock, TreeNode, Value,
+  Diagnostic as ShownDiagnostic, EditContext, EventData, EventName, Frame, FrameItem, FrameLayer, History, Inspect, Summary, TreeBlock, TreeNode, Value,
 } from "./protocol.ts";
 import { canRedo, canUndo, CHANGE, type Change, REDO, type Snapshot, type Store, UNDO, UnknownDocument } from "./store.ts";
 
@@ -141,6 +141,21 @@ export function path(raw: unknown): Path {
 const dotted = (p: Path): string => p.map(String).join(".");
 const isSlot = (p: Path): boolean => p.length === 3 && p[0] === "config" && p[1] === "slots";
 const text = (op: Json, key: string): string => String(op[key] || "").trim();
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** `to` as a new name for a key, or refused. */
+function newName(op: Json): string {
+  const to = text(op, "to");
+  if (!NAME.test(to)) throw new Refused(`'${to}' is not a name: letters, digits and _, not starting with a digit`);
+  return to;
+}
+
+/** Every `config: style: choices:` entry as `[name, entry]`. */
+function styleChoices(index: SpanIndex): [string, Map<unknown, unknown>][] {
+  const choices = index.get(["config", "style", "choices"]) !== undefined ? dataAt(index.data, ["config", "style", "choices"]) : null;
+  if (!(choices instanceof Map)) return [];
+  return [...choices].map(([k, e]) => [String(k), e instanceof Map ? e : new Map()]);
+}
 
 /** The list index an op's field `key` names: a whole number, or refused. */
 function listIndex(op: Json, key: string): number {
@@ -184,12 +199,13 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   },
   rename: (doc, index, op) => {
     const p = doc.editPath(index, op);
-    const to = String(op["to"] ?? "").trim();
+    const to = newName(op);
     const prefix = String(op["prefix"] ?? "");
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(to)) throw new Refused(`'${to}' is not a name: letters, digits and _, not starting with a digit`);
     const patch = isSlot(p) ? renameSlot(index, String(p[2]), to) : prefix ? renameReference(index, p, to, prefix) : renameKey(index, p, to);
     return withWhat(patch, `rename ${dotted(p)} to ${to}`);
   },
+  // a mapping entry reordered among its siblings: a style entry, a palette colour, a slot, a hand set, an element's own key
+  move_key: (doc, index, op) => moveKey(index, doc.editPath(index, op), listIndex(op, "to")),
   // list items: `at` counts from 0, the list's length appends; a missing list is made around its first item
   insert_item: (doc, index, op) => {
     const p = doc.editPath(index, op);
@@ -234,6 +250,40 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     const unpicked = choices instanceof Map ? [...choices].filter(([, e]) => !(e instanceof Map && e.has("layout"))).map(([k]) => String(k)) : [];
     for (const entry of unpicked) result = chain(result, (i) => setValue(i, ["config", "style", "choices", entry, "layout"], name));
     return unpicked.length === 0 ? result : withWhat(result, `add the layout ${name}, picked by ${unpicked.join(", ")}`);
+  },
+  rename_layout: (_, index, op) => {
+    const name = text(op, "name");
+    if (index.get(["layouts", name]) === undefined) throw new Refused(`there is no layout called ${name}`);
+    return renameLayout(index, name, newName(op));
+  },
+  // the layout and every style picking it go; the default style moves to `also_default` when it is one of them
+  delete_layout: (_, index, op) => {
+    const name = text(op, "name");
+    if (index.get(["layouts", name]) === undefined) throw new Refused(`there is no layout called ${name}`);
+    const choices = styleChoices(index);
+    const picking = choices.filter(([, e]) => e.get("layout") === name).map(([k]) => k);
+    const kept = choices.filter(([k]) => !picking.includes(k)).map(([k]) => k);
+    if (choices.length > 0 && kept.length === 0) {
+      throw new Refused(`${name} is the last layout, and every style picks it: add another layout first, or remove the styles`);
+    }
+    const current = dataAt(index.data, ["config", "style"]);
+    const fallback = current instanceof Map ? String(current.get("default") ?? "") : "";
+    const moved = text(op, "also_default");
+    if (moved && !choices.some(([k]) => k === moved)) throw new Refused(`there is no style called ${moved}`);
+    if (moved && picking.includes(moved)) throw new Refused(`${moved} picks ${name} too; name a style that stays`);
+    if (!moved && picking.includes(fallback)) {
+      throw new Refused(`the default style ${fallback} picks ${name}: pass also_default naming the style to start in instead (${kept.join(", ")})`);
+    }
+    let result = remove(index, ["layouts", name]);
+    for (const entry of picking) result = chain(result, (i) => remove(i, ["config", "style", "choices", entry]));
+    if (moved && fallback !== moved) result = chain(result, (i) => setValue(i, ["config", "style", "default"], moved));
+    const styles = picking.length > 0 ? `, with the style${picking.length === 1 ? "" : "s"} ${picking.join(", ")}` : "";
+    return withWhat(result, `delete the layout ${name}${styles}`);
+  },
+  set_default_style: (_, index, op) => {
+    const name = text(op, "name");
+    if (index.get(["config", "style", "choices", name]) === undefined) throw new Refused(`there is no style called ${name}`);
+    return withWhat(setValue(index, ["config", "style", "default"], name), `make ${name} the default style`);
   },
 };
 
@@ -617,18 +667,28 @@ export class Document {
 
   /**
    * The key an edit's `path` names: as written, or, for an element's key
-   * (`element` given), that element's key or, for a geometry key, its
-   * override on `device` that `scope` names.
+   * (`element` given), that element's key, or, for a geometry key, its
+   * override on `device` that `scope` names, or, in the `aod` scope, the key
+   * in the element's `aod:` block (for a key its kind may restyle there).
    */
   editPath(index: SpanIndex, op: Json): Path {
     const p = path(op["path"]);
     if (op["element"] === undefined || op["element"] === null) return p;
     const element = path(op["element"]);
     const scope = op["scope"] ?? "all";
-    if (scope !== "all" && scope !== "device" && scope !== "shape" && scope !== "display") {
-      throw new Refused(`scope '${String(scope)}' is not all, device, shape or display`);
+    if (scope !== "all" && scope !== "device" && scope !== "shape" && scope !== "display" && scope !== "aod") {
+      throw new Refused(`scope '${String(scope)}' is not all, device, shape, display or aod`);
     }
     if (scope === "all") return [...element, ...p];
+    if (scope === "aod") {
+      const data = index.get(element) !== undefined ? dataAt(index.data, element) : null;
+      const type = data instanceof Map && typeof data.get("type") === "string" ? data.get("type") as string : "";
+      const allowed = [...aodKeys(type), "visible", "dim"];
+      if (p.length === 0 || !allowed.includes(String(p[0]))) {
+        throw new Refused(`${dotted(p)} cannot be restyled in AOD on a ${type || "non-element"}; aod: takes ${allowed.join(", ")}`);
+      }
+      return [...element, "aod", ...p];
+    }
     if (p.length === 0 || !GEOMETRY.has(String(p[0]))) {
       throw new Refused(`${p.map(String).join(".")} cannot be overridden per device; only at:, size:, radius: and align: can`);
     }
@@ -1010,8 +1070,9 @@ export class Document {
     };
   }
 
-  inspect(element: unknown, deviceId: string | null): Inspect {
-    return inspect(this.text, path(element), deviceId ? this.studio.db.get(deviceId) : null);
+  /** The inspector for `element` on `deviceId`, in `context`; the built face, when it loads, gives the compiler's own `aod:` resolution. */
+  inspect(element: unknown, deviceId: string | null, context?: EditContext): Inspect {
+    return inspect(this.text, path(element), deviceId ? this.studio.db.get(deviceId) : null, context, this.analysis().face);
   }
 }
 

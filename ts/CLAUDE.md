@@ -85,8 +85,14 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     Web Worker, which the server bundles when it starts) answers the page's
     requests (an operation and its arguments, `app/api.ts`'s `api(op,
     args)`; no URLs) through `router.ts`, over `document.ts`, `store.ts`
-    (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` and
-    `drag.ts`; `server.ts` (Node) sends the app, the devices' digest, a
+    (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` (the
+    field tree from the schema, with each key's effective value and
+    provenance for the editing context: frame and style, the `aod:`
+    cascade included) and `drag.ts`; `document.ts`'s `EDITS` table holds
+    every edit op, each one gated patch (an element key in a scope, `aod`
+    among them; `move_key`, `rename_layout`, `delete_layout`,
+    `set_default_style` beside the colour, scheme, slot and hand-set ops);
+    `server.ts` (Node) sends the app, the devices' digest, a
     device's skin and font files, the docs for Help (`/help/`), and builds.
     `protocol.ts` is the one place the page/worker contract lives: every
     request's arguments and every answer, event and refusal as TypeScript

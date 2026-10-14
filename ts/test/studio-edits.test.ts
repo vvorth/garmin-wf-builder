@@ -549,6 +549,143 @@ test("a font file that does not bake is refused, not stored", async () => {
   assert.deepEqual([doc.text, doc.version, Object.keys(doc.head.assets)], before);
 });
 
+// -- the aod scope --
+
+test("an edit in the aod scope writes the element's aod: block, for the keys its kind may restyle", async () => {
+  const doc = make(await newStudio());
+  const clock = ["elements", "clock"];
+  edit(doc, { op: "set", element: clock, path: ["visible"], value: false, scope: "aod" });
+  assert.deepEqual(dataOf(doc).elements.clock.aod, { visible: false });
+  edit(doc, { op: "set", element: clock, path: ["color"], value: "color.dim", scope: "aod" });
+  assert.deepEqual(dataOf(doc).elements.clock.aod, { visible: false, color: "color.dim" });
+  assert.equal((doc.history()["states"] as any[])[0].label, "set elements.clock.aod.color to color.dim");
+  edit(doc, { op: "set", element: clock, path: ["dim"], value: 0.5, scope: "aod" });
+  assert.equal(dataOf(doc).elements.clock.aod.dim, 0.5);
+  refusedAlone(doc, [
+    [/^at\.dy cannot be restyled in AOD on a text; aod: takes color, font, text, outline, visible, dim$/,
+      () => edit(doc, { op: "set", element: clock, path: ["at", "dy"], value: "1px", scope: "aod" })],
+    [/^thickness cannot be restyled in AOD on a text/, () => edit(doc, { op: "set", element: clock, path: ["thickness"], value: "1px", scope: "aod" })],
+    [/not all, device, shape, display or aod/, () => edit(doc, { op: "set", element: clock, path: ["color"], value: "color.dim", scope: "asleep" })],
+  ]);
+  // a remove in the aod scope prunes the emptied block
+  edit(doc, { op: "remove", element: clock, path: ["color"], scope: "aod" });
+  edit(doc, { op: "remove", element: clock, path: ["dim"], scope: "aod" });
+  assert.deepEqual(dataOf(doc).elements.clock.aod, { visible: false });
+  edit(doc, { op: "remove", element: clock, path: ["visible"], scope: "aod" });
+  assert.ok(!("aod" in dataOf(doc).elements.clock));
+  assert.notEqual(doc.analysis().face, null);
+});
+
+// -- layouts and styles --
+
+const layoutsOf = (doc: Document): string[] => Object.keys(dataOf(doc).layouts);
+const stylesOf = (doc: Document): any => dataOf(doc).config.style;
+
+test("a layout is renamed with every style naming it", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  const before = dataOf(doc).layouts.analog;
+  edit(doc, { op: "rename_layout", name: "analog", to: "classic" });
+  assert.deepEqual(layoutsOf(doc), ["classic", "digital", "roman"]);
+  assert.deepEqual(dataOf(doc).layouts.classic, before);
+  const choices = stylesOf(doc).choices;
+  assert.deepEqual(Object.entries(choices).filter(([, c]: [string, any]) => c.layout === "classic").map(([k]) => k), ["analog_dark", "analog_light", "analog_crimson"]);
+  assert.ok(!Object.values(choices).some((c: any) => c.layout === "analog"));
+  assert.equal(doc.head.label, "rename the layout analog to classic");
+  assert.notEqual(doc.analysis().face, null);
+  refusedAlone(doc, [
+    [/not a name/, () => edit(doc, { op: "rename_layout", name: "classic", to: "1x" })],
+    [/already exists/, () => edit(doc, { op: "rename_layout", name: "classic", to: "digital" })],
+    [/no layout called nope/, () => edit(doc, { op: "rename_layout", name: "nope", to: "x" })],
+  ]);
+});
+
+test("a layout is deleted with the styles naming it; the default moves, or the delete is refused naming it", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  edit(doc, { op: "delete_layout", name: "roman" });
+  assert.deepEqual(layoutsOf(doc), ["analog", "digital"]);
+  assert.deepEqual(Object.keys(stylesOf(doc).choices), ["analog_dark", "analog_light", "analog_crimson", "digital_dark", "digital_light"]);
+  assert.equal(stylesOf(doc).default, "digital_dark");
+  assert.equal(doc.head.label, "delete the layout roman, with the styles roman_dark, roman_crimson");
+  assert.notEqual(doc.analysis().face, null);
+  refusedAlone(doc, [
+    [/the default style digital_dark picks digital/, () => edit(doc, { op: "delete_layout", name: "digital" })],
+    [/no style called nope/, () => edit(doc, { op: "delete_layout", name: "digital", also_default: "nope" })],
+    [/digital_light picks digital too/, () => edit(doc, { op: "delete_layout", name: "digital", also_default: "digital_light" })],
+    [/no layout called nope/, () => edit(doc, { op: "delete_layout", name: "nope" })],
+  ]);
+  edit(doc, { op: "delete_layout", name: "digital", also_default: "analog_light" });
+  assert.deepEqual(layoutsOf(doc), ["analog"]);
+  assert.equal(stylesOf(doc).default, "analog_light");
+  assert.deepEqual(Object.keys(stylesOf(doc).choices), ["analog_dark", "analog_light", "analog_crimson"]);
+  assert.notEqual(doc.analysis().face, null);
+  refusedAlone(doc, [[/analog is the last layout, and every style picks it/, () => edit(doc, { op: "delete_layout", name: "analog", also_default: "analog_dark" })]]);
+  // a face whose styles do not need a layout: the last one goes, and layouts: with it
+  const plain = make(await newStudio());
+  edit(plain, { op: "add_layout", name: "only" });
+  edit(plain, { op: "add_layout", name: "spare" });
+  edit(plain, { op: "delete_layout", name: "spare" });
+  assert.deepEqual(layoutsOf(plain), ["only"]);
+  assert.deepEqual(Object.keys(stylesOf(plain).choices), ["only"]);
+});
+
+test("a mapping entry is moved among its siblings, its lines with it, in block and flow mappings", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  const lines = (t: string): string[] => t.split("\n").sort();
+  const before = doc.text;
+  edit(doc, { op: "move_key", path: ["config", "style", "choices", "roman_dark"], to: 0 });
+  assert.deepEqual(Object.keys(stylesOf(doc).choices), ["roman_dark", "analog_dark", "analog_light", "analog_crimson", "digital_dark", "digital_light", "roman_crimson"]);
+  assert.deepEqual(lines(doc.text), lines(before), "the same lines, reordered");
+  assert.equal(doc.head.label, "move config.style.choices.roman_dark to position 0");
+  // a flow mapping's entry
+  edit(doc, { op: "move_key", path: ["config", "style", "choices", "analog_dark", "scheme"], to: 0 });
+  assert.deepEqual(Object.keys(stylesOf(doc).choices.analog_dark), ["scheme", "label", "layout"]);
+  assert.ok(doc.text.includes("analog_dark: { scheme: dark, label: \"Analog \u00b7 Dark\", layout: analog }"), doc.text.split("\n").find((l) => l.includes("analog_dark:")));
+  // the palette, and a slot
+  const palette = Object.keys(dataOf(doc).resources.palette);
+  edit(doc, { op: "move_key", path: ["resources", "palette", palette[2]!], to: palette.length - 1 });
+  assert.deepEqual(Object.keys(dataOf(doc).resources.palette), [...palette.slice(0, 2), ...palette.slice(3), palette[2]]);
+  edit(doc, { op: "move_key", path: ["config", "slots", "right_register"], to: 0 });
+  assert.deepEqual(Object.keys(dataOf(doc).config.slots), ["right_register", "left_register"]);
+  // an element's own key, through the element target
+  edit(doc, { op: "move_key", element: ["elements", "left_register"], path: ["color"], to: 1 });
+  assert.equal(Object.keys(dataOf(doc).elements.left_register)[1], "color");
+  assert.notEqual(doc.analysis().face, null);
+  refusedAlone(doc, [
+    [/cannot move to position 9/, () => edit(doc, { op: "move_key", path: ["config", "slots", "right_register"], to: 9 })],
+    [/is not in the file/, () => edit(doc, { op: "move_key", path: ["config", "slots", "nope"], to: 0 })],
+    [/'to' must be a list index/, () => edit(doc, { op: "move_key", path: ["config", "slots", "right_register"] })],
+  ]);
+  doc.undo(doc.version);
+  doc.undo(doc.version);
+  doc.undo(doc.version);
+  doc.undo(doc.version);
+  doc.undo(doc.version);
+  assert.equal(doc.text, before);
+});
+
+test("the default style is set from the panel", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  edit(doc, { op: "set_default_style", name: "analog_light" });
+  assert.equal(stylesOf(doc).default, "analog_light");
+  assert.equal(doc.head.label, "make analog_light the default style");
+  refusedAlone(doc, [[/no style called nope/, () => edit(doc, { op: "set_default_style", name: "nope" })]]);
+});
+
+test("the layout and style ops are batch steps", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  doc.batch({ op: "batch", label: "reshuffle", edits: [
+    { op: "rename_layout", name: "roman", to: "numerals" },
+    { op: "move_key", path: ["layouts", "numerals"], to: 0 },
+    { op: "set_default_style", name: "roman_dark" },
+    { op: "delete_layout", name: "analog" },
+  ] }, doc.version);
+  assert.deepEqual(layoutsOf(doc), ["numerals", "digital"]);
+  assert.equal(stylesOf(doc).default, "roman_dark");
+  assert.equal(stylesOf(doc).choices.roman_dark.layout, "numerals");
+  assert.equal(doc.head.label, "reshuffle");
+  assert.notEqual(doc.analysis().face, null);
+});
+
 // -- batches --
 
 const BATCH_STEPS = [

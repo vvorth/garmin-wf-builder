@@ -87,10 +87,13 @@ const history = obj({
   snapshots: list(obj({ name: str, time: num, reason: str, seq: int, label: str, current: bool })),
 });
 const globals = obj({
+  face: obj({ name: nullable(str), version: nullable(str), id: nullable(str) }),
+  defaults: obj({ antialias: value, min_1px: value, aod: obj({ visible: value, dim: value, mask: value }) }),
   palette: list(obj({ name: str, value, label: value, long: bool, dithers_on: list(str), used_by: list(str), automatic: bool, problem: nullable(str), launcher: bool })),
   schemes: obj({ names: list(str), roles: list(str), colors: record(record(value)) }),
-  styles: obj({ default: nullable(str), entries: list(obj({ name: str, label: nullable(str), layout: nullable(str), scheme: nullable(str) })) }),
+  styles: obj({ default: nullable(str), entries: list(obj({ name: str, index: int, label: nullable(str), layout: nullable(str), scheme: nullable(str) })) }),
   layouts: list(str),
+  layout_entries: list(obj({ name: str, elements: int, static: int, styles: list(str) })),
   fonts: list(obj({ name: str, source: nullable(str), face: value, size: value })),
   slots: list(obj({ name: str, label: nullable(str), default: nullable(str), choices: oneOf(list(obj({ type: nullable(str), icon: nullable(str) })), str, nul), drawn_by: list(str) })),
   roles: list(str),
@@ -129,13 +132,18 @@ const frame = obj({
 
 const WIDGETS = ["readonly", "object", "length", "angle", "align", "color", "expression", "template", "enum", "slot", "handset", "font", "icon",
   "complication", "bool", "number", "text", "yaml"];
+const effective = obj({ value, from: literal("own", "override", "aod", "group", "defaults", "absent"), selector: opt(str), group: opt(str) });
 const field: Check = (v, at) => obj({
-  key: str, path, widget: literal(...WIDGETS), description: str, value, present: bool, required: bool, default: value, geometry: bool,
-  enum: opt(list(value)), children: opt(list(field)), text: opt(str),
+  key: str, path, kind: literal("scalar", "object", "list", "choice"), widget: literal(...WIDGETS), description: str, value, present: bool, required: bool,
+  default: value, geometry: bool, effective,
+  enum: opt(list(value)), children: opt(list(field)), item: opt(field), items: opt(list(field)), branches: opt(list(field)), chosen: opt(nullable(int)), truncated: opt(literal(true)),
+  text: opt(str),
 })(v, at);
 const scopeOverride = obj({ selector: str, keys: record(value) });
+const context = obj({ frame: literal("awake", "asleep", "aod"), style: nullable(str) });
 const inspect = obj({
-  element: path, id: str, type: str, fields: list(field), unknown: list(str), overrides: obj({ device: opt(scopeOverride), shape: opt(scopeOverride), display: opt(scopeOverride) }),
+  element: path, id: str, type: str, context, fields: list(field), unknown: list(str), aod_keys: list(str),
+  overrides: obj({ device: opt(scopeOverride), shape: opt(scopeOverride), display: opt(scopeOverride) }),
   overridden: list(obj({ selector: str, keys: record(value), line: int, end: int })), parts: nullable(obj({ count: int, shapes: list(str), line: int, end: int })),
   device: nullable(str), shape: nullable(str), display: nullable(str), error: nullable(str),
 });
@@ -212,6 +220,7 @@ test("every answer the worker sends has the protocol's shape", async () => {
   for (const node of nodes) {
     inspect((await ok("inspect", { id, element: node.path, device })).json, `inspect ${node.id} on ${device}`);
     inspect((await ok("inspect", { id, element: node.path, device: "" })).json, `inspect ${node.id}`);
+    inspect((await ok("inspect", { id, element: node.path, device, frame: "aod", style: face.styles[0].name })).json, `inspect ${node.id} in AOD`);
   }
   // not an element: the same shape, with the reason
   const none = (await ok("inspect", { id, element: ["resources"], device })).json;
@@ -232,6 +241,21 @@ test("every answer the worker sends has the protocol's shape", async () => {
   summary(take(await ok("edit", { id, version, edit: own })), "edit an element's key");
   dragged(take(await ok("drag", { id, version, device, element: text.id, gesture: { kind: "move", part: "both", dx: 1, dy: 0 } })), "drag");
   structured(take(await ok("structure", { id, version, edit: { op: "duplicate", path: text.path } })), "structure");
+  // an aod: restyle, through the aod scope
+  const restyled: EditOp = { op: "set", element: text.path, path: ["color"], scope: "aod", device: null, value: "color.fg" };
+  summary(take(await ok("edit", { id, version, edit: restyled })), "edit in the aod scope");
+  // the layout and style ops, each a batch step and an edit of its own
+  const layouts = face.globals.layouts;
+  const reorder: EditOp[] = [
+    { op: "rename_layout", name: layouts[0], to: "renamed" },
+    { op: "move_key", path: ["layouts", "renamed"], to: layouts.length - 1 },
+    { op: "set_default_style", name: face.globals.styles.entries[0].name },
+  ];
+  structured(take(await ok("batch", { id, version, label: "reorder", edits: reorder })), "batch of layout ops");
+  const spare = face.globals.layout_entries.find((l: any) => !l.styles.includes(face.globals.styles.entries[0].name) && l.name !== layouts[0]);
+  assert.ok(spare, "a layout the new default style does not pick");
+  const dropLayout: EditOp = { op: "delete_layout", name: spare.name };
+  summary(take(await ok("edit", { id, version, edit: dropLayout })), "delete_layout");
   // a text that is YAML but no face: the summary, its globals included, is whole
   const broken = take(await ok("text", { id, version, text: "- 1\n" }));
   summary(broken, "text");

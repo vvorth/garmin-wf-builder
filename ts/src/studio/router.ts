@@ -337,7 +337,9 @@ export class Router {
       case "inspect": {
         const element = args["element"];
         if (!Array.isArray(element)) throw new Refused("element is a list");
-        return json(doc.inspect(element, device));
+        const frame = text(args, "frame") || "awake";
+        if (frame !== "awake" && frame !== "asleep" && frame !== "aod") throw new Refused("frame is awake, asleep or aod");
+        return json(doc.inspect(element, device, { frame, style: text(args, "style") || null }));
       }
       case "build": {
         const target = device ?? "";

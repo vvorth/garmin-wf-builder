@@ -710,11 +710,16 @@ function renamedCopy(node: Data, paths: Set<string>, suffix: string, here: Step[
   return node;
 }
 
-function moveElementOn(index: SpanIndex, path: Path, to: number): Patch {
-  const entry = elementAt(index, path);
+/**
+ * The text with `entry` moved to position `to` among the entries of its
+ * mapping, its leading comment lines with it; `name` is how the label says
+ * it. In a block mapping the entry's lines move as a whole; in a flow
+ * mapping the entries' own text permutes and the separators stay in place.
+ */
+function moveEntryOn(index: SpanIndex, entry: Entry, to: number, name: string): Patch {
   const siblings = index.entries().filter((e) => e.parent === entry.parent);
   const here = siblings.indexOf(entry);
-  if (!(to >= 0 && to < siblings.length)) throw new Refused(`${entry.name} cannot move to position ${to} of ${siblings.length}`);
+  if (!(Number.isInteger(to) && to >= 0 && to < siblings.length)) throw new Refused(`${name} cannot move to position ${to} of ${siblings.length}`);
   const expected = withData(index);
   const parent = dataAt(expected, entry.path.slice(0, -1));
   if (!(parent instanceof Map)) throw new ShapeError("not a mapping");
@@ -722,8 +727,21 @@ function moveElementOn(index: SpanIndex, path: Path, to: number): Patch {
   const [moved] = items.splice(here, 1);
   items.splice(to, 0, moved!);
   rebuild(parent, items);
-  if (to === here) return patch(index.text, expected, `move ${entry.name}`);
+  if (to === here) return patch(index.text, expected, `move ${name}`);
   const text = index.text;
+  const what = `move ${name} to position ${to}`;
+  if (entry.isFlow) {
+    const ranges = siblings.map((s): [number, number] => [s.key.start.index, s.value.end.index]);
+    const order = ranges.map((_, i) => i);
+    order.splice(here, 1);
+    order.splice(to, 0, here);
+    let out = text.slice(0, ranges[0]![0]);
+    for (let slot = 0; slot < order.length; slot++) {
+      out += text.slice(...ranges[order[slot]!]!);
+      if (slot + 1 < order.length) out += text.slice(ranges[slot]![1], ranges[slot + 1]![0]);
+    }
+    return patch(out + text.slice(ranges[ranges.length - 1]![1]), expected, what);
+  }
   const [b0, b1] = index.entryRange(entry);
   const segment = text.slice(b0, b1);
   let result: string;
@@ -734,7 +752,12 @@ function moveElementOn(index: SpanIndex, path: Path, to: number): Patch {
     const a1 = index.valueEnd(siblings[to]!);
     result = text.slice(0, b0) + text.slice(b1, a1) + segment + text.slice(a1);
   }
-  return patch(result, expected, `move ${entry.name} to position ${to}`);
+  return patch(result, expected, what);
+}
+
+function moveElementOn(index: SpanIndex, path: Path, to: number): Patch {
+  const entry = elementAt(index, path);
+  return moveEntryOn(index, entry, to, entry.name);
 }
 
 const m = (...pairs: [string, Data][]): Map<DataKey, Data> => new Map(pairs);
@@ -922,6 +945,11 @@ export function moveElement(index: SpanIndex, path: Path, to: number): Patch {
   return endedPatch(index, (i) => moveElementOn(i, path, to));
 }
 
+/** Move the mapping entry at `path` to position `to` among its siblings (0 is first): a style entry, a palette colour, a slot, a hand set, an element's key. */
+export function moveKey(index: SpanIndex, path: Path, to: number): Patch {
+  return endedPatch(index, (i) => moveEntryOn(i, i.at(path), to, dotted(path)));
+}
+
 /** Add a new element of `type` to `block`, after the element `after` or at the end, with `DEFAULTS` and `faceColor`. */
 export function addElement(index: SpanIndex, type: string,
   { block = ["elements"] as Path, after, elementId }: { block?: Path; after?: string; elementId?: string } = {}): Patch {
@@ -951,15 +979,16 @@ export function renameReference(index: SpanIndex, path: Path, renamed: string, p
     i, (s) => s.replace(pattern, () => prefix + renamed), `refer to ${prefix}${renamed}`));
 }
 
-export function repointOn(index: SpanIndex, key: string, old: string, renamed: string): Patch {
+/** Rewrite `key: <old>` to `renamed` under each of the mappings at `owners` (every element's, when not given), each in its own quoting. */
+export function repointOn(index: SpanIndex, key: string, old: string, renamed: string, owners: Path[] = index.elements().map((e) => e.path)): Patch {
   let text = index.text;
   const expected = withData(index);
   const nodes: ScalarNode[] = [];
-  for (const element of index.elements()) {
-    const entry = index.get([...element.path, key]);
+  for (const owner of owners) {
+    const entry = index.get([...owner, key]);
     if (entry !== undefined && entry.value.kind === "scalar" && entry.value.value === old) {
       nodes.push(entry.value);
-      setChild(dataAt(expected, element.path), key, renamed);
+      setChild(dataAt(expected, owner), key, renamed);
     }
   }
   for (const node of [...nodes].sort((a, b) => b.start.index - a.start.index)) {
@@ -972,6 +1001,20 @@ export function repointOn(index: SpanIndex, key: string, old: string, renamed: s
 export function renameSlot(index: SpanIndex, old: string, renamed: string): Patch {
   return chain(renameKey(index, ["config", "slots", old], renamed),
     (i) => endedPatch(i, (j) => repointOn(j, "slot", old, renamed)));
+}
+
+/** The `config: style: choices:` entries' paths. */
+export function styleEntryPaths(index: SpanIndex): Path[] {
+  const choices = index.get(["config", "style", "choices"]);
+  if (choices === undefined || choices.value.kind !== "mapping") return [];
+  return index.entries().filter((e) => e.parent === choices.value).map((e) => e.path);
+}
+
+/** Rename the `layouts:` entry `old` and every `config: style:` entry's `layout: <old>`, as one patch. */
+export function renameLayout(index: SpanIndex, old: string, renamed: string): Patch {
+  const patched = chain(renameKey(index, ["layouts", old], renamed),
+    (i) => endedPatch(i, (j) => repointOn(j, "layout", old, renamed, styleEntryPaths(j))));
+  return patch(patched.text, patched.expected, `rename the layout ${old} to ${renamed}`);
 }
 
 /** The ids of the elements drawing the `config: slots:` entry `name`. */

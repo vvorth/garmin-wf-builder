@@ -307,6 +307,39 @@ transcription (`ts/src/draw/barrel.ts`). Each transcription is checked
 against the `.mc` source and swept against a model of the pixels the watch
 draws (`ts/test/barrel.test.ts`).
 
+The editor's inspector (`ts/src/studio/inspect.ts`, `inspect`; its shape is
+`Inspect` in `protocol.ts`) answers for one element, one device and one
+editing context (`frame`: awake, asleep or AOD; `style`). Its `fields` are a
+tree generated from the element's schema branch: each node's `kind` is
+`scalar` (with the control its `$defs` entry picks, `widget`), `object`
+(`children`, every property present or not; one whose keys the author names,
+such as `overrides:` by selector, lists the keys present and a new key's
+template as `item`), `list` (`item` the template, `items` one per item) or
+`choice` (`branches`, each a field, and `chosen` the branch the value's shape
+matches: const, type, required keys). `$ref`s resolve through `$defs` at
+every level, an `allOf` whose first branch is a `$ref` reads as that branch,
+and the tree is cut at depth 6 (`truncated`). Only a key the schema lacks is
+raw (`unknown`). Every field carries `effective`: the value the context reads
+and its provenance (`own`, `override` with the selector, `aod`, `group` with
+the group's id, `defaults`, `absent`). Awake, that is the most specific
+override the viewed device has, else the element's own key, a mapping merged
+key by key; in the AOD frame, the `aod:` cascade the compiler resolves
+(`ir/builder/aod.ts`): the element's own block, else the nearest ancestor
+group's block, else `defaults: {aod:}` for `visible` and `dim`, else the awake
+value, with a group's `visible: false` sticky (the built face's
+`aod_ancestor_hidden` decides it where the face loads). `aod_keys` lists the
+keys the element's kind may restyle there, from the schema's per-kind `aod*`
+def. The worker's edits (`EDITS` in `ts/src/studio/document.ts`, `EditOp` in
+`protocol.ts`) take an element target with a scope: `all` the element's own
+key, `device`/`shape`/`display` a geometry key's override, `aod` the key in
+the element's `aod:` block (refused, naming the keys allowed, for one its
+kind cannot restyle). Beside `set`, `remove`, `rename` and the list-item ops,
+`move_key` reorders a mapping entry among its siblings (block or flow),
+`rename_layout` renames a layout and every style's `layout:`,
+`delete_layout` removes a layout with the styles picking it (moving the
+default to `also_default`, or refused naming it), and `set_default_style`
+sets `config: style: default:`; each is one gated patch and a batch step.
+
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,
 the glyphs a baked sheet must hold, the exact strings the missing-glyph lint

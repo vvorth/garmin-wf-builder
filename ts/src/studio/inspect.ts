@@ -1,16 +1,24 @@
-// What the editor's inspector and Face panel show: an element's keys as
-// widgets, and the face's colours, styles, fonts and targets.
+// What the editor's inspector and Face panel show: an element's keys as a
+// field tree, each with the value the editing context reads, and the face's
+// colours, styles, layouts, fonts and targets.
 //
 // The inspector is generated from the published schema, so it offers
-// exactly the keys the format has for the element's `type:`. A key's widget
-// follows from the `$defs` entry its schema names (`length`, `angle`,
-// `align`, a colour, `position`, `size`) or else its JSON type; a key no
-// widget covers is shown as its text, edited in the YAML. A shape's keys
-// are narrowed to its own, since the schema lists every shape key on every
-// shape.
+// exactly the keys the format has for the element's `type:`, each as its
+// schema branch says: a scalar with the control its `$defs` entry picks
+// (`length`, `angle`, `align`, a colour, an expression) or else its JSON
+// type, an object with every property, a list with its items, or a choice
+// between branches. Only a key the schema does not have is raw (`unknown`).
+// A shape's keys are narrowed to its own, since the schema lists every
+// shape key on every shape.
 //
 // Values are the author's, read from the text: what the author wrote, in
-// their units, or nothing when the key is absent.
+// their units, or nothing when the key is absent. Beside each, `effective`
+// is what the editing context reads there: awake, the most specific
+// override the viewed device has, else the element's own key; in the
+// always-on frame, the `aod:` cascade the compiler resolves
+// (`ir/builder/aod.ts`): the element's own block, else the nearest ancestor
+// group's, else `defaults: {aod:}` for `visible` and `dim`, else the awake
+// value.
 import { BASE_API_LEVEL } from "../build.ts";
 import * as catalog from "../catalog.ts";
 import * as complications from "../complications.ts";
@@ -23,6 +31,7 @@ import { indexFor, type Path, Refused, type SpanIndex } from "../edit/spans.ts";
 import { elementTypes } from "../edit/structure.ts";
 import { WholeFloat } from "../edit/yaml.ts";
 import * as icons from "../icons.ts";
+import type { Face } from "../ir/model.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../kinds/shape.ts";
 import { Color, ColorError, MIP64_NAMED } from "../palette.ts";
 import { hasSkin } from "../preview.ts";
@@ -30,9 +39,9 @@ import { DATA_SAMPLE } from "../sample.ts";
 import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
-import type { IconSpelling,
-  Axes, AxisEntry, ComplicationType, DeviceInfo, Field, Globals, HandSet, Inspect, OverrideSummary, PartsSummary, SlotEntry, StyleEntry,
-  UnreadableDevice, Value, Widget, Words,
+import type {
+  Axes, AxisEntry, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
+  OverrideSummary, PartsSummary, SlotEntry, StyleEntry, UnreadableDevice, Value, Widget, Words,
 } from "./protocol.ts";
 
 /** A schema node, as JSON. */
@@ -51,7 +60,13 @@ const iconSpelling = (data: unknown): IconSpelling | null =>
 /** The keys an override may patch: edited with the "all targets / this device / this shape / this display class" chooser. */
 export const GEOMETRY: ReadonlySet<string> = new Set(["at", "size", "radius", "align"]);
 
-/** `$defs` entries that pick a widget, by the name the schema refers to. */
+/** The editing context when none is given: the awake frame, the face's default style. */
+export const AWAKE: EditContext = { frame: "awake", style: null };
+
+/** How deep the field tree follows the schema below an element's own keys. */
+const MAX_DEPTH = 6;
+
+/** `$defs` entries that pick a scalar's control, by the name the schema refers to. */
 const WIDGET_BY_REF: Record<string, Widget> = {
   length: "length", handLength: "length", patternLength: "length",
   angle: "angle",
@@ -59,10 +74,8 @@ const WIDGET_BY_REF: Record<string, Widget> = {
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
   visible: "expression", expression: "expression",
 };
-/** Objects shown as their own keys, one level down. */
-const NESTED = new Set(["position", "size", "patternStep", "curve"]);
-/** Keys the inspector leaves out: structure, the overrides the chooser writes, and a pattern's parts (its own compact summary). */
-const SKIPPED = new Set(["children", "overrides", "parts"]);
+/** Keys the inspector leaves out: the layer tree owns an element's `children:`. */
+const SKIPPED = new Set(["children"]);
 
 const isMap = (v: unknown): v is Map<unknown, unknown> => v instanceof Map;
 const g = (m: unknown, k: unknown): unknown => (m instanceof Map ? m.get(k) : undefined);
@@ -74,11 +87,29 @@ function refName(node: Json): string | null {
   return typeof ref === "string" ? ref.slice(ref.lastIndexOf("/") + 1) : null;
 }
 
-/** The first `$defs` name `node` refers to, and the schema it ends at. */
+/**
+ * `node` with its `$ref`s followed through `$defs`, and an `allOf` whose
+ * first branch is a `$ref` read as that branch (the shared shape, with the
+ * kind's own restriction beside it): the first `$defs` name met, and the
+ * schema it ends at.
+ */
 function deref(node: Json): [string | null, Json] {
-  const first = refName(node);
   const defs = schema()["$defs"] as Record<string, Json>;
-  for (let seen = 0; refName(node) !== null && seen < 10; seen++) node = defs[refName(node)!]!;
+  let first: string | null = null;
+  for (let seen = 0; seen < 10; seen++) {
+    const ref = refName(node);
+    if (ref !== null) {
+      first ??= ref;
+      node = defs[ref]!;
+      continue;
+    }
+    const all = node["allOf"];
+    if (Array.isArray(all) && all.length > 0 && refName(all[0] as Json) !== null) {
+      node = all[0] as Json;
+      continue;
+    }
+    break;
+  }
   return [first, node];
 }
 
@@ -90,6 +121,15 @@ export function elementSchema(type: string): Json | null {
     if (((branch["properties"] as Json | undefined)?.["type"] as Json | undefined)?.["const"] === type) return branch;
   }
   return null;
+}
+
+/** The keys an element of `type` may restyle in its `aod:` block, from the schema's per-kind `aod*` def; `visible` and `dim` are every kind's. */
+export function aodKeys(type: string): string[] {
+  const branch = elementSchema(type);
+  const node = branch !== null ? ((branch["properties"] ?? {}) as Record<string, Json>)["aod"] : undefined;
+  if (node === undefined) return [];
+  const [, resolved] = deref(node);
+  return Object.keys((resolved["properties"] ?? {}) as Json).filter((k) => k !== "visible" && k !== "dim");
 }
 
 function hidden(type: string): Set<string> {
@@ -104,58 +144,220 @@ function hidden(type: string): Set<string> {
   return out;
 }
 
-/** Whether `value`'s shape (object vs. scalar) matches a resolved branch's own schema type. */
-function shapeMatches(resolved: Json, value: unknown): boolean {
-  return resolved["type"] === "object" ? isMap(value) : isScalar(value);
-}
-
-function widget(key: string, type: string, node: Json, value: unknown): [Widget, Json] {
-  let [ref, resolved] = deref(node);
-  if (ref === null && Array.isArray(resolved["oneOf"])) {
-    const branches = (resolved["oneOf"] as Json[]).map((b) => deref(b)).filter(([r]) => r !== null && (r in WIDGET_BY_REF || NESTED.has(r)));
-    const present = value !== null && value !== undefined;
-    const picked = (present && branches.find(([, b]) => shapeMatches(b, value))) || branches[0];
-    if (picked) [ref, resolved] = picked;
+function dataAt(data: unknown, path: Path): unknown {
+  for (const step of path) {
+    if (isMap(data) && data.has(step)) data = data.get(step);
+    else if (Array.isArray(data) && typeof step === "number" && step >= -data.length && step < data.length) data = data.at(step);
+    else return null;
   }
-  if (key === "type") return ["readonly", resolved];
-  if ((ref !== null && NESTED.has(ref)) || (key === "icon" && type === "data")) return ["object", resolved];
-  if (ref !== null && ref in WIDGET_BY_REF) return [WIDGET_BY_REF[ref]!, resolved];
-  if (key === "text" && type === "text") return ["template", resolved];
-  if (key === "series" && type === "graph") return ["enum", { ...resolved, enum: series.names() }];
-  if (key === "slot") return ["slot", resolved];
-  if (key === "set" && type === "hands") return ["handset", resolved];
-  if (key === "font") return ["font", resolved];
-  if (key === "icon") return ["icon", resolved];
-  // a data element's hold opens the wearer's own pick, so `auto` is its only target
-  if (key === "on_hold") return ["complication", { ...resolved, enum: type === "data" ? ["auto"] : ["auto", ...complications.names()] }];
-  if ("enum" in resolved) return ["enum", resolved];
-  const kind = resolved["type"];
-  if (kind === "boolean") return ["bool", resolved];
-  if (kind === "integer" || kind === "number") return ["number", resolved];
-  if (kind === "string") return ["text", resolved];
-  return ["yaml", resolved];
+  return data;
 }
 
-function field(key: string, path: Path, type: string, node: Json, raw: unknown, required: boolean): Field {
-  const [kind, resolved] = widget(key, type, node, raw);
+// -- the field tree --
+
+/** Whether `raw`'s shape is what a choice's branch admits: its const or enum, its type, and an object's required keys. */
+function matches(node: Json, raw: unknown): boolean {
+  const [, resolved] = deref(node);
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(plain(a)) === JSON.stringify(b);
+  if ("const" in resolved) return same(raw, resolved["const"]);
+  if (Array.isArray(resolved["enum"])) return resolved["enum"].some((e) => same(raw, e));
+  const alternatives = resolved["oneOf"] ?? resolved["anyOf"];
+  if (Array.isArray(alternatives)) return alternatives.some((b) => matches(b as Json, raw));
+  const types = Array.isArray(resolved["type"]) ? resolved["type"] : [resolved["type"]];
+  return types.some((t) => {
+    if (t === "object") return isMap(raw) && ((resolved["required"] ?? []) as string[]).every((k) => raw.has(k));
+    if (t === "array") return Array.isArray(raw);
+    if (t === "string") return typeof raw === "string";
+    if (t === "boolean") return typeof raw === "boolean";
+    if (t === "integer") return typeof raw === "number" && Number.isInteger(raw);
+    if (t === "number") return typeof raw === "number" || raw instanceof WholeFloat;
+    return t === undefined;
+  });
+}
+
+/** What a field is, from its schema branch: its kind, a scalar's control, and the schema the branch ends at. */
+function classify(key: string, type: string, path: Path, node: Json): [FieldKind, Widget, Json] {
+  const [ref, resolved] = deref(node);
+  const scalar = (widget: Widget): [FieldKind, Widget, Json] => ["scalar", widget, resolved];
+  const kind = resolved["type"];
+  if (key === "type" && path.length === 1) return scalar("readonly");
+  if (ref !== null && ref in WIDGET_BY_REF) return scalar(WIDGET_BY_REF[ref]!);
+  // the templates: a text's own, a pattern text part's, and an aod: block's restyled one
+  if (key === "text" && kind === "string" && (path.length === 1 || path[0] === "parts" || path[0] === "aod")) return scalar("template");
+  if (key === "series" && type === "graph" && path.length === 1) return ["scalar", "enum", { ...resolved, enum: series.names() }];
+  if (key === "slot" && path.length === 1) return scalar("slot");
+  if (key === "set" && type === "hands" && path.length === 1) return scalar("handset");
+  if (key === "font" && kind === "string") return scalar("font");
+  // an element's icon: a name or a {codepoint}, one picker (a data element's icon: is the block placing the pick's own)
+  if (key === "icon" && type !== "data" && (kind === "string" || Array.isArray(resolved["oneOf"]))) return scalar("icon");
+  // a data element's hold opens the wearer's own pick, so `auto` is its only target
+  if (key === "on_hold" && path.length === 1) return ["scalar", "complication", { ...resolved, enum: type === "data" ? ["auto"] : ["auto", ...complications.names()] }];
+  if ("enum" in resolved) return scalar("enum");
+  if ("const" in resolved) return ["scalar", "enum", { ...resolved, enum: [resolved["const"]] }];
+  if (Array.isArray(resolved["oneOf"]) || Array.isArray(resolved["anyOf"])) return ["choice", "text", resolved];
+  if (kind === "object") return ["object", "object", resolved];
+  if (kind === "array") return ["list", "yaml", resolved];
+  if (kind === "boolean") return scalar("bool");
+  if (kind === "integer" || kind === "number") return scalar("number");
+  return scalar("text");
+}
+
+/** What `inspect` reads an element's keys against: the element, the device viewed, the context, and the `aod:` cascade round it. */
+interface Reading {
+  type: string;
+  data: Map<unknown, unknown>;
+  device: Device | null;
+  context: EditContext;
+  aodKeys: Set<string>;
+  cascade: Cascade;
+}
+
+function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, required: boolean, depth: number): Field {
+  const [kind, widget, resolved] = classify(key, r.type, path, node);
   const present = raw !== null && raw !== undefined;
-  // a structured value under a scalar's widget is shown as its text instead
-  const codepoint = kind === "icon" && isMap(raw) && raw.size === 1 && typeof raw.get("codepoint") === "string";
-  const shown: Widget = ["icon", "complication", "color", "yaml"].includes(kind) && present && !isScalar(raw) && !codepoint ? "yaml" : kind;
   const out: Field = {
-    key, path: [...path], widget: shown, description: String(node["description"] || resolved["description"] || ""),
+    key, path: [...path], kind, widget, description: String(node["description"] || resolved["description"] || ""),
     value: value(raw), present, required,
     default: value("default" in resolved ? resolved["default"] : node["default"]),
-    geometry: path.length > 0 ? GEOMETRY.has(String(path[0])) : false,
+    geometry: path.length > 0 && GEOMETRY.has(String(path[0])),
+    effective: effectiveOf(r, path),
   };
-  if ("enum" in resolved) out.enum = value(resolved["enum"]) as Value[];
-  if (kind === "object") {
+  if (depth > MAX_DEPTH) return { ...out, kind: "scalar", widget: "text", truncated: true };
+  if (kind === "scalar") {
+    if (Array.isArray(resolved["enum"])) out.enum = value(resolved["enum"]) as Value[];
+    // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` is one of its spellings
+    const codepoint = widget === "icon" && isMap(raw) && raw.size === 1 && typeof raw.get("codepoint") === "string";
+    if (present && !isScalar(raw) && !codepoint) out.widget = "yaml";
+  } else if (kind === "object") {
     const props = (resolved["properties"] ?? {}) as Record<string, Json>;
-    out.children = Object.entries(props).map(([k, sub]) => field(k, [...path, k], type, sub, isMap(raw) ? raw.get(k) ?? null : null, false));
+    const extra = resolved["additionalProperties"];
+    if (Object.keys(props).length > 0) {
+      const needed = new Set((resolved["required"] ?? []) as string[]);
+      out.children = Object.entries(props).map(([k, sub]) => field(r, k, [...path, k], sub, isMap(raw) ? raw.get(k) ?? null : null, needed.has(k), depth + 1));
+    } else if (extra !== null && typeof extra === "object") {
+      // the author names the keys (`overrides:` by selector): the keys present, and the template a new key takes
+      const sub = extra as Json;
+      out.children = keysOf(raw).map((k) => field(r, String(k), [...path, String(k)], sub, g(raw, k), false, depth + 1));
+      out.item = field(r, "", [...path, ""], sub, null, false, depth + 1);
+    } else {
+      out.children = [];
+    }
+  } else if (kind === "list") {
+    const sub = (resolved["items"] ?? {}) as Json;
+    const items = Array.isArray(raw) ? raw : [];
+    out.items = items.map((item, i) => field(r, String(i), [...path, i], sub, item, false, depth + 1));
+    out.item = field(r, String(items.length), [...path, items.length], sub, null, false, depth + 1);
+  } else {
+    const branches = (resolved["oneOf"] ?? resolved["anyOf"]) as Json[];
+    const chosen = present ? branches.findIndex((b) => matches(b, raw)) : -1;
+    out.branches = branches.map((b, i) => field(r, key, path, b, i === chosen ? raw : null, required, depth + 1));
+    out.chosen = chosen >= 0 ? chosen : null;
+    out.widget = out.branches[Math.max(chosen, 0)]?.widget ?? "text";
   }
-  if (shown === "yaml" && present) out.text = typeof raw === "string" ? raw : jsonDumps(raw);
+  if (out.widget === "yaml" && present) out.text = typeof raw === "string" ? raw : jsonDumps(raw);
   return out;
 }
+
+// -- effective values --
+
+/** A value a context might read, and where it would come from. */
+type Source = [raw: unknown, from: Omit<Effective, "value">];
+
+/**
+ * The most specific source that has a value, with a mapping merged key by
+ * key over the mappings beneath it (an override's `at: {dy}` keeps the
+ * element's `anchor:`), unless `whole` says the value replaces.
+ */
+function layered(sources: Source[], whole = false): Effective {
+  const found = sources.filter(([raw]) => raw !== null && raw !== undefined);
+  if (found.length === 0) return { value: null, from: "absent" };
+  const [top, from] = found[0]!;
+  if (isMap(top) && !whole) {
+    const merged = new Map<unknown, unknown>();
+    for (const [raw] of [...found].reverse()) if (isMap(raw)) for (const [k, v] of raw) merged.set(k, v);
+    return { ...from, value: value(merged) };
+  }
+  return { ...from, value: value(top) };
+}
+
+/** The awake rule: the viewed device's overrides, most specific first, then the element's own key. */
+function awakeSources(r: Reading, path: Path): Source[] {
+  const own: Source = [dataAt(r.data, path), { from: "own" }];
+  if (r.device === null) return [own];
+  return [...selectorPaths(r.device).map((selector): Source => [dataAt(r.data, [...selector, ...path]), { from: "override", selector: String(selector[1]) }]), own];
+}
+
+/**
+ * The `aod:` blocks round an element: its own, the nearest ancestor group's
+ * that wrote one (the compiler takes that block whole, never a merge of
+ * several ancestors'), the face's `defaults: {aod:}`, and the group whose
+ * `visible: false` hides the element's whole subtree, if any.
+ */
+interface Cascade {
+  own: Map<unknown, unknown> | null;
+  group: { id: string; aod: Map<unknown, unknown> } | null;
+  defaults: Map<unknown, unknown> | null;
+  hiddenBy: string | null;
+}
+
+/**
+ * The cascade round the element at `element`, from the text, with the
+ * compiler's own decision on the sticky hide where the face is built
+ * (`Element.aod_ancestor_hidden`); the text names the group.
+ */
+function cascadeOf(index: SpanIndex, element: Path, data: Map<unknown, unknown>, face: Face | null): Cascade {
+  const block = (node: unknown): Map<unknown, unknown> | null => (isMap(g(node, "aod")) ? g(node, "aod") as Map<unknown, unknown> : null);
+  const ancestors: { id: string; aod: Map<unknown, unknown> | null }[] = [];
+  for (let p = element; p.length >= 4 && p[p.length - 2] === "children"; p = p.slice(0, -2)) {
+    const parent = p.slice(0, -2);
+    const node = dataAt(index.data, parent);
+    if (isMap(node) && node.has("type")) ancestors.push({ id: String(parent[parent.length - 1]), aod: block(node) });
+  }
+  const built = face?.walk().find((e) => e.id === String(element[element.length - 1]));
+  let hiddenBy = ancestors.find((a) => a.aod !== null && a.aod.get("visible") === false)?.id ?? null;
+  if (built !== undefined && !built.aod_ancestor_hidden) hiddenBy = null;
+  const nearest = ancestors.find((a) => a.aod !== null);
+  const defaults = dataAt(index.data, ["defaults", "aod"]);
+  return {
+    own: block(data),
+    group: nearest !== undefined ? { id: nearest.id, aod: nearest.aod! } : null,
+    defaults: isMap(defaults) ? defaults : null,
+    hiddenBy,
+  };
+}
+
+/** Whether the always-on frame draws the element: a group's `visible: false` is sticky, a block written draws it, else the face default. */
+function aodVisible(c: Cascade): Effective {
+  if (c.hiddenBy !== null) return { value: false, from: "group", group: c.hiddenBy };
+  if (c.own !== null) return { value: value(c.own.has("visible") ? c.own.get("visible") : true), from: "aod" };
+  if (c.group !== null) return { value: value(c.group.aod.has("visible") ? c.group.aod.get("visible") : true), from: "group", group: c.group.id };
+  return { value: value(c.defaults?.get("visible") ?? false), from: "defaults" };
+}
+
+/** What the always-on frame reads for the key `path` of an `aod:` block: the cascade, then the awake value for a restyling key. */
+function aodEffective(r: Reading, path: Path): Effective {
+  const c = r.cascade;
+  const key = String(path[0]);
+  if (path.length === 1 && key === "visible") return aodVisible(c);
+  const sources: Source[] = [];
+  if (c.own !== null) sources.push([dataAt(c.own, path), { from: "aod" }]);
+  if (c.group !== null) sources.push([dataAt(c.group.aod, path), { from: "group", group: c.group.id }]);
+  if (path.length === 1 && (key === "visible" || key === "dim")) sources.push([g(c.defaults, key), { from: "defaults" }]);
+  if (key !== "dim") sources.push(...awakeSources(r, path));
+  // an aod: outline replaces the awake ring whole
+  return layered(sources, key === "outline");
+}
+
+/** What the editing context reads for the key at `path` of the element. */
+function effectiveOf(r: Reading, path: Path): Effective {
+  if (r.context.frame !== "aod" || path.length === 0) return layered(awakeSources(r, path));
+  if (path[0] === "aod") return path.length > 1 ? aodEffective(r, path.slice(1)) : layered(awakeSources(r, path));
+  const key = String(path[0]);
+  if (key === "visible" || r.aodKeys.has(key)) return aodEffective(r, path);
+  return layered(awakeSources(r, path));
+}
+
+// -- the rest of the answer --
 
 /** Every selector's non-geometry overrides (`color`/`track_color`/`visible`), read-only, with its line span to jump to in the YAML tab. */
 function nonGeometryOverrides(index: SpanIndex, element: Path, data: unknown): OverrideSummary[] {
@@ -193,21 +395,18 @@ function patternPartsSummary(index: SpanIndex, type: string, element: Path, data
   };
 }
 
-function dataAt(data: unknown, path: Path): unknown {
-  for (const step of path) {
-    if (isMap(data) && data.has(step)) data = data.get(step);
-    else if (Array.isArray(data) && typeof step === "number" && step >= -data.length && step < data.length) data = data.at(step);
-    else return null;
-  }
-  return data;
-}
-
-/** The inspector for the element at `element`: its fields in schema order, and each geometry key's overrides on `device`. */
-export function inspect(text: string, element: Path, device: Device | null): Inspect {
+/**
+ * The inspector for the element at `element`: its fields in schema order,
+ * each with what `context` reads on `device`, and each geometry key's
+ * overrides there. `face` is the text built, when it loads, for the
+ * compiler's own resolution of the `aod:` cascade.
+ */
+export function inspect(text: string, element: Path, device: Device | null, context: EditContext = AWAKE, face: Face | null = null): Inspect {
   const index = indexFor(text);
   const data = dataAt(index.data, element);
   const out: Inspect = {
-    element: [...element], id: String(element[element.length - 1]), type: "", fields: [], unknown: [], overrides: {}, overridden: [], parts: null,
+    element: [...element], id: String(element[element.length - 1]), type: "", context: { ...context }, fields: [], unknown: [], aod_keys: [],
+    overrides: {}, overridden: [], parts: null,
     device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null, error: null,
   };
   if (!isMap(data) || !data.has("type")) return { ...out, error: "not an element" };
@@ -217,10 +416,12 @@ export function inspect(text: string, element: Path, device: Device | null): Ins
   const required = new Set((branch["required"] ?? []) as string[]);
   const props = (branch["properties"] ?? {}) as Record<string, Json>;
   const order = [...[...data.keys()].filter((k) => typeof k === "string" && k in props) as string[], ...Object.keys(props).filter((k) => !data.has(k))];
+  const restyled = aodKeys(type);
+  const reading: Reading = { type, data, device, context, aodKeys: new Set(restyled), cascade: cascadeOf(index, element, data, face) };
   const fields = order
     .filter((k) => !SKIPPED.has(k) && (!hide.has(k) || data.has(k))
       && (data.has(k) || !String(props[k]!["description"] ?? "").startsWith("Not accepted")))
-    .map((k) => field(k, [k], type, props[k]!, data.has(k) ? data.get(k) : null, required.has(k)));
+    .map((k) => field(reading, k, [k], props[k]!, data.has(k) ? data.get(k) : null, required.has(k), 1));
   const unknown = [...data.keys()].filter((k) => !(String(k) in props)).map(String);
   const overrides: Inspect["overrides"] = {};
   if (device !== null) {
@@ -231,10 +432,9 @@ export function inspect(text: string, element: Path, device: Device | null): Ins
     }
   }
   return {
-    ...out, type, fields, unknown, overrides,
+    ...out, type, fields, unknown, aod_keys: restyled, overrides,
     overridden: nonGeometryOverrides(index, element, data),
     parts: patternPartsSummary(index, type, element, data),
-    display: device?.displayClass ?? null,
   };
 }
 
@@ -300,13 +500,31 @@ function axes(data: unknown): Axes {
   return out;
 }
 
+/** `face:` as written. */
+function faceInfo(data: unknown): Globals["face"] {
+  const face = g(data, "face");
+  return { name: name(g(face, "name")), version: name(g(face, "version")), id: name(g(face, "id")) };
+}
+
+/** `defaults:` as written. */
+function defaultsInfo(data: unknown): Globals["defaults"] {
+  const defaults = g(data, "defaults");
+  const aod = g(defaults, "aod");
+  return {
+    antialias: value(g(defaults, "antialias")), min_1px: value(g(defaults, "min_1px")),
+    aod: { visible: value(g(aod, "visible")), dim: value(g(aod, "dim")), mask: value(g(aod, "mask")) },
+  };
+}
+
 /** `globalsOf` for a text that does not parse: nothing in it. */
 const NO_GLOBALS: Globals = {
-  palette: [], schemes: { names: [], roles: [], colors: {} }, styles: { default: null, entries: [] }, layouts: [], fonts: [], slots: [], roles: [],
-  axes: { accent_color: null, data_color: null }, displays: [], hand_sets: [], hands: [], targets: [], target_problems: {},
+  face: { name: null, version: null, id: null },
+  defaults: { antialias: null, min_1px: null, aod: { visible: null, dim: null, mask: null } },
+  palette: [], schemes: { names: [], roles: [], colors: {} }, styles: { default: null, entries: [] }, layouts: [], layout_entries: [], fonts: [], slots: [],
+  roles: [], axes: { accent_color: null, data_color: null }, displays: [], hand_sets: [], hands: [], targets: [], target_problems: {},
 };
 
-/** The face's colours, schemes, styles, layouts, fonts, slots and targets. */
+/** The face's identity, defaults, colours, schemes, styles, layouts, fonts, slots and targets. */
 export function globalsOf(text: string, db: DeviceDatabase): Globals {
   let index: SpanIndex;
   try {
@@ -349,18 +567,29 @@ export function globalsOf(text: string, db: DeviceDatabase): Globals {
     const spec = g(g(resources, "fonts"), key);
     return { name: String(key), source: name(g(spec, "source")), face: value(g(spec, "face")), size: value(g(spec, "size")) };
   });
-  const entries: StyleEntry[] = keysOf(g(style, "choices")).map((key) => {
+  const entries: StyleEntry[] = keysOf(g(style, "choices")).map((key, index) => {
     const e = g(g(style, "choices"), key);
-    return { name: String(key), label: name(g(e, "label")), layout: name(g(e, "layout")), scheme: name(g(e, "scheme")) };
+    return { name: String(key), index, label: name(g(e, "label")), layout: name(g(e, "layout")), scheme: name(g(e, "scheme")) };
+  });
+  const layouts = g(data, "layouts");
+  const layoutEntries: LayoutEntry[] = keysOf(layouts).map((key) => {
+    const layout = g(layouts, key);
+    return {
+      name: String(key), elements: keysOf(g(layout, "elements")).length, static: keysOf(g(layout, "static")).length,
+      styles: entries.filter((e) => e.layout === String(key)).map((e) => e.name),
+    };
   });
   return {
+    face: faceInfo(data),
+    defaults: defaultsInfo(data),
     palette,
     schemes: {
       names: keysOf(schemes).map(String), roles,
       colors: Object.fromEntries(keysOf(schemes).map((n) => [String(n), mapping(g(g(schemes, n), "colors"))])),
     },
     styles: { default: name(g(style, "default")), entries },
-    layouts: keysOf(g(data, "layouts")).map(String),
+    layouts: keysOf(layouts).map(String),
+    layout_entries: layoutEntries,
     fonts,
     slots: slots(index),
     roles: colors.roles(index),
@@ -431,4 +660,3 @@ export function devices(db: DeviceDatabase): [DeviceInfo[], UnreadableDevice[]] 
   const lower = (d: DeviceInfo): string => d.name.toLowerCase();
   return [out.sort((a, b) => (lower(a) < lower(b) ? -1 : lower(a) > lower(b) ? 1 : 0)), unreadable];
 }
-

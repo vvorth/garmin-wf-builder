@@ -17,7 +17,7 @@ import { bundle, missing } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect, vocabulary } from "../src/studio/inspect.ts";
 import { allowHostList, digest, start } from "../src/studio/server.ts";
-import type { Inspect } from "../src/studio/protocol.ts";
+import type { EditContext, Inspect } from "../src/studio/protocol.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
 
@@ -45,7 +45,7 @@ test("every key an element has is a field", () => {
     for (const entry of index.elements()) {
       const result = inspect(text, entry.path, fr955);
       assert.deepEqual(result["unknown"], [], `${path}: ${entry.name}`);
-      const shown = new Set([...(result["fields"] as any[]).map((f) => f.key), "children", "overrides", "parts"]);
+      const shown = new Set([...(result["fields"] as any[]).map((f) => f.key), "children"]);
       let data: any = index.data;
       for (const step of entry.path) data = data.get(step);
       for (const key of data.keys()) assert.ok(shown.has(key), `${path}: ${entry.name}.${key}`);
@@ -211,18 +211,242 @@ test("a non-geometry override is visible read-only, regardless of the device vie
   assert.deepEqual(overridden("fenix8solar47mm"), onFr955);
 });
 
-test("a pattern's parts are a read-only count and shapes, not a field; other elements have none", () => {
+test("a pattern's parts are summarised with their lines beside the parts field; other elements have no summary", () => {
   const patterns = readText("examples/features/patterns/face.yaml");
   const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
   const hourTicks = inspect(patterns, pathOf(patterns, "hour_ticks"), null);
   assert.deepEqual((hourTicks["parts"] as any).shapes, ["rectangle"]);
   assert.equal((hourTicks["parts"] as any).count, 1);
   assert.ok((hourTicks["parts"] as any).line < (hourTicks["parts"] as any).end);
-  assert.ok(!(hourTicks["fields"] as any[]).some((f) => f.key === "parts"));
+  assert.equal((hourTicks["fields"] as any[]).find((f) => f.key === "parts").kind, "list");
 
   const clock = starters.instantiate("minimal", "P");
   const text = inspect(clock, indexFor(clock).elements().find((e) => e.name === "clock")!.path, null);
   assert.equal(text["parts"], null);
+});
+
+// -- the field tree --
+
+const AOD = "examples/features/aod/face.yaml";
+const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
+const treeOf = (text: string, id: string, device: string | null = null, context?: any): Record<string, any> =>
+  fieldsOf(inspect(text, pathOf(text, id), device ? db.get(device) : null, context));
+const child = (field: any, key: string): any => field.children.find((c: any) => c.key === key);
+const keysOf = (fields: any[]): string[] => fields.map((f) => f.key);
+
+/** Every field of the tree, depth first. */
+function walk(fields: any[], out: any[] = []): any[] {
+  for (const f of fields) {
+    out.push(f);
+    walk([...(f.children ?? []), ...(f.items ?? []), ...(f.branches ?? []), ...(f.item ? [f.item] : [])], out);
+  }
+  return out;
+}
+
+test("a field is a tree: an object's children, a list's items, a choice's branches with the chosen one", () => {
+  const aod = readText(AOD);
+  const clock = treeOf(aod, "clock");
+  assert.equal(clock["at"].kind, "object");
+  assert.deepEqual(keysOf(clock["at"].children), ["anchor", "dx", "dy", "angle", "radius"]);
+  assert.deepEqual([child(clock["at"], "anchor").kind, child(clock["at"], "anchor").widget], ["scalar", "enum"]);
+  assert.equal(clock["color"].kind, "scalar");
+  // the aod: block is an object of the kind's restyling keys; its outline is a choice, written as the {color, width} branch
+  assert.equal(clock["aod"].kind, "object");
+  assert.deepEqual(keysOf(clock["aod"].children), ["color", "font", "text", "outline", "visible", "dim"]);
+  const outline = child(clock["aod"], "outline");
+  assert.equal(outline.kind, "choice");
+  assert.equal(outline.chosen, 1);
+  assert.deepEqual(outline.branches.map((b: any) => [b.kind, b.widget]), [["scalar", "enum"], ["object", "object"]]);
+  assert.deepEqual(outline.branches[0].enum, ["none"]);
+  assert.deepEqual(keysOf(outline.branches[1].children), ["color", "width"]);
+  assert.deepEqual(outline.path, ["aod", "outline"]);
+  assert.deepEqual(outline.branches[1].path, ["aod", "outline"]);
+  assert.equal(child(outline.branches[1], "width").value, 2);
+  // a choice nothing is written for: no branch chosen
+  assert.equal(clock["absent"].kind, "choice");
+  assert.equal(clock["absent"].chosen, null);
+  assert.equal(clock["absent"].branches.length, 3);
+  assert.equal(clock["absent"].widget, "enum", "a choice's widget is its first branch's while nothing is written");
+  // aod visible: a boolean or an expression; the showcase's absent: {text: "--"} picks the text branch
+  const dateText = treeOf(aod, "date_text");
+  const visible = child(dateText["aod"], "visible");
+  assert.equal(visible.kind, "choice");
+  assert.equal(visible.chosen, 0);
+  assert.deepEqual(visible.branches.map((b: any) => b.widget), ["bool", "expression"]);
+  assert.equal(visible.widget, "bool", "a choice's widget is its chosen branch's");
+  const register = treeOf(readText("examples/showcase/face.yaml"), "left_register");
+  assert.equal(register["absent"].kind, "choice");
+  assert.equal(register["absent"].chosen, 1);
+  assert.deepEqual(register["absent"].value, { text: "--" });
+  assert.deepEqual(keysOf(register["absent"].branches[1].children), ["text"]);
+  // a list: lint.allow, one item present, and the template a new item takes
+  const allow = child(dateText["lint"], "allow");
+  assert.equal(allow.kind, "list");
+  assert.equal(allow.items.length, 1);
+  assert.deepEqual([allow.items[0].path, allow.items[0].value, allow.items[0].kind], [["lint", "allow", 0], "aod-unreachable", "scalar"]);
+  assert.deepEqual([allow.item.path, allow.item.kind, allow.item.widget, allow.item.present], [["lint", "allow", 1], "scalar", "text", false]);
+  // a graph's range: one of {samples} and {duration}, chosen by the key written
+  const graph = treeOf(readText("examples/features/graph/face.yaml"), "hr_graph");
+  assert.equal(graph["range"].kind, "choice");
+  assert.equal(graph["range"].chosen, 1);
+  assert.deepEqual(graph["range"].branches.map((b: any) => keysOf(b.children)), [["samples"], ["duration"]]);
+  // a key the schema knows is never raw, and nothing in the examples is cut short
+  for (const path of faces("examples")) {
+    const text = readText(path);
+    for (const entry of indexFor(text).elements()) {
+      for (const f of walk(inspect(text, entry.path, null).fields)) {
+        assert.ok(f.kind !== "scalar" || f.widget !== "yaml" || !f.present || typeof f.value === "object", `${path}: ${entry.name}.${f.path.join(".")} is raw`);
+        assert.ok(!f.truncated, `${path}: ${entry.name}.${f.path.join(".")} is cut short`);
+      }
+    }
+  }
+});
+
+test("a pattern's parts are a list of part objects, each with its own fields", () => {
+  const showcase = readText("examples/showcase/face.yaml");
+  const numerals = treeOf(showcase, "hour_numerals");
+  const parts = numerals["parts"];
+  assert.equal(parts.kind, "list");
+  assert.equal(parts.items.length, 1);
+  const part = parts.items[0];
+  assert.deepEqual([part.kind, part.path], ["object", ["parts", 0]]);
+  assert.ok(keysOf(part.children).includes("type") && keysOf(part.children).includes("points") && keysOf(part.children).includes("text"));
+  assert.deepEqual([child(part, "type").widget, child(part, "type").value], ["enum", "text"]);
+  assert.equal(child(part, "text").widget, "template");
+  assert.deepEqual(child(part, "at").children.map((c: any) => [c.key, c.widget]), [["dx", "length"], ["dy", "length"], ["angle", "angle"], ["radius", "length"]]);
+  assert.equal(parts.item.kind, "object");
+  assert.deepEqual(parts.item.path, ["parts", 1]);
+  // a polygon part's points: a list of positions
+  const patterns = readText("examples/features/patterns/face.yaml");
+  const polygon = treeOf(patterns, "diagonals")["parts"];
+  const points = child(polygon.items[0], "points");
+  assert.equal(points.kind, "list");
+  assert.ok(points.items.length >= 3);
+  assert.deepEqual(points.items[0].path, ["parts", 0, "points", 0]);
+  assert.equal(child(points.items[0], "dy").widget, "length");
+  // the read-only summary stays for now
+  assert.equal(inspect(showcase, pathOf(showcase, "hour_numerals"), null).parts!.count, 1);
+});
+
+test("overrides are an object keyed by selector, each the keys an override may patch, with a template for a new selector", () => {
+  const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px } }, "shape:round": { color: color.dim } }\n');
+  const clock = treeOf(text, "clock", "fr955");
+  const overrides = clock["overrides"];
+  assert.equal(overrides.kind, "object");
+  assert.deepEqual(keysOf(overrides.children), ["fr955", "shape:round"]);
+  const fr955 = child(overrides, "fr955");
+  assert.deepEqual([fr955.kind, fr955.path], ["object", ["overrides", "fr955"]]);
+  assert.deepEqual(keysOf(fr955.children), ["at", "size", "radius", "align", "color", "track_color", "visible"]);
+  assert.equal(child(child(fr955, "at"), "dy").value, "2px");
+  assert.deepEqual(child(child(fr955, "at"), "dy").path, ["overrides", "fr955", "at", "dy"]);
+  assert.equal(child(child(overrides, "shape:round"), "color").value, "color.dim");
+  assert.deepEqual([overrides.item.kind, overrides.item.path], ["object", ["overrides", ""]]);
+  assert.deepEqual(keysOf(overrides.item.children), keysOf(fr955.children));
+  // an element with none still offers the key, with no children and the template
+  const plain = treeOf(starters.instantiate("minimal", "P"), "clock")["overrides"];
+  assert.deepEqual([plain.kind, plain.present, plain.children], ["object", false, []]);
+  assert.equal(plain.item.kind, "object");
+});
+
+// -- effective values --
+
+const effective = (field: any): any => field.effective;
+
+test("awake, a field reads the most specific override the viewed device has, else the element's own key", () => {
+  const text = starters.instantiate("minimal", "E").replace("    at: { anchor: center }\n    color: color.text\n",
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px }, color: color.dim }, "shape:round": { at: { dx: 1px } } }\n');
+  const onFr955 = treeOf(text, "clock", "fr955");
+  assert.deepEqual(effective(child(onFr955["at"], "dy")), { value: "2px", from: "override", selector: "fr955" });
+  assert.deepEqual(effective(child(onFr955["at"], "dx")), { value: "1px", from: "override", selector: "shape:round" });
+  assert.deepEqual(effective(child(onFr955["at"], "anchor")), { value: "center", from: "own" });
+  assert.deepEqual(effective(onFr955["at"]), { value: { anchor: "center", dx: "1px", dy: "2px" }, from: "override", selector: "fr955" }, "a mapping merges, most specific last");
+  assert.deepEqual(effective(onFr955["color"]), { value: "color.dim", from: "override", selector: "fr955" });
+  assert.deepEqual(effective(onFr955["font"]), { value: "FONT_NUMBER_HOT", from: "own" });
+  assert.deepEqual(effective(onFr955["visible"]), { value: null, from: "absent" });
+  const onFenix = treeOf(text, "clock", "fenix8solar47mm");
+  assert.deepEqual(effective(child(onFenix["at"], "dy")), { value: null, from: "absent" });
+  assert.deepEqual(effective(child(onFenix["at"], "dx")), { value: "1px", from: "override", selector: "shape:round" });
+  assert.deepEqual(effective(onFenix["color"]), { value: "color.text", from: "own" });
+  // no device viewed: the element's own keys
+  assert.deepEqual(effective(treeOf(text, "clock")["color"]), { value: "color.text", from: "own" });
+  // the asleep frame reads as the awake one
+  assert.deepEqual(effective(treeOf(text, "clock", "fr955", { frame: "asleep", style: null })["color"]), { value: "color.dim", from: "override", selector: "fr955" });
+});
+
+test("in the AOD frame a field reads the always-on cascade: the element's aod:, the nearest group's, defaults:, else the awake value", () => {
+  const aod = readText(AOD);
+  const AOD_FRAME: EditContext = { frame: "aod", style: null };
+  const on = (id: string): Record<string, any> => treeOf(aod, id, "fenix847mm", AOD_FRAME);
+  const clock = on("clock");
+  assert.deepEqual(effective(clock["color"]), { value: "color.black", from: "aod" });
+  assert.deepEqual(effective(clock["text"]), { value: "{time.clock:%H %M}", from: "aod" });
+  assert.deepEqual(effective(clock["outline"]), { value: { width: 2, color: "color.dim" }, from: "aod" });
+  assert.deepEqual(effective(clock["font"]), { value: "FONT_NUMBER_MEDIUM", from: "own" }, "a key the block leaves alone keeps its awake value");
+  assert.deepEqual(effective(child(clock["aod"], "dim")), { value: 1, from: "aod" });
+  assert.deepEqual(effective(clock["visible"]), { value: true, from: "aod" }, "writing the block draws the element");
+  const dot = on("accent_dot");
+  assert.deepEqual(effective(child(dot["aod"], "dim")), { value: 0.6, from: "defaults" });
+  assert.deepEqual(effective(dot["filled"]), { value: false, from: "aod" });
+  assert.deepEqual(effective(dot["thickness"]), { value: "2px", from: "aod" });
+  assert.deepEqual(effective(dot["color"]), { value: "color.accent", from: "own" });
+  const bezel = on("bezel_ring");
+  assert.deepEqual(effective(bezel["visible"]), { value: false, from: "defaults" }, "nothing in its ancestry mentions aod:");
+  assert.deepEqual(effective(bezel["color"]), { value: "color.gray", from: "own" });
+  assert.deepEqual(effective(child(bezel["aod"], "visible")), { value: false, from: "defaults" });
+  // a group's visible: false is sticky: the child's own aod: {visible: true} cannot undo it
+  const dateText = on("date_text");
+  assert.deepEqual(effective(dateText["visible"]), { value: false, from: "group", group: "info" });
+  assert.deepEqual(effective(child(dateText["aod"], "visible")), { value: false, from: "group", group: "info" });
+  const ring = on("battery_ring");
+  assert.deepEqual(effective(ring["thickness"]), { value: "1%r", from: "aod" });
+  assert.deepEqual(effective(ring["track_color"]), { value: "color.dim", from: "own" });
+  // awake, the same keys read the awake design
+  assert.deepEqual(effective(treeOf(aod, "clock", "fenix847mm")["color"]), { value: "color.white", from: "own" });
+  // the context is echoed; awake and no style when none is given
+  assert.deepEqual(inspect(aod, pathOf(aod, "clock"), db.get("fenix847mm"), AOD_FRAME).context, AOD_FRAME);
+  assert.deepEqual(inspect(aod, pathOf(aod, "clock"), null).context, { frame: "awake", style: null });
+});
+
+test("a group's aod: restyles the elements below it, key by key", () => {
+  const text = starters.instantiate("minimal", "G").replace("elements:\n", "elements:\n  info:\n    type: group\n    aod: { color: color.dim, dim: 0.5 }\n    children:\n      label:\n        type: text\n        text: Hi\n        font: FONT_SMALL\n        at: { anchor: center, dy: -30%r }\n        color: color.text\n");
+  const label = treeOf(text, "label", "fr955", { frame: "aod", style: null });
+  assert.deepEqual(effective(label["color"]), { value: "color.dim", from: "group", group: "info" });
+  assert.deepEqual(effective(child(label["aod"], "dim")), { value: 0.5, from: "group", group: "info" });
+  assert.deepEqual(effective(label["visible"]), { value: true, from: "group", group: "info" });
+  assert.deepEqual(effective(label["font"]), { value: "FONT_SMALL", from: "own" });
+  // the group itself: its own block
+  const info = treeOf(text, "info", "fr955", { frame: "aod", style: null });
+  assert.deepEqual(effective(child(info["aod"], "dim")), { value: 0.5, from: "aod" });
+  assert.deepEqual(effective(info["visible"]), { value: true, from: "aod" });
+});
+
+test("aod_keys lists what the kind may restyle in its aod: block", () => {
+  const aod = readText(AOD);
+  const keys = (id: string): string[] => inspect(aod, pathOf(aod, id), null).aod_keys;
+  assert.deepEqual(keys("clock"), ["color", "font", "text", "outline"]);
+  assert.deepEqual(keys("battery_ring"), ["color", "track_color", "thickness"]);
+  assert.deepEqual(keys("accent_dot"), ["color", "thickness", "filled"]);
+  assert.deepEqual(keys("info"), ["color", "track_color", "icon", "thickness", "bar_width", "filled", "font", "text", "outline"]);
+  assert.deepEqual(inspect(aod, ["resources"], null).aod_keys, []);
+});
+
+test("inspect takes the frame and style through the requests", async () => {
+  const client = await Client.open();
+  const doc = client.studio.create(bundle("A", readText(AOD)), "open");
+  const clock = ["elements", "clock"];
+  const awake = await client.call("inspect", { id: doc.id, element: clock, device: "fenix847mm" });
+  assert.equal(awake.status, 200);
+  assert.deepEqual(awake.json.context, { frame: "awake", style: null });
+  assert.deepEqual(awake.json.fields.find((f: any) => f.key === "color").effective, { value: "color.white", from: "own" });
+  const asleep = await client.call("inspect", { id: doc.id, element: clock, device: "fenix847mm", frame: "aod", style: "" });
+  assert.equal(asleep.status, 200);
+  assert.deepEqual(asleep.json.context, { frame: "aod", style: null });
+  assert.deepEqual(asleep.json.fields.find((f: any) => f.key === "color").effective, { value: "color.black", from: "aod" });
+  assert.deepEqual(asleep.json.aod_keys, ["color", "font", "text", "outline"]);
+  const bad = await client.call("inspect", { id: doc.id, element: clock, device: "fenix847mm", frame: "dreaming" });
+  assert.equal(bad.status, 400);
+  assert.match(bad.json.error, /frame/);
 });
 
 // -- the Face panel --
@@ -232,11 +456,29 @@ test("the Face panel lists colours, schemes, styles and fonts", () => {
   assert.ok(g.palette.length > 0);
   assert.ok(g.styles.default && g.styles.entries.length > 0);
   assert.deepEqual(g.layouts, ["big", "compact"]);
+  assert.deepEqual(g.styles.entries.map((e: any) => e.index), g.styles.entries.map((_: any, i: number) => i));
   assert.deepEqual(g.targets, ["fenix8solar47mm", "fenix8solar51mm", "fr955"]);
   const showcase = globalsOf(readText("examples/showcase/face.yaml"), db) as any;
   const fonts = new Set(showcase.fonts.map((f: any) => f.name));
   assert.ok(fonts.has("digitalclock") && fonts.has("dialfont"));
   assert.ok(showcase.palette.find((p: any) => p.name === "black").long);
+});
+
+test("the Face panel reads face:, defaults: and each layout's blocks and styles", () => {
+  const g = globalsOf(readText("examples/showcase/face.yaml"), db);
+  assert.deepEqual(g.face, { name: "Showcase", version: "1.2.0", id: "5ca5867b-1d30-4581-94c0-617033e6824c" });
+  assert.deepEqual(g.layout_entries.map((l) => [l.name, l.styles]), [
+    ["analog", ["analog_dark", "analog_light", "analog_crimson"]], ["digital", ["digital_dark", "digital_light"]], ["roman", ["roman_dark", "roman_crimson"]],
+  ]);
+  const analog = g.layout_entries[0]!;
+  assert.ok(analog.static > 0 && analog.elements > 0);
+  assert.deepEqual(g.styles.entries.map((e) => [e.name, e.index]).slice(0, 2), [["analog_dark", 0], ["analog_light", 1]]);
+  const aod = globalsOf(readText(AOD), db);
+  assert.deepEqual(aod.defaults, { antialias: null, min_1px: null, aod: { visible: false, dim: 0.6, mask: null } });
+  assert.deepEqual(aod.layout_entries, []);
+  const minimal = globalsOf(starters.instantiate("minimal", "M"), db);
+  assert.deepEqual(minimal.defaults, { antialias: null, min_1px: null, aod: { visible: null, dim: null, mask: null } });
+  assert.equal(minimal.face.name, "M");
 });
 
 test("a colour off the MIP palette is flagged on MIP targets only", () => {
