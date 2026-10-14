@@ -21,7 +21,7 @@
 import type { Bag } from "./diagnostics.ts";
 import { type Data, type DataKey, WholeFloat, Timestamp } from "./edit/yaml.ts";
 import { type Schema, ValidationError, Validator } from "./jsonschema.ts";
-import { compareStrings, quoted } from "./py.ts";
+import { compareStrings, quoted, str } from "./py.ts";
 import type { YamlDocument } from "./yamlsrc.ts";
 
 export const SUPPORTED_FORMATS = [2] as const;
@@ -84,7 +84,7 @@ export function validate(doc: YamlDocument, bag: Bag): boolean {
   const badTypes = [
     ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag),
     ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag), ...checkAbsent(doc, bag),
-    ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag),
+    ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag), ...checkOutlines(doc, bag),
   ];
   if (validator === undefined) schema();
   const errors = validator!.iterErrors(doc.data);
@@ -261,6 +261,44 @@ const RESERVED_ELEMENT_KEYS: ReadonlyMap<string, string> = new Map([
 const RESERVED_DATA_KEYS: ReadonlyMap<string, string> = new Map(["parts", "arrange", "requires", "fallback"].map((key) => [key,
   "a data element's own parts ('parts:', 'arrange:', 'requires:', 'fallback:') are reserved and not implemented yet"]));
 const RESERVED_NOTE = "docs/limitations.md, \"Not implemented yet\"";
+
+/**
+ * `outline:` on an element or a pattern's text part is `{color, width}` only.
+ * The two spellings it once had are named with their replacement: a bare
+ * colour as the object, and `none` as the absent key -- `none` means
+ * something only inside an `aod:` block, where it drops the awake ring, and
+ * a bare colour there gets the same answer.
+ */
+function checkOutlines(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  const check = (node: Dict, path: Path, aod = false): void => {
+    if (!node.has("outline")) return;
+    const outline = node.get("outline");
+    if (isDict(outline) || outline === null || outline === undefined || (aod && outline === "none")) return;
+    const here = [...path, "outline"];
+    const span = doc.span(node, "outline");
+    if (outline === "none") {
+      bag.error("schema", `${dottedPath(here)}: 'outline: none' is not accepted here -- omit 'outline:' to draw no ring`, span,
+        { notes: ["inside an 'aod:' block, 'outline: none' still drops the awake ring from the always-on frame"] });
+    } else {
+      bag.error("schema", `${dottedPath(here)}: write 'outline: {color: ${str(outline)}}' -- a 1px ring; add 'width: 2' or 3 for a wider one`, span,
+        { notes: ["'outline:' is one object, {color, width}: docs/guide/outlines.md"] });
+    }
+    bad.push(here);
+  };
+  visitElements(doc, (element, here) => {
+    check(element, here);
+    const aod = element.get("aod");
+    if (isDict(aod)) check(aod, [...here, "aod"], true);
+    const parts = element.get("parts");
+    if (element.get("type") === "pattern" && Array.isArray(parts)) {
+      parts.forEach((part, index) => {
+        if (isDict(part) && part.get("type") === "text") check(part, [...here, "parts", index]);
+      });
+    }
+  });
+  return bad;
+}
 
 /** Format 2's reserved vocabulary: each key a friendly "not implemented yet" error, never a generic unknown key. */
 function checkReserved(doc: YamlDocument, bag: Bag): Path[] {

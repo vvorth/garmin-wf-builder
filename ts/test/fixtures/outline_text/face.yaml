@@ -73,7 +73,7 @@ elements:
     font: font.bezel
     at: { anchor: center, dy: 30%r }
     color: color.bg
-    outline: color.ring
+    outline: { color: color.ring }
 
   brand:
     type: text

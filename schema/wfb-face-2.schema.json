@@ -282,42 +282,23 @@
       ]
     },
     "outline": {
-      "description": "A ring in this colour round everything the element draws: a bare colour is a 1px ring, and '{color, width}' picks 1, 2 or 3px. A filled circle or rectangle draws one grown copy of itself; a baked-font text or an icon draws a baked, dilated copy of its glyphs; everything else is stamped -- drawn at every point 'width' pixels away in the ring colour, then once more in its own colours -- so an opening wider than twice the ring gets a ring too. On a group the ring goes round the members' union. 'none' (the default) draws no ring. A wider ring costs more draw time on a watch (docs/guide/outlines.md).",
-      "oneOf": [
-        {
-          "const": "none"
+      "type": "object",
+      "required": [
+        "color"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
-        {
-          "allOf": [
-            {
-              "$ref": "#/$defs/colorExpression"
-            },
-            {
-              "not": {
-                "const": "none"
-              }
-            }
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "color"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/colorExpression"
-            },
-            "width": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit. 1 to 3: a wider ring is a build error naming why (docs/guide/outlines.md). A 2px ring keeps a hollow AOD glyph legible where a 1px one can lose whole strokes."
-            }
-          }
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit. 1 to 3: a wider ring is a build error naming why (docs/guide/outlines.md). A 2px ring keeps a hollow AOD glyph legible where a 1px one can lose whole strokes."
         }
-      ]
+      },
+      "description": "A ring in this colour round everything the element draws, 'width' pixels wide (1, the default, 2 or 3). A filled circle or rectangle draws one grown copy of itself; a baked-font text or an icon draws a baked, dilated copy of its glyphs; everything else is stamped -- drawn at every point 'width' pixels away in the ring colour, then once more in its own colours -- so an opening wider than twice the ring gets a ring too. On a group the ring goes round the members' union. Omit the key to draw no ring; a bare colour and 'none' are not accepted here (docs/guide/outlines.md). A wider ring costs more draw time on a watch."
     },
     "length": {
       "description": "px (device pixels), % (of the parent box on the axis being resolved), %r (of the screen's minor radius), or pt (multiples of the element's font pixel height). A bare number means px.",
@@ -1107,7 +1088,7 @@
       }
     },
     "aodText": {
-      "description": "'aod:' on a 'text' element: an override block reusing its own 'color:'/'font:'/'text:'/'outline:', plus 'visible:' and 'dim:'. 'outline:' replaces the awake ring whole: 'none' drops it in AOD; a colour or '{color, width}' draws that ring instead. Writing the block draws the element unless it says 'visible: false'.",
+      "description": "'aod:' on a 'text' element: an override block reusing its own 'color:'/'font:'/'text:'/'outline:', plus 'visible:' and 'dim:'. 'outline:' replaces the awake ring whole: 'none' drops it in AOD; '{color, width}' draws that ring instead. Writing the block draws the element unless it says 'visible: false'.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1122,7 +1103,7 @@
           "type": "string"
         },
         "outline": {
-          "$ref": "#/$defs/outline"
+          "$ref": "#/$defs/aodOutline"
         },
         "visible": {
           "$ref": "#/$defs/aodVisible"
@@ -1320,7 +1301,7 @@
           "type": "string"
         },
         "outline": {
-          "$ref": "#/$defs/outline"
+          "$ref": "#/$defs/aodOutline"
         },
         "visible": {
           "$ref": "#/$defs/aodVisible"
@@ -1415,7 +1396,7 @@
           "$ref": "#/$defs/size"
         },
         "outline": {
-          "description": "A ring of 'width' px round the union of every member, members' own rings included: every member's ring is drawn just before the group's first member, then the members. Every member must be a kind that can carry an outline. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round the union of every member, members' own rings included: every member's ring is drawn just before the group's first member, then the members. Every member must be a kind that can carry an outline. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "z": {
@@ -1505,7 +1486,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1596,7 +1577,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1687,7 +1668,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1778,7 +1759,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1869,7 +1850,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -1960,7 +1941,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round this shape: a filled circle or rectangle grows one copy of itself; any other shape is stamped at the ring's offsets. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "filled": {
@@ -2041,7 +2022,7 @@
           "$ref": "#/$defs/curve"
         },
         "outline": {
-          "description": "Draws this text's string at every point 'width' pixels away at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring. 'none' (the default) draws no ring at all, byte-identical to today.",
+          "description": "Draws this text's string at every point 'width' pixels away at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "at": {
@@ -2181,7 +2162,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round everything the gauge draws, track and value alike. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round everything the gauge draws, track and value alike. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "track_color": {
@@ -2369,7 +2350,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round the glyph, stamped exactly as a text 'outline:' is: an opening inside the icon wider than twice the ring gets a ring of its own. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round the glyph, stamped exactly as a text 'outline:' is: an opening inside the icon wider than twice the ring gets a ring of its own. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "at": {
@@ -2657,7 +2638,7 @@
           ]
         },
         "outline": {
-          "description": "A ring of 'width' px round each hand as one silhouette: every part's ring, then the parts, so a hand's own parts never ring each other and each hand is ringed against the one beneath it. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round each hand as one silhouette: every part's ring, then the parts, so a hand's own parts never ring each other and each hand is ringed against the one beneath it. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "z": {
@@ -2762,7 +2743,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "outline": {
-          "description": "A ring of 'width' px round each copy as one silhouette: every part's ring, then the parts. 'none' (the default) draws no ring.",
+          "description": "A ring of 'width' px round each copy as one silhouette: every part's ring, then the parts. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "parts": {
@@ -3006,7 +2987,7 @@
           "$ref": "#/$defs/patternCurve"
         },
         "outline": {
-          "description": "'type: text' only The stamped-ring outline, identical to a standalone 'text' element's own 'outline:' -- draws this copy's string N times at small screen-space pixel offsets in a ring colour, then once more, unshifted, in the part's own 'color:'. The offsets are applied to this copy's own already-rotated/translated anchor, after the pattern's own per-copy rotation and after the part's own 'curve:' angle -- never re-rotated themselves -- so the ring is not smeared by either transform. 'none' (the default) draws no ring at all, byte-identical to today.",
+          "description": "'type: text' only The stamped-ring outline, identical to a standalone 'text' element's own 'outline:' -- draws this copy's string N times at small screen-space pixel offsets in a ring colour, then once more, unshifted, in the part's own 'color:'. The offsets are applied to this copy's own already-rotated/translated anchor, after the pattern's own per-copy rotation and after the part's own 'curve:' angle -- never re-rotated themselves -- so the ring is not smeared by either transform. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"
         },
         "align": {
@@ -3069,6 +3050,17 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
+    },
+    "aodOutline": {
+      "description": "An 'aod:' block's own 'outline:', replacing the awake ring whole: 'none' draws no ring in the always-on frame (dropping an awake one), and '{color, width}' draws that ring there instead -- never merged key by key with the awake ring, so a block with no 'width:' is a 1px ring (docs/guide/always-on-display.md).",
+      "oneOf": [
+        {
+          "const": "none"
+        },
+        {
+          "$ref": "#/$defs/outline"
+        }
+      ]
     },
     "aodVisible": {
       "description": "Whether this draws in the always-on frame. false hides it -- on a group, the whole subtree, and nothing below can turn it back on; true draws it (also what writing any 'aod:' block means); an expression draws it only while true, conjoined with the element's own 'visible:'.",

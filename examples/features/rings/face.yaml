@@ -77,7 +77,7 @@ static:
     count: 12
     step_angle: 30deg
     color: color.accent
-    outline: color.ring
+    outline: { color: color.ring }
     parts:
       - type: polygon
         points:
@@ -98,13 +98,13 @@ elements:
     sweep: 360deg
     color: color.accent
     track_color: color.track
-    outline: color.ring
+    outline: { color: color.ring }
 
   heart_rate:
     type: group
     at: { anchor: center, dy: -26% }
     size: { width: 22%, height: 10% }
-    outline: color.ring
+    outline: { color: color.ring }
     children:
       heart_icon:
         type: icon
@@ -128,7 +128,7 @@ elements:
     size: 16%r
     at: { anchor: center, dx: -26%, dy: 20% }
     color: color.accent
-    outline: color.ring
+    outline: { color: color.ring }
 
   steps_bar:
     type: gauge
@@ -140,7 +140,7 @@ elements:
     size: { width: 30%, height: 4% }
     color: color.accent
     track_color: color.track
-    outline: color.ring
+    outline: { color: color.ring }
 
   hands:
     type: hands

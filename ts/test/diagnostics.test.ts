@@ -315,4 +315,32 @@ test("pattern step: step_angle: turns a radial pattern and step: {dx, dy} moves 
   assert.equal(turned.length, 1, turned.map((d) => d.message).join("\n"));
   assert.ok(turned[0]!.message.includes("'step: {dx, dy}'"), turned[0]!.message);
   face(LINEAR("    step: {dx: 10%r}\n"));
+
+// -- one spelling per idea: a removed spelling names its replacement --
+
+const LABEL = MINIMAL + "  label:\n    type: text\n    text: \"Hi\"\n    font: FONT_SMALL\n    at: {anchor: center}\n    color: color.fg\n";
+
+test("outline: is an object: a bare colour or 'none' on an element names '{color: ...}'; 'none' stays legal in aod:", () => {
+  const bare = errorsOf(LABEL + "    outline: color.bg\n");
+  assert.equal(bare.length, 1, bare.map((d) => d.message).join("\n"));
+  assert.equal(bare[0]!.message, "elements.label.outline: write 'outline: {color: color.bg}' -- a 1px ring; add 'width: 2' or 3 for a wider one");
+  assert.equal(LABEL.split("\n").length, bare[0]!.span!.line, "pointed at the outline: line");
+  const none = errorsOf(LABEL + "    outline: none\n");
+  assert.equal(none.length, 1, none.map((d) => d.message).join("\n"));
+  assert.equal(none[0]!.message, "elements.label.outline: 'outline: none' is not accepted here -- omit 'outline:' to draw no ring");
+  assert.ok(none[0]!.notes.some((n) => n.includes("aod:")), "the note says where 'none' still means something");
+  // a pattern's text part takes the same object, and the same refusal
+  const part = errorsOf(MINIMAL + "  ticks:\n    type: pattern\n    pattern: radial\n    at: {anchor: center}\n    count: 3\n    step: 120deg\n    parts:\n"
+    + "      - {type: text, text: \"1\", font: FONT_SMALL, at: {dy: -40%r}, color: color.fg, outline: color.bg}\n");
+  assert.equal(part.length, 1, part.map((d) => d.message).join("\n"));
+  assert.equal(part[0]!.message, "elements.ticks.parts[0].outline: write 'outline: {color: color.bg}' -- a 1px ring; add 'width: 2' or 3 for a wider one");
+  const inAod = errorsOf(LABEL + "    aod: {outline: color.bg}\n");
+  assert.equal(inAod.length, 1, inAod.map((d) => d.message).join("\n"));
+  assert.equal(inAod[0]!.message, "elements.label.aod.outline: write 'outline: {color: color.bg}' -- a 1px ring; add 'width: 2' or 3 for a wider one");
+  // the object form, width defaulting to 1; `none` inside `aod:` drops the awake ring
+  const [built] = load(LABEL + "    outline: {color: color.bg}\n    aod: {outline: none}\n");
+  assert.ok(built !== null);
+  const label = built!.walk().find((e) => e.id === "label") as unknown as { outline: { width: number } | null; aod: { outline_none: boolean } | null };
+  assert.equal(label.outline!.width, 1);
+  assert.equal(label.aod!.outline_none, true);
 });

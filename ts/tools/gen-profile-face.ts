@@ -195,7 +195,7 @@ function element(name: string, body: string, index: number, suffix: string, ring
   const [first, ...rest] = text.split("\n");
   const lines = [`      ${id}:`, `        ${first}`, ...rest.map((line) => `    ${line}`)];
   if (ring !== null) {
-    lines.push(ring === 1 ? "        outline: color.ring" : `        outline: { color: color.ring, width: ${ring} }`);
+    lines.push(`        outline: { color: color.ring, width: ${ring} }`);
     if (name === "digits" || name === "label") {
       lines.push("        lint:", "          allow: [text-outline-interior]", "          reason: \"a ringed, filled numeral: the interior is meant to show\"");
     }

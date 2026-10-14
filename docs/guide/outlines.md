@@ -15,12 +15,17 @@ bar gauges, a group, and an icon whose opening gets a ring of its own, from
 ## At a glance
 
 ```yaml
-outline: none                        # the default: no ring
-outline: color.ring                  # a colour: a 1 px ring
+outline: { color: color.ring }             # a 1 px ring: width defaults to 1
 outline: { color: color.ring, width: 2 }   # 1, 2 or 3 px
 ```
 
-**A ring is 1, 2 or 3 px.** `outline: <colour>` is 1 px, and
+`outline:` is one object, `{color, width}`, or absent: no key means no
+ring. A bare colour and `none` are not accepted on an element (an error
+names the object to write); `none` is legal only inside an `aod:` block,
+where it drops the awake ring from the always-on frame
+([Always-on display](always-on-display.md)).
+
+**A ring is 1, 2 or 3 px.** `width:` defaults to 1, and
 `outline: {color: <colour>, width: 2}` (or 3) is wider. A wider ring costs
 more: on a watch a stamped 2 px ring cost about 1.8× the draw time of a
 1 px one. Reach for 2 px where 1 px is not enough to read, such as hollow
@@ -116,7 +121,7 @@ the group's ring goes round it.
 badge:
   type: group
   at: { anchor: center, dy: 30% }
-  outline: color.fg
+  outline: { color: color.fg }
   children:
     disc:  { type: circle, at: { anchor: center }, radius: 8%r, color: color.accent }
     label: { type: text, text: "7", font: FONT_XTINY, at: { anchor: center }, color: color.bg }

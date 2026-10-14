@@ -48,6 +48,6 @@ elements:
     font: FONT_NUMBER_MILD
     at: { anchor: center, dy: 20%r }
     color: color.bg
-    outline: color.ring
+    outline: { color: color.ring }
     absent: { value: 0 }
     aod: { color: color.fg }

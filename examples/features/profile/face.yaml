@@ -204,14 +204,14 @@ layouts:
         at: { anchor: center, dx: -27%, dy: -22% }
         radius: 6%r
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       card_ring1:
         type: rectangle
         at: { anchor: center, dx: -9%, dy: -22% }
         size: { width: 12%, height: 7% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       pill_ring1:
         type: rectangle
@@ -219,14 +219,14 @@ layouts:
         size: { width: 12%, height: 7% }
         corner_radius: 4px
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       egg_ring1:
         type: ellipse
         at: { anchor: center, dx: 27%, dy: -22% }
         size: { width: 13%, height: 8% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       hoop_ring1:
         type: circle
@@ -235,7 +235,7 @@ layouts:
         thickness: 3px
         filled: false
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       label_ring1:
         type: text
@@ -243,7 +243,7 @@ layouts:
         font: FONT_XTINY
         at: { anchor: center, dx: -9%, dy: -5% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
         lint:
           allow: [text-outline-interior]
           reason: "a ringed, filled numeral: the interior is meant to show"
@@ -256,7 +256,7 @@ layouts:
         start_angle: 300deg
         sweep: 120deg
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       tri_ring1:
         type: polygon
@@ -265,7 +265,7 @@ layouts:
           - { anchor: center, dx: 27%, dy: -9% }
           - { anchor: center, dx: 33%, dy: -1% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       rule_ring1:
         type: line
@@ -273,7 +273,7 @@ layouts:
         to: { anchor: center, dx: -21%, dy: 12% }
         thickness: 2px
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       digits_ring1:
         type: text
@@ -281,7 +281,7 @@ layouts:
         font: font.digits
         at: { anchor: center, dx: -9%, dy: 12% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
         lint:
           allow: [text-outline-interior]
           reason: "a ringed, filled numeral: the interior is meant to show"
@@ -292,7 +292,7 @@ layouts:
         size: 12%r
         at: { anchor: center, dx: 9%, dy: 12% }
         color: color.fill
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       ticks_ring1:
         type: pattern
@@ -303,7 +303,7 @@ layouts:
         color: color.fill
         parts:
           - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       battery_ring1:
         type: gauge
@@ -317,7 +317,7 @@ layouts:
         sweep: 240deg
         color: color.fill
         track_color: color.track
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       steps_ring1:
         type: gauge
@@ -328,7 +328,7 @@ layouts:
         size: { width: 13%, height: 3% }
         color: color.fill
         track_color: color.track
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       badge_ring1:
         type: group
@@ -337,13 +337,13 @@ layouts:
         children:
           badge_ring1_icon: { type: icon, icon: heart, size: 8%r, at: { anchor: left }, align: left, color: color.fill }
           badge_ring1_value: { type: text, text: "72", font: FONT_XTINY, at: { anchor: right }, align: right, color: color.fill }
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
       hands_ring1:
         type: hands
         set: mini
         at: { anchor: center, dx: 27%, dy: 29% }
-        outline: color.ring
+        outline: { color: color.ring, width: 1 }
 
   ring2:
     elements:

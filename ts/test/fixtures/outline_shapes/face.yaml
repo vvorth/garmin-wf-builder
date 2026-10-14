@@ -48,7 +48,7 @@ elements:
     at: { anchor: center, dx: -27%, dy: -20% }
     radius: 9%r
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring }
 
   card:
     type: rectangle
@@ -72,14 +72,14 @@ elements:
     thickness: 3px
     filled: false
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring }
 
   egg:
     type: ellipse
     at: { anchor: center, dy: 5% }
     size: { width: 22%, height: 14% }
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring }
 
   frame:
     type: rectangle
@@ -97,7 +97,7 @@ elements:
       - { anchor: center, dx: -18%, dy: 20% }
       - { anchor: center, dx: -24%, dy: 32% }
     color: color.cool
-    outline: color.ring
+    outline: { color: color.ring }
 
   rule:
     type: line

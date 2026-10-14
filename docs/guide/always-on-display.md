@@ -60,8 +60,9 @@ schema reuses each kind's own property `$ref`s, so there is nothing new to
 typo.
 
 **`outline:` replaces the awake ring whole.** It takes the element's own
-[`outline:`](text.md#outline--the-stamped-ring) grammar — `none`, a bare colour (a 1px ring),
-or `{color, width}` — and is never merged with the awake ring key by key:
+[`outline:`](text.md#outline--the-stamped-ring) object, `{color, width}`,
+or `none` — the one place `none` is written, since on the element itself no
+ring is no key — and is never merged with the awake ring key by key:
 an `aod: {outline: {color: ...}}` with no `width:` is a 1px ring, not the
 awake ring's width.  Hollow digits want `width: 2`: at 1px a thin stroke's
 ring can break up, and whole lines go dark. `none` drops an awake ring in AOD; a ring written only

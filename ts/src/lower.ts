@@ -302,7 +302,6 @@ class Lowering {
   outline(node: Dict): void {
     const outline = node.get("outline");
     if (isDict(outline)) this.exprKey(outline, "color", "outline.color");
-    else if (outline !== "none") this.exprKey(node, "outline");
   }
 
   /** Check a `text:` template; with `several`, a template with more than one placeholder is accepted. */

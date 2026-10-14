@@ -65,19 +65,12 @@ export class GlyphHelpers extends AbsenceChecks {
   buildOutline(node: Node, key: string, label: string, element: Element | null = null): Outline | null {
     const raw = node.get(key);
     if (raw === undefined || raw === null || raw === "none") return null;
+    if (!(raw instanceof Map)) throw new Error(`${label}: the schema admits only {color, width} for 'outline:'`);
     const span = this.doc.span(node, key);
-    let color, colorSpan, width: unknown, widthSpan;
-    if (raw instanceof Map) {
-      color = this.colorExpression(raw, "color");
-      colorSpan = this.doc.span(raw, "color") ?? span;
-      width = raw.has("width") ? raw.get("width") : 1;
-      widthSpan = this.doc.span(raw, "width") ?? span;
-    } else {
-      color = this.colorExpression(node, key);
-      colorSpan = span;
-      width = 1;
-      widthSpan = span;
-    }
+    const color = this.colorExpression(raw, "color");
+    const colorSpan = this.doc.span(raw, "color") ?? span;
+    const width: unknown = raw.has("width") ? raw.get("width") : 1;
+    const widthSpan = this.doc.span(raw, "width") ?? span;
     if (color === null) return null;
     const w = isNumber(width) ? num(width) : Number(width);
     if (w > MAX_OUTLINE_WIDTH) {

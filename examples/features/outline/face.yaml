@@ -9,10 +9,10 @@
 #
 # * **The canonical hollow idiom** (`clock`): `color:` repeats the
 #   background's own `color.bg`, so the interior reads as empty and
-#   `outline:`'s ring colour is the only visible ink -- the object form,
-#   `{color, width}`, at 2px so every stroke of the hollow digit holds.
-# * **The shorthand spelling** (`today`): `outline: color.ring` alone, a
-#   1px ring -- the same hollow idiom, written the short way.
+#   `outline:`'s ring colour is the only visible ink -- `{color, width}`
+#   at 2px so every stroke of the hollow digit holds.
+# * **The default width** (`today`): `outline: { color: color.ring }` with
+#   no `width:`, a 1px ring -- the same hollow idiom, one pixel thin.
 # * **A solid-interior ring** (`label`): the interior is a real, visible
 #   fill (`color.slate`, not the background), so this is NOT the hollow
 #   idiom -- both the ring and the interior read as ink.  Because it still
@@ -101,7 +101,7 @@ elements:
 
   # The canonical hollow idiom: the interior repeats the background's own
   # colour, so `text-outline-interior` can prove it invisible and stays
-  # silent -- object-form `outline:`.
+  # silent -- a 2px `outline:`.
   clock:
     type: text
     text: "{time.clock:%H:%M}"
@@ -115,7 +115,7 @@ elements:
     font: font.label
     at: { anchor: center, dy: 12% }
     color: color.bg
-    outline: color.ring
+    outline: { color: color.ring }
 
   # A solid-interior ring: the interior is real, visible ink
   # (`color.slate`), not the background -- see the header comment for why
@@ -144,7 +144,7 @@ elements:
     font: font.bezel
     color: color.bg
     at: { anchor: center, dx: 34%r, dy: -50%r }
-    outline: color.white
+    outline: { color: color.white }
     curve:
       style: angled
       angle: 35deg
@@ -198,7 +198,7 @@ elements:
         text: "{copy + 1}"
         font: font.bezel
         color: color.bg
-        outline: color.white
+        outline: { color: color.white }
         curve:
           style: radial
           angle: 0deg

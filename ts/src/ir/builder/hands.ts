@@ -320,12 +320,11 @@ export class HandParts extends ConfigAxes {
     }
     if (fontOk && node.has("unsupported")) this.checkUnsupported(node, partWhere, fontIsVector);
 
-    // A failed `outline:` aborts the part; `outline: none` (or no key) is not a failure.
+    // A failed `outline:` aborts the part.
     let outline: Outline | null = null;
     if (node.has("outline")) {
       outline = this.buildOutline(node, "outline", partWhere);
-      const raw = node.get("outline");
-      if (outline === null && raw !== null && raw !== undefined && raw !== "none") ok = false;
+      if (outline === null) ok = false;
     }
 
     if (!ok) return null;

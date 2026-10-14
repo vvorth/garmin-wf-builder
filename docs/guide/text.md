@@ -23,7 +23,7 @@ wordmark on this platform.
 | `curve.radius:` | `Length` | — | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.direction:` | `clockwise`/`counter_clockwise` | `clockwise` | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `unsupported:` | `error`/`hide` | inherits the font's own (`error` for the subscreen) | [Fonts](fonts.md#unsupported--and-what-error-actually-promises) |
-| `outline:` | `none`, a colour expression, or `{color, width}` | `none` | [`outline:`](#outline--the-stamped-ring) |
+| `outline:` | `{color, width}` (`width` 1–3, default 1) | none | [`outline:`](#outline--the-stamped-ring) |
 
 ## Example
 
@@ -262,16 +262,15 @@ reachable from Connect IQ).
 string drawn a handful of times at small pixel offsets in the ring colour,
 then once more, unshifted, in the element's existing `color:` — the ordinary
 fill pass every `text` element already has, doing double duty as the
-interior. `none` (the default, and simply omitting the key) draws no ring at
-all, byte-identical to plain text.
+interior. Omitting the key draws no ring at all, byte-identical to plain
+text; `outline: none` and a bare colour are not accepted (the error names
+the object to write).
 
 ```yaml
-outline: none                        # default -- no ring, today's plain fill
-
-outline: color.text_outline          # shorthand -- colour only, a 1px ring
+outline: { color: color.text_outline }   # a 1px ring: width defaults to 1
 
 outline:
-  color: color.text_outline          # required in object form -- same grammar as color:
+  color: color.text_outline          # required -- same grammar as color:
   width: 2                           # px, 1-3, default 1
 ```
 
@@ -283,7 +282,7 @@ vector font is stamped as above.
 
 `width:` is 1, 2 or 3, always pixels, never `%`/`%r` — a fixed visual
 stroke weight, the same way Garmin's own font engine strokes at a fixed
-2.0px regardless of device. A bare colour is 1px; a hollow always-on clock
+2.0px regardless of device. No `width:` is 1px; a hollow always-on clock
 usually wants 2px, where 1px can lose whole strokes. Above 3px is a build
 error. `outline.color` follows exactly the same rules as `color:` — a
 `color.<name>`, a literal, or a full conditional expression over either,

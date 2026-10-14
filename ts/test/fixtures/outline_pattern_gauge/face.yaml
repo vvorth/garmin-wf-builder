@@ -60,7 +60,7 @@ elements:
     count: 4
     step_angle: 90deg
     color: color.bg
-    outline: color.fg
+    outline: { color: color.fg }
     parts:
       - type: text
         text: "{copy * 3 + 12}"
@@ -101,7 +101,7 @@ elements:
     size: { width: 40%, height: 4% }
     color: color.accent
     absent: hide
-    outline: color.ring
+    outline: { color: color.ring }
 
   needle:
     type: gauge
