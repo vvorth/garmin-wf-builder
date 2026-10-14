@@ -124,6 +124,24 @@ test("the vendored editor bundle exports what the yaml tab imports", async () =>
   assert.ok((names && eq(result, [])));
 });
 
+test("the schema puts a $ref alone in its node, as the yaml tab's completion library requires", () => {
+  // codemirror-json-schema resolves a node by one keyword; a `$ref` beside a `not` or a `type`
+  // throws "Mutiple typeIds matched" the moment the YAML tab opens. A restriction on a referenced
+  // shape is written `allOf: [{$ref}, {not}]`.
+  const schema = JSON.parse(repoText("schema/wfb-face-2.schema.json"));
+  const annotations = new Set(["description", "$comment", "title", "default", "examples", "deprecated"]);
+  const offenders: string[] = [];
+  const walk = (node: unknown, path: string): void => {
+    if (Array.isArray(node)) { node.forEach((n, i) => walk(n, `${path}[${i}]`)); return; }
+    if (node === null || typeof node !== "object") return;
+    const keys = Object.keys(node as object);
+    if (keys.includes("$ref") && keys.some((k) => k !== "$ref" && !annotations.has(k))) offenders.push(path);
+    for (const [k, v] of Object.entries(node as object)) walk(v, `${path}/${k}`);
+  };
+  walk(schema, "#");
+  assert.deepEqual(offenders, []);
+});
+
 test("zoom scale and real size", async () => {
   const result = await run("\n      console.log(JSON.stringify({\n        scales: [[0.3, 1], [1, 1], [1.01, 1], [2, 1], [0.5, 2], [1.5, 2], [3.9, 1], [5, 1]]\n          .map(([z, dpr]) => zoom.serverScale(z, dpr)),\n        clamp: [zoom.clampZoom(0.01), zoom.clampZoom(9), zoom.clampZoom(1.5)],\n        real: [zoom.realZoom(200), zoom.realZoom(326), zoom.realZoom(null), zoom.realZoom(200, 120)],\n        card: zoom.calibrate(323.53),\n        mm: [zoom.screenMm(260, 200), zoom.screenMm(260, null)],\n      }));\n    ");
   assert.deepEqual(result["scales"], [1, 1, 2, 2, 1, 3, 4, 4]);
