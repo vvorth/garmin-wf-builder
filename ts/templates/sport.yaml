@@ -61,7 +61,7 @@ elements:
   hr_graph:
     type: graph
     series: heart_rate
-    range: 4h
+    range: {duration: 4h}
     style: area
     at: { anchor: center, dy: -2%r }
     size: { width: 70%r, height: 22%r }

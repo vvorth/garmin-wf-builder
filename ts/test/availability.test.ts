@@ -189,7 +189,7 @@ elements:
     at: {anchor: center, dy: 25%}
     size: {width: 62%, height: 13%}
     series: forecast_temperature
-    range: 24h
+    range: {duration: 24h}
     style: line
     thickness: 2px
     color: color.fg

@@ -75,7 +75,7 @@ static:
     pattern: radial
     at: { anchor: center }
     count: 12
-    step: 30deg
+    step_angle: 30deg
     color: color.accent
     outline: color.ring
     parts:

@@ -242,7 +242,7 @@ Four families, and neither solar nor anything backed by
 \`Toybox.SensorHistory\` (pressure, stress, elevation, Body Battery) is one
 of them -- see \`docs/limitations.md\`.
 
-Printed for each: its value type, the natural interval \`range:\` as a
+Printed for each: its value type, the natural interval a \`range:\`
 duration divides by (none for \`heart_rate\`, which bins by real time
 instead), the documented maximum sample count if the SDK states one, and
 the SDK page it was taken from.`,

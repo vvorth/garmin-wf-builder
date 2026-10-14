@@ -156,7 +156,7 @@ layouts:
         pattern: radial
         at: { anchor: center, dx: 27%, dy: 12% }
         count: 8
-        step: 45deg
+        step_angle: 45deg
         color: color.fill
         parts:
           - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
@@ -299,7 +299,7 @@ layouts:
         pattern: radial
         at: { anchor: center, dx: 27%, dy: 12% }
         count: 8
-        step: 45deg
+        step_angle: 45deg
         color: color.fill
         parts:
           - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }
@@ -447,7 +447,7 @@ layouts:
         pattern: radial
         at: { anchor: center, dx: 27%, dy: 12% }
         count: 8
-        step: 45deg
+        step_angle: 45deg
         color: color.fill
         parts:
           - { type: line, at: { dy: -9%r }, to: { dy: -5%r }, thickness: 2px }

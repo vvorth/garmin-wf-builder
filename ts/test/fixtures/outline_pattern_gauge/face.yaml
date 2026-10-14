@@ -42,7 +42,7 @@ elements:
     pattern: radial
     at: { anchor: center }
     count: 12
-    step: 30deg
+    step_angle: 30deg
     color: color.accent
     outline: { color: color.ring, width: 1 }
     parts:
@@ -58,7 +58,7 @@ elements:
     pattern: radial
     at: { anchor: center }
     count: 4
-    step: 90deg
+    step_angle: 90deg
     color: color.bg
     outline: color.fg
     parts:

@@ -502,7 +502,7 @@
       ]
     },
     "patternStep": {
-      "description": "The offset between consecutive copies of a linear pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical",
+      "description": "The offset between consecutive copies of a linear or grid pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -513,6 +513,39 @@
           "$ref": "#/$defs/patternLength"
         }
       }
+    },
+    "graphRange": {
+      "description": "How much history a graph plots: {duration: \"4h\"} (30m, 4h, 7d) or {samples: n}, an integer sample count. heart_rate passes a duration straight through to getHeartRateHistory and bins it at runtime; every other series converts a duration to a count at build time using its own natural interval (1 day for the activity and daily-forecast series, 1 hour for the hourly-forecast ones) -- asking for more than a documented maximum (getHistory()'s 7 days) is a build error, not a silent clamp.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "samples"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "samples": {
+              "description": "How many samples to plot, at least 1.",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "duration"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "description": "A span of time: '30m', '4h', '7d'.",
+              "type": "string",
+              "pattern": "^\\s*\\d+\\s*(m|h|d)\\s*$"
+            }
+          }
+        }
+      ]
     },
     "patternLength": {
       "description": "px, % (of the parent box on the axis being resolved) or %r (of the screen's minor radius) -- not pt: a linear pattern's step has no font in scope to measure against. A bare number means px.",
@@ -2386,17 +2419,7 @@
           "type": "string"
         },
         "range": {
-          "description": "A duration ('30m', '4h', '7d') or a bare integer sample count. heart_rate passes a duration straight through to getHeartRateHistory and bins it at runtime; every other series converts a duration to a count at build time using its own natural interval (1 day for the activity and daily-forecast series, 1 hour for the hourly-forecast ones) -- asking for more than a documented maximum (getHistory()'s 7 days) is a build error, not a silent clamp.",
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 1
-            },
-            {
-              "type": "string",
-              "pattern": "^\\s*\\d+\\s*(m|h|d)\\s*$"
-            }
-          ]
+          "$ref": "#/$defs/graphRange"
         },
         "buckets": {
           "description": "Time bins for a time-binned series read over a duration -- i.e. heart_rate with a duration range. Default 40. An error naming the series on anything else.",
@@ -2696,16 +2719,13 @@
           "minimum": 1,
           "maximum": 360
         },
+        "step_angle": {
+          "description": "Radial only: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. A linear or grid pattern moves by 'step: {dx, dy}' instead, so 'step_angle:' on one is a build error naming it.",
+          "$ref": "#/$defs/angle"
+        },
         "step": {
-          "description": "Radial: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. Linear and grid: required, {dx, dy} -- either may be omitted (0); on a grid, dx is between columns and dy between rows. Writing an angle on a linear pattern, a {dx, dy} on a radial one, or omitting it on a linear one, are each build-time errors, not schema errors -- both shapes are accepted here so the compiler can name the real mistake against your own line.",
-          "oneOf": [
-            {
-              "$ref": "#/$defs/angle"
-            },
-            {
-              "$ref": "#/$defs/patternStep"
-            }
-          ]
+          "description": "Linear and grid only: required, {dx, dy} -- either may be omitted (0); on a grid, dx is between columns and dy between rows. A radial pattern turns by 'step_angle:' instead, so 'step:' on one is a build error naming it.",
+          "$ref": "#/$defs/patternStep"
         },
         "start": {
           "description": "Radial only: the angle of copy 0, default 0deg (12 o'clock). An error on a linear pattern -- {dx, dy} already places copy 0 via 'at:'.",

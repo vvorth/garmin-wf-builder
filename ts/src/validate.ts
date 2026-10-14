@@ -84,6 +84,7 @@ export function validate(doc: YamlDocument, bag: Bag): boolean {
   const badTypes = [
     ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag),
     ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag), ...checkAbsent(doc, bag),
+    ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag),
   ];
   if (validator === undefined) schema();
   const errors = validator!.iterErrors(doc.data);
@@ -355,6 +356,49 @@ function checkAbsent(doc: YamlDocument, bag: Bag): Path[] {
   return bad;
 }
 
+/** A graph's `range:` is `{samples: n}` or `{duration: "4h"}`: a bare count or duration is refused with the object to write. */
+function checkGraphRange(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  visitElements(doc, (element, here) => {
+    if (element.get("type") !== "graph" || !element.has("range")) return;
+    const value = element.get("range");
+    const path = [...here, "range"];
+    const report = (message: string): void => {
+      bag.error("schema", `${dottedPath(path)}: ${message}`, doc.span(element, "range"),
+        { notes: ["'{samples: n}' plots that many samples; '{duration: \"4h\"}' (30m, 4h, 7d) a span of time"] });
+      bad.push(path);
+    };
+    if (isDict(value)) {
+      const tags = ["samples", "duration"].filter((key) => value.has(key));
+      if (tags.length !== 1 || value.size !== 1) report("takes one of {samples: <count>} or {duration: \"4h\"}");
+    } else if (typeof value === "number" || value instanceof WholeFloat) {
+      report(`a sample count is written 'range: {samples: ${quoted(value)}}'`);
+    } else if (typeof value === "string") {
+      report(`a span of time is written 'range: {duration: ${JSON.stringify(value)}}'`);
+    } else {
+      report("takes {samples: <count>} or {duration: \"4h\"}");
+    }
+  });
+  return bad;
+}
+
+/** A pattern's `step:` is the {dx, dy} offset of a linear or grid pattern; an angle between copies is `step_angle:`. */
+function checkPatternStep(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  visitElements(doc, (element, here) => {
+    if (element.get("type") !== "pattern" || !element.has("step")) return;
+    const value = element.get("step");
+    if (isDict(value)) return;
+    const path = [...here, "step"];
+    const shown = typeof value === "string" ? value : quoted(value);
+    bag.error("schema", `${dottedPath(path)}: an angle between copies is written 'step_angle: ${shown}' -- `
+      + "'step:' is a linear or grid pattern's {dx, dy}", doc.span(element, "step"),
+    { notes: ["a radial pattern turns by 'step_angle:' (default 360deg / count); a linear or grid one moves by 'step: {dx, dy}'"] });
+    bad.push(path);
+  });
+  return bad;
+}
+
 /** `seconds: always` is not implemented; say why. */
 function checkHandsSecondsAlways(doc: YamlDocument, bag: Bag, element: Dict): boolean {
   if (element.get("type") !== "hands" || element.get("seconds") !== "always") return false;
@@ -479,14 +523,11 @@ function checkPatternFrame(doc: YamlDocument, bag: Bag): Path[] {
       for (const key of ["dx", "dy"]) {
         const value = step.get(key);
         if (typeof value === "string" && value.trim().endsWith("pt")) {
-          // Recorded as the whole `step` object: `step:` is an
-          // angle-or-{dx, dy} oneOf with no discriminator, so the schema's
-          // own error for it narrows only as far as `step` itself.
-          const stepPath = [...here, "step"];
+          const keyPath = [...here, "step", key];
           bag.error("schema",
-            `${dottedPath([...stepPath, key])}: ${quoted(step.get(key))} -- a linear pattern's step is px, % or %r, not pt: there is no font in scope to measure a pt against`,
+            `${dottedPath(keyPath)}: ${quoted(step.get(key))} -- a linear pattern's step is px, % or %r, not pt: there is no font in scope to measure a pt against`,
             doc.span(step, key), { notes: ["px, %r and a bare number are also fine here"] });
-          bad.push(stepPath);
+          bad.push(keyPath);
         }
       }
     }

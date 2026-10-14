@@ -41,7 +41,7 @@ static:
     at: { anchor: center }
     count: 11
     start: 270deg
-    step: 18deg
+    step_angle: 18deg
     color: color.scale
     parts:
       - { type: line, at: { dy: -94%r }, to: { dy: -84%r }, thickness: 2px }

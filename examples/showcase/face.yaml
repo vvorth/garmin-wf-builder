@@ -428,7 +428,7 @@ layouts:
         pattern: radial
         at: { anchor: center }
         count: 12
-        step: 30deg
+        step_angle: 30deg
         color: color.fg
         antialias: true
         parts:
@@ -605,7 +605,7 @@ layouts:
       hr_graph:
         type: graph
         series: heart_rate
-        range: 4h
+        range: {duration: 4h}
         style: area
         at: { anchor: center, dy: -23%r }
         size: { width: 52%r, height: 17%r }

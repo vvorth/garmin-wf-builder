@@ -82,21 +82,24 @@ test("widgets follow the schema", () => {
   for (const t of ["text", "circle", "gauge", "group", "hands"]) assert.ok(elementSchema(t), t);
 });
 
-test("a pattern's step resolves whichever oneOf branch its value matches; a graph's series is a picker", () => {
+test("a pattern's step_angle is an angle and its step a {dx, dy} object, whatever the value; a graph's series is a picker", () => {
   const patterns = readText("examples/features/patterns/face.yaml");
   const pathOf = (text: string, id: string): (string | number)[] => [...indexFor(text).elements().find((e) => e.name === id)!.path];
   const f = (text: string, id: string): Record<string, any> => fieldsOf(inspect(text, pathOf(text, id), null));
 
-  const angleStep = f(patterns, "hour_ticks")["step"];
-  assert.equal(angleStep.widget, "angle");
-  assert.equal(angleStep.value, "30deg");
+  const hourTicks = f(patterns, "hour_ticks");
+  assert.equal(hourTicks["step_angle"].widget, "angle");
+  assert.equal(hourTicks["step_angle"].value, "30deg");
+  assert.equal(hourTicks["step"].widget, "object");
+  assert.ok(!hourTicks["step"].present);
 
   const dxStep = f(patterns, "twelve")["step"];
   assert.equal(dxStep.widget, "object");
   assert.deepEqual(Object.fromEntries(dxStep.children.map((c: any) => [c.key, c.widget])), { dx: "length", dy: "length" });
 
-  const noStep = f(patterns, "minute_ticks")["step"];
+  const noStep = f(patterns, "minute_ticks")["step_angle"];
   assert.equal(noStep.widget, "angle");
+  assert.ok(!noStep.present);
 
   const graph = readText("examples/features/graph/face.yaml");
   const series = f(graph, "hr_graph")["series"];

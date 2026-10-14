@@ -210,7 +210,7 @@ elements:
   hr_graph:
     type: graph
     series: heart_rate
-    range: 4h
+    range: {duration: 4h}
     buckets: 24
     style: bars
     bar_width: 3px

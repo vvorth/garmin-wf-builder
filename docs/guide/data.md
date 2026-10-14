@@ -48,7 +48,7 @@ elements:
   hr_graph:
     type: graph
     series: heart_rate               # `wfb series` lists what can be plotted
-    range: 4h
+    range: {duration: 4h}
     style: area                      # line | area | bars ([graph styles](progress-and-graphs.md))
     size: { width: 52%r, height: 17%r }
     color: color.data

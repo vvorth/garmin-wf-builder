@@ -29,32 +29,25 @@ export const GRAPH_STYLE_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Ma
 ]);
 const ALL_GRAPH_STYLE_KEYS = allKeys(GRAPH_STYLE_KEYS);
 
-/** `range:`: a duration string or a bare integer sample count. */
+/** `range:`: `{samples: n}`, a sample count, or `{duration: "4h"}`, a span of time. */
 function graphRange(b: Builder, node: Node): [string, number] {
   const raw = node.get("range");
-  if (typeof raw === "boolean") {
-    b.bag.error("units", "range must be a duration or an integer count", b.doc.span(node, "range"));
-    return ["count", 0];
-  }
-  if (isInt(raw)) {
-    if (raw < 1) {
-      b.bag.error("graph", "range must be at least 1 sample", b.doc.span(node, "range"));
+  const range: Node = raw instanceof Map ? raw : new Map();
+  if (range.has("samples")) {
+    const samples = range.get("samples");
+    if (!isInt(samples) || samples < 1) {
+      b.bag.error("graph", "range.samples must be a whole number of samples, at least 1", b.doc.span(range, "samples") ?? b.doc.span(node, "range"));
       return ["count", 1];
     }
-    return ["count", raw];
+    return ["count", samples];
   }
-  if (typeof raw === "string") {
-    try {
-      return ["duration", Duration.parse(raw, "range").seconds];
-    } catch (error) {
-      if (!(error instanceof UnitError)) throw error;
-      b.bag.error("units", error.message, b.doc.span(node, "range"));
-      return ["duration", 0];
-    }
+  try {
+    return ["duration", Duration.parse(range.get("duration"), "range.duration").seconds];
+  } catch (error) {
+    if (!(error instanceof UnitError)) throw error;
+    b.bag.error("units", error.message, b.doc.span(range, "duration") ?? b.doc.span(node, "range"));
+    return ["duration", 0];
   }
-  b.bag.error("units", "range must be a duration ('30m', '4h', '7d') or an integer sample "
-    + `count, got ${quoted(raw ?? null)}`, b.doc.span(node, "range"));
-  return ["count", 0];
 }
 
 /** The build-time upper bound on the sample count; asking past a documented cap is an error, not a clamp. */

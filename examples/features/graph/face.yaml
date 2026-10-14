@@ -57,7 +57,7 @@ elements:
     at: { anchor: center, dy: -12% }
     size: { width: 62%, height: 13% }
     series: heart_rate
-    range: 4h                  # a duration: bins by real time on-device
+    range: {duration: 4h}       # a duration: bins by real time on-device
     buckets: 32                # time-binned only -- default would be 40
     style: line
     thickness: 2px
@@ -70,7 +70,7 @@ elements:
     at: { anchor: center, dy: 4% }
     size: { width: 62%, height: 13% }
     series: steps               # ActivityMonitor.getHistory(), at most 7 days
-    range: 7d                   # a bare count works just as well: range: 7
+    range: {duration: 7d}       # a count works just as well: range: {samples: 7}
     style: bars
     bar_width: 6px
     color: color.accent
@@ -82,7 +82,7 @@ elements:
     at: { anchor: center, dy: 20% }
     size: { width: 62%, height: 13% }
     series: forecast_temperature
-    range: 24h                  # converted to a 24-entry count at build time
+    range: {duration: 24h}      # converted to a 24-entry count at build time
     style: area                 # one fillPolygon; capped at 62 samples
     color: color.fg
     min: auto

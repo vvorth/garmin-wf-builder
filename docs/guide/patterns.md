@@ -14,7 +14,8 @@ text can vary per copy.
 | `at` | anchor / `dx`,`dy` / `angle`,`radius` | — | radial: the centre every copy turns about; linear/grid: copy 0's own origin |
 | `count` | integer, 1–360 | required | how many copies (a grid's total, not per row) |
 | `columns` | integer, 1–60 (grid only) | required on a grid | copies per row — see [Grids](#grids) |
-| `step` | radial: an angle; linear/grid: required `{dx, dy}` | radial: `360deg / count` | the gap between copies |
+| `step_angle` | angle (radial only) | `360deg / count` | the angle between copies; negative turns counter-clockwise |
+| `step` | `{dx, dy}` (linear/grid only) | required there | the offset between copies |
 | `start` | angle (radial only) | `0deg` | the angle of copy 0 |
 | `skip` / `skip_every` | copy indices / an integer | — | leave copies undrawn |
 | `parts` | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in list order — keys per type below |
@@ -76,7 +77,7 @@ static:
     pattern: radial            # radial | linear
     at: {anchor: center}       # the centre every copy turns about
     count: 60                  # 1 to 360 copies
-    # step: 6deg               # default: 360deg / count
+    # step_angle: 6deg         # default: 360deg / count
     # start: 0deg              # where copy 0 points (default 12 o'clock)
     skip_every: 5              # leave copies 0, 5, 10, ... to the hour ticks
     color: color.gray          # the default for every part without its own
@@ -109,11 +110,11 @@ anchor). A polar `{angle, radius}` position works too. Every part length
 resolves to whole pixels at build time, rounded half away from zero, the
 same as a hand part.
 
-| `pattern:` | copy `i` is | `step:` | `start:` |
+| `pattern:` | copy `i` is | `step_angle:` / `step:` | `start:` |
 |---|---|---|---|
-| `radial` | the template turned **clockwise** by `start + i × step` about `at:` | an angle; default `360deg / count`; negative turns counter-clockwise | the angle of copy 0; default `0deg` |
-| `linear` | the template moved to `at + i × step` | **required**: `{dx, dy}`, lengths as in `at:` (`px`, `%`, `%r`; not `pt`), either may be omitted | an error: there is nothing to turn |
-| `grid` | the template moved to `at + (i mod columns) × dx` across and `at + ⌊i / columns⌋ × dy` down | **required**: `{dx, dy}` as for `linear`; `dx` steps columns, `dy` steps rows | an error, as for `linear` |
+| `radial` | the template turned **clockwise** by `start + i × step_angle` about `at:` | `step_angle:` an angle; default `360deg / count`; negative turns counter-clockwise | the angle of copy 0; default `0deg` |
+| `linear` | the template moved to `at + i × step` | **required**: `step: {dx, dy}`, lengths as in `at:` (`px`, `%`, `%r`; not `pt`), either may be omitted | an error: there is nothing to turn |
+| `grid` | the template moved to `at + (i mod columns) × dx` across and `at + ⌊i / columns⌋ × dy` down | **required**: `step: {dx, dy}` as for `linear`; `dx` steps columns, `dy` steps rows | an error, as for `linear` |
 
 A linear `step:` is resolved to **whole pixels once**, so every gap is the
 same size. The price is that the whole row may be up to half a pixel per copy
@@ -221,7 +222,7 @@ static:
     type: pattern
     pattern: radial
     at: {anchor: center}
-    count: 12                          # step defaults to 30deg
+    count: 12                          # step_angle defaults to 30deg
     color: color.white
     parts:
       - type: text
@@ -450,11 +451,12 @@ first.
 
 **Checks.** These are build errors, each reported on your own line:
 
-* a radial `step:` that is not an angle, or is `0deg`;
-* a linear or grid `step:` that is not `{dx, dy}`, or is missing;
+* `step:` on a radial pattern, or `step_angle:` on a linear or grid one (each
+  names the other); a radial `step_angle:` of `0deg`;
+* a linear or grid pattern with no `step: {dx, dy}`;
 * `start:` on a linear or grid pattern;
 * a grid with no `columns:`, and `columns:` on a radial or linear pattern;
-* radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
+* radial copies that land on each other, `|step_angle| × (count − 1) ≥ 360°`;
 * a `skip:` index that is out of range or repeated, a `skip_every:`
   larger than `count`, and skipping every copy;
 * on a `text` part: no `text:`; a placeholder that reads anything but

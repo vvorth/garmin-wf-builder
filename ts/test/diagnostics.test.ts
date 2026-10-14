@@ -256,3 +256,63 @@ test("the format 1 placeholder keys name the tagged absent:", () => {
   const when = errorsOf(STEPS_TEXT("hide").replace("absent: hide", "when_absent: hide")).flatMap((d) => d.notes);
   assert.ok(when.some((n) => n.includes("{text: \"--\"}")), when.join("\n"));
 });
+
+const GRAPH = (range: string): string => MINIMAL + `  hr:
+    type: graph
+    series: steps
+    range: ${range}
+    at: {anchor: center}
+    size: {width: 60%, height: 20%}
+    color: color.fg
+`;
+const RADIAL = (keys: string): string => MINIMAL + `  ticks:
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 12
+${keys}    color: color.fg
+    parts:
+      - {type: line, at: {dy: -90%r}, to: {dy: -80%r}, thickness: 2px}
+`;
+const LINEAR = (keys: string): string => MINIMAL + `  dots:
+    type: pattern
+    pattern: linear
+    at: {anchor: center, dx: -20%r}
+    count: 5
+${keys}    color: color.fg
+    parts:
+      - {type: circle, radius: 3%r}
+`;
+
+test("graph range: a bare duration or count is refused naming the object form; the objects read as before", () => {
+  const duration = errorsOf(GRAPH("4h"));
+  assert.equal(duration.length, 1, duration.map((d) => d.message).join("\n"));
+  assert.ok(duration[0]!.message.includes("range: {duration: \"4h\"}"), duration[0]!.message);
+  const count = errorsOf(GRAPH("7"));
+  assert.equal(count.length, 1, count.map((d) => d.message).join("\n"));
+  assert.ok(count[0]!.message.includes("range: {samples: 7}"), count[0]!.message);
+  const graph = (text: string): Record<string, unknown> => face(text).elements.find((e) => e.id === "hr") as unknown as Record<string, unknown>;
+  const week = graph(GRAPH("{duration: 7d}"));
+  assert.deepEqual([week["range_kind"], week["range_value"], week["sample_count"]], ["duration", 7 * 86400, 7]);
+  const seven = graph(GRAPH("{samples: 7}"));
+  assert.deepEqual([seven["range_kind"], seven["range_value"], seven["sample_count"]], ["count", 7, 7]);
+  const both = errorsOf(GRAPH("{samples: 7, duration: 7d}"));
+  assert.equal(both.length, 1, both.map((d) => d.message).join("\n"));
+  assert.ok(both[0]!.message.includes("one of"), both[0]!.message);
+});
+
+test("pattern step: step_angle: turns a radial pattern and step: {dx, dy} moves a linear one; the wrong key names the right one", () => {
+  const ticks = (text: string): Record<string, unknown> => face(text).elements.find((e) => e.id === "ticks") as unknown as Record<string, unknown>;
+  assert.equal(ticks(RADIAL(""))["step_angle"], 30);
+  assert.equal(ticks(RADIAL("    step_angle: 15deg\n"))["step_angle"], 15);
+  const angle = errorsOf(RADIAL("    step: 30deg\n"));
+  assert.equal(angle.length, 1, angle.map((d) => d.message).join("\n"));
+  assert.ok(angle[0]!.message.includes("step_angle: 30deg"), angle[0]!.message);
+  const offset = errorsOf(RADIAL("    step: {dx: 10%r}\n"));
+  assert.equal(offset.length, 1, offset.map((d) => d.message).join("\n"));
+  assert.ok(offset[0]!.message.includes("'step_angle:'"), offset[0]!.message);
+  const turned = errorsOf(LINEAR("    step_angle: 30deg\n"));
+  assert.equal(turned.length, 1, turned.map((d) => d.message).join("\n"));
+  assert.ok(turned[0]!.message.includes("'step: {dx, dy}'"), turned[0]!.message);
+  face(LINEAR("    step: {dx: 10%r}\n"));
+});

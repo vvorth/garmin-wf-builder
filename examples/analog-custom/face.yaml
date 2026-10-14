@@ -240,7 +240,7 @@ layouts:
         type: pattern
         pattern: radial
         at: { anchor: center } # the centre every copy turns about
-        count: 60 # step defaults to 360deg / 60 = 6deg
+        count: 60 # step_angle defaults to 360deg / 60 = 6deg
         skip_every: 5 # copies 0, 5, 10, ... are the hour ticks' places
         color: color.track
         antialias: true
@@ -258,7 +258,7 @@ layouts:
         pattern: radial
         at: { anchor: center }
         count: 12
-        step: 30deg
+        step_angle: 30deg
         # skip: [0] # 12 o'clock gets the doubled marker below
         color: color.track
         antialias: true

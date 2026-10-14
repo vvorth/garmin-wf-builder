@@ -113,7 +113,7 @@ hands have.
   is authored once, in the **template's own local frame** (for copy 0), and
   a radial pattern composes it with each copy's own rotation at codegen/
   preview time, the same way a pattern `arc` part's `start_angle:` already
-  composes with `start:`/`step:` — so twelve hour numerals, each tangent to
+  composes with `start:`/`step_angle:` — so twelve hour numerals, each tangent to
   its own radius, are one authored angle (`curve: {style: angled, angle:
   0deg}`), not twelve. A linear pattern never rotates, so its copies simply
   keep the part's own angle unchanged. `docs/guide/patterns.md`'s ["Text

@@ -312,7 +312,7 @@ elements:
         size: { width: 11%r, height: 6%r }
         align: bottom_right
         series: steps
-        range: 7d
+        range: {duration: 7d}
         style: bars
         bar_width: 2px
         color: color.accent

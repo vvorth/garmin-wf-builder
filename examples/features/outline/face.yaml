@@ -174,7 +174,7 @@ elements:
     at: { anchor: center }
     count: 3
     start: 235deg
-    step: 12deg
+    step_angle: 12deg
     parts:
       - type: text
         text: "{copy + 1}"
@@ -192,7 +192,7 @@ elements:
     at: { anchor: center }
     count: 3
     start: 100deg
-    step: 12deg
+    step_angle: 12deg
     parts:
       - type: text
         text: "{copy + 1}"

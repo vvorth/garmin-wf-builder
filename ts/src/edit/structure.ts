@@ -73,10 +73,10 @@ export function staticStep(block: Path): number {
 }
 
 /** A range the series can show: a week of days, half a day of hours, four hours of heart rate. */
-function graphRange(series: string): string | number {
+function graphRange(series: string): Map<DataKey, Data> {
   const interval = seriesCatalog.get(series)?.interval_seconds ?? null;
-  if (interval === null) return "4h";
-  return interval >= 86400 ? "7d" : interval >= 3600 ? "12h" : 12;
+  if (interval === null) return m(["duration", "4h"]);
+  return interval >= 86400 ? m(["duration", "7d"]) : interval >= 3600 ? m(["duration", "12h"]) : m(["samples", 12]);
 }
 
 /** What a new element of `type` starts with: its defaults, the face's most used colour, and the series, slot or set `choice` names. */

@@ -70,10 +70,9 @@ function patternPartInk(part: ResolvedHandPart, ox: number, oy: number, s: numbe
   return part.ink(ox, oy, s, c);
 }
 
-/** `step:`/`start:` as `[stepDegrees, startDegrees, stepPosition]`, or `null` once an error is reported. */
+/** `step_angle:`/`step:`/`start:` as `[stepDegrees, startDegrees, stepPosition]`, or `null` once an error is reported. */
 function patternSteps(b: Builder, node: Node, common: Common, count: number): [number, number, Position | null] | null {
   const elementId = common.id;
-  const stepRaw = node.get("step");
   const pattern = node.get("pattern") as string;
   if (pattern !== "radial") {
     if (node.has("start")) {
@@ -82,29 +81,31 @@ function patternSteps(b: Builder, node: Node, common: Common, count: number): [n
       { notes: ["'step: {dx, dy}' already places copy 0 relative to 'at:'"] });
       return null;
     }
-    if (stepRaw === undefined || stepRaw === null) {
+    if (node.has("step_angle")) {
+      b.bag.error("pattern", `${elementId}.step_angle: not accepted on 'pattern: ${pattern}' -- `
+        + "its copies move by 'step: {dx, dy}', not by an angle", b.doc.span(node, "step_angle"),
+      { notes: ["'step_angle:' is for 'pattern: radial'"] });
+      return null;
+    }
+    const stepRaw = node.get("step");
+    if (!(stepRaw instanceof Map)) {
       b.bag.error("pattern", `${elementId}.step: a ${pattern} pattern needs a 'step: {dx, dy}' between copies`,
         b.doc.span(node) ?? common.span,
         { notes: ["radial's angle default (360deg / count) has no equivalent -- there is no natural spacing to assume"] });
       return null;
     }
-    if (!(stepRaw instanceof Map)) {
-      b.bag.error("pattern", `${elementId}.step: 'pattern: ${pattern}' takes {dx, dy} for 'step:', not an angle`,
-        b.doc.span(node, "step"), { notes: ["an angle 'step:' is for 'pattern: radial'"] });
-      return null;
-    }
     return [0.0, 0.0, b.position(stepRaw, node, "step")];
   }
-  if (stepRaw instanceof Map) {
-    b.bag.error("pattern", `${elementId}.step: 'pattern: radial' takes an angle for 'step:' (default 360deg / count), not {dx, dy}`,
-      b.doc.span(node, "step"), { notes: ["'{dx, dy}' is for 'pattern: linear' and 'pattern: grid'"] });
+  if (node.has("step")) {
+    b.bag.error("pattern", `${elementId}.step: not accepted on 'pattern: radial' -- its copies turn by 'step_angle:' (default 360deg / count)`,
+      b.doc.span(node, "step"), { notes: ["'step: {dx, dy}' is for 'pattern: linear' and 'pattern: grid'"] });
     return null;
   }
   let stepDegrees: number;
-  if (stepRaw === undefined || stepRaw === null) {
+  if (!node.has("step_angle")) {
     stepDegrees = 360.0 / count;
   } else {
-    const stepAngle = b.angle(node, "step");
+    const stepAngle = b.angle(node, "step_angle");
     if (stepAngle === null) return null; // already reported
     stepDegrees = stepAngle.degrees;
   }
@@ -113,8 +114,8 @@ function patternSteps(b: Builder, node: Node, common: Common, count: number): [n
   const startDegrees = startAngle !== null ? startAngle.degrees : 0.0;
 
   if (stepDegrees === 0.0) {
-    b.bag.error("pattern", `${elementId}.step: 'step: 0deg' draws every copy on top of copy 0`,
-      b.doc.span(node, "step") ?? common.span, {
+    b.bag.error("pattern", `${elementId}.step_angle: 'step_angle: 0deg' draws every copy on top of copy 0`,
+      b.doc.span(node, "step_angle") ?? common.span, {
         notes: ["a radial pattern's whole point is turning between "
           + "copies -- give it a nonzero step, or write one "
           + "element if a single copy is all you want"],
@@ -126,9 +127,9 @@ function patternSteps(b: Builder, node: Node, common: Common, count: number): [n
     if (span >= 360.0 - 1e-9) {
       const wrapIndex = Math.min(count - 1, Math.ceil(360.0 / Math.abs(stepDegrees)));
       b.bag.error("pattern", `${elementId}: copies 0 and ${wrapIndex} land on the same `
-        + `angle -- 'step:' x (count - 1) = ${formatG(span)}deg reaches a full turn`, b.doc.span(node, "step") ?? common.span, {
-        notes: [`count: ${count}, step: ${formatG(stepDegrees)}deg -- `
-          + "reduce count or step so the copies do not wrap past 360deg"],
+        + `angle -- 'step_angle:' x (count - 1) = ${formatG(span)}deg reaches a full turn`, b.doc.span(node, "step_angle") ?? common.span, {
+        notes: [`count: ${count}, step_angle: ${formatG(stepDegrees)}deg -- `
+          + "reduce count or step_angle so the copies do not wrap past 360deg"],
       });
       return null;
     }

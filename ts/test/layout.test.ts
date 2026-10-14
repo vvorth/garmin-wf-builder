@@ -69,7 +69,7 @@ elements:
   hr_graph:
     type: graph
     series: heart_rate
-    range: 4h
+    range: {duration: 4h}
     style: line
     thickness: 3px
     color: color.fg

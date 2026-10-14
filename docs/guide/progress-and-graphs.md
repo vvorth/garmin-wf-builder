@@ -39,7 +39,7 @@ the same placement rule as every other element with a box.
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `series` | a name from `wfb series` | required | which time series to plot |
-| `range` | duration (`30m`/`4h`/`7d`) or a sample count | required | how much history |
+| `range` | `{duration: 30m/4h/7d}` or `{samples: n}` | required | how much history |
 | `buckets` | integer | `40` | time bins; `heart_rate` over a duration only |
 | `style` | `line`\|`area`\|`bars` | `line` | rendering |
 | `thickness` | length | — | pen width, `style: line` only |
@@ -54,11 +54,11 @@ Run `wfb series` for the current catalogue of plottable series names.
 ## Example
 
 ```yaml
-hr_graph:    { type: graph, series: heart_rate, range: 4h, buckets: 32,
+hr_graph:    { type: graph, series: heart_rate, range: {duration: 4h}, buckets: 32,
                style: line, thickness: 2px }
-steps_graph: { type: graph, series: steps, range: 7d,
+steps_graph: { type: graph, series: steps, range: {duration: 7d},
                style: bars, bar_width: 6px, min: 0 }
-temp_graph:  { type: graph, series: forecast_temperature, range: 24h,
+temp_graph:  { type: graph, series: forecast_temperature, range: {duration: 24h},
                style: area }
 ```
 
@@ -339,7 +339,7 @@ hr_graph:
   size: { width: 60%, height: 18% }
 
   series: heart_rate            # run `wfb series` for the full catalogue
-  range: 4h                     # a duration (30m/4h/7d) or a bare sample count
+  range: {duration: 4h}         # {duration: 30m/4h/7d} or {samples: n}
   buckets: 40                   # time-binned series only; default 40
 
   style: line                   # line | area | bars ; default line
@@ -387,8 +387,8 @@ native widgets, which is exactly why the name gets typed; "unknown series"
 would send you hunting for a spelling mistake that does not exist. A genuine
 typo still gets the suggestion (`series: step` → *did you mean: steps?*).
 
-**`range:`** is a duration (`30m`, `4h`, `7d`) or a bare integer sample
-count. `heart_rate` passes a duration straight through to
+**`range:`** is `{duration: "4h"}` (`30m`, `4h`, `7d`) or `{samples: n}`, an
+integer sample count. `heart_rate` passes a duration straight through to
 `getHeartRateHistory`, which bins it by real time on-device — its own
 sample interval is device-dependent, so a build-time sample count cannot be
 derived from it. Every other series converts a duration to a count at build
