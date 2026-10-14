@@ -11,7 +11,9 @@
 //   manifest the document has after it by hash, so the last record *is*
 //   the document;
 // - `snapshot/<id>/<name>`: a point in time to go back to, naming its text
-//   and assets by hash the same way.
+//   and assets by hash the same way;
+// - `ui/<id>`: the editor's own state for the document (`FaceUiState`), a
+//   JSON object written whole, outside its history.
 //
 // **Undo and redo are journal records too.** A `change` adds a state; an
 // `undo` or `redo` moves to an earlier or later one, naming it by its
@@ -121,13 +123,19 @@ interface Blob {
   z: boolean;
 }
 
+/** The editor's own state for a document: a JSON object the page owns. */
+export type UiState = Record<string, unknown>;
+
 interface Doc {
   meta: Meta;
   journal: Change[];
   blobs: Map<string, Blob>;
   snapshots: Map<string, Snapshot>;
+  ui: UiState;
   timeline: Timeline | null;
 }
+
+const isUiState = (value: unknown): value is UiState => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /** The timeline a journal leaves. */
 export function replay(journal: readonly Change[]): Timeline {
@@ -166,7 +174,7 @@ function parse(records: Map<string, unknown>): Map<string, Doc> {
   const doc = (id: string): Doc => {
     let found = docs.get(id);
     if (found === undefined) {
-      found = { meta: { name: "", created: 0 }, journal: [], blobs: new Map(), snapshots: new Map(), timeline: null };
+      found = { meta: { name: "", created: 0 }, journal: [], blobs: new Map(), snapshots: new Map(), ui: {}, timeline: null };
       docs.set(id, found);
     }
     return found;
@@ -181,6 +189,7 @@ function parse(records: Map<string, unknown>): Map<string, Doc> {
     } else if (kind === "journal") doc(id).journal.push(value as Change);
     else if (kind === "blob" && rest !== undefined) doc(id).blobs.set(rest, value as Blob);
     else if (kind === "snapshot" && rest !== undefined) doc(id).snapshots.set(rest, value as Snapshot);
+    else if (kind === "ui" && isUiState(value)) doc(id).ui = value;
   }
   for (const id of [...docs.keys()]) {
     if (!metas.has(id)) docs.delete(id);
@@ -214,7 +223,7 @@ export class Store {
   async reload(id: string): Promise<void> {
     if (!ID.test(id)) return;
     await this.flush();
-    const records = await read(this.backend, ["meta", "journal", "blob", "snapshot"].map((kind) => `${kind}/${id}`));
+    const records = await read(this.backend, ["meta", "journal", "blob", "snapshot", "ui"].map((kind) => `${kind}/${id}`));
     const doc = parse(records).get(id);
     if (doc === undefined) this.docs.delete(id);
     else this.docs.set(id, doc);
@@ -255,9 +264,21 @@ export class Store {
   newDocument(name: string): string {
     const id = uuid().replace(/-/g, "");
     const meta = { name, created: now() };
-    this.docs.set(id, { meta, journal: [], blobs: new Map(), snapshots: new Map(), timeline: null });
+    this.docs.set(id, { meta, journal: [], blobs: new Map(), snapshots: new Map(), ui: {}, timeline: null });
     this.write(`meta/${id}`, meta);
     return id;
+  }
+
+  /** The editor's own state for `id`: `{}` until the page writes one. */
+  uiState(id: string): UiState {
+    return { ...this.doc(id).ui };
+  }
+
+  /** Replace the editor's own state for `id`. */
+  setUiState(id: string, state: UiState): void {
+    const doc = this.doc(id);
+    doc.ui = { ...state };
+    this.write(`ui/${id}`, doc.ui);
   }
 
   meta(id: string): Meta {
@@ -289,6 +310,7 @@ export class Store {
       ...doc.journal.map((c) => `journal/${id}/${seqKey(c.seq)}`),
       ...[...doc.blobs.keys()].map((sha) => `blob/${id}/${sha}`),
       ...[...doc.snapshots.keys()].map((name) => `snapshot/${id}/${name}`),
+      `ui/${id}`,
     ]);
   }
 

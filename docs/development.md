@@ -211,7 +211,9 @@ ts/                   the compiler, its tests and tools: one package for the
                         templates over Preact (npm), main.ts its entry, which the
                         studio server bundles with esbuild as /dist/app.js (also
                         npm run bundle -> dist/app.js), every module strict
-                        TypeScript; vendor/
+                        TypeScript; store.ts holds the editor's state (one
+                        EditorStore, read through useStore), outbox.ts and
+                        textsync.ts the pure rules it runs; vendor/
                         holds CodeMirror (built from tools/studio-frontend/ by
                         tools/vendor-studio-frontend.sh) and marked
   templates/            the starters for `wfb new` and the hand presets

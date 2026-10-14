@@ -605,7 +605,8 @@ test("the page listens for every event the worker sends", async () => {
   const { readFileSync } = await import("node:fs");
   const sources = ["src/studio/router.ts", "src/studio/document.ts", "src/studio/worker.ts"].map((p) => readFileSync(p, "utf8")).join("\n");
   const sent = new Set([...sources.matchAll(/(?:emit|onEvent)\("(\w+)"/g)].map((m) => m[1]));
-  const page = readFileSync("app/app.ts", "utf8");
+  // the store hears the open face's events, the page the library's
+  const page = ["app/app.ts", "app/store.ts"].map((p) => readFileSync(p, "utf8")).join("\n");
   const handled = new Set([...page.matchAll(/name === "(\w+)"/g)].map((m) => m[1]));
   assert.ok(sent.size > 0);
   for (const event of sent) assert.ok(handled.has(event), `the page never handles '${event}'`);
@@ -726,4 +727,26 @@ test("requests of one priority are answered in the order asked", async () => {
   await Promise.all(asks);
   assert.deepEqual(order, [200, 200, 200]);
   assert.equal(versionOf(client.studio.document(doc.id)), "3.0.0");
+});
+
+test("a face's editor-only state is kept beside it, outside its history, and goes with it", async () => {
+  const backend = new MemoryBackend();
+  const client = new Client(await newStudio(backend));
+  const doc = await client.create();
+  const empty = await client.call("ui_state", { id: doc.id, action: "get" });
+  assert.deepEqual([empty.status, empty.json], [200, { state: {} }]);
+  const set = await client.call("ui_state", { id: doc.id, action: "set", state: { locked: ["clock"], hidden: [] } });
+  assert.deepEqual([set.status, set.json], [200, { state: { locked: ["clock"], hidden: [] } }]);
+  // not a change: the face's version and history are untouched
+  assert.equal((await client.call("get", { id: doc.id })).json.version, doc.version);
+  assert.deepEqual(client.events.filter(([name]) => name === "changed"), []);
+  // written to the records, so another store over them reads it back
+  const again = new Client(await newStudio(backend));
+  assert.deepEqual((await again.call("ui_state", { id: doc.id, action: "get" })).json, { state: { locked: ["clock"], hidden: [] } });
+  // a bad action or a state that is not an object is refused
+  assert.equal((await client.call("ui_state", { id: doc.id, action: "drop" })).status, 400);
+  assert.equal((await client.call("ui_state", { id: doc.id, action: "set", state: [1] })).status, 400);
+  // deleting the face removes it
+  await client.call("delete", { id: doc.id });
+  assert.equal([...backend.records.keys()].some((k) => k.startsWith(`ui/${doc.id}`)), false);
 });

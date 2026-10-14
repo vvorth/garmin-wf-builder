@@ -36,7 +36,8 @@ import { base64, type Document, frameKey, type FrameKey, StaleVersion, type Stud
 import { devices, vocabulary } from "./inspect.ts";
 import { plain } from "./json.ts";
 import type {
-  Answer, BuildResult, Event, EventData, EventName, Home, Op, RefusedResponse, Request, Response, Skin, Vocabulary,
+  Answer, BuildResult, Event, EventData, EventName, FaceUiState, Home, Op, RefusedResponse, Request, Response, Skin, UiState,
+  Vocabulary,
 } from "./protocol.ts";
 import { StoreError, UnknownDocument, UnknownSnapshot } from "./store.ts";
 
@@ -378,6 +379,12 @@ export class Router {
         return this.changed(doc, tab);
       case "copy":
         return await this.created(studio.fork(id, text(args, "snapshot")));
+      case "ui_state": {
+        const action = text(args, "action");
+        if (action === "set") studio.store.setUiState(id, object(args, "state") as FaceUiState);
+        else if (action !== "get") throw new Refused(`ui_state action ${quoted(action)} is neither get nor set`);
+        return json<UiState>({ state: studio.store.uiState(id) as FaceUiState });
+      }
     }
     throw new Refused(`no such request: ${quoted(op)}`);
   }

@@ -154,6 +154,7 @@ const home = obj({
 const skin = obj({ device: str, scale: int, image: str, width: int, height: int, x: int, y: int });
 const deleted = obj({ deleted: str });
 const renamed = obj({ id: str, name: str });
+const uiState = obj({ state: record(value) });
 const buildResult = obj({ ok: bool, device: str, log: str, seconds: num, memory: nullable(str), download: nullable(str) });
 const refusal = obj({ error: str });
 const EVENTS: Record<string, Check> = {
@@ -253,6 +254,8 @@ test("every answer the worker sends has the protocol's shape", async () => {
   summary(copy, "copy");
   assert.notEqual(copy.id, id);
   deleted((await ok("delete", { id: copy.id })).json, "delete");
+  uiState((await ok("ui_state", { id, action: "get" })).json, "ui_state get");
+  uiState((await ok("ui_state", { id, action: "set", state: { locked: ["a"] } })).json, "ui_state set");
 
   const fresh = (await ok("new", { template: "minimal", name: "Fresh" })).json;
   summary(fresh, "new");

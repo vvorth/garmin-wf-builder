@@ -213,3 +213,30 @@ test("the browser asks before leaving while a change is on its way, and not once
     `);
   assert.deepEqual(printed, [false, true, false]);
 });
+
+test("Escape deselects a row selected in Layers, once any open dialog has closed", async () => {
+  // The popovers' bodies are always in the DOM, so a guard that looked for
+  // `.popover-body` found one every time and Escape never deselected; only
+  // an open one holds Escape back.
+  const face = faceFixture();
+  const printed = await page(face, `#/face/${face.summary.id}`, `
+      const row = (id) => find((e) => cls(e).startsWith("item") && e.textContent.startsWith(id))[0];
+      const selected = () => cls(row("clock")).includes("selected");
+      await click(row("clock"));
+      out(selected());
+      press("?", { shiftKey: true }); await settle();
+      out([app.textContent.includes("Keyboard shortcuts"), press("Escape")]);
+      await settle();
+      out([app.textContent.includes("Keyboard shortcuts"), selected()]);
+      out(press("Escape"));
+      await settle();
+      out(selected());
+      out(press("Escape"));
+    `);
+  assert.equal(printed[0], true);
+  assert.deepEqual(printed[1], [true, true]);
+  assert.deepEqual(printed[2], [false, true], "the first Escape closes the dialog and keeps the selection");
+  assert.equal(printed[3], true);
+  assert.equal(printed[4], false, "the second deselects");
+  assert.equal(printed[5], false, "with nothing selected the key is the browser's");
+});

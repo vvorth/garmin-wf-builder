@@ -98,13 +98,27 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     `app/main.ts` with esbuild when it starts and serves it as
     `/dist/app.js` (`/dist/raster.js` stays a separate module the page
     imports); `/static/` serves `index.html`, `studio.css` and `vendor/`
-    as files. Every module in `app/` is TypeScript, strict. `main.ts` sets `globalThis.wfbStudio =
+    as files. Every module in `app/` is TypeScript, strict.
+    `app/store.ts` is the editor's state: one `EditorStore` (the face,
+    the selection, the editing `context`, the per-browser `view` and `ui`
+    preferences it persists, the outbox's queue, the YAML tab's text and
+    the frame) with the actions that change it, which `App` creates once
+    and provides; a component reads the slice it needs through
+    `useStore(selector)` and is rendered again only when that slice
+    changes. The outbox's order, the frame's "newest wins" and the YAML
+    tab's debounced save are the store's own logic over the pure rules in
+    `outbox.ts` and `textsync.ts`; `hooks.ts` keeps only the hooks on the
+    browser (keys, clipboard, pan and zoom). The leaf panels (`Layers`,
+    `FacePanel`, `Inspector`, `Canvas`, `Strip`, `Diagnostics`) still
+    take props, so a test renders one alone. `main.ts` sets `globalThis.wfbStudio =
     {api, call}`: a test hook for browser tests that drive the worker
     from the page, not an API. The page tests (`test/page-*.test.ts`,
     `test/page-harness.ts`) run the page's modules in Node by file URL
     over a minimal DOM, Preact resolved through `import.meta.resolve` so a
-    test shares the page's instance; `test/studio-client.ts` runs the
-    worker's router in Node for the studio tests.
+    test shares the page's instance, and the store alone against the
+    harness's stand-in worker (`test/page-store.test.ts`);
+    `test/studio-client.ts` runs the worker's router in Node for the
+    studio tests.
   - `src/node.ts` hands Node's copies of what the browser hands in itself:
     the schema, the icon font's character map, and whether a font
     `source:` exists (`installAssets`, `repoFileExists`). A Node entry point

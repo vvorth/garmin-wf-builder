@@ -126,17 +126,15 @@ export function faceFixture(): { summary: any; vocabulary: any; home: any } {
     documents: out.documents.map((d) => ({ ...d, name: "Morning" })) } };
 }
 
-/**
- * The whole page loaded at `route` over a stand-in worker, then `body` run
- * (every request the page makes is in `requests`): what it printed.
- */
-export async function page(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string, body: string): Promise<any[]> {
-  return printed(`
+/** The stand-in worker and browser the page's modules run against: `requests`, `sent()`, `unanswered`, `settle()`, `storage`, `press()`. */
+function standIn(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string): string {
+  return `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
       const app = document.createElement("div");
       document.getElementById = () => app;
-      document.querySelector = () => null;
+      // the page's own query, over what it rendered (a popover's body is always in the DOM; an open one is not matched here)
+      document.querySelector = (sel) => app.querySelector(sel);
       document.documentElement = document.createElement("html");   // CodeMirror reads it on import
       globalThis.window = globalThis;
       // the page's own listeners on the window, so a test can press keys
@@ -159,9 +157,11 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
         vocabulary: ${JSON.stringify({ ...face["vocabulary"], devices: face["devices"] ?? [] })},
       };
       answers[\`get \${summary.id}\`] = summary;
+      // each face's editor-only state, as the worker keeps it beside the face
+      const uiStates = {};
       // every request the page made, [op, args]; \`sent()\` the changes among them
       const requests = [];
-      const READS = new Set(["home", "vocabulary", "get", "frame", "skin", "inspect", "history", "cover", "thumbnail", "handset"]);
+      const READS = new Set(["home", "vocabulary", "get", "frame", "skin", "inspect", "history", "cover", "thumbnail", "handset", "ui_state"]);
       const sent = () => requests.filter(([op]) => !READS.has(op));
       // the editor's worker, answering from the face's summary; a test
       // replaces \`respond\` to answer differently
@@ -171,6 +171,10 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
         let body = answers[op === "get" ? \`get \${args.id}\` : op];
         if (op === "goto") body = summary;
         if (op === "rename") body = { id: summary.id, name: args.name };
+        if (op === "ui_state") {
+          if (args.action === "set") uiStates[args.id] = args.state;
+          body = { state: uiStates[args.id] ?? {} };
+        }
         // a frame is never drawn here: its answer waits in \`unanswered\` for a test to give
         if (body !== undefined) reply({ status: 200, json: body });
         else unanswered.push(reply);
@@ -186,7 +190,6 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
           });
         }
       };
-      await import(${JSON.stringify(appUri("main.ts"))});
       // Quiet: no answer on its way for a few timer turns, which covers an
       // effect's request (rendered, then two timer turns). Counted in turns,
       // not milliseconds, so a slow machine waits as long as it needs.
@@ -196,6 +199,17 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
           idle = inflight > 0 ? 0 : idle + 1;
         }
       };
+      const out = (v) => console.log(JSON.stringify(v));
+  `;
+}
+
+/**
+ * The whole page loaded at `route` over a stand-in worker, then `body` run
+ * (every request the page makes is in `requests`): what it printed.
+ */
+export async function page(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string, body: string): Promise<any[]> {
+  return printed(`${standIn(face, route)}
+      await import(${JSON.stringify(appUri("main.ts"))});
       await settle(); await settle();
       const cls = (e) => e.attributes.class || "";
       const find = (pred) => app.all(pred);
@@ -208,7 +222,20 @@ export async function page(face: { summary: any; vocabulary: any; home: any; dev
         input.value = value; input.dispatch("input", { target: input }); await settle();
         input.dispatch("keydown", { key: "Enter", target: input }); await settle();
       };
-      const out = (v) => console.log(JSON.stringify(v));
+      ${body}
+    `);
+}
+
+/**
+ * The editor's store (`app/store.ts`) alone, over the same stand-in worker,
+ * then `body` run with `EditorStore` and the store module (`storeMod`) in
+ * scope: what it printed.
+ */
+export async function store(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, body: string): Promise<any[]> {
+  return printed(`${standIn(face, "#/")}
+      const storeMod = await import(${JSON.stringify(appUri("store.ts"))});
+      const { EditorStore } = storeMod;
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       ${body}
     `);
 }

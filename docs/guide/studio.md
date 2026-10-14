@@ -187,7 +187,9 @@ zone, moves the bar, and its size handle takes a press just outside it.
 A line's ends keep their handles; a press on its middle moves it.
 
 **Selecting.** Click an element to select it; a click on the space
-around the watch, or **Escape**, selects nothing. Ctrl-, Cmd- or
+around the watch, or **Escape**, selects nothing, whether it was selected
+on the face or in the layers (with a menu or dialog open, Escape closes
+that first). Ctrl-, Cmd- or
 Shift-click more elements on the face to add them (or take them out
 again); in the layers, Ctrl- or Cmd-click does that, and Shift-click
 selects every row from the selection to the one clicked. **Ctrl+A**

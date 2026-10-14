@@ -761,6 +761,23 @@ export interface CopyArgs extends DocArgs {
   snapshot: string;
 }
 
+/**
+ * The editor's own state for a face, kept beside it in this browser and
+ * never in its text: a JSON object the page owns, read and written whole.
+ * Nothing is in it yet.
+ */
+export type FaceUiState = Record<string, Value>;
+
+/** Read (`get`) or replace (`set`, with `state`) a face's `FaceUiState`. */
+export interface UiStateArgs extends DocArgs {
+  action: "get" | "set";
+  state?: FaceUiState;
+}
+
+export interface UiState {
+  state: FaceUiState;
+}
+
 /** Every operation: its arguments and its answer. */
 export interface Ops {
   home: { args: Record<string, never>; answer: Home };
@@ -791,6 +808,7 @@ export interface Ops {
   download: { args: DownloadArgs; answer: FileBytes };
   restore: { args: RestoreArgs; answer: Summary };
   copy: { args: CopyArgs; answer: Summary };
+  ui_state: { args: UiStateArgs; answer: UiState };
 }
 
 export type Op = keyof Ops;
