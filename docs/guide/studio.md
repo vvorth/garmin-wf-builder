@@ -110,14 +110,18 @@ you visit History and come back, and the tab says so (**· warnings
 only**). Clicking a diagnostic selects the element it is about. When the
 face has errors, the top bar counts them; click the count to see them.
 
-The bar above the centre picks the watch, the style and the zoom.
+The bar above the centre picks the watch, where a geometry edit lands
+(**Edit for**, [below](#on-the-face)), the style and the zoom.
 **Preview ▾** holds the rest of what the face is drawn at: the time and
 date, what each slot shows, which frame is drawn and the skin; its label
 lists whatever is not the default, and **Back to the sample moment**
 puts the sample time and date back, leaving the rest as it is.
 The frame is one of **awake**, **asleep** and **AOD**: asleep is an
 always-on (MIP) watch's low-power frame and AOD an AMOLED watch's, so each
-watch offers only its own, and switching watch swaps one for the other. A slot is drawn showing its first type until you pick
+watch offers only its own, and switching watch swaps one for the other.
+Together, the watch, the frame and the style are the **editing context**:
+what the canvas draws, and what Properties shows and edits
+([Properties](#properties)). A slot is drawn showing its first type until you pick
 another of its choices there: the watch draws whatever the wearer picks,
 so check each choice fits. The faces in the strip under it switch the
 watch on a click.
@@ -180,7 +184,7 @@ it. Its handles resize it:
 | angle | an arc's two ends | `start_angle:`, `sweep:` |
 | end | a line's two ends | `at:`, `to:` |
 
-A polygon has no handles; its `points:` are edited in the YAML. A handle
+A polygon has no handles; its `points:` are a list in Properties. A handle
 takes a press within a few pixels of it, except where that zone would
 cover the element itself: pressing inside a thin bar, thinner than the
 zone, moves the bar, and its size handle takes a press just outside it.
@@ -243,6 +247,24 @@ grid, angles to 30° within 3°, else to 6°. Hold **Alt** to place freely;
 **Escape** cancels a drag. While you drag, a label at the top left of the
 face says how far the drag has gone and whether it snaps.
 
+**Edit for.** The segmented control beside the watch picker, **all
+watches · this watch · this shape · this display**, says where a change
+to `at:`, `size:`, `radius:` or `align:` is written, whether dragged on
+the face or typed in Properties ([per-device and per-shape
+overrides](placement.md#per-device-and-per-shape-overrides)):
+
+- **all watches** writes the element's own key. A drag on the face then
+  goes where the watch you are looking at reads the key: its most specific
+  override if it has one (the watch's, then the shape's, then the display
+  class's), else the key itself.
+- **this watch**, **this shape** and **this display** write that override
+  (`fr955:`, `shape:round`, `display:amoled`, after the watch in view),
+  creating it when needed, in the unit of the value it replaces. An
+  override replaces the element's key whole, so a new override's `at:` or
+  `size:` starts as a copy of the one the watch in view reads (the
+  element's own, or a wider override's), with the dragged or typed key
+  changed in it. A selector with a colon in it is written as a quoted key.
+
 **Units.** A drag is written in the unit the key already has: a `%r` stays
 `%r`, a `%` stays `%`, rounded to the coarsest value that still lands on
 the pixel you dropped it on, on the watch you are looking at. A key written
@@ -266,45 +288,69 @@ it, type the new one, Enter. Nothing else in the format names an element
 by its id, so this only ever changes the one YAML key; a name already
 used anywhere else in the face (every id must be unique) is refused.
 
-The selection's keys, every one the format offers for its type, each with
-a control: a number and its unit, an angle, the 3×3 alignment picker, a
-colour ([the colour picker](#the-colour-picker)), a text with **+ data** to insert a
-reading, a font, an icon, a touch-and-hold target, a slot, a hand set (with
-**edit the set**, its lines in the YAML tab), a `text` element's `curve:`
-(style, angle, and for `radial`, the radius), a list of choices, on
-or off. A colour bound to a scheme role, rather than one of the face's
-swatches, names the role and jumps to the Schemes section. A `pattern`
-element's `parts:` shows its count and shapes read-only, with the same
-jump. **×** removes a key, back to its default; the last key of a device,
-shape or display-class override takes the emptied override with it, so
-none is left behind as `at: {}`. A key no control covers,
-such as a list or `aod:`, shows its value; edit it in the YAML.
+Below it, every key the format has for the element's type, generated from
+the format's schema, so there is nothing a key can hold that the panel
+cannot edit:
 
-The four buttons above the keys, **all targets**, the watch in view
-(by its id), its shape (**round screens**, say) and its display class
-(**AMOLED screens**, **MIP screens** or **LCD screens**), say where `at:`,
-`size:`, `radius:` and `align:` changes go ([per-device and per-shape
-overrides](placement.md#per-device-and-per-shape-overrides)):
+- A plain value has the control for its kind: a number and its unit, an
+  angle, the 3×3 alignment picker, a colour ([the colour
+  picker](#the-colour-picker)), a text with **+ data** to insert a
+  reading, a font, an icon, a touch-and-hold target, a slot, a hand set
+  (with **edit the set**, its lines in the YAML tab), a list of choices, on
+  or off. A colour bound to a scheme role, rather than one of the face's
+  swatches, names the role and jumps to the Schemes section. A key written
+  in a shape its control does not take (an `icon:` that follows data, say)
+  is edited as the YAML it is written as, in a text box: what you type is
+  read as a YAML value when you leave the box and written if it reads.
+- A key holding keys (`at:`, `curve:`, `outline:`, `lint:`, `aod:` in the
+  awake frame) is a fieldset of them, indented under its name. One with
+  nothing written yet is folded to its name and a **+**; open it and set a
+  key, and the keys it must have come with it (a `curve:` gets its `style`
+  and `angle` at once). `overrides:` lists the selectors written and adds
+  one by name (**+ key**), starting as a copy of the element's own `at:`.
+- A list (`points:`, a pattern's `parts:`, `lint: allow:`) shows its items,
+  each with **↑**, **↓** and **×**, and **+ add** puts a new one at the
+  end: the schema's default, else an empty item of the right shape.
+- A key the format writes in more than one shape (`absent:` as `hide`, a
+  text or a value; a text's `aod: outline:` as `none` or a ring) is a
+  segmented control over the shapes, the written one marked; picking
+  another writes that shape's starting value in one change, and the shape's
+  own keys appear beneath.
 
-- **all targets** writes the element's own key. A drag on the face goes
-  where the watch you are looking at reads the key, its most specific
-  override if it has one (the watch's, then the shape's, then the display
-  class's).
-- the watch's, the shape's or the display class's button writes that
-  override (`fr955:`, `shape:round`, `display:amoled`), creating it when
-  needed, in the unit of the value it replaces. An override replaces the
-  element's key whole, so a new override's `at:` or `size:` starts as a
-  copy of the one the watch in view reads (the element's own, or a wider
-  override's), with the dragged key changed in it. A selector with a colon
-  in it is written as a quoted key.
+A required key is starred; a key's name explains it on hover. **×**
+removes a key, back to its default (the last key of an override, or of an
+`aod:` block, takes the emptied block with it, so none is left behind as
+`at: {}`). A change the face cannot take, such as an object missing a key
+it must have, is refused with the reason, like any other change the
+compiler would not take.
 
-A key overridden on the watch in view says so under its value, naming the
-selector it reads (the device, the shape or the display class).
+**What the panel shows and where an edit goes follow the editing context**
+(the watch, the frame and the style in the bar above the face):
 
-A `color:`/`track_color:`/`visible:` override, on any selector (not only
-the watch in view), is listed below the keys, read-only, with its value
-and **edit in YAML** to its lines — these are not edited from Properties
-yet, only shown.
+- Every control shows the value the context *reads* for the key: awake,
+  the element's own key or, when the watch in view reads an override, that
+  override's value; in the AOD frame, what the always-on frame draws. When
+  that is not the element's own key, a badge after the name says where it
+  comes from: the override's selector (`fr955`, `shape:round`,
+  `display:amoled`), `aod` for the element's own `aod:` block, `from
+  <group>` for an enclosing group's block, `defaults` for the face's
+  `defaults: aod:`. The control's tooltip says where a change is written.
+- **Edit for** ([above](#on-the-face)) decides where `at:`, `size:`,
+  `radius:` and `align:` go: with **all watches**, the element's own key,
+  even while the watch in view reads an override (the badge says so); with
+  **this watch**, **this shape** or **this display**, that override, whose
+  **×** removes the override's key. An override not written yet shows an
+  empty number box and what it would inherit.
+- In the **AOD** frame, the keys the element's kind restyles there (its
+  `aod:` block's: `color:`, `text:`, `font:`, `outline:`, `thickness:`,
+  `filled:`, …, and every element's `visible:` and `dim:`, shown even when
+  the block does not write them) are edited in the element's `aod:`
+  block: pick a colour and `aod: color:` is written, never the awake
+  colour. The others (`at:`, `size:`, …) are shown as the watch reads them
+  and say **not restyled in AOD; edit it in the awake frame**. In the
+  awake frame the `aod:` block is an ordinary fieldset, so either frame
+  can edit it. The asleep frame of a MIP watch draws the awake design, so
+  it edits as awake does.
 
 ### Layers
 
@@ -591,8 +637,9 @@ without end. A snapshot keeps what it needs, however old.
 
 - Put the `.prg` on the watch: copy it yourself
   ([getting started](getting-started.md)).
-- Edit a polygon's points, a hand's parts, or keys no control covers,
-  except in the YAML tab.
+- Edit a hand set's parts (in `resources:`, not on an element), except in
+  the YAML tab; drag a polygon's points or a pattern's parts on the face
+  (they are edited as lists in Properties).
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
 - Share faces between browsers: each keeps its own (above).

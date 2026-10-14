@@ -113,7 +113,7 @@ test("Ctrl+K also finds a slot, jumping to its Face-tab section", async () => {
 test("renaming an element in Properties, the same way a colour renames, keeps it selected under its new name", async () => {
   const face = faceFixture();
   const doc = face["summary"];
-  const printed = await page(face, `#/face/${doc["id"]}`, "\n      answers.inspect = { element: [\"elements\", \"clock\"], id: \"clock\", type: \"text\", fields: [], unknown: [], overrides: {}, overridden: [], parts: null, device: null, shape: null };\n      const serve = respond;\n      respond = (request, reply) => {\n        if (request.op !== \"edit\") return serve(request, reply);\n        requests.push([request.op, request.args]);\n        const renamed = JSON.parse(JSON.stringify(summary));\n        renamed.version = summary.version + 1;\n        const rename = (nodes) => nodes.forEach((n) => { if (n.id === \"clock\") n.id = \"timer\"; rename(n.children || []); });\n        renamed.tree.forEach((b) => rename(b.children || []));\n        reply({ status: 200, json: renamed });\n      };\n      const row = (id) => find((e) => cls(e).startsWith(\"item\") && e.textContent.startsWith(id))[0];\n      await click(row(\"clock\"));\n      await settle();\n      const renamable = find((e) => cls(e) === \"name renamable\");\n      await click(renamable[renamable.length - 1]);\n      await typeName(\"timer\");\n      out(requests.find(([op, args]) => op === \"edit\" && args.edit && args.edit.op === \"rename\"));\n      const again = row(\"timer\");\n      out(again ? cls(again).includes(\"selected\") : false);\n      out(row(\"clock\") === undefined);\n    ");
+  const printed = await page(face, `#/face/${doc["id"]}`, "\n      answers.inspect = { element: [\"elements\", \"clock\"], id: \"clock\", type: \"text\", context: { frame: \"awake\", style: null }, fields: [], unknown: [], aod_keys: [], overrides: {}, overridden: [], parts: null, device: null, shape: null, display: null, error: null };\n      const serve = respond;\n      respond = (request, reply) => {\n        if (request.op !== \"edit\") return serve(request, reply);\n        requests.push([request.op, request.args]);\n        const renamed = JSON.parse(JSON.stringify(summary));\n        renamed.version = summary.version + 1;\n        const rename = (nodes) => nodes.forEach((n) => { if (n.id === \"clock\") n.id = \"timer\"; rename(n.children || []); });\n        renamed.tree.forEach((b) => rename(b.children || []));\n        reply({ status: 200, json: renamed });\n      };\n      const row = (id) => find((e) => cls(e).startsWith(\"item\") && e.textContent.startsWith(id))[0];\n      await click(row(\"clock\"));\n      await settle();\n      const renamable = find((e) => cls(e) === \"name renamable\");\n      await click(renamable[renamable.length - 1]);\n      await typeName(\"timer\");\n      out(requests.find(([op, args]) => op === \"edit\" && args.edit && args.edit.op === \"rename\"));\n      const again = row(\"timer\");\n      out(again ? cls(again).includes(\"selected\") : false);\n      out(row(\"clock\") === undefined);\n    ");
   assert.deepEqual(printed[0][1].edit, { op: "rename", path: ["elements", "clock"], to: "timer" });
   assert.equal(printed[1], true);
   assert.equal(printed[2], true);
@@ -239,4 +239,30 @@ test("Escape deselects a row selected in Layers, once any open dialog has closed
   assert.equal(printed[3], true);
   assert.equal(printed[4], false, "the second deselects");
   assert.equal(printed[5], false, "with nothing selected the key is the browser's");
+});
+
+test("Edit for, beside the watch picker, says where a geometry edit lands", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fenix847mm", "fr955"];
+  const devices = [
+    { id: "fenix847mm", name: "fenix847mm", display: "amoled", shape: "round", skin: true, ppi: null },
+    { id: "fr955", name: "fr955", display: "mip", shape: "round", skin: true, ppi: null },
+  ];
+  const printed = await page({ ...face, devices }, `#/face/${face.summary.id}`, `
+      const seg = () => find((e) => cls(e).includes("edit-for"))[0];
+      const buttons = () => seg().all((e) => e.localName === "button").map((b) => [b.textContent, cls(b), b.attributes.title]);
+      out([seg().textContent.startsWith("Edit for"), buttons()]);
+      await click(seg().all((e) => e.localName === "button")[3]);
+      out(buttons().map(([, on]) => on));
+      await click(find((e) => e.localName === "button" && e.attributes.title === "fr955")[0]);
+      out(buttons().map(([, , title]) => title));
+    `);
+  assert.deepEqual(printed[0], [true, [
+    ["all watches", "on", "the element's own key, for every watch"],
+    ["this watch", "", "an override for fenix847mm only"],
+    ["this shape", "", "an override for every round watch"],
+    ["this display", "", "an override for every AMOLED watch"],
+  ]]);
+  assert.deepEqual(printed[1], ["", "", "", "on"]);
+  assert.deepEqual(printed[2], ["the element's own key, for every watch", "an override for fr955 only", "an override for every round watch", "an override for every MIP watch"]);
 });

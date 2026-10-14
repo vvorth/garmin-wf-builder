@@ -117,8 +117,15 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     (Face, Target devices, Defaults, Layouts, the Styles matrix) with the
     `Reorder` control (↑ ↓) every ordered list of the tab shares. The outbox's order, the frame's "newest wins" and the YAML
     tab's debounced save are the store's own logic over the pure rules in
-    `outbox.ts` and `textsync.ts`; `hooks.ts` keeps only the hooks on the
-    browser (keys, clipboard, pan and zoom). The leaf panels (`Layers`,
+    `outbox.ts` and `textsync.ts`; the store also asks the worker for the
+    selection's field tree (`inspect`) for the context and asks again when
+    it changes; `hooks.ts` keeps only the hooks on the
+    browser (keys, clipboard, pan and zoom). `form.ts` is the generic form
+    the Inspector renders over that tree (a field by its kind: scalar,
+    object, list, choice), deciding from the context where each edit lands
+    (the `aod` scope in the AOD frame, Edit for's override scope for a
+    geometry key), with the small controls the Face panel shares.
+    The leaf panels (`Layers`,
     `FacePanel`, `Inspector`, `Canvas`, `Strip`, `Diagnostics`) still
     take props, so a test renders one alone. `main.ts` sets `globalThis.wfbStudio =
     {api, call}`: a test hook for browser tests that drive the worker

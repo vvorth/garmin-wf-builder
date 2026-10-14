@@ -379,8 +379,8 @@ function PropertiesSection({ doc }: { doc: Summary }): VNode {
   const folded = useStore((s) => s.ui.folds.props);
   const selection = useStore((s) => s.selection);
   const element = useStore(elementOf);
-  const device = useStore((s) => s.context.device);
-  const scope = useStore((s) => s.context.scope);
+  const ins = useStore((s) => s.inspect);
+  const target = useStore((s) => s.context.target);
   const vocab = useStore((s) => s.vocab);
   const frame = useStore((s) => s.frame.current);
   const drawn = useMemo(() => (frame ? new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)) : null), [frame]);
@@ -400,9 +400,8 @@ function PropertiesSection({ doc }: { doc: Summary }): VNode {
             ${box ? html` · ${box[2]}×${box[3]} px at (${box[0]}, ${box[1]})` : ""}
             ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
           </div>` : null}
-        <${Inspector} doc=${doc} element=${element} device=${device} vocab=${vocab ?? {}}
-                      scope=${scope} onScope=${(s: Scope) => store.setContext({ scope: s })}
-                      onEdit=${(op: EditOp) => store.edit(op)} onError=${(e: unknown) => store.error(e)}
+        <${Inspector} doc=${doc} element=${element} ins=${ins} target=${target} vocab=${vocab ?? {}}
+                      onEdit=${(op: EditOp) => store.edit(op)}
                       onReveal=${(line: number, end?: number) => store.reveal(line, end)} onSelect=${(id: string) => store.select(id)}
                       onFaceSection=${(key: string) => store.openFaceSection(key)} />
       </div>`}
@@ -584,8 +583,11 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
   </div>`;
 }
 
-// The controls above the face: the pane, the device, the style, the
-// Preview popover, the zoom and 1:1.
+/** A `display:` class as the Edit for button names it: `amoled` is "AMOLED", `mip` "MIP", `lcd` "LCD". */
+const displayName = (cls: string | null | undefined): string => String(cls || "").toUpperCase();
+
+// The controls above the face: the pane, the device, Edit for, the style,
+// the Preview popover, the zoom and 1:1.
 function Controls({ doc }: { doc: Summary }): VNode {
   const store = useEditorStore();
   const pane = useStore((s) => s.ui.pane);
@@ -610,6 +612,8 @@ function Controls({ doc }: { doc: Summary }): VNode {
       <select value=${context.device || ""} onChange=${(e: JSX.TargetedEvent<HTMLSelectElement>) => store.setContext({ device: e.currentTarget.value })}>
         ${doc.targets.map((t) => html`<option value=${t}>${t}</option>`)}
       </select></label>
+    <${EditFor} target=${context.target} device=${context.device} shape=${deviceInfo?.shape} display=${deviceInfo?.display}
+                onTarget=${(t: Scope) => store.setContext({ target: t })} />
     ${doc.styles.length ? html`<label>Style
       <select value=${context.style} onChange=${(e: JSX.TargetedEvent<HTMLSelectElement>) => store.setContext({ style: e.currentTarget.value })}>
         <option value="">default</option>
@@ -631,6 +635,32 @@ function Controls({ doc }: { doc: Summary }): VNode {
             onClick=${() => store.toggleReal()}>1:1</button>
     <button class="reset" title="Calibrate real size with a bank card" aria-label="Calibrate real size with a bank card" onClick=${() => store.setUi({ dialog: "calibrate" })}>⚙</button>
   </div>`;
+}
+
+interface EditForProps {
+  target: Scope;
+  device: string | null;
+  shape: string | undefined;
+  display: string | undefined;
+  onTarget(target: Scope): void;
+}
+
+// Edit for: where a Properties edit or a drag writes `at:`, `size:`,
+// `radius:` and `align:` -- the element's own key, for every watch, or its
+// override for the watch in view, its screen shape or its display class.
+// The three overrides need a watch in view.
+function EditFor({ target, device, shape, display, onTarget }: EditForProps): VNode {
+  const choices: [Scope, string, string][] = [
+    ["all", "all watches", "the element's own key, for every watch"],
+    ["device", "this watch", `an override for ${device ?? "the watch in view"} only`],
+    ["shape", "this shape", `an override for every ${shape ?? "same-shaped"} watch`],
+    ["display", "this display", `an override for every ${display ? displayName(display) : "same-display"} watch`],
+  ];
+  return html`<span class="seg edit-for" role="radiogroup"
+      title="Where a change to at:, size:, radius: or align: is written: the element's own key, or its override for this watch, its shape or its display class"><span class="dim">Edit for</span>
+    ${choices.map(([t, label, what]) => html`<button class=${target === t ? "on" : ""} aria-pressed=${target === t} title=${what}
+        disabled=${t !== "all" && !device} onClick=${() => onTarget(t)}>${label}</button>`)}
+  </span>`;
 }
 
 // The slot picks as the frame request spells them.

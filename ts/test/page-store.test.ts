@@ -229,3 +229,49 @@ test("a face's editor-only state is read when it opens and written beside the fa
   assert.deepEqual(printed[2], [[true, "get", null], [true, "set", { locked: ["clock"] }]]);
   assert.deepEqual(printed[3], { locked: ["clock"] });
 });
+
+test("the editing context asks the inspector again when the frame changes, and Edit for decides a geometry edit's scope", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fenix8solar47mm"];
+  const printed = await store(face, FRAME_OF + `
+      const inspects = () => requests.filter(([op]) => op === "inspect").map(([, a]) => [a.element.at(-1), a.device, a.frame, a.style]);
+      const s = new EditorStore(summary.id);
+      await settle();
+      out([inspects(), s.state.inspect, s.state.context.target]);
+      s.select("clock");
+      await settle();
+      out([inspects(), s.state.inspect === null]);
+      // the answer is the stand-in's: it did not come, so the tree stays empty; the frame asks again
+      s.setContext({ frame: "aod" });
+      await settle();
+      out(inspects());
+      s.setContext({ style: "night" });
+      await settle();
+      out(inspects().at(-1));
+      // the same tree is not asked for twice
+      s.setContext({ target: "shape" });
+      await settle();
+      out([inspects().length, s.state.context.target]);
+      // a drag is written where Edit for says
+      const gesture = { kind: "move", part: "both", dx: 1, dy: 0 };
+      const shown = { item: { id: "clock", box: [0, 0, 10, 10], center: [5, 5], handles: [] }, moving: new Set(["clock"]), preview: gesture };
+      s.drag(["clock"], gesture, shown);
+      await settle();
+      s.setContext({ target: "all" });
+      s.drag(["clock"], gesture, shown);
+      await settle();
+      // the first is out (the stand-in never answers a drag), the second waits behind it: each carries the target it was made under
+      out([requests.filter(([op]) => op === "drag").map(([, a]) => a.scope), s.state.pending.queue.map((e) => [e.state, e.where.scope])]);
+      s.deselect();
+      await settle();
+      out([inspects().length, s.state.inspect]);
+      s.dispose();
+    `);
+  assert.deepEqual(printed[0], [[], null, "all"], "nothing selected: nothing asked");
+  assert.deepEqual(printed[1], [[["clock", "fenix8solar47mm", "awake", ""]], true]);
+  assert.deepEqual(printed[2], [["clock", "fenix8solar47mm", "awake", ""], ["clock", "fenix8solar47mm", "aod", ""]]);
+  assert.deepEqual(printed[3], ["clock", "fenix8solar47mm", "aod", "night"]);
+  assert.deepEqual(printed[4], [3, "shape"]);
+  assert.deepEqual(printed[5], [["shape"], [["sent", "shape"], ["queued", "auto"]]]);
+  assert.deepEqual(printed[6], [3, null]);
+});

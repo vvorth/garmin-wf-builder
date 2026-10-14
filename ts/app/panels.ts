@@ -1,57 +1,34 @@
-// The inspector (the selected element's keys) and the Face panel (targets,
+// The inspector (the selected element's keys, as the generic form of
+// `form.ts` over the worker's field tree) and the Face panel (targets,
 // colours, schemes, styles, slots, fonts). Every change is one edit sent to the
 // worker, which patches the text, checks it and answers with the face;
 // a refused edit leaves the face as it was and says why.
 
 import { html } from "htm/preact";
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useRef } from "preact/hooks";
 import type { JSX, VNode } from "preact";
-import {
-  ANGLE_UNITS, afterRemovingSchemes, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor,
-  newStyleEntry, parseHex, parseQuantity, safeOn, swatchFor, toHex,
-} from "./values.ts";
+import { afterRemovingSchemes, colorName, newStyleEntry, parseHex, toHex } from "./values.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
-import { api } from "./api.ts";
 import { ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
+import { ColorPop, Commit, Form, Glyph, IconPop, Quantity } from "./form.ts";
+import type { FaceCtx, FaceSectionKey, OnEdit, OnFaceSection, OnReveal, OnSelect, WidgetCtx } from "./form.ts";
 import type { IconSpelling,
-  Axes, EditOp, Field as FieldInfo, Globals, HandSet, Inspect, Path, PaletteEntry, Schemes as SchemesInfo, Scope,
+  Axes, EditOp, HandSet, Inspect, PaletteEntry, Path, Schemes as SchemesInfo, Scope,
   SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
-// -- the callbacks and the context the panels share ---------------------------------------
+// -- the callbacks, the context and the controls the panels share ------------------------------
 
-/** One edit sent to the worker: the face it produced, or null when it was refused. The Inspector awaits a rename's to select the renamed element. */
-export type OnEdit = (op: EditOp) => Promise<Summary | null> | void;
+// The form's controls and the callback types live in `form.ts`; the Face panel's sections read them from here.
+export { ColorPop, Commit, Glyph, IconPop, Quantity } from "./form.ts";
+export type { ColorPopProps, FaceCtx, FaceSectionKey, GlyphProps, IconPopProps, OnEdit, OnFaceSection, OnReveal, OnSelect, WidgetCtx } from "./form.ts";
 export type OnStructure = (op: StructureOp) => Promise<void> | void;
-/** Show lines `line` to `end` of the text in the YAML tab. */
-export type OnReveal = (line: number, end: number) => void;
-export type OnSelect = (id: string) => void;
-export type FaceSectionKey = "targets" | "colours" | "colour_settings" | "schemes" | "styles" | "hand_sets" | "slots" | "fonts";
-export type OnFaceSection = (key: FaceSectionKey) => void;
-
-/** What the pickers read: the face as a whole and the format's words. The vocabulary is partial until the worker has answered. */
-export interface FaceCtx {
-  globals: Globals;
-  vocab: Partial<Vocabulary>;
-}
-
-/** The Inspector's widgets' context: the viewed device's system fonts, the selected element's type, and where a link may jump. */
-export interface WidgetCtx extends FaceCtx {
-  systemFonts: string[];
-  elementType: string;
-  onReveal: OnReveal;
-  onFaceSection?: OnFaceSection | undefined;
-}
 
 // An event on the input, select or link the handler is on: `currentTarget` is that element.
 type InputEvent = JSX.TargetedEvent<HTMLInputElement>;
 type SelectEvent = JSX.TargetedEvent<HTMLSelectElement>;
-type KeyEvent = JSX.TargetedKeyboardEvent<HTMLInputElement>;
 type LinkClick = JSX.TargetedMouseEvent<HTMLAnchorElement>;
-
-const ALIGN: string[][] = [["top_left", "top", "top_right"], ["left", "center", "right"],
-                           ["bottom_left", "bottom", "bottom_right"]];
 
 // The Face tab's own guide chapter, by section: its "? Guide" link.
 const FACE_SECTION_GUIDE: Record<FaceSectionKey, string> = {
@@ -65,351 +42,34 @@ const FACE_SECTION_GUIDE: Record<FaceSectionKey, string> = {
   fonts: "docs/guide/fonts.md",
 };
 
-/** A value as a text box shows it: an absent one as nothing. */
-const shown = (value: Value | undefined): string => (value == null ? "" : String(value));
-
-interface CommitProps {
-  value?: string | null | undefined;
-  onCommit: (text: string) => void;
-  placeholder?: string | undefined;
-  mono?: boolean;
-  list?: string;
-  width?: string;
-  focus?: boolean;
-}
-
-// A text input that commits on Enter or when it loses focus, and resets
-// when the value it shows changes underneath it. `focus` true takes the
-// focus, so the author can type at once.
-function Commit({ value, onCommit, placeholder, mono, list, width, focus = false }: CommitProps): VNode {
-  const [text, setText] = useState<string>(value ?? "");
-  const input = useRef<HTMLInputElement | null>(null);
-  useEffect(() => setText(value ?? ""), [value]);
-  useEffect(() => { if (focus && input.current && input.current.focus) input.current.focus(); }, [focus]);
-  // The input's own value, not the state: a blur can arrive before the
-  // re-render that typing schedules.
-  const commit = (e: InputEvent) => { if (e.currentTarget.value !== (value ?? "")) onCommit(e.currentTarget.value); };
-  return html`<input type="text" class=${mono ? "mono" : ""} value=${text} placeholder=${placeholder || ""}
-    list=${list} style=${width ? `width:${width}` : ""} ref=${input}
-    onInput=${(e: InputEvent) => setText(e.currentTarget.value)} onBlur=${commit}
-    onKeyDown=${(e: KeyEvent) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setText(value ?? ""); }} />`;
-}
-
-interface QuantityProps {
-  value: Value | undefined;
-  units: string[];
-  bareUnit: string;
-  onCommit: (value: string | number) => void;
-  placeholder?: string | undefined;
-  like?: Value | undefined;
-}
-
-// A number and its unit. An absent value starts in the unit of ``like`` (the
-// value an override would replace), so an override is written in the
-// author's own unit. Choosing another unit converts the number where the
-// two units are commensurable without the watch (`convertQuantity`) and
-// writes it; otherwise nothing is written: the number box empties, shows
-// the old number as its placeholder and takes the focus, and the value is
-// written once a number is typed in the new unit. A value in a unit the
-// key no longer offers keeps its unit listed.
-function Quantity({ value, units, bareUnit, onCommit, placeholder, like }: QuantityProps): VNode {
-  const q = parseQuantity(value, bareUnit);
-  const l = parseQuantity(like, bareUnit);
-  const initial = q ? q.unit : l && units.includes(l.unit) ? l.unit : units[0] ?? bareUnit;
-  const [unit, setUnit] = useState<string>(initial);
-  const [pending, setPending] = useState<boolean>(false);   // a unit chosen, its number not typed yet
-  useEffect(() => { setUnit(initial); setPending(false); }, [value, like]);
-  const send = (numberText: string, u: string) => {
-    if (numberText === "") return;
-    const out = formatQuantity(Number(numberText), u, bareUnit, q ? q.bare : false);
-    if (out !== null) onCommit(out);
-  };
-  const choose = (to: string) => {
-    setUnit(to);
-    if (!q) return;
-    const converted = convertQuantity(q.number, q.unit, to);
-    setPending(converted === null);
-    if (converted !== null && to !== q.unit) send(String(converted), to);
-  };
-  if (value != null && !q) {
-    return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
-  }
-  const offered = q && !units.includes(q.unit) ? [...units, q.unit] : units;
-  return html`<span class="qty">
-    <${Commit} value=${q && !pending ? String(q.number) : ""} width="5em" focus=${pending}
-      placeholder=${pending && q ? String(q.number) : placeholder ?? (l ? String(l.number) : "")}
-      onCommit=${(t: string) => send(t, unit)} />
-    <select value=${unit} onChange=${(e: SelectEvent) => choose(e.currentTarget.value)}>
-      ${offered.map((u) => html`<option value=${u}>${u}</option>`)}
-    </select>
-  </span>`;
-}
-
-interface AlignPickerProps {
-  value: Value | undefined;
-  onCommit: (value: string) => void;
-}
-
-function AlignPicker({ value, onCommit }: AlignPickerProps): VNode {
-  return html`<span class="align">
-    ${ALIGN.map((row) => html`<span class="align-row">${row.map((a) => html`
-      <button class=${value === a ? "on" : ""} title=${a} aria-label=${a.replace("_", " ")} aria-pressed=${value === a}
-        onClick=${() => onCommit(a)}></button>`)}</span>`)}
-  </span>`;
-}
-
-export interface ColorPopProps {
-  /** The colour as written; none for a picker that only adds. */
-  value?: Value | undefined;
-  ctx: FaceCtx;
-  /** Offer the face's roles beside its swatches. */
-  roles?: boolean;
-  /** Offer the face's own colours at all. */
-  faceGroup?: boolean;
-  title?: string | undefined;
-  /** Text in place of the chip and the colour's name. */
-  label?: string;
-  /** `color.<name>` for a swatch or role, a hex for one of the 64 or a custom colour. */
-  onPick: (value: string) => void;
-}
-
-// The colour picker: a chip that opens three groups, the face's own colours
-// (its swatches, then its roles where a role is allowed), the 64 named MIP
-// colours, and a custom colour. A swatch or role is picked as
-// `color.<name>`; one of the 64 or a custom colour as its hex, which the
-// worker turns into the swatch holding it (`src/edit/colors.ts`).
-export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }: ColorPopProps): VNode {
-  const [custom, setCustom] = useState<string>("");
-  const palette = ctx.globals.palette || [];
-  const mip = ctx.vocab.mip || [];
-  const displays = ctx.globals.displays || [];
-  const ref = colorName(value);
-  const swatch = ref ? palette.find((p) => p.name === ref) : undefined;
-  const held = parseHex(value) ?? (swatch ? parseHex(swatch.value) : null);
-  const customRgb = parseHex(custom) || held || [255, 255, 255];
-  const target = swatchFor(customRgb, palette, mip);
-  const safe = safeOn(customRgb, displays);
-  const warn = held !== null && !safeOn(held, displays).ok;
-  const chip = html`${label ? null : html`<span class="chip" style=${held ? `background:${toHex(held)}` : ""}></span>`}
-      <span class=${ref || label ? "" : "dim"}>${label || ref || (held ? toHex(held) : "—")}</span>`;
-  return html`<span class="color">
-    <${Popover} buttonClass="chip-button" bodyClass="pop" title=${title || "pick a colour"} label=${chip}
-      onOpen=${() => setCustom("")}>${(close: () => void) => {
-      const pick = (v: string) => { close(); setCustom(""); onPick(v); };
-      return html`
-      ${faceGroup ? html`<div class="pop-group">
-        <div class="pop-title">This face</div>
-        <div class="pop-swatches">${palette.map((p) => { const v = parseHex(p.value); return html`
-          <button class=${"swatch" + (ref === p.name ? " on" : "")} title=${`${p.name} ${p.value}`} aria-label=${p.name} aria-pressed=${ref === p.name}
-            style=${v ? `background:${toHex(v)}` : ""} onClick=${() => pick(`color.${p.name}`)}></button>`; })}</div>
-        ${roles && (ctx.globals.roles || []).length ? html`<div class="pop-roles">${ctx.globals.roles.map((r) => html`
-          <button class=${ref === r ? "on" : ""} title="a role: follows the wearer's style or pick" onClick=${() => pick(`color.${r}`)}>${r}</button>`)}</div>` : null}
-      </div>` : null}
-      <div class="pop-group">
-        <div class="pop-title">MIP 64</div>
-        <div class="pop-grid">${mip.map((m) => {
-          const holder = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
-          return html`<button class=${"swatch" + (holder ? " held" : "")} style=${`background:${m.value}`} aria-label=${m.label}
-            title=${`${m.label} ${m.value}${holder ? ` (this face: ${holder.name})` : ""}`} onClick=${() => pick(m.value)}></button>`; })}</div>
-      </div>
-      <div class="pop-group">
-        <div class="pop-title">Custom</div>
-        <div class="pop-custom">
-          <input type="color" value=${toHex(customRgb)} onInput=${(e: InputEvent) => setCustom(e.currentTarget.value.toUpperCase())} />
-          <input type="text" class="mono hex" aria-label="hex colour" value=${custom || toHex(customRgb)}
-            onInput=${(e: InputEvent) => setCustom(e.currentTarget.value)}
-            onKeyDown=${(e: KeyEvent) => { const typed = parseHex(custom); if (e.key === "Enter" && typed) pick(toHex(typed)); }} />
-          <button class="primary" disabled=${!parseHex(custom)} onClick=${() => pick(toHex(customRgb))}>Use</button>
-        </div>
-        ${parseHex(custom) ? html`<div class="note">${target.adds ? `adds ${target.name}` : `uses ${target.name}`}
-          ${!safe.ok ? html` · <span class="warn">⚠ dithers</span> <a href="#" onClick=${(e: LinkClick) => { e.preventDefault(); setCustom(toHex(safe.nearest)); }}>nearest ${toHex(safe.nearest)}</a>` : null}</div>` : null}
-      </div>`;
-    }}</${Popover}>
-    ${warn ? html`<span class="warn" title=${`dithers on this face's ${displays.join("/")}-colour screens`}>⚠</span>` : null}
-  </span>`;
-}
-
-interface TemplateProps {
-  value: string;
-  /** Data sources by namespace, for the "+ data" insert. */
-  sources: Record<string, string[]>;
-  onCommit: (text: string) => void;
-}
-
-function Template({ value, sources, onCommit }: TemplateProps): VNode {
-  const input = useRef<HTMLInputElement | null>(null);
-  const insert = (path: string) => {
-    if (!path) return;
-    const el = input.current;
-    const text = el ? el.value : (value || "");
-    const at = el && el.selectionStart != null ? el.selectionStart : text.length;
-    onCommit(text.slice(0, at) + `{${path}}` + text.slice(at));
-  };
-  const [text, setText] = useState<string>(value ?? "");
-  useEffect(() => setText(value ?? ""), [value]);
-  return html`<span class="template">
-    <input type="text" class="mono" ref=${input} value=${text} onInput=${(e: InputEvent) => setText(e.currentTarget.value)}
-      onBlur=${(e: InputEvent) => { if (e.currentTarget.value !== (value ?? "")) onCommit(e.currentTarget.value); }}
-      onKeyDown=${(e: KeyEvent) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
-    <select value="" onChange=${(e: SelectEvent) => { insert(e.currentTarget.value); e.currentTarget.value = ""; }} title="Insert a data placeholder">
-      <option value="">+ data</option>
-      ${Object.entries(sources).map(([ns, paths]) => html`<optgroup label=${ns}>
-        ${paths.map((p) => html`<option value=${p}>${p}</option>`)}</optgroup>`)}
-    </select>
-  </span>`;
-}
-
-interface WidgetProps {
-  field: FieldInfo;
-  /** The value shown: the key's own, or its override in the chosen scope. */
-  value: Value | undefined;
-  ctx: WidgetCtx;
-  onCommit: (value: Value) => void;
-  onPickColor: (value: string) => void;
-  /** The value an override would replace, for a quantity's starting unit. */
-  like?: Value | undefined;
-}
-
-/**
- * The compile-time check that `Widget`'s switch names every kind in
- * `protocol.ts`'s `Widget`: a new kind lands here as a type error. At run
- * time, a kind this page does not know is shown as its YAML.
- */
-function unknownWidget(_widget: never, fallback: VNode): VNode {
-  return fallback;
-}
-
-function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps): VNode {
-  const enumSelect = (options: string[], extra?: string[]) => html`<select value=${value ?? ""} onChange=${(e: SelectEvent) => e.currentTarget.value !== "" && onCommit(e.currentTarget.value)}>
-    <option value="">${field.default != null ? `default (${field.default})` : "—"}</option>
-    ${(extra || []).map((o) => html`<option value=${o}>${o}</option>`)}
-    ${options.map((o) => html`<option value=${o}>${o}</option>`)}
-  </select>`;
-  // a value this panel has no control for: shown as its YAML
-  const inYaml = () => (value == null ? html`<span class="dim">in the YAML</span>`
-    : html`<code class="yaml" title="edit this in the YAML">${field.text ?? JSON.stringify(value)}</code>`);
-  switch (field.widget) {
-    case "readonly": return html`<code>${String(value)}</code>`;
-    case "length": return html`<${Quantity} value=${value} like=${like} units=${lengthUnitsFor(ctx.elementType)} bareUnit="px" onCommit=${onCommit} />`;
-    case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
-    case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
-    case "color": {
-      // an expression choosing a colour is edited as text
-      if (value != null && !colorName(value) && !parseHex(value)) return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
-      const ref = colorName(value);
-      const isRole = ref && !(ctx.globals.palette || []).some((p) => p.name === ref) && (ctx.globals.roles || []).includes(ref);
-      return html`<span class="color-field"><${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />
-        ${isRole ? html`<span class="dim">role <code>${ref}</code></span>
-          ${ctx.onFaceSection ? html`<a href="#" title="jump to the Schemes section"
-            onClick=${(e: LinkClick) => { e.preventDefault(); ctx.onFaceSection?.("schemes"); }}>Schemes</a>` : null}` : null}</span>`;
-    }
-    case "template": return html`<${Template} value=${shown(value)} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
-    case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
-    case "icon": return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} onPick=${(v: IconSpelling | null) => v && onCommit(v)} />`;
-    case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
-    case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
-    case "handset": {
-      const set = (ctx.globals.hands || []).find((h) => h.name === value);
-      return html`<span class="handset">${enumSelect(ctx.globals.hand_sets || [])}
-        ${set && ctx.onReveal ? html`<a href="#" title="its hands' parts, in the YAML tab"
-          onClick=${(e: LinkClick) => { e.preventDefault(); ctx.onReveal(set.line, set.end); }}>edit the set</a>` : null}</span>`;
-    }
-    case "enum": return enumSelect((field.enum || []).map(String));
-    case "bool": return html`<select value=${value == null ? "" : String(value)}
-        onChange=${(e: SelectEvent) => e.currentTarget.value !== "" && onCommit(e.currentTarget.value === "true")}>
-      <option value="">${field.default != null ? `default (${field.default})` : "—"}</option>
-      <option value="true">true</option><option value="false">false</option></select>`;
-    case "number": return html`<${Commit} value=${shown(value)} width="6em"
-        onCommit=${(t: string) => t.trim() !== "" && !Number.isNaN(Number(t)) && onCommit(Number(t))} />`;
-    case "expression":
-    case "text": return html`<${Commit} value=${shown(value)} mono=${field.widget === "expression"} onCommit=${onCommit} />`;
-    case "object":
-    case "yaml": return inYaml();
-    default: return unknownWidget(field.widget, inYaml());
-  }
-}
-
-/** A `display:` selector's class as the buttons name it: `amoled` is "AMOLED", `mip` "MIP", `lcd` "LCD". */
-const displayLabel = (cls: string | null): string => String(cls || "").toUpperCase();
-
-/** The override scopes an element has, as the note names them. */
-const OVERRIDE_SCOPES: [Exclude<Scope, "all">, string][] = [["device", "device"], ["shape", "shape"], ["display", "display class"]];
-
-/** `at` walks a `Value` tree, so what it finds is a `Value`, or nothing. */
-const valueAt = (keys: Record<string, Value> | undefined, path: Path): Value | undefined => at(keys, path) as Value | undefined;
-
-interface FieldProps {
-  field: FieldInfo;
-  ins: Inspect;
-  scope: Scope;
-  ctx: WidgetCtx;
-  onEdit: OnEdit;
-  depth?: number;
-}
-
-function Field({ field, ins, scope, ctx, onEdit, depth = 0 }: FieldProps): VNode {
-  const overridden = field.geometry && scope !== "all";
-  const override = field.geometry && scope !== "all" ? valueAt(ins.overrides[scope]?.keys, field.path) : undefined;
-  const value = overridden ? override : field.value;
-  const base = { element: ins.element, path: field.path, scope, device: ins.device };
-  if (field.widget === "object") {
-    return html`<div class="field object" style=${`--depth:${depth}`}>
-      <div class="name" title=${field.description}>${field.key}</div>
-      <div class="children">
-        ${(field.children || []).map((c) => html`<${Field} field=${c} ins=${ins} scope=${scope} ctx=${ctx} onEdit=${onEdit} depth=${depth + 1} />`)}
-      </div>
-    </div>`;
-  }
-  // the override scopes the viewed device reads this key from, as the note names them
-  const local = OVERRIDE_SCOPES
-    .map(([s, name]) => (ins.overrides[s] && valueAt(ins.overrides[s]?.keys, field.path) !== undefined ? name : null))
-    .filter((name): name is string => name !== null);
-  return html`<div class=${"field" + (value == null ? " absent" : "")}>
-    <div class="name" title=${field.description}>${field.key}${field.required ? html`<span class="req">*</span>` : null}</div>
-    <div class="value">
-      <${Widget} field=${field} value=${value} ctx=${ctx} like=${overridden ? field.value : undefined}
-        onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
-        onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, scope: "all", value: v })} />
-      ${value != null && !field.required && field.widget !== "readonly"
-        ? html`<button class="reset" title=${overridden ? "remove the override" : "remove the key (back to the default)"}
-          aria-label=${overridden ? "remove the override" : "remove the key"}
-            onClick=${() => onEdit({ op: "remove", ...base })}>×</button>` : null}
-      ${overridden && value == null && field.value != null ? html`<div class="note">inherits ${JSON.stringify(field.value)}</div>` : null}
-      ${!overridden && local.length ? html`<div class="note">overridden on this ${local.join(" and ")}</div>` : null}
-    </div>
-  </div>`;
-}
+// -- the inspector ---------------------------------------------------------------------------
 
 export interface InspectorProps {
   doc: Summary;
   /** The selected element (its path is what is inspected), or none. */
   element: Pick<TreeNode, "path"> | null | undefined;
-  /** The device viewed, whose overrides the scope chooser edits. */
-  device: string | null;
+  /** The selection's field tree, as the worker answered it for the editing context (`store.ts` asks), or null while it is on its way. */
+  ins: Inspect | null;
+  /** Where a geometry edit lands (Edit for): the element's own key, or its override for the viewed watch, its shape or its display class. */
+  target: Scope;
   vocab: Partial<Vocabulary>;
-  scope: Scope;
-  onScope: (scope: Scope) => void;
   onEdit: OnEdit;
-  onError: (error: Error) => void;
   onReveal: OnReveal;
   onSelect: OnSelect;
   onFaceSection?: OnFaceSection | undefined;
 }
 
-export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit, onError, onReveal, onSelect, onFaceSection }: InspectorProps): VNode {
-  // the selected element's keys as the worker answered them (`protocol.ts`'s Inspect)
-  const [ins, setIns] = useState<Inspect | null>(null);
-  const setScope = onScope;
-  useEffect(() => {
-    if (!element) { setIns(null); return; }
-    let live = true;
-    api("inspect", { id: doc.id, element: element.path, device: device || "" }).then(
-      (data) => { if (live) setIns(data); }, onError);
-    return () => { live = false; };
-  }, [doc.id, doc.version, element && element.path.join("."), device]);
+/** Whether `ins` answers for the element at `path`. */
+const answersFor = (ins: Inspect, path: Path): boolean => ins.element.length === path.length && ins.element.every((step, i) => step === path[i]);
+
+// The selected element: its id (renamed in place), its type, the slot or
+// hand set it draws as the Face tab's own card, and every key the format
+// has for it as the generic form, edited where the editing context says.
+export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, onSelect, onFaceSection }: InspectorProps): VNode {
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
-  if (!ins || !ins.fields) return html`<div class="body dim">…</div>`;
-  const deviceInfo = (vocab.devices || []).find((d) => d.id === device);
+  if (!ins || !answersFor(ins, element.path)) return html`<div class="body dim">…</div>`;
+  if (ins.error) return html`<div class="body dim">${ins.error}</div>`;
+  const deviceInfo = (vocab.devices || []).find((d) => d.id === ins.device);
   const ctx: WidgetCtx = { globals: doc.globals, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
                            elementType: ins.type };
   // the slot this element draws, edited right here as in the Face tab
@@ -418,99 +78,22 @@ export function Inspector({ doc, element, device, vocab, scope, onScope, onEdit,
   // a `hands` element's own set, likewise
   const setField = ins.type === "hands" && ins.fields.find((f) => f.key === "set");
   const handCard = setField && (ctx.globals.hands || []).find((h) => h.name === setField.value);
-  // where an edit is written, as the chooser offers it: the scope, its label and what it means
-  const scopes: [Scope, string | null, string][] = [
-    ["all", "all targets", "the element's own key, for every target"],
-    ["device", ins.device, `an override for ${ins.device} only`],
-    ["shape", `${ins.shape} screens`, `an override for every ${ins.shape} watch`],
-    ["display", `${displayLabel(ins.display)} screens`, `an override for every ${displayLabel(ins.display)} watch`]];
+  const frame = ins.context?.frame ?? "awake";
   return html`<div class="inspector">
     <div class="ins-head">
       <${InlineName} value=${ins.id} title="click to rename"
         onRename=${async (n: string) => { if (await onEdit({ op: "rename", path: ins.element, to: n })) onSelect(n); }} />
       <span class="dim">${ins.type}</span>
-      <div class="scope" title="Where at:, size:, radius: and align: edits and drags are written; with all targets, a drag goes where the viewed device reads the key">
-        ${scopes.map(([s, label, what]) => html`
-          <button class=${scope === s ? "on" : ""} title=${what} onClick=${() => setScope(s)}>${label}</button>`)}
-      </div>
+      ${frame === "aod" ? html`<span class="frame-note" title="the always-on frame: the keys the element restyles there are written to its aod: block; the others are edited in the awake frame">AOD frame</span>` : null}
     </div>
     ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}
     ${slotCard ? html`<${SlotCard} slot=${slotCard} vocab=${vocab} onEdit=${onEdit} onSelect=${onSelect} />` : null}
     ${handCard ? html`<${HandSetCard} set=${handCard} doc=${doc} ctx=${ctx} onEdit=${onEdit} onReveal=${onReveal} />` : null}
-    ${ins.fields.map((f) => html`<${Field} field=${f} ins=${ins} scope=${scope} ctx=${ctx} onEdit=${onEdit} />`)}
-    ${ins.parts ? html`<div class="field">
-      <div class="name">parts</div>
-      <div class="value">
-        <span class="dim">${ins.parts.count} part${ins.parts.count === 1 ? "" : "s"}: ${ins.parts.shapes.join(", ")}</span>
-        <a href="#" title="a pattern's parts are edited in the YAML" onClick=${(e: LinkClick) => { e.preventDefault(); if (ins.parts) onReveal(ins.parts.line, ins.parts.end); }}>edit in YAML</a>
-      </div>
-    </div>` : null}
-    ${(ins.overridden || []).map((o) => html`<div class="field" key=${o.selector}>
-      <div class="name">overrides <code>${o.selector}</code></div>
-      <div class="value">
-        ${Object.entries(o.keys).map(([k, v]) => html`<code>${k}: ${JSON.stringify(v)}</code>`)}
-        <a href="#" title="edit this override in the YAML tab" onClick=${(e: LinkClick) => { e.preventDefault(); onReveal(o.line, o.end); }}>edit in YAML</a>
-      </div>
-    </div>`)}
+    <${Form} ins=${ins} target=${target} ctx=${ctx} onEdit=${onEdit} />
   </div>`;
 }
 
 // -- the Face panel ------------------------------------------------------------------
-
-export interface GlyphProps {
-  /** A catalogue icon's name; anything else draws nothing. */
-  name?: Value | null | undefined;
-  vocab: Partial<Vocabulary>;
-}
-
-// A catalogue icon drawn with the icon font (`/api/icon-font`), or its
-// name when the catalogue has no such icon.
-export function Glyph({ name, vocab }: GlyphProps): VNode {
-  const cp = typeof name === "string" && name ? (vocab.icon_glyphs || {})[name] : undefined;
-  return cp ? html`<span class="glyph" title=${name}>${String.fromCodePoint(cp)}</span>`
-            : html`<span class="glyph dim">${name === "none" ? "∅" : ""}</span>`;
-}
-
-export interface IconPopProps {
-  /** The icon as written (a name, or `{codepoint}`), or none. */
-  value?: IconSpelling | null | undefined;
-  vocab: Partial<Vocabulary>;
-  /** Offer `none`, where the key takes it. */
-  allowNone?: boolean;
-  /** The icon drawn when none is written. */
-  placeholder?: string | null | undefined;
-  /** A name, `none`, a codepoint as `{codepoint: "U+XXXX"}`, or null to remove. */
-  onPick: (value: IconSpelling | null) => void;
-}
-
-/** What an icon spelling shows as: the name, or the codepoint. */
-const iconText = (value: IconSpelling | null | undefined): string | null =>
-  value === null || value === undefined ? null : typeof value === "string" ? value : value.codepoint;
-
-// An icon picker: every catalogue icon as a glyph, `none` where the key
-// takes it, and a codepoint (`U+XXXX`) typed in.
-export function IconPop({ value: spelled, vocab, allowNone = false, placeholder, onPick }: IconPopProps): VNode {
-  const [code, setCode] = useState<string>("");
-  const names = Object.keys(vocab.icon_glyphs || {}).sort();
-  const value = iconText(spelled);
-  const label = html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
-      <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
-  return html`<${Popover} buttonClass="chip-button" bodyClass="pop" title=${value || placeholder || "pick an icon"} label=${label}
-    onOpen=${() => setCode("")}>${(close: () => void) => {
-    const pick = (v: IconSpelling | null) => { close(); setCode(""); onPick(v); };
-    return html`
-      <div class="pop-grid icons">${names.map((n) => html`<button class=${"swatch icon" + (n === value ? " on" : "")}
-        title=${n} aria-label=${n} aria-pressed=${n === value} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
-      <div class="pop-custom">
-        ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}
-        <input type="text" class="mono codepoint" aria-label="codepoint" placeholder="U+F0000" value=${code}
-          onInput=${(e: InputEvent) => setCode(e.currentTarget.value)} />
-        <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick({ codepoint: code.trim().toUpperCase() })}>Use</button>
-        ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"}
-          aria-label=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
-      </div>`;
-  }}</${Popover}>`;
-}
 
 export interface SlotCardProps {
   slot: SlotEntry;

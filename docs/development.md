@@ -213,7 +213,8 @@ ts/                   the compiler, its tests and tools: one package for the
                         npm run bundle -> dist/app.js), every module strict
                         TypeScript; store.ts holds the editor's state (one
                         EditorStore, read through useStore), outbox.ts and
-                        textsync.ts the pure rules it runs; vendor/
+                        textsync.ts the pure rules it runs; form.ts the
+                        generic form over the inspector's field tree; vendor/
                         holds CodeMirror (built from tools/studio-frontend/ by
                         tools/vendor-studio-frontend.sh) and marked
   templates/            the starters for `wfb new` and the hand presets
@@ -341,6 +342,13 @@ kind cannot restyle). Beside `set`, `remove`, `rename` and the list-item ops,
 `delete_layout` removes a layout with the styles picking it (moving the
 default to `also_default`, or refused naming it), and `set_default_style`
 sets `config: style: default:`; each is one gated patch and a batch step.
+The page renders the tree with the generic form (`ts/app/form.ts`, `Form`):
+a field by its kind, with the control the widget names, a fieldset, a list
+with its item ops or a segmented control over the branches. The store
+(`ts/app/store.ts`) asks for the tree with the context's device, frame and
+style and asks again when one changes; the form decides each edit's scope
+from that context: `aod` for a restyled key in the AOD frame (the others
+read-only there), Edit for's override scope for a geometry key, else `all`.
 
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,

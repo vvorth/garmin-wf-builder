@@ -7,7 +7,8 @@ import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, htmPreact
 import { inspect } from "../src/studio/inspect.ts";
 import { plain } from "../src/studio/json.ts";
 import { installAssets } from "../src/node.ts";
-import { db } from "./studio-client.ts";
+import { db, newStudio } from "./studio-client.ts";
+import { bundle } from "../src/studio/bundle.ts";
 
 test("the colours say who uses them and a pick changes the swatch", async () => {
   const text = summary(instantiate("minimal", "T"));
@@ -255,6 +256,82 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
   assert.ok((eq(held, ["erroran error"]) && eq(asked, ["note"])));
 });
 
+// -- the Properties panel: the generic form over the worker's field tree --
+
+/** `Inspector` rendered over `doc` with the field tree `ins` (the real `inspect()`, as the worker answers), then `body` run with `edits`, `field`, `commit`, `click`, `settle` and `out`: what it printed, one JSON value a line. */
+function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?: unknown } = {}, body = ""): string {
+  return `
+      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
+      const document = install();
+      const focused = [];
+      // Preact creates every element through createElementNS
+      const makeNS = document.createElementNS;
+      document.createElementNS = (ns, n) => { const e = makeNS(ns, n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
+      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
+      const edits = [];
+      const root = document.createElement("div");
+      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
+      const cls = (e) => e.attributes.class || "";
+      const doc = ${JSON.stringify(doc)};
+      let ins = ${JSON.stringify(ins)};
+      let target = ${JSON.stringify(props.target ?? "all")};
+      const show = async () => {
+        render(html\`<\${Inspector} doc=\${doc} element=\${{ path: ins.element }} ins=\${ins} target=\${target} vocab=\${${JSON.stringify(props.vocab ?? {})}}
+          onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
+        await settle(); await settle();
+      };
+      await show();
+      // the field row whose key is \`key\`, among \`within\` (the whole panel by default): the row its name belongs to
+      const rowOf = (k) => { let p = k.parentNode; while (p && !cls(p).startsWith("field")) p = p.parentNode; return p; };
+      const field = (key, within = root) => within.all((e) => cls(e).startsWith("field") && e.all((k) => cls(k) === "key").some((k) => k.textContent === key && rowOf(k) === e))[0];
+      // a box's text: its value once anything set it, else the attribute it was rendered with
+      const boxText = (box) => (box.value !== undefined ? box.value : box.attributes.value ?? "");
+      const badge = (f) => f.all((e) => cls(e) === "badge").map((e) => e.textContent).join("");
+      const notes = (f) => f.all((e) => cls(e) === "note").map((e) => e.textContent);
+      const click = async (e) => { e.click(); await settle(); };
+      // text typed into the first input (or textarea) of \`f\`, then committed by leaving it
+      const commit = async (f, text) => { const box = f.all((e) => e.localName === "input" || e.localName === "textarea")[0];
+        box.value = text; box.dispatch("input", { target: box }); box.dispatch("blur", { target: box }); await settle(); };
+      const out = (v) => console.log(JSON.stringify(v));
+      ${body}
+    `;
+}
+
+/** `ins` without its descriptions, which the form shows only as titles: the trees travel inside the script's text, which has a size limit. */
+function slim<T>(ins: T): T {
+  if (Array.isArray(ins)) return ins.map(slim) as T;
+  if (ins !== null && typeof ins === "object") return Object.fromEntries(Object.entries(ins).filter(([k]) => k !== "description").map(([k, v]) => [k, slim(v)])) as T;
+  return ins;
+}
+
+/** What `script` printed, one JSON value a line; it must exit cleanly. */
+function printedBy(script: string): any[] {
+  const done = node(script);
+  if (done.returncode !== 0) throw new Error(done.stderr.slice(-2500));
+  return done.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+}
+
+/** `text` opened as the worker opens it, `op` applied through its `Document`: the text after. */
+async function applied(text: string, op: Record<string, unknown>): Promise<string> {
+  const studio = await newStudio();
+  const doc = studio.create(bundle("T", text), "new");
+  doc.edit(op, doc.version);
+  return doc.text;
+}
+
+/** The lines of `before` that `after` changed, as [line number, before, after] (a reorder or a one-line change leaves every other line as it was). */
+function changedLines(before: string, after: string): [number, string | undefined, string | undefined][] {
+  const a = before.split("\n"), b = after.split("\n");
+  const out: [number, string | undefined, string | undefined][] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) out.push([i + 1, a[i], b[i]]);
+  return out;
+}
+
+const CLOCK = ["elements", "clock"];
+
 test("the icon picker writes a codepoint as {codepoint: \"U+XXXX\"} and shows one written that way", async () => {
   // A codepoint is an object in the format; the picker used to write the bare string, which the gate now refuses.
   const text = instantiate("minimal", "T") + `
@@ -267,45 +344,19 @@ test("the icon picker writes a codepoint as {codepoint: \"U+XXXX\"} and shows on
 `;
   const doc = summary(text);
   installAssets();
-  const inspected = { glyph: plain(inspect(text, ["elements", "glyph"], null)) };
-  const script = `
-      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
-      const document = install();
-      const inspected = ${JSON.stringify(inspected)};
-      globalThis.Worker = class {
-        postMessage({ id, request }) {
-          const { op, args } = request;
-          const json = op === "inspect" ? inspected[args.element[args.element.length - 1]] : {};
-          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
-        }
-      };
-      const { html } = await import(${JSON.stringify(htmPreactUri)});
-      const { render } = await import(${JSON.stringify(preactUri)});
-      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
-      const edits = [];
-      const root = document.createElement("div");
-      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
-      const cls = (e) => e.attributes.class || "";
-      render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", "glyph"] }} device="" vocab=\${{ icon_glyphs: { heart: 1 } }}
-        scope="all" onScope=\${() => {}} onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }}
-        onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
-      await settle(); await settle();
-      const field = root.all((e) => cls(e).startsWith("field") && e.childNodes[0] && e.childNodes[0].textContent.replace("*", "") === "icon")[0];
-      if (!field) throw new Error("no icon field among " + JSON.stringify(root.all((e) => cls(e) === "name").map((e) => e.textContent)));
-      const chip = field.all((e) => cls(e) === "chip-button")[0];
-      const shown = chip.textContent;
-      chip.click(); await settle();
-      const box = field.all((e) => e.localName === "input" && cls(e).includes("codepoint"))[0];
+  const printed = printedBy(inspector(doc, plain(inspect(text, ["elements", "glyph"], null)), { vocab: { icon_glyphs: { heart: 1 } } }, `
+      const icon = field("icon");
+      if (!icon) throw new Error("no icon field among " + JSON.stringify(root.all((e) => cls(e) === "key").map((e) => e.textContent)));
+      const chip = icon.all((e) => cls(e) === "chip-button")[0];
+      out(chip.textContent);
+      await click(chip);
+      const box = icon.all((e) => e.localName === "input" && cls(e).includes("codepoint"))[0];
       box.value = "U+F0004"; box.dispatch("input", { target: box }); await settle();
-      const use = field.all((e) => e.localName === "button" && e.textContent === "Use")[0];
-      use.click(); await settle();
-      console.log(JSON.stringify({ shown, edits }));
-    `;
-  const ran = node(script);
-  if (ran.returncode !== 0) throw new Error(ran.stderr.slice(-2000));
-  const out = JSON.parse(ran.stdout.trim().split("\n").pop()!);
-  assert.equal(out.shown, "U+E241", "a codepoint written as an object shows as its code");
-  assert.deepEqual(out.edits, [{ op: "set", element: ["elements", "glyph"], path: ["icon"], scope: "all", device: null, value: { codepoint: "U+F0004" } }]);
+      await click(icon.all((e) => e.localName === "button" && e.textContent === "Use")[0]);
+      out(edits);
+    `));
+  assert.equal(printed[0], "U+E241", "a codepoint written as an object shows as its code");
+  assert.deepEqual(printed[1], [{ op: "set", element: ["elements", "glyph"], path: ["icon"], scope: "all", device: null, value: { codepoint: "U+F0004" } }]);
 });
 
 test("a unit change converts an angle, asks for a length, and offers pt only where a font is in scope", async () => {
@@ -335,64 +386,32 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
   installAssets();
   const inspected: Record<string, unknown> = {};
   for (const id of ["bar", "ring", "clock"]) inspected[id] = plain(inspect(text, ["elements", id], null));
-  const script = `
-      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
-      const document = install();
-      const focused = [];
-      // Preact creates every element through createElementNS
-      const makeNS = document.createElementNS;
-      document.createElementNS = (ns, n) => { const e = makeNS(ns, n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
+  const printed = printedBy(inspector(doc, inspected["ring"], {}, `
       const inspected = ${JSON.stringify(inspected)};
-      // the worker, answering inspect from the payloads above
-      globalThis.Worker = class {
-        postMessage({ id, request }) {
-          const { op, args } = request;
-          const json = op === "inspect" ? inspected[args.element[args.element.length - 1]] : {};
-          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
-        }
-      };
-      const { html } = await import(${JSON.stringify(htmPreactUri)});
-      const { render } = await import(${JSON.stringify(preactUri)});
-      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
-      const edits = [];
-      const root = document.createElement("div");
-      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
-      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
-      const cls = (e) => e.attributes.class || "";
-      const show = async (id) => {
-        render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", id] }} device="" vocab=\${{}}
-          scope="all" onScope=\${() => {}} onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }}
-          onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
-        await settle(); await settle();
-      };
-      // the number box and unit select of the field named \`key\`
-      const qty = (key) => {
-        const field = root.all((e) => cls(e).startsWith("field") && e.childNodes[0] && e.childNodes[0].textContent === key)[0];
-        const box = field.all((e) => e.localName === "input")[0];
-        const select = field.all((e) => e.localName === "select")[0];
+      // the number box and unit select of the field named \`key\` (a nested one under \`parent\`)
+      const qty = (key, parent) => {
+        const f = field(key, parent ? field(parent) : root);
+        const box = f.all((e) => e.localName === "input")[0];
+        const select = f.all((e) => e.localName === "select")[0];
         return { box, select, units: select.all((e) => e.localName === "option").map((o) => o.textContent) };
       };
       const pick = async (q, unit) => { q.select.value = unit; q.select.dispatch("change", { target: q.select }); await settle(); };
       const type = async (q, text) => { q.box.value = text; q.box.dispatch("input", { target: q.box }); q.box.dispatch("blur", { target: q.box }); await settle(); };
-      const out = (v) => console.log(JSON.stringify(v));
 
-      await show("ring");
       await pick(qty("sweep"), "turn");
       out(edits.splice(0));
-      await show("bar");
-      out(qty("dx").units);
-      let dx = qty("dx");
+      ins = inspected.bar; await show();
+      out(qty("dx", "at").units);
+      let dx = qty("dx", "at");
       await pick(dx, "px");
-      dx = qty("dx");
+      dx = qty("dx", "at");
       out([edits.length, dx.box.attributes.value ?? "", dx.box.attributes.placeholder, focused.splice(0)]);
       await type(dx, "-80");
       out(edits.splice(0));
-      await show("clock");
-      out(qty("dx").units);
-    `;
-  const done = node(script);
-  assert.deepEqual(done.returncode, 0, done.stderr.slice(-1500));
-  const [turned, barUnits, cleared, typed, clockUnits] = done.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+      ins = inspected.clock; await show();
+      out(qty("dx", "at").units);
+    `));
+  const [turned, barUnits, cleared, typed, clockUnits] = printed;
   assert.deepEqual(turned, [{ op: "set", element: ["elements", "ring"], path: ["sweep"], scope: "all", device: null, value: "1turn" }]);
   assert.deepEqual(barUnits, ["px", "%", "%r"], "a rectangle has no font for pt to measure against");
   assert.deepEqual(cleared, [0, "", "-50", ["-50"]], "nothing written; the old number is the placeholder of the focused, empty box");
@@ -400,63 +419,192 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
   assert.deepEqual(clockUnits, ["px", "%", "%r", "pt"]);
 });
 
-test("the scope buttons offer the display class as a fourth override, and a key overridden there says so", async () => {
+test("an object is a fieldset whose child writes its nested path, collapsed while empty until + opens it", async () => {
+  const text = instantiate("minimal", "T");
+  const doc = summary(text);
+  installAssets();
+  const printed = printedBy(inspector(doc, plain(inspect(text, CLOCK, null)), {}, `
+      const at = field("at");
+      out([cls(at), at.all((e) => cls(e) === "key").map((e) => e.textContent)]);
+      await commit(field("dx", at), "10");
+      out(edits.splice(0));
+      // an absent, optional object shows its name and a + until opened; a required child is starred once it is
+      const curve = field("curve");
+      out([cls(curve), curve.all((e) => cls(e) === "key").map((e) => e.textContent), curve.all((e) => e.localName === "select").length]);
+      await click(curve.all((e) => e.localName === "button" && e.textContent === "+ curve")[0]);
+      out([curve.all((e) => cls(e) === "key").map((e) => e.textContent), curve.all((e) => cls(e) === "req").length, curve.all((e) => e.localName === "select").length > 0]);
+      // nothing says the YAML is the place to edit anything
+      out(root.textContent.includes("in the YAML"));
+      // a scope chooser no longer heads the panel
+      out(root.all((e) => cls(e) === "scope").length);
+    `));
+  assert.deepEqual(printed[0], ["field object", ["at", "anchor", "dx", "dy", "angle", "radius"]]);
+  assert.deepEqual(printed[1], [{ op: "set", element: CLOCK, path: ["at", "dx"], scope: "all", device: null, value: "10px" }]);
+  assert.deepEqual(printed[2], ["field object absent folded", ["curve"], 0], "an empty optional object is folded");
+  assert.deepEqual(printed[3], [["curve", "style", "angle", "radius", "direction"], 2, true]);
+  assert.equal(printed[4], false);
+  assert.equal(printed[5], 0);
+});
+
+test("a list's arrows, × and + add send move_item, remove_item and insert_item, and a move leaves every other line alone", async () => {
+  const text = repoText("examples/features/profile/face.yaml");
+  const doc = summary(text);
+  installAssets();
+  const path = ["layouts", "plain", "elements", "tri_plain"];
+  const printed = printedBy(inspector(doc, plain(inspect(text, path, null)), {}, `
+      const points = field("points");
+      const items = points.all((e) => cls(e).startsWith("list-item"));
+      out(items.length);
+      const control = (item, label) => item.all((e) => e.localName === "button" && e.attributes["aria-label"] === label)[0];
+      await click(control(items[1], "move up"));
+      await click(control(items[2], "remove"));
+      await click(points.all((e) => e.localName === "button" && e.textContent === "+ add")[0]);
+      out(edits);
+    `));
+  assert.equal(printed[0], 3);
+  const base = { element: path, scope: "all", device: null };
+  assert.deepEqual(printed[1], [
+    { op: "move_item", ...base, path: ["points"], from: 1, to: 0 },
+    { op: "remove_item", ...base, path: ["points"], at: 2 },
+    { op: "insert_item", ...base, path: ["points"], at: 3, value: {} },
+  ]);
+  // the reorder, through the worker's document: the two lines swap, nothing else moves
+  const after = await applied(text, printed[1][0]!);
+  const changed = changedLines(text, after);
+  assert.deepEqual(changed.map(([line]) => line), [128, 129]);
+  assert.deepEqual(changed.map(([, before]) => before), ["          - { anchor: center, dx: 21%, dy: -1% }", "          - { anchor: center, dx: 27%, dy: -9% }"]);
+  assert.deepEqual(changed.map(([, , now]) => now), ["          - { anchor: center, dx: 27%, dy: -9% }", "          - { anchor: center, dx: 21%, dy: -1% }"]);
+});
+
+test("a choice is a segmented control with the written branch on; switching writes the new branch's seed in one set", async () => {
+  const showcase = repoText("examples/showcase/face.yaml");
+  const minimal = instantiate("minimal", "T");
+  installAssets();
+  const register = ["elements", "left_register"];
+  const printed = printedBy(inspector(summary(showcase), plain(inspect(showcase, register, null)), {}, `
+      const inspected = { minimal: ${JSON.stringify(plain(inspect(minimal, CLOCK, null)))} };
+      let absent = field("absent");
+      const seg = (f) => f.all((e) => cls(e).startsWith("seg"))[0].all((e) => e.localName === "button").map((b) => [b.textContent, cls(b)]);
+      out(seg(absent));
+      // the chosen branch's own field renders below: its text, editable
+      out([field("text", absent) !== undefined, field("text", absent).all((e) => e.localName === "input")[0].attributes.value]);
+      await click(absent.all((e) => cls(e).startsWith("seg"))[0].all((e) => e.localName === "button")[0]);
+      out(edits.splice(0));
+      // nothing written yet: no branch is on, and nothing renders below until one is picked
+      ins = inspected.minimal; await show();
+      absent = field("absent");
+      out([seg(absent), field("text", absent) === undefined]);
+      await click(absent.all((e) => cls(e).startsWith("seg"))[0].all((e) => e.localName === "button")[1]);
+      out(edits.splice(0));
+    `));
+  assert.deepEqual(printed[0], [["hide", ""], ["text", "on"], ["value", ""]]);
+  assert.deepEqual(printed[1], [true, "--"]);
+  assert.deepEqual(printed[2], [{ op: "set", element: register, path: ["absent"], scope: "all", device: null, value: "hide" }]);
+  assert.deepEqual(printed[3], [[["hide", ""], ["text", ""], ["value", ""]], true]);
+  assert.deepEqual(printed[4], [{ op: "set", element: CLOCK, path: ["absent"], scope: "all", device: null, value: { text: "" } }]);
+  // the switch, through the worker's document: one line changes
+  const changed = changedLines(showcase, await applied(showcase, printed[2][0]!));
+  assert.deepEqual(changed, [[342, "    absent: {text: \"--\"}", "    absent: hide"]]);
+});
+
+test("a scalar key holding a mapping is edited as its YAML in a text box, never sent to the YAML tab", async () => {
+  const showcase = repoText("examples/showcase/face.yaml");
+  installAssets();
+  const path = ["layouts", "digital", "elements", "weather_icon"];
+  const printed = printedBy(inspector(summary(showcase), plain(inspect(showcase, path, null)), {}, `
+      const icon = field("icon");
+      const box = icon.all((e) => e.localName === "textarea")[0];
+      out([box ? cls(box) : null, box ? box.attributes.value ?? box.value : null, root.textContent.includes("edit this in the YAML")]);
+      await commit(icon, "{for: weather.condition}");
+      await commit(icon, "{for: weather.condition");       // not YAML: nothing sent
+      out(edits);
+    `));
+  assert.deepEqual(printed[0], ["mono", "{\"for\": \"weather.condition_today\"}", false]);
+  assert.deepEqual(printed[1], [{ op: "set", element: path, path: ["icon"], scope: "all", device: null, value: { for: "weather.condition" } }]);
+});
+
+test("in the AOD frame the restyled keys write the aod: block, the others are read-only, and the badge names where a value comes from", async () => {
+  const text = repoText("examples/features/aod/face.yaml");
+  const doc = summary(text);
+  installAssets();
+  const aod = { frame: "aod", style: null } as const;
+  const device = db.get("fenix847mm");
+  const inspected = {
+    clock: slim(plain(inspect(text, CLOCK, device, aod))),
+    dot: slim(plain(inspect(text, ["elements", "accent_dot"], device, aod))),
+    date: slim(plain(inspect(text, ["elements", "info", "children", "date_text"], device, aod))),
+  };
+  const printed = printedBy(inspector(doc, inspected.clock, {}, `
+      const inspected = ${JSON.stringify(inspected)};
+      const keys = () => root.all((e) => cls(e).startsWith("field") && e.parentNode === root.all((e) => cls(e) === "inspector")[0]).map((f) => f.all((k) => cls(k) === "key")[0].textContent);
+      out(keys());
+      const color = field("color");
+      out([badge(color), color.all((e) => cls(e) === "value")[0].attributes.title, color.all((e) => cls(e) === "chip-button")[0].textContent]);
+      await click(color.all((e) => cls(e) === "chip-button")[0]);
+      await click(color.all((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-swatches")[2]);   // gray
+      await commit(field("text"), "{time.clock:%H.%M}");
+      // a key the kind does not restyle in AOD is shown, not edited
+      const at = field("at");
+      out([cls(at), at.all((e) => e.localName === "input" || e.localName === "select").length, notes(at)]);
+      // visible and dim are every kind's, shown even when the block does not write them
+      out([boxText(field("visible").all((e) => e.localName === "select")[0]), badge(field("visible")), boxText(field("dim").all((e) => e.localName === "input")[0]), badge(field("dim"))]);
+      out(edits.splice(0));
+      // the cascade: a face default, a group's block, and no badge where the awake value is read
+      ins = inspected.dot; await show();
+      out([boxText(field("dim").all((e) => e.localName === "input")[0]), badge(field("dim")), badge(field("filled")), badge(field("color"))]);
+      ins = inspected.date; await show();
+      out([boxText(field("visible").all((e) => e.localName === "select")[0]), badge(field("visible"))]);
+    `));
+  assert.ok(!printed[0].includes("aod") && printed[0].includes("dim") && printed[0].includes("visible"), `the aod: block is the frame, not a fieldset: ${printed[0]}`);
+  assert.deepEqual(printed[1], ["aod", "writes aod: color on this element", "black"]);
+  assert.deepEqual(printed[2], ["field object readonly", 0, ["not restyled in AOD; edit it in the awake frame"]]);
+  assert.deepEqual(printed[3], ["true", "aod", "1", "aod"]);
+  assert.deepEqual(printed[4], [
+    { op: "use_color", element: CLOCK, path: ["color"], scope: "aod", device: "fenix847mm", value: "color.gray" },
+    { op: "set", element: CLOCK, path: ["text"], scope: "aod", device: "fenix847mm", value: "{time.clock:%H.%M}" },
+  ]);
+  assert.deepEqual(printed[5], ["0.6", "defaults", "aod", ""]);
+  assert.deepEqual(printed[6], ["false", "from info"]);
+  // the colour, through the worker's document: the aod: block's own line, nothing else
+  const changed = changedLines(text, await applied(text, printed[4][0]!));
+  assert.deepEqual(changed, [[141, "      color: color.black", "      color: color.gray"]]);
+});
+
+test("awake, an override the watch reads is shown with its selector, and Edit for decides where a geometry edit lands", async () => {
   const text = instantiate("minimal", "T").replace("targets: [fenix8solar47mm]", "targets: [fenix847mm, fr955]").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { "display:amoled": { at: { anchor: center, dy: 2px } } }\n');
   const doc = summary(text);
   installAssets();
   const inspected: Record<string, unknown> = {};
-  for (const id of ["fenix847mm", "fr955"]) inspected[id] = plain(inspect(text, ["elements", "clock"], db.get(id)));
-  const script = `
-      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
-      const document = install();
+  for (const id of ["fenix847mm", "fr955"]) inspected[id] = plain(inspect(text, CLOCK, db.get(id)));
+  const printed = printedBy(inspector(doc, inspected["fenix847mm"], {}, `
       const inspected = ${JSON.stringify(inspected)};
-      // the worker, answering inspect for the device asked about
-      globalThis.Worker = class {
-        postMessage({ id, request }) {
-          const { op, args } = request;
-          const json = op === "inspect" ? inspected[args.device] : {};
-          setTimeout(() => this.onmessage({ data: { id, response: { status: 200, json } } }), 0);
-        }
-      };
-      const { html } = await import(${JSON.stringify(htmPreactUri)});
-      const { render } = await import(${JSON.stringify(preactUri)});
-      const { Inspector } = await import(${JSON.stringify(appUri("panels.ts"))});
-      const scopes = [];
-      const root = document.createElement("div");
-      // quiet: a few timer turns, counted in turns so a loaded machine waits as long as it needs
-      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
-      const cls = (e) => e.attributes.class || "";
-      const show = async (device, scope) => {
-        render(html\`<\${Inspector} doc=\${${JSON.stringify(doc)}} element=\${{ path: ["elements", "clock"] }} device=\${device} vocab=\${{ devices: [] }}
-          scope=\${scope} onScope=\${(s) => scopes.push(s)} onEdit=\${() => Promise.resolve(true)}
-          onError=\${(e) => { throw e; }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
-        await settle(); await settle();
-      };
-      const buttons = () => root.all((e) => cls(e) === "scope")[0].all((e) => e.localName === "button");
-      const out = (v) => console.log(JSON.stringify(v));
-
-      await show("fenix847mm", "all");
-      out(buttons().map((b) => [b.textContent, b.attributes.title]));
-      buttons()[3].dispatch("click"); await settle();
-      out(scopes.splice(0));
-      out(root.all((e) => cls(e) === "note").map((n) => n.textContent));
-      await show("fr955", "all");
-      out(buttons().map((b) => b.textContent));
-      out(root.all((e) => cls(e) === "note").map((n) => n.textContent));
-    `;
-  const done = node(script);
-  assert.deepEqual(done.returncode, 0, done.stderr.slice(-1500));
-  const [amoledButtons, picked, amoledNotes, mipButtons, mipNotes] = done.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
-  assert.deepEqual(amoledButtons, [
-    ["all targets", "the element's own key, for every target"],
-    ["fenix847mm", "an override for fenix847mm only"],
-    ["round screens", "an override for every round watch"],
-    ["AMOLED screens", "an override for every AMOLED watch"],
+      const dy = () => field("dy", field("at"));
+      const shownDy = () => [boxText(dy().all((e) => e.localName === "input")[0]), badge(dy()), dy().all((e) => cls(e) === "value")[0].attributes.title];
+      out(shownDy());
+      // Edit for this display: the override itself, whose × removes the override
+      target = "display"; await show();
+      out(shownDy());
+      await commit(dy(), "6");
+      await click(dy().all((e) => e.localName === "button" && e.attributes["aria-label"] === "remove the override")[0]);
+      // Edit for this shape: no override there yet, so the number box is empty and says what it inherits
+      target = "shape"; await show();
+      out([shownDy(), notes(field("anchor", field("at")))]);
+      // Edit for all watches writes the element's own key, whatever the watch reads
+      target = "all"; await show();
+      await commit(dy(), "4");
+      out(edits.splice(0));
+      // a MIP watch reads no override: no badge, plain titles
+      ins = inspected.fr955; target = "all"; await show();
+      out(shownDy());
+    `));
+  assert.deepEqual(printed[0], ["2", "display:amoled", "writes at.dy on this element, for every watch; fenix847mm reads its display:amoled override"]);
+  assert.deepEqual(printed[1], ["2", "display:amoled", "writes the display:amoled override's at.dy"]);
+  assert.deepEqual(printed[2], [["", "", "writes the shape:round override's at.dy"], ["inherits \"center\""]]);
+  assert.deepEqual(printed[3], [
+    { op: "set", element: CLOCK, path: ["at", "dy"], scope: "display", device: "fenix847mm", value: "6px" },
+    { op: "remove", element: CLOCK, path: ["at", "dy"], scope: "display", device: "fenix847mm" },
+    { op: "set", element: CLOCK, path: ["at", "dy"], scope: "all", device: "fenix847mm", value: "4px" },
   ]);
-  assert.deepEqual(picked, ["display"]);
-  // the override's at: is read whole, so both its anchor and its dy are overridden on an AMOLED watch
-  assert.deepEqual(amoledNotes, ["overridden on this display class", "overridden on this display class"]);
-  assert.deepEqual(mipButtons, ["all targets", "fr955", "round screens", "MIP screens"]);
-  assert.deepEqual(mipNotes, []);
+  assert.deepEqual(printed[4], ["", "", ""]);
 });

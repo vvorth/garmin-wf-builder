@@ -8,14 +8,17 @@
 // many), and the frame fetch (one frame on its way at a time, a newer ask
 // replacing the one waiting, the newest answer shown), with the YAML tab's
 // save (`textsync.ts`: the whole text, debounced, against the version it
-// was typed over). Per-browser preferences (`view`, `ui`) are read once from
-// `localStorage` and written back through `persist()`; a face's editor-only
-// state (`faceState`) lives beside the face in the worker's store.
+// was typed over). The selection's field tree (`inspect`) is asked for the
+// editing context -- the element, the viewed device, the frame and the
+// style -- and asked again whenever one of those changes. Per-browser
+// preferences (`view`, `ui`) are read once from `localStorage` and written
+// back through `persist()`; a face's editor-only state (`faceState`) lives
+// beside the face in the worker's store.
 
 import { createContext } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import type {
-  Answer, Args, AssetArgs, DeviceInfo, Dragged, EditOp, FaceUiState, Frame, FrameArgs, Gesture, Op, Scope, Skin, Structured,
+  Answer, Args, AssetArgs, DeviceInfo, Dragged, EditOp, FaceUiState, Frame, FrameArgs, Gesture, Inspect, InspectArgs, Op, Scope, Skin, Structured,
   StructureOp, Summary, TreeNode, VersionArgs, Vocabulary,
 } from "../src/studio/protocol.ts";
 import { api, call, listen } from "./api.ts";
@@ -43,7 +46,7 @@ export interface Selection {
 /** Which frame the preview draws: awake, asleep (MIP) or AOD (AMOLED), one at a time. */
 export type FrameMode = "awake" | "asleep" | "aod";
 
-/** The editing context: what the face is drawn as, and where a geometry edit is written. */
+/** The editing context: what the face is drawn as, which frame Properties edits, and where a geometry edit is written. */
 export interface Context {
   device: string | null;
   style: string;
@@ -56,8 +59,8 @@ export interface Context {
   now: boolean;
   /** What each slot is drawn showing, by slot name. */
   picks: Record<string, string>;
-  /** Where an inspector edit or a drag writes geometry: "all" (a drag then writes where the viewed device reads it), the device, its shape, or its display class. */
-  scope: Scope;
+  /** Edit for: where a Properties edit or a drag writes `at:`, `size:`, `radius:` or `align:`: "all" the element's own key (a drag then goes where the viewed device reads it), else its override for the device, its shape or its display class. */
+  target: Scope;
 }
 
 export interface Panels {
@@ -169,6 +172,8 @@ export interface EditorState {
   devices: DeviceInfo[];
   selection: Selection;
   context: Context;
+  /** The selected element's field tree for the context, as the worker last answered; null while nothing is selected or the answer is on its way. */
+  inspect: Inspect | null;
   view: View;
   ui: Ui;
   pending: Pending;
@@ -313,12 +318,14 @@ export class EditorStore {
   private frameWaiting: { args: FrameArgs; epoch: number } | null = null;
   private frameSending = false;
   private skinKey: string | null = null;
+  // the field tree: the ask last made, so the same tree is not asked for twice; only its answer is shown
+  private inspectKey: string | null = null;
 
   constructor(docId: string | null = null) {
     this.state = {
       docId: null, doc: null, gone: false, vocab: null, devices: [], selection: NO_SELECTION,
-      context: { device: null, style: "", frame: "awake", time: "", date: "", now: false, picks: {}, scope: "all" },
-      view: storedView(), ui: storedUi(), pending: { queue: [], latest: null }, yaml: freshYaml(),
+      context: { device: null, style: "", frame: "awake", time: "", date: "", now: false, picks: {}, target: "all" },
+      inspect: null, view: storedView(), ui: storedUi(), pending: { queue: [], latest: null }, yaml: freshYaml(),
       frame: { current: null, busy: false, skin: null }, clock: clockNow(), messages: { log: [], unseen: 0, toast: null }, faceState: {},
     };
     this.unlisten = listen((name, data) => this.onEvent(name, data));
@@ -365,7 +372,8 @@ export class EditorStore {
     if (this.textTimer !== null) { clearTimeout(this.textTimer); this.textTimer = null; }
     this.frameWaiting = null;
     this.frameKey = null;
-    this.set({ docId, doc: null, gone: false, selection: NO_SELECTION, pending: { queue: [], latest: null }, yaml: freshYaml(),
+    this.inspectKey = null;
+    this.set({ docId, doc: null, gone: false, selection: NO_SELECTION, inspect: null, pending: { queue: [], latest: null }, yaml: freshYaml(),
                frame: { ...this.state.frame, current: null, busy: false }, ui: { ...this.state.ui, diagFilter: "all", dialog: null, palette: false } });
     if (docId === null) return;
     this.reload();
@@ -432,6 +440,7 @@ export class EditorStore {
     if (ctx !== s.context) this.set({ context: ctx });
     this.askFrame();
     this.askSkin();
+    this.askInspect();
   }
 
   // -- selection --
@@ -453,6 +462,7 @@ export class EditorStore {
     } else if (id !== primary || extra.length) {
       this.set({ selection: { primary: id, extra: [] } });
     }
+    this.askInspect();
   }
 
   /** Everything the frame shows, a group standing for its children; false while there is no frame. */
@@ -461,11 +471,13 @@ export class EditorStore {
     if (!doc || !frame.current) return false;
     const ids = allShown(doc.tree, new Set(frame.current.items.map((i) => i.id)));
     this.set({ selection: { primary: ids[0] || null, extra: ids.slice(1) } });
+    this.askInspect();
     return true;
   }
 
   deselect(): void {
     if (this.state.selection !== NO_SELECTION) this.set({ selection: NO_SELECTION });
+    this.askInspect();
   }
 
   // -- the outbox --
@@ -532,8 +544,8 @@ export class EditorStore {
 
   /** A gesture from the canvas or the arrow keys on `ids`, drawn from `shown` until its frame arrives. */
   drag(ids: string[], gesture: Gesture, shown: Shown): void {
-    const { device, scope } = this.state.context;
-    const where: Where = { ...(device !== null ? { device } : {}), scope: scope === "all" ? "auto" : scope };
+    const { device, target } = this.state.context;
+    const where: Where = { ...(device !== null ? { device } : {}), scope: target === "all" ? "auto" : target };
     this.commit(enqueue(this.state.pending.queue, { ids, gesture, ...shown, where }));
     void this.pump();
   }
@@ -556,6 +568,7 @@ export class EditorStore {
     const select = (updated as Structured).select;
     if (op.op === "delete") this.set({ selection: NO_SELECTION });
     else this.set({ selection: { primary: select ?? this.state.selection.primary, extra: [] } });
+    this.askInspect();
   }
 
   /** Several edits as one change, under `label`. */
@@ -564,6 +577,7 @@ export class EditorStore {
     if (!updated) return;
     const select = (updated as Structured).select;
     if (select) this.set({ selection: { primary: select, extra: [] } });
+    this.askInspect();
   }
 
   undo(): Promise<Summary | null> {
@@ -654,6 +668,30 @@ export class EditorStore {
         this.scheduleClock();
       }
     }
+  }
+
+  // The selected element's field tree, for the editing context: asked
+  // once per element, version, device, frame and style, and only the ask
+  // last made is shown, since answers can arrive out of order. Another
+  // element selected drops the tree shown, so a stale one is never read as
+  // the new selection's.
+  private askInspect(): void {
+    const s = this.state;
+    const node = elementOf(s);
+    if (!s.doc || !node) {
+      this.inspectKey = null;
+      if (s.inspect) this.set({ inspect: null });
+      return;
+    }
+    const args: InspectArgs = { id: s.doc.id, element: node.path, device: s.context.device || "", frame: s.context.frame, style: s.context.style };
+    const key = `${s.doc.version}\0${JSON.stringify(args)}`;
+    if (key === this.inspectKey) return;
+    this.inspectKey = key;
+    if (s.inspect && s.inspect.element.join("\0") !== node.path.join("\0")) this.set({ inspect: null });
+    const epoch = this.epoch;
+    api("inspect", args).then(
+      (ins) => { if (epoch === this.epoch && this.inspectKey === key) this.set({ inspect: ins }); },
+      (e: unknown) => { if (epoch === this.epoch && this.inspectKey === key) this.error(e); });
   }
 
   // The watch's skin round the screen, when asked for and the device has one.
