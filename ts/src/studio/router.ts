@@ -32,7 +32,7 @@ import { skinFor } from "../preview.ts";
 import { quoted } from "../py.ts";
 import * as starters from "../starters.ts";
 import { BundleError, bundle, readUpload, toZip } from "./bundle.ts";
-import { base64, type Document, frameKey, type FrameKey, StaleVersion, type Studio } from "./document.ts";
+import { base64, type Document, frameKey, type FrameKey, path, StaleVersion, type Studio } from "./document.ts";
 import { devices, vocabulary } from "./inspect.ts";
 import { plain } from "./json.ts";
 import type {
@@ -109,10 +109,12 @@ function picks(raw: string | null): [string, string][] {
 }
 
 function key(args: Json, scale: number | null = null): FrameKey {
+  const enter = args["enter"];
   return frameKey({
     device: text(args, "device"), style: text(args, "style") || null, time: time(text(args, "time")), date: date(text(args, "date")),
     asleep: args["asleep"] === true, aod: args["aod"] === true,
     scale: Math.min(4, Math.max(1, scale ?? (args["scale"] === undefined ? 2 : int(args, "scale")))), picks: picks(text(args, "picks")),
+    enter: enter === undefined || enter === null ? null : path(enter),
   });
 }
 
@@ -414,7 +416,7 @@ export class Router {
       if (!Number.isFinite(dx) || !Number.isFinite(dy)) throw new Refused("a move needs its dx and dy");
       [change, landed] = doc.moveAll(elements.map(String), Math.trunc(dx), Math.trunc(dy), device, scope, int(args, "version"));
     } else {
-      [change, landed] = doc.drag(text(args, "element"), gesture, device, scope, int(args, "version"));
+      [change, landed] = doc.drag(text(args, "element"), gesture, device, scope, int(args, "version"), time(text(args, "time")));
     }
     this.emit("changed", { id: doc.id, version: doc.version, tab });
     return json({ ...doc.summary(), landed, what: change.label });

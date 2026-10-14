@@ -807,3 +807,53 @@ test("a list item is inserted, moved and removed through the document, each one 
   assert.equal(noAt.status, 400);
   assert.match(noAt.json.error, /at/);
 });
+
+// -- parts --
+
+test("a part's keys are edited at its path: a point's dx, a point removed, the parts reordered; another scope is refused", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  const blade = ["resources", "hand_sets", "vintage", "hour", "parts", "blade"];
+  const before = doc.text;
+  const line = (t: string, n: number): string => t.split("\n")[n - 1]!;
+  const at = before.split("\n").findIndex((l) => l.includes("- { dx: -1.5%r, dy: -26%r }")) + 1;
+  edit(doc, { op: "set", element: blade, path: ["points", 1, "dx"], scope: "all", device: "fr955", value: "-2%r" });
+  assert.equal(line(doc.text, at), line(before, at).replace("-1.5%r", "-2%r"));
+  assert.equal(doc.text.split("\n").filter((l, i) => l !== before.split("\n")[i]).length, 1, "one line changed");
+  assert.equal(doc.head.label, "set resources.hand_sets.vintage.hour.parts.blade.points.1.dx to -2%r");
+  // a point removed from the list; the mirrored blade lists two, and the gate keeps it at two
+  const classic = ["resources", "hand_sets", "classic", "hour", "parts", "blade"];
+  const count = dataOf(doc).resources.hand_sets.classic.hour.parts.blade.points.length;
+  edit(doc, { op: "remove_item", element: classic, path: ["points"], at: 1 });
+  assert.equal(dataOf(doc).resources.hand_sets.classic.hour.parts.blade.points.length, count - 1);
+  assert.equal(doc.head.label, "remove resources.hand_sets.classic.hour.parts.blade.points.1");
+  assert.notEqual(doc.analysis().face, null);
+  assert.throws(() => edit(doc, { op: "remove_item", element: blade, path: ["points"], at: 1 }), /needs at least 2 items/);
+  // parts draw in order: a mapping entry moved among its siblings
+  edit(doc, { op: "move_key", element: ["resources", "hand_sets", "vintage", "hour"], path: ["parts", "blade"], to: 0 });
+  assert.deepEqual(Object.keys(dataOf(doc).resources.hand_sets.vintage.hour.parts), ["blade", "blade_bg", "ring_bg", "point_bg", "ring", "point"]);
+  assert.notEqual(doc.analysis().face, null);
+  edit(doc, { op: "move_key", element: ["layouts", "analog", "static", "hour_numerals"], path: ["parts", "numeral"], to: 0 });
+  // a hand's own colour, through its path
+  edit(doc, { op: "set", element: ["resources", "hand_sets", "vintage", "hour"], path: ["color"], scope: "all", value: "color.dim" });
+  assert.equal(dataOf(doc).resources.hand_sets.vintage.hour.color, "color.dim");
+  refusedAlone(doc, [
+    [/a part has no overrides/, () => edit(doc, { op: "set", element: blade, path: ["points", 1, "dx"], scope: "device", device: "fr955", value: "1px" })],
+    [/a part has no overrides/, () => edit(doc, { op: "set", element: blade, path: ["color"], scope: "aod", device: "fr955", value: "color.fg" })],
+    [/a part has no overrides/, () => edit(doc, { op: "remove", element: blade, path: ["mirror"], scope: "shape", device: "fr955" })],
+    [/a hand has no overrides/, () => edit(doc, { op: "set", element: ["resources", "hand_sets", "vintage", "hour"], path: ["color"], scope: "display", device: "fr955", value: "color.fg" })],
+    [/a part has no overrides/, () => doc.drag(blade.join("/"), { kind: "vertex", index: 0, dx: 1, dy: 0 }, "fr955", "device", doc.version)],
+    [/a part has no overrides/, () => doc.drag(blade.join("/"), { kind: "move", dx: 1, dy: 0 }, "fr955", "shape", doc.version)],
+    [/not a polygon/, () => doc.drag("resources/hand_sets/vintage/hour/parts/ring", { kind: "vertex", index: 0, dx: 1, dy: 0 }, "fr955", "auto", doc.version)],
+    [/no ends to move apart/, () => doc.drag("resources/hand_sets/vintage/hour/parts/ring", { kind: "move", part: "to", dx: 1, dy: 0 }, "fr955", "auto", doc.version)],
+    [/has no size.width to resize/, () => doc.drag("resources/hand_sets/vintage/hour/parts/ring", { kind: "resize", key: ["size", "width"], delta: 1 }, "fr955", "auto", doc.version)],
+    [/only an arc part has angles/, () => doc.drag("resources/hand_sets/vintage/hour/parts/ring", { kind: "turn", key: "start_angle", degrees: 1 }, "fr955", "auto", doc.version)],
+    [/is not a part/, () => doc.drag("resources/hand_sets/vintage/hour", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", doc.version)],
+    [/not a part/, () => doc.drag("resources/hand_sets/vintage/hour/parts/nope", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", doc.version)],
+  ]);
+  // an arc part is centred on its copy's origin: it turns and resizes, and does not move
+  const patterns = openExample(doc.studio, "examples/features/patterns/face.yaml");
+  refusedAlone(patterns, [
+    [/centred on the axis and has no at: to move/, () => patterns.drag("static/segments/parts/segment", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
+    [/is not a part/, () => patterns.drag("static/segments/parts/segment/radius", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
+  ]);
+});

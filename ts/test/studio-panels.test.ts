@@ -332,6 +332,49 @@ test("a pattern's parts are an id-keyed mapping of part objects, each with its o
   assert.equal(inspect(showcase, pathOf(showcase, "hour_numerals"), null).parts!.count, 1);
 });
 
+test("a part is inspected as an element of its own type: its schema branch, its own keys, no overrides and no aod", () => {
+  const showcase = readText("examples/showcase/face.yaml");
+  const fr955 = db.get("fr955");
+  const blade = inspect(showcase, ["resources", "hand_sets", "vintage", "hour", "parts", "blade"], fr955, { frame: "aod", style: "roman_dark" });
+  assert.deepEqual([blade.subject, blade.type, blade.id, blade.error, blade.device], ["part", "polygon", "blade", null, "fr955"]);
+  const fields = fieldsOf(blade);
+  // a hand part's keys, narrowed to a polygon's: no at:, size:, to:, radius:, thickness:, align:
+  assert.deepEqual(keysOf(blade.fields), ["type", "mirror", "points", "filled", "color", "min_1px"]);
+  assert.deepEqual([fields["type"].widget, fields["type"].value, fields["mirror"].widget, fields["mirror"].value], ["readonly", "polygon", "enum", "x"]);
+  assert.deepEqual([fields["points"].kind, fields["points"].items.length, fields["points"].items[1].path], ["list", 2, ["points", 1]]);
+  assert.deepEqual(child(fields["points"].items[1], "dx").value, "-1.5%r");
+  // read as written, whatever the context: no override, no aod cascade, no restyling
+  assert.deepEqual([fields["points"].effective.from, fields["color"].effective, blade.aod_keys, blade.overrides, blade.overridden, blade.parts],
+    ["own", { value: null, from: "absent" }, [], {}, [], null]);
+  assert.deepEqual(blade.context, { frame: "aod", style: "roman_dark" });
+  // every other part type's keys are its own, from the compiler's tables
+  const ring = fieldsOf(inspect(showcase, ["resources", "hand_sets", "vintage", "hour", "parts", "ring"], fr955));
+  assert.ok("radius" in ring && "thickness" in ring && "at" in ring && !("points" in ring) && !("mirror" in ring) && !("size" in ring));
+  const needle = fieldsOf(inspect(showcase, ["resources", "hand_sets", "vintage", "second", "parts", "needle"], null));
+  assert.ok("to" in needle && "thickness" in needle && !("filled" in needle) && !("radius" in needle));
+  // a pattern's part has the pattern branch: visible:, and a text part's text/font/curve
+  const numeral = inspect(showcase, ["layouts", "analog", "static", "hour_numerals", "parts", "numeral"], fr955);
+  assert.deepEqual([numeral.subject, numeral.type], ["part", "text"]);
+  const numeralFields = fieldsOf(numeral);
+  assert.ok("text" in numeralFields && "font" in numeralFields && "curve" in numeralFields && "visible" in numeralFields && !("points" in numeralFields) && !("size" in numeralFields));
+  assert.equal(numeralFields["text"].widget, "template");
+  const patterns = readText("examples/features/patterns/face.yaml");
+  const segment = fieldsOf(inspect(patterns, ["static", "segments", "parts", "segment"], fr955));
+  assert.ok("start_angle" in segment && "sweep" in segment && "radius" in segment && !("at" in segment));
+  // a needle gauge's part is a hand part
+  const gauge = readText("examples/features/gauge/face.yaml");
+  const hub = inspect(gauge, ["elements", "battery_needle", "needle", "hub"], fr955);
+  assert.deepEqual([hub.subject, hub.type, keysOf(hub.fields).includes("visible")], ["part", "circle", false]);
+  // a hand: its colour and its parts
+  const hand = inspect(showcase, ["resources", "hand_sets", "vintage", "hour"], fr955);
+  assert.deepEqual([hand.subject, hand.type, hand.id, keysOf(hand.fields)], ["hand", "hand", "hour", ["color", "parts"]]);
+  assert.deepEqual([fieldsOf(hand)["parts"].kind, fieldsOf(hand)["parts"].chosen], ["choice", 0]);
+  // an element stays an element; a hand set or a point is nothing
+  assert.equal(inspect(showcase, ["layouts", "roman", "elements", "roman_hands"], fr955).subject, "element");
+  assert.equal(inspect(showcase, ["resources", "hand_sets", "vintage"], fr955).error, "not an element");
+  assert.equal(inspect(showcase, ["resources", "hand_sets", "vintage", "hour", "parts", "blade", "points", 0], fr955).error, "not an element");
+});
+
 test("overrides are an object keyed by selector, each the keys an override may patch, with a template for a new selector", () => {
   const text = starters.instantiate("minimal", "O").replace("    at: { anchor: center }\n    color: color.text\n",
     '    at: { anchor: center }\n    color: color.text\n    overrides: { fr955: { at: { dy: 2px } }, "shape:round": { color: color.dim } }\n');

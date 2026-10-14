@@ -78,7 +78,7 @@ const oneOf = (...cs: Check[]): Check => (v, at) => {
 // -- the shapes, one per interface of protocol.ts ---------------------------------
 
 const path = list(oneOf(str, int));
-const treeNode: Check = (v, at) => obj({ kind: literal("element"), id: str, type: value, path, line: int, end: int, children: list(treeNode) })(v, at);
+const treeNode: Check = (v, at) => obj({ kind: literal("element", "hand", "part"), id: str, type: value, path, line: int, end: int, children: list(treeNode) })(v, at);
 const treeBlock = obj({ kind: literal("block"), label: str, path, line: nullable(int), children: list(treeNode) });
 const diagnostic = obj({ severity: literal("error", "warning", "note"), code: str, message: str, notes: list(str), file: opt(str), line: opt(int), col: opt(int) });
 const history = obj({
@@ -116,13 +116,18 @@ const structured = obj({ ...SUMMARY, select: nullable(str) });
 const dragged = obj({ ...SUMMARY, landed: bool, what: str });
 
 const handle = obj({
-  kind: literal("end", "size", "angle"), part: opt(literal("at", "to")), key: opt(oneOf(str, list(str))), axis: opt(literal("x", "y")), gain: opt(num),
+  kind: literal("end", "size", "angle", "vertex", "segment"), part: opt(literal("at", "to")), key: opt(oneOf(str, list(str))), axis: opt(literal("x", "y")), gain: opt(num),
+  index: opt(int), after: opt(int), mirrored: opt(literal(true)),
   x: num, y: num, cx: opt(num), cy: opt(num), start: opt(num), sweep: opt(num),
   live: opt(nullable(oneOf(obj({ consts: record(num) }), obj({ angle: str })))),
 });
 const frame = obj({
   version: int, device: str, scale: int, width: int, height: int, shape: str, minor_radius: num, frame: str,
-  items: list(obj({ id: str, kind: str, drawn: bool, line: nullable(int), box: tuple(num, num, num, num), center: tuple(num, num), handles: list(handle) })),
+  items: list(obj({
+    id: str, kind: str, drawn: bool, line: nullable(int), box: tuple(num, num, num, num), center: tuple(num, num), handles: list(handle),
+    path: opt(path), angle: opt(num),
+  })),
+  local: nullable(obj({ element: path, origin: tuple(num, num), radius: num, angle: num })),
   layers: list(oneOf(
     obj({ id: str, kind: str, ops: nullable(list(obj({ op: str }, { open: true }))) }),
     obj({ id: str, kind: str, origin: nullable(tuple(num, num)), image: nullable(str) }),
@@ -142,7 +147,7 @@ const field: Check = (v, at) => obj({
 const scopeOverride = obj({ selector: str, keys: record(value) });
 const context = obj({ frame: literal("awake", "asleep", "aod"), style: nullable(str) });
 const inspect = obj({
-  element: path, id: str, type: str, context, fields: list(field), unknown: list(str), aod_keys: list(str),
+  element: path, id: str, type: str, subject: literal("element", "hand", "part"), context, fields: list(field), unknown: list(str), aod_keys: list(str),
   overrides: obj({ device: opt(scopeOverride), shape: opt(scopeOverride), display: opt(scopeOverride) }),
   overridden: list(obj({ selector: str, keys: record(value), line: int, end: int })), parts: nullable(obj({ count: int, shapes: list(str), line: int, end: int })),
   device: nullable(str), shape: nullable(str), display: nullable(str), error: nullable(str),
@@ -209,6 +214,17 @@ test("every answer the worker sends has the protocol's shape", async () => {
   const drawn = (await ok("frame", { id, device, scale: 1 })).json;
   frame(drawn, "frame");
   assert.ok(drawn.items.some((i: any) => i.handles.length > 0), "some element has handles");
+  assert.equal(drawn.local, null);
+  // entered into a hands element: the local frame, its parts as items, each handle of the new kinds among them
+  const hands = flatten(face.tree).find((n: any) => n.type === "hands");
+  assert.ok(hands, "the showcase places a hand set");
+  const entered = (await ok("frame", { id, device, scale: 1, enter: hands.path })).json;
+  frame(entered, "frame entered");
+  assert.deepEqual(entered.local.element, hands.path);
+  const partItems = entered.items.filter((i: any) => i.path);
+  assert.ok(partItems.length > 0 && partItems.every((i: any) => i.id === i.path.join("/") && typeof i.angle === "number"));
+  const kinds = new Set(partItems.flatMap((i: any) => i.handles.map((h: any) => h.kind)));
+  assert.ok(kinds.has("vertex") && kinds.has("segment"), [...kinds].join(", "));
   file(await ok("thumbnail", { id, device }), "image/png", "thumbnail");
   file(await ok("cover", { id }), "image/png", "cover");
   const set = face.globals.hand_sets[0];
@@ -217,8 +233,11 @@ test("every answer the worker sends has the protocol's shape", async () => {
 
   const nodes = flatten(face.tree);
   assert.ok(nodes.length > 10, "the showcase has elements");
+  assert.ok(nodes.some((n) => n.kind === "hand") && nodes.some((n) => n.kind === "part"), "hands and parts in the tree");
   for (const node of nodes) {
-    inspect((await ok("inspect", { id, element: node.path, device })).json, `inspect ${node.id} on ${device}`);
+    const own = (await ok("inspect", { id, element: node.path, device })).json;
+    inspect(own, `inspect ${node.id} on ${device}`);
+    assert.equal(own.subject, node.kind, `${node.id}'s subject`);
     inspect((await ok("inspect", { id, element: node.path, device: "" })).json, `inspect ${node.id}`);
     inspect((await ok("inspect", { id, element: node.path, device, frame: "aod", style: face.styles[0].name })).json, `inspect ${node.id} in AOD`);
   }
@@ -240,6 +259,12 @@ test("every answer the worker sends has the protocol's shape", async () => {
   const own: EditOp = { op: "set", element: text.path, path: ["z"], scope: "all", device: null, value: 3 };
   summary(take(await ok("edit", { id, version, edit: own })), "edit an element's key");
   dragged(take(await ok("drag", { id, version, device, element: text.id, gesture: { kind: "move", part: "both", dx: 1, dy: 0 } })), "drag");
+  // a part, by its frame item id, with a point gesture and the frame's time
+  const polygon = partItems.find((i: any) => i.kind === "polygon");
+  dragged(take(await ok("drag", { id, version, device, element: polygon.id, time: "10:09:42", gesture: { kind: "vertex", index: 0, dx: 1, dy: 1 } })), "drag a part");
+  // a part's own key, and a hand's
+  summary(take(await ok("edit", { id, version, edit: { op: "set", element: polygon.path, path: ["filled"], scope: "all", device: null, value: true } })), "edit a part");
+  summary(take(await ok("edit", { id, version, edit: { op: "set", element: hands.children[0].path, path: ["color"], scope: "all", device: null, value: "color.fg" } })), "edit a hand");
   structured(take(await ok("structure", { id, version, edit: { op: "duplicate", path: text.path } })), "structure");
   // an aod: restyle, through the aod scope
   const restyled: EditOp = { op: "set", element: text.path, path: ["color"], scope: "aod", device: null, value: "color.fg" };

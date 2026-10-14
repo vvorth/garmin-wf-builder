@@ -134,8 +134,14 @@ test("an extent cannot shrink below one pixel", () => {
   assert.ok(resize(v, "ne_dot", ["radius"], 2).landed);
 });
 
-test("a polygon move is refused, and the static block is not an element", () => {
-  assert.throws(() => move(view(SHAPES, read(SHAPES), "fenix8solar47mm"), "chevron", 1, 1), refused(/polygon/));
+test("a polygon moves by every point, and the static block is not an element", () => {
+  const v = view(SHAPES, read(SHAPES), "fenix8solar47mm");
+  const before = (v.placed("chevron") as unknown as { points: [number, number][] }).points;
+  const moved = move(v, "chevron", 1, 1);
+  assert.ok(moved.landed);
+  const after = (v.tryPatch(moved.patch, "chevron") as unknown as { points: [number, number][] }).points;
+  assert.deepEqual(after, before.map(([x, y]) => [x + 1, y + 1]));
+  assert.throws(() => move(v, "chevron", 1, 1, "device"), refused(/points cannot be overridden per device/));
   assert.throws(() => move(view(ALIGN, read(ALIGN), "fenix8solar47mm"), "static", 3, 0), refused(/block/));
 });
 

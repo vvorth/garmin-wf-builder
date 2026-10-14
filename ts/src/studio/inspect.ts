@@ -9,7 +9,12 @@
 // type, an object with every property, a list with its items, or a choice
 // between branches. Only a key the schema does not have is raw (`unknown`).
 // A shape's keys are narrowed to its own, since the schema lists every
-// shape key on every shape.
+// shape key on every shape, and a part's to its type's the same way.
+//
+// The path inspected may name a hand of a hand set, or a part of a hand, a
+// pattern or a needle (`subject`): the fields are then the hand's (`color`,
+// `parts`) or the part's own schema branch (`handPart`, `patternPart`),
+// read as written, since neither has overrides or an `aod:` block.
 //
 // Values are the author's, read from the text: what the author wrote, in
 // their units, or nothing when the key is absent. Beside each, `effective`
@@ -31,8 +36,10 @@ import { indexFor, type Path, Refused, type SpanIndex } from "../edit/spans.ts";
 import { elementTypes } from "../edit/structure.ts";
 import { WholeFloat } from "../edit/yaml.ts";
 import * as icons from "../icons.ts";
+import { HAND_PART_FILLED_SHAPES, HAND_PART_GEOMETRY_KEYS, PATTERN_PART_GEOMETRY_KEYS } from "../ir/builder/hands.ts";
 import type { Face } from "../ir/model.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../kinds/shape.ts";
+import { subjectOf } from "./parts.ts";
 import { Color, ColorError, MIP64_NAMED } from "../palette.ts";
 import { hasSkin } from "../preview.ts";
 import { DATA_SAMPLE } from "../sample.ts";
@@ -130,6 +137,17 @@ export function aodKeys(type: string): string[] {
   if (node === undefined) return [];
   const [, resolved] = deref(node);
   return Object.keys((resolved["properties"] ?? {}) as Json).filter((k) => k !== "visible" && k !== "dim");
+}
+
+/** The keys a part of `type` does not read, by the compiler's own tables: a pattern's parts have two more types than a hand's. */
+function hiddenPartKeys(type: string, pattern: boolean): Set<string> {
+  const table = pattern ? PATTERN_PART_GEOMETRY_KEYS : HAND_PART_GEOMETRY_KEYS;
+  const own = table.get(type) ?? new Set<string>();
+  const out = new Set([...table.values()].flatMap((keys) => [...keys]).filter((k) => !own.has(k)));
+  if (type !== "polygon") out.add("mirror");
+  if (!HAND_PART_FILLED_SHAPES.has(type)) out.add("filled");
+  if (!["line", "arc", "circle"].includes(type)) out.add("thickness");
+  return out;
 }
 
 function hidden(type: string): Set<string> {
@@ -407,32 +425,49 @@ export function inspect(text: string, element: Path, device: Device | null, cont
   const index = indexFor(text);
   const data = dataAt(index.data, element);
   const out: Inspect = {
-    element: [...element], id: String(element[element.length - 1]), type: "", context: { ...context }, fields: [], unknown: [], aod_keys: [],
-    overrides: {}, overridden: [], parts: null,
+    element: [...element], id: String(element[element.length - 1]), type: "", subject: "element", context: { ...context }, fields: [], unknown: [],
+    aod_keys: [], overrides: {}, overridden: [], parts: null,
     device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null, error: null,
   };
-  if (!isMap(data) || !data.has("type")) return { ...out, error: "not an element" };
-  const type = String(data.get("type"));
-  const branch = elementSchema(type) ?? { properties: {} };
-  const hide = hidden(type);
+  const subject = subjectOf(index, element);
+  if (subject === null || !isMap(data)) return { ...out, error: "not an element" };
+  const defs = schema()["$defs"] as Record<string, Json>;
+  let type: string, branch: Json, hide: Set<string>, reading: Reading;
+  if (subject === "element") {
+    type = String(data.get("type"));
+    branch = elementSchema(type) ?? { properties: {} };
+    hide = hidden(type);
+    reading = { type, data, device, context, aodKeys: new Set(aodKeys(type)), cascade: cascadeOf(index, element, data, face) };
+  } else {
+    // a hand's or a part's keys are read as written: no overrides, no `aod:` block
+    const inHand = element[1] === "hand_sets";
+    const owner = subject === "part" ? dataAt(index.data, element.slice(0, -2)) : null;
+    const pattern = subject === "part" && !inHand && isMap(owner) && owner.get("type") === "pattern";
+    type = subject === "hand" ? "hand" : String(data.get("type"));
+    branch = (subject === "hand" ? defs["hand"] : pattern ? defs["patternPart"] : defs["handPart"]) ?? { properties: {} };
+    hide = subject === "part" ? hiddenPartKeys(type, pattern) : new Set();
+    const written = { own: null, group: null, defaults: null, hiddenBy: null };
+    reading = { type, data, device: null, context: { ...context, frame: "awake" }, aodKeys: new Set(), cascade: written };
+  }
   const required = new Set((branch["required"] ?? []) as string[]);
   const props = (branch["properties"] ?? {}) as Record<string, Json>;
   const order = [...[...data.keys()].filter((k) => typeof k === "string" && k in props) as string[], ...Object.keys(props).filter((k) => !data.has(k))];
-  const restyled = aodKeys(type);
-  const reading: Reading = { type, data, device, context, aodKeys: new Set(restyled), cascade: cascadeOf(index, element, data, face) };
+  const restyled = subject === "element" ? aodKeys(type) : [];
+  const id = typeof element[element.length - 1] === "number" ? `part${Number(element[element.length - 1]) + 1}` : String(element[element.length - 1]);
   const fields = order
     .filter((k) => !SKIPPED.has(k) && (!hide.has(k) || data.has(k))
       && (data.has(k) || !String(props[k]!["description"] ?? "").startsWith("Not accepted")))
     .map((k) => field(reading, k, [k], props[k]!, data.has(k) ? data.get(k) : null, required.has(k), 1));
   const unknown = [...data.keys()].filter((k) => !(String(k) in props)).map(String);
   const overrides: Inspect["overrides"] = {};
-  if (device !== null) {
+  if (device !== null && subject === "element") {
     const [deviceSel, shapeSel, displaySel] = selectorPaths(device);
     for (const [scope, selector] of [["device", deviceSel], ["shape", shapeSel], ["display", displaySel]] as const) {
       const patch = dataAt(data, selector);
       if (isMap(patch)) overrides[scope] = { selector: String(selector[1]), keys: mapping(patch) };
     }
   }
+  if (subject !== "element") return { ...out, id, type, subject, fields, unknown };
   return {
     ...out, type, fields, unknown, aod_keys: restyled, overrides,
     overridden: nonGeometryOverrides(index, element, data),

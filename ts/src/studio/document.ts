@@ -13,9 +13,11 @@ import { resolveAll, selectDevices } from "../build.ts";
 import type { Device, DeviceDatabase } from "../devices/device.ts";
 import { Bag, type Diagnostic } from "../diagnostics.ts";
 import { inLayout } from "../draw/frames.ts";
-import { layers } from "../draw/layers.ts";
+import { compose, layers } from "../draw/layers.ts";
 import * as colors from "../edit/colors.ts";
-import { type Baker, move, resize, type Scope, SCOPES, seeded, selectorFor, target, turn, View } from "../edit/geometry.ts";
+import {
+  addVertex, type Baker, move, type PartTarget, removeVertex, resize, type Scope, SCOPES, seeded, selectorFor, type Subject, target, turn, vertex, View,
+} from "../edit/geometry.ts";
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
@@ -35,9 +37,10 @@ import type { ResolvedFace } from "../layout.ts";
 import { encodePng } from "../png.ts";
 import { frameItems, pngBytes, previewOptions, type PreviewOptions, render, resolveStyleEntry } from "../preview.ts";
 import { assetPath, type Bundle, bundle, FACE, inside, missing, references } from "./bundle.ts";
-import { describe, handles } from "./drag.ts";
+import { describe, handles, partGeometry } from "./drag.ts";
 import { aodKeys, GEOMETRY, globalsOf, inspect } from "./inspect.ts";
 import { jsonDumps, plain } from "./json.ts";
+import { enteredParts, handNodes, partNodes, partPlacement, partRef, partsKey, pathOfId, subjectOf } from "./parts.ts";
 import type {
   Diagnostic as ShownDiagnostic, EditContext, EventData, EventName, Frame, FrameItem, FrameLayer, History, Inspect, Summary, TreeBlock, TreeNode, Value,
 } from "./protocol.ts";
@@ -72,10 +75,12 @@ export interface FrameKey {
   scale: number;
   /** The type each slot is drawn showing, as `[slot, type]` pairs, sorted. */
   picks: [string, string][];
+  /** The tree path of the element entered, whose parts the frame is of, or `null`. */
+  enter: Path | null;
 }
 
 export function frameKey(fields: Partial<FrameKey> & { device: string }): FrameKey {
-  return { style: null, time: null, date: null, asleep: false, aod: false, scale: 2, picks: [], ...fields };
+  return { style: null, time: null, date: null, asleep: false, aod: false, scale: 2, picks: [], enter: null, ...fields };
 }
 
 /** One text through the whole pipeline: the load, one resolve per target and the lint. */
@@ -204,8 +209,15 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     const patch = isSlot(p) ? renameSlot(index, String(p[2]), to) : prefix ? renameReference(index, p, to, prefix) : renameKey(index, p, to);
     return withWhat(patch, `rename ${dotted(p)} to ${to}`);
   },
-  // a mapping entry reordered among its siblings: a style entry, a palette colour, a slot, a hand set, an element's own key
-  move_key: (doc, index, op) => moveKey(index, doc.editPath(index, op), listIndex(op, "to")),
+  // a mapping entry reordered among its siblings: a style entry, a palette colour, a slot, a hand set, an element's own key, a part
+  move_key: (doc, index, op) => {
+    const p = doc.editPath(index, op);
+    if (typeof p[p.length - 1] === "number") {
+      const parts = p.length >= 2 && (p[p.length - 2] === "parts" || p[p.length - 2] === "needle");
+      throw new Refused(`${dotted(p)} is an item of a list${parts ? ": write the parts as a mapping to reorder them" : "; move_item moves it"}`);
+    }
+    return moveKey(index, p, listIndex(op, "to"));
+  },
   // list items: `at` counts from 0, the list's length appends; a missing list is made around its first item
   insert_item: (doc, index, op) => {
     const p = doc.editPath(index, op);
@@ -322,6 +334,11 @@ function blockPaths(index: SpanIndex): [Path, string][] {
   return out;
 }
 
+/**
+ * The elements of `block`, each with its children: the elements of its own
+ * blocks, a `hands` element's hands with their parts, a pattern's or a
+ * needle gauge's parts.
+ */
 function children(index: SpanIndex, block: Entry): TreeNode[] {
   const out: TreeNode[] = [];
   for (const entry of index.entries()) {
@@ -338,10 +355,26 @@ function children(index: SpanIndex, block: Entry): TreeNode[] {
       const childBlock = index.get([...entry.path, sub]);
       if (childBlock !== undefined) node.children.push(...children(index, childBlock));
     }
+    if ((data as Map<unknown, unknown>).get("type") === "hands") node.children.push(...handNodes(index, data));
+    const key = partsKey(data);
+    if (key !== null) node.children.push(...partNodes(index, entry.path, key));
     out.push(node);
   }
   return out;
 }
+
+/** Every pixel of `image` but the layer `kept` dimmed to `share` of its alpha, in place: the ghost round an entered element. */
+function dimmed<T extends { id: string; image: { data: Uint8ClampedArray } | null }>(stack: T[], kept: string, share: number): T[] {
+  for (const layer of stack) {
+    if (layer.id === kept || layer.image === null) continue;
+    const data = layer.image.data;
+    for (let i = 3; i < data.length; i += 4) data[i] = Math.round(data[i]! * share);
+  }
+  return stack;
+}
+
+/** How much of the face round an entered element the ghost keeps. */
+const GHOST = 0.35;
 
 /**
  * Where a gesture's history label says it was written: the device for a
@@ -662,7 +695,10 @@ export class Document {
     if (op["element"] === undefined || op["element"] === null || p.length < 2) return index;
     if (scope !== "device" && scope !== "shape" && scope !== "display") return index;
     if (!GEOMETRY.has(String(p[0]))) return index;
-    return seeded(index, path(op["element"]), String(p[0]), this.studio.db.get(String(op["device"])), scope);
+    const element = path(op["element"]);
+    // a part or a hand has no overrides to seed; `editPath` refuses the scope
+    if (subjectOf(index, element) !== "element") return index;
+    return seeded(index, element, String(p[0]), this.studio.db.get(String(op["device"])), scope);
   }
 
   /**
@@ -680,6 +716,10 @@ export class Document {
       throw new Refused(`scope '${String(scope)}' is not all, device, shape, display or aod`);
     }
     if (scope === "all") return [...element, ...p];
+    const subject = subjectOf(index, element);
+    if (subject === "part" || subject === "hand") {
+      throw new Refused(`${dotted(p)} on ${dotted(element)} cannot be written for ${scope}: a ${subject} has no overrides`);
+    }
     if (scope === "aod") {
       const data = index.get(element) !== undefined ? dataAt(index.data, element) : null;
       const type = data instanceof Map && typeof data.get("type") === "string" ? data.get("type") as string : "";
@@ -879,6 +919,13 @@ export class Document {
    * A layer is its JSON ops, the tiles its text and icons paste being the
    * frame's `tiles`, or, for one with an op the browser does not draw (an
    * outlined group's ring), its image cropped to its ink.
+   *
+   * Entered into a hands, pattern or needle element (`key.enter`), the frame
+   * is that element's: `local` its axis, `%r` and the angle its parts are
+   * drawn at, the items its parts where the frame draws them (every hand's,
+   * at its hand's angle) with the element itself undrawn, the image the
+   * face with everything but the element dimmed to a ghost, and the layers
+   * the element's alone.
    */
   frame(key: FrameKey): Frame {
     return this.cached("frame", key, (): Frame => {
@@ -886,21 +933,51 @@ export class Document {
       const entry = resolveStyleEntry(resolved.face, options.style);
       const drawn = new Set(frameItems(resolved, options, entry).map((p) => p.id));
       const layout = entry !== null ? entry.layout : null;
+      const index = indexFor(this.text);
       // A group the author wrote; the `static:` block's and a layout's own groups are containers, not elements.
-      const authored = indexFor(this.text).elementIds();
+      const authored = index.elementIds();
       const items: FrameItem[] = [];
-      for (const placed of resolved.items) {
-        if (!drawn.has(placed.id) && !(placed.kind === "group" && authored.has(placed.id) && inLayout(placed, layout))) continue;
-        const box = placed.box;
+      let local: Frame["local"] = null;
+      let image: Uint8Array;
+      let painted;
+      if (key.enter !== null) {
+        // the entered element's parts, where this frame draws them, and the rest of the face as a ghost behind them
+        const [placed, angle, parts] = enteredParts(index, resolved, key.enter, options);
+        const device = resolved.device;
+        local = { element: [...key.enter], origin: [...placed.center], radius: device.minorRadius / 100, angle };
         const span = placed.element.span;
         items.push({
-          id: placed.id, kind: placed.kind, drawn: drawn.has(placed.id), line: span !== null ? span.line : null,
-          box: [box.x, box.y, box.width, box.height], center: [...placed.center], handles: handles(placed),
+          id: placed.id, kind: placed.kind, drawn: false, line: span !== null ? span.line : null,
+          box: [placed.box.x, placed.box.y, placed.box.width, placed.box.height], center: [...placed.center], handles: [],
         });
+        for (const part of parts) {
+          const [box, center, partHandles] = partGeometry(part, placed, device);
+          const written = index.get(part.target.path);
+          const line = written !== undefined ? written.key.start.line + 1 : part.ir.span !== null ? part.ir.span.line : null;
+          items.push({
+            id: part.target.path.map(String).join("/"), kind: part.ir.shape, drawn: true, line,
+            box: [box.x, box.y, box.width, box.height], center, handles: partHandles, path: [...part.target.path], angle: part.target.angle,
+          });
+        }
+        const stack = dimmed(layers(resolved, options, { paintAll: true }), placed.id, GHOST);
+        image = pngBytes(compose(stack, resolved, options));
+        painted = stack.filter((layer) => layer.id === placed.id);
+      } else {
+        for (const placed of resolved.items) {
+          if (!drawn.has(placed.id) && !(placed.kind === "group" && authored.has(placed.id) && inLayout(placed, layout))) continue;
+          const box = placed.box;
+          const span = placed.element.span;
+          items.push({
+            id: placed.id, kind: placed.kind, drawn: drawn.has(placed.id), line: span !== null ? span.line : null,
+            box: [box.x, box.y, box.width, box.height], center: [...placed.center], handles: handles(placed),
+          });
+        }
+        image = pngBytes(render(resolved, options));
+        painted = layers(resolved, options, { paintAll: false });
       }
       const stack: FrameLayer[] = [];
       let tiles = null;
-      for (const layer of layers(resolved, options, { paintAll: false })) {
+      for (const layer of painted) {
         tiles = layer.tiles ?? tiles;
         if (layer.image === null) {
           stack.push({ id: layer.id, kind: layer.kind, ops: layer.ops });
@@ -912,13 +989,13 @@ export class Document {
           image: ink !== null ? dataUrl(cropPng(layer.image, ink)) : null,
         });
       }
-      const [packed, index] = tiles !== null ? tiles.pack() : [new Uint8Array(0), {}];
+      const [packed, tileIndex] = tiles !== null ? tiles.pack() : [new Uint8Array(0), {}];
       const device = resolved.device;
       return {
         version: this.version, device: device.id, scale: key.scale, width: device.width, height: device.height,
         shape: device.shape, minor_radius: device.minorRadius,
-        frame: dataUrl(pngBytes(render(resolved, options))),
-        items, layers: stack, tiles: { data: base64(packed), index },
+        frame: dataUrl(image),
+        items, layers: stack, tiles: { data: base64(packed), index: tileIndex }, local,
       };
     });
   }
@@ -970,16 +1047,18 @@ export class Document {
    * the gate. Returns the change and whether the element landed on the
    * dragged pixel.
    */
-  drag(elementId: string, gesture: Json, deviceId: string, scope: string, expected: number): [Change, boolean] {
+  drag(elementId: string, gesture: Json, deviceId: string, scope: string, expected: number, time: [number, number, number] | null = null): [Change, boolean] {
     this.check(expected);
     const device = this.studio.db.get(deviceId);
     const where = writtenOn(device, scope);
     const analysis = this.analysis();
-    const view = new View(FACE, this.text, device, this.exists, this.baker, { loaded: analysis.loaded, resolved: analysis.resolved.get(deviceId) ?? null });
+    const resolved = analysis.resolved.get(deviceId) ?? null;
+    const view = new View(FACE, this.text, device, this.exists, this.baker, { loaded: analysis.loaded, resolved });
     const kind = gesture["kind"];
     const part = gesture["part"] ?? "both";
     if (part !== "both" && part !== "at" && part !== "to") throw new Refused(`part '${String(part)}' is not both, at or to`);
-    if (kind !== "move" && kind !== "resize" && kind !== "turn") throw new Refused(`unknown gesture '${String(kind)}'`);
+    const KINDS = ["move", "resize", "turn", "vertex", "add_vertex", "remove_vertex"];
+    if (typeof kind !== "string" || !KINDS.includes(kind)) throw new Refused(`unknown gesture '${String(kind)}'`);
     const need = (name: string): unknown => {
       if (!(name in gesture)) throw new Refused(`a ${kind} gesture needs its values: '${name}'`);
       return gesture[name];
@@ -989,12 +1068,24 @@ export class Document {
       if (!Number.isFinite(v)) throw new Refused(`a ${kind} gesture needs its values: ${name}`);
       return Math.trunc(v);
     };
+    // a part, named by its tree path (the entered frame's item id), is drawn turned: its gesture is made where the frame shows it
+    let subject: Subject = elementId;
+    if (elementId.includes("/")) {
+      const index = indexFor(this.text);
+      const ref = partRef(index, pathOfId(elementId));
+      if (resolved === null) throw new Refused(`${deviceId} is not drawn: the face does not load, or does not target it`);
+      subject = partPlacement(index, resolved, ref, previewOptions({ time })).target;
+    }
     let converted;
-    if (kind === "move") converted = move(view, elementId, int("dx"), int("dy"), scope as Scope, part);
-    else if (kind === "resize") converted = resize(view, elementId, (need("key") as unknown[]).map(String), int("delta"), scope as Scope);
-    else converted = turn(view, elementId, String(need("key")), Number(need("degrees")), scope as Scope);
+    if (kind === "move") converted = move(view, subject, int("dx"), int("dy"), scope as Scope, part);
+    else if (kind === "resize") converted = resize(view, subject, (need("key") as unknown[]).map(String), int("delta"), scope as Scope);
+    else if (kind === "turn") converted = turn(view, subject, String(need("key")), Number(need("degrees")), scope as Scope);
+    else if (kind === "vertex") converted = vertex(view, subject, int("index"), int("dx"), int("dy"), scope as Scope);
+    else if (kind === "add_vertex") converted = addVertex(view, subject, int("after"), int("x"), int("y"));
+    else converted = removeVertex(view, subject, int("index"));
     const after = this.admit(converted.patch, view.tried);
-    const change = this.commit(converted.patch.text, this.headAssets(), describe(gesture, elementId, where), expected, after);
+    const what = typeof subject === "string" ? subject : (subject as PartTarget).name;
+    const change = this.commit(converted.patch.text, this.headAssets(), describe(gesture, what, where), expected, after);
     return [change, converted.landed];
   }
 

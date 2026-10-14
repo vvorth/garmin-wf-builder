@@ -201,7 +201,9 @@ ts/                   the compiler, its tests and tools: one package for the
     studio/               the editor's worker (the history store, open documents, the
                           requests) and its server (devices, fonts, builds);
                           protocol.ts is the page/worker contract, every request
-                          and answer as TypeScript interfaces
+                          and answer as TypeScript interfaces; parts.ts the parts of
+                          hands, patterns and needles as the tree, the entered
+                          frame and a drag see them
     browser.ts            the browser bundle's entry (npm run bundle -> dist/wfb.js)
     data/                 tables the browser needs without a file system
                           (font-registry.json: device font name -> free font)
@@ -305,14 +307,45 @@ the rest, works out where each leaves ink for hit-testing (`raster.inkOf`,
 equal to the matte's alpha), and redraws the face from them during a move
 (`raster.translateOps`). Which elements a frame draws is one
 function, `frameMembers` in `ts/src/draw/frames.ts`, read by the view, its read plan
-and the preview. The evaluator computes a barrel call with its
+and the preview. A frame asked for with `enter` (the tree path of a `hands`,
+`pattern` or `style: needle` element) is that element's local frame
+(`ts/src/studio/parts.ts`): `Frame.local` gives the axis, one `%r` in pixels
+and the angle the parts are drawn at (a hand's at the frame's time, a radial
+pattern's first drawn copy, a needle's at the sample reading, taken from
+the needle's own draw program); `items` lists only the element's parts
+(every hand's, for a hands element), each named by its tree path joined with
+`/`, placed where the frame draws it, with the handles its own shape has
+(`partGeometry` in `drag.ts`: `vertex` and `segment` handles on a polygon,
+the reflected half of a `mirror: x` part shown `mirrored` and not
+draggable, size handles turned with a rectangle or circle, an arc's angle
+handles at the arc's screen angle, a line's ends), plus the element itself
+undrawn; the image is the whole face with everything but the entered
+element dimmed to 35% (`layers(..., paintAll)`, every other layer's alpha
+scaled, then `compose`), and `layers` holds the element's own layer alone.
+The hand-set thumbnail route (`handset`, `Document.handSetImage`) is kept
+as it was for the Face tab.
+
+The Layers tree (`Document.tree`) lists, under a `hands` element, its set's
+hands (`kind: "hand"`, their paths under `resources: hand_sets:`) each with
+its parts, and under a `pattern` or a needle gauge its parts directly
+(`kind: "part"`, `type` the part's own). A part's path ends in `parts` (a
+needle's `needle`) and its id, or, in the list form the format keeps as
+shorthand, its index; such a part's id is the compiler's `partN`. Every
+request names a part by that path, never by name: parts of different hands
+may share names. The evaluator computes a barrel call with its
 transcription (`ts/src/draw/barrel.ts`). Each transcription is checked
 against the `.mc` source and swept against a model of the pixels the watch
 draws (`ts/test/barrel.test.ts`).
 
 The editor's inspector (`ts/src/studio/inspect.ts`, `inspect`; its shape is
 `Inspect` in `protocol.ts`) answers for one element, one device and one
-editing context (`frame`: awake, asleep or AOD; `style`). Its `fields` are a
+editing context (`frame`: awake, asleep or AOD; `style`); given a hand's or
+a part's path (`subject`: `hand`, `part`), it answers the hand's keys
+(`color`, `parts`) or the part's from its own schema branch (`handPart`,
+`patternPart`), narrowed to the keys its type reads by the compiler's own
+tables, read as written: a part has no overrides and no `aod:` block, so
+`aod_keys` is empty, `overrides` has no entry, and the context's frame does
+not change what it reads. Its `fields` are a
 tree generated from the element's schema branch: each node's `kind` is
 `scalar` (with the control its `$defs` entry picks, `widget`), `object`
 (`children`, every property present or not; one whose keys the author names,
@@ -336,12 +369,36 @@ def. The worker's edits (`EDITS` in `ts/src/studio/document.ts`, `EditOp` in
 `protocol.ts`) take an element target with a scope: `all` the element's own
 key, `device`/`shape`/`display` a geometry key's override, `aod` the key in
 the element's `aod:` block (refused, naming the keys allowed, for one its
-kind cannot restyle). Beside `set`, `remove`, `rename` and the list-item ops,
-`move_key` reorders a mapping entry among its siblings (block or flow),
+kind cannot restyle). A part's or a hand's path is an element target in the
+`all` scope only: any other scope is refused ("a part has no overrides").
+Beside `set`, `remove`, `rename` and the list-item ops,
+`move_key` reorders a mapping entry among its siblings (block or flow; a
+`parts:` entry too, so parts draw in the order shown; a part of the list
+form is refused, naming `move_item`),
 `rename_layout` renames a layout and every style's `layout:`,
 `delete_layout` removes a layout with the styles picking it (moving the
 default to `also_default`, or refused naming it), and `set_default_style`
 sets `config: style: default:`; each is one gated patch and a batch step.
+A drag (`Document.drag`, `ts/src/edit/geometry.ts`) names an element by id
+or a part by its tree path joined with `/`, the entered frame's item id. On
+an element: `move` (its `at:`, a line's `to:` with it, or every point of a
+polygon), `resize`, `turn`, and on a polygon `vertex` (one point, by a
+screen delta), `add_vertex` (a point inserted after another, at a screen
+position, written in the unit its neighbours use with their `anchor:`) and
+`remove_vertex` (never below three points). On a part, the same gestures
+through the part's own resolved geometry (`PartTarget`, `partOf`): the
+screen delta is turned into the part's frame by the angle it is drawn at
+(`toLocal`; `DragArgs.time` names the frame's time, the sample moment when
+absent), lengths resolve against the zero-sized `HAND_FRAME` (so px and
+`%r`), and the landing search checks the resolved part's own points, rounded
+half away as the layout rounds them. A `mirror: x` part's point on the axis
+keeps `dx` unwritten, and the whole part moves along its axis only; a
+rectangle part's size and a circle's radius resize, a line's ends move apart,
+an arc part turns (`start_angle` from the screen angle, `sweep` as the
+author's value) and does not move. A part takes the `auto` and `all` scopes
+only. The history names a part by its element: "move hour.blade of clock by
+(+2, -3) px on fr955", "move vertex 2 of chevron ...", "add a vertex to ...".
+
 The page renders the tree with the generic form (`ts/app/form.ts`, `Form`):
 a field by its kind, with the control the widget names, a fieldset, a list
 with its item ops or a segmented control over the branches. The store

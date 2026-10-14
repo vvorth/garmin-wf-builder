@@ -89,7 +89,9 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     (IndexedDB, or memory in tests), `bundle.ts`, `inspect.ts` (the
     field tree from the schema, with each key's effective value and
     provenance for the editing context: frame and style, the `aod:`
-    cascade included) and `drag.ts`; `document.ts`'s `EDITS` table holds
+    cascade included) and `drag.ts`, with `parts.ts` locating a hand's,
+    pattern's or needle's parts for the tree, the entered frame and a drag;
+    `document.ts`'s `EDITS` table holds
     every edit op, each one gated patch (an element key in a scope, `aod`
     among them; `move_key`, `rename_layout`, `delete_layout`,
     `set_default_style` beside the colour, scheme, slot and hand-set ops);

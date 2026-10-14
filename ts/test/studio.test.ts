@@ -219,7 +219,8 @@ test("the tree holds blocks, layouts and groups", async () => {
   assert.deepEqual(labels.slice(0, 2), ["static", "elements"]);
   assert.ok(labels.includes("big: static"));
   const groups = studio.create(readUpload("face.yaml", read(ALIGN)), "open");
-  const nested = groups.tree().flatMap((b) => b["children"] as any[]).filter((n) => n.children.length > 0);
+  // a group's children are its tree children; a pattern's are its parts
+  const nested = groups.tree().flatMap((b) => b["children"] as any[]).filter((n) => n.children.some((c: any) => c.kind === "element"));
   assert.ok(nested.length > 0, "a group's children are its tree children");
   assert.equal(nested[0].type, "group");
 });

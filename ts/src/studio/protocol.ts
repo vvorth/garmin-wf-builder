@@ -63,9 +63,20 @@ export interface TreeBlock {
   children: TreeNode[];
 }
 
-/** One element in the Layers tree, with the elements of its own blocks (a group's `children:`). */
+/**
+ * One node of the Layers tree. An `element` lists the elements of its own
+ * blocks (a group's `children:`) as children; a `type: hands` element lists
+ * its set's hands (`hand`, `id` hour, minute or second, `type` "hand",
+ * `path` the hand under `resources: hand_sets:`), each listing its parts;
+ * a `type: pattern` element and a `style: needle` gauge list their parts
+ * directly. A `part`'s `type` is the part's (polygon, line, circle,
+ * rectangle, arc, text) and its `path` ends in `parts` (or a needle's
+ * `needle`) and its id, or, for the list form, its index; such a part's
+ * `id` is the generated `part1`, `part2`, .... A part is named by its
+ * `path` in every request: parts of different hands may share names.
+ */
 export interface TreeNode {
-  kind: "element";
+  kind: "element" | "hand" | "part";
   id: string;
   /** Its `type:` as written. */
   type: Value;
@@ -328,18 +339,29 @@ export interface Dragged extends Summary {
 // -- a frame -----------------------------------------------------------------
 
 /**
- * A handle on a placed element, in device pixels: a line's `end`, a `size`
- * edge (`key` the size key, `axis` the direction, `gain` the pixels of size
- * per pixel of drag) or an arc's `angle` (about `cx`, `cy`, from `start`
- * over `sweep`). `live` is what the browser may redraw by itself while the
- * handle is dragged, when the worker predicts the edit exactly.
+ * A handle on a placed element or part, in device pixels: a line's `end`, a
+ * `size` edge (`key` the size key, `axis` the direction, `gain` the pixels
+ * of size per pixel of drag), an arc's `angle` (about `cx`, `cy`, from
+ * `start` over `sweep`), a polygon's `vertex` (point `index`; dragging it is
+ * a `vertex` gesture) or `segment` (the midpoint of the edge after point
+ * `after`; dragging it is an `add_vertex` gesture there). A `mirror: x`
+ * part's reflected half has `vertex` handles too, `mirrored`, shown and not
+ * draggable, each naming the listed point it reflects. `live` is what the
+ * browser may redraw by itself while the handle is dragged, when the worker
+ * predicts the edit exactly. In an entered frame a part's handles sit where
+ * the part is drawn: a `size` handle's `axis` is the part's own, turned with
+ * it, and an `angle` handle's `start` is the arc's start as drawn on the
+ * screen (the frame's angle added), its `sweep` the author's.
  */
 export interface Handle {
-  kind: "end" | "size" | "angle";
+  kind: "end" | "size" | "angle" | "vertex" | "segment";
   part?: "at" | "to";
   key?: string | string[];
   axis?: "x" | "y";
   gain?: number;
+  index?: number;
+  after?: number;
+  mirrored?: true;
   x: number;
   y: number;
   cx?: number;
@@ -349,7 +371,12 @@ export interface Handle {
   live?: LiveHandle | null;
 }
 
-/** One element the frame places, in device pixels. */
+/**
+ * One element the frame places, in device pixels, or, in an entered frame,
+ * one part of the entered element: then `id` is the part's tree path joined
+ * with "/" (what a drag names it by), `kind` the part's type, `path` its
+ * tree path and `angle` the rotation it is drawn at, in degrees.
+ */
 export interface FrameItem {
   id: string;
   kind: string;
@@ -360,6 +387,8 @@ export interface FrameItem {
   box: [x: number, y: number, width: number, height: number];
   center: [number, number];
   handles: Handle[];
+  path?: Path;
+  angle?: number;
 }
 
 /** A layer the browser draws from its ops. */
@@ -391,7 +420,30 @@ export interface Tiles {
   index: Record<string, TileEntry>;
 }
 
-/** The face drawn on one device: the image, every element with its handles, and the layers the browser draws itself. */
+/**
+ * The local frame of an entered element (`FrameArgs.enter`): the element,
+ * its axis (`origin`, device px), one `%r` in px (`radius`) and the
+ * rotation its parts are drawn at, in degrees clockwise from 12 o'clock
+ * (`angle`: the hour hand's for a hands element, with every hand's own on
+ * its items; a radial pattern's first drawn copy, 0 for `start: 0`; a
+ * needle's at the sample reading).
+ */
+export interface FrameLocal {
+  element: Path;
+  origin: [number, number];
+  radius: number;
+  angle: number;
+}
+
+/**
+ * The face drawn on one device: the image, every element with its handles,
+ * and the layers the browser draws itself. Entered into an element
+ * (`FrameArgs.enter`), `local` is set, `items` lists only that element's
+ * parts (every hand's for a hands element), each with its handles where it
+ * is drawn, plus the element itself undrawn, the image dims everything but
+ * the entered element to 35% (the ghost), and `layers` holds the entered
+ * element's layer alone.
+ */
 export interface Frame {
   version: number;
   device: string;
@@ -406,6 +458,7 @@ export interface Frame {
   items: FrameItem[];
   layers: FrameLayer[];
   tiles: Tiles;
+  local: FrameLocal | null;
 }
 
 // -- the inspector -------------------------------------------------------------
@@ -505,11 +558,19 @@ export interface PartsSummary {
   end: number;
 }
 
-/** The selected element's keys as a field tree, for one editing context. With `error` set, `element` is not an element and the rest is empty. */
+/**
+ * The selected element's keys as a field tree, for one editing context.
+ * `element` may be a hand's path (`subject` "hand": its `color` and `parts`)
+ * or a part's (`subject` "part": the part's own keys, `type` the part's);
+ * neither has overrides or an `aod:` block, so `aod_keys` is empty and
+ * `overrides` has no entry. With `error` set, `element` is none of these
+ * and the rest is empty.
+ */
 export interface Inspect {
   element: Path;
   id: string;
   type: string;
+  subject: "element" | "hand" | "part";
   /** The context the fields' effective values are read for. */
   context: EditContext;
   fields: Field[];
@@ -737,6 +798,8 @@ export interface FrameArgs extends DocArgs {
   aod?: boolean;
   /** `slot:type,slot:type`: what each slot is drawn showing. */
   picks?: string;
+  /** The tree path of a `hands`, `pattern` or `style: needle` element to enter: the frame is then its parts' (`Frame.local`). */
+  enter?: Path;
   v?: number;
 }
 
@@ -751,20 +814,43 @@ export interface HandSetArgs extends DocArgs {
   v?: number;
 }
 
-/** A gesture on the canvas, in device pixels. */
+/**
+ * A gesture on the canvas, in device pixels. `move` moves an element's
+ * `at:` (a line's `to:` with it), every point of a polygon, or a part's
+ * `at:`; `vertex` moves one point of a polygon element or part, `add_vertex`
+ * inserts a point after point `after` at `(x, y)`, `remove_vertex` removes
+ * one. On a part, a move's and a vertex's delta is on the screen: the
+ * worker turns it into the part's own frame by the angle the part is drawn
+ * at; a `turn` of a part's `start_angle` takes the angle on the screen
+ * too, a `sweep` the author's value.
+ */
 export type Gesture =
   | { kind: "move"; part?: "both" | "at" | "to"; dx: number; dy: number }
   | { kind: "resize"; key: string[]; delta: number }
   | { kind: "turn"; key: string; degrees: number };
 
-/** One element dragged (`element`), or several moved together (`elements`). */
+/** The gestures on a polygon's points (a `vertex` or `segment` handle's), beside `Gesture`'s three. */
+export type PointGesture =
+  | { kind: "vertex"; index: number; dx: number; dy: number }
+  | { kind: "add_vertex"; after: number; x: number; y: number }
+  | { kind: "remove_vertex"; index: number };
+
+/**
+ * One element dragged (`element`: its id, or a part's tree path joined with
+ * "/", the entered frame's item id), or several moved together
+ * (`elements`). A part takes the `auto` and `all` scopes only: it has no
+ * overrides. `time` is the frame's (`HH:MM` or `HH:MM:SS`), so a hand
+ * part's delta turns by the angle the frame shows it at; the sample moment
+ * when absent.
+ */
 export interface DragArgs extends VersionArgs {
   device: string;
   /** `auto` (where the viewed device reads the key) when absent. */
   scope?: "auto" | Scope;
-  gesture: Gesture;
+  gesture: Gesture | PointGesture;
   element?: string;
   elements?: string[];
+  time?: string;
 }
 
 /** A file added to the bundle (its bytes in `body`): pointed at by every font whose `source:` is `reference`, or declared as the font `font` at `size`. */
@@ -780,6 +866,8 @@ export interface AssetArgs extends VersionArgs {
  * element's own key, `device`/`shape`/`display` a geometry key's override on
  * `device` (`null` while no device is viewed; read only in those scopes), or
  * `aod` the element's `aod:` block, for a key its kind may restyle there.
+ * `element` may be a part's tree path, or a hand's, in the `all` scope
+ * only: another scope is refused (a part has no overrides).
  */
 export interface ElementTarget {
   element?: Path;
@@ -816,7 +904,7 @@ export type EditOp =
   | { op: "delete_layout"; name: string; also_default?: string }
   /** Makes `name` the `config: style: default:`. */
   | { op: "set_default_style"; name: string }
-  /** Moves a mapping entry to position `to` among its siblings. */
+  /** Moves a mapping entry to position `to` among its siblings (a `parts:` entry too; a part of the list form is a `move_item`). */
   | ({ op: "move_key"; path: Path; to: number } & ElementTarget)
   | ({ op: "insert_item"; path: Path; at: number; value: Value; block?: boolean } & ElementTarget)
   | ({ op: "remove_item"; path: Path; at: number } & ElementTarget)

@@ -1,5 +1,12 @@
 // Geometry edits on one device: a drag in device pixels written back in the
-// author's own units, to the key that sets it on that device..
+// author's own units, to the key that sets it on that device.
+//
+// The subject of a gesture is an element (its id) or a part of one
+// (`PartTarget`: a hand's, a pattern's or a needle's part, located in the
+// text and drawn at an angle). A part lives in its own frame, origin at the
+// axis and +y down, turned by the angle it is drawn at, so a delta on the
+// screen is turned back into that frame first (`toLocal`), and its lengths
+// are px or %r, which the frame's zero-sized box resolves (`HAND_FRAME`).
 //
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,
@@ -13,12 +20,17 @@
 import type { Device } from "../devices/device.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FileExists } from "../ir/builder/index.ts";
-import { type Element, type Face, Group, Position, Shape } from "../ir/model.ts";
-import { type Placed, type ResolvedFace, ResolveError, Resolver, resolve } from "../layout.ts";
-import { degrees, formatFixed, formatG, hypot, radians, roundHalfEven } from "../py.ts";
+import {
+  type AnyHandPart, type Element, type Face, type Gauge, Group, type HandsElement, type PatternElement, Position, Shape,
+} from "../ir/model.ts";
+import {
+  type Placed, PlacedGauge, PlacedHands, PlacedPattern, type ResolvedFace, type ResolvedHandPart, ResolveError, Resolver, resolve,
+  roundHalfAway,
+} from "../layout.ts";
+import { degrees, floorMod, formatFixed, formatG, hypot, radians, roundHalfEven } from "../py.ts";
 import { type Axis, Box, Length, UnitError } from "../units.ts";
 import { type Loaded, loadText } from "./gate.ts";
-import { child, number, type Patch, patch as makePatch, setScalars, setValue } from "./patch.ts";
+import { child, insertItem, number, type Patch, patch as makePatch, removeItem, setScalars, setValue } from "./patch.ts";
 import { dotted, indexFor, isElement, type Path, Refused, type SpanIndex } from "./spans.ts";
 import type { Data } from "./yaml.ts";
 
@@ -329,21 +341,34 @@ function dataAt(index: SpanIndex, path: Path): Data {
   return data;
 }
 
-/** The keys a move of `position` (`at:` or a line's `to:`) by `(dx, dy)` px writes, on `index` (the view's text, seeded). */
-function positionKeys(view: View, index: SpanIndex, elementId: string, element: Path, prefix: string, position: Position,
-  dx: number, dy: number, scope: Scope): Key[] {
-  const parent = view.parentBox(elementId);
+/**
+ * The keys a move of `position` (an `at:`, a line's `to:`, one of a
+ * polygon's `points`) by `(dx, dy)` px writes, on `index` (the view's text,
+ * seeded): the keys under `[...owner, ...prefix]`, resolved against
+ * `parent`. With `overridable`, the key the viewed device reads, or the
+ * `scope` named, is written (an `at:`); a point or a part's position has
+ * no overrides and is written where it is.
+ */
+function positionKeys(view: View, index: SpanIndex, owner: Path, prefix: Path, position: Position,
+  dx: number, dy: number, scope: Scope, parent: Box, overridable = true): Key[] {
   const minor = view.device.minorRadius;
+  const place = (key: string, forWriting: boolean): Path =>
+    (overridable ? target(index, owner, [...prefix, key], view.device, forWriting ? scope : "auto") : [...owner, ...prefix, key]);
   const source = (key: string): Data | undefined => {
-    const entry = index.get(target(index, element, [prefix, key], view.device));
+    const entry = index.get(place(key, false));
     return entry !== undefined ? dataAt(index, entry.path) : undefined;
+  };
+  const per = (unit: string, axis: Axis): number => {
+    const value = pxPerUnit(unit, axis, parent, minor);
+    if (!value) throw new Refused(`${dotted([...owner, ...prefix])} is in %, which has no extent in a part's own frame; write it in px or %r`);
+    return value;
   };
   const keys: Key[] = [];
   if (position.isPolar) {
     const rRaw = source("radius"), aRaw = source("angle");
     const rSpell = lengthSpelling(rRaw ?? position.radius!.toString());
     const aSpell = angleSpelling(aRaw ?? `${formatG(position.angle!.degrees)}deg`);
-    const rPer = pxPerUnit(rSpell.unit, "minor", parent, minor);
+    const rPer = per(rSpell.unit, "minor");
     const rPx = position.radius!.resolve(parent, "minor", minor);
     const theta = radians(position.angle!.degrees);
     const ox = rPx * Math.sin(theta) + dx, oy = -rPx * Math.cos(theta) + dy;
@@ -353,10 +378,8 @@ function positionKeys(view: View, index: SpanIndex, elementId: string, element: 
     newDeg += 360.0 * roundHalfEven((position.angle!.degrees - newDeg) / 360.0);
     const perDeg = DEGREES_PER[aSpell.unit]!;
     const aPer = radians(perDeg) * Math.max(newR, 1.0);
-    keys.push({ write: target(index, element, [prefix, "angle"], view.device, scope), spelling: aSpell,
-      values: candidates(newDeg / perDeg, ANGLE_STEPS[aSpell.unit]!, aPer) });
-    keys.push({ write: target(index, element, [prefix, "radius"], view.device, scope), spelling: rSpell,
-      values: candidates(newR / rPer, LENGTH_STEPS[rSpell.unit]!, rPer) });
+    keys.push({ write: place("angle", true), spelling: aSpell, values: candidates(newDeg / perDeg, ANGLE_STEPS[aSpell.unit]!, aPer) });
+    keys.push({ write: place("radius", true), spelling: rSpell, values: candidates(newR / rPer, LENGTH_STEPS[rSpell.unit]!, rPer) });
     return keys;
   }
   for (const [key, delta, axis, length] of [["dx", dx, "x", position.dx], ["dy", dy, "y", position.dy]] as const) {
@@ -370,38 +393,44 @@ function positionKeys(view: View, index: SpanIndex, elementId: string, element: 
       spelling = sibling !== undefined ? lengthSpelling(sibling) : new Spelling("%r");
     }
     if (spelling.unit === "pt") {
-      throw new Refused(`${dotted([...element, prefix, key])} is in pt, which has no pixel size for a position; write it in px, % or %r`);
+      throw new Refused(`${dotted([...owner, ...prefix, key])} is in pt, which has no pixel size for a position; write it in px, % or %r`);
     }
-    const per = pxPerUnit(spelling.unit, axis, parent, minor);
-    const current = length !== null ? length.resolve(parent, axis, minor) / per : 0.0;
-    keys.push({ write: target(index, element, [prefix, key], view.device, scope), spelling,
-      values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) });
+    const pxPer = per(spelling.unit, axis);
+    const current = length !== null ? length.resolve(parent, axis, minor) / pxPer : 0.0;
+    keys.push({ write: place(key, true), spelling, values: candidates(current + delta / pxPer, LENGTH_STEPS[spelling.unit]!, pxPer) });
   }
   return keys;
 }
 
 export type Part = "both" | "at" | "to";
 
-/** Move `elementId` by `(dx, dy)` device pixels; a line's `part` "at" or "to" moves that end alone. */
-export function move(view: View, elementId: string, dx: number, dy: number, scope: Scope = "auto", part: Part = "both"): Converted {
+/**
+ * Move `subject` by `(dx, dy)` device pixels: an element's `at:` (a line's
+ * `to:` with it; `part` "at" or "to" moves that end alone), every point of
+ * a polygon element, or a part (`movePart`).
+ */
+export function move(view: View, subject: Subject, dx: number, dy: number, scope: Scope = "auto", part: Part = "both"): Converted {
+  if (isPart(subject)) return movePart(view, subject, dx, dy, scope, part);
+  const elementId = subject;
   const element = view.authorPath(elementId);
   const effective = view.effective(elementId);
-  if (effective instanceof Shape && effective.shape === "polygon") throw new Refused(`${elementId} is a polygon: move its points: in the text`);
   const line = effective instanceof Shape && effective.shape === "line";
   if (part !== "both" && !line) throw new Refused(`${elementId} is not a line: it has no ends to move apart`);
+  if (effective instanceof Shape && effective.shape === "polygon") return movePolygon(view, elementId, dx, dy, scope);
   const before = view.placed(elementId);
+  const parent = view.parentBox(elementId);
   const keys: Key[] = [];
   const checks: ((p: Placed) => boolean)[] = [];
   // a named scope writes the whole at: there (a line's to: is no override key, and the gate says so)
   const index = part === "to" ? view.index : seeded(view.index, element, "at", view.device, scope);
   if (part === "both" || part === "at") {
-    keys.push(...positionKeys(view, index, elementId, element, "at", effective.at, dx, dy, scope));
+    keys.push(...positionKeys(view, index, element, ["at"], effective.at, dx, dy, scope, parent));
     const goal = [before.center[0] + dx, before.center[1] + dy];
     checks.push((p) => p.center[0] === goal[0] && p.center[1] === goal[1]);
   }
   if (line && (part === "both" || part === "to")) {
     const to = (effective as Shape).to ?? new Position();
-    keys.push(...positionKeys(view, index, elementId, element, "to", to, dx, dy, scope));
+    keys.push(...positionKeys(view, index, element, ["to"], to, dx, dy, scope, parent));
     const end = (before as unknown as { end: [number, number] }).end;
     const endGoal = [end[0] + dx, end[1] + dy];
     checks.push((p) => {
@@ -415,8 +444,10 @@ export function move(view: View, elementId: string, dx: number, dy: number, scop
 /** The angle keys `turn` writes. */
 export const ANGLES: ReadonlySet<string> = new Set(["start_angle", "sweep"]);
 
-/** Set an arc's `key` to `degreesValue` (12 o'clock = 0, clockwise) in the author's unit. */
-export function turn(view: View, elementId: string, key: string, degreesValue: number, scope: Scope = "auto"): Converted {
+/** Set an arc's `key` to `degreesValue` (12 o'clock = 0, clockwise) in the author's unit; on an arc part, `turnPart`. */
+export function turn(view: View, subject: Subject, key: string, degreesValue: number, scope: Scope = "auto"): Converted {
+  if (isPart(subject)) return turnPart(view, subject, key, degreesValue, scope);
+  const elementId = subject;
   if (!ANGLES.has(key)) throw new Refused(`${key} is not start_angle or sweep`);
   const element = view.authorPath(elementId);
   const effective = view.effective(elementId) as unknown as Record<string, unknown>;
@@ -431,8 +462,10 @@ export function turn(view: View, elementId: string, key: string, degreesValue: n
   return settle(view, view.index, keys, elementId, (p) => Math.abs(Number((p as unknown as Record<string, number>)[key]) - degreesValue) < 0.5);
 }
 
-/** Change the extent `key` (`["size", "width"]`, `["radius"]`, `["thickness"]`) by `delta` device pixels. */
-export function resize(view: View, elementId: string, key: readonly string[], delta: number, scope: Scope = "auto"): Converted {
+/** Change the extent `key` (`["size", "width"]`, `["radius"]`, `["thickness"]`) by `delta` device pixels; on a part, `resizePart`. */
+export function resize(view: View, subject: Subject, key: readonly string[], delta: number, scope: Scope = "auto"): Converted {
+  if (isPart(subject)) return resizePart(view, subject, key, delta, scope);
+  const elementId = subject;
   const measure = EXTENTS.get(key.join("\0"));
   if (measure === undefined) throw new Refused(`${dotted(key)} is not a size, radius or thickness`);
   const element = view.authorPath(elementId);
@@ -458,4 +491,364 @@ export function resize(view: View, elementId: string, key: readonly string[], de
   const keys = [{ write: target(index, element, key, view.device, scope), spelling,
     values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
   return settle(view, index, keys, elementId, (p) => measure(p) === goal, effective.kind === "icon");
+}
+
+// -- parts ---------------------------------------------------------------------------
+
+/** A part's own frame: zero-sized at the axis, so `%` has no extent and `%r` is the screen's minor radius. */
+export const HAND_FRAME = new Box(0.0, 0.0, 0.0, 0.0);
+
+/**
+ * A part a gesture is made on: where it is written (`path`, its author
+ * path), the element whose placement draws it (`elementId`: a `hands`
+ * element placing its set, the pattern, the gauge), its hand for a hand
+ * part, its id (the author's key, or `partN` in the list form), the
+ * screen position of its frame's origin and the angle it is drawn at, in
+ * degrees clockwise from 12 o'clock, and how a history label names it
+ * ("hour.blade of clock").
+ */
+export interface PartTarget {
+  path: Path;
+  elementId: string;
+  hand: string | null;
+  id: string;
+  origin: [number, number];
+  angle: number;
+  name: string;
+}
+
+/** What a gesture is made on: an element, by id, or a part. */
+export type Subject = string | PartTarget;
+
+export function isPart(subject: Subject): subject is PartTarget {
+  return typeof subject !== "string";
+}
+
+/** `(dx, dy)` on the screen as a delta in the frame of something drawn turned by `angle` degrees. */
+export function toLocal(dx: number, dy: number, angle: number): [number, number] {
+  const theta = radians(angle);
+  const c = Math.cos(theta), s = Math.sin(theta);
+  // a component that is zero but for the trigonometry's last digit writes no key
+  const exact = (v: number): number => (Math.abs(v) < 1e-9 ? 0 : v);
+  return [exact(dx * c + dy * s), exact(-dx * s + dy * c)];
+}
+
+/** A position in a part's own frame, in px, exactly as the layout resolves it (`Resolver.point` on `HAND_FRAME`). */
+export function localPoint(at: Position, minorRadius: number): [number, number] {
+  const [ax, ay] = HAND_FRAME.anchorPoint(at.anchor);
+  if (at.angle !== null) {
+    const radius = at.radius !== null ? at.radius.resolve(HAND_FRAME, "minor", minorRadius) : 0;
+    const theta = radians(at.angle.degrees);
+    return [ax + radius * Math.sin(theta), ay - radius * Math.cos(theta)];
+  }
+  return [ax + (at.dx !== null ? at.dx.resolve(HAND_FRAME, "x", minorRadius) : 0), ay + (at.dy !== null ? at.dy.resolve(HAND_FRAME, "y", minorRadius) : 0)];
+}
+
+/** Whether a `mirror: x` part's point lies on the axis, so the mirror shares it rather than reflecting it. */
+export function onAxis(point: Position): boolean {
+  if (point.isPolar) return floorMod(point.angle!.degrees, 180) === 0;
+  return point.dx === null || point.dx.value === 0;
+}
+
+/** The IR part and its resolved geometry that `target` names in `placed`, the element drawing it, on `face`. */
+export function partOf(face: Face, placed: Placed, target: PartTarget): [AnyHandPart, ResolvedHandPart] {
+  let built: readonly AnyHandPart[] | undefined, drawn: readonly ResolvedHandPart[] | undefined;
+  if (placed instanceof PlacedHands && target.hand !== null) {
+    const set = face.hands.get((placed.element as HandsElement).hands);
+    const hand = set !== undefined ? (set as unknown as Record<string, { parts: AnyHandPart[] } | null>)[target.hand] : null;
+    built = hand?.parts;
+    drawn = (placed as unknown as Record<string, { parts: ResolvedHandPart[] } | null>)[target.hand]?.parts;
+  } else if (placed instanceof PlacedPattern) {
+    built = (placed.element as PatternElement).parts;
+    drawn = placed.parts;
+  } else if (placed instanceof PlacedGauge) {
+    built = (placed.element as Gauge).needle;
+    drawn = placed.needle;
+  }
+  const ir = built?.find((p) => p.id === target.id);
+  const resolved = drawn?.find((p) => p.id === target.id);
+  if (ir === undefined || resolved === undefined) throw new Refused(`${target.name} is not drawn on ${placed.element.id}`);
+  return [ir, resolved];
+}
+
+/** The part's mapping as written, and how many points its `points:` lists. */
+function writtenPart(view: View, target: PartTarget): [Map<unknown, unknown>, number] {
+  const data = dataAt(view.index, target.path);
+  if (!(data instanceof Map)) throw new Refused(`${target.name} is not a part`);
+  const points = data.get("points");
+  return [data, Array.isArray(points) ? points.length : 0];
+}
+
+/** The reference points of a resolved part in its own frame: a polygon's vertices, a line's ends, a circle's or text's centre. */
+function anchorsOf(part: ResolvedHandPart): [number, number][] {
+  if (part.shape === "polygon") return part.points.map(([x, y]) => [x, y]);
+  if (part.shape === "line") return [[part.x1, part.y1], [part.x2, part.y2]];
+  if (part.shape === "arc") return [[0, 0]];
+  return [[part.x, part.y]];
+}
+
+/** `points` each moved by `(dx, dy)`, rounded as the layout rounds a part. */
+const shifted = (points: readonly (readonly [number, number])[], dx: number, dy: number): [number, number][] =>
+  points.map(([x, y]) => [roundHalfAway(x + dx), roundHalfAway(y + dy)]);
+
+const samePoints = (a: readonly (readonly [number, number])[], b: readonly (readonly [number, number])[]): boolean =>
+  a.length === b.length && a.every(([x, y], i) => b[i]![0] === x && b[i]![1] === y);
+
+/** A resolved polygon part's points; any other part has none. */
+const polygonPoints = (part: ResolvedHandPart): [number, number][] => (part.shape === "polygon" ? part.points : []);
+
+/** The part `target` names in the face the last tried patch loaded, placed by the element drawing it. */
+function partAfter(view: View, target: PartTarget, placed: Placed): [AnyHandPart, ResolvedHandPart] {
+  const face = view.tried !== null && view.tried.face !== null ? view.tried.face : view.face;
+  return partOf(face, placed, target);
+}
+
+function refusePartScope(target: PartTarget, scope: Scope): void {
+  if (scope !== "auto" && scope !== "all") throw new Refused(`${target.name} cannot be written for ${scope}: a part has no overrides`);
+}
+
+/** Move a part by `(dx, dy)` screen pixels: a polygon's every point, a line's `at:` and `to:` (or one of them, `part`), else its `at:`. */
+function movePart(view: View, target: PartTarget, dx: number, dy: number, scope: Scope, part: Part): Converted {
+  refusePartScope(target, scope);
+  const placed = view.placed(target.elementId);
+  const [ir, before] = partOf(view.face, placed, target);
+  const [written, listed] = writtenPart(view, target);
+  let [ldx, ldy] = toLocal(dx, dy, target.angle);
+  if (part !== "both" && ir.shape !== "line") throw new Refused(`${target.name} is not a line: it has no ends to move apart`);
+  const keys: Key[] = [];
+  if (ir.shape === "polygon") {
+    // a mirrored outline moves along its axis: a sideways move would break the symmetry it lists
+    if (written.has("mirror")) ldx = 0;
+    for (let i = 0; i < listed; i++) {
+      keys.push(...positionKeys(view, view.index, target.path, ["points", i], ir.points[i]!, ldx, ldy, "all", HAND_FRAME, false));
+    }
+    const goal = shifted(polygonPoints(before), ldx, ldy);
+    return settle(view, view.index, keys, target.elementId, (p) => samePoints(polygonPoints(partAfter(view, target, p)[1]), goal));
+  }
+  if (ir.shape === "arc") throw new Refused(`${target.name} is an arc part: it is centred on the axis and has no at: to move`);
+  const goals: [number, number][] = [];
+  const checks: ((anchors: [number, number][], after: AnyHandPart) => boolean)[] = [];
+  if (part === "both" || part === "at") {
+    keys.push(...positionKeys(view, view.index, target.path, ["at"], ir.at, ldx, ldy, "all", HAND_FRAME, false));
+    if (ir.shape === "rectangle") {
+      // a rectangle resolves to its corners; its `at:` is checked where the author's values put it
+      const [x, y] = localPoint(ir.at, view.device.minorRadius);
+      const goal: [number, number] = [roundHalfAway(x + ldx), roundHalfAway(y + ldy)];
+      checks.push((_, after) => {
+        const [ax, ay] = localPoint((after as { at: Position }).at, view.device.minorRadius);
+        return roundHalfAway(ax) === goal[0] && roundHalfAway(ay) === goal[1];
+      });
+    } else {
+      goals.push(shifted([anchorsOf(before)[0]!], ldx, ldy)[0]!);
+      checks.push((anchors) => anchors[0]![0] === goals[0]![0] && anchors[0]![1] === goals[0]![1]);
+    }
+  }
+  if (ir.shape === "line" && (part === "both" || part === "to")) {
+    keys.push(...positionKeys(view, view.index, target.path, ["to"], ir.to ?? new Position(), ldx, ldy, "all", HAND_FRAME, false));
+    const end = shifted([anchorsOf(before)[1]!], ldx, ldy)[0]!;
+    checks.push((anchors) => anchors[1]![0] === end[0] && anchors[1]![1] === end[1]);
+  }
+  return settle(view, view.index, keys, target.elementId, (p) => {
+    const [after, resolved] = partAfter(view, target, p);
+    const anchors = anchorsOf(resolved);
+    return checks.every((c) => c(anchors, after));
+  });
+}
+
+/** Move a polygon element by `(dx, dy)` device pixels: every point. */
+function movePolygon(view: View, elementId: string, dx: number, dy: number, scope: Scope): Converted {
+  if (scope !== "auto" && scope !== "all") throw new Refused(`${elementId} is a polygon: its points cannot be overridden per device`);
+  const element = view.authorPath(elementId);
+  const effective = view.effective(elementId) as Shape;
+  const before = view.placed(elementId) as unknown as { points: [number, number][] };
+  const parent = view.parentBox(elementId);
+  const keys: Key[] = [];
+  effective.points.forEach((point, i) => keys.push(...positionKeys(view, view.index, element, ["points", i], point, dx, dy, "all", parent, false)));
+  const goal = before.points.map(([x, y]): [number, number] => [x + dx, y + dy]);
+  return settle(view, view.index, keys, elementId, (p) => samePoints((p as unknown as { points: [number, number][] }).points, goal));
+}
+
+/** The polygon element `elementId`'s path, effective element, placed points and parent box; refused for any other element. */
+function polygonElement(view: View, elementId: string): [Path, Shape, [number, number][], Box] {
+  const effective = view.effective(elementId);
+  if (!(effective instanceof Shape) || effective.shape !== "polygon") throw new Refused(`${elementId} is not a polygon: it has no points`);
+  return [view.authorPath(elementId), effective, (view.placed(elementId) as unknown as { points: [number, number][] }).points, view.parentBox(elementId)];
+}
+
+function pointIndex(index: number, count: number, name: string): number {
+  if (!Number.isInteger(index) || index < 0 || index >= count) throw new Refused(`${name} has no point ${index}: it has ${count}`);
+  return index;
+}
+
+/** Move point `index` of a polygon element, or of a polygon part, by `(dx, dy)` screen pixels. */
+export function vertex(view: View, subject: Subject, index: number, dx: number, dy: number, scope: Scope = "auto"): Converted {
+  if (isPart(subject)) {
+    refusePartScope(subject, scope);
+    const placed = view.placed(subject.elementId);
+    const [ir, before] = partOf(view.face, placed, subject);
+    if (ir.shape !== "polygon") throw new Refused(`${subject.name} is not a polygon: it has no points`);
+    const [written, listed] = writtenPart(view, subject);
+    const i = pointIndex(index, listed, subject.name);
+    let [ldx, ldy] = toLocal(dx, dy, subject.angle);
+    // a mirrored outline's point on the axis stays on it
+    if (written.has("mirror") && onAxis(ir.points[i]!)) ldx = 0;
+    const keys = positionKeys(view, view.index, subject.path, ["points", i], ir.points[i]!, ldx, ldy, "all", HAND_FRAME, false);
+    const goal = shifted([polygonPoints(before)[i]!], ldx, ldy)[0]!;
+    return settle(view, view.index, keys, subject.elementId, (p) => {
+      const point = polygonPoints(partAfter(view, subject, p)[1])[i];
+      return point !== undefined && point[0] === goal[0] && point[1] === goal[1];
+    });
+  }
+  if (scope !== "auto" && scope !== "all") throw new Refused(`${subject} is a polygon: its points cannot be overridden per device`);
+  const [element, effective, points, parent] = polygonElement(view, subject);
+  const i = pointIndex(index, effective.points.length, subject);
+  const keys = positionKeys(view, view.index, element, ["points", i], effective.points[i]!, dx, dy, "all", parent, false);
+  const goal = [points[i]![0] + dx, points[i]![1] + dy];
+  return settle(view, view.index, keys, subject, (p) => {
+    const point = (p as unknown as { points: [number, number][] }).points[i];
+    return point !== undefined && point[0] === goal[0] && point[1] === goal[1];
+  });
+}
+
+/** The unit the point after and before an insertion are written in: the first length either has, else `%r`. */
+function neighbourSpelling(points: Data, after: number): Spelling {
+  if (!Array.isArray(points)) return new Spelling("%r");
+  for (const at of [after, after + 1 < points.length ? after + 1 : 0]) {
+    const point = points[at];
+    if (!(point instanceof Map)) continue;
+    for (const key of ["dx", "dy", "radius"]) if (point.has(key)) return lengthSpelling(point.get(key) as Data);
+  }
+  return new Spelling("%r");
+}
+
+/**
+ * Insert a point after point `after` of a polygon element or part, at
+ * `(x, y)` on the screen, written as `dx`/`dy` in the unit its neighbours
+ * use (an element's point keeps the neighbour's `anchor:`).
+ */
+export function addVertex(view: View, subject: Subject, after: number, x: number, y: number): Converted {
+  const minor = view.device.minorRadius;
+  let path: Path, elementId: string, count: number, parent: Box, local: [number, number], anchor: Data | undefined;
+  let landed: (p: Placed) => boolean;
+  if (isPart(subject)) {
+    const placed = view.placed(subject.elementId);
+    const [ir] = partOf(view.face, placed, subject);
+    if (ir.shape !== "polygon") throw new Refused(`${subject.name} is not a polygon: it has no points`);
+    [, count] = writtenPart(view, subject);
+    path = subject.path;
+    elementId = subject.elementId;
+    parent = HAND_FRAME;
+    local = toLocal(x - subject.origin[0], y - subject.origin[1], subject.angle);
+    const goal: [number, number] = [roundHalfAway(local[0]), roundHalfAway(local[1])];
+    landed = (p) => {
+      const point = polygonPoints(partAfter(view, subject, p)[1])[after + 1];
+      return point !== undefined && point[0] === goal[0] && point[1] === goal[1];
+    };
+  } else {
+    const [element, effective, , box] = polygonElement(view, subject);
+    path = element;
+    elementId = subject;
+    count = effective.points.length;
+    parent = box;
+    const neighbour = effective.points[pointIndex(after, count, subject)]!;
+    const [ax, ay] = parent.anchorPoint(neighbour.anchor);
+    local = [x - ax, y - ay];
+    const written = dataAt(view.index, [...element, "points", after]);
+    anchor = written instanceof Map ? written.get("anchor") as Data | undefined : undefined;
+    landed = (p) => {
+      const point = (p as unknown as { points: [number, number][] }).points[after + 1];
+      return point !== undefined && point[0] === x && point[1] === y;
+    };
+  }
+  pointIndex(after, count, isPart(subject) ? subject.name : subject);
+  const pointsPath: Path = [...path, "points"];
+  const spelling = neighbourSpelling(dataAt(view.index, pointsPath), after);
+  if (spelling.unit === "pt") throw new Refused(`${dotted(pointsPath)} is in pt, which has no pixel size for a position; write it in px, % or %r`);
+  const perX = pxPerUnit(spelling.unit, "x", parent, minor), perY = pxPerUnit(spelling.unit, "y", parent, minor);
+  if (!perX || !perY) throw new Refused(`${dotted(pointsPath)} is in %, which has no extent in a part's own frame; write it in px or %r`);
+  const xs = candidates(local[0] / perX, LENGTH_STEPS[spelling.unit]!, perX), ys = candidates(local[1] / perY, LENGTH_STEPS[spelling.unit]!, perY);
+  const what = `add a point to ${dotted(pointsPath)}`;
+  let result: Patch | null = null;
+  for (let level = 0; level < Math.max(xs.length, ys.length); level++) {
+    const point = new Map<string, Data>();
+    if (anchor !== undefined) point.set("anchor", anchor);
+    point.set("dx", spelling.write(xs[Math.min(level, xs.length - 1)]!));
+    point.set("dy", spelling.write(ys[Math.min(level, ys.length - 1)]!));
+    result = makePatch(...(({ text, expected }: Patch): [string, Data, string] => [text, expected, what])(insertItem(view.index, pointsPath, after + 1, point)));
+    const placed = view.tryPatch(result, elementId);
+    if (placed !== null && landed(placed)) return { patch: result, landed: true };
+  }
+  return { patch: result!, landed: false };
+}
+
+/** Remove point `index` of a polygon element or part; a polygon keeps at least three points (a mirrored part's count is the compiler's to check). */
+export function removeVertex(view: View, subject: Subject, index: number): Converted {
+  let path: Path, count: number, name: string, mirrored = false;
+  if (isPart(subject)) {
+    const [ir] = partOf(view.face, view.placed(subject.elementId), subject);
+    if (ir.shape !== "polygon") throw new Refused(`${subject.name} is not a polygon: it has no points`);
+    const [written, listed] = writtenPart(view, subject);
+    [path, count, name, mirrored] = [subject.path, listed, subject.name, written.has("mirror")];
+  } else {
+    const [element, effective] = polygonElement(view, subject);
+    [path, count, name] = [element, effective.points.length, subject];
+  }
+  pointIndex(index, count, name);
+  if (!mirrored && count <= 3) throw new Refused(`${name} needs at least 3 points: it has ${count}`);
+  const removed = removeItem(view.index, [...path, "points"], index);
+  return { patch: makePatch(removed.text, removed.expected, `remove point ${index} of ${dotted(path)}`), landed: true };
+}
+
+/** Each resolved extent a part's `resize` may change, by the key written, and the part shapes that have it. */
+const PART_EXTENTS: ReadonlyMap<string, [shapes: readonly string[], measure: (p: ResolvedHandPart) => number]> = new Map([
+  ["radius", [["circle", "arc"], (p) => (p as { radius: number }).radius]],
+  ["thickness", [["line", "arc", "circle"], (p) => (p as { thickness: number }).thickness]],
+  ["size\0width", [["rectangle"], (p) => (p as { points: [number, number][] }).points[1]![0] - (p as { points: [number, number][] }).points[0]![0]]],
+  ["size\0height", [["rectangle"], (p) => (p as { points: [number, number][] }).points[2]![1] - (p as { points: [number, number][] }).points[1]![1]]],
+]);
+
+/** Change a part's extent `key` (`radius`, `thickness`, `size.width`, `size.height`) by `delta` pixels. */
+function resizePart(view: View, target: PartTarget, key: readonly string[], delta: number, scope: Scope): Converted {
+  refusePartScope(target, scope);
+  const found = PART_EXTENTS.get(key.join("\0"));
+  if (found === undefined) throw new Refused(`${dotted(key)} is not a radius, thickness or size`);
+  const [shapes, measure] = found;
+  const [ir, before] = partOf(view.face, view.placed(target.elementId), target);
+  if (!shapes.includes(ir.shape)) throw new Refused(`${target.name} has no ${dotted(key)} to resize`);
+  if (ir.shape === "circle" && key[0] === "thickness" && ir.filled) throw new Refused(`${target.name} is filled: it has no thickness to resize`);
+  const goal = measure(before) + delta;
+  if (goal < 1) throw new Refused(`${target.name}'s ${dotted(key)} cannot be smaller than 1 px`);
+  let length: unknown = ir;
+  for (const step of key) length = length !== null && typeof length === "object" ? (length as Record<string, unknown>)[step] : undefined;
+  const write: Path = [...target.path, ...key];
+  const entry = view.index.get(write);
+  const spelling = entry !== undefined ? lengthSpelling(dataAt(view.index, entry.path)) : new Spelling(length instanceof Length ? length.unit : "px");
+  const per = pxPerUnit(spelling.unit, "minor", HAND_FRAME, view.device.minorRadius);
+  if (!per) throw new Refused(`${dotted(write)} is in %, which has no extent in a part's own frame; write it in px or %r`);
+  // an unwritten thickness is the layout's 1 px
+  const current = length instanceof Length ? length.resolve(HAND_FRAME, "minor", view.device.minorRadius) / per : 1 / per;
+  const keys = [{ write, spelling, values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
+  return settle(view, view.index, keys, target.elementId, (p) => measure(partAfter(view, target, p)[1]) === goal);
+}
+
+/** Set an arc part's `start_angle` (from the angle on the screen) or `sweep` (the author's value) in the author's unit. */
+function turnPart(view: View, target: PartTarget, key: string, degreesValue: number, scope: Scope): Converted {
+  refusePartScope(target, scope);
+  if (!ANGLES.has(key)) throw new Refused(`${key} is not start_angle or sweep`);
+  const [ir] = partOf(view.face, view.placed(target.elementId), target);
+  if (ir.shape !== "arc") throw new Refused(`${target.name} has no ${key}: only an arc part has angles`);
+  let value = degreesValue;
+  if (key === "start_angle") {
+    value -= target.angle;
+    // stay on the author's side of the circle
+    const current = ir.start_angle !== null ? ir.start_angle.degrees : 0.0;
+    value += 360.0 * roundHalfEven((current - value) / 360.0);
+  }
+  const write: Path = [...target.path, key];
+  const entry = view.index.get(write);
+  const spelling = entry !== undefined ? angleSpelling(dataAt(view.index, entry.path)) : new Spelling("deg");
+  const per = DEGREES_PER[spelling.unit]!;
+  const keys = [{ write, spelling, values: candidates(value / per, ANGLE_STEPS[spelling.unit]!, per) }];
+  return settle(view, view.index, keys, target.elementId,
+    (p) => Math.abs((partAfter(view, target, p)[1] as unknown as Record<string, number>)[key]! - value) < 0.5);
 }
