@@ -35,7 +35,20 @@ Loaded automatically when working under `ts/test/`.
   controls clicked, its store (`app/store.ts`) alone, and the whole page,
   the last two against a stand-in worker answering from a real summary
   (`tools/summary.ts`). `garmin-raster.test.ts` holds the preview's shapes to the simulator captures.
-  Nothing drives a browser: the pages are checked by hand.
+- **The browser suite** (`npm run test:browser`, `ts/browser/*.test.ts`, not
+  part of `npm test`) drives the pages themselves: Playwright in headless
+  Chromium against a real `wfb studio` server and its worker. Each file
+  starts its own server on a free port in 8780–8789 and one browser context
+  (`browser/harness.ts`: `suite()`, `h.test()`, and a `Session` with the
+  helpers), and every assertion reads the YAML text the worker holds
+  (`doc().text`) as well as the DOM. It needs the device definitions and
+  Chromium (`PLAYWRIGHT_BROWSERS_PATH`, or `npx playwright install
+  chromium`); without devices every test is skipped with one message naming
+  `tools/setup-env.sh`, and `build.test.ts` is skipped without `CIQ_SDK`. A
+  failed test leaves a screenshot in `ts/browser/shots/` (gitignored). It
+  takes about six minutes; a test that passes is not done until it has
+  passed three runs in a row. CI runs it on every push
+  (`.github/workflows/ci.yml`, `docs/development.md`).
 - **`fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing
   fixture fails rather than skips, because a skip once silently turned the

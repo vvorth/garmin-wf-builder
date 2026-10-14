@@ -225,6 +225,8 @@ ts/                   the compiler, its tests and tools: one package for the
                         designs the goldens and font tests build (fixtures/slice/,
                         the Phase 2 slice, is the Monkey C goldens' source)
   slow/                 the monkeyc suite (npm run test:slow)
+  browser/              the Playwright suite over wfb studio's pages (npm run test:browser):
+                        harness.ts starts the server and headless Chromium
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
 examples/             example faces; `examples/README.md` is the index
@@ -634,6 +636,7 @@ cd ts
 npm test                 # the fast suite: node:test over test/, no Garmin toolchain
 npm run typecheck        # tsc, strict; then app/ (tsconfig.app.json, strict)
 npm run test:slow        # every slow-test design, example and fixture through monkeyc
+npm run test:browser     # the editor's pages in headless Chromium, against a real wfb studio (ts/browser/)
 ```
 
 **Node 24 is needed.** `tools/setup-env.sh` installs an official build when
@@ -657,6 +660,55 @@ The slow suite builds every design with the real `monkeyc` and asserts no
 warning-free, not merely successful. `ts/slow/` holds it, over
 `ts/test/corpus/slow-designs.json.gz` and every example and fixture, and
 runs `wfb preview --heatmap`, which renders every minute of an hour.
+
+The browser suite (`ts/browser/`, `npm run test:browser`, not part of `npm
+test`) drives `wfb studio`'s pages with Playwright in headless Chromium,
+against the real server and worker: every example and template opened as a
+`.yaml` or a zip, each element type selected and moved, every handle, the
+Properties controls, the Layers actions, every Face-tab section, the YAML
+tab (valid, invalid, a compiler error, the two-tab conflict), the view
+controls, Ctrl+K, history, download and one `monkeyc` build. Every
+assertion reads the face's YAML text back from the worker as well as the
+DOM. Each test file starts its own server on a free port in 8780–8789 and
+one browser context; `ts/browser/harness.ts` holds the helpers. It needs the
+device definitions (without them every test is skipped, with a message
+naming `tools/setup-env.sh`), Chromium (`npx playwright install chromium`,
+or `PLAYWRIGHT_BROWSERS_PATH` pointing at one) and, for the build test,
+`CIQ_SDK`. A failed test leaves a screenshot in `ts/browser/shots/`. It
+takes about six minutes.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs `npm run typecheck`, `npm test` and `npm run
+test:browser` on Node 24 for every push and pull request, after
+`tools/setup-env.sh` has installed the SDK (cached between runs), the
+developer key, the device reference and the fonts, and Playwright has
+installed Chromium. The goldens are expected green there, since the owner's
+full device set is present. The slow suite is not run in CI.
+
+**The device files come from the repository owner.** They cannot be
+downloaded, and a GitHub secret holds at most 48 KB, so the archive travels
+as an encrypted release asset and only its passphrase is a secret: the
+workflow downloads `devices.tar.bz2.gpg` from the release tagged
+`ci-devices`, decrypts it with the secret `GARMIN_DEVICES_PASSPHRASE` and
+unpacks it into `~/.Garmin/ConnectIQ/`. The owner creates both once from
+their SDK Manager copy (macOS paths shown; on Linux the folder is
+`~/.Garmin/ConnectIQ`); `Fonts` is optional, since the tests read the
+registry's stand-ins, and large:
+
+```sh
+cd "$HOME/Library/Application Support/Garmin/ConnectIQ"
+tar -cjf - Devices | gpg --symmetric --batch --cipher-algo AES256 \
+    --passphrase "$PASSPHRASE" --pinentry-mode loopback -o /tmp/devices.tar.bz2.gpg
+gh secret set GARMIN_DEVICES_PASSPHRASE --body "$PASSPHRASE"
+gh release create ci-devices /tmp/devices.tar.bz2.gpg --title "CI device files" \
+    --notes "Garmin's device definitions, encrypted, for the CI workflow only" --prerelease
+```
+
+A newer device set replaces the asset: `gh release upload ci-devices
+/tmp/devices.tar.bz2.gpg --clobber`. A pull request from a fork has no
+secrets, so its run stops at the restore step with a message saying so.
+The workflow has not yet been run; it is written to be right by reading.
 
 ## What is decided
 

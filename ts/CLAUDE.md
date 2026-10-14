@@ -9,6 +9,7 @@ the editor, in TypeScript on Node; `../wfb` runs `src/cli.ts`.
 npm test                    # node:test over test/**/*.test.ts
 npm run typecheck           # tsc --noEmit, strict; then app/ (tsconfig.app.json, strict)
 npm run test:slow           # builds every slow-test design, example and fixture with monkeyc
+npm run test:browser        # drives wfb studio in headless Chromium (browser/, Playwright; test/CLAUDE.md)
 npm run bundle              # dist/wfb.js, dist/worker.js and dist/app.js, the browser bundles (not committed)
 ```
 
@@ -176,4 +177,5 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   screenshots in `../docs/screenshots/`), `gen-profile-face.ts` and
   `summary.ts` (the page tests' face summaries).
 - `test/` holds the `node:test` files (`test/CLAUDE.md`); `slow/` the
-  `monkeyc` suite.
+  `monkeyc` suite; `browser/` the Playwright suite over the editor's pages
+  (`harness.ts` starts the server and the browser).

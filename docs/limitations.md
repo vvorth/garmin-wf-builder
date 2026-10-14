@@ -750,7 +750,7 @@ are `Toybox.SensorHistory`-backed, which a watch face may not use (§1,
 | Catalogue generation from the SDK | ADR 0005 §1; the catalogue is hand-written |
 | An SDK check outside `wfb build` (`validate`, `preview`) | `wfb build` warns when the device reference came from another SDK than the one it compiles with, and records both in `build-info.json`; `wfb doctor` reports the mismatch too. `validate` and `preview` compile nothing, so they do not check |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `sourceUnavailable` in `ts/src/availability.ts` but set on no source, because none needs it today |
-| CI | nothing runs the tests unattended: the fast suite, the type check and the slow suite (`ts/test/CLAUDE.md`) run only by hand |
+| CI for the slow suite | the type check, the fast suite and the browser suite run on every push and pull request (`.github/workflows/ci.yml`; the device files come from the owner's encrypted release asset, `docs/development.md`); the slow suite, every design through `monkeyc` (`npm run test:slow`), still runs only by hand |
 | `seconds: always` (a second hand while asleep) | needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one |
 | `arc` hand parts | the start angle would have to rotate with the hand too |
 | Data-driven hand colours | a hand has no `absent:` to fall back through if the bound reading were absent |

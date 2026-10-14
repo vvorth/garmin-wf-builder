@@ -257,3 +257,6 @@ ts/assets/system-fonts/*
 
 # tools/vendor-studio-frontend.sh builds in a temporary directory; never here
 node_modules/
+
+# the browser suite's screenshots of failed tests (ts/browser/harness.ts)
+ts/browser/shots/

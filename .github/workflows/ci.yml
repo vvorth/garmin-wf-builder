@@ -1,0 +1,82 @@
+# The type check, the fast suite and the browser suite, on every push and
+# pull request. The compiler needs Garmin's device definitions, which cannot
+# be downloaded: the repository owner publishes their own copy as an
+# encrypted release asset and keeps the passphrase in a repository secret
+# (docs/development.md, "Continuous integration"). The slow suite (every
+# design through monkeyc) runs by hand only.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+
+      # monkeyc runs on Java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # the Connect IQ SDK tools/setup-env.sh downloads (~200 MB), kept between runs
+      - uses: actions/cache@v4
+        with:
+          path: ~/ciq/sdks
+          key: ciq-sdk-${{ runner.os }}-${{ hashFiles('tools/setup-env.sh') }}
+
+      - name: Restore the device definitions
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.GARMIN_DEVICES_PASSPHRASE }}
+        run: |
+          if [ -z "$PASSPHRASE" ]; then
+            echo "::error::the secret GARMIN_DEVICES_PASSPHRASE is not set, so the device files cannot be restored; see docs/development.md, 'Continuous integration'"
+            exit 1
+          fi
+          mkdir -p ~/.Garmin/ConnectIQ
+          gh release download ci-devices --repo "$GITHUB_REPOSITORY" --pattern devices.tar.bz2.gpg --output /tmp/devices.tar.bz2.gpg
+          gpg --decrypt --batch --quiet --pinentry-mode loopback --passphrase "$PASSPHRASE" /tmp/devices.tar.bz2.gpg \
+            | tar -xj -C ~/.Garmin/ConnectIQ
+          rm /tmp/devices.tar.bz2.gpg
+          echo "$(ls ~/.Garmin/ConnectIQ/Devices | wc -l) devices restored"
+
+      # the SDK, the developer key, the device reference, the icon font, the system fonts and ts/'s dependencies
+      - name: Set up the build environment
+        working-directory: .
+        run: ./tools/setup-env.sh
+
+      - name: Point at the SDK
+        run: |
+          sdk="$(ls -d "$HOME"/ciq/sdks/* | sort -V | tail -n 1)"
+          echo "CIQ_SDK=$sdk" >> "$GITHUB_ENV"
+          echo "$sdk/bin" >> "$GITHUB_PATH"
+
+      - name: Install Chromium for the browser suite
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:browser
+
+      - name: Keep the screenshots of failed browser tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-shots
+          path: ts/browser/shots/
+          if-no-files-found: ignore

@@ -560,5 +560,9 @@ without end. A snapshot keeps what it needs, however old.
   unless you tell it otherwise, and then warns.
 - Share faces between browsers: each keeps its own (above).
 
-The editor's checks and gestures are tested without a browser; the pages
-themselves are checked by hand ([limitations](../limitations.md)).
+The editor's checks and gestures are tested without a browser, and the
+pages themselves in a headless browser against the real server and worker:
+every example and template opened, and each gesture, control, Face-tab
+section and YAML-tab path of this chapter driven and read back from the
+face's text (`npm run test:browser`, [developing](../development.md)). What
+the editor cannot do is in [limitations](../limitations.md).
