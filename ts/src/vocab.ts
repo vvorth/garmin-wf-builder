@@ -2,9 +2,9 @@
 //
 
 /**
- * An element's absence policy as the author writes it: `absent: hide`,
- * `absent: "--"` (a placeholder) or `absent: {value: ...}` (a fallback
- * reading). Generated code comments quote this.
+ * An element's absence policy as a generated comment spells it: `absent: hide`,
+ * `absent: "--"` (a placeholder, which the author writes `absent: {text: "--"}`)
+ * or `absent: {value: ...}` (a fallback reading).
  */
 export function absent(element: { absent?: string | null; placeholder?: string; fallback?: { shown?: string } | null }): string {
   const policy = element.absent || "hide";

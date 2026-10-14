@@ -105,7 +105,7 @@ elements:
     at: { anchor: center, dx: -23.9%r, dy: -69.4%r }
     align: left
     color: color.white
-    absent: "--"
+    absent: {text: "--"}
   body_battery_icon: { type: icon, icon: body_battery, size: 13.2%r, at: { anchor: center, dx: 21.5%r, dy: -69.4%r }, color: color.white }
   body_battery_value:
     lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-100, so at most 3 digits; the linter has no range for a complication" }
@@ -115,7 +115,7 @@ elements:
     at: { anchor: center, dx: 32.3%r, dy: -69.4%r }
     align: left
     color: color.white
-    absent: "--"
+    absent: {text: "--"}
 
   # --- sunrise / sunset, from seconds since midnight ---
   sunrise_h:
@@ -126,7 +126,7 @@ elements:
     at: { anchor: center, dx: -68.2%r, dy: -37.7%r }
     align: right
     color: color.white
-    absent: "--"
+    absent: {text: "--"}
   sunrise_m:
     type: text
     text: ":{complication.sunrise % 3600 / 60:02d}"
@@ -142,7 +142,7 @@ elements:
     at: { anchor: center, dx: -22.1%r, dy: -37.7%r }
     align: right
     color: color.white
-    absent: "--"
+    absent: {text: "--"}
   sunset_m:
     type: text
     text: ":{complication.sunset % 3600 / 60:02d}"
@@ -162,7 +162,7 @@ elements:
     at: { anchor: center, dx: 56.3%r, dy: -38.3%r }
     align: left
     color: color.white
-    absent: "--°"
+    absent: {text: "--°"}
 
   # --- time ---
   hours:
@@ -229,4 +229,4 @@ elements:
     at: { anchor: center, dx: 3.6%r, dy: 87.4%r }
     align: left
     color: color.white
-    absent: "--"
+    absent: {text: "--"}

@@ -126,4 +126,4 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: 31% }
     color: color.white
-    absent: "0"
+    absent: {text: "0"}

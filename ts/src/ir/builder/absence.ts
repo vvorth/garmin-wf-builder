@@ -13,7 +13,7 @@ import type { Node } from "./state.ts";
 export const ABSENCE_IS_NORMAL = "every ActivityMonitor field is nullable and sensors are simply missing "
   + "on some devices, so absence is the normal case, not an error";
 const WHEN_ABSENT_CHOICES = "choose one of: 'absent: hide', a text to draw instead "
-  + "('absent: \"--\"'), or a value to use instead ('absent: {value: <expression>}')";
+  + "('absent: {text: \"--\"}'), or a value to use instead ('absent: {value: <expression>}')";
 
 /** An internal `{:spec}` format as the author's `text:` template, the bound expression back inside each placeholder. */
 function asTemplate(spec: string, bound: Expression): string {

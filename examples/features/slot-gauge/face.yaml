@@ -109,7 +109,7 @@ elements:
     font: FONT_XTINY
     icon: { size: 12%r, gap: 1%r, color: color.accent }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   # -- left: five cells over the wearer's own scale ------------------------
 
@@ -133,7 +133,7 @@ elements:
     icon: { size: 11%r, gap: 1%r, color: color.warm }
     color: color.fg
     short: true
-    absent: "--"
+    absent: {text: "--"}
 
   # -- right: a needle that hides with the date -----------------------------
 
@@ -157,7 +157,7 @@ elements:
     font: FONT_XTINY
     color: color.fg
     short: true
-    absent: "--"
+    absent: {text: "--"}
 
   # -- a fixed complication with max: auto ----------------------------------
 

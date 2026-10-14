@@ -152,4 +152,4 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: 52%r }
     color: color.data
-    absent: "--"
+    absent: {text: "--"}

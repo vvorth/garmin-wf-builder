@@ -131,7 +131,7 @@ element's own **value** binding:
 hr_value:
   type: text
   text: "{heart_rate.current:d}"
-  absent: "--"
+  absent: {text: "--"}
   font: FONT_SMALL
   at: {anchor: center, dy: -20%}
   on_hold: auto                # resolves to 'heart_rate' -- same as writing it

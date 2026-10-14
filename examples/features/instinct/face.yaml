@@ -111,7 +111,7 @@ elements:
     at: { anchor: center, dx: -24%, dy: 34% }
     align: left
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   heart_icon:
     type: icon
@@ -127,4 +127,4 @@ elements:
     at: { anchor: center, dx: 16%, dy: 34% }
     align: left
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}

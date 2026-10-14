@@ -30,7 +30,7 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `icon: {position:, gap:, color:}` | `data` | `left`/`right`/`top`/`bottom`; px/`%r`; colour | `left`; `4px`; = `color:` | icon placement, gap and colour |
 | `label:` | `data` | `none`/`short`/`long` | `none` | `Complication.shortLabel`/`.longLabel` before the reading |
 | `unit:` / `short:` | `data` | boolean | `false` | the reading's own unit (`%`, `hPa`, `km`, `/km`, ...); 7-character forms |
-| `absent:` | `data` | `hide` / a string | `hide` | blanks only the reading; the icon still draws |
+| `absent:` | `data` | `hide` / `{text: "--"}` | `hide` | blanks only the reading; the icon still draws |
 | `on_hold:` | `data` | `auto` only | — | resolves to the wearer's current pick, on every hold |
 
 ## Example
@@ -254,7 +254,7 @@ elements:
     color: color.fg
     label: short             # none (default) | short | long
     unit: true                # append Complication.unit's suffix
-    absent: "--"
+    absent: {text: "--"}
 ```
 
 Each `slots:` entry is a **named slot** with its own `default:`/`choices:`,
@@ -344,7 +344,7 @@ Instead:
   (`doc/Toybox/Weather.html`), in English whatever the watch's language.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the reading, when the device supplies one.
-* **`absent:`** is `hide` (default) or a string drawn instead (`"--"`) --
+* **`absent:`** is `hide` (default) or `{text: "--"}`, drawn instead --
   and unlike every other element, `hide` blanks only the
   *reading*, leaving the icon drawn: the icon says which metric the slot is
   pointed at, which stays true even on a frame the reading itself could not be

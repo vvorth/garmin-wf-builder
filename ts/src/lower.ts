@@ -383,8 +383,9 @@ class Lowering {
 
   absent(node: Dict): void {
     const value = node.get("absent");
-    if (typeof value === "string") this.oneLine(node, "absent");
-    if (isDict(value)) this.exprKey(value, "value", "absent.value");
+    if (!isDict(value)) return;
+    this.oneLine(value, "text", "absent.text");
+    this.exprKey(value, "value", "absent.value");
   }
 
   aod(node: Dict): void {

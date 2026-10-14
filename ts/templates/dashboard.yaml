@@ -68,7 +68,7 @@ elements:
     font: FONT_TINY
     at: { anchor: center, dx: -17%r, dy: 30%r }
     color: color.text
-    absent: "--"
+    absent: {text: "--"}
 
   steps_icon:
     type: icon
@@ -83,7 +83,7 @@ elements:
     font: FONT_TINY
     at: { anchor: center, dx: 38%r, dy: 30%r }
     color: color.text
-    absent: "--"
+    absent: {text: "--"}
 
   battery:
     type: gauge

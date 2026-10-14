@@ -112,7 +112,7 @@ elements:
     icon: { size: 14%r, gap: 2%r, color: color.accent }
     color: color.data
     short: true # 7-character weather and training-status names
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto # opens the glance for whatever the slot shows
 
   bottom_slot:
@@ -122,5 +122,5 @@ elements:
     font: FONT_SMALL
     icon: { size: 14%r, gap: 2%r, color: color.accent }
     color: color.data
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto

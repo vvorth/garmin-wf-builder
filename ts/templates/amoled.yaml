@@ -89,7 +89,7 @@ elements:
         at: { anchor: left, dx: 13%r }
         align: left
         color: color.white
-        absent: "--"
+        absent: {text: "--"}
 
   battery_ring:
     type: gauge

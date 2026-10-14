@@ -29,7 +29,8 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
-  element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`;
+  element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`
+  (`hide` | `{text:}` | `{value:}`, one `$defs` entry `absence` in the schema);
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
   `ts/src/conversion.ts`) and duration formats on a number of seconds
   (`DURATION_CODES` in `ts/src/formatting.ts`, `WfbTime.durationPart`).

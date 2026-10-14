@@ -74,7 +74,7 @@ elements:
       rate:
         type: text
         text: "{heart_rate.current:d}"
-        absent: "--"
+        absent: {text: "--"}
         font: FONT_XTINY
         at: { anchor: center, dx: -6% }
         color: color.bg

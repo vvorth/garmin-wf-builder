@@ -21,7 +21,7 @@ can bind.
 | `value:` | `gauge` | a source path or [expression](#expressions) | — | what to pull or compute |
 | spec | inside a placeholder, after `:` | Python-style spec or strftime codes | — | [Formats](#formats) |
 | `units:` | `text` | `auto` \| `metric` \| `statute` | — (no conversion) | [Units](#units) |
-| `absent:` | any nullable binding | `hide` \| a string \| `{value: <expr>}` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
+| `absent:` | any nullable binding | `hide` \| `{text: "--"}` \| `{value: <expr>}` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
 | `time.*` | source namespace | — | — | clock and time-of-day readings |
 | `date.*` | source namespace | — | — | calendar date, localised weekday/month |
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
@@ -42,7 +42,7 @@ elements:
     slot: left_register
     at: { anchor: center, dx: -50%r, dy: -30%r }
     icon: { size: 9%r, position: top, color: color.data }
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto                    # touch and hold opens that complication
 
   hr_graph:
@@ -61,7 +61,7 @@ elements:
   each slot. The watch draws them once and copies the result on every update.
 - **A `data` element** shows whichever complication the wearer picked for
   its slot ([configuration](configuration.md)), with that complication's icon and reading. When the reading is
-  missing, `absent: "--"` shows that text instead of leaving it blank.
+  missing, `absent: {text: "--"}` shows that text instead of leaving it blank.
 - **`on_hold:`** makes the element a touch-and-hold target that opens a Garmin
   glance. On a slot, `auto` opens the glance for whatever the slot currently
   shows. Elsewhere, name one, such as `heart_rate`; `wfb complications` lists
@@ -138,7 +138,7 @@ body_battery_reading:
   type: text
   text: "{complication.body_battery:d}"
   font: FONT_SMALL
-  absent: "--"
+  absent: {text: "--"}
 ```
 
 A `complication.*` binding compiles to a plain pull, exactly like any other
@@ -270,7 +270,7 @@ nullable binding rather than defaulting silently:
 | `absent:` | Effect |
 |---|---|
 | `hide` | the element is not drawn (a gauge still draws its track) |
-| a string, `"--"` | that text is drawn instead |
+| `{text: "--"}` | that text is drawn instead |
 | `{value: <expr>}` | another expression supplies the value, rendered through the same spec; it must not itself be nullable |
 
 **`absent:` covers every nullable binding on the element, not just the
@@ -466,7 +466,7 @@ distance:
   type: text
   text: "{activity.distance:.1f} {unit}" # "6.3 km" or "3.9 mi"
   units: auto                    # the watch's own distance setting, read each frame
-  absent: "--"
+  absent: {text: "--"}
 ```
 
 | `units:` | Means |

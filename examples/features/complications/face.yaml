@@ -66,7 +66,7 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dx: -26%, dy: 10% }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto              # resolves to 'heart_rate'
 
   # -- body battery: only reachable through Complications --------------------
@@ -90,7 +90,7 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dy: 10% }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   # -- solar input: also only reachable through Complications -----------------
   solar_icon:
@@ -106,7 +106,7 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dx: 26%, dy: 10% }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   # -- steps: a direct read, with an explicit (not 'auto') launch target -----
   steps_icon:
@@ -122,5 +122,5 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dy: 37% }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
     on_hold: steps             # named explicitly, for contrast with 'auto'

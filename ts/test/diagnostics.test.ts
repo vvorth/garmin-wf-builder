@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { Bag, Diagnostic, Span } from "../src/diagnostics.ts";
 import * as term from "../src/term.ts";
-import { load, MINIMAL } from "./designs.ts";
+import { face, load, MINIMAL, view } from "./designs.ts";
 
 afterEach(() => term.setMode("auto"));
 
@@ -175,4 +175,84 @@ test("diagnostics that differ only in the device they name show once, saying whe
   // one device: nothing to merge
   bag.devices = ["fr955"];
   assert.equal(bag.shown().length, 8);
+});
+
+// -- format 2 spellings: a superseded form is refused on its own line, naming the replacement --
+
+const STEPS_TEXT = (absent: string): string => MINIMAL + `  steps:
+    type: text
+    text: "{activity.steps:d}"
+    at: {anchor: center, dy: 20%}
+    color: color.fg
+    absent: ${absent}
+`;
+const GAUGE = (absent: string): string => MINIMAL + `  ring:
+    type: gauge
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: {anchor: center}
+    radius: 50%r
+    thickness: 10px
+    start_angle: 180deg
+    sweep: 340deg
+    color: color.fg
+    absent: ${absent}
+`;
+const DATA = (absent: string): string => MINIMAL.replace("elements:", "config:\n  slots:\n    top: {default: steps, choices: any}\nelements:") + `  reading:
+    type: data
+    slot: top
+    at: {anchor: center}
+    font: FONT_SMALL
+    color: color.fg
+    absent: ${absent}
+`;
+const PATTERN = (absent: string): string => MINIMAL + `  bars:
+    type: pattern
+    pattern: linear
+    at: {anchor: center, dx: -20%r}
+    count: 5
+    step: {dx: 10%r}
+    absent: ${absent}
+    parts:
+      - {type: rectangle, size: {width: 4%r, height: 4%r}, color: color.fg, visible: "copy <= activity.move_bar_level - 1"}
+`;
+
+test("absent: a bare placeholder string is refused naming {text:}; the tagged forms load and generate as before", () => {
+  const bare = errorsOf(STEPS_TEXT('"--"'));
+  assert.equal(bare.length, 1, bare.map((d) => d.message).join("\n"));
+  assert.ok(bare[0]!.message.includes("absent: {text: \"--\"}"), bare[0]!.message);
+  assert.ok(errorsOf(STEPS_TEXT('"0"'))[0]!.message.includes("absent: {text: \"0\"}"));
+  const tagged = view(STEPS_TEXT('{text: "--"}'));
+  // the placeholder is drawn, and the generated comment still spells the policy as `absent: "--"`
+  assert.ok(tagged.includes('"--"') && tagged.includes('absent: "--"'), tagged);
+  face(STEPS_TEXT("hide"));
+  face(STEPS_TEXT("{value: 0}"));
+  const both = errorsOf(STEPS_TEXT('{text: "--", value: 0}'));
+  assert.equal(both.length, 1, both.map((d) => d.message).join("\n"));
+  assert.ok(both[0]!.message.includes("one of"), both[0]!.message);
+});
+
+test("absent: each kind refuses the substitute it cannot draw, with the reason, and takes the ones it can", () => {
+  const gauge = errorsOf(GAUGE('{text: "--"}'));
+  assert.equal(gauge.length, 1, gauge.map((d) => d.message).join("\n"));
+  assert.ok(gauge[0]!.message.includes("no placeholder text"), gauge[0]!.message);
+  face(GAUGE("hide"));
+  face(GAUGE("{value: 0.5}"));
+  const data = errorsOf(DATA("{value: 0}"));
+  assert.equal(data.length, 1, data.map((d) => d.message).join("\n"));
+  assert.ok(data[0]!.message.includes("{text:"), data[0]!.message);
+  face(DATA('{text: "--"}'));
+  face(DATA("hide"));
+  const pattern = errorsOf(PATTERN('{text: "--"}'));
+  assert.equal(pattern.length, 1, pattern.map((d) => d.message).join("\n"));
+  assert.ok(pattern[0]!.message.includes("'absent: hide'"), pattern[0]!.message);
+  face(PATTERN("hide"));
+});
+
+test("the format 1 placeholder keys name the tagged absent:", () => {
+  const notes = errorsOf(STEPS_TEXT("hide").replace("absent: hide", 'placeholder: "--"')).flatMap((d) => d.notes);
+  assert.ok(notes.some((n) => n.includes("'absent: {text: \"--\"}'")), notes.join("\n"));
+  const when = errorsOf(STEPS_TEXT("hide").replace("absent: hide", "when_absent: hide")).flatMap((d) => d.notes);
+  assert.ok(when.some((n) => n.includes("{text: \"--\"}")), when.join("\n"));
 });

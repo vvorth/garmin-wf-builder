@@ -134,7 +134,7 @@ elements:
     at: { anchor: center, dy: 38% }
     font: FONT_XTINY
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
     lint:
       allow: [static-overlap]
       reason: "The same decorative-ring bounding-box overstatement as

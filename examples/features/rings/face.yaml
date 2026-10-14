@@ -116,7 +116,7 @@ elements:
       heart_value:
         type: text
         text: "{heart_rate.current:d}"
-        absent: "--"
+        absent: {text: "--"}
         font: FONT_TINY
         at: { anchor: left, dx: 11% }
         align: left

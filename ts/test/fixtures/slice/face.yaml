@@ -86,4 +86,4 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: 30% }
     color: color.text
-    absent: "--"
+    absent: {text: "--"}

@@ -60,7 +60,7 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: -12%r }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   temperature:
     type: text
@@ -69,7 +69,7 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: 12%r }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
 
   wind:
     type: text
@@ -78,7 +78,7 @@ elements:
     font: FONT_SMALL
     at: { anchor: center, dy: 36%r }
     color: color.dim
-    absent: "--"
+    absent: {text: "--"}
 
   altitude:
     type: text
@@ -87,4 +87,4 @@ elements:
     font: FONT_XTINY
     at: { anchor: center, dy: 60%r }
     color: color.dim
-    absent: "--"
+    absent: {text: "--"}

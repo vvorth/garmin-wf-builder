@@ -39,14 +39,12 @@ export class Readers extends BuilderState {
     return [value.slice(vertical.length + 1) || "center", vertical];
   }
 
-  /** `absent:` as the IR's three fields. */
+  /** `absent:` as the IR's three fields: `hide`, `{text:}` a placeholder, `{value:}` a fallback. */
   absence(node: Node): Absence {
     const value = node.get("absent");
-    if (value === undefined || value === null || value === "hide") {
-      return { absent: (value ?? null) as string | null, placeholder: null, fallback: null };
-    }
+    if (value instanceof Map && value.has("text")) return { absent: "placeholder", placeholder: str(value.get("text")), fallback: null };
     if (value instanceof Map) return { absent: "fallback", placeholder: null, fallback: this.expression(value, "value") };
-    return { absent: "placeholder", placeholder: str(value), fallback: null };
+    return { absent: (value ?? null) as string | null, placeholder: null, fallback: null };
   }
 
   /** Where `absent: {value: ...}`'s expression is written. */

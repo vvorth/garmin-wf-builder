@@ -148,7 +148,7 @@ elements:
     color: color.fg
     label: short
     unit: true
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto
 
   bottom_reading:
@@ -159,4 +159,4 @@ elements:
     icon: { size: 18%r, gap: 2%r }
     color: color.fg
     short: true
-    absent: "--"
+    absent: {text: "--"}

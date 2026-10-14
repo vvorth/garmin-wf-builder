@@ -91,11 +91,12 @@ function buildMore(b: Builder, node: Node, element: Text, entries: Reading[]): T
       + `one placeholder, and this text has ${entries.length + 1}`, b.doc.span(node, "units"),
     { notes: ["give the converted reading a text element of its own"] });
   }
-  if (node.get("absent") instanceof Map) {
+  const absent = node.get("absent");
+  if (absent instanceof Map && absent.has("value")) {
     b.bag.error("format", `${element.id}: 'absent: {value:}' substitutes the reading of `
       + `a text with one placeholder, and this text has ${entries.length + 1}`, b.fallbackSpan(node), {
       notes: ["write 'absent: hide' or a text to draw instead "
-        + "('absent: \"--\"'); the text is absent when any reading is"],
+        + "('absent: {text: \"--\"}'); the text is absent when any reading is"],
     });
   }
   const out: TextSegment[] = [];

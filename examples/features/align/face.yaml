@@ -259,7 +259,7 @@ elements:
     font: FONT_XTINY
     icon: { size: 7%r, position: right, gap: 2px, color: color.accent }
     color: color.fg
-    absent: "--"
+    absent: {text: "--"}
     align: bottom_left
 
   # SE: a `group` carries the alignment; its icon and text stay centred on

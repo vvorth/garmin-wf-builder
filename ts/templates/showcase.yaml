@@ -338,7 +338,7 @@ elements:
     icon: { size: 9%r, position: top, gap: 1%r, color: color.data }
     color: color.fg
     label: none
-    absent: "--"
+    absent: {text: "--"}
     on_hold: auto
     lint:
       allow: [static-overlap]
@@ -370,7 +370,7 @@ elements:
     # `choices: any`: weather conditions and training status get their
     # 7-character names, so they stay inside this small register.
     short: true
-    absent: "--"
+    absent: {text: "--"}
     lint:
       allow: [static-overlap]
       reason: "Same full-dial-pattern bounding-box overstatement as
@@ -473,7 +473,7 @@ layouts:
         font: FONT_XTINY
         # icon: { size: 9%r, position: top, gap: 1%r, color: color.data }
         color: color.fg
-        absent: "--"
+        absent: {text: "--"}
 
       top_data:
         type: group
@@ -578,7 +578,7 @@ layouts:
         at: { anchor: top, dy: 20%, dx: -10% }
         align: center
         color: color.fg
-        absent: "--°"
+        absent: {text: "--°"}
         lint:
           allow: [text-overflow]
           reason: "weather.feels_like_temperature has no documented range, so
@@ -650,7 +650,7 @@ layouts:
             # at: { anchor: center, dx: 25% }
             at: { anchor: left, dx: 14%r }
             color: color.fg
-            absent: "--"
+            absent: {text: "--"}
 
       steps_cluster:
         type: group
@@ -674,7 +674,7 @@ layouts:
             at: { anchor: left, dx: 13%r }
             align: left
             color: color.fg
-            absent: "--"
+            absent: {text: "--"}
 
       calories_cluster:
         type: group
@@ -699,7 +699,7 @@ layouts:
             at: { anchor: left, dx: 10%r }
             align: left
             color: color.fg
-            absent: "--"
+            absent: {text: "--"}
 
       steps_bar:
         type: gauge

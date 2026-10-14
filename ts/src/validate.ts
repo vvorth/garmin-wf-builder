@@ -83,7 +83,7 @@ export function validate(doc: YamlDocument, bag: Bag): boolean {
   // uninformative reason, so it is caught first and named directly.
   const badTypes = [
     ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag),
-    ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag),
+    ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag), ...checkAbsent(doc, bag),
   ];
   if (validator === undefined) schema();
   const errors = validator!.iterErrors(doc.data);
@@ -307,6 +307,51 @@ function checkReserved(doc: YamlDocument, bag: Bag): Path[] {
       }
     }
   }
+  return bad;
+}
+
+/** The one `absent:` spelling a kind cannot take, and why; every kind takes 'hide'. */
+const ABSENT_REFUSED: ReadonlyMap<string, [key: string, reason: string]> = new Map([
+  ["gauge", ["text", "a gauge has no placeholder text -- 'absent:' is 'hide' (the track still draws) or {value: <fraction>}"]],
+  ["data", ["value", "a data element's reading is whatever the wearer picked, so there is no value to substitute -- "
+    + "'absent:' is 'hide' (the icon still draws) or {text: \"--\"}"]],
+]);
+
+/** `absent:`'s tagged shape: a bare placeholder string, or a substitute the kind cannot draw, is refused with the spelling to write. */
+function checkAbsent(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  visitElements(doc, (element, here) => {
+    if (!element.has("absent")) return;
+    const value = element.get("absent");
+    const path = [...here, "absent"];
+    const report = (message: string, ...notes: string[]): void => {
+      bag.error("schema", `${dottedPath(path)}: ${message}`, doc.span(element, "absent"), { notes });
+      bad.push(path);
+    };
+    if (value === "placeholder" || value === "fallback") {
+      report(`'absent: ${value}' is format 1 -- format 2 writes the substitute itself: `
+        + "'absent: {text: \"--\"}' or 'absent: {value: <expression>}'");
+      return;
+    }
+    if (typeof value === "string" && value !== "hide") {
+      report(`a placeholder is written 'absent: {text: ${JSON.stringify(value)}}', not a bare string`,
+        "'absent: hide' is the one keyword; '{value: <expression>}' substitutes a reading instead");
+      return;
+    }
+    if (!isDict(value)) return;
+    const kind = element.get("type");
+    if (kind === "pattern") {
+      report("a pattern has no text or value to use instead -- 'absent: hide' is its only value, hiding the whole pattern");
+      return;
+    }
+    const tags = ["text", "value"].filter((key) => value.has(key));
+    if (tags.length !== 1 || value.size !== 1) {
+      report("takes one of 'hide', {text: \"--\"} or {value: <expression>}");
+      return;
+    }
+    const refused = typeof kind === "string" ? ABSENT_REFUSED.get(kind) : undefined;
+    if (refused !== undefined && tags[0] === refused[0]) report(refused[1]);
+  });
   return bad;
 }
 
@@ -637,8 +682,8 @@ export const FORMAT_1_KEYS: ReadonlyMap<string, string> = new Map([
   ["default", "'defaults: {aod: {visible: false|true}}'"],
   ["data", "'config: {slots: ...}'"],
   ["colors", "'scheme:'"],
-  ["when_absent", "'absent:' -- 'hide', a placeholder string, or {value: <expression>}"],
-  ["placeholder", "'absent: \"--\"'"],
+  ["when_absent", "'absent:' -- 'hide', {text: \"--\"} or {value: <expression>}"],
+  ["placeholder", "'absent: {text: \"--\"}'"],
   ["fallback", "'absent: {value: <expression>}'"],
   ["vertical_align", "one 'align:', e.g. 'align: top_left'"],
   ["if_unavailable", "'unsupported:'"],

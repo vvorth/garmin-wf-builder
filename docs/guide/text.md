@@ -17,7 +17,7 @@ wordmark on this platform.
 | `font:` | `font.<name>` or a system name | — | [Fonts](fonts.md#fonts) |
 | `color:` | colour expression | — | [Colours](colors.md) |
 | `align:` | one of the nine anchor names, or a compass alias | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |
-| `absent:` | `hide`, a string, or `{value: <expr>}` | — | required for a nullable reading — see [Data binding](data.md#absence-is-the-normal-case) |
+| `absent:` | `hide`, `{text: "--"}` or `{value: <expr>}` | — | required for a nullable reading — see [Data binding](data.md#absence-is-the-normal-case) |
 | `curve.style:` | `angled`/`radial` | — | [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.angle:` | `Angle` | — | rotation (`angled`) or start position (`radial`) — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.radius:` | `Length` | — | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
@@ -111,14 +111,14 @@ is the reading's unit label under [`units:`](data.md#units).
 **Several placeholders** draw several readings in one string,
 `"{time.hour:02d}:{time.minute:02d}"`, each through its own spec, measured
 and baked as one text. The element is **absent when any reading is**:
-`absent: hide` hides the whole string, and `absent: "--"` draws `--` in its
+`absent: hide` hides the whole string, and `absent: {text: "--"}` draws `--` in its
 place. Three things speak of a single reading, so they are errors beside
 several: `absent: {value: <expr>}` (there is no one reading to substitute),
 `units:` and its `{unit}` label (a conversion has one reading to convert),
 and an `aod: {text: ...}` restyle (not implemented yet; the always-on frame
 draws the same template). A pattern's text part reads one placeholder.
 
-A template whose reading can be absent needs `absent:` (`hide`, a string
+A template whose reading can be absent needs `absent:` (`hide`, `{text: "--"}`
 drawn instead, or `{value: <expr>}` substituted into the placeholder); see
 [Data binding](data.md#absence-is-the-normal-case). A literal `text:` has
 nothing to be absent.
