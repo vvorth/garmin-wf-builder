@@ -182,8 +182,8 @@ h.test("the scope buttons write a device, shape and display override; × prunes 
     await dx.press("Enter");
     const after = await written(s, base);
     const own = lines(after, "dot");
-    // a new override is written as one flow mapping, a selector with a colon quoted
-    assert.ok(own.endsWith(`\n    overrides: { ${key}: { at: { dx: 12px } } }`), `${selector}: ${own}`);
+    // a new override is written as one flow mapping, a selector with a colon quoted; it replaces at: whole, so the anchor rides along
+    assert.ok(own.endsWith(`\n    overrides: { ${key}: { at: { anchor: center, dx: 12px } } }`), `${selector}: ${own}`);
     assert.match(own, /at: \{ anchor: center \}/, "the element's own at: changed");
     await s.expectValue(dx, "12");
     // back on all targets, the key says where the watch reads it

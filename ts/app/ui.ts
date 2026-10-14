@@ -27,7 +27,8 @@ export function WorkerImage({ op, args, ...rest }: WorkerImageProps): VNode {
   useEffect(() => {
     let url: string | null = null, live = true;
     objectUrl(op, args).then((u) => { if (live) setSrc(url = u); else URL.revokeObjectURL(u); }, () => setSrc(null));
-    return () => { live = false; if (url) URL.revokeObjectURL(url); };
+    // revoked a moment later, not at once: an image still fetching a revoked URL logs a load error
+    return () => { live = false; if (url) { const u = url; setTimeout(() => URL.revokeObjectURL(u), 1000); } };
   }, [op, key]);
   return html`<img alt="" ...${rest} data-op=${op} data-args=${key} src=${src || undefined}
     style=${src ? undefined : "visibility:hidden"} />`;

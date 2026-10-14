@@ -120,7 +120,9 @@ h.test("Preview: time, date, now, a slot's pick, and awake/asleep/AOD per watch"
   await s.openExample("features/aod");
   await s.waitFace();
   await s.waitIdle();
+  // the watch viewed is remembered across faces when the new face targets it too, so pick the AMOLED one explicitly
   const device = s.page.locator(".controls label", { hasText: "Device" }).locator("select");
+  if ((await device.inputValue()) !== "fenix847mm") { await device.selectOption("fenix847mm"); await s.waitIdle(); }
   assert.equal(await device.inputValue(), "fenix847mm");
   src = await frameSrc(s);
   await menu.click();

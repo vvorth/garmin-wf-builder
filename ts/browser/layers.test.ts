@@ -156,7 +156,8 @@ h.test("reorder, drag a row, move to…, group, ungroup, duplicate, delete", asy
   assert.deepEqual(node(doc, "group").children.map((n) => n.id), ["card", "card_inner"]);
   assert.match(doc.text, /^  group:\n    type: group\n    children:\n      # An outlined rounded rectangle/m, "the group does not hold its children with their comments");
   assert.equal(await s.page.locator(".inspector .ins-head .name").textContent(), "group");
-  assert.equal(await s.layerRow("card").evaluate((e) => e.closest("ul.tree")!.closest("li")!.querySelector(".item span")!.textContent), "group", "card is not shown under the group");
+  // the tree redraws a moment after the text changes, so the nesting is polled
+  await s.eventually(async () => (await s.layerRow("card").evaluate((e) => e.closest("ul.tree")!.closest("li")!.querySelector(".item span")!.textContent)) === "group", "card shown under the group");
   // Ctrl+Shift+G ungroups
   await s.page.keyboard.press("Control+Shift+g");
   doc = await written(s, doc);
