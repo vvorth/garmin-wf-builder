@@ -118,16 +118,22 @@ same commit, never left as a second page.
 
 ## Slice 2 — Properties v2: the generic form and the editing context (D3, D5, D6)
 
-**In progress 2026-10-14.** Shipped so far: the five format changes
-(F3 `absent:` 37ddac9, F4 `outline:` 995c86c, F5 `icon:`
-b6568a3, F6 `range:`/`step_angle:` cb2a231, F7 whole-key `overrides:` b492d13), the
-icon picker writing `{codepoint}` (e93c344), and the worker half of
-Properties v2 (55e027b: the field tree with `kind`, `children`, `items`,
-`branches`/`chosen`; `effective` with provenance per editing context;
-the `aod` edit scope; `rename_layout`, `delete_layout`, `move_key`,
+**Shipped 2026-10-14** (`git log --grep "format:" --grep "Properties v2" --grep "Face tab"`
+from `37ddac9` to the page commits `ae6f0c2`/`6a611bf` as cherry-picked): the five
+format changes (F3 `absent:` 37ddac9, F4 `outline:` 995c86c, F5 `icon:`
+b6568a3, F6 `range:`/`step_angle:` cb2a231, F7 whole-key `overrides:`
+b492d13), the icon picker writing `{codepoint}` (e93c344), the worker half
+of Properties v2 (55e027b: the field tree with `kind`, `children`, `items`,
+`branches`/`chosen`; `effective` with provenance per editing context; the
+`aod` edit scope; `rename_layout`, `delete_layout`, `move_key`,
 `set_default_style`; `face`, `defaults` and `layout_entries` in the
-globals). Open: the page half (the generic form, the context bar, the
-new Face sections). Two notes for the record:
+globals), the page half (`ts/app/form.ts`: the generic form over the tree;
+the store's `context.target` and the **Edit for** control; the AOD frame
+writing into `aod:` with provenance badges; the scope buttons and the
+read-only summaries gone) and the Face tab's Face, Defaults and Layouts
+sections, the Styles matrix and reorder controls (`ts/app/face-sections.ts`).
+Not built: a layout `label:` (the schema has none; F9). Two notes for the
+record:
 
 - F3 and F5 mechanically rewrote `examples/dashboard/face.yaml`, the
   user's playground (`absent:` and `icon:` spellings only; nothing else

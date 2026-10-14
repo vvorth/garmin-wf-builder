@@ -339,8 +339,9 @@ compiler would not take.
   `radius:` and `align:` go: with **all watches**, the element's own key,
   even while the watch in view reads an override (the badge says so); with
   **this watch**, **this shape** or **this display**, that override, whose
-  **×** removes the override's key. An override not written yet shows an
-  empty number box and what it would inherit.
+  **×** (on `at:` or on any key inside it) removes the override's whole
+  key, since an override replaces the key whole. An override not written
+  yet shows an empty number box and what it would inherit.
 - In the **AOD** frame, the keys the element's kind restyles there (its
   `aod:` block's: `color:`, `text:`, `font:`, `outline:`, `thickness:`,
   `filled:`, …, and every element's `visible:` and `dim:`, shown even when

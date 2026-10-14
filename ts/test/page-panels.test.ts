@@ -603,7 +603,8 @@ test("awake, an override the watch reads is shown with its selector, and Edit fo
   assert.deepEqual(printed[2], [["", "", "writes the shape:round override's at.dy"], ["inherits \"center\""]]);
   assert.deepEqual(printed[3], [
     { op: "set", element: CLOCK, path: ["at", "dy"], scope: "display", device: "fenix847mm", value: "6px" },
-    { op: "remove", element: CLOCK, path: ["at", "dy"], scope: "display", device: "fenix847mm" },
+    // the override replaces at: whole, so × on its dy removes the override's at
+    { op: "remove", element: CLOCK, path: ["at"], scope: "display", device: "fenix847mm" },
     { op: "set", element: CLOCK, path: ["at", "dy"], scope: "all", device: "fenix847mm", value: "4px" },
   ]);
   assert.deepEqual(printed[4], ["", "", ""]);

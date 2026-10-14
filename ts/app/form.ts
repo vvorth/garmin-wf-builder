@@ -664,6 +664,12 @@ interface RemoveProps {
   onClick: () => void;
 }
 
+/** What × removes: an override replaces its key whole, so a nested key's × removes the override's top key. */
+function removedPath(field: Field, lane: Lane): Path {
+  const override = lane.scope !== "all" && lane.scope !== "aod";
+  return override && field.path.length > 1 ? [field.path[0]!] : field.path;
+}
+
 /** The × that removes the key from the edited scope. */
 function Remove({ lane, onClick }: RemoveProps): VNode {
   const override = lane.scope !== "all" && lane.scope !== "aod";
@@ -684,7 +690,7 @@ function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
             onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })} />`}
       ${!lane.readonly && r.own != null && !field.required && field.widget !== "readonly"
-        ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base })} />` : null}
+        ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
   </div>`;
@@ -731,7 +737,7 @@ function ObjectField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
     <div class="head" title=${r.title}>
       <${Name} field=${field} badge=${r.badge} />
       ${!open && !lane.readonly ? html`<button class="add" title=${`add ${field.key}`} onClick=${() => setOpened(true)}>+ ${field.key}</button>` : null}
-      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: field.path })} />` : null}
+      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
     ${open ? html`<div class="children">
@@ -751,7 +757,7 @@ function ListField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): VN
   return html`<div class=${classes} style=${`--depth:${depth}`}>
     <div class="head" title=${r.title}>
       <${Name} field=${field} badge=${r.badge} />
-      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base })} />` : null}
+      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
     <div class="children">
@@ -797,7 +803,7 @@ function ChoiceField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
         : html`<${Widget} field=${branch} value=${r.value} ctx=${ctx} like=${r.like}
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
             onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })} />`) : null}
-      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base })} />` : null}
+      ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
     ${branch && branch.kind === "object" ? html`<div class="children">

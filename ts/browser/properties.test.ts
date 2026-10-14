@@ -1,7 +1,7 @@
 // The Properties panel's controls against the real worker, each change read
 // back from the YAML text: numbers and units, the align picker, the colour
 // picker's three groups, a text's `+ data`, the font, icon and `on_hold`
-// selects, the four scope buttons writing overrides and `×` pruning an
+// selects, Edit for writing overrides and `×` pruning an
 // emptied one, renaming an element, and `curve:` on a curved text.
 
 import assert from "node:assert/strict";
@@ -166,17 +166,17 @@ h.test("the colour picker: this face, MIP 64 and a custom colour", async (s) => 
   assert.deepEqual(s.errors, []);
 });
 
-h.test("the scope buttons write a device, shape and display override; × prunes an emptied one", async (s) => {
+h.test("Edit for writes a device, shape and display override of the whole key; × on it prunes an emptied one", async (s) => {
   await s.openExample("features/shapes");
   await s.waitFace();
   await s.waitIdle();
   const base = await s.doc();
   await s.selectLayer("dot");
-  const scope = s.page.locator(".inspector .scope button");
-  assert.deepEqual(await scope.allTextContents(), ["all targets", "fenix8solar47mm", "round screens", "MIP screens"]);
+  const editFor = s.page.locator(".controls .edit-for button");
+  assert.deepEqual(await editFor.allTextContents(), ["all watches", "this watch", "this shape", "this display"]);
 
   for (const [index, selector, key] of [[1, "fenix8solar47mm", "fenix8solar47mm"], [2, "shape:round", '"shape:round"'], [3, "display:mip", '"display:mip"']] as const) {
-    await scope.nth(index).click();
+    await editFor.nth(index).click();
     const dx = s.childField("at", "dx").locator("input");
     await dx.fill("12");
     await dx.press("Enter");
@@ -186,16 +186,16 @@ h.test("the scope buttons write a device, shape and display override; × prunes 
     assert.ok(own.endsWith(`\n    overrides: { ${key}: { at: { anchor: center, dx: 12px } } }`), `${selector}: ${own}`);
     assert.match(own, /at: \{ anchor: center \}/, "the element's own at: changed");
     await s.expectValue(dx, "12");
-    // back on all targets, the key says where the watch reads it
-    await scope.nth(0).click();
-    const note = await s.topField("at").locator(".children .field").filter({ has: s.page.locator(":scope > .name", { hasText: /^dx$/ }) }).locator(".note").textContent();
-    assert.match(note ?? "", /overridden on this (device|shape|display class)/, `no note for ${selector}`);
+    // back on all watches, the key's badge says where the watch in view reads it
+    await editFor.nth(0).click();
+    const badge = s.topField("at").locator(".badge").first();
+    await s.expectText(badge, new RegExp(selector.replace(":", ":")));
     // × on the override takes the emptied override with it
-    await scope.nth(index).click();
+    await editFor.nth(index).click();
     await s.childField("at", "dx").locator("button.reset").click();
     const pruned = await written(s, after);
     assert.equal(pruned.text, base.text, `${selector}: × left something behind: ${diffLines(base.text, pruned.text).join(" ; ")}`);
-    await scope.nth(0).click();
+    await editFor.nth(0).click();
   }
   assert.deepEqual(s.errors, []);
 });

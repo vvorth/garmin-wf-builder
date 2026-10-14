@@ -431,6 +431,8 @@ export class EditorStore {
     const s = this.state;
     let ctx = s.context;
     if (s.doc && (!ctx.device || !s.doc.targets.includes(ctx.device)) && s.doc.targets.length) ctx = { ...ctx, device: s.doc.targets[0] ?? null };
+    // a style picked on another face is dropped when this one has no entry of that name: the frame could never render it
+    if (s.doc && ctx.style && !s.doc.globals.styles.entries.some((e) => e.name === ctx.style)) ctx = { ...ctx, style: "" };
     const info = s.devices.find((d) => d.id === ctx.device);
     if (info) {
       const amoled = isAmoled(info);

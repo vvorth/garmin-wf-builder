@@ -413,12 +413,13 @@ export class Session {
 
   /** The Properties field for the key `name` at the top level of the selected element. */
   topField(name: string): Locator {
-    return this.page.locator(".inspector > .field").filter({ has: this.page.locator(":scope > .name").filter({ hasText: new RegExp(`^${name}\\*?$`) }) }).first();
+    // the name's own span (an object's or list's sits in its head); a badge beside it names where the watch reads the key
+    return this.page.locator(".inspector > .field").filter({ has: this.page.locator(":scope > .name > .key, :scope > .head > .name > .key").filter({ hasText: new RegExp(`^${name}$`) }) }).first();
   }
 
   /** The child field `child` of the object field `parent` (`at` → `dx`). */
   childField(parent: string, child: string): Locator {
-    return this.topField(parent).locator(".children > .field").filter({ has: this.page.locator(":scope > .name").filter({ hasText: new RegExp(`^${child}\\*?$`) }) }).first();
+    return this.topField(parent).locator(".children > .field").filter({ has: this.page.locator(":scope > .name > .key, :scope > .head > .name > .key").filter({ hasText: new RegExp(`^${child}$`) }) }).first();
   }
 
   /** Type `text` into a Commit input and press Enter, which blurs and commits it. */
@@ -647,6 +648,9 @@ export async function suite(url: string): Promise<Harness> {
           await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
           t.diagnostic(`screenshot: ${relative(REPO_ROOT, shot)}`);
           if (s.errors.length) t.diagnostic(`page errors: ${s.errors.join(" | ")}`);
+          // the editor's own messages (a refused edit, a frame that failed) say what the page saw
+          const messages = await Promise.race([s.messageLog().catch(() => []), new Promise<string[]>((r) => setTimeout(() => r([]), 8_000))]);
+          if (messages.length) t.diagnostic(`messages: ${messages.join(" | ")}`);
           throw e;
         } finally {
           // a page left mid-unload by a test could keep a plain close waiting; the browser closes it at the end anyway

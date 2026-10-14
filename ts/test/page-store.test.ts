@@ -233,6 +233,8 @@ test("a face's editor-only state is read when it opens and written beside the fa
 test("the editing context asks the inspector again when the frame changes, and Edit for decides a geometry edit's scope", async () => {
   const face = faceFixture();
   face.summary.targets = ["fenix8solar47mm"];
+  // a style the face declares follows into the ask; one it does not is dropped, since no frame could render it
+  face.summary.globals.styles = { default: "night", entries: [{ name: "night", index: 0, label: null, layout: null, scheme: null }] };
   const printed = await store(face, FRAME_OF + `
       const inspects = () => requests.filter(([op]) => op === "inspect").map(([, a]) => [a.element.at(-1), a.device, a.frame, a.style]);
       const s = new EditorStore(summary.id);
@@ -248,6 +250,11 @@ test("the editing context asks the inspector again when the frame changes, and E
       s.setContext({ style: "night" });
       await settle();
       out(inspects().at(-1));
+      s.setContext({ style: "digital_dark" });
+      await settle();
+      out([s.state.context.style, inspects().at(-1)]);
+      s.setContext({ style: "night" });
+      await settle();
       // the same tree is not asked for twice
       s.setContext({ target: "shape" });
       await settle();
@@ -271,7 +278,8 @@ test("the editing context asks the inspector again when the frame changes, and E
   assert.deepEqual(printed[1], [[["clock", "fenix8solar47mm", "awake", ""]], true]);
   assert.deepEqual(printed[2], [["clock", "fenix8solar47mm", "awake", ""], ["clock", "fenix8solar47mm", "aod", ""]]);
   assert.deepEqual(printed[3], ["clock", "fenix8solar47mm", "aod", "night"]);
-  assert.deepEqual(printed[4], [3, "shape"]);
-  assert.deepEqual(printed[5], [["shape"], [["sent", "shape"], ["queued", "auto"]]]);
-  assert.deepEqual(printed[6], [3, null]);
+  assert.deepEqual(printed[4], ["", ["clock", "fenix8solar47mm", "aod", ""]], "a style the face lacks was kept");
+  assert.deepEqual(printed[5], [5, "shape"]);
+  assert.deepEqual(printed[6], [["shape"], [["sent", "shape"], ["queued", "auto"]]]);
+  assert.deepEqual(printed[7], [5, null]);
 });
