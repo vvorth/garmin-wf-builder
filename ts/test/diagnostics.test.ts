@@ -137,6 +137,19 @@ test("spans point at the offending line; unknown keys and formats are errors", (
   assert.ok(yaml.some((d) => d.code === "yaml") && yaml[0]!.span !== null);
 });
 
+test("a schema error inside a group's child names the child's own mistake, as it does at the top level", () => {
+  // The child's element oneOf sits inside the group's branch; it used to be merged into "needs one of children or text or …".
+  const group = (child: string) => MINIMAL +
+    `  card:\n    type: group\n    at: {anchor: center}\n    size: {width: 50%, height: 30%}\n    children:\n      dot:\n        type: circle\n        at: {anchor: center}\n${child}`;
+  const key = errorsOf(group("        radius: 4px\n        colour: color.fg\n"));
+  assert.equal(key.length, 1, key.map((d) => d.message).join("\n"));
+  assert.ok(key[0]!.message.startsWith("elements.card.children.dot: unknown key") && key[0]!.message.includes("'colour'"), key[0]!.message);
+  const value = errorsOf(group("        radius: true\n        color: color.fg\n"));
+  assert.equal(value.length, 1, value.map((d) => d.message).join("\n"));
+  assert.equal(value[0]!.message, "elements.card.children.dot.radius: expected number, got boolean");
+  assert.equal(value[0]!.span!.line, MINIMAL.split("\n").length + 8);
+});
+
 test("duplicate ids, the source line rendered, one error for a missing required key", () => {
   const dup = MINIMAL + "\n  panel:\n    type: group\n    children:\n      background:\n        type: circle\n        radius: 10px\n        color: color.fg\n";
   assert.ok(errorsOf(dup).some((d) => d.code === "duplicate-id"));

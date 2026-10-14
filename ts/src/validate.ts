@@ -713,6 +713,9 @@ function* narrow(error: ValidationError): Generator<ValidationError> {
     const nested = errors.filter((e) => (e.validator === "oneOf" || e.validator === "anyOf") && e.context.length > 0);
     if (nested.length > 0 && required.length === 0) {
       for (const sub of nested) {
+        // a nested element oneOf (a group's child) is narrowed by its own `type`, as the top level is;
+        // only a choice no branch discriminates is read as "needs one of" its keys
+        if (discriminated(sub)) { yield* narrow(sub); continue; }
         const merged = mergeAlternatives(sub);
         if (merged.validator === "required-one-of") yield merged;
         else yield* narrow(sub);
@@ -761,6 +764,17 @@ function wrongKind(sub: ValidationError, depth: number): boolean {
 function isDiscriminator(sub: ValidationError): boolean {
   const path = sub.schemaPath;
   return sub.validator === "const" && path.length >= 2 && path[path.length - 2] === "type" && path[path.length - 1] === "const";
+}
+
+/** Did some branch fail on its `type` discriminator while another did not: the author named one of the kinds? */
+function discriminated(error: ValidationError): boolean {
+  const all = new Set<unknown>(), flagged = new Set<unknown>();
+  for (const sub of error.context) {
+    const branch = sub.schemaPath.length > 0 ? sub.schemaPath[0] : 0;
+    all.add(branch);
+    if (isDiscriminator(sub)) flagged.add(branch);
+  }
+  return flagged.size > 0 && flagged.size < all.size;
 }
 
 /** "must match one of [needs a, needs b]" as "needs a or b". */
