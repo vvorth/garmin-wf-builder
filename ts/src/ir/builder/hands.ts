@@ -3,7 +3,8 @@
 import type { Span } from "../../diagnostics.ts";
 import * as expr from "../../expr.ts";
 import * as formatting from "../../formatting.ts";
-import { quoted, str, truthy } from "../../py.ts";
+import { floorMod, quoted, str, truthy } from "../../py.ts";
+import { Angle, Length } from "../../units.ts";
 import {
   type AnyHandPart, ArcPart, CirclePart, type Curve, type Expression, Hand, HandSet, LinePart, type Outline,
   PolygonPart, Position, RectanglePart, TextPart,
@@ -61,6 +62,31 @@ export const PATTERN_PART_REJECTED_SHAPES: ReadonlyMap<string, string> = new Map
   ["ellipse", "no Dc call draws a rotated or translated ellipse -- approximate it with 'polygon'"],
   ["icon", "a bitmap font cannot rotate or translate through this loop"],
 ]);
+
+/**
+ * `point` reflected across the part's vertical axis (x -> -x): `dx` negated,
+ * or a polar angle negated. `null` for a point on the axis, which a mirrored
+ * outline shares rather than repeats.
+ */
+function reflectedAcrossAxis(point: Position): Position | null {
+  if (point.isPolar) {
+    const degrees = point.angle!.degrees;
+    if (floorMod(degrees, 180) === 0) return null;
+    return Position.create({ anchor: point.anchor, angle: new Angle(-degrees), radius: point.radius });
+  }
+  if (point.dx === null || point.dx.value === 0) return null;
+  return Position.create({ anchor: point.anchor, dx: new Length(-point.dx.value, point.dx.unit), dy: point.dy });
+}
+
+/** `mirror: x` resolved: the listed half, then its reflection in reverse order, so the outline closes on itself. */
+export function mirroredPoints(points: readonly Position[]): Position[] {
+  const reflected: Position[] = [];
+  for (const point of [...points].reverse()) {
+    const twin = reflectedAcrossAxis(point);
+    if (twin !== null) reflected.push(twin);
+  }
+  return [...points, ...reflected];
+}
 
 /** The `TextPart` fields `buildTextPart` decides. */
 type TextFields = Pick<TextPart, "text_value" | "text_literal" | "format" | "font" | "font_is_custom" | "curve" | "unsupported" | "outline">;
@@ -185,7 +211,17 @@ export class HandParts extends ConfigAxes {
       else if (partVisible.constant !== null && truthy(partVisible.constant)) partVisible = null;
     }
 
-    const points = list(node.get("points")).filter((raw) => raw instanceof Map).map((raw) => this.position(raw, node, "points"));
+    const listed = list(node.get("points")).filter((raw) => raw instanceof Map).map((raw) => this.position(raw, node, "points"));
+    // `mirror: x` is resolved here, once: layout, codegen and the preview see an ordinary polygon.
+    const mirrored = node.has("mirror");
+    if (mirrored && shape !== "polygon") {
+      this.bag.error("element", `${partWhere}: 'mirror:' applies to a polygon part only`, this.doc.span(node, "mirror") ?? span, {
+        notes: ["'mirror: x' lists one half of a polygon's outline and reflects it across the part's vertical axis",
+          `a ${noun} 'type: ${shape}' part is symmetric about its own centre already`],
+      });
+      ok = false;
+    }
+    const points = mirrored && shape === "polygon" ? mirroredPoints(listed) : listed;
     const at = node.has("at") ? this.position(node.get("at"), node, "at") : new Position();
     const size = this.size(node.get("size"));
     const to = node.has("to") ? this.position(node.get("to"), node, "to") : null;
@@ -196,7 +232,8 @@ export class HandParts extends ConfigAxes {
     const sweep = shape === "arc" ? this.angle(node, "sweep") : null;
 
     if (shape === "polygon" && points.length < 3) {
-      this.require(node, "points", `${partWhere}: a polygon part needs points`);
+      const counted = `${listed.length} listed` + (mirrored ? `, ${points.length} once mirrored` : "");
+      this.require(node, "points", `${partWhere}: a polygon part needs at least 3 points -- ${counted}`);
       ok = false;
     }
     if (shape === "rectangle" && (size.width === null || size.height === null)) {

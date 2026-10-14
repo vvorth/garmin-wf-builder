@@ -476,3 +476,54 @@ test("parts: a pattern's parts and a gauge's needle take the mapping form too, a
   assert.equal(needleError.length, 1, needleError.map((d) => d.message).join("\n"));
   assert.equal(needleError[0]!.message, "battery.needle.hub: 'to' is not used by a hand 'type: circle' part");
 });
+
+// -- mirror: x on a polygon part --
+
+const pointsOf = (hand: unknown): [number, number][] =>
+  (hand as { parts: { points: { dx: { value: number } | null; dy: { value: number } | null; angle: { degrees: number } | null; radius: { value: number } | null }[] }[] })
+    .parts[0]!.points.map((p) => (p.angle !== null ? [p.angle.degrees, p.radius!.value] : [p.dx?.value ?? 0, p.dy?.value ?? 0]));
+
+test("mirror: x lists one half of a polygon part: the other half is appended reflected, in reverse, a point on the axis shared", () => {
+  // A, B, C with C on the axis -> A, B, C, B', A'
+  const tip = face(HANDS("          blade: { type: polygon, mirror: x, points: [{ dx: -3%r, dy: 8%r }, { dx: -2%r, dy: -38%r }, { dy: -46%r }] }"));
+  assert.deepEqual(pointsOf(tip.hands.get("classic")!.hour), [[-3, 8], [-2, -38], [0, -46], [2, -38], [3, 8]]);
+  // the same hand written out in full resolves to the same IR
+  const full = face(HANDS("          blade: { type: polygon, points: [{ dx: -3%r, dy: 8%r }, { dx: -2%r, dy: -38%r }, { dy: -46%r }, { dx: 2%r, dy: -38%r }, { dx: 3%r, dy: 8%r }] }"));
+  assert.deepEqual(JSON.stringify(tip.hands.get("classic")!.hour, (k, v) => (k === "span" ? undefined : v)),
+    JSON.stringify(full.hands.get("classic")!.hour, (k, v) => (k === "span" ? undefined : v)));
+  // no point on the axis: every listed point comes back, A, B, B', A'
+  const shaft = face(HANDS("          blade: { type: polygon, mirror: x, points: [{ dx: -3%r, dy: 11%r }, { dx: -2.5%r, dy: -27%r }] }"));
+  assert.deepEqual(pointsOf(shaft.hands.get("classic")!.hour), [[-3, 11], [-2.5, -27], [2.5, -27], [3, 11]]);
+  // a point on the axis at either end is shared, and an explicit dx: 0 counts as on the axis
+  const diamond = face(HANDS("          blade: { type: polygon, mirror: x, points: [{ dx: 0%r, dy: 5%r }, { dx: -5%r, dy: -14%r }, { dy: -48%r }] }"));
+  assert.deepEqual(pointsOf(diamond.hands.get("classic")!.hour), [[0, 5], [-5, -14], [0, -48], [5, -14]]);
+  // a polar point reflects by negating its angle; one on the axis (0 or 180 degrees) is shared
+  const polar = face(HANDS("          blade: { type: polygon, mirror: x, points: [{ angle: 180deg, radius: 6%r }, { angle: -20deg, radius: 30%r }, { angle: 0deg, radius: 44%r }] }"));
+  assert.deepEqual(pointsOf(polar.hands.get("classic")!.hour), [[180, 6], [-20, 30], [0, 44], [20, 30]]);
+  // a pattern part and a needle part take it the same way
+  const ticks = face(TICKS("      tri: { type: polygon, mirror: x, points: [{ dx: -3%r, dy: -56%r }, { dy: -64%r }] }"));
+  assert.deepEqual(pointsOf(ticks.elements.find((e) => e.id === "ticks")), [[-3, -56], [0, -64], [3, -56]]);
+  const needle = face(NEEDLE("      blade: { type: polygon, mirror: x, points: [{ dx: -3%r, dy: 12%r }, { dy: -74%r }] }"));
+  assert.deepEqual(pointsOf({ parts: (needle.elements.find((e) => e.id === "battery") as unknown as { needle: unknown[] }).needle }), [[-3, 12], [0, -74], [3, 12]]);
+});
+
+test("mirror: x is refused on any part but a polygon, and a mirrored polygon still needs three points in all", () => {
+  for (const [design, label] of [
+    [HANDS("          hub: { type: circle, radius: 4%r, mirror: x }"), "hand_sets.classic.hour.parts.hub"],
+    [TICKS("      tick: { type: line, at: { dy: -90%r }, to: { dy: -80%r }, mirror: x }"), "ticks.parts.tick"],
+    [NEEDLE("      bar: { type: rectangle, size: { width: 2%r, height: 40%r }, mirror: x }"), "battery.needle.bar"],
+  ] as const) {
+    const refused = errorsOf(design);
+    assert.equal(refused.length, 1, refused.map((d) => d.message).join("\n"));
+    assert.equal(refused[0]!.message, `${label}: 'mirror:' applies to a polygon part only`);
+    assert.ok(refused[0]!.notes.some((n) => n.includes("one half")), refused[0]!.notes.join("\n"));
+  }
+  assert.ok(errorsOf(HANDS("          hub: { type: circle, radius: 4%r, mirror: y }"))[0]!.message.includes("not valid here"));
+  // two listed points, both on the axis, mirror to two
+  const thin = errorsOf(HANDS("          blade: { type: polygon, mirror: x, points: [{ dy: 8%r }, { dy: -46%r }] }"));
+  assert.equal(thin.length, 1, thin.map((d) => d.message).join("\n"));
+  assert.equal(thin[0]!.message, "hand_sets.classic.hour.parts.blade: a polygon part needs at least 3 points -- 2 listed, 2 once mirrored");
+  const two = errorsOf(HANDS("          blade: { type: polygon, points: [{ dx: -3%r, dy: 8%r }, { dy: -46%r }] }"));
+  assert.equal(two.length, 1, two.map((d) => d.message).join("\n"));
+  assert.equal(two[0]!.message, "hand_sets.classic.hour.parts.blade: a polygon part needs at least 3 points -- 2 listed");
+});

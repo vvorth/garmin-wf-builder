@@ -102,6 +102,17 @@ These cost real time to discover; do not rediscover them.
   has no symbol of its own, and `Layout.mc`'s constants are still numbered
   by position (`<PREFIX>_<n>_POINTS`), so renaming or re-keying parts
   changes no output. The goldens hold this.
+- **`mirror: x` is resolved in the builder, nowhere else.** `buildHandPart`
+  (`ir/builder/hands.ts`, `mirroredPoints`) appends the listed half's
+  reflection to `PolygonPart.points` while the part is built, so the IR
+  holds an ordinary polygon and layout, `Layout.mc`, the preview and the
+  editor's frame never see the key. That is the one place every polygon
+  part of a hand, a pattern and a needle passes through, and it is where
+  the author's `Length`/`Angle` values still exist to negate: reflecting
+  resolved pixels instead would round `-1.5px` and `1.5px` apart from the
+  written-out form. A face whose halves are written out and one using
+  `mirror:` generate the same bytes (the showcase's `vintage` set proves
+  it; `golden-monkeyc.test.ts` holds it).
 - **The builder reads format 2 as written.** The IR builder reads the
   author's own keys and kind names -- `build: {targets:}`, `absent:`,
   `align: top_left`, `type: gauge`, `icon: {for:}`, `color.<name>` -- so a

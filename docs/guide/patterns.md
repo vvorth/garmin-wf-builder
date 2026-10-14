@@ -162,7 +162,7 @@ second rule.
 
 | `type:` | keys | per copy |
 |---|---|---|
-| `polygon` | `points` (3–64) | each vertex transformed, `fillPolygon` |
+| `polygon` | `points` (3–64; 2–64 with `mirror: x`), `mirror` ([Symmetric hands](analog-hands.md#symmetric-hands-mirror-x)) | each vertex transformed, `fillPolygon` |
 | `rectangle` | `at` (its centre, default the origin), `size`, `align` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
 | `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | the centre transformed, `fillCircle`/`drawCircle` |

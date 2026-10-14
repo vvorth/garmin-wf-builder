@@ -155,8 +155,9 @@ where the fraction is `value / max` clamped to 0–1 — the same mapping an
 `parts:`](analog-hands.md#analog-hands) takes: a mapping of parts keyed by
 id (a plain list is accepted as shorthand), each a `polygon`, `rectangle`,
 `line` or `circle`, authored **as they look at 12 o'clock** with the axis at
-the origin, so the tip sits at a negative `dy`. A diagnostic names a part
-`<element>.needle.<id>`. A part with no `color:` takes
+the origin, so the tip sits at a negative `dy`; a symmetric blade lists one
+half with [`mirror: x`](analog-hands.md#symmetric-hands-mirror-x). A
+diagnostic names a part `<element>.needle.<id>`. A part with no `color:` takes
 the element's own, which may read data like any gauge colour; a part's
 own colour may not, as on a hand.
 

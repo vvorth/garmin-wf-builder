@@ -17,6 +17,7 @@ watch. Ticks and numerals around the dial are `pattern` elements, covered in
 | `hour:` / `minute:` / `second:` | inside a hand set | `{color?, parts}` | — | at least one required; always drawn hour, then minute, then second |
 | `parts` | a hand | 1–16 parts keyed by id, each a `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in document order — keys per type below; a plain list is accepted as shorthand |
 | `color` | a hand, or a part | `color.<name>`, a literal, a conditional (no data) | — | a part with neither its own nor its hand's colour is an error |
+| `mirror` | a `polygon` part | `x` | — | `points` lists one half; the other is its reflection — see [Symmetric hands](#symmetric-hands-mirror-x) |
 | `set` | `type: hands` element | a `hand_sets:` entry's name | required | which set this element places |
 | `at` | `type: hands` element | anchor / `dx`,`dy` / `angle`,`radius` | — | the axis every hand in the set turns about |
 | `seconds` | `type: hands` element | `awake`\|`never` | `awake` | whether the second hand draws — see below |
@@ -154,7 +155,7 @@ one `sin`/`cos` pair per hand and the `runtime-lib/WfbHands.mc` barrel.
 
 | `type:` | keys | on the watch | why it is allowed |
 |---|---|---|---|
-| `polygon` | `points` (3–64) | rotate each vertex, `fillPolygon` | vertices rotate exactly |
+| `polygon` | `points` (3–64; 2–64 with `mirror: x`), `mirror` | rotate each vertex, `fillPolygon` | vertices rotate exactly |
 | `rectangle` | `at` (its centre, default the axis), `size`, `align` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
 | `line` | `at` (start, default the axis), `to`, `thickness` (default 1px) | rotate both ends, `setPenWidth`, `drawLine` | end points rotate exactly |
 | `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
@@ -171,6 +172,44 @@ reasons as on those elements (see
 [Placement: `at:` and `align:`](placement.md#placement-at-and-align), which also covers
 `rectangle`/`circle`'s own alignment, resolved in the part's own frame
 before it turns with the hand).
+
+#### Symmetric hands: `mirror: x`
+
+Most hands are symmetric about their own length, and writing both halves
+of a blade means every tweak twice. `mirror: x` on a `polygon` part lists
+**one half** of the outline: the `points` are drawn in order, then
+reflected across the part's vertical axis (`dx` → `-dx`; a polar `angle` →
+`-angle`) and appended **in reverse order**, so the outline closes on
+itself. A point *on* the axis — no `dx`, `dx: 0`, or a polar angle of
+`0deg` or `180deg` — is shared between the two halves, not repeated:
+
+```yaml
+parts:
+  blade:
+    type: polygon
+    mirror: x
+    points:
+      - { dx: -3%r, dy: 8%r }      # a short tail: the left half starts here
+      - { dx: -2%r, dy: -38%r }
+      - { dy: -46%r }              # the tip, on the axis: shared
+```
+
+draws exactly the five-point blade `(-3, 8) (-2, -38) (0, -46) (2, -38)
+(3, 8)` — the listed three, then `(2, -38)` and `(3, 8)` on the way back.
+A tapered shaft needs only its two left corners (`{dx: -3%r, dy: 11%r}`,
+`{dx: -2.5%r, dy: -27%r}`), which is why the schema lets a mirrored polygon
+list two points; the part still needs three in all once mirrored, and
+says so otherwise. Either half may be the one listed — the reflection is
+the same shape — but listing the left half from the tail to the tip keeps
+the resolved vertex order identical to the written-out form, so a hand
+rewritten this way generates byte-for-byte the same `Layout.mc`
+([`examples/showcase`](../../examples/showcase/face.yaml)'s `vintage`
+set is written so). The mirror is resolved at build time into an ordinary
+polygon: nothing on the watch, in the preview or in the editor's handles
+knows it was written as a half. `mirror:` on any other part type is an
+error (`'mirror:' applies to a polygon part only`); the other primitives
+are symmetric about their own centre already. A pattern's and a needle's
+`polygon` parts take it the same way.
 
 **A part may also declare its own `min_1px:`**, overriding whatever it
 would otherwise inherit from its `type: hands` element — the one level

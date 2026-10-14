@@ -133,11 +133,10 @@ resources:
           blade_bg:
             type: polygon                     # tapered shaft, heavier than the minute's
             color: color.black
+            mirror: x                         # the left half; the right is its reflection
             points:
               - { dx: -3%r, dy: 11%r }         # a short tail past the axis
               - { dx: -2.5%r, dy: -27%r }
-              - { dx: 2.5%r, dy: -27%r }
-              - { dx: 3%r, dy: 11%r }
           ring_bg:
             type: circle                       # the open "moon" ring -- bigger, chunkier
             color: color.black
@@ -148,18 +147,17 @@ resources:
           point_bg:
             type: polygon                      # the point beyond the ring
             color: color.black
+            mirror: x
             points:
               - { dx: -2.5%r, dy: -35%r }
-              - { dy: -42%r }
-              - { dx: 2.5%r, dy: -35%r }
+              - { dy: -42%r }                  # on the axis: shared, not repeated
         # fg
           blade:
             type: polygon                     # tapered shaft, heavier than the minute's
+            mirror: x
             points:
               - { dx: -2%r, dy: 10%r }         # a short tail past the axis
               - { dx: -1.5%r, dy: -26%r }
-              - { dx: 1.5%r, dy: -26%r }
-              - { dx: 2%r, dy: 10%r }
           ring:
             type: circle                       # the open "moon" ring -- bigger, chunkier
             at: { dy: -32%r }
@@ -168,10 +166,10 @@ resources:
             thickness: 2px
           point:
             type: polygon                      # the point beyond the ring
+            mirror: x
             points:
               - { dx: -1.5%r, dy: -34%r }
               - { dy: -40%r }
-              - { dx: 1.5%r, dy: -34%r }
       minute:
         color: color.fg
         parts:
@@ -183,11 +181,10 @@ resources:
           blade_bg:
             type: polygon
             color: color.black
+            mirror: x
             points:
               - { dx: -2.2%r, dy: 13%r }        # a longer tail than the hour's --
               - { dx: -2%r, dy: -45%r }         # the counterweight below reads as its mass
-              - { dx: 2%r, dy: -45%r }
-              - { dx: 2.2%r, dy: 13%r }
           counterweight_bg:
             type: circle                       # a small counterweight, past the axis
             color: color.black
@@ -203,21 +200,20 @@ resources:
           point_bg:
             type: polygon                      # the point beyond the ring
             color: color.black
+            mirror: x
             points:
               - { dx: -2%r, dy: -55%r }
               - { dy: -66%r }
-              - { dx: 2%r, dy: -55%r }
         # fg
           hub:
             type: circle                       # the hub: covers the hour/minute joint
             radius: 3%r                        # `at:` defaults to the axis
           blade:
             type: polygon
+            mirror: x
             points:
               - { dx: -1.2%r, dy: 12%r }        # a longer tail than the hour's --
               - { dx: -1%r, dy: -44%r }         # the counterweight below reads as its mass
-              - { dx: 1%r, dy: -44%r }
-              - { dx: 1.2%r, dy: 12%r }
           counterweight:
             type: circle                       # a small counterweight, past the axis
             at: { dy: 12%r }
@@ -230,10 +226,10 @@ resources:
             thickness: 2px
           point:
             type: polygon                      # the point beyond the ring
+            mirror: x
             points:
               - { dx: -1%r, dy: -54%r }
               - { dy: -64%r }
-              - { dx: 1%r, dy: -54%r }
       second:
         # A thin needle with a counterweight tail, same convention as
         # `classic`'s own second hand (R2.4): color.accent at the tip,

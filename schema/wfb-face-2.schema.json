@@ -2921,7 +2921,7 @@
       ]
     },
     "handPart": {
-      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'. 'filled: false' is rejected on polygon and rectangle.",
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'. 'filled: false' is rejected on polygon and rectangle.",
       "type": "object",
       "required": [
         "type"
@@ -2942,13 +2942,19 @@
           ]
         },
         "points": {
-          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the axis.",
+          "description": "A polygon part's vertices, 3 to 64 (2 to 64 with 'mirror: x', which supplies the rest), each a handPosition measured from the axis.",
           "type": "array",
-          "minItems": 3,
+          "minItems": 2,
           "maxItems": 64,
           "items": {
             "$ref": "#/$defs/handPosition"
           }
+        },
+        "mirror": {
+          "description": "'type: polygon' only. 'x' lists one half of a symmetric outline: the 'points' are drawn in order, then reflected across the part's vertical axis (dx -> -dx; a polar angle -> -angle) and appended in reverse order, so the outline closes. A point on the axis (no dx, dx: 0, or a polar angle of 0 or 180 degrees) is shared, not repeated. The part still needs three points in all.",
+          "enum": [
+            "x"
+          ]
         },
         "at": {
           "$ref": "#/$defs/handPosition"
@@ -2984,7 +2990,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses: origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks. 'anchor:' is rejected. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points'; rectangle 'at', 'size', 'align'; line 'at', 'to', 'thickness'; circle 'at', 'radius', 'filled', 'thickness' (only when 'filled: false'), 'align'; arc 'radius', 'thickness', 'start_angle', 'sweep' (always centred on the copy's own origin); text 'at', 'text', 'font', 'align', 'curve', 'unsupported' and 'outline'.",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses: origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks. 'anchor:' is rejected. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle 'at', 'size', 'align'; line 'at', 'to', 'thickness'; circle 'at', 'radius', 'filled', 'thickness' (only when 'filled: false'), 'align'; arc 'radius', 'thickness', 'start_angle', 'sweep' (always centred on the copy's own origin); text 'at', 'text', 'font', 'align', 'curve', 'unsupported' and 'outline'.",
       "type": "object",
       "required": [
         "type"
@@ -3005,13 +3011,19 @@
           ]
         },
         "points": {
-          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the origin.",
+          "description": "A polygon part's vertices, 3 to 64 (2 to 64 with 'mirror: x', which supplies the rest), each a handPosition measured from the origin.",
           "type": "array",
-          "minItems": 3,
+          "minItems": 2,
           "maxItems": 64,
           "items": {
             "$ref": "#/$defs/handPosition"
           }
+        },
+        "mirror": {
+          "description": "'type: polygon' only. 'x' lists one half of a symmetric outline: the 'points' are drawn in order, then reflected across the part's vertical axis (dx -> -dx; a polar angle -> -angle) and appended in reverse order, so the outline closes. A point on the axis (no dx, dx: 0, or a polar angle of 0 or 180 degrees) is shared, not repeated. The part still needs three points in all.",
+          "enum": [
+            "x"
+          ]
         },
         "at": {
           "$ref": "#/$defs/handPosition"
