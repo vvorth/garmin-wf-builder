@@ -349,7 +349,7 @@ test("a unit change converts an angle, asks for a length, and offers pt only whe
 
 test("the scope buttons offer the display class as a fourth override, and a key overridden there says so", async () => {
   const text = instantiate("minimal", "T").replace("targets: [fenix8solar47mm]", "targets: [fenix847mm, fr955]").replace("    at: { anchor: center }\n    color: color.text\n",
-    '    at: { anchor: center }\n    color: color.text\n    overrides: { "display:amoled": { at: { dy: 2px } } }\n');
+    '    at: { anchor: center }\n    color: color.text\n    overrides: { "display:amoled": { at: { anchor: center, dy: 2px } } }\n');
   const doc = summary(text);
   installAssets();
   const inspected: Record<string, unknown> = {};
@@ -402,7 +402,8 @@ test("the scope buttons offer the display class as a fourth override, and a key 
     ["AMOLED screens", "an override for every AMOLED watch"],
   ]);
   assert.deepEqual(picked, ["display"]);
-  assert.deepEqual(amoledNotes, ["overridden on this display class"]);
+  // the override's at: is read whole, so both its anchor and its dy are overridden on an AMOLED watch
+  assert.deepEqual(amoledNotes, ["overridden on this display class", "overridden on this display class"]);
   assert.deepEqual(mipButtons, ["all targets", "fr955", "round screens", "MIP screens"]);
   assert.deepEqual(mipNotes, []);
 });

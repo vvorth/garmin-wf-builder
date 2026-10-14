@@ -148,7 +148,7 @@ test("a group and its child move", () => {
 });
 
 const withFr955Override = (text: string): string =>
-  setValue(new SpanIndex(text), ["elements", "card", "overrides", "fr955", "at", "dy"], "-17%").text;
+  setValue(new SpanIndex(text), ["elements", "card", "overrides", "fr955", "at"], new Map<string, Data>([["anchor", "center"], ["dy", "-17%"]])).text;
 
 test("the target is the most specific source", () => {
   const index = new SpanIndex(withFr955Override(read(SHAPES)));
@@ -156,14 +156,16 @@ test("the target is the most specific source", () => {
   const fr955 = db.get("fr955"), fenix = db.get("fenix8solar47mm");
   assert.deepEqual(target(index, card, ["at", "dy"], fr955), [...card, "overrides", "fr955", "at", "dy"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fenix), [...card, "at", "dy"]);
-  assert.deepEqual(target(index, card, ["at", "dx"], fr955), [...card, "at", "dx"]);
+  // the override's at: is read whole on fr955, so a key it does not write yet is still written there
+  assert.deepEqual(target(index, card, ["at", "dx"], fr955), [...card, "overrides", "fr955", "at", "dx"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fr955, "all"), [...card, "at", "dy"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fenix, "shape"), [...card, "overrides", "shape:round", "at", "dy"]);
   assert.deepEqual(target(index, card, ["at", "dy"], fenix, "display"), [...card, "overrides", "display:mip", "at", "dy"]);
 });
 
 test("a display override is a target: named by its scope, and found by auto when it is the only one", () => {
-  const text = setValue(new SpanIndex(read(SHAPES)), ["elements", "card", "overrides", "display:amoled", "at", "dy"], "-17%").text;
+  const text = setValue(new SpanIndex(read(SHAPES)), ["elements", "card", "overrides", "display:amoled", "at"],
+    new Map<string, Data>([["anchor", "center"], ["dy", "-17%"]])).text;
   const index = new SpanIndex(text);
   const card = ["elements", "card"];
   const amoled = db.get("fenix847mm"), mip = db.get("fr955");
@@ -171,7 +173,8 @@ test("a display override is a target: named by its scope, and found by auto when
   assert.deepEqual(target(index, card, ["at", "dy"], mip), [...card, "at", "dy"]);
   assert.deepEqual(target(index, card, ["at", "dy"], mip, "display"), [...card, "overrides", "display:mip", "at", "dy"]);
   // the device and shape selectors still come first
-  const shaped = setValue(new SpanIndex(text), ["elements", "card", "overrides", "shape:round", "at", "dy"], "-18%").text;
+  const shaped = setValue(new SpanIndex(text), ["elements", "card", "overrides", "shape:round", "at"],
+    new Map<string, Data>([["anchor", "center"], ["dy", "-18%"]])).text;
   assert.deepEqual(target(new SpanIndex(shaped), card, ["at", "dy"], amoled), [...card, "overrides", "shape:round", "at", "dy"]);
 });
 
@@ -186,13 +189,35 @@ test("a drag moves exactly the devices that read the patched key", () => {
   }
 });
 
-test("a this-device drag creates the override", () => {
+test("a this-device drag creates the override with the whole at:, as the device read it", () => {
   const text = read(SHAPES);
   const converted = move(view(SHAPES, text, "fenix8solar51mm"), "card", 0, 6, "device");
   assert.ok(converted.landed);
   const card = at(converted.patch.expected, ["elements", "card"]) as Map<string, Data>;
   assert.deepEqual([...(card.get("at") as Map<string, Data>)], [["anchor", "center"], ["dy", "-22%"]]);
-  assert.deepEqual([...(card.get("overrides") as Map<string, Data>).keys()], ["fenix8solar51mm"]);
+  const overrides = card.get("overrides") as Map<string, Map<string, Data>>;
+  assert.deepEqual([...overrides.keys()], ["fenix8solar51mm"]);
+  const written = overrides.get("fenix8solar51mm")!.get("at") as Map<string, Data>;
+  assert.equal(written.get("anchor"), "center", "the anchor is repeated: an override's at: replaces the element's whole");
+  assert.ok(written.has("dy") && written.get("dy") !== "-22%");
   const moved = TARGETS.filter((d) => JSON.stringify(cardCenter(converted.patch.text, d)) !== JSON.stringify(cardCenter(text, d)));
   assert.deepEqual(moved, ["fenix8solar51mm"]);
+  // a wider scope copies the at: the device reads today -- here its own device override, not the element's key
+  const retargeted = setValue(new SpanIndex(converted.patch.text), ["elements", "card", "overrides", "fenix8solar51mm", "at"],
+    new Map<string, Data>([["anchor", "top"], ["dy", "40%"]])).text;
+  const again = move(view(SHAPES, retargeted, "fenix8solar51mm"), "card", 0, 6, "shape");
+  const shape = (at(again.patch.expected, ["elements", "card", "overrides"]) as Map<string, Map<string, Data>>).get("shape:round")!.get("at") as Map<string, Data>;
+  assert.equal(shape.get("anchor"), "top");
+  assert.ok(shape.has("dy") && shape.get("dy") !== "40%" && shape.get("dy") !== "-22%");
+  // and a drag that moves nothing writes nothing, not even the empty override
+  assert.equal(move(view(SHAPES, text, "fr955"), "card", 0, 0, "device").patch.text, text);
+});
+
+test("a this-device resize creates the override with the whole size:", () => {
+  const text = read(SHAPES);
+  const converted = resize(view(SHAPES, text, "fr955"), "card", ["size", "width"], 4, "device");
+  assert.ok(converted.landed);
+  const size = at(converted.patch.expected, ["elements", "card", "overrides", "fr955", "size"]) as Map<string, Data>;
+  assert.deepEqual([...size.keys()], ["width", "height"]);
+  assert.equal(size.get("height"), (at(converted.patch.expected, ["elements", "card", "size"]) as Map<string, Data>).get("height"));
 });

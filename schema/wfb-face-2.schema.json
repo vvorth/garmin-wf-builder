@@ -556,7 +556,7 @@
       "type": "boolean"
     },
     "overrides": {
-      "description": "Per-device and per-screen changes (docs/guide/placement.md, 'Per-device and per-shape overrides'): each key is a device id ('wfb devices'), 'shape:round', 'shape:rectangle', 'shape:semi-octagon' or 'shape:semi-round', or 'display:amoled', 'display:mip' or 'display:lcd'; each value patches this element's own at:/size:/radius:/align: (a mapping merged key by key), color:/track_color:, or visible:. A device id's patch goes over its shape's, and a shape's over its display's. An override changes only keys the element has, and never 'align:' on text, icon or data. 'visible: false' hides the element (a group: its subtree) on those watches; 'visible: true' undoes a broader selector's false, and the element's own 'visible:' still applies.",
+      "description": "Per-device and per-screen changes (docs/guide/placement.md, 'Per-device and per-shape overrides'): each key is a device id ('wfb devices'), 'shape:round', 'shape:rectangle', 'shape:semi-octagon' or 'shape:semi-round', or 'display:amoled', 'display:mip' or 'display:lcd'; each value replaces, whole, this element's own at:, size:, radius:, align:, color: or track_color:, or sets visible:. Nothing is merged key by key: an 'at:' override repeats the whole 'at:', anchor included. A device id's patch goes over its shape's, and a shape's over its display's, key by key. The same keys are allowed on every kind; one the element does not write is an error, and 'align:' on text, icon or data is the draw call's justification, shared by every target. 'visible: false' hides the element (a group: its subtree) on those watches; 'visible: true' undoes a broader selector's false, and the element's own 'visible:' still applies.",
       "type": "object",
       "propertyNames": {
         "pattern": "^(shape:(round|rectangle|semi-octagon|semi-round)|display:(amoled|mip|lcd)|[a-z0-9_]+)$"
@@ -567,10 +567,21 @@
         "minProperties": 1,
         "properties": {
           "at": {
-            "$ref": "#/$defs/position"
+            "allOf": [
+              {
+                "$ref": "#/$defs/position"
+              },
+              {
+                "required": [
+                  "anchor"
+                ],
+                "description": "An override's 'at:' replaces the element's whole, so it names its 'anchor:' and every dx/dy or angle/radius it keeps: nothing is merged in from the element's own 'at:'."
+              }
+            ]
           },
           "size": {
-            "$ref": "#/$defs/size"
+            "$ref": "#/$defs/size",
+            "description": "Replaces the element's 'size:' whole: both width and height."
           },
           "radius": {
             "$ref": "#/$defs/length"

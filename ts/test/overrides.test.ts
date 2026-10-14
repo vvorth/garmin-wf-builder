@@ -79,6 +79,18 @@ test("a colour override needs a colour the element writes, on a kind that draws 
   assert.deepEqual(errors(onGroup).map((d) => d.message), ["extras.overrides.fr955: a group takes no 'color:' override"]);
 });
 
+test("an override replaces the key whole: an at: names its anchor, and nothing is merged from the element's own", () => {
+  const partial = DESIGN.replace("fr955: {color: color.red}", "fr955: {color: color.red, at: {dy: 2px}}");
+  assert.deepEqual(errors(partial).map((d) => d.message), ["elements.clock.overrides.fr955.at: missing required key 'anchor'"]);
+  assert.ok(errors(partial)[0]!.notes.some((n) => n.includes("whole")), "the note says why");
+  const whole = DESIGN.replace("      dot:\n        type: circle\n",
+    "      dot:\n        type: circle\n        overrides:\n          fr955: {at: {anchor: center}}\n");
+  const center = (device: string): number[] => resolved(whole, device).items.find((p) => p.id === "dot")!.center;
+  const fr955 = db.get("fr955");
+  assert.deepEqual(center("fr955"), [fr955.width / 2, fr955.height / 2], "the element's own dy: 30% is not merged in");
+  assert.notDeepEqual(center("fenix847mm"), [db.get("fenix847mm").width / 2, db.get("fenix847mm").height / 2]);
+});
+
 test("a display: selector no target matches is the override-unreachable warning", () => {
   const lcd = DESIGN.replace("fr955: {color: color.red}", "\"display:lcd\": {color: color.red}");
   const bag = new Bag();

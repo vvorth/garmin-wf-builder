@@ -324,7 +324,7 @@ date:
   absent: hide
   overrides:
     "display:amoled": { color: color.accent }    # every AMOLED target
-    "shape:rectangle": { at: { dy: 22% } }       # every rectangular target
+    "shape:rectangle": { at: { anchor: center, dy: 22% } }   # every rectangular target
     fr955: { at: { anchor: bottom, dy: -18% } }  # this one watch
 ```
 
@@ -337,26 +337,27 @@ date:
   `override-unreachable` warning, which `lint: {allow: [...]}` on the
   element can accept (a design whose rectangle overrides are for a later
   target, for example).
-- **The keys** are geometry (`at:`, `size:`, `radius:`, `align:`), colour
-  (`color:`, `track_color:`) and `visible:`. An override changes a key the
-  element already has: `size:`, `radius:`, `color:` and `track_color:` only
-  where the element writes them, `at:` and `align:` wherever the element
-  takes them. `color:` is a shape's, a text's, an icon's, a data element's,
-  a gauge's or a graph's own; a `pattern`'s and a `hands` set's colours are
-  their parts', which no override reaches. Fonts, data and anything else
-  stay the same on every watch.
+- **The keys** are the same on every kind: geometry (`at:`, `size:`,
+  `radius:`, `align:`), colour (`color:`, `track_color:`) and `visible:`.
+  An override changes a key the element already has: `size:`, `radius:`,
+  `color:` and `track_color:` only where the element writes them, `at:` and
+  `align:` wherever the element takes them; a key the kind does not have is
+  an error naming it (a `pattern`'s and a `hands` set's colours are their
+  parts', which no override reaches). Fonts, data and anything else stay
+  the same on every watch.
 - **`visible: false`** hides the element on those watches, and a group's
   whole subtree with it; it draws nothing there and a hold cannot reach it.
   `visible: true` undoes a broader selector's `false` (a `display:amoled`
   hide, then one AMOLED watch that keeps it). It is a plain `true` or
   `false`: the element's own `visible:` condition still applies on every
   watch.
-- **It merges.** A mapping merges key by key into the element's own
-  (`at: { dy: 22% }` above keeps `anchor: center`), and anything else
-  replaces it. `align:` replaces the element's alignment whole. For a
-  device that matches several, the device id's patch goes over the shape's,
-  the shape's over the screen type's, and all of them over the element's
-  own keys.
+- **It replaces, whole.** An override's value is the element's value on
+  those watches, nothing merged in: an `at:` override repeats the whole
+  `at:`, `anchor:` included (`at: { anchor: center, dy: 22% }` above; one
+  with no `anchor:` is a schema error), and a `size:` override names both
+  width and height. For a device that matches several, the device id's
+  patch goes over the shape's, the shape's over the screen type's, and all
+  of them over the element's own keys, key by key.
 - **`align:` cannot be overridden on `text`, `icon` or `data`.** Their
   alignment is the draw call's justification, which is shared by every
   target. Move them with `at:`.

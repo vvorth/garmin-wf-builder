@@ -17,7 +17,7 @@ import type { Builder } from "./index.ts";
 import { lintSuppression, mapping, type Node } from "./state.ts";
 import { StaticPass } from "./static.ts";
 
-/** The geometry keys an `overrides:` patch may carry. */
+/** The geometry keys an `overrides:` patch may carry; each replaces the element's own whole. */
 const OVERRIDE_FIELDS = ["at", "size", "radius", "align"];
 
 /** The colour keys an `overrides:` patch may carry, where the element writes them. */
@@ -28,16 +28,6 @@ const COLOR_KINDS = new Set(["shape", "text", "gauge", "icon", "data", "graph"])
 
 /** Kinds whose `align:` is a `TEXT_JUSTIFY_*` flag in the shared view, so no override may change it. */
 const GLYPH_KINDS = new Set(["text", "icon", "data"]);
-
-/** `patch` deep-merged over `base`: mappings key by key, anything else replaced. */
-function merged(base: Node, patch: Node): Node {
-  const out: Node = new Map(base);
-  for (const [key, value] of patch) {
-    const existing = out.get(key);
-    out.set(key, value instanceof Map && existing instanceof Map ? merged(existing, value) : value);
-  }
-  return out;
-}
 
 /** The `type:` the author wrote for `element`. */
 function kindName(element: Element): string {
@@ -124,7 +114,7 @@ export class ElementTree extends StaticPass {
 
   // -- overrides --------------------------------------------------------------
 
-  /** `overrides:`: each selector's patch checked, then merged and parsed once per `[display, shape, device]` combination. */
+  /** `overrides:`: each selector's patch checked, then applied and parsed once per `[display, shape, device]` combination. */
   private buildOverrides(node: Node, element: Element): boolean {
     const raw = node.get("overrides") as Node;
     const displays = new Map<string, Node>(), shapes = new Map<string, Node>(), devices = new Map<string, Node>();
@@ -252,26 +242,25 @@ export class ElementTree extends StaticPass {
           this.length(patch, "radius");
         }
       } else if (key === "at") {
+        // The override's `at:` is the element's whole `at:` on those watches: checked as one position.
         const at = patch.get("at");
-        const base = mapping(node.get("at"));
-        const mergedAnchor = at instanceof Map ? (at.has("anchor") ? at.get("anchor") : base.get("anchor")) : null;
-        if ((mergedAnchor === "subscreen") !== (base.get("anchor") === "subscreen")) {
-          this.bag.error("overrides", `${label}: an override cannot move an element into or out of the subscreen window`, span);
-        } else if (at instanceof Map) {
-          this.position(merged(base, at), patch, "at", { allowSubscreen: mergedAnchor === "subscreen" });
+        if (at instanceof Map) {
+          const inSubscreen = at.get("anchor") === "subscreen";
+          if (inSubscreen !== (mapping(node.get("at")).get("anchor") === "subscreen")) {
+            this.bag.error("overrides", `${label}: an override cannot move an element into or out of the subscreen window`, span);
+          } else {
+            this.position(at, patch, "at", { allowSubscreen: inSubscreen });
+          }
         }
       }
     }
     return this.bag.errors.length === errorsBefore;
   }
 
-  /** The element's geometry fields with `patches` merged over its own keys in order. */
+  /** The element's geometry fields, each replaced whole by the last of `patches` that writes it. */
   private overrideFields(node: Node, element: Element, patches: Node[]): Map<string, unknown> {
-    let own: Node = new Map(OVERRIDE_FIELDS.filter((key) => node.has(key)).map((key) => [key, node.get(key)!]));
-    for (const patch of patches) {
-      if (patch.has("align")) own.delete("align");
-      own = merged(own, patch);
-    }
+    const own: Node = new Map(OVERRIDE_FIELDS.filter((key) => node.has(key)).map((key) => [key, node.get(key)!]));
+    for (const patch of patches) for (const key of OVERRIDE_FIELDS) if (patch.has(key)) own.set(key, patch.get(key)!);
     const touched = new Set(patches.flatMap((patch) => [...patch.keys()]));
     const fields = new Map<string, unknown>();
     if (touched.has("at")) fields.set("at", this.position(own.get("at"), own, "at", { allowSubscreen: element.inSubscreen }));

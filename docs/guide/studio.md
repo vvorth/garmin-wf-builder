@@ -292,8 +292,11 @@ overrides](placement.md#per-device-and-per-shape-overrides)):
   class's).
 - the watch's, the shape's or the display class's button writes that
   override (`fr955:`, `shape:round`, `display:amoled`), creating it when
-  needed, in the unit of the value it replaces. A selector with a colon in
-  it is written as a quoted key.
+  needed, in the unit of the value it replaces. An override replaces the
+  element's key whole, so a new override's `at:` or `size:` starts as a
+  copy of the one the watch in view reads (the element's own, or a wider
+  override's), with the dragged key changed in it. A selector with a colon
+  in it is written as a quoted key.
 
 A key overridden on the watch in view says so under its value, naming the
 selector it reads (the device, the shape or the display class).

@@ -15,7 +15,7 @@ import { Bag, type Diagnostic } from "../diagnostics.ts";
 import { inLayout } from "../draw/frames.ts";
 import { layers } from "../draw/layers.ts";
 import * as colors from "../edit/colors.ts";
-import { type Baker, move, resize, type Scope, SCOPES, selectorFor, target, turn, View } from "../edit/geometry.ts";
+import { type Baker, move, resize, type Scope, SCOPES, seeded, selectorFor, target, turn, View } from "../edit/geometry.ts";
 import { freshError, Gate, type Loaded, loadText, refusal } from "../edit/gate.ts";
 import * as hands from "../edit/hands.ts";
 import {
@@ -172,8 +172,9 @@ function refuseUsed(index: SpanIndex, p: Path): void {
 /** Every edit `Document.edit` takes, each from its op's fields: one patch, labelled as the history lists it. */
 const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch> = {
   set: (doc, index, op) => {
-    const p = doc.editPath(index, op);
-    return withWhat(setValue(index, p, toData(op["value"])), `set ${dotted(p)} to ${shownValue(op["value"])}`);
+    const base = doc.seededFor(index, op);
+    const p = doc.editPath(base, op);
+    return withWhat(setValue(base, p, toData(op["value"])), `set ${dotted(p)} to ${shownValue(op["value"])}`);
   },
   remove: (doc, index, op) => {
     const p = doc.editPath(index, op);
@@ -598,6 +599,20 @@ export class Document {
     if (typeof kind === "string" && Object.hasOwn(EDITS, kind)) return [this.editPatch(index, step), select];
     if (typeof kind === "string" && STRUCTURE.has(kind)) return this.structurePatch(index, step);
     throw new Refused(`unknown edit ${typeof kind === "string" ? `'${kind}'` : jsonDumps(kind ?? null)}`);
+  }
+
+  /**
+   * `index`, with the override a scoped geometry edit writes into holding
+   * the whole `at:`/`size:` first (`geometry.seeded`): an override replaces
+   * the key whole, so setting one leaf must not leave a partial key.
+   */
+  seededFor(index: SpanIndex, op: Json): SpanIndex {
+    const p = path(op["path"]);
+    const scope = op["scope"];
+    if (op["element"] === undefined || op["element"] === null || p.length < 2) return index;
+    if (scope !== "device" && scope !== "shape" && scope !== "display") return index;
+    if (!GEOMETRY.has(String(p[0]))) return index;
+    return seeded(index, path(op["element"]), String(p[0]), this.studio.db.get(String(op["device"])), scope);
   }
 
   /**

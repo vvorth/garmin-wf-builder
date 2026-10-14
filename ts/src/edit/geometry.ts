@@ -4,7 +4,9 @@
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,
 // then the `display:` one, then the element's own key), unless the caller
-// names the scope. Every
+// names the scope. An override replaces the element's key whole, so a
+// scope that has no `at:`/`size:` yet first gets a copy of the one the
+// device reads, and the drag then changes one leaf of that copy. Every
 // unit is linear in pixels, so a pixel delta is a division; the value is
 // rounded to the coarsest step that still lands on the dragged pixel, which
 // is checked by placing the patched text through the real layout.
@@ -16,7 +18,7 @@ import { type Placed, type ResolvedFace, ResolveError, Resolver, resolve } from 
 import { degrees, formatFixed, formatG, hypot, radians, roundHalfEven } from "../py.ts";
 import { type Axis, Box, Length, UnitError } from "../units.ts";
 import { type Loaded, loadText } from "./gate.ts";
-import { number, type Patch, patch as makePatch, setScalars, setValue } from "./patch.ts";
+import { child, number, type Patch, patch as makePatch, setScalars, setValue } from "./patch.ts";
 import { dotted, indexFor, isElement, type Path, Refused, type SpanIndex } from "./spans.ts";
 import type { Data } from "./yaml.ts";
 
@@ -78,11 +80,40 @@ export function target(index: SpanIndex, element: Path, key: Path, device: Devic
   if (scope === "shape") return [...element, ...byShape, ...key];
   if (scope === "display") return [...element, ...byDisplay, ...key];
   if (scope === "auto") {
+    // An override's key is read whole, so a leaf goes under it even when the override does not hold that leaf yet.
     for (const selector of [byDevice, byShape, byDisplay]) {
-      if (index.get([...element, ...selector, ...key]) !== undefined) return [...element, ...selector, ...key];
+      if (index.get([...element, ...selector, key[0]!]) !== undefined) return [...element, ...selector, ...key];
     }
   }
   return [...element, ...key];
+}
+
+/** `value`'s mappings and lists copied, so a seeded override shares no node with its source. */
+function cloned(value: Data): Data {
+  if (value instanceof Map) return new Map([...value].map(([k, v]) => [k, cloned(v)]));
+  if (Array.isArray(value)) return value.map(cloned);
+  return value;
+}
+
+/**
+ * `index` with the override that `scope` names on `device` holding the
+ * whole of `element`'s `head` key (`at` or `size`): a copy of the one the
+ * device reads today, or `{anchor: center}` for an `at:` the element never
+ * wrote. An override replaces the key whole, so a leaf written under it
+ * next must not leave a partial key behind. Unchanged for `auto` and `all`,
+ * and when the override already holds the key.
+ */
+export function seeded(index: SpanIndex, element: Path, head: string, device: Device, scope: Scope): SpanIndex {
+  if (scope === "auto" || scope === "all") return index;
+  const place = [...element, "overrides", selectorFor(device, scope), head];
+  if (index.get(place) !== undefined) return index;
+  const source = index.get(target(index, element, [head], device));
+  let value: Data;
+  if (source !== undefined) value = cloned(dataAt(index, source.path));
+  else if (head === "at") value = new Map<string, Data>([["anchor", "center"]]);
+  else return index;
+  if (!(value instanceof Map)) return index;
+  return indexFor(setValue(index, place, value).text);
 }
 
 // -- units -----------------------------------------------------------------------
@@ -279,12 +310,13 @@ function apply(index: SpanIndex, keys: Key[], level: number): Patch {
   return makePatch(result!.text, result!.expected, `set ${whats}`);
 }
 
-function settle(view: View, keys: Key[], elementId: string, landed: (p: Placed) => boolean, rebake = false): Converted {
+function settle(view: View, index: SpanIndex, keys: Key[], elementId: string, landed: (p: Placed) => boolean, rebake = false): Converted {
+  // nothing to change writes nothing: not even the override a seeded `index` holds
   if (keys.length === 0) return { patch: makePatch(view.index.text, view.index.data, "nothing to change"), landed: true };
   const levels = Math.max(...keys.map((k) => k.values.length));
   let result: Patch | null = null;
   for (let level = 0; level < levels; level++) {
-    result = apply(view.index, keys, level);
+    result = apply(index, keys, level);
     const placed = view.tryPatch(result, elementId, rebake);
     if (placed !== null && landed(placed)) return { patch: result, landed: true };
   }
@@ -293,16 +325,15 @@ function settle(view: View, keys: Key[], elementId: string, landed: (p: Placed) 
 
 function dataAt(index: SpanIndex, path: Path): Data {
   let data: Data = index.data;
-  for (const step of path) data = data instanceof Map ? data.get(step)! : (data as Data[])[step as number]!;
+  for (const step of path) data = child(data, step);
   return data;
 }
 
-/** The keys a move of `position` (`at:` or a line's `to:`) by `(dx, dy)` px writes. */
-function positionKeys(view: View, elementId: string, element: Path, prefix: string, position: Position,
+/** The keys a move of `position` (`at:` or a line's `to:`) by `(dx, dy)` px writes, on `index` (the view's text, seeded). */
+function positionKeys(view: View, index: SpanIndex, elementId: string, element: Path, prefix: string, position: Position,
   dx: number, dy: number, scope: Scope): Key[] {
   const parent = view.parentBox(elementId);
   const minor = view.device.minorRadius;
-  const index = view.index;
   const source = (key: string): Data | undefined => {
     const entry = index.get(target(index, element, [prefix, key], view.device));
     return entry !== undefined ? dataAt(index, entry.path) : undefined;
@@ -361,14 +392,16 @@ export function move(view: View, elementId: string, dx: number, dy: number, scop
   const before = view.placed(elementId);
   const keys: Key[] = [];
   const checks: ((p: Placed) => boolean)[] = [];
+  // a named scope writes the whole at: there (a line's to: is no override key, and the gate says so)
+  const index = part === "to" ? view.index : seeded(view.index, element, "at", view.device, scope);
   if (part === "both" || part === "at") {
-    keys.push(...positionKeys(view, elementId, element, "at", effective.at, dx, dy, scope));
+    keys.push(...positionKeys(view, index, elementId, element, "at", effective.at, dx, dy, scope));
     const goal = [before.center[0] + dx, before.center[1] + dy];
     checks.push((p) => p.center[0] === goal[0] && p.center[1] === goal[1]);
   }
   if (line && (part === "both" || part === "to")) {
     const to = (effective as Shape).to ?? new Position();
-    keys.push(...positionKeys(view, elementId, element, "to", to, dx, dy, scope));
+    keys.push(...positionKeys(view, index, elementId, element, "to", to, dx, dy, scope));
     const end = (before as unknown as { end: [number, number] }).end;
     const endGoal = [end[0] + dx, end[1] + dy];
     checks.push((p) => {
@@ -376,7 +409,7 @@ export function move(view: View, elementId: string, dx: number, dy: number, scop
       return e[0] === endGoal[0] && e[1] === endGoal[1];
     });
   }
-  return settle(view, keys, elementId, (p) => checks.every((c) => c(p)));
+  return settle(view, index, keys, elementId, (p) => checks.every((c) => c(p)));
 }
 
 /** The angle keys `turn` writes. */
@@ -395,7 +428,7 @@ export function turn(view: View, elementId: string, key: string, degreesValue: n
   const per = DEGREES_PER[spelling.unit]!;
   const keys = [{ write: target(view.index, element, [key], view.device, scope), spelling,
     values: candidates(degreesValue / per, ANGLE_STEPS[spelling.unit]!, per) }];
-  return settle(view, keys, elementId, (p) => Math.abs(Number((p as unknown as Record<string, number>)[key]) - degreesValue) < 0.5);
+  return settle(view, view.index, keys, elementId, (p) => Math.abs(Number((p as unknown as Record<string, number>)[key]) - degreesValue) < 0.5);
 }
 
 /** Change the extent `key` (`["size", "width"]`, `["radius"]`, `["thickness"]`) by `delta` device pixels. */
@@ -409,8 +442,10 @@ export function resize(view: View, elementId: string, key: readonly string[], de
   if (!(length instanceof Length)) throw new Refused(`${elementId} has no ${dotted(key)} to resize`);
   const goal = measure(view.placed(elementId)) + delta;
   if (goal < 1) throw new Refused(`${elementId}'s ${dotted(key)} cannot be smaller than 1 px`);
-  const entry = view.index.get(target(view.index, element, key, view.device));
-  const spelling = entry !== undefined ? lengthSpelling(dataAt(view.index, entry.path)) : new Spelling(length.unit);
+  // a named scope writes the whole size: there; a radius is one scalar
+  const index = key.length > 1 ? seeded(view.index, element, key[0]!, view.device, scope) : view.index;
+  const entry = index.get(target(index, element, key, view.device));
+  const spelling = entry !== undefined ? lengthSpelling(dataAt(index, entry.path)) : new Spelling(length.unit);
   const axis: Axis = key[key.length - 1] === "width" ? "x" : key[key.length - 1] === "height" ? "y" : "minor";
   const per = pxPerUnit(spelling.unit, axis, view.parentBox(elementId), view.device.minorRadius);
   let current: number;
@@ -420,7 +455,7 @@ export function resize(view: View, elementId: string, key: readonly string[], de
     if (error instanceof UnitError) throw new Refused(error.message);
     throw error;
   }
-  const keys = [{ write: target(view.index, element, key, view.device, scope), spelling,
+  const keys = [{ write: target(index, element, key, view.device, scope), spelling,
     values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
-  return settle(view, keys, elementId, (p) => measure(p) === goal, effective.kind === "icon");
+  return settle(view, index, keys, elementId, (p) => measure(p) === goal, effective.kind === "icon");
 }

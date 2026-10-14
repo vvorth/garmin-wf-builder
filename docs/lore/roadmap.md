@@ -99,8 +99,8 @@ or AOD-related has been observed on a watch or in the simulator.
   mask. `docs/guide/always-on-display.md`, `docs/research/11`, `15`.
 - **Per-device `overrides:`** (ADR 0004 §4) -- an element's `at:`,
   `size:`, `radius:`, `align:`, `color:`, `track_color:` and `visible:`
-  patched per device id, `shape:<s>` or `display:<amoled|mip|lcd>`,
-  deep-merged (device over shape over display over the element), parsed in
+  replaced whole per device id, `shape:<s>` or `display:<amoled|mip|lcd>`
+  (device over shape over display over the element, key by key), parsed in
   `buildOverrides` into `Element.overrides` and applied per
   device by `Resolver.forDevice`, so only `Layout.mc` changes: geometry
   as layout constants, `visible: false` as `<ID>_SHOWN`, a colour as
