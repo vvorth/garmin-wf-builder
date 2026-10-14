@@ -175,6 +175,17 @@ reads the YAML diff.
 
 ## Slice 3 — Parts and points (D4)
 
+**Shipped 2026-10-14** (`git log --grep "parts" --grep "mirror"` from `063a364`):
+F1 id-keyed `parts:` with the list form kept as shorthand (063a364), F2
+`mirror: x` on a polygon part (6b07222), the worker half (9d87bb5:
+hand and part nodes in the tree, a part inspected and edited by its path,
+the entered frame with `FrameArgs.enter` and `Frame.local`, vertex and
+segment handles, the `vertex`/`add_vertex`/`remove_vertex` gestures, a
+polygon moved whole) and the page half (enter the set or the pattern from
+Layers, the local frame overlay, vertex handles with add and delete, a
+part's Properties with the crumb, `ts/browser/parts.test.ts` as the gate).
+`examples/dashboard/face.yaml` has no `parts:` and was untouched.
+
 - **Format F1, F2**: id-keyed `parts:` on hands, patterns and needles (the
   list form read as sugar with generated ids), `mirror: x` on a polygon
   part. Schema, compiler, guide, examples and goldens in one commit each.
