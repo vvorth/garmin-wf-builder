@@ -47,8 +47,8 @@ h.test("Target devices: a watch added and removed; the strip and the Device sele
   await s.faceSection("Target devices");
   const section = s.page.locator(".face-section-body");
   assert.deepEqual(await section.locator("ul.rows li code").allTextContents(), ["fenix8solar47mm", "fenix8solar51mm", "fr955"]);
-  await section.locator("select").selectOption("fr255");
-  await section.locator("button", { hasText: "Add" }).click();
+  // picking a watch in the add select adds it at once
+  await section.locator("select[aria-label='add a target']").selectOption("fr255");
   let doc = await written(s, base);
   assert.match(doc.text, /^  targets:\n    - fenix8solar47mm\n    - fenix8solar51mm\n    - fr955\n    - fr255$/m, diffLines(base.text, doc.text).join(" ; "));
   assert.deepEqual(doc.targets, ["fenix8solar47mm", "fenix8solar51mm", "fr955", "fr255"]);
@@ -56,7 +56,7 @@ h.test("Target devices: a watch added and removed; the strip and the Device sele
   assert.deepEqual(await s.page.locator(".controls select").first().locator("option").allTextContents(), doc.targets);
   assert.equal(await s.page.locator(".strip button").count(), 4);
   // remove it again with ×
-  await section.locator("ul.rows li").filter({ hasText: "fr255" }).locator("button.reset").click();
+  await section.locator("ul.rows li").filter({ hasText: "fr255" }).locator("button[aria-label='remove fr255']").click();
   doc = await written(s, doc);
   assert.equal(doc.text, base.text);
   assert.deepEqual(s.errors, []);
@@ -75,7 +75,7 @@ h.test("Colours: rename, recolour, add, remove unused, and a used colour's delet
 
   // a used colour cannot be deleted; the message names its users
   const t = Date.now();
-  await row("dim").locator("button.reset").click();
+  await row("dim").locator("button[aria-label^='delete']").click();
   assert.equal(await s.waitToast(t, /dim/), "the colour dim is used by 3 elements: outer_arc, card_inner, rule; change them first");
   assert.equal((await s.doc()).text, base.text);
 
@@ -244,29 +244,29 @@ h.test("Styles: the starting style, label, layout and scheme, + Style, delete, a
   await s.waitIdle();
   const base = await s.doc();
   await s.faceSection("Styles");
-  const cards = s.page.locator(".face-section-body li.style");
-  assert.deepEqual(await cards.locator(".slot-head code").allTextContents(), ["big_dark", "big_light", "compact_dark"]);
-  const compact = cards.nth(2);
-  await compact.locator("input[type=radio]").click();
+  // the matrix: one row per style, in the order the wearer's list shows
+  const rows = s.page.locator(".face-section-body table.styles-matrix tr").filter({ has: s.page.locator("td") });
+  assert.deepEqual(await rows.locator("td:first-child code").allTextContents(), ["big_dark", "big_light", "compact_dark"]);
+  await s.page.locator("input[aria-label='open in compact_dark']").click();
   let doc = await written(s, base);
   assert.match(doc.text, /^    default: compact_dark$/m);
-  const label = compact.locator(".slot-line input[type=text]");
+  const label = s.page.locator("input[aria-label='label of compact_dark']");
   await label.fill("Small");
   await label.press("Enter");
   doc = await written(s, doc);
   assert.match(doc.text, /compact_dark: \{ label: "Small", layout: compact, scheme: dark \}/, diffLines(base.text, doc.text).join(" ; "));
-  await compact.locator(".slot-line", { hasText: "layout" }).locator("select").selectOption("big");
+  await s.page.locator("select[aria-label='layout of compact_dark']").selectOption("big");
   doc = await written(s, doc);
   assert.match(doc.text, /compact_dark: \{ label: "Small", layout: big, scheme: dark \}/);
-  await compact.locator(".slot-line", { hasText: "colour scheme" }).locator("select").selectOption("light");
+  await s.page.locator("select[aria-label='scheme of compact_dark']").selectOption("light");
   doc = await written(s, doc);
   assert.match(doc.text, /compact_dark: \{ label: "Small", layout: big, scheme: light \}/);
   // + Style is shaped like the others; × deletes it
   await addNamed(s, s.page.locator(".face-section-body button", { hasText: "+ Style" }), "compact_light");
   doc = await written(s, doc);
   assert.match(doc.text, /^      compact_light: \{ layout: (big|compact), scheme: (dark|light) \}$/m, diffLines(base.text, doc.text).join(" ; "));
-  assert.equal(await cards.count(), 4);
-  await cards.nth(3).locator("button.reset").click();
+  assert.equal(await rows.count(), 4);
+  await s.page.locator("button[aria-label='delete style compact_light']").click();
   doc = await written(s, doc);
   assert.doesNotMatch(doc.text, /compact_light/);
   assert.deepEqual(await s.page.locator(".controls label", { hasText: "Style" }).locator("select option").allTextContents(), ["default", "Big · Dark", "Big · Light", "Small"]);
