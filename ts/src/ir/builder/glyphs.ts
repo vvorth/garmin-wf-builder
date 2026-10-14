@@ -171,19 +171,19 @@ export class GlyphHelpers extends AbsenceChecks {
         notes: [
           "the catalogue has: " + icons.names().join(", "),
           "for a glyph the catalogue does not name, write its codepoint, "
-          + "'icon: \"U+XXXX\"' -- see ts/assets/icons/README.md",
+          + "'icon: {codepoint: \"U+XXXX\"}' -- see ts/assets/icons/README.md",
         ],
       });
     }
     return codepoint;
   }
 
-  /** `"U+F0BC"` to the character, or `null` plus a reported error. */
+  /** `{codepoint: "U+F0BC"}`'s string to the character, or `null` plus a reported error. */
   resolveIconGlyph(raw: string, span: Span | null): string | null {
     const character = icons.parseCodepoint(raw);
     if (character === null) {
       this.bag.error("icon", `an icon codepoint is written 'U+XXXX', not ${quoted(raw)}`, span, {
-        notes: ["e.g. icon: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
+        notes: ["e.g. icon: {codepoint: \"U+F0BC\"} -- 1 to 6 hex digits, case-insensitive",
           "or name an icon from the built-in catalogue"],
       });
       return null;
@@ -214,17 +214,18 @@ export class GlyphHelpers extends AbsenceChecks {
     const rawIcon = item.get("icon");
     const span = this.doc.span(item, "icon") ?? fallbackSpan;
     if (rawIcon === "none") return null;
+    if (rawIcon instanceof Map) {
+      // `{codepoint: "U+XXXX"}`: a glyph the catalogue does not name.
+      const character = this.resolveIconGlyph(str(rawIcon.get("codepoint")), this.doc.span(rawIcon, "codepoint") ?? span);
+      if (character === null) return ICON_OVERRIDE_ERROR;
+      return new icons.SlotIcon(icons.codepointKey(character), character);
+    }
     if (typeof rawIcon !== "string") {
-      this.bag.error("config", `${what}.icon: expected a string, got ${quoted(rawIcon)}`, span);
+      this.bag.error("config", `${what}.icon: expected a catalogue name, 'none' or {codepoint: "U+XXXX"}, got ${quoted(rawIcon)}`, span);
       return ICON_OVERRIDE_ERROR;
     }
-    if (!icons.isCodepointSpelling(rawIcon)) {
-      const codepoint = this.resolveIconName(rawIcon, span);
-      if (codepoint === null) return ICON_OVERRIDE_ERROR;
-      return new icons.SlotIcon(rawIcon, codepoint);
-    }
-    const character = this.resolveIconGlyph(rawIcon, span);
-    if (character === null) return ICON_OVERRIDE_ERROR;
-    return new icons.SlotIcon(icons.codepointKey(character), character);
+    const codepoint = this.resolveIconName(rawIcon, span);
+    if (codepoint === null) return ICON_OVERRIDE_ERROR;
+    return new icons.SlotIcon(rawIcon, codepoint);
   }
 }

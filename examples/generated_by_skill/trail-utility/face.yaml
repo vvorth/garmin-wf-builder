@@ -189,7 +189,7 @@ elements:
     color: color.white
 
   # --- battery ---
-  battery_icon: { type: icon, icon: "U+F240", size: 10.8%r, at: { anchor: center, dx: 70.3%r, dy: -4.3%r }, color: color.white }
+  battery_icon: { type: icon, icon: { codepoint: "U+F240" }, size: 10.8%r, at: { anchor: center, dx: 70.3%r, dy: -4.3%r }, color: color.white }
   battery_days:
     type: text
     text: "{clamp(system.battery_in_days, 0, 99):.0f}d"

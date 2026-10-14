@@ -78,8 +78,8 @@ elements:
   body_battery_icon:
     type: icon
     # icon: battery
-    icon: "U+F120F"
-    # icon: "U+F1211"
+    icon: { codepoint: "U+F120F" }
+    # icon: { codepoint: "U+F1211" }
     at: { anchor: center, dy: -1% }
     size: 12%r
     color: color.accent

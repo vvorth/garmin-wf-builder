@@ -239,7 +239,7 @@ config:
         - steps
         - heart_rate
         - { type: calories, icon: none }
-        - { type: stress, icon: "U+F1340" }
+        - { type: stress, icon: { codepoint: "U+F1340" } }
     bottom:
       default: body_battery
       choices: any
@@ -277,8 +277,8 @@ it on the face (`getComplicationDrawable`).
 a mapping naming the same type plus a per-choice icon override: `{ type:
 <name>, icon: <catalogue name> }`, `{ type: <name>, icon: none }`
 (explicitly draw no icon for this one choice, even though the catalogue maps
-it), or `{ type: <name>, icon: "U+XXXX" }` (any codepoint the vendored font
-has, for a glyph the catalogue does not name). `icon:` is validated exactly
+it), or `{ type: <name>, icon: { codepoint: "U+XXXX" } }` (any codepoint the
+vendored font has, for a glyph the catalogue does not name). `icon:` is validated exactly
 like a plain `icon` element's own `icon:` -- an unknown catalogue name is an
 error with suggestions, a codepoint outside the font's character map is an
 error, and a codepoint that duplicates a catalogue entry gets the same "say

@@ -13,7 +13,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
-| `icon:` | a codepoint, `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
+| `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `color:` | colour expression | — | [Colours](colors.md) |
@@ -36,7 +36,7 @@ steps_icon:                          # a named icon: `wfb sources` lists the nam
 
 hr_graph_icon:                       # any Nerd Fonts glyph, by codepoint
   type: icon
-  icon: "U+F21E"                     # nf-fa-heartbeat
+  icon: { codepoint: "U+F21E" }      # nf-fa-heartbeat
   size: 9%r
 
 weather_icon:                        # chosen on the watch from live data
@@ -51,7 +51,7 @@ screenshot shows the weather icon.
   battery, notification, alarm, and so on, plus a `weather_*` set.
 - **Any other glyph:** find it on the
   [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
-  its code as `icon: "U+XXXX"`. The build checks that the font has it.
+  its code as `icon: {codepoint: "U+XXXX"}`. The build checks that the font has it.
 - **`icon: {for:}`** picks the weather glyph on the watch at runtime.
 
 ### `icon`
@@ -100,13 +100,13 @@ codepoints fit in the Basic Multilingual Plane (`ts/assets/icons/README.md`). `G
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
 glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's
-own icons live there). Reach one with **`icon: "U+XXXX"`**, a codepoint in
-Unicode's own notation:
+own icons live there). Reach one with **`icon: {codepoint: "U+XXXX"}`**, a
+codepoint in Unicode's own notation:
 
 ```yaml
 repo:
   type: icon
-  icon: "U+F09B"        # nf-fa-github; find codepoints at nerdfonts.com/cheat-sheet
+  icon: { codepoint: "U+F09B" }   # nf-fa-github; find codepoints at nerdfonts.com/cheat-sheet
   size: 12%r
   color: color.dim
 ```
@@ -119,7 +119,9 @@ most editors, and a paste that silently fails still parses as valid YAML. That
 is the same hazard `ts/assets/icons/README.md` warns about for this project's
 own catalogue, and it applies just as much to a design file.
 
-`icon:` takes exactly one of a name, a codepoint or `{for:}`. Writing a
+`icon:` takes exactly one of a name, `{codepoint:}` or `{for:}`: a bare
+string is always a catalogue name, and a `"U+XXXX"` string is refused with
+the object to write instead. Writing a
 codepoint the catalogue *does* name is accepted with a note pointing at the
 name, which is the better spelling: a name
 keeps meaning if the catalogue moves that icon to a different codepoint, which

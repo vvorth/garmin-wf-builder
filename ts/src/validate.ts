@@ -84,7 +84,7 @@ export function validate(doc: YamlDocument, bag: Bag): boolean {
   const badTypes = [
     ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag),
     ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag), ...checkAbsent(doc, bag),
-    ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag), ...checkOutlines(doc, bag),
+    ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag), ...checkOutlines(doc, bag), ...checkIconCodepoints(doc, bag),
   ];
   if (validator === undefined) schema();
   const errors = validator!.iterErrors(doc.data);
@@ -297,6 +297,38 @@ function checkOutlines(doc: YamlDocument, bag: Bag): Path[] {
       });
     }
   });
+  return bad;
+}
+
+/**
+ * A codepoint is `icon: {codepoint: "U+XXXX"}`, on an icon element and on a
+ * slot choice alike; a bare `icon:` string is a catalogue name. The string
+ * spelling of a codepoint is named with its replacement.
+ */
+function checkIconCodepoints(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  const check = (node: Dict, path: Path, alternatives: string): void => {
+    const icon = node.get("icon");
+    if (typeof icon !== "string" || !/^[Uu]\+/.test(icon)) return;
+    const here = [...path, "icon"];
+    bag.error("schema", `${dottedPath(here)}: write 'icon: {codepoint: "${icon}"}' -- a bare string is ${alternatives}`,
+      doc.span(node, "icon"), { notes: ["docs/guide/icons.md"] });
+    bad.push(here);
+  };
+  visitElements(doc, (element, here) => {
+    if (element.get("type") === "icon") check(element, here, "a catalogue name");
+  });
+  const config = (doc.data as Dict).get("config");
+  const slots = isDict(config) ? config.get("slots") : undefined;
+  if (isDict(slots)) {
+    for (const [name, slot] of slots) {
+      const choices = isDict(slot) ? slot.get("choices") : undefined;
+      if (!Array.isArray(choices)) continue;
+      choices.forEach((choice, index) => {
+        if (isDict(choice)) check(choice, ["config", "slots", name as Step, "choices", index], "a catalogue name, or 'none'");
+      });
+    }
+  }
   return bad;
 }
 
@@ -770,7 +802,7 @@ export const FORMAT_1_KEYS: ReadonlyMap<string, string> = new Map([
   ["static", "a 'static:' block -- move the element into it"],
   ["value", "one 'text:' template, e.g. 'text: \"{time.hour:02d}\"' (on a gauge, 'value:' is still the reading)"],
   ["format", "one 'text:' template, e.g. 'text: \"{activity.steps:d}\"'"],
-  ["glyph", "'icon: \"U+XXXX\"'"],
+  ["glyph", "'icon: {codepoint: \"U+XXXX\"}'"],
   ["icon_for", "'icon: {for: <expression>}'"],
   ["icon_size", "'icon: {size: ...}'"],
   ["icon_position", "'icon: {position: ...}'"],

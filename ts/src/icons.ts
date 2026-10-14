@@ -34,11 +34,6 @@ export function names(): string[] {
 
 const CODEPOINT = /^[Uu]\+([0-9A-Fa-f]{1,6})$/;
 
-/** Whether `text` is written `U+XXXX`: an `icon:` naming a codepoint rather than a catalogue entry. */
-export function isCodepointSpelling(text: string): boolean {
-  return CODEPOINT.test(text);
-}
-
 /** `"U+F0BC"` to the character, or `null` when it is not that notation. */
 export function parseCodepoint(text: string): string | null {
   const m = CODEPOINT.exec(text.trim());

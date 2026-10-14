@@ -457,7 +457,7 @@ layouts:
 
       bottom_icon:
         type: icon
-        icon: "U+E241"
+        icon: { codepoint: "U+E241" }
         size: 9%r
         at: { anchor: center, dy: 45%r }
         color: color.data
@@ -589,7 +589,7 @@ layouts:
 
       hr_graph_icon:
         type: icon
-        icon: "U+F21E"
+        icon: { codepoint: "U+F21E" }
         size: 9%r
         at: { anchor: top, dy: 30% }
         align: center
@@ -752,7 +752,7 @@ layouts:
       charging_bolt:
         type: icon
         # icon: battery
-        icon: "U+F140B"
+        icon: { codepoint: "U+F140B" }
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: -18% }
         color: color.accent

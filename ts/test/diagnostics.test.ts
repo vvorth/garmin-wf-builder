@@ -315,6 +315,7 @@ test("pattern step: step_angle: turns a radial pattern and step: {dx, dy} moves 
   assert.equal(turned.length, 1, turned.map((d) => d.message).join("\n"));
   assert.ok(turned[0]!.message.includes("'step: {dx, dy}'"), turned[0]!.message);
   face(LINEAR("    step: {dx: 10%r}\n"));
+});
 
 // -- one spelling per idea: a removed spelling names its replacement --
 
@@ -330,7 +331,7 @@ test("outline: is an object: a bare colour or 'none' on an element names '{color
   assert.equal(none[0]!.message, "elements.label.outline: 'outline: none' is not accepted here -- omit 'outline:' to draw no ring");
   assert.ok(none[0]!.notes.some((n) => n.includes("aod:")), "the note says where 'none' still means something");
   // a pattern's text part takes the same object, and the same refusal
-  const part = errorsOf(MINIMAL + "  ticks:\n    type: pattern\n    pattern: radial\n    at: {anchor: center}\n    count: 3\n    step: 120deg\n    parts:\n"
+  const part = errorsOf(MINIMAL + "  ticks:\n    type: pattern\n    pattern: radial\n    at: {anchor: center}\n    count: 3\n    step_angle: 120deg\n    parts:\n"
     + "      - {type: text, text: \"1\", font: FONT_SMALL, at: {dy: -40%r}, color: color.fg, outline: color.bg}\n");
   assert.equal(part.length, 1, part.map((d) => d.message).join("\n"));
   assert.equal(part[0]!.message, "elements.ticks.parts[0].outline: write 'outline: {color: color.bg}' -- a 1px ring; add 'width: 2' or 3 for a wider one");
@@ -343,4 +344,31 @@ test("outline: is an object: a bare colour or 'none' on an element names '{color
   const label = built!.walk().find((e) => e.id === "label") as unknown as { outline: { width: number } | null; aod: { outline_none: boolean } | null };
   assert.equal(label.outline!.width, 1);
   assert.equal(label.aod!.outline_none, true);
+});
+
+const GLYPH = MINIMAL + "  glyph:\n    type: icon\n    size: 10%r\n    at: {anchor: center}\n    color: color.fg\n";
+const SLOT = MINIMAL.replace("elements:\n", "config:\n  slots:\n    top:\n      default: steps\n      choices: [steps, ICON]\nelements:\n")
+  + "  reading:\n    type: data\n    slot: top\n    font: FONT_SMALL\n    at: {anchor: center}\n    color: color.fg\n";
+
+test("a codepoint is icon: {codepoint: \"U+XXXX\"}: the bare string names it, on an icon element and a slot choice alike", () => {
+  const bare = errorsOf(GLYPH + "    icon: \"U+F21E\"\n");
+  assert.equal(bare.length, 1, bare.map((d) => d.message).join("\n"));
+  assert.equal(bare[0]!.message, "elements.glyph.icon: write 'icon: {codepoint: \"U+F21E\"}' -- a bare string is a catalogue name");
+  assert.equal(GLYPH.split("\n").length, bare[0]!.span!.line, "pointed at the icon: line");
+  const choice = errorsOf(SLOT.replace("ICON", "{type: heart_rate, icon: \"U+F05F6\"}"));
+  assert.equal(choice.length, 1, choice.map((d) => d.message).join("\n"));
+  assert.equal(choice[0]!.message, "config.slots.top.choices[1].icon: write 'icon: {codepoint: \"U+F05F6\"}' -- a bare string is a catalogue name, or 'none'");
+  // the object form resolves to the glyph, spelled as the author wrote it
+  const [built] = load(GLYPH + "    icon: {codepoint: \"U+f21e\"}\n");
+  assert.ok(built !== null);
+  const glyph = built!.walk().find((e) => e.id === "glyph") as unknown as { icon: string; codepoint: string };
+  assert.equal(glyph.icon, "U+F21E");
+  assert.equal(glyph.codepoint, "");
+  const [slotted] = load(SLOT.replace("ICON", "{type: heart_rate, icon: {codepoint: \"U+F05F6\"}}"));
+  assert.ok(slotted !== null);
+  const top = slotted!.config_data.get("top") as unknown as { icon_overrides: Map<string, { codepoint: string } | null> };
+  assert.equal(top.icon_overrides.get("heart_rate")!.codepoint, "\u{F05F6}");
+  // a name stays a bare string, and {for:} stays
+  assert.equal(errorsOf(GLYPH + "    icon: steps\n").length, 0);
+  assert.equal(errorsOf(GLYPH + "    icon: {for: weather.condition}\n").length, 0);
 });

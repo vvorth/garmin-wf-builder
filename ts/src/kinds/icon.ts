@@ -23,10 +23,10 @@ import { bakedRing, bakedRingLocal } from "./text.ts";
 type Node = Map<DataKey, Data>;
 type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align">;
 
-/** `icon: "U+F0BC"`: a codepoint the catalogue does not name, spelled so it survives a review. */
-function buildGlyphIcon(b: Builder, node: Node, common: Common, placement: Placement): Element {
-  const raw = str(node.get("icon"));
-  const character = b.resolveIconGlyph(raw, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
+/** `icon: {codepoint: "U+F0BC"}`: a codepoint the catalogue does not name, spelled so it survives a review. */
+function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, placement: Placement): Element {
+  const raw = str(spec.get("codepoint"));
+  const character = b.resolveIconGlyph(raw, b.doc.span(spec, "codepoint") ?? b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
   return IconElement.create({ ...common, icon: raw.toUpperCase(), codepoint: character, ...placement });
 }
 
@@ -78,12 +78,12 @@ class IconKind extends ElementKind<IconElement> {
 
   build(b: Builder, node: Node, common: Common): Element {
     const name = node.get("icon");
-    const dynamic = name instanceof Map ? name : null;
-    const hasGlyph = typeof name === "string" && icons.isCodepointSpelling(name);
+    const spec = name instanceof Map ? name : null;
+    const dynamic = spec !== null && spec.has("for") ? spec : null;
     if (name === undefined || name === null) {
       b.bag.error("icon", "an icon element needs one 'icon:'", b.doc.span(node), {
         notes: ["'icon:' names a glyph from the built-in catalogue (run `wfb sources` for the list)",
-          "or is any codepoint in the icon font, written 'U+XXXX' -- for "
+          "or is {codepoint: \"U+XXXX\"}, any codepoint in the icon font -- for "
           + "the ~10,000 glyphs the catalogue does not name",
           "or is {for: <expression>}, choosing one at runtime from a "
           + "bound value -- see WEATHER_CONDITION_SOURCES in ts/src/catalog.ts for what it accepts"],
@@ -108,7 +108,7 @@ class IconKind extends ElementKind<IconElement> {
       }
       return IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
     }
-    if (hasGlyph) return buildGlyphIcon(b, node, common, placement);
+    if (spec !== null) return buildGlyphIcon(b, node, spec, common, placement);
     if (typeof name !== "string") throw new Error("the schema requires 'icon:'");
     const codepoint = b.resolveIconName(name, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
     return IconElement.create({ ...common, icon: name, codepoint, ...placement });

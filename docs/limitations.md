@@ -343,7 +343,7 @@ in general.
 
 ### The resource compiler's font `filter` cannot represent a codepoint above U+FFFF
 
-`icon:` accepts any single character from the Nerd Fonts icon font directly, not
+`icon: {codepoint: "U+XXXX"}` accepts any glyph in the Nerd Fonts icon font, not
 only the named catalogue entries, including codepoints above the Basic
 Multilingual Plane — all of Material Design Icons' ~7,000 glyphs live up
 there, and the catalogue now uses several of them (`heart`, `flame`, `alarm`,
@@ -564,7 +564,7 @@ still true of the shipped feature:
   on a frame with no reading. Every native type has a catalogue icon
   (`COMPLICATION_ICON` in `ts/src/icons.ts` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
-  mapping form `{type:, icon:}`, with a name, `"U+XXXX"` or `none`), and
+  mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`), and
   `icon: {position:, gap:, color:}` place, space and colour it --
   `docs/guide/configuration.md`'s "The Data axis" has the full account.
 * **A slot's reading is formatted per complication type**

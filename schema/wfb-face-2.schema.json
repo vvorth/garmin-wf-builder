@@ -874,7 +874,7 @@
       }
     },
     "slotChoice": {
-      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, a codepoint 'U+XXXX' in the vendored icon font, or 'none' to draw no icon for this choice). A type listed twice, in either shape, is an error.",
+      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, {codepoint: 'U+XXXX'} for a glyph in the vendored icon font, or 'none' to draw no icon for this choice). A type listed twice, in either shape, is an error.",
       "oneOf": [
         {
           "$ref": "#/$defs/complicationName"
@@ -890,8 +890,25 @@
               "$ref": "#/$defs/complicationName"
             },
             "icon": {
-              "description": "A catalogue icon name, a codepoint 'U+XXXX' in the vendored icon font, or 'none'.",
-              "type": "string"
+              "description": "A catalogue icon name, 'none', or {codepoint: 'U+XXXX'} for a glyph in the vendored icon font.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "codepoint"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "codepoint": {
+                      "type": "string",
+                      "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$"
+                    }
+                  }
+                }
+              ]
             }
           }
         }
@@ -2324,10 +2341,25 @@
           "const": "icon"
         },
         "icon": {
-          "description": "A name from the built-in icon catalogue, a codepoint 'U+XXXX' in the vendored icon font, or {for: <expression>} to choose the glyph at runtime from a bound value (currently a weather.condition* source only). A bitmap-font glyph, drawn with drawText.",
+          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <expression>} to choose the glyph at runtime from a bound value (currently a weather.condition* source only). A bitmap-font glyph, drawn with drawText.",
           "oneOf": [
             {
-              "type": "string"
+              "type": "string",
+              "description": "A catalogue name. A codepoint is written {codepoint: 'U+XXXX'}, not as a string."
+            },
+            {
+              "type": "object",
+              "required": [
+                "codepoint"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "codepoint": {
+                  "type": "string",
+                  "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$",
+                  "description": "A codepoint in the vendored icon font, in Unicode's own notation: 1 to 6 hex digits. Checked against the font's character map at build time."
+                }
+              }
             },
             {
               "type": "object",

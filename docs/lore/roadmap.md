@@ -184,8 +184,8 @@ or AOD-related has been observed on a watch or in the simulator.
   face.
 - A font `size:` given as a bare number, and `scale:`. Lengths are always
   `%r`/`px`.
-- A pasted raw character in `icon:`. Use a catalogue name or
-  `icon: "U+XXXX"`.
+- A pasted raw character in `icon:`, and later the `"U+XXXX"` string. Use a
+  catalogue name or `icon: {codepoint: "U+XXXX"}`.
 - Refresh tiers (`WfbCache.mc`, `catalog.Tier`).
 - `config: colors:`. Use `config: style:`.
 - `vertical_align: baseline`, renamed `bottom`.

@@ -13,8 +13,9 @@
 #   weather icon already uses.
 #   - Per-choice icon overrides: `steps` keeps its
 #     catalogue default (`steps`); `heart_rate` swaps its default (`heart`)
-#     for a custom glyph from the vendored font, `icon: "U+F05F6"` (Material
-#     Design `md-heart_pulse`, which the catalogue does not name); `calories`
+#     for a custom glyph from the vendored font, `icon: { codepoint:
+#     "U+F05F6" }` (Material Design `md-heart_pulse`, which the catalogue
+#     does not name); `calories`
 #     draws no icon at all with `icon: none`, even though the catalogue maps
 #     it to `flame`. Overrides live on the choice, so every element drawing
 #     this slot shares them.
@@ -117,7 +118,7 @@ config:
       default: steps
       choices:
         - steps
-        - { type: heart_rate, icon: "U+F05F6" }                # custom glyph
+        - { type: heart_rate, icon: { codepoint: "U+F05F6" } }                # custom glyph
         - { type: calories, icon: none }                       # no icon
     bottom:
       label: "Lower reading"  # its title in fr955's settings menu (else "Bottom")

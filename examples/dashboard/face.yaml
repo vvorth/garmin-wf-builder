@@ -230,7 +230,7 @@ elements:
   hr_icon:
     type: icon
     # icon: heart
-    icon: "U+F21E"
+    icon: { codepoint: "U+F21E" }
     size: 11%r
     at: { anchor: top, dx: -28%, dy: 16% }
     color: color.dim
@@ -276,7 +276,7 @@ elements:
   distance_icon:
     type: icon
     # icon: heart
-    icon: "U+F08F0"
+    icon: { codepoint: "U+F08F0" }
     size: 11%r
     at: { anchor: top, dx: 28%, dy: 16% }
     color: color.dim
@@ -388,7 +388,7 @@ elements:
 
   body_battery_icon:
     type: icon
-    icon: "U+F064C"
+    icon: { codepoint: "U+F064C" }
     size: 14%r
     at: { anchor: top, dx: -30%, dy: 74% }
     color: color.dim
@@ -416,7 +416,7 @@ elements:
 
   steps_icon:
     type: icon
-    icon: "U+E241"
+    icon: { codepoint: "U+E241" }
     size: 14%r
     at: { anchor: top, dx: 30%, dy: 74% }
     color: color.dim
