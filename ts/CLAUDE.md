@@ -112,7 +112,10 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     the frame) with the actions that change it, which `App` creates once
     and provides; a component reads the slice it needs through
     `useStore(selector)` and is rendered again only when that slice
-    changes. The outbox's order, the frame's "newest wins" and the YAML
+    changes. `app/panels.ts` is the Inspector and the Face tab's shell,
+    and `app/face-sections.ts` the sections over the face as a whole
+    (Face, Target devices, Defaults, Layouts, the Styles matrix) with the
+    `Reorder` control (↑ ↓) every ordered list of the tab shares. The outbox's order, the frame's "newest wins" and the YAML
     tab's debounced save are the store's own logic over the pure rules in
     `outbox.ts` and `textsync.ts`; `hooks.ts` keeps only the hooks on the
     browser (keys, clipboard, pan and zoom). The leaf panels (`Layers`,

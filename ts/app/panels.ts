@@ -574,6 +574,14 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
           <span class="dim mono">${t.sample || ""}</span>
         </div>`; })}
     </div>`)}</div>
+    ${!any && list.length > 1 ? html`<div class="slot-line">
+      <span class="dim">order</span>
+      <ol class="choice-order" title="the order the wearer's list shows">${list.map((c, i) => html`<li key=${String(c.type ?? i)}>
+        <code>${String(c.type ?? "")}</code>
+        <${Reorder} index=${i} count=${list.length} what=${String(c.type ?? i)}
+          onMove=${(to: number) => onEdit({ op: "move_item", path: [...path, "choices"], from: i, to })} />
+      </li>`)}</ol>
+    </div>` : null}
     <div class="slot-line">
       <span class="dim">menu title</span>
       <${Commit} value=${slot.label || ""} placeholder=${slot.name} width="10em"
@@ -589,6 +597,9 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
     </div>
   </div>`;
 }
+
+// The sections over the face as a whole, and the reorder control the lists share.
+import { DefaultsSection, FaceIdentity, LayoutsSection, Reorder, StylesMatrix, TargetsSection } from "./face-sections.ts";
 
 interface SchemesProps {
   schemes: SchemesInfo;
@@ -829,12 +840,23 @@ export interface FacePanelProps {
   onReveal?: OnReveal | undefined;
   /** The open section, when the editor holds it; the panel keeps its own otherwise. */
   section?: string | null | undefined;
-  onSection?: ((key: FaceSectionKey) => void) | undefined;
+  onSection?: ((key: SectionKey) => void) | undefined;
 }
+
+/** Every section of the Face tab: the ones the pickers jump to (`FaceSectionKey`) and the face's own. */
+type SectionKey = FaceSectionKey | "face" | "defaults" | "layouts";
+
+// Every section's guide chapter: its "? Guide" link.
+const SECTION_GUIDE: Record<SectionKey, string> = {
+  ...FACE_SECTION_GUIDE,
+  face: "docs/guide/design-file.md",
+  defaults: "docs/guide/design-file.md",
+  layouts: "docs/guide/styles-and-layouts.md",
+};
 
 /** One section of the Face tab: its nav button (title and count) and its body. */
 interface FaceSection {
-  key: FaceSectionKey;
+  key: SectionKey;
   title: string;
   count?: number;
   body: VNode;
@@ -851,7 +873,6 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
   const styles = g.styles;
   const devices = vocab.devices || [];
   const unreadable = vocab.unreadable_devices || [];
-  const [adding, setAdding] = useState<string>("");
   // a font file chosen and waiting for its name
   const [newFont, setNewFont] = useState<File | null>(null);
   const fontFile = useRef<HTMLInputElement | null>(null);
@@ -871,28 +892,16 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
   };
 
   const SECTIONS: [FaceSection, ...FaceSection[]] = [
+    { key: "face", title: "Face", body: html`
+      <${FaceIdentity} face=${g.face} onEdit=${onEdit} />
+    ` },
+
     { key: "targets", title: "Target devices", count: (g.targets || []).length, body: html`
-      <ul class="rows">${(g.targets || []).map((t) => html`<li>
-        <span>${devices.find((d) => d.id === t)?.name || t}</span> <code class="dim">${t}</code>
-        ${(g.target_problems || {})[t] ? html`<span class="warn" title=${g.target_problems[t]}>⚠ not available here</span>` : null}
-        <button class="reset" title="remove this target" aria-label="remove this target" onClick=${() => onEdit({ op: "set", path: ["build", "targets"], value: g.targets.filter((x) => x !== t) })}>×</button>
-      </li>`)}</ul>
-      <div class="row">
-        <select value=${adding} onChange=${(e: SelectEvent) => setAdding(e.currentTarget.value)}>
-          <option value="">add a watch…</option>
-          ${devices.filter((d) => !(g.targets || []).includes(d.id)).map((d) => html`<option value=${d.id}>${d.name} (${d.size}, ${d.shape})</option>`)}
-        </select>
-        <button disabled=${!adding} onClick=${() => { onEdit({ op: "set", path: ["build", "targets"], value: [...(g.targets || []), adding] }); setAdding(""); }}>Add</button>
-      </div>
-      ${unreadable.length ? html`<div class="note warn"
-          title=${unreadable.map((d) => `${d.id}: ${d.reason}`).join("\n")}>
-        ⚠ ${unreadable.length} installed watch${unreadable.length > 1 ? "es" : ""}
-        could not be read, so ${unreadable.length > 1 ? "they are" : "it is"} not offered
-        (${unreadable.map((d) => d.id).join(", ")})</div>` : null}
+      <${TargetsSection} targets=${g.targets || []} problems=${g.target_problems || {}} devices=${devices} unreadable=${unreadable} onEdit=${onEdit} />
     ` },
 
     { key: "colours", title: "Colours", count: palette.length, body: html`
-      <ul class="rows">${palette.map((p) => html`<li class="swatch-row">
+      <ul class="rows">${palette.map((p, i) => html`<li class="swatch-row">
           <${InlineName} value=${p.name} title=${`click to rename (every color.${p.name} follows)`}
             onRename=${(n: string) => onEdit({ op: "rename", path: ["resources", "palette", p.name], to: n, prefix: "color." })} />
           <${ColorPop} value=${p.value} ctx=${ctx} faceGroup=${false}
@@ -901,6 +910,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
           ${p.dithers_on.length ? html`<span class="warn" title=${`dithers on ${p.dithers_on.join(", ")}`}>⚠</span>` : null}
           ${p.problem ? html`<span class="warn" title=${p.problem}>⚠ not a colour</span>` : null}
           ${p.automatic ? html`<span class="tag" title="named after its colour: renamed when its colour changes, removed when nothing uses it">auto</span>` : null}
+          <${Reorder} index=${i} count=${palette.length} what=${p.name} onMove=${(to: number) => onEdit({ op: "move_key", path: ["resources", "palette", p.name], to })} />
           <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
           <div class="note">${p.used_by.length ? html`used by ${users(p.used_by)}`
             : p.launcher ? "the launcher icon reads it" : "not used"}</div>
@@ -921,44 +931,16 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
       <${Schemes} schemes=${schemes} palette=${palette} styles=${styles} ctx=${ctx} onEdit=${onEdit} />
     ` },
 
+    { key: "defaults", title: "Defaults", body: html`
+      <${DefaultsSection} defaults=${g.defaults} onEdit=${onEdit} />
+    ` },
+
+    { key: "layouts", title: "Layouts", count: (g.layout_entries || []).length, body: html`
+      <${LayoutsSection} entries=${g.layout_entries || []} styles=${styles} onEdit=${onEdit} />
+    ` },
+
     { key: "styles", title: "Styles", count: styles.entries.length, body: html`
-      ${styles.entries.length ? html`<ul class="rows">${styles.entries.map((e) => html`<li class="style">
-        <div class="slot-head">
-          <code>${e.name}</code>
-          <button class="reset" title="delete this style" aria-label="delete this style" onClick=${() => onEdit({ op: "remove", path: ["config", "style", "choices", e.name] })}>×</button>
-        </div>
-        <label class="slot-line" title="the one style the face opens in; the wearer's own pick, where the watch has a picker, starts here too">
-          <input type="radio" name="default-style" checked=${styles.default === e.name}
-            onChange=${() => onEdit({ op: "set", path: ["config", "style", "default"], value: e.name })} />
-          <span class="dim">starting style</span>
-        </label>
-        <div class="slot-line"><span class="dim">label the wearer sees</span>
-          <${Commit} value=${e.label} placeholder="label" width="8em"
-            onCommit=${(t: string) => onEdit(t.trim()
-              ? { op: "set", path: ["config", "style", "choices", e.name, "label"], value: t.trim() }
-              : { op: "remove", path: ["config", "style", "choices", e.name, "label"] })} /></div>
-        ${g.layouts.length ? html`<div class="slot-line"><span class="dim">layout</span>
-          <select value=${e.layout || ""} onChange=${(ev: SelectEvent) => onEdit(ev.currentTarget.value
-              ? { op: "set", path: ["config", "style", "choices", e.name, "layout"], value: ev.currentTarget.value }
-              : { op: "remove", path: ["config", "style", "choices", e.name, "layout"] })}>
-            <option value="">no layout</option>${g.layouts.map((l) => html`<option value=${l}>${l}</option>`)}</select></div>` : null}
-        ${schemes.names.length ? html`<div class="slot-line"><span class="dim">colour scheme</span>
-          <select value=${e.scheme || ""} onChange=${(ev: SelectEvent) => onEdit(ev.currentTarget.value
-              ? { op: "set", path: ["config", "style", "choices", e.name, "scheme"], value: ev.currentTarget.value }
-              : { op: "remove", path: ["config", "style", "choices", e.name, "scheme"] })}>
-            <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select></div>` : null}
-      </li>`)}</ul>` : html`<div class="dim">${g.layouts.length || schemes.names.length ? "No styles yet." : "Styles pair a layout with a colour scheme; this face has neither yet."}</div>`}
-      ${g.layouts.length || schemes.names.length ? html`<${AddName} label="+ Style" placeholder="style name"
-        onAdd=${(n: string) => {
-          const entry = newStyleEntry(styles.entries, g.layouts, schemes.names);
-          onEdit(styles.entries.length
-            ? { op: "set", path: ["config", "style", "choices", n], value: entry }
-            : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
-        }} />` : null}
-      <${AddName} label="+ Layout" placeholder="layout name"
-        suggest=${() => { let n = "layout", i = 2; while (g.layouts.includes(n)) n = `layout${i++}`; return n; }}
-        onAdd=${(n: string) => onEdit({ op: "add_layout", name: n })} />
-      ${g.layouts.length ? html`<div class="dim note">Layouts: ${g.layouts.join(", ")}</div>` : null}
+      <${StylesMatrix} styles=${styles} layouts=${g.layouts || []} schemes=${schemes} onEdit=${onEdit} />
     ` },
 
     { key: "hand_sets", title: "Hand sets", count: (g.hands || []).length, body: html`
@@ -1001,10 +983,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
   // the panel keeps its own
   const [own, setOwn] = useState<string>(SECTIONS[0].key);
   const activeKey = section ?? own;
-  const setActiveKey: (key: FaceSectionKey) => void = onSection ?? setOwn;
+  const setActiveKey: (key: SectionKey) => void = onSection ?? setOwn;
   const active = SECTIONS.find((s) => s.key === activeKey) || SECTIONS[0];
   const [helpTopic, setHelpTopic] = useState<string | null>(null);
-  const guide = FACE_SECTION_GUIDE[active.key];
+  const guide = SECTION_GUIDE[active.key];
 
   return html`<div class="face-panel">
     <div class="tabs face-nav">${SECTIONS.map((s) => html`<button key=${s.key} class=${s.key === active.key ? "on" : ""}

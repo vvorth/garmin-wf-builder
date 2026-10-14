@@ -85,7 +85,7 @@ first.
 
 | Left | Centre | Right |
 |---|---|---|
-| **Layers**: the element tree; **Face**: targets, colours, schemes, styles, slots, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
+| **Layers**: the element tree; **Face**: the face's name and id, targets, defaults, colours, schemes, layouts, styles, slots, fonts | the face on one watch, or its **YAML**; below it, one small frame per target | **Properties** of the selection; **Diagnostics** and **History** |
 
 Drag the edge between a side panel and the centre to widen or narrow
 the panel; a double click on the edge puts its width back. The browser
@@ -351,7 +351,31 @@ time -- the browser remembers which, so switching to Layers and back
 does not reset it. Each section's own **? Guide** link opens Help at the
 guide chapter for it.
 
-- **Target devices**: add any installed watch that can run a face, or remove one.
+Wherever a section lists things in an order the face keeps -- the targets,
+the colours, a slot's choices, the layouts and the styles -- each row has
+**↑** and **↓**, which move it one place among its neighbours; the first
+cannot move up, nor the last down. The order is the one the text has, so
+it is what the wearer's list shows, or the order the face is drawn in.
+
+- **Face**: the face's **name**, its **version** (`1.0.0` when the key is
+  left out) and its **id**, the UUID the watch knows the face by
+  ([the design file](design-file.md)). Each is a text box: type, then
+  **Enter** or click away. A name cannot be emptied, and an id is written
+  only as a UUID; changing it makes the watch treat the face as a
+  different app, kept beside the old one.
+- **Target devices**: the watches the face is built for, in order (the
+  first is the one the library's picture and the hand sets' thumbnails are
+  drawn on). **↑ ↓** reorder, **×** removes one, and **+ add target…**
+  lists every installed watch that can run a face and is not a target yet.
+  A target whose files are not installed here is marked ⚠.
+- **Defaults**: what every element inherits unless it, or a group around
+  it, says otherwise ([the design file](design-file.md)): `antialias`,
+  `min_1px`, and the always-on frame's `aod.visible`, `aod.dim` (above 0,
+  at most 1) and `aod.mask` ([always-on display](always-on-display.md)).
+  A key the face does not write is greyed and shows the format's default
+  in its place; choosing a value writes it (and the `defaults:` block, when
+  the face has none). Choosing the default again, or **×**, removes the
+  key.
 - **Colours**: each colour with what uses it (click an element to select
   it). Click a name to rename it: every `color.<name>` in the face
   follows. Its chip opens the picker, and a new colour reaches **every**
@@ -393,14 +417,26 @@ guide chapter for it.
     a scheme goes, and one that names a layout stays, even when that
     leaves two alike. The confirmation says how many; Diagnostics then
     names each copy, for you to delete or change.
-- **Styles**: each style's own card -- the radio for the one the face
-  opens in, the label the wearer sees, its layout and its colour scheme,
-  each captioned -- add (shaped like the others), delete ([styles and
-  layouts](styles-and-layouts.md)). **+ Layout** adds an empty one, listed
-  here and in Layers with nothing in it yet, and keeps it reachable: with
-  no style yet to name it, it also adds one pointing at the new layout;
-  on a face whose styles name only schemes, every style that picks no
-  layout now picks the new one, as one change.
+- **Layouts** ([styles and layouts](styles-and-layouts.md)): one row per
+  `layouts:` entry: its name, how many elements its `elements:` and
+  `static:` blocks hold, and the styles that pick it (⚠ when none does:
+  the wearer could not reach it). Click the name to rename it: every
+  style's `layout:` follows. **↑ ↓** reorder the layouts. **×** deletes a
+  layout together with the styles that pick it, as one change; when the
+  style the face opens in is one of them, the row asks which of the styles
+  that stay to open in instead, and the delete is made once you choose.
+  The last layout every style picks cannot be deleted: add another first,
+  or remove the styles. **+ Layout** adds an empty one, listed here and in
+  Layers with nothing in it yet, and keeps it reachable: with no style
+  yet to name it, it also adds one pointing at the new layout; on a face
+  whose styles name only schemes, every style that picks no layout now
+  picks the new one, as one change.
+- **Styles**: a table, one row per style in the order the wearer's Style
+  list shows them: its layout and its colour scheme (each a list of the
+  face's own, or **no layout** / **no scheme**), the label the wearer
+  sees, the radio for the one the face **opens in**, **↑ ↓** and **×**.
+  **+ Style** adds one shaped like the others; **+ Layout** is here too
+  ([styles and layouts](styles-and-layouts.md)).
 - **Hand sets** ([analog hands](analog-hands.md)): each set drawn alone,
   as at 10:09:42, on the face's first watch; each hand's colour through
   the picker, and how many parts it has; the elements placing it (click
@@ -424,7 +460,8 @@ guide chapter for it.
     unticking it brings your list back.
   - A ticked type's icon button picks its icon for this slot: any
     catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
-    the type's own.
+    the type's own. **order** lists the ticked types as the wearer's list
+    shows them, each with **↑ ↓**.
   - Click its name to rename it (every `slot:` naming it follows), **×** deletes it (refused
     while an element draws it), **menu title** is its title in the settings
     menu of a watch without the native editor, and **drawn by** lists the
