@@ -46,12 +46,16 @@ export interface FaceCtx {
   vocab: Partial<Vocabulary>;
 }
 
-/** The form's widgets' context: the viewed device's system fonts, the selected element's type, and where a link may jump. */
+/** The form's widgets' context: the viewed device's system fonts, the selected element's type, where a link may jump, and the polygon point picked on the face. */
 export interface WidgetCtx extends FaceCtx {
   systemFonts: string[];
   elementType: string;
   onReveal: OnReveal;
   onFaceSection?: OnFaceSection | undefined;
+  /** The picked point of a polygon's `points:`, marked in the list, or null. */
+  vertex?: number | null | undefined;
+  /** A `points:` item hovered or focused: that point is picked on the face. */
+  onHoverVertex?: ((index: number) => void) | undefined;
 }
 
 // An event on the input, select or link the handler is on: `currentTarget` is that element.
@@ -405,7 +409,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps)
     case "handset": {
       const set = (ctx.globals.hands || []).find((h) => h.name === value);
       return html`<span class="handset">${enumSelect(ctx.globals.hand_sets || [])}
-        ${set && ctx.onReveal ? html`<a href="#" title="its hands' parts, in the YAML tab"
+        ${set && ctx.onReveal ? html`<a href="#" title="the set's lines in the YAML tab (its parts are edited on the face too: enter this element from Layers)"
           onClick=${(e: LinkClick) => { e.preventDefault(); ctx.onReveal(set.line, set.end); }}>edit the set</a>` : null}</span>`;
     }
     case "enum": return enumSelect((field.enum || []).map(String));
@@ -605,8 +609,12 @@ function aodFields(ins: Inspect): Field[] {
   return out;
 }
 
-/** Where a top-level key's edits go: the `aod:` block in the always-on frame (else read-only), the Edit for target for a geometry key, else the key itself. */
+/** Whether the tree answers for a hand or a part: neither has overrides or an `aod:` block, so its keys are edited as they are in every frame. */
+const isPartLike = (ins: Inspect): boolean => ins.subject === "part" || ins.subject === "hand";
+
+/** Where a top-level key's edits go: the `aod:` block in the always-on frame (else read-only), the Edit for target for a geometry key, else the key itself; a part's or a hand's always its own key. */
 function laneOf(field: Field, ins: Inspect, target: Scope): Lane {
+  if (isPartLike(ins)) return { scope: "all", readonly: false };
   if ((ins.context?.frame ?? "awake") === "aod") return restyled(ins).has(field.key) ? { scope: "aod", readonly: false } : { scope: "all", readonly: true };
   return { scope: field.geometry && target !== "all" ? target : "all", readonly: false };
 }
@@ -622,7 +630,7 @@ export interface FormProps {
 
 /** The generic form: every key of the element, in the frame the tree answers for. */
 export function Form({ ins, target, ctx, onEdit }: FormProps): VNode {
-  const fields = (ins.context?.frame ?? "awake") === "aod" ? aodFields(ins) : ins.fields;
+  const fields = (ins.context?.frame ?? "awake") === "aod" && !isPartLike(ins) ? aodFields(ins) : ins.fields;
   return html`${fields.map((f) => html`<${FieldView} key=${f.key} field=${f} ins=${ins} lane=${laneOf(f, ins, target)} ctx=${ctx} onEdit=${onEdit} depth=${0} />`)}`;
 }
 
@@ -748,12 +756,19 @@ function ObjectField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
   </div>`;
 }
 
-/** A list: its items, each a field with ↑ ↓ × (`move_item`, `remove_item`), and + add, which inserts the item template's seed at the end. */
+/**
+ * A list: its items, each a field with ↑ ↓ × (`move_item`, `remove_item`),
+ * and + add, which inserts the item template's seed at the end. A polygon's
+ * `points:` and the face agree on the point picked: the item of the picked
+ * vertex is marked, and an item hovered or focused picks its vertex.
+ */
 function ListField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): VNode {
   const r = reading(field, ins, lane, depth);
   const base = { ...baseOf(ins, lane), path: field.path };
   const items = field.items ?? [];
   const classes = "field list" + (items.length === 0 ? " absent" : "") + (lane.readonly ? " readonly" : "");
+  const points = depth === 0 && field.key === "points" && ctx.onHoverVertex !== undefined;
+  const hover = (i: number) => (points ? () => ctx.onHoverVertex?.(i) : undefined);
   return html`<div class=${classes} style=${`--depth:${depth}`}>
     <div class="head" title=${r.title}>
       <${Name} field=${field} badge=${r.badge} />
@@ -761,7 +776,8 @@ function ListField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): VN
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
     <div class="children">
-      ${items.map((it, i) => html`<div class="list-item" key=${i}>
+      ${items.map((it, i) => html`<div class=${"list-item" + (points && ctx.vertex === i ? " on" : "")} key=${i}
+                                       onMouseEnter=${hover(i)} onFocusIn=${hover(i)}>
         ${lane.readonly ? null : html`<span class="list-controls">
           <button class="reset" title="move up" aria-label="move up" disabled=${i === 0} onClick=${() => onEdit({ op: "move_item", ...base, from: i, to: i - 1 })}>↑</button>
           <button class="reset" title="move down" aria-label="move down" disabled=${i === items.length - 1} onClick=${() => onEdit({ op: "move_item", ...base, from: i, to: i + 1 })}>↓</button>

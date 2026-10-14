@@ -57,6 +57,10 @@ export interface InspectorProps {
   onReveal: OnReveal;
   onSelect: OnSelect;
   onFaceSection?: OnFaceSection | undefined;
+  /** The picked point of a polygon's `points:`, marked in its list. */
+  vertex?: number | null | undefined;
+  /** A `points:` item hovered or focused picks its vertex on the face. */
+  onHoverVertex?: ((index: number) => void) | undefined;
 }
 
 /** Whether `ins` answers for the element at `path`. */
@@ -64,14 +68,29 @@ const answersFor = (ins: Inspect, path: Path): boolean => ins.element.length ===
 
 // The selected element: its id (renamed in place), its type, the slot or
 // hand set it draws as the Face tab's own card, and every key the format
-// has for it as the generic form, edited where the editing context says.
-export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, onSelect, onFaceSection }: InspectorProps): VNode {
+// has for it as the generic form, edited where the editing context says. A
+// hand or a part is named with what it belongs to (`vintage › hour`,
+// `hour › blade`, `ticks › tick`); it has no overrides and no `aod:` block,
+// so its keys are edited as they are, whatever the frame.
+export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, onSelect, onFaceSection, vertex = null, onHoverVertex }: InspectorProps): VNode {
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !answersFor(ins, element.path)) return html`<div class="body dim">…</div>`;
   if (ins.error) return html`<div class="body dim">${ins.error}</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === ins.device);
   const ctx: WidgetCtx = { globals: doc.globals, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
-                           elementType: ins.type };
+                           elementType: ins.type, vertex, onHoverVertex };
+  if (ins.subject === "part" || ins.subject === "hand") {
+    // a part under its hand or its pattern, a hand under its set: the step before the `parts:` key, or the set's name
+    const under = ins.element[ins.element.length - (ins.subject === "part" ? 3 : 2)];
+    return html`<div class="inspector">
+      <div class="ins-head">
+        <span class="name crumb" title=${ins.element.map(String).join(".")}>${String(under)} › ${ins.id}</span>
+        <span class="dim">${ins.type}</span>
+      </div>
+      ${ins.unknown.length ? html`<div class="note error-text">Not in the format: ${ins.unknown.join(", ")}</div>` : null}
+      <${Form} ins=${ins} target="all" ctx=${ctx} onEdit=${onEdit} />
+    </div>`;
+  }
   // the slot this element draws, edited right here as in the Face tab
   const slotField = ins.fields.find((f) => f.key === "slot");
   const slotCard = slotField && (ctx.globals.slots || []).find((s) => s.name === slotField.value);
@@ -331,7 +350,7 @@ export function HandSetCard({ set, doc, ctx, onEdit, onReveal }: HandSetCardProp
       op="handset" args=${{ id: doc.id, name: set.name, device, scale: 1, v: doc.version }} />
     <div class="hand-body">
       ${handColorRows(set, ctx, onEdit)}
-      <div class="slot-line"><a href="#" title="a hand's parts are edited in the YAML"
+      <div class="slot-line"><a href="#" title="the set's lines in the YAML tab (its parts are edited on the face too: enter this element from Layers)"
         onClick=${(e: LinkClick) => { e.preventDefault(); onReveal(set.line, set.end); }}>edit the set</a></div>
     </div>
   </div>`;
@@ -367,12 +386,12 @@ function HandSets({ doc, ctx, onEdit, onSelect, onReveal }: HandSetsProps): VNod
         <div class="slot-line"><span class="dim">placed by</span>
           ${s.placed_by.length ? s.placed_by.map((id) => html`<a href="#" onClick=${(e: LinkClick) => { e.preventDefault(); onSelect(id); }}>${id}</a>`)
                                : html`<span class="dim">nothing</span>`}</div>
-        <div class="slot-line"><a href="#" title="a hand's parts are edited in the YAML" onClick=${(e: LinkClick) => { e.preventDefault(); onReveal(s.line, s.end); }}>Edit in YAML</a></div>
+        <div class="slot-line"><a href="#" title="the set's lines in the YAML tab (its parts are edited on the face too: enter an element placing the set from Layers)" onClick=${(e: LinkClick) => { e.preventDefault(); onReveal(s.line, s.end); }}>Edit in YAML</a></div>
       </div>
     </li>`)}</ul>`
     : html`<div class="dim note">A hand set is the shape of an analog dial's hands, drawn pointing at 12;
         a <code>hands</code> element places it on the face and turns it with the time. Its parts are
-        edited in the YAML.</div>`}
+        edited on the face, by entering that element from Layers, or in the YAML.</div>`}
     <div class="row">
       <select value=${preset} onChange=${(e: SelectEvent) => setPreset(e.currentTarget.value)}>
         <option value="">from a preset…</option>

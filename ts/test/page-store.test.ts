@@ -4,7 +4,7 @@
 // preferences this browser keeps, and a face's editor-only state.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFERRED_FETCH, faceFixture, store } from "./page-harness.ts";
+import { DEFERRED_FETCH, faceFixture, instantiate, store, summary } from "./page-harness.ts";
 
 /** A frame as the worker would answer it, with nothing drawn. */
 const FRAME_OF = `
@@ -32,12 +32,12 @@ test("the store selects alone, toggles with Ctrl, ranges with Shift and deselect
     `);
   const ids = printed[printed.length - 1];
   assert.equal(printed[0], true);
-  assert.deepEqual(printed[1], { primary: ids[0], extra: [] });
-  assert.deepEqual(printed[2], { primary: ids[0], extra: [ids[1]] });
-  assert.deepEqual(printed[3], { primary: ids[0], extra: [] });
-  assert.deepEqual(printed[4], { primary: ids[0], extra: [ids[1], ids[2]] });
-  assert.deepEqual(printed[5], [{ primary: null, extra: [] }, false]);
-  assert.deepEqual(printed[6], { primary: ids[1], extra: [] });
+  assert.deepEqual(printed[1], { primary: ids[0], extra: [], vertex: null });
+  assert.deepEqual(printed[2], { primary: ids[0], extra: [ids[1]], vertex: null });
+  assert.deepEqual(printed[3], { primary: ids[0], extra: [], vertex: null });
+  assert.deepEqual(printed[4], { primary: ids[0], extra: [ids[1], ids[2]], vertex: null });
+  assert.deepEqual(printed[5], [{ primary: null, extra: [], vertex: null }, false]);
+  assert.deepEqual(printed[6], { primary: ids[1], extra: [], vertex: null });
 });
 
 test("an edit queued while a drag is on its way is sent after it, against the version the drag produced", async () => {
@@ -282,4 +282,77 @@ test("the editing context asks the inspector again when the frame changes, and E
   assert.deepEqual(printed[5], [5, "shape"]);
   assert.deepEqual(printed[6], [["shape"], [["sent", "shape"], ["queued", "auto"]]]);
   assert.deepEqual(printed[7], [5, null]);
+});
+
+test("entering an element asks the frame with enter and inspects a part by its path; leaving asks again without, and lands on the element", async () => {
+  // The analog template places the `classic` set: its `hands` element lists
+  // the hands and their parts, each named by its tree path.
+  const face = faceFixture();
+  face.summary = summary(instantiate("analog", "T"));
+  face.summary.targets = ["fenix8solar47mm"];
+  const printed = await store(face, FRAME_OF + `
+      // every frame is answered at once, as the entered frame it asks for; the inspects stay unanswered
+      const serve = respond;
+      respond = (request, reply) => {
+        if (request.op !== "frame") return serve(request, reply);
+        requests.push([request.op, request.args]);
+        const enter = request.args.enter ?? null;
+        reply({ status: 200, json: { ...frameOf(request.args), local: enter ? { element: enter, origin: [227, 227], radius: 2.27, angle: 0 } : null } });
+      };
+      const s = new EditorStore(summary.id);
+      await settle();
+      const entered = () => requests.filter(([op]) => op === "frame").map(([, a]) => a.enter ?? null);
+      const inspects = () => requests.filter(([op]) => op === "inspect").map(([, a]) => a.element);
+      const hands = summary.tree.flatMap((b) => b.children).find((n) => n.type === "hands");
+      const blade = hands.children[0].children[0];
+      const bladeId = blade.path.join("/");
+      out([entered(), s.state.context.entered, hands.children.map((h) => [h.kind, h.id]), [blade.kind, blade.id]]);
+      s.enter(hands.path);
+      await settle();
+      out([entered().at(-1), s.state.context.entered, s.state.frame.current.local.element]);
+      // a part, named by its tree path joined with "/", is inspected at its path
+      s.select(bladeId);
+      await settle();
+      out([inspects().at(-1), s.state.selection.primary, storeMod.elementOf(s.state).kind]);
+      // a vertex is selected beside the part, and goes with another selection
+      s.selectVertex(1);
+      out(s.state.selection.vertex);
+      // a drag inside the entered element carries the frame's time, so a hand part's delta turns by the angle shown
+      s.setContext({ time: "15:00:00" });
+      const gesture = { kind: "vertex", index: 1, dx: 2, dy: 0 };
+      const shown = { item: { id: bladeId, box: [0, 0, 1, 1], center: [0, 0], handles: [] }, moving: new Set([bladeId]), preview: gesture };
+      s.drag([bladeId], gesture, shown);
+      await settle();
+      out(requests.filter(([op]) => op === "drag").map(([, a]) => [a.element, a.time, a.gesture.kind, a.scope]));
+      // leaving lands on the element and asks the frame again without enter
+      s.leave();
+      await settle();
+      out([s.state.context.entered, s.state.selection, entered().at(-1), inspects().at(-1)]);
+      // selecting an element outside the entered one leaves it; selecting the entered element itself stays
+      s.enter(hands.path); await settle();
+      s.select("hands"); await settle();
+      out([s.state.context.entered !== null, entered().at(-1)]);
+      s.select("pin"); await settle();
+      out([s.state.context.entered, entered().at(-1), s.state.selection.primary]);
+      // a part row clicked under its element enters that element first
+      s.select(bladeId, false, hands.path); await settle();
+      out([s.state.context.entered, entered().at(-1), s.state.selection.primary]);
+      // the frame of an element the face no longer has is not asked for: the context leaves it
+      s.accept({ ...summary, version: summary.version + 1, tree: summary.tree.map((b) => ({ ...b, children: b.children.filter((n) => n.type !== "hands") })) });
+      await settle();
+      out([s.state.context.entered, entered().at(-1)]);
+      s.dispose();
+    `);
+  const handsPath = ["elements", "hands"];
+  const bladePath = ["resources", "hand_sets", "classic", "hour", "parts", "blade"];
+  assert.deepEqual(printed[0], [[null], null, [["hand", "hour"], ["hand", "minute"], ["hand", "second"]], ["part", "blade"]]);
+  assert.deepEqual(printed[1], [handsPath, handsPath, handsPath]);
+  assert.deepEqual(printed[2], [bladePath, bladePath.join("/"), "part"]);
+  assert.equal(printed[3], 1);
+  assert.deepEqual(printed[4], [[bladePath.join("/"), "15:00:00", "vertex", "auto"]]);
+  assert.deepEqual(printed[5], [null, { primary: "hands", extra: [], vertex: null }, null, handsPath]);
+  assert.deepEqual(printed[6], [true, handsPath]);
+  assert.deepEqual(printed[7], [null, null, "pin"]);
+  assert.deepEqual(printed[8], [handsPath, handsPath, bladePath.join("/")]);
+  assert.deepEqual(printed[9], [null, null]);
 });

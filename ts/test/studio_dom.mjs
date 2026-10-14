@@ -19,7 +19,7 @@ class Node {
   contains(n) { while (n) { if (n === this) return true; n = n.parentNode; } return false; }
 }
 class Text extends Node { constructor(d) { super(3, "#text"); this.data = String(d); } set nodeValue(v) { this.data = String(v); } get nodeValue() { return this.data; } }
-const EVENTS = ["click", "change", "input", "keydown", "blur", "focus", "mousedown", "pointerdown", "toggle",
+const EVENTS = ["click", "dblclick", "change", "input", "keydown", "blur", "focus", "focusin", "mousedown", "mouseenter", "pointerdown", "toggle",
                 "dragstart", "dragover", "dragleave", "drop"];
 class Element extends Node {
   constructor(name) { super(1, name.toUpperCase()); this.localName = name; this.attributes = {}; this.style = { setProperty(k, v) { this[k] = v; }, cssText: "" }; this.listeners = {};

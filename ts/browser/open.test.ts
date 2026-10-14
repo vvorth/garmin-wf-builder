@@ -44,12 +44,15 @@ for (const face of exampleFaces()) {
       t.diagnostic(`${face.name}: first frame in ${ms} ms, ${doc.text.split("\n").length} lines, ${doc.targets.length} targets`);
     }
     await s.waitIdle();
-    // the DOM and the text agree on what was opened
+    // the DOM and the text agree on what was opened: each element row is a key of its own line; a hand's or a
+    // part's row names a key the text has (a part written in flow style too), or the list form's generated partN
     assert.equal(await s.page.locator(".topbar .title .name").textContent(), doc.name);
     await s.leftTab("Layers");
-    const rows = await s.page.locator(".layers .item > span:first-child").allTextContents();
+    const rows = await s.page.locator(".layers .item:not(.part):not(.hand) > span:first-child").allTextContents();
     assert.ok(rows.length > 0, "the Layers tree is empty");
     for (const id of rows) assert.ok(new RegExp(`^\\s+${id}:`, "m").test(doc.text), `${id} is listed in Layers but not in the text`);
+    const parts = await s.page.locator(".layers .item.part > span:first-child, .layers .item.hand > span:first-child").allTextContents();
+    for (const id of parts) assert.ok(/^part\d+$/.test(id) || new RegExp(`[\\s{]${id}:`).test(doc.text), `${id} is listed in Layers but not in the text`);
     assert.deepEqual(s.errors, [], "console or page errors while opening");
   });
 }

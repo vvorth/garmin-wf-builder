@@ -259,7 +259,7 @@ test("the diagnostics filter by severity and the tab counts each", async () => {
 // -- the Properties panel: the generic form over the worker's field tree --
 
 /** `Inspector` rendered over `doc` with the field tree `ins` (the real `inspect()`, as the worker answers), then `body` run with `edits`, `field`, `commit`, `click`, `settle` and `out`: what it printed, one JSON value a line. */
-function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?: unknown } = {}, body = ""): string {
+function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?: unknown; vertex?: number | null } = {}, body = ""): string {
   return `
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
@@ -280,6 +280,7 @@ function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?:
       let target = ${JSON.stringify(props.target ?? "all")};
       const show = async () => {
         render(html\`<\${Inspector} doc=\${doc} element=\${{ path: ins.element }} ins=\${ins} target=\${target} vocab=\${${JSON.stringify(props.vocab ?? {})}}
+          vertex=\${${JSON.stringify(props.vertex ?? null)}} onHoverVertex=\${(i) => edits.push({ hover: i })}
           onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
         await settle(); await settle();
       };
@@ -610,4 +611,53 @@ test("awake, an override the watch reads is shown with its selector, and Edit fo
     { op: "set", element: CLOCK, path: ["at", "dy"], scope: "all", device: "fenix847mm", value: "4px" },
   ]);
   assert.deepEqual(printed[4], ["", "", ""]);
+});
+
+test("a part's Properties say which hand or pattern it belongs to, edit its keys in every frame, and its points mark and highlight the vertex", async () => {
+  // A part has no overrides and no `aod:` block: its keys are edited as
+  // they are whatever frame the context views, with no Edit for and no
+  // AOD note. The `points` list and the canvas name the same vertex.
+  const showcase = repoText("examples/showcase/face.yaml");
+  const patterns = repoText("examples/features/patterns/face.yaml");
+  installAssets();
+  const blade = ["resources", "hand_sets", "vintage", "hour", "parts", "blade"];
+  // the trees travel inside the script's text, which has a size limit: the smaller face stands as the document
+  const inspected = {
+    blade: slim(plain(inspect(showcase, blade, null))),
+    bladeAod: slim(plain(inspect(showcase, blade, db.get("fenix8solar47mm"), { frame: "aod", style: null }))),
+    hour: slim(plain(inspect(showcase, blade.slice(0, 4), null))),
+  };
+  const printed = printedBy(inspector(summary(patterns), slim(plain(inspect(patterns, ["static", "hour_ticks", "parts", "tick"], null))), { target: "device", vertex: 1 }, `
+      const inspected = ${JSON.stringify(inspected)};
+      const head = () => root.all((e) => cls(e) === "ins-head")[0];
+      const crumb = () => head().all((e) => cls(e).startsWith("name"))[0].textContent;
+      // a pattern part: its pattern and name
+      out(crumb());
+      ins = inspected.blade; await show();
+      out([crumb(), head().all((e) => cls(e).includes("renamable")).length, head().all((e) => cls(e) === "dim")[0].textContent]);
+      const items = () => field("points").all((e) => cls(e).startsWith("list-item"));
+      out(items().map((it) => cls(it)));
+      // hovering an item names its vertex; a vertex typed in by its dx goes to the part's own key, whatever Edit for says
+      items()[0].dispatch("mouseenter"); await settle();
+      await commit(field("dx", items()[1]), "-1");
+      out(edits.splice(0));
+      // the AOD frame: the same keys, editable, with no note
+      ins = inspected.bladeAod; await show();
+      out([head().all((e) => cls(e) === "frame-note").length, root.all((e) => cls(e).includes("readonly")).length, root.textContent.includes("not restyled")]);
+      await commit(field("dx", items()[0]), "-3");
+      out(edits.splice(0));
+      // a hand: its set and name
+      ins = inspected.hour; await show();
+      out([crumb(), root.all((e) => cls(e) === "key").map((e) => e.textContent).slice(0, 2)]);
+    `));
+  assert.equal(printed[0], "hour_ticks › tick");
+  assert.deepEqual(printed[1], ["hour › blade", 0, "polygon"]);
+  assert.deepEqual(printed[2], ["list-item", "list-item on"], "the selected vertex's item is marked");
+  assert.deepEqual(printed[3], [
+    { hover: 0 },
+    { op: "set", element: blade, path: ["points", 1, "dx"], scope: "all", device: null, value: "-1%r" },
+  ]);
+  assert.deepEqual(printed[4], [0, 0, false]);
+  assert.deepEqual(printed[5], [{ op: "set", element: blade, path: ["points", 0, "dx"], scope: "all", device: "fenix8solar47mm", value: "-3%r" }]);
+  assert.deepEqual(printed[6], ["vintage › hour", ["color", "parts"]]);
 });

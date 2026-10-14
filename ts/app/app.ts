@@ -32,14 +32,16 @@ import {
   shownDate, shownTime, useEditorStore, useStore, zoomOf,
 } from "./store.ts";
 import type { Clock, Context, EditorState, FrameMode, Message, SelectMode, Shown } from "./store.ts";
+import type { AnyGesture } from "./outbox.ts";
 import type {
-  Answer, Args, DownloadArgs, EditOp, EventFields, EventName, Gesture, History, HistorySnapshot, HistoryState, Home as HomeAnswer,
-  LibraryEntry, Op, Path, Scope, SlotEntry, StructureOp, Summary, TreeBlock, TreeNode, Value, Vocabulary,
+  Answer, Args, DownloadArgs, EditOp, EventFields, EventName, History, HistorySnapshot, HistoryState, Home as HomeAnswer,
+  LibraryEntry, Op, Path, PointGesture, Scope, SlotEntry, StructureOp, Summary, TreeBlock, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
 /** Shows an error (`api`'s refusal, or anything thrown) as a toast. */
 export type OnError = (e: unknown) => void;
-export type OnSelect = (id: string | null, mode?: SelectMode) => void;
+/** `owner`: the element a hand's or part's Layers row sits under, entered before the part is selected. */
+export type OnSelect = (id: string | null, mode?: SelectMode, owner?: Path) => void;
 
 interface SplitterProps {
   width: number;
@@ -401,6 +403,7 @@ function PropertiesSection({ doc }: { doc: Summary }): VNode {
             ${!box && drawn && element.type !== "group" ? " · not drawn in this frame" : ""}
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} ins=${ins} target=${target} vocab=${vocab ?? {}}
+                      vertex=${selection.vertex} onHoverVertex=${(i: number) => store.selectVertex(i)}
                       onEdit=${(op: EditOp) => store.edit(op)}
                       onReveal=${(line: number, end?: number) => store.reveal(line, end)} onSelect=${(id: string) => store.select(id)}
                       onFaceSection=${(key: string) => store.openFaceSection(key)} />
@@ -565,8 +568,10 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
   const vocab = useStore((s) => s.vocab);
   const selection = useStore((s) => s.selection);
   const frame = useStore((s) => s.frame.current);
-  const drawn = useMemo(() => (frame ? new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)) : null), [frame]);
-  const select: OnSelect = (id, mode) => store.select(id, mode);
+  const entered = useStore((s) => s.context.entered);
+  // inside an entered element the frame lists its parts: the rows of the face's elements are not dimmed for it
+  const drawn = useMemo(() => (frame && !frame.local ? new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)) : null), [frame]);
+  const select: OnSelect = (id, mode, owner) => store.select(id, mode, owner);
   const structure = (op: StructureOp): Promise<void> => store.structure(op);
   return html`<div class="panel left">
     <div class="tabs top">
@@ -574,8 +579,9 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
       <button class=${left === "face" ? "on" : ""} onClick=${() => store.setUi({ leftTab: "face" })}>Face</button>
     </div>
     <div class="panel-scroll">${left === "layers"
-      ? html`<${Layers} doc=${doc} vocab=${vocab ?? {}} selected=${selection.primary} extra=${selection.extra} drawn=${drawn}
-                        onSelect=${select} onStructure=${structure} />`
+      ? html`<${Layers} doc=${doc} vocab=${vocab ?? {}} selected=${selection.primary} extra=${selection.extra} drawn=${drawn} entered=${entered}
+                        onSelect=${select} onStructure=${structure} onEdit=${(op: EditOp) => store.edit(op)}
+                        onEnter=${(path: Path) => store.enter(path)} onExit=${() => store.leave()} />`
       : html`<${FacePanel} doc=${doc} vocab=${vocab ?? {}} onEdit=${(op: EditOp) => store.edit(op)}
                            onUpload=${(file: File, what: Parameters<EditorStore["upload"]>[1]) => store.upload(file, what)}
                            onSelect=${select} onStructure=${structure} onReveal=${(line: number, end: number) => store.reveal(line, end)}
@@ -686,11 +692,12 @@ function Stage({ doc, panZoom }: { doc: Summary; panZoom: PanZoom }): VNode {
       ? html`<${YamlPane} doc=${doc} />`
       : html`<div class="canvas-wrap" ref=${panZoom.wrap} ...${panZoom.handlers}>
           ${busy ? html`<div class="busy">rendering…</div>` : null}
-          ${frame ? html`<${Canvas} frame=${frame} selected=${selection.primary}
+          ${frame ? html`<${Canvas} frame=${frame} selected=${selection.primary} vertex=${selection.vertex}
                                     extra=${selection.extra} tree=${doc.tree} queue=${queue}
                                     zoom=${zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
                                     onPick=${(id: string | null, additive: boolean) => store.select(id, additive)}
-                                    onDrag=${(ids: string[], gesture: Gesture, shown: Shown) => store.drag(ids, gesture, shown)} />`
+                                    onVertex=${(index: number | null) => store.selectVertex(index)}
+                                    onDrag=${(ids: string[], gesture: AnyGesture, shown: Shown) => store.drag(ids, gesture, shown)} />`
                   : html`<div class="empty">${doc.loads ? "No frame yet." :
                       "The face does not load, so there is nothing to draw. The diagnostics on the right say why."}</div>`}
         </div>`}
@@ -724,7 +731,8 @@ function useEditorKeys(store: EditorStore, panZoom: PanZoom): void {
   const s = (): EditorState => store.state;
   const tree = (): TreeBlock[] => s().doc?.tree ?? [];
   const chosen = (): string[] => chosenIds(s().selection);
-  const element = (): TreeNode | null => elementOf(s());
+  // the selected element, for the structural shortcuts; a hand or a part selected is none
+  const element = (): TreeNode | null => { const node = elementOf(s()); return node && node.kind === "element" ? node : null; };
   // the face and its frame, while the Face pane shows them
   const onFace = (): { frame: NonNullable<EditorState["frame"]["current"]>; doc: Summary } | null => {
     const { ui, frame, doc } = s();
@@ -754,8 +762,20 @@ function useEditorKeys(store: EditorStore, panZoom: PanZoom): void {
       store.moveAll(ids, dx, dy, { item, moving: movedBy(face.doc.tree, ids) });
       return true;
     },
-    // the whole selection, as one change
-    remove: () => (element() ? structure(deleteOp(tree(), chosen())) : false),
+    // a picked vertex of the selected polygon goes; else the whole selection, as one change
+    remove: (): false | undefined => {
+      const { selection } = s();
+      const face = onFace();
+      if (selection.vertex !== null && selection.primary && face) {
+        const item = face.frame.items.find((i) => i.id === selection.primary);
+        if (!item) return false;
+        const gesture: PointGesture = { kind: "remove_vertex", index: selection.vertex };
+        store.drag([item.id], gesture, { item, moving: new Set([item.id]), preview: gesture });
+        store.selectVertex(null);
+        return undefined;
+      }
+      return element() ? structure(deleteOp(tree(), chosen())) : false;
+    },
     group: () => {
       const nodes = blocksOf(tree()).nodes;
       const paths = chosen().flatMap((id) => { const n = nodes.find((node) => node.id === id); return n ? [n.path] : []; });
@@ -767,12 +787,13 @@ function useEditorKeys(store: EditorStore, panZoom: PanZoom): void {
     zoom: (by: number) => store.setZoom(zoomOf(s()) * (by > 0 ? 1.25 : 0.8)),
     zoomFit: fit,
     zoomReal: (): false | undefined => { if (realZoomOf(s()) === null) return false; store.toggleReal(); return undefined; },
-    // the help, or an open menu or dialog, closes first; then the selection goes
+    // the help, or an open menu or dialog, closes first; then an entered element is left; then the selection goes
     deselect: (): false | undefined => {
-      const { ui } = s();
+      const { ui, context } = s();
       if (ui.palette) { store.setUi({ palette: false }); return undefined; }
       if (ui.dialog === "keys") { store.setUi({ dialog: null }); return undefined; }
       if (ui.dialog || document.querySelector(".popover-body:popover-open, .modal-back")) return false;
+      if (context.entered !== null) { store.leave(); return undefined; }
       if (!chosen().length) return false;
       store.deselect();
       return undefined;

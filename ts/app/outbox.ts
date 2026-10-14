@@ -15,7 +15,7 @@
 // the version the worker answered with. Until a frame of that version
 // arrives, the canvas still draws the entry itself.
 
-import type { FrameItem, Gesture, Handle, Op, Scope, Summary } from "../src/studio/protocol.ts";
+import type { FrameItem, Gesture, Handle, Op, PointGesture, Scope, Summary } from "../src/studio/protocol.ts";
 import type { Placed } from "./hit.ts";
 import type { PlanKind } from "./textsync.ts";
 
@@ -28,19 +28,23 @@ export interface Guides {
 }
 
 /** A gesture as the canvas draws it: what is sent, plus the guides it snapped to, the handle dragged and a radius's new value. */
-export type Preview = Gesture & { guides?: Guides; handle?: Handle; to?: number };
+export type Preview = AnyGesture & { guides?: Guides; handle?: Handle; to?: number };
 
-/** The device a gesture is written for, and the scope (`auto`: where that device reads the key). */
+/** A gesture on an element or a part: `Gesture`'s three, or one on a polygon's points. */
+export type AnyGesture = Gesture | PointGesture;
+
+/** The device a gesture is written for, the scope (`auto`: where that device reads the key), and the frame's time for a part of an entered element. */
 export interface Where {
   device?: string;
   scope?: "auto" | Scope;
+  time?: string;
 }
 
 export type EntryState = "queued" | "sent" | "done";
 
 export interface GestureEntry {
   ids: string[];
-  gesture: Gesture;
+  gesture: AnyGesture;
   preview: Preview;
   item: Placed;
   moving: Iterable<string>;
@@ -66,7 +70,7 @@ export type Entry = GestureEntry | RequestEntry;
 /** An entry as it is added: the queue gives it its state. */
 export type NewEntry = Omit<GestureEntry, "state" | "done"> | Omit<RequestEntry, "state" | "done">;
 
-const isMove = (g: Gesture | undefined): g is MoveGesture => !!g && g.kind === "move" && (g.part || "both") === "both";
+const isMove = (g: AnyGesture | undefined): g is MoveGesture => !!g && g.kind === "move" && (g.part || "both") === "both";
 /** A gesture entry whose gesture moves the whole element. */
 type MoveEntry = GestureEntry & { gesture: MoveGesture };
 const movesWhole = (e: Entry | NewEntry | undefined): e is MoveEntry => !!e && e.gesture !== undefined && isMove(e.gesture);

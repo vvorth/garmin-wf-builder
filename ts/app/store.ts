@@ -18,14 +18,15 @@
 import { createContext } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import type {
-  Answer, Args, AssetArgs, DeviceInfo, Dragged, EditOp, FaceUiState, Frame, FrameArgs, Gesture, Inspect, InspectArgs, Op, Scope, Skin, Structured,
+  Answer, Args, AssetArgs, DeviceInfo, Dragged, EditOp, FaceUiState, Frame, FrameArgs, Gesture, Inspect, InspectArgs, Op, Path, Scope, Skin, Structured,
   StructureOp, Summary, TreeNode, VersionArgs, Vocabulary,
 } from "../src/studio/protocol.ts";
 import { api, call, listen } from "./api.ts";
 import type { DiagnosticFilter } from "./diagnostics.ts";
-import { flatten, rangeIds, selectAll as allShown } from "./hit.ts";
+import { rangeIds, selectAll as allShown } from "./hit.ts";
 import { droppedError, enqueue, inFlight, mark, newer, next, saveState } from "./outbox.ts";
-import type { Entry, Failure, GestureEntry, Where } from "./outbox.ts";
+import type { AnyGesture, Entry, Failure, GestureEntry, Where } from "./outbox.ts";
+import { nodeAtPath, nodeById } from "./tree.ts";
 import { TAB } from "./session.ts";
 import * as sync from "./textsync.ts";
 import type { PlanKind, SyncState } from "./textsync.ts";
@@ -37,10 +38,17 @@ import { CSS_PX_PER_INCH, clampZoom, realZoom, serverScale } from "./zoom.ts";
 /** How a click selects: alone, a Shift range in the layers, or toggled into the selection. */
 export type SelectMode = "range" | boolean;
 
+/**
+ * What is selected: `primary` an element's id, or a hand's or a part's tree
+ * path joined with "/" (`tree.ts`'s `selectionId`), `extra` more elements,
+ * and `vertex` the point of a polygon (element or part) picked on the face
+ * or in Properties, which Delete removes.
+ */
 export interface Selection {
   primary: string | null;
   /** More elements selected with Ctrl/Cmd (or Shift on the face), for moving, deleting or grouping together. */
   extra: string[];
+  vertex: number | null;
 }
 
 /** Which frame the preview draws: awake, asleep (MIP) or AOD (AMOLED), one at a time. */
@@ -61,6 +69,8 @@ export interface Context {
   picks: Record<string, string>;
   /** Edit for: where a Properties edit or a drag writes `at:`, `size:`, `radius:` or `align:`: "all" the element's own key (a drag then goes where the viewed device reads it), else its override for the device, its shape or its display class. */
   target: Scope;
+  /** The hands, pattern or needle element entered (its tree path): the canvas then shows its parts in its own frame; null outside any. */
+  entered: Path | null;
 }
 
 export interface Panels {
@@ -268,7 +278,10 @@ function storedUi(): Ui {
   return { leftTab: "layers", faceSection, pane: "face", reportsTab: "diagnostics", diagFilter: "all", folds, dialog: null, palette: false };
 }
 
-const NO_SELECTION: Selection = { primary: null, extra: [] };
+const NO_SELECTION: Selection = { primary: null, extra: [], vertex: null };
+const samePath = (a: Path | null, b: Path | null): boolean => a !== null && b !== null && a.length === b.length && a.every((step, i) => step === b[i]);
+/** Whether a selection id names a hand or a part (a tree path joined with "/"), not an element. */
+const isPartId = (id: string): boolean => id.includes("/");
 const freshYaml = (): YamlState =>
   ({ sync: sync.initial({ text: "", version: 0 }), text: "", status: null, conflict: false, sending: false, reveal: null });
 
@@ -290,9 +303,10 @@ export const shownTime = (s: EditorState): string => (s.context.now ? s.clock.ti
 export const shownDate = (s: EditorState): string => (s.context.now ? s.clock.date : s.context.date);
 /** Every selected element, the primary first. */
 export const chosenIds = (sel: Selection): string[] => (sel.primary ? [sel.primary, ...sel.extra] : sel.extra);
-/** The selected element's node in the tree, or null. */
-export const elementOf = (s: EditorState): TreeNode | null =>
-  (s.doc && s.selection.primary ? flatten(s.doc.tree).find((n) => n.id === s.selection.primary) ?? null : null);
+/** The selected node in the tree (an element, a hand or a part), or null. */
+export const elementOf = (s: EditorState): TreeNode | null => (s.doc && s.selection.primary ? nodeById(s.doc.tree, s.selection.primary) : null);
+/** The entered element's node, or null. */
+export const enteredOf = (s: EditorState): TreeNode | null => (s.doc && s.context.entered ? nodeAtPath(s.doc.tree, s.context.entered) : null);
 /** Whether the YAML tab's text is saved: `textsync.plan`'s kind, "send" while a send is out. */
 export const yamlSaving = (s: EditorState): PlanKind => (s.yaml.sending ? "send" : sync.plan(s.yaml.sync, s.yaml.text).kind);
 /** The top bar's saved state: the outbox and the YAML tab together. */
@@ -324,7 +338,7 @@ export class EditorStore {
   constructor(docId: string | null = null) {
     this.state = {
       docId: null, doc: null, gone: false, vocab: null, devices: [], selection: NO_SELECTION,
-      context: { device: null, style: "", frame: "awake", time: "", date: "", now: false, picks: {}, target: "all" },
+      context: { device: null, style: "", frame: "awake", time: "", date: "", now: false, picks: {}, target: "all", entered: null },
       inspect: null, view: storedView(), ui: storedUi(), pending: { queue: [], latest: null }, yaml: freshYaml(),
       frame: { current: null, busy: false, skin: null }, clock: clockNow(), messages: { log: [], unseen: 0, toast: null }, faceState: {},
     };
@@ -374,6 +388,7 @@ export class EditorStore {
     this.frameKey = null;
     this.inspectKey = null;
     this.set({ docId, doc: null, gone: false, selection: NO_SELECTION, inspect: null, pending: { queue: [], latest: null }, yaml: freshYaml(),
+               context: { ...this.state.context, entered: null },
                frame: { ...this.state.frame, current: null, busy: false }, ui: { ...this.state.ui, diagFilter: "all", dialog: null, palette: false } });
     if (docId === null) return;
     this.reload();
@@ -433,6 +448,11 @@ export class EditorStore {
     if (s.doc && (!ctx.device || !s.doc.targets.includes(ctx.device)) && s.doc.targets.length) ctx = { ...ctx, device: s.doc.targets[0] ?? null };
     // a style picked on another face is dropped when this one has no entry of that name: the frame could never render it
     if (s.doc && ctx.style && !s.doc.globals.styles.entries.some((e) => e.name === ctx.style)) ctx = { ...ctx, style: "" };
+    // an element entered that the face no longer has (undone, deleted, retyped) cannot be drawn: the context leaves it
+    if (s.doc && ctx.entered !== null) {
+      const node = nodeAtPath(s.doc.tree, ctx.entered);
+      if (!node || node.kind !== "element" || !node.children.some((c) => c.kind === "hand" || c.kind === "part")) ctx = { ...ctx, entered: null };
+    }
     const info = s.devices.find((d) => d.id === ctx.device);
     if (info) {
       const amoled = isAmoled(info);
@@ -450,20 +470,68 @@ export class EditorStore {
   /**
    * `mode`: falsy selects `id` alone; "range" (Shift in the layers) selects
    * every element from the selection to it; anything else toggles it in
-   * the selection.
+   * the selection. A hand or a part (its tree path joined with "/") is
+   * selected alone, inside its element: `owner`, the element it was
+   * clicked under in Layers, is entered first when it is not the entered
+   * one; on the face, the entered element is its owner. An element outside
+   * the entered one leaves it.
    */
-  select(id: string | null, mode?: SelectMode): void {
+  select(id: string | null, mode?: SelectMode, owner?: Path): void {
     const s = this.state;
     const { primary, extra } = s.selection;
+    const entered = s.context.entered;
+    let ctx = s.context;
+    if (id !== null && isPartId(id)) {
+      const into = owner ?? entered;
+      if (into !== null && !samePath(into, entered)) ctx = { ...ctx, entered: into };
+      mode = false;
+    } else if (id !== null && entered !== null && s.doc) {
+      const node = nodeAtPath(s.doc.tree, entered);
+      if (!node || node.id !== id) ctx = { ...ctx, entered: null };
+    }
     if (mode === "range" && primary && s.doc) {
       const ids = id === null ? [] : rangeIds(s.doc.tree, primary, id);
       const first = ids.includes(primary) ? primary : ids[0];
-      this.set({ selection: { primary: first || null, extra: ids.filter((x) => x !== first) } });
+      this.set({ selection: { primary: first || null, extra: ids.filter((x) => x !== first), vertex: null } });
     } else if (mode && primary && id !== null && id !== primary) {
-      this.set({ selection: { primary, extra: extra.includes(id) ? extra.filter((x) => x !== id) : [...extra, id] } });
+      this.set({ selection: { primary, extra: extra.includes(id) ? extra.filter((x) => x !== id) : [...extra, id], vertex: null } });
     } else if (id !== primary || extra.length) {
-      this.set({ selection: { primary: id, extra: [] } });
+      this.set({ selection: { primary: id, extra: [], vertex: null } });
     }
+    if (ctx !== s.context) { this.set({ context: ctx }); this.reconcile(); }
+    this.askInspect();
+  }
+
+  /** The point `index` of the selected polygon (an element or a part) is picked, or none with null. */
+  selectVertex(index: number | null): void {
+    if (this.state.selection.vertex !== index) this.set({ selection: { ...this.state.selection, vertex: index } });
+  }
+
+  /**
+   * Enter the hands, pattern or needle element at `path`: the frame becomes
+   * its parts' (`Frame.local`), Layers marks it, and a selection outside it
+   * is dropped for the element itself.
+   */
+  enter(path: Path): void {
+    const s = this.state;
+    if (samePath(s.context.entered, path)) return;
+    const node = s.doc ? nodeAtPath(s.doc.tree, path) : null;
+    const primary = s.selection.primary;
+    if (node && primary !== null && !isPartId(primary) && primary !== node.id) this.set({ selection: { primary: node.id, extra: [], vertex: null } });
+    else if (primary !== null && isPartId(primary) && !primary.startsWith(path.join("/"))) this.set({ selection: { primary: node ? node.id : null, extra: [], vertex: null } });
+    this.setContext({ entered: path });
+    this.askInspect();
+  }
+
+  /** Leave the entered element: the frame is the face's again, and a part or hand that was selected gives way to the element. */
+  leave(): void {
+    const s = this.state;
+    if (s.context.entered === null) return;
+    const node = enteredOf(s);
+    const primary = s.selection.primary;
+    if (primary !== null && isPartId(primary)) this.set({ selection: { primary: node ? node.id : null, extra: [], vertex: null } });
+    else if (s.selection.vertex !== null) this.set({ selection: { ...s.selection, vertex: null } });
+    this.setContext({ entered: null });
     this.askInspect();
   }
 
@@ -472,7 +540,7 @@ export class EditorStore {
     const { doc, frame } = this.state;
     if (!doc || !frame.current) return false;
     const ids = allShown(doc.tree, new Set(frame.current.items.map((i) => i.id)));
-    this.set({ selection: { primary: ids[0] || null, extra: ids.slice(1) } });
+    this.set({ selection: { primary: ids[0] || null, extra: ids.slice(1), vertex: null } });
     this.askInspect();
     return true;
   }
@@ -544,10 +612,11 @@ export class EditorStore {
     });
   }
 
-  /** A gesture from the canvas or the arrow keys on `ids`, drawn from `shown` until its frame arrives. */
-  drag(ids: string[], gesture: Gesture, shown: Shown): void {
-    const { device, target } = this.state.context;
-    const where: Where = { ...(device !== null ? { device } : {}), scope: target === "all" ? "auto" : target };
+  /** A gesture from the canvas or the arrow keys on `ids`, drawn from `shown` until its frame arrives; inside an entered element it carries the frame's time, so a hand part's delta turns by the angle shown. */
+  drag(ids: string[], gesture: AnyGesture, shown: Shown): void {
+    const s = this.state;
+    const { device, target, entered } = s.context;
+    const where: Where = { ...(device !== null ? { device } : {}), scope: target === "all" ? "auto" : target, ...(entered !== null ? { time: shownTime(s) } : {}) };
     this.commit(enqueue(this.state.pending.queue, { ids, gesture, ...shown, where }));
     void this.pump();
   }
@@ -569,7 +638,7 @@ export class EditorStore {
     if (!updated) return;
     const select = (updated as Structured).select;
     if (op.op === "delete") this.set({ selection: NO_SELECTION });
-    else this.set({ selection: { primary: select ?? this.state.selection.primary, extra: [] } });
+    else this.set({ selection: { primary: select ?? this.state.selection.primary, extra: [], vertex: null } });
     this.askInspect();
   }
 
@@ -578,7 +647,7 @@ export class EditorStore {
     const updated = await this.send({ op: "batch", args: { label, edits } });
     if (!updated) return;
     const select = (updated as Structured).select;
-    if (select) this.set({ selection: { primary: select, extra: [] } });
+    if (select) this.set({ selection: { primary: select, extra: [], vertex: null } });
     this.askInspect();
   }
 
@@ -635,7 +704,8 @@ export class EditorStore {
       return;
     }
     const args: FrameArgs = { id: doc.id, device: context.device, scale: scaleOf(s), style: context.style, time: shownTime(s), date: shownDate(s),
-                              asleep: context.frame === "asleep", aod: context.frame === "aod", picks: picksParam(context.picks, doc.globals.slots) };
+                              asleep: context.frame === "asleep", aod: context.frame === "aod", picks: picksParam(context.picks, doc.globals.slots),
+                              ...(context.entered !== null ? { enter: context.entered } : {}) };
     const key = `${doc.version}\0${JSON.stringify(args)}`;
     if (key === this.frameKey) return;
     this.frameKey = key;
@@ -661,7 +731,11 @@ export class EditorStore {
         this.set({ frame: { ...this.state.frame, current: f }, pending: { ...this.state.pending, queue } });
       }
     } catch (e) {
-      if (epoch === this.epoch && this.frameWaiting === null) this.error(e);
+      if (epoch === this.epoch && this.frameWaiting === null) {
+        this.error(e);
+        // an entered element this frame cannot draw (not placed on this watch, in this style) is left, so the face shows again
+        if (args.enter !== undefined && samePath(this.state.context.entered, args.enter)) this.leave();
+      }
     } finally {
       this.frameSending = false;
       if (this.frameWaiting !== null) void this.pumpFrame();

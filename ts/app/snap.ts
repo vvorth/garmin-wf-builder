@@ -1,7 +1,7 @@
 // Snapping a drag: pure functions, no DOM, so Node can check them
 // (test/page-modules.test.ts). All lengths are device pixels.
 
-import type { Gesture, Handle } from "../src/studio/protocol.ts";
+import type { Gesture, Handle, PointGesture } from "../src/studio/protocol.ts";
 import type { Box, Placed } from "./hit.ts";
 
 /** The lines a move may snap to, the grid about the screen centre (0: none), and that centre. */
@@ -122,10 +122,12 @@ export function resizeDelta(handle: Pick<Handle, "axis" | "gain">, dx: number, d
 // What the canvas says during a drag: how far it has gone, and whether it
 // snaps or, with Alt held (`free`), places freely, so the key that turns
 // snapping off is on the screen while it matters.
-export function dragHint(gesture: Gesture, free: boolean): string {
+export function dragHint(gesture: Gesture | PointGesture, free: boolean): string {
   const signed = (n: number): string => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
-  const what = gesture.kind === "move" ? `${signed(gesture.dx)}, ${signed(gesture.dy)} px`
+  const what = gesture.kind === "move" || gesture.kind === "vertex" ? `${signed(gesture.dx)}, ${signed(gesture.dy)} px`
     : gesture.kind === "resize" ? `${signed(gesture.delta)} px`
+    : gesture.kind === "add_vertex" ? `a new point at (${gesture.x}, ${gesture.y})`
+    : gesture.kind === "remove_vertex" ? `point ${gesture.index} removed`
     : `${Math.round(gesture.degrees)}°`;
   return `${what} · ${free ? "placed freely (Alt)" : "snapping · hold Alt to place freely"}`;
 }

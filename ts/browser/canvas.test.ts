@@ -2,8 +2,8 @@
 // the showcase (a zip with its fonts), every element type present is
 // selected and moved, each handle writes its key, the arrows nudge, a group
 // and a multi-selection move as one change, a thin bar's centre moves it, a
-// polygon's move is refused with the documented message, and Undo restores
-// the text byte for byte after each gesture.
+// polygon moves every point (its vertices are `parts.test.ts`), and Undo
+// restores the text byte for byte after each gesture.
 
 import assert from "node:assert/strict";
 import type { Summary } from "../src/studio/protocol.ts";
@@ -154,19 +154,18 @@ h.test("shapes: arrows nudge the selection by one pixel, ten with Shift", async 
   assert.deepEqual(s.errors, []);
 });
 
-h.test("shapes: a polygon's move is refused with the documented message", async (s) => {
+h.test("shapes: a polygon's move writes every point", async (s) => {
   await s.openExample("features/shapes");
   await s.waitFace();
   await s.waitIdle();
   const base = await s.doc();
-  const t = Date.now();
-  const after = await s.dragElement("chevron", 15, 0);
-  assert.equal(after.text, base.text, `the polygon moved: ${diffLines(base.text, after.text).join(" ; ")}`);
-  assert.equal(after.version, base.version);
-  const toast = await s.waitToast(t, /polygon/);
-  assert.equal(toast, "chevron is a polygon: move its points: in the text");
-  assert.ok((await s.messageLog()).some((m) => m.includes("chevron is a polygon")), "the Messages log did not keep the refusal");
-  assert.equal(await s.page.locator(".topbar .undo-group button").first().isDisabled(), true, "Undo is offered after a refused move");
+  const after = await s.dragElement("chevron", 15, 0, { alt: true });
+  assert.notEqual(after.version, base.version, `the polygon did not move: ${(await s.toastsSince(0)).join(" | ")}`);
+  const diff = diffLines(base.text, after.text);
+  assert.equal(diff.filter((l) => l.startsWith("+")).length, 3, `every point moves: ${diff.join(" ; ")}`);
+  assert.ok(diff.every((l) => /- \{ anchor: center/.test(l)), `a move changed more than the points: ${diff.join(" ; ")}`);
+  assert.equal(after.history.undo, "move chevron by (+15, +0) px on fenix8solar47mm");
+  await undoBack(s, base, "moving the polygon");
   assert.deepEqual(s.errors, []);
 });
 

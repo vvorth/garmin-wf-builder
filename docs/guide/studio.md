@@ -183,17 +183,72 @@ it. Its handles resize it:
 | radius | the circle's right | `radius:` |
 | angle | an arc's two ends | `start_angle:`, `sweep:` |
 | end | a line's two ends | `at:`, `to:` |
+| vertex | each point of a polygon, a small square | that point of `points:` |
+| segment | the middle of each of a polygon's edges, a dot | adds a point there |
 
-A polygon has no handles; its `points:` are a list in Properties. A handle
-takes a press within a few pixels of it, except where that zone would
-cover the element itself: pressing inside a thin bar, thinner than the
-zone, moves the bar, and its size handle takes a press just outside it.
+A handle takes a press within a few pixels of it, except where that zone
+would cover the element itself: pressing inside a thin bar, thinner than
+the zone, moves the bar, and its size handle takes a press just outside it.
 A line's ends keep their handles; a press on its middle moves it.
+
+**A polygon's points.** Dragging a vertex moves that one point, written in
+the unit its `points:` entry already has; dragging the polygon itself
+moves every point. Clicking a vertex picks it: it is drawn filled, its item
+in the `points:` list in Properties is marked, and **Delete** removes it (a
+polygon keeps at least three points). Hovering an item of the list picks
+its vertex the same way, so the list and the face always name the same
+point. Clicking a segment handle adds a point at the edge's middle, after
+the point the edge follows; dragging it adds the point where you let go.
+A polygon part written with `mirror: x` shows its reflected half too, as
+hollow squares that cannot be dragged: move a listed point and its
+reflection follows, and a point on the axis stays on it.
+
+#### Hands, patterns and needles: enter the set
+
+A `hands` element draws its set's parts, a `pattern` its copies of its
+parts, and a `gauge` with `style: needle` its needle's parts, all in a frame
+of their own: the parts are written pointing at 12 o'clock about the axis,
+in `px` or `%r`, and the watch turns them ([analog
+hands](analog-hands.md), [patterns](patterns.md)). To edit them, **enter**
+the element: the **↘** on its Layers row, or a double-click on the row.
+The face is then drawn as a ghost, dimmed to a third, with the element's
+parts in full colour where the watch draws them, and over it the parts'
+own frame: the axis as a dashed cross, the ring at 100 %r, and the 12
+o'clock ray turned the way the parts are, with ticks at 25, 50, 75 and
+100 %r. For a hands element that is the hour hand's angle at the moment
+the face is drawn at, and every hand's parts are drawn at their own hand's
+angle; for a radial pattern it is the first copy drawn (copy 0, or the
+first not skipped, turned by `start:`); for a needle, the angle of the
+sample reading. The label at the top right of the face names the element
+you are in.
+
+Inside, Layers lists the element's hands and their parts (or its parts)
+under its row, each with its type; click one to select it, and Properties
+shows its keys as it shows an element's, headed by what it belongs to
+(`hour › blade`, `hour_ticks › tick`), with no **Edit for** and no AOD
+note: a part has no overrides and no `aod:` block, so its keys are edited
+as they are whatever frame the context views. On the face, click a part to
+select it, drag it to move it (a line's ends, a circle's radius, a
+rectangle's size and an arc's angles have their handles as an element's
+do, turned with the part), and drag a polygon part's vertices as above. A
+drag is written in the part's own frame: the pixels you moved it by on the
+screen are turned back by the angle the part is drawn at, so a hand part
+dragged along its hand stays on the hand. Drag a part row onto a sibling
+in Layers to change the order the parts are drawn in (upper half: before
+it; lower half: after). A pattern entered keeps its frame while you change
+its `count`, `step_angle`, `step` or `skip` in Properties, so the ghosted
+copies follow each change.
+
+**Exit**, at the top of Layers, or **Escape** with nothing being dragged,
+leaves the element; so does selecting an element outside it. A hands
+element's parts belong to its set (`resources: hand_sets:`), so a change
+made inside one `hands` element shows in every element placing the same
+set.
 
 **Selecting.** Click an element to select it; a click on the space
 around the watch, or **Escape**, selects nothing, whether it was selected
 on the face or in the layers (with a menu or dialog open, Escape closes
-that first). Ctrl-, Cmd- or
+that first; inside an entered set, Escape leaves the set first). Ctrl-, Cmd- or
 Shift-click more elements on the face to add them (or take them out
 again); in the layers, Ctrl- or Cmd-click does that, and Shift-click
 selects every row from the selection to the one clicked. **Ctrl+A**
@@ -310,7 +365,10 @@ cannot edit:
   one by name (**+ key**), starting as a copy of the element's own `at:`.
 - A list (`points:`, `lint: allow:`) shows its items,
   each with **↑**, **↓** and **×**, and **+ add** puts a new one at the
-  end: the schema's default, else an empty item of the right shape.
+  end: the schema's default, else an empty item of the right shape. A
+  polygon's `points:` and its vertex handles on the face name the same
+  point: the picked vertex's item is marked, and hovering an item picks
+  its vertex ([on the face](#on-the-face)).
 - A key the format writes in more than one shape (`absent:` as `hide`, a
   text or a value; a text's `aod: outline:` as `none` or a ring) is a
   segmented control over the shapes, the written one marked; picking
@@ -362,7 +420,11 @@ first, under the ones below it. A block the face does not have yet is listed emp
 somewhere an element can go. A row for an element the current frame does
 not draw (hidden, absent, a different style's layout, asleep with no
 `aod:`) is dimmed; a group dims only when none of its own children draw,
-since a group never draws itself.
+since a group never draws itself. A `hands` element lists its set's hands
+and their parts beneath it, a `pattern` or a needle gauge its parts, each
+part with its type; its **↘** enters the element ([hands, patterns and
+needles](#hands-patterns-and-needles-enter-the-set)), and **Exit** at the
+top of the list leaves it.
 
 - **+ add…** adds an element of any type in front of the selection (or
   at the front of `elements`). A graph asks for its series, a data
@@ -490,7 +552,9 @@ it is what the wearer's list shows, or the order the face is drawn in.
   one to select it). Click a name to rename it: every `set:` naming it
   follows. **Duplicate** copies it; **×** deletes it, refused while an
   element places it. **Edit in YAML** opens the YAML tab with the set's
-  lines selected: a hand's parts are edited there. **+ Hand set** adds one
+  lines selected; a hand's parts are edited on the face by entering an
+  element placing the set ([above](#hands-patterns-and-needles-enter-the-set)).
+  **+ Hand set** adds one
   of four presets, `classic`, `baton`, `dauphine` and `subdial` (a small
   seconds hand), in the face's own colours; on a face with no hands yet it
   also places it at the centre. A `hands` element shows the same card
@@ -638,9 +702,6 @@ without end. A snapshot keeps what it needs, however old.
 
 - Put the `.prg` on the watch: copy it yourself
   ([getting started](getting-started.md)).
-- Edit a hand set's parts (in `resources:`, not on an element), except in
-  the YAML tab; drag a polygon's points or a pattern's parts on the face
-  (they are edited as fields in Properties).
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
 - Share faces between browsers: each keeps its own (above).

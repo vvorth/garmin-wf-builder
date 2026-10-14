@@ -1,7 +1,7 @@
 // The element tree's structure: pure functions, no DOM, so Node can check
 // them (test/page-modules.test.ts).
 
-import type { Path, StructureOp, TreeBlock, TreeNode } from "../src/studio/protocol.ts";
+import type { EditOp, Path, StructureOp, TreeBlock, TreeNode } from "../src/studio/protocol.ts";
 
 /** A block an element can be moved to: its path and the label the picker shows. */
 export interface Destination {
@@ -16,16 +16,70 @@ export interface DropTarget {
 }
 
 // Every element (flat, draw order) and every block an element can go to:
-// each top-level and layout block, then each group's children.
+// each top-level and layout block, then each group's children. A hand or a
+// part under an element is not an element: it is left out.
 export function blocksOf(tree: readonly TreeBlock[]): { nodes: TreeNode[]; destinations: Destination[] } {
   const nodes: TreeNode[] = [], destinations: Destination[] = tree.map((b) => ({ path: b.path, label: b.label }));
   const walk = (list: readonly TreeNode[]): void => list.forEach((n) => {
+    if (n.kind === "hand" || n.kind === "part") return;
     nodes.push(n);
     if (n.type === "group") destinations.push({ path: [...n.path, "children"], label: `${n.id} (group)` });
     walk(n.children);
   });
   tree.forEach((b) => walk(b.children));
   return { nodes, destinations };
+}
+
+// How the editor names a node in a selection: an element by its id, a hand
+// or a part by its tree path joined with "/" (the entered frame's item id,
+// and what a drag names it by), which no element id can be.
+export const selectionId = (node: Pick<TreeNode, "kind" | "id" | "path">): string => (node.kind === "element" ? node.id : node.path.join("/"));
+
+// The node a selection names (`selectionId`), of any kind, or null.
+export function nodeById(tree: readonly TreeBlock[], id: string): TreeNode | null {
+  let found: TreeNode | null = null;
+  const walk = (list: readonly TreeNode[]): void => list.forEach((n) => {
+    if (found) return;
+    if (selectionId(n) === id) { found = n; return; }
+    walk(n.children);
+  });
+  tree.forEach((b) => walk(b.children));
+  return found;
+}
+
+// The node at `path`, of any kind, or null.
+export function nodeAtPath(tree: readonly TreeBlock[], path: Path): TreeNode | null {
+  const want = path.join("/");
+  let found: TreeNode | null = null;
+  const walk = (list: readonly TreeNode[]): void => list.forEach((n) => {
+    if (found) return;
+    if (n.path.join("/") === want) { found = n; return; }
+    walk(n.children);
+  });
+  tree.forEach((b) => walk(b.children));
+  return found;
+}
+
+// Whether `path` names a part written in an id-keyed `parts:` (or a
+// needle's `needle:`) mapping: one a `move_key` can reorder.
+export const isPartPath = (path: Path): boolean => path.length >= 3 && (path[path.length - 2] === "parts" || path[path.length - 2] === "needle") && typeof path[path.length - 1] === "string";
+
+// Whether an element's node has hands or parts under it: one the editor can enter.
+export const hasParts = (node: TreeNode): boolean => node.kind === "element" && node.children.some((c) => c.kind === "hand" || c.kind === "part");
+
+// The edit that puts the part at `from` where a drop on the sibling part at
+// `onto` lands it: before that sibling (`fraction` under half) or after it,
+// among `siblings` (the parent's parts, in order). Null when the two are
+// not parts of the same mapping, or nothing would move.
+export function partDrop(from: Path, onto: Path, fraction: number, siblings: readonly Path[]): EditOp | null {
+  if (!isPartPath(from) || !isPartPath(onto) || from.slice(0, -1).join("/") !== onto.slice(0, -1).join("/")) return null;
+  const index = (p: Path): number => siblings.findIndex((s) => s.join("/") === p.join("/"));
+  const i = index(from), j = index(onto);
+  if (i < 0 || j < 0 || i === j) return null;
+  let to = fraction < 0.5 ? j : j + 1;
+  if (i < to) to--;
+  if (to === i) return null;
+  return { op: "move_key", element: from.slice(0, -2), path: from.slice(-2), to };
 }
 
 // Whether `node` shows anything in the frame `drawn` names: itself, when

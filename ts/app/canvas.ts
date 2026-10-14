@@ -10,15 +10,27 @@
 // canvas draws the gestures still on their way and takes the next press
 // against where they will put things. Nothing here decides where anything
 // lands.
+//
+// A frame entered into a hands, pattern or needle element (`frame.local`)
+// shows that element's parts over a ghost of the face: the part's own frame
+// is drawn over it (its axis, the 12 o'clock ray turned as the parts are,
+// the `%r` ring), a press picks a part by its box (the ghost is one image),
+// and a polygon's points, an element's or a part's, carry vertex handles
+// (small squares; a `mirror: x` part's reflected half hollow and still) and
+// segment handles (dots on each edge's middle): a vertex is dragged, or
+// clicked to pick it (Delete then removes it), a segment is clicked or
+// dragged to add a vertex there. Their previews are the polygon's outline
+// with the point moved or added; nothing is redrawn from the layers inside
+// an entered frame, since the ghost is not among them.
 
 import { WorkerImage } from "./ui.ts";
 import { html } from "htm/preact";
 import type { JSX, VNode } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { Frame, FrameItem, Gesture, Handle, JsonOp, LiveHandle, Skin, Summary } from "../src/studio/protocol.ts";
+import type { Frame, FrameItem, FrameLocal, Gesture, Handle, JsonOp, LiveHandle, PointGesture, Skin, Summary } from "../src/studio/protocol.ts";
 import type { Box, Placed } from "./hit.ts";
 import { elementOf, handleAt, moveHandle, movedBy, together, topmost } from "./hit.ts";
-import type { Entry, GestureEntry, Guides, Preview } from "./outbox.ts";
+import type { AnyGesture, Entry, GestureEntry, Guides, Preview } from "./outbox.ts";
 import { offsets, shiftItems, unshown } from "./outbox.ts";
 import * as raster from "/dist/raster.js";
 import {
@@ -78,6 +90,8 @@ interface ShiftedLayer {
 type MoveGesture = Extract<Gesture, { kind: "move" }>;
 type ResizeGesture = Extract<Gesture, { kind: "resize" }>;
 type TurnGesture = Extract<Gesture, { kind: "turn" }>;
+type VertexGesture = Extract<PointGesture, { kind: "vertex" }>;
+type AddVertexGesture = Extract<PointGesture, { kind: "add_vertex" }>;
 
 // The handles as the worker sends them (`studio/drag.ts`'s `handles`):
 // `Handle` declares every field optional, and each kind fills its own.
@@ -87,17 +101,25 @@ type EndHandle = Handle & { kind: "end"; part: "at" | "to" };
 type SizeHandle = Handle & { kind: "size"; key: string[] };
 /** An arc's end: the angle key it turns, and the arc it sits on. */
 type AngleHandle = Handle & { kind: "angle"; key: string; cx: number; cy: number; start: number; sweep: number };
+/** A polygon's point: its index among the written points (a mirrored one names the point it reflects). */
+type VertexHandle = Handle & { kind: "vertex"; index: number };
+/** The middle of a polygon's edge: the written point it follows. */
+type SegmentHandle = Handle & { kind: "segment"; after: number };
 
 const isEnd = (h: Handle): h is EndHandle => h.kind === "end" && h.part !== undefined;
 const isSize = (h: Handle): h is SizeHandle => h.kind === "size" && Array.isArray(h.key);
 const isAngle = (h: Handle | undefined): h is AngleHandle => h !== undefined && h.kind === "angle" && typeof h.key === "string"
   && h.cx !== undefined && h.cy !== undefined && h.start !== undefined && h.sweep !== undefined;
+const isVertex = (h: Handle): h is VertexHandle => h.kind === "vertex" && typeof h.index === "number";
+const isSegment = (h: Handle): h is SegmentHandle => h.kind === "segment" && typeof h.after === "number";
 
 /** A gesture under way: what is sent on release, with what its preview is drawn from (an `outbox.ts` `Preview`). */
 type Own =
   | (MoveGesture & { guides: Guides })
   | (ResizeGesture & { handle: SizeHandle; to?: number })
-  | (TurnGesture & { handle: AngleHandle });
+  | (TurnGesture & { handle: AngleHandle })
+  | (VertexGesture & { handle: VertexHandle; guides: Guides })
+  | (AddVertexGesture & { handle: SegmentHandle });
 
 /** What a drag acts on: the dragged item, or the selection as one (`together`). */
 type Target = Placed & { box: Box; handles: readonly Handle[] };
@@ -182,9 +204,10 @@ function inkAt(frame: Frame, prepared: Prepared, layer: PreparedLayer, x: number
 // What is under device pixel (x, y): by the layers' ink when they are
 // ready, else the smallest drawn box holding the point. `frame.items` may
 // be shifted (`shiftItems`) by `by`, the moves not drawn yet: a moved
-// layer is read where it will be.
+// layer is read where it will be. In an entered frame the parts are picked
+// by their boxes alone: the ghost round them is one image.
 function pick(frame: Frame, prepared: Prepared | null, x: number, y: number, by: Offsets = new Map()): string | null {
-  if (prepared) {
+  if (prepared && !frame.local) {
     const layers: readonly (PreparedLayer | ShiftedLayer)[] = by.size ? prepared.layers.map((l): PreparedLayer | ShiftedLayer => {
       const o = by.get(elementOf(l.id));
       if (!o) return l;
@@ -240,15 +263,91 @@ function drawChanged(ctx: Ctx, frame: Frame, prepared: Prepared, change: (layer:
 }
 
 // `k`: canvas pixels per screen pixel, so a handle is the same size on the
-// screen at every zoom.
-function drawHandle(ctx: Ctx, x: number, y: number, s: number, k: number): void {
-  const r = HANDLE * k;
+// screen at every zoom. A vertex is a smaller square, filled with the accent
+// when it is the picked one and hollow when it is a mirrored point's (shown,
+// not dragged); a segment's middle is a dot.
+function drawHandle(ctx: Ctx, h: Handle, s: number, k: number, picked = false): void {
+  const { x, y } = h;
   ctx.setLineDash([]);
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = picked ? ACCENT : "#fff";
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1.5 * k;
-  ctx.fillRect(x * s - r, y * s - r, r * 2, r * 2);
+  if (h.kind === "segment") {
+    ctx.beginPath();
+    ctx.arc(x * s, y * s, 3 * k, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
+  const r = (h.kind === "vertex" ? HANDLE - 1 : HANDLE) * k;
+  if (!h.mirrored) ctx.fillRect(x * s - r, y * s - r, r * 2, r * 2);
   ctx.strokeRect(x * s - r, y * s - r, r * 2, r * 2);
+}
+
+// An entered element's own frame over the ghost: the axis cross at its
+// origin, the ring at 100 %r with ticks along the 12 o'clock ray at every
+// 25 %r, the ray turned by the angle the parts are drawn at.
+function drawLocalFrame(ctx: Ctx, local: FrameLocal, frame: Frame, s: number, k: number): void {
+  const [ox, oy] = local.origin;
+  const R = local.radius * 100;
+  ctx.save();
+  ctx.strokeStyle = "rgba(79, 156, 249, 0.55)";
+  ctx.lineWidth = k;
+  ctx.setLineDash([3 * k, 4 * k]);
+  ctx.beginPath();
+  ctx.moveTo(0, oy * s); ctx.lineTo(frame.width * s, oy * s);
+  ctx.moveTo(ox * s, 0); ctx.lineTo(ox * s, frame.height * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(ox * s, oy * s, R * s, 0, Math.PI * 2);
+  ctx.stroke();
+  // the ray: where the parts' own "up" points
+  const t = (local.angle * Math.PI) / 180, ux = Math.sin(t), uy = -Math.cos(t);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(79, 156, 249, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(ox * s, oy * s);
+  ctx.lineTo((ox + ux * R) * s, (oy + uy * R) * s);
+  ctx.stroke();
+  for (const share of [0.25, 0.5, 0.75, 1]) {
+    const px = ox + ux * R * share, py = oy + uy * R * share, tick = 4 * k;
+    ctx.beginPath();
+    ctx.moveTo(px * s - uy * tick, py * s + ux * tick);
+    ctx.lineTo(px * s + uy * tick, py * s - ux * tick);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A screen delta turned into a frame drawn at `angle` degrees, and back. */
+const toLocal = (dx: number, dy: number, angle: number): [number, number] => {
+  const t = (angle * Math.PI) / 180;
+  return [dx * Math.cos(t) + dy * Math.sin(t), -dx * Math.sin(t) + dy * Math.cos(t)];
+};
+const fromLocal = (dx: number, dy: number, angle: number): [number, number] => toLocal(dx, dy, -angle);
+
+// The polygon's outline once a vertex gesture lands: its vertex handles in
+// drawn order, the dragged point moved (a mirrored twin by the delta
+// reflected across the part's axis, which is turned by `angle`), or the
+// new point put after the one it follows.
+function outlineAfter(item: Placed, g: VertexGesture | AddVertexGesture, angle: number): [number, number][] {
+  const vertices = (item.handles ?? []).filter(isVertex);
+  if (g.kind === "vertex") {
+    const [lx, ly] = toLocal(g.dx, g.dy, angle);
+    const [mx, my] = fromLocal(-lx, ly, angle);
+    return vertices.map((h) => (h.index !== g.index ? [h.x, h.y] : h.mirrored ? [h.x + mx, h.y + my] : [h.x + g.dx, h.y + g.dy]));
+  }
+  const points: [number, number][] = vertices.map((h) => [h.x, h.y]);
+  points.splice(g.after + 1, 0, [g.x, g.y]);
+  return points;
+}
+
+function strokePolygon(ctx: Ctx, points: readonly (readonly [number, number])[], s: number): void {
+  if (points.length < 2) return;
+  ctx.beginPath();
+  points.forEach(([x, y], i) => { if (i === 0) ctx.moveTo(x * s, y * s); else ctx.lineTo(x * s, y * s); });
+  ctx.closePath();
+  ctx.stroke();
 }
 
 // The move handle: a disc with four arrows, the same size at every zoom.
@@ -313,7 +412,7 @@ function plus(by: Offsets, moving: Iterable<string>, dx: number, dy: number): Ma
 
 // The face with the element `id` drawn as a live handle (`live`, which the
 // worker declares only where it predicts the edit exactly) leaves it.
-function drawLive(ctx: Ctx, frame: Frame, prepared: Prepared, id: string, live: LiveHandle, g: Exclude<Preview, { kind: "move" }>, s: number): void {
+function drawLive(ctx: Ctx, frame: Frame, prepared: Prepared, id: string, live: LiveHandle, g: Extract<Preview, { kind: "resize" | "turn" }>, s: number): void {
   const change = g.kind === "turn" ? { degrees: g.degrees } : { delta: g.delta };
   drawChanged(ctx, frame, prepared,
               (l, ops) => (l.id === id ? raster.liveOps(ops, live, change) : ops),
@@ -323,17 +422,21 @@ function drawLive(ctx: Ctx, frame: Frame, prepared: Prepared, id: string, live: 
 // The preview of a gesture in progress, or of one sent and not yet drawn.
 // `moving`: every element the gesture moves (a group's children included).
 // `by`: the moves sent before it and not drawn yet, which `item` already
-// carries.
+// carries. `angle`: the frame the item's points are drawn in, for a part.
 function drawPreview(ctx: Ctx, frame: Frame, prepared: Prepared | null, item: Placed, moving: Iterable<string>, g: Preview, s: number,
-                     by: Offsets = new Map()): void {
+                     by: Offsets = new Map(), angle = 0): void {
   if (prepared && by.size && !(g.kind === "move" && g.part === "both")) {
     drawMoved(ctx, frame, prepared, by, s);
   }
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2;
-  if (g.kind !== "move" && g.handle && g.handle.live && prepared && !by.size) {
-    drawLive(ctx, frame, prepared, item.id, g.handle.live, g, s);
+  if (g.kind === "vertex" || g.kind === "add_vertex") {
+    strokePolygon(ctx, outlineAfter(item, g, angle), s);
+  } else if (g.kind === "remove_vertex") {
+    strokePolygon(ctx, (item.handles ?? []).filter(isVertex).filter((h) => h.index !== g.index).map((h) => [h.x, h.y]), s);
+  } else if (g.kind !== "move" && g.handle && g.handle.live && prepared && !by.size) {
+    drawLive(ctx, frame, prepared, item.id, g.handle.live, g as Extract<Preview, { kind: "resize" | "turn" }>, s);
   } else if (g.kind === "move" && g.part === "both") {
     if (prepared) drawMoved(ctx, frame, prepared, plus(by, moving, g.dx, g.dy), s);
     if (item.box) {
@@ -380,7 +483,7 @@ function drawPreview(ctx: Ctx, frame: Frame, prepared: Prepared | null, item: Pl
       ctx.stroke();
     }
   }
-  if (g.guides) guides(ctx, g.guides, frame, s);
+  if ("guides" in g && g.guides) guides(ctx, g.guides, frame, s);
 }
 
 // What a gesture in progress sends on release, and what its preview draws.
@@ -397,11 +500,20 @@ function gestureAt(frame: Frame, item: Target, g: Press | Dragging, x: number, y
     return { kind: "move", part: "both", dx: snapped.dx, dy: snapped.dy, guides: snapped.guides };
   }
   const h = g.handle;
+  // a point dragged snaps as a line's end does
+  const pointMove = (): { dx: number; dy: number; guides: Guides } => (free ? { dx: Math.round(dx), dy: Math.round(dy), guides: { x: [], y: [] } }
+    : snapMove({ box: [h.x, h.y, 0, 0] as Box, center: [h.x, h.y] as [number, number] }, dx, dy, targets, 4));
   if (isEnd(h)) {
-    const point = { box: [h.x, h.y, 0, 0] as Box, center: [h.x, h.y] as [number, number] };
-    const snapped = free ? { dx: Math.round(dx), dy: Math.round(dy), guides: { x: [], y: [] } }
-      : snapMove(point, dx, dy, targets, 4);
+    const snapped = pointMove();
     return { kind: "move", part: h.part, dx: snapped.dx, dy: snapped.dy, guides: snapped.guides };
+  }
+  if (isVertex(h)) {
+    const snapped = pointMove();
+    return { kind: "vertex", index: h.index, dx: snapped.dx, dy: snapped.dy, guides: snapped.guides, handle: h };
+  }
+  if (isSegment(h)) {
+    const snapped = pointMove();
+    return { kind: "add_vertex", after: h.after, x: h.x + snapped.dx, y: h.y + snapped.dy, handle: h };
   }
   if (isSize(h)) {
     if (h.key[0] === "radius") {
@@ -426,18 +538,22 @@ function gestureAt(frame: Frame, item: Target, g: Press | Dragging, x: number, y
 }
 
 function changed(gesture: Own): boolean {
-  if (gesture.kind === "move") return gesture.dx !== 0 || gesture.dy !== 0;
+  if (gesture.kind === "move" || gesture.kind === "vertex") return gesture.dx !== 0 || gesture.dy !== 0;
   if (gesture.kind === "resize") return gesture.delta !== 0;
+  if (gesture.kind === "add_vertex") return true;
   return Math.abs(gesture.degrees - (gesture.key === "sweep" ? gesture.handle.sweep : gesture.handle.start)) >= 0.5;
 }
 
 // What a released gesture sends: the gesture without what only its preview
 // needs (the handle, the guides, a radius's new value).
-function sent(g: Own): Gesture {
+function sent(g: Own): AnyGesture {
   const preview: Preview = g;
   const { handle: _handle, guides: _guides, to: _to, ...rest } = preview;
   return rest;
 }
+
+/** The handles a press may take: a mirrored vertex is shown, never dragged. */
+const pressable = (item: FrameItem): FrameItem => ({ ...item, handles: item.handles.filter((h) => !h.mirrored) });
 
 export interface CanvasProps {
   /** The face as the worker drew it. */
@@ -449,9 +565,13 @@ export interface CanvasProps {
   tree?: Summary["tree"];
   /** The editor's outbox. */
   queue?: readonly Entry[];
+  /** The picked point of the selected polygon, highlighted among its vertex handles. */
+  vertex?: number | null;
   onPick: (id: string | null, additive: boolean) => void;
+  /** A vertex handle clicked: its point is picked (null: the pick is dropped). */
+  onVertex?: ((index: number | null) => void) | undefined;
   /** A gesture released: the ids it acts on, what to send, and what the canvas drew it from. */
-  onDrag: (ids: string[], gesture: Gesture, shown: Pick<GestureEntry, "item" | "moving" | "preview">) => void;
+  onDrag: (ids: string[], gesture: AnyGesture, shown: Pick<GestureEntry, "item" | "moving" | "preview">) => void;
   /** Screen (CSS) pixels per watch pixel; the frame was drawn at `frame.scale` and is shown at the zoom (that scale when absent). */
   zoom?: number;
   /** The watch drawn round the screen, at the frame's scale, with where the screen sits in it. */
@@ -463,7 +583,7 @@ export interface CanvasProps {
  * under way, and goes no further (with none, the editor's own Escape
  * deselects).
  */
-export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onPick, onDrag,
+export function Canvas({ frame, selected, extra = [], tree = [], queue = [], vertex = null, onPick, onVertex, onDrag,
                          zoom = frame.scale, skin = null }: CanvasProps): VNode {
   const overlay = useRef<HTMLCanvasElement | null>(null);
   const [drag, setDragState] = useState<Drag | null>(null);     // a press, maybe a gesture
@@ -472,9 +592,11 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
   const dragRef = useRef<Drag | null>(null);
   const setDrag = (value: Drag | null): void => { dragRef.current = value; setDragState(value); };
   const [prepared, setPrepared] = useState<Prepared | null>(null);  // the frame's layers, ready
-  const usable = prepared && prepared.version === frame.version ? prepared : null;
+  // an entered frame's layers are the element's alone, so nothing is redrawn from them: the ghost is only in the image
+  const usable = prepared && prepared.version === frame.version && !frame.local ? prepared : null;
 
   useEffect(() => {
+    if (frame.local) return;
     let live = true;
     prepare(frame).then((p) => { if (live) setPrepared(p); }, () => {});
     return () => { live = false; };
@@ -491,6 +613,8 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
   const others = seen.items.filter((i) => extra.includes(i.id));
   const live = dragging(drag) ? drag : null;
   const last = waiting[waiting.length - 1];
+  // the frame a part's points are drawn in: its own angle, else the entered frame's; an element's is the screen's
+  const angleOf = (one: Placed | undefined): number => (one && "angle" in one && typeof one.angle === "number" ? one.angle : frame.local ? frame.local.angle : 0);
 
   useEffect(() => {
     const c = overlay.current;
@@ -500,14 +624,15 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     const ctx = c.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, c.width, c.height);
-    if (live) { drawPreview(ctx, frame, usable, live.item, live.moving, live.gesture, s, by); return; }
+    const k = s / zoom;
+    if (frame.local) drawLocalFrame(ctx, frame.local, frame, s, k);
+    if (live) { drawPreview(ctx, frame, usable, live.item, live.moving, live.gesture, s, by, angleOf(live.item)); return; }
     if (last && !moves) {
-      drawPreview(ctx, frame, usable, last.item, last.moving, last.preview, s);
+      drawPreview(ctx, frame, usable, last.item, last.moving, last.preview, s, new Map(), angleOf(last.item));
       return;
     }
     if (moves && moves.size && usable) drawMoved(ctx, frame, usable, moves, s);
     if (!item) return;
-    const k = s / zoom;
     ctx.setLineDash([6 * k, 4 * k]);
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 2 * k;
@@ -516,10 +641,10 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
       ctx.strokeRect(x * s - k, y * s - k, w * s + 2 * k, h * s + 2 * k);
     }
     // handles act on one element, so a selection of several shows none
-    if (!others.length) for (const hd of item.handles) drawHandle(ctx, hd.x, hd.y, s, k);
+    if (!others.length) for (const hd of item.handles) drawHandle(ctx, hd, s, k, isVertex(hd) && !hd.mirrored && hd.index === vertex);
     const grip = moveHandle(seen.items, [item.id, ...extra], (GRIP + 2) / zoom);
     if (grip) drawGrip(ctx, grip.x, grip.y, s, k);
-  }, [frame, seen, usable, selected, extra, live, waiting, zoom]);
+  }, [frame, seen, usable, selected, extra, live, waiting, zoom, vertex]);
 
   // The pointer in device pixels (`x`, `y`), and on the screen (`sx`, `sy`).
   const point = (e: PointerEv): { x: number; y: number; sx: number; sy: number } => {
@@ -542,7 +667,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     const chosen = [selected, ...extra].filter((id): id is string => id !== null);
     const grip = moveHandle(seen.items, chosen, (GRIP + 2) / zoom);
     const onGrip = grip !== null && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
-    const handle = !onGrip && item && !extra.length ? handleAt(item, p.x, p.y, zoom, HANDLE + 2) : null;
+    const handle = !onGrip && item && !extra.length ? handleAt(pressable(item), p.x, p.y, zoom, HANDLE + 2) : null;
     const under = handle || onGrip ? null : pick(seen, usable, p.x, p.y, by);
     if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       if (under) onPick(under, true);
@@ -584,10 +709,18 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
     if (!dragging(drag)) {
       // a click inside the selection: select what is under it
       if (drag.click && (drag.click !== selected || extra.length)) onPick(drag.click, false);
+      // a click on a vertex picks it; on a segment's middle, adds a vertex there
+      const h = drag.handle;
+      if (h && isVertex(h) && onVertex) onVertex(h.index);
+      else if (h && isSegment(h) && item) {
+        const g: Own = { kind: "add_vertex", after: h.after, x: h.x, y: h.y, handle: h };
+        onDrag(drag.ids, sent(g), { item, moving: drag.moving, preview: g });
+      }
       return;
     }
     const g = drag.gesture;
     if (!changed(g)) return;
+    if (g.kind === "vertex" && onVertex) onVertex(g.index);
     onDrag(drag.ids, sent(g), { item: drag.item, moving: drag.moving, preview: g });
   };
 
@@ -607,12 +740,14 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], onP
   const at: [number, number] = skin ? [skin.x / skin.scale * zoom, skin.y / skin.scale * zoom] : [0, 0];
   const box: [number, number] = skin ? [skin.width / skin.scale * zoom, skin.height / skin.scale * zoom] : [w, h];
   const screen = `left:${at[0]}px;top:${at[1]}px;width:${w}px;height:${h}px`;
-  return html`<div class="canvas" style=${`width:${box[0]}px;height:${box[1]}px`}>
+  const enteredId = frame.local ? seen.items.find((i) => !i.path && !i.drawn)?.id ?? null : null;
+  return html`<div class=${"canvas" + (frame.local ? " entered" : "")} style=${`width:${box[0]}px;height:${box[1]}px`}>
     <img class="frame" src=${frame.frame} style=${screen} alt="the face on ${frame.device}" />
     ${skin ? html`<img class="skin" src=${skin.image} style=${`width:${box[0]}px;height:${box[1]}px`} alt="" />` : null}
     <canvas ref=${overlay} style=${screen}></canvas>
     <div class=${"hit" + (drag && drag.gesture ? " dragging" : "")} style=${screen}
          onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${() => setDrag(null)}></div>
+    ${enteredId !== null ? html`<div class="entered-label" role="status" title="the parts of this element, in its own frame; the rest of the face is a ghost">in <code>${enteredId}</code> · Esc leaves</div>` : null}
     ${waiting.length ? html`<div class="saving">saving…</div>` : null}
     ${live ? html`<div class=${"drag-hint" + (live.free ? " free" : "")} role="status">${dragHint(live.gesture, live.free)}</div>` : null}
   </div>`;

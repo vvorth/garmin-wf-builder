@@ -405,7 +405,22 @@ with its item ops or a segmented control over the branches. The store
 (`ts/app/store.ts`) asks for the tree with the context's device, frame and
 style and asks again when one changes; the form decides each edit's scope
 from that context: `aod` for a restyled key in the AOD frame (the others
-read-only there), Edit for's override scope for a geometry key, else `all`.
+read-only there), Edit for's override scope for a geometry key, else `all`;
+a hand's or a part's keys are always its own (`all`), in every frame.
+
+The page names a selection by an element's id, or a hand's or part's tree
+path joined with `/` (`ts/app/tree.ts`, `selectionId`), the entered frame's
+item id; the store's `context.entered` is the element entered (its tree
+path), which the frame ask carries as `enter`, and `selection.vertex` the
+polygon point picked on the face or in Properties. Layers (`ts/app/layers.ts`)
+lists hands and parts under their element, enters it (↘, double-click) and
+reorders parts with one `move_key`; the canvas (`ts/app/canvas.ts`) draws
+the entered frame's axis, ring and ray over the ghost, picks parts by their
+boxes, and turns `vertex` and `segment` handles into the point gestures,
+previewing a polygon's outline with the point moved or added; a drag inside
+an entered element carries the frame's time (`DragArgs.time`). Escape
+leaves the entered element before it deselects; Delete removes a picked
+vertex before it deletes the selection.
 
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,

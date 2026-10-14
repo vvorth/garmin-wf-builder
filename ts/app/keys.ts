@@ -71,18 +71,19 @@ export const SHORTCUTS: [string, [string, string][]][] = [
   ["Edit", [
     ["Ctrl+Z", "undo"], ["Ctrl+Shift+Z, Ctrl+Y", "redo"],
     ["Ctrl+C, Ctrl+X, Ctrl+V", "copy, cut and paste elements, between faces too"],
-    ["Ctrl+D", "duplicate"], ["Del, Backspace", "delete the selection"],
+    ["Ctrl+D", "duplicate"], ["Del, Backspace", "delete the selection, or the picked point of a polygon"],
     ["Ctrl+G, Ctrl+Shift+G", "group the selection, ungroup a group"],
     ["Ctrl+], Ctrl+[", "bring forward, send backward (draw order)"],
   ]],
   ["Select", [
     ["click, Ctrl+click", "select, add to or take out of the selection"],
     ["Shift+click", "on the face: add; in Layers: every row up to it"],
-    ["Ctrl+A", "select everything the frame shows"], ["Esc", "select nothing, or cancel a drag"],
+    ["Ctrl+A", "select everything the frame shows"], ["Esc", "select nothing, leave an entered set, or cancel a drag"],
   ]],
   ["Move", [
     ["arrows, Shift+arrows", "nudge one pixel, ten"],
     ["drag", "move or resize, snapping to the grid and to other elements"],
+    ["drag a vertex, click a segment", "move a polygon's point, add one on an edge"],
     ["Alt while dragging", "move freely: no snapping"],
   ]],
   ["View", [
