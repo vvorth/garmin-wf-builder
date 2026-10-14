@@ -94,6 +94,11 @@ retired one by one later).
 
 ## Slice 1 — The page in TypeScript, at parity (D1)
 
+**Shipped 2026-10-14** (`git log --grep "TypeScript"` from `89a6db7` to
+`99a8031`): the page is bundled from `ts/app/main.ts`, every module is
+strict TypeScript with Preact and htm from npm, and `app/store.ts` holds
+the editor's state behind `useStore`. The old `ts/app/*.js` is gone.
+
 `ts/app/` becomes TypeScript bundled by esbuild like the worker
 (`npm run bundle`), `strict`, importing `protocol.ts`. One store holds the
 editor's state (document summary, selection, editing context, pending
