@@ -599,13 +599,17 @@ it is what the wearer's list shows, or the order the face is drawn in.
 - **Colour settings**: the accent and data colours the wearer picks on the
   watch ([configuration](configuration.md)). **+ Accent colour** adds the
   setting; then its default, the role it binds (`accent` unless you name
-  another), and which of the face's colours the wearer may pick, ticked.
-  The editor always writes that list, so adding a colour to the palette
-  never changes what the wearer is offered. A setting written
-  `choices: any` is shown, not edited: on a fēnix 8 it opens the watch's
-  own colour picker, and on a watch without one (fr955) it lists every
-  colour in the palette. **Make it a list** replaces it with the face's
-  colours that no target dithers.
+  another), and the colours the wearer may pick, listed in the order the
+  watch shows them, each as its swatch with its label, **↑ ↓** and **×**
+  (the default cannot be taken off the list, nor its last colour).
+  **+ add** offers another through the picker: one of the face's colours
+  is listed by name (`color.<name>`), any other as itself (`{color:
+  "#FFFFAA"}`); one already listed is not added again. The editor always
+  writes that list, so adding a colour to the palette never changes what
+  the wearer is offered. A setting written `choices: any` is shown, not
+  edited: on a fēnix 8 it opens the watch's own colour picker, and on a
+  watch without one (fr955) it lists every colour in the palette. **Make
+  it a list** replaces it with the face's colours that no target dithers.
 - **Colour schemes** ([colour schemes](colors.md#colour-schemes)): colours that
   follow the style the wearer picks. Each change below is one change, with
   one **Undo**, because a scheme is written in several places at once.

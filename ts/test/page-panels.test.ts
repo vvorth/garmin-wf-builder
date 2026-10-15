@@ -37,13 +37,41 @@ test("add a colour and an accent setting", async () => {
   assert.deepEqual(printed[0], [{"op": "add_swatch", "value": "#FF0000"}, {"op": "set", "path": ["config", "accent_color"], "value": {"default": "color.bg", "choices": ["color.bg"]}}]);
 });
 
-test("an axis lists the palette as ticks and any offers a list", async () => {
+test("an axis lists its choices inline, each with up, down and remove, adds one from a picker, and any offers a list", async () => {
   const base = instantiate("minimal", "T");
-  const listed = summary((base + "\nconfig:\n  accent_color:\n    default: color.text\n    choices: [color.text, color.dim]\n"));
-  let printed = await render(listed, "\n      await openSection(\"Colour settings\");\n      const boxes = find((e) => e.localName === \"input\" && e.attributes.type === \"checkbox\" && within(e, \"axis\"));\n      const on = (b, k) => b[k] === true || k in b.attributes;\n      out(boxes.map((b) => on(b, \"checked\")));\n      out(boxes.map((b) => on(b, \"disabled\")));\n      boxes[0].dispatch(\"change\"); await settle();\n      out(edits);\n    ");
-  assert.deepEqual(printed[0], [false, true, true]);
-  assert.deepEqual(printed[1], [false, true, false]);
-  assert.deepEqual(printed[2], [{"op": "set", "path": ["config", "accent_color", "choices"], "value": ["color.text", "color.dim", "color.bg"]}]);
+  const listed = summary((base + "\nconfig:\n  accent_color:\n    default: color.text\n    choices: [color.text, color.dim, {color: \"#FF0000\", label: Red}]\n"));
+  let printed = await render(listed, `
+      await openSection("Colour settings");
+      const rows = () => find((e) => cls(e) === "axis-choice");
+      // each choice in order: its name, its label, whether it is the default; no palette ticks
+      out(rows().map((r) => r.textContent.replace(/[↑↓×]/g, "").trim()));
+      out(find((e) => e.localName === "input" && e.attributes.type === "checkbox" && within(e, "axis")).length);
+      const button = (row, label) => row.all((b) => b.localName === "button" && (b.attributes["aria-label"] || "").startsWith(label))[0];
+      const off = (b) => "disabled" in b.attributes || b.disabled === true;
+      // the default cannot be removed, nor moved above the top
+      out(rows().map((r) => [off(button(r, "remove")), off(button(r, "move") /* up */)]));
+      await click(button(rows()[1], "remove"));
+      await click(rows()[2].all((b) => b.localName === "button" && (b.attributes["aria-label"] || "").endsWith(" up"))[0]);
+      // + add: a face's colour as its reference, any other inline; one already listed is not added twice
+      const add = find((e) => cls(e).includes("chip-button") && e.textContent === "+ add")[0];
+      await click(add);
+      await click(find((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-swatches")[0]);   // bg
+      await click(add);
+      await click(find((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-grid")[15]);       // red, #FF0000: listed already
+      await click(add);
+      await click(find((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-grid")[1]);        // #FFFFAA
+      out(edits);
+    `);
+  assert.deepEqual(printed[0], ["textdefault", "dim", "#FF0000Red"]);
+  assert.equal(printed[1], 0);
+  assert.deepEqual(printed[2], [[true, true], [false, false], [false, false]]);
+  const choices = ["config", "accent_color", "choices"];
+  assert.deepEqual(printed[3], [
+    { op: "remove_item", path: choices, at: 1 },
+    { op: "move_item", path: choices, from: 2, to: 1 },
+    { op: "insert_item", path: choices, at: 3, value: "color.bg" },
+    { op: "insert_item", path: choices, at: 3, value: { color: "#FFFFAA" } },
+  ]);
   const any_ = summary((base + "\nconfig:\n  accent_color:\n    default: color.text\n    choices: any\n"));
   printed = await render(any_, "\n      await openSection(\"Colour settings\");\n      out(root.textContent.includes(\"every colour in the palette\"));\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make it a list\")[0]);\n      out(edits);\n    ");
   assert.equal(printed[0], true);

@@ -313,14 +313,18 @@ interface AxisRowProps {
   axis: Axis;
   entry: Axes[Axis];
   palette: PaletteEntry[];
+  ctx: FaceCtx;
   onEdit: OnEdit;
 }
 
-// One `config:` colour axis: what the wearer may pick, always written as an
-// explicit list of the face's swatches, so adding a colour to the palette
-// never changes what the wearer is offered. `choices: any` is shown, not
-// edited.
-function AxisRow({ axis, entry, palette, onEdit }: AxisRowProps): VNode {
+// One `config:` colour axis: what the wearer may pick, written as an
+// explicit list, so adding a colour to the palette never changes what the
+// wearer is offered. The list shows inline, in the wearer's order: each
+// choice as its swatch with ↑ ↓ ×, and "+ add" picking another (a face's
+// colour as `color.<name>`, any other as an inline `{color}`). The default
+// cannot be removed, nor the last choice. `choices: any` is shown, with the
+// way to a list.
+function AxisRow({ axis, entry, palette, ctx, onEdit }: AxisRowProps): VNode {
   const meta = AXES[axis];
   const path: Path = ["config", axis];
   const legal = palette.filter((p) => !p.dithers_on.length);
@@ -331,12 +335,17 @@ function AxisRow({ axis, entry, palette, onEdit }: AxisRowProps): VNode {
         onClick=${() => { if (firstLegal) onEdit({ op: "set", path, value: { default: `color.${firstLegal.name}`, choices: [`color.${firstLegal.name}`] } }); }}>+ ${meta.title}</button></div>`;
   }
   const list = Array.isArray(entry.raw) ? entry.raw : null;
-  const listed = (name: string) => list !== null && list.includes(`color.${name}`);
-  const toggle = (name: string) => { if (list) onEdit({ op: "set", path: [...path, "choices"],
-    value: listed(name) ? list.filter((c) => c !== `color.${name}`) : [...list, `color.${name}`] }); };
-  const other = list ? list.filter((c) => typeof c !== "string" || !colorName(c)) : [];
-  // what the default select offers: the list's names, or every swatch when the choice is `any`
-  const offered: Value[] = list ? list.filter((c) => typeof c === "string") : palette.map((p) => `color.${p.name}`);
+  const choices: Path = [...path, "choices"];
+  // a choice as the default names it: the reference, or an inline choice's colour
+  const spelled = (c: Value): string | null => (typeof c === "string" ? c : c !== null && typeof c === "object" && !Array.isArray(c) && typeof c["color"] === "string" ? c["color"] : null);
+  // what the default select offers: the list's choices, or every swatch when the choice is `any`
+  const offered: string[] = list ? list.map(spelled).filter((c): c is string => c !== null) : palette.map((p) => `color.${p.name}`);
+  const add = (v: string): void => {
+    if (!list) return;
+    const value: Value = colorName(v) ? v : { color: v };
+    if (list.some((c) => spelled(c) === spelled(value))) return;
+    onEdit({ op: "insert_item", path: choices, at: list.length, value });
+  };
   return html`<div class="axis">
     <div class="axis-head"><b>${meta.title}</b> <span class="dim">binds</span>
       <${Commit} value=${entry.role} width="7em" placeholder=${meta.role}
@@ -347,16 +356,29 @@ function AxisRow({ axis, entry, palette, onEdit }: AxisRowProps): VNode {
       <select value=${entry.default || ""} onChange=${(e: SelectEvent) => onEdit({ op: "set", path: [...path, "default"], value: e.currentTarget.value })}>
         ${offered.map((c) => html`<option value=${c}>${colorName(c) || c}</option>`)}
       </select></div>
-    ${list ? html`<div class="axis-choices">${palette.map((p) => { const v = parseHex(p.value); return html`
-        <label title=${p.dithers_on.length ? `dithers on ${p.dithers_on.join(", ")}` : p.value}>
-          <input type="checkbox" checked=${listed(p.name)} disabled=${entry.default === `color.${p.name}`}
-            onChange=${() => toggle(p.name)} />
-          <span class="chip" style=${v ? `background:${toHex(v)}` : ""}></span>${p.name}${p.dithers_on.length ? html`<span class="warn">⚠</span>` : null}
-        </label>`; })}
-        ${other.length ? html`<div class="note">and ${other.length} written in the YAML</div>` : null}</div>`
+    ${list ? html`<ol class="axis-list" title="what the wearer may pick, in the order the watch lists them">${list.map((c, i) => {
+        const ref = colorName(c);
+        const swatch = ref ? palette.find((p) => p.name === ref) : undefined;
+        const rgb = parseHex(swatch ? swatch.value : spelled(c));
+        const label = typeof c === "object" && c !== null && !Array.isArray(c) && typeof c["label"] === "string" ? c["label"] : swatch && typeof swatch.label === "string" ? swatch.label : null;
+        const named = ref ?? spelled(c) ?? JSON.stringify(c);
+        const isDefault = spelled(c) !== null && spelled(c) === entry.default;
+        return html`<li key=${`${i}:${named}`} class="axis-choice">
+          <span class="chip" style=${rgb ? `background:${toHex(rgb)}` : ""}></span>
+          <span>${named}</span>${label ? html`<span class="dim">${label}</span>` : null}
+          ${swatch && swatch.dithers_on.length ? html`<span class="warn" title=${`dithers on ${swatch.dithers_on.join(", ")}`}>⚠</span>` : null}
+          ${isDefault ? html`<span class="tag" title="the default: what the face starts with">default</span>` : null}
+          <${Reorder} index=${i} count=${list.length} what=${named} onMove=${(to: number) => onEdit({ op: "move_item", path: choices, from: i, to })} />
+          <button class="reset" aria-label=${`remove ${named}`} disabled=${isDefault || list.length < 2}
+            title=${isDefault ? "the default stays on the list: pick another default first" : list.length < 2 ? "the list keeps one colour at least" : "take it off the list"}
+            onClick=${() => onEdit({ op: "remove_item", path: choices, at: i })}>×</button>
+        </li>`; })}
+        <li class="axis-add"><${ColorPop} ctx=${ctx} roles=${false} label="+ add" title="offer another colour: one of the face's, or any other as it is"
+          onPick=${add} /></li>
+      </ol>`
       : html`<div class="note">choices: any. On a fēnix 8 the watch's own colour picker; on a watch
           without it (fr955), every colour in the palette, which grows as colours are added.
-          <button onClick=${() => onEdit({ op: "set", path: [...path, "choices"], value: [...new Set([entry.default, ...legal.map((p) => `color.${p.name}`)])] })}>Make it a list</button></div>`}
+          <button onClick=${() => onEdit({ op: "set", path: choices, value: [...new Set([entry.default, ...legal.map((p) => `color.${p.name}`)])] })}>Make it a list</button></div>`}
   </div>`;
 }
 
@@ -621,7 +643,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
 
     { key: "colour_settings", title: "Colour settings", body: html`
       ${(["accent_color", "data_color"] as const).map((axis) => html`<${AxisRow} axis=${axis} entry=${g.axes[axis]}
-        palette=${palette} onEdit=${onEdit} />`)}
+        palette=${palette} ctx=${ctx} onEdit=${onEdit} />`)}
     ` },
 
     { key: "schemes", title: "Colour schemes", count: schemes.names.length, body: html`
