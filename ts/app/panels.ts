@@ -214,7 +214,9 @@ interface SchemesProps {
 }
 
 // `theme: schemes:`: with none, which colours should follow the wearer's
-// style; with some, the roles × schemes table. Every change is one of the
+// style; with some, the roles × schemes table, each scheme with the base it
+// inherits from (`base:`) and each role it inherits greyed, "from <base>",
+// until a colour picked sets it on the scheme (↺ inherits it again). Every change is one of the
 // compound edits of `src/edit/schemes.ts`, so it never leaves the schemes out
 // of step.
 function Schemes({ schemes, palette, styles, ctx, onEdit }: SchemesProps): VNode {
@@ -232,20 +234,49 @@ function Schemes({ schemes, palette, styles, ctx, onEdit }: SchemesProps): VNode
         onAdd=${(n: string) => { onEdit({ op: "make_switchable", names: picked, scheme: n }); setPicked([]); }} />`;
   }
   const keepName = keep || schemes.names[0] || "";
+  const baseOf = (s: string): string | null => schemes.base?.[s] ?? null;
+  // whether `s`'s base chain sets `role`, so removing `s`'s own leaves it inherited
+  const inheritable = (s: string, role: string): boolean => {
+    const seen = new Set([s]);
+    for (let b = baseOf(s); b !== null && !seen.has(b); b = baseOf(b)) {
+      seen.add(b);
+      if (role in (schemes.colors[b] || {})) return true;
+    }
+    return false;
+  };
   const outcome = afterRemovingSchemes(styles.entries);
   return html`<table class="schemes">
       <tr><th></th>${schemes.names.map((s) => html`<th>
         <${InlineName} value=${s} title="click to rename (every style naming it follows)"
           onRename=${(n: string) => onEdit({ op: "rename_scheme", name: s, to: n })} />
         <button class="reset" title="delete this scheme and the styles that pick it" aria-label="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
+        ${schemes.names.length > 1 ? html`<div><select class="scheme-base" value=${baseOf(s) ?? ""} aria-label=${`base of ${s}`}
+            title="a scheme it inherits every role from, but the ones it sets itself"
+            onChange=${(e: SelectEvent) => {
+              const to = e.currentTarget.value;
+              if (to) onEdit({ op: "set", path: ["theme", "schemes", s, "base"], value: to });
+              else if (baseOf(s) !== null) onEdit({ op: "remove", path: ["theme", "schemes", s, "base"] });
+            }}>
+            <option value="">no base</option>
+            ${schemes.names.filter((o) => o !== s).map((o) => html`<option value=${o}>base: ${o}</option>`)}
+            ${baseOf(s) !== null && !schemes.names.includes(baseOf(s)!) ? html`<option value=${baseOf(s)}>base: ${baseOf(s)} (missing)</option>` : null}
+          </select></div>` : null}
       </th>`)}</tr>
       ${schemes.roles.map((r) => html`<tr><td>
         <${InlineName} value=${r} title=${`click to rename (every color.${r} follows)`}
           onRename=${(n: string) => onEdit({ op: "rename_role", name: r, to: n })} />
         <button class="reset" title="delete this role (refused while something uses it)" aria-label="delete this role (refused while something uses it)" onClick=${() => onEdit({ op: "delete_role", name: r })}>×</button>
-      </td>${schemes.names.map((s) => html`<td>
+      </td>${schemes.names.map((s) => {
+        // a role the scheme takes from its base: greyed, and a pick sets it on this scheme
+        const inherited = (schemes.inherited?.[s] || []).includes(r);
+        const overrides = !inherited && baseOf(s) !== null && inheritable(s, r);
+        return html`<td class=${inherited ? "inherited" : ""} title=${inherited ? `from ${baseOf(s)}: pick a colour to set it on ${s}` : ""}>
         <${ColorPop} value=${(schemes.colors[s] || {})[r]} ctx=${ctx} roles=${false}
-          onPick=${(v: string) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} /></td>`)}</tr>`)}
+          onPick=${(v: string) => onEdit({ op: "use_color", path: ["theme", "schemes", s, "colors", r], value: v })} />
+        ${inherited ? html`<span class="dim from">from ${baseOf(s)}</span>` : null}
+        ${overrides ? html`<button class="reset" title=${`inherit it from ${baseOf(s)} again`} aria-label=${`inherit ${r} from ${baseOf(s)}`}
+          onClick=${() => onEdit({ op: "remove", path: ["theme", "schemes", s, "colors", r] })}>↺</button>` : null}</td>`;
+      })}</tr>`)}
     </table>
     <div class="row">
       <${AddName} label="+ Scheme" placeholder="scheme name" title="a copy of the first scheme, and the styles that reach it"
@@ -544,7 +575,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
     ` },
 
     { key: "styles", title: "Styles", count: styles.entries.length, body: html`
-      <${StylesMatrix} styles=${styles} layouts=${g.layouts || []} schemes=${schemes} onEdit=${onEdit} />
+      <${StylesMatrix} styles=${styles} layouts=${g.layouts || []} schemes=${schemes} onEdit=${onEdit}
+        labels=${Object.fromEntries((g.layout_entries || []).map((l) => [l.name, l.label]))} />
     ` },
 
     { key: "hand_sets", title: "Hand sets", count: (g.hands || []).length, body: html`

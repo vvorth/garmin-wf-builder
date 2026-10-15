@@ -582,7 +582,12 @@ it is what the wearer's list shows, or the order the face is drawn in.
     a scheme's or a role's name to rename it: the styles naming the scheme,
     or every `color.<role>`, follow. **×** deletes a scheme with the styles
     that pick it (not the last scheme), or a role from every scheme
-    (refused while something uses it).
+    (refused while something uses it). Under each scheme's name, its
+    **base** ([`base:`](colors.md#colour-schemes)): one of the other
+    schemes, whose roles it inherits, or **no base**. A role a scheme
+    inherits is shown greyed with **from** its base; picking a colour there
+    sets it on this scheme, and **↺** beside a role it sets itself, where
+    its base has that role, inherits it again.
   - **+ Scheme** adds a copy of the first scheme and a style picking it:
     one per layout when the styles name layouts (`analog_dusk`,
     `digital_dusk`). **+ Role** adds a role to every scheme, white until
@@ -593,7 +598,9 @@ it is what the wearer's list shows, or the order the face is drawn in.
     leaves two alike. The confirmation says how many; Diagnostics then
     names each copy, for you to delete or change.
 - **Layouts** ([styles and layouts](styles-and-layouts.md)): one row per
-  `layouts:` entry: its name, how many elements its `elements:` and
+  `layouts:` entry: its name, its **label** (the editor's own name for
+  it, which the Styles table shows beside the name; nothing on the watch
+  reads it; emptied, it is removed), how many elements its `elements:` and
   `static:` blocks hold, and the styles that pick it (⚠ when none does:
   the wearer could not reach it). Click the name to rename it: every
   style's `layout:` follows. **↑ ↓** reorder the layouts. **×** deletes a

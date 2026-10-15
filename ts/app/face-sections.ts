@@ -211,7 +211,8 @@ export interface LayoutsSectionProps {
 }
 
 // `layouts:`, one row each: its name (edited in place; every style's
-// `layout:` follows), how many elements its two blocks hold, the styles
+// `layout:` follows), its `label:` (the editor's own name for it), how many
+// elements its two blocks hold, the styles
 // picking it, ↑ ↓ and ×. A delete takes the styles picking the layout with
 // it; when the worker refuses it because the default style is one of them,
 // the row offers the styles that stay, and the delete is sent again naming
@@ -230,6 +231,12 @@ export function LayoutsSection({ entries, styles, onEdit }: LayoutsSectionProps)
     return html`<li key=${l.name} class="layout">
       <${InlineName} value=${l.name} title="click to rename (every style naming it follows)"
         onRename=${(n: string) => onEdit({ op: "rename_layout", name: l.name, to: n })} />
+      <${TextField} value=${l.label ?? ""} label=${`label of ${l.name}`} placeholder="label" width="8em"
+        title="the layout's name in the editor (the Styles matrix and this list); nothing on the watch reads it"
+        onCommit=${(t: string) => {
+          if (t.trim()) onEdit({ op: "set", path: ["layouts", l.name, "label"], value: t.trim() });
+          else if (l.label != null) onEdit({ op: "remove", path: ["layouts", l.name, "label"] });
+        }} />
       <span class="dim counts">${plural(l.elements, "element")} · ${l.static} static</span>
       <span class=${"picked-by" + (l.styles.length ? "" : " warn")} title=${l.styles.length ? "the config: style: entries whose layout: names it" : "no style picks it, so the wearer cannot reach it"}>${l.styles.length ? `${l.styles.length === 1 ? "style" : "styles"} ${l.styles.join(", ")}` : "⚠ no style picks it"}</span>
       <${Reorder} index=${i} count=${entries.length} what=${l.name} onMove=${(to: number) => onEdit({ op: "move_key", path: ["layouts", l.name], to })} />
@@ -253,6 +260,8 @@ export function LayoutsSection({ entries, styles, onEdit }: LayoutsSectionProps)
 export interface StylesMatrixProps {
   styles: Styles;
   layouts: string[];
+  /** Each layout's `label:`, which names it in the layout select. */
+  labels?: Record<string, string | null> | undefined;
   schemes: Schemes;
   onEdit: OnEdit;
 }
@@ -261,7 +270,7 @@ export interface StylesMatrixProps {
 // Style list shows: the layout and scheme it picks, the label the wearer
 // sees, the radio for the one the face opens in, ↑ ↓ and ×. Below it, a new
 // style shaped like the others, and a new layout.
-export function StylesMatrix({ styles, layouts, schemes, onEdit }: StylesMatrixProps): VNode {
+export function StylesMatrix({ styles, layouts, labels = {}, schemes, onEdit }: StylesMatrixProps): VNode {
   const entries = [...styles.entries].sort((a, b) => a.index - b.index);
   const choices: Path = ["config", "style", "choices"];
   const pick = (name: string, key: "layout" | "scheme", value: string) =>
@@ -272,7 +281,7 @@ export function StylesMatrix({ styles, layouts, schemes, onEdit }: StylesMatrixP
       ${entries.map((e, i) => html`<tr key=${e.name}>
         <td><code>${e.name}</code></td>
         <td>${layouts.length ? html`<select value=${e.layout || ""} aria-label=${`layout of ${e.name}`} onChange=${(ev: SelectEvent) => pick(e.name, "layout", ev.currentTarget.value)}>
-            <option value="">no layout</option>${layouts.map((l) => html`<option value=${l}>${l}</option>`)}</select>`
+            <option value="">no layout</option>${layouts.map((l) => html`<option value=${l}>${labels[l] ? `${labels[l]} (${l})` : l}</option>`)}</select>`
           : html`<span class="dim">—</span>`}</td>
         <td>${schemes.names.length ? html`<select value=${e.scheme || ""} aria-label=${`scheme of ${e.name}`} onChange=${(ev: SelectEvent) => pick(e.name, "scheme", ev.currentTarget.value)}>
             <option value="">no scheme</option>${schemes.names.map((s) => html`<option value=${s}>${s}</option>`)}</select>`

@@ -250,6 +250,10 @@ code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color
 .face-panel li.font .dim { font-size: 11px; flex-basis: 100%; }
 table.schemes { border-collapse: collapse; font-size: 12px; }
 table.schemes th, table.schemes td { padding: 2px 4px; text-align: left; }
+table.schemes select.scheme-base { font-size: 11px; max-width: 9em; }
+/* a role a scheme inherits from its base: greyed, named "from <base>" */
+table.schemes td.inherited .chip-button { opacity: .55; }
+table.schemes .from { font-size: 10px; }
 /* the side panels' widths are set on the element, from the splitters */
 .columns { grid-template-columns: 280px auto minmax(0, 1fr) auto 340px; }
 .splitter { width: 5px; margin: 0 -2px; z-index: 5; cursor: col-resize; touch-action: none; position: relative; }

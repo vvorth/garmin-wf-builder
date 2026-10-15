@@ -283,3 +283,52 @@ test("the new sections link to their guide chapters", async () => {
     `);
   assert.deepEqual(printed[0], ["/help/docs/guide/design-file.md", "/help/docs/guide/design-file.md", "/help/docs/guide/styles-and-layouts.md"]);
 });
+
+test("a layout's label is typed in its row, set and removed, and names it in the Styles matrix", async () => {
+  const labelled = STYLED.replace("  analog:\n    elements:", "  analog:\n    label: Round dial\n    elements:");
+  const doc = summary(labelled);
+  const printed = await renderFace(doc, {}, CONTROLS + `
+      await openSection("Layouts");
+      out([input("label of digital").attributes.value, input("label of analog").attributes.value]);
+      await type(input("label of digital"), " Big clock ");
+      await type(input("label of analog"), "");
+      out(edits.splice(0));
+      await openSection("Styles");
+      out(select("layout of a").all((e) => e.localName === "option").map((o) => o.textContent));
+    `);
+  assert.deepEqual(printed[0], ["", "Round dial"]);
+  assert.deepEqual(printed[1], [
+    { op: "set", path: ["layouts", "digital", "label"], value: "Big clock" },
+    { op: "remove", path: ["layouts", "analog", "label"] },
+  ]);
+  assert.deepEqual(printed[2], ["no layout", "digital", "Round dial (analog)"]);
+});
+
+test("a scheme's base is a select over the other schemes, and the roles it inherits are greyed from it until one is set", async () => {
+  const text = instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text, paper: color.bg }\n    light:\n      base: dark\n      colors: { ink: color.bg }\n\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark }, l: { scheme: light } }\n";
+  const doc = summary(text);
+  assert.deepEqual([doc.globals.schemes.base, doc.globals.schemes.inherited], [{ dark: null, light: "dark" }, { dark: [], light: ["paper"] }]);
+  const printed = await renderFace(doc, {}, CONTROLS + `
+      await openSection("Colour schemes");
+      out([select("base of dark").value ?? select("base of dark").attributes.value, select("base of light").attributes.value,
+           select("base of light").all((e) => e.localName === "option").map((o) => o.textContent)]);
+      const cells = find((e) => e.localName === "td" && e.all((c) => cls(c).includes("chip-button")).length > 0);
+      out(cells.map((c) => [cls(c), c.textContent.replace(/\\s+/g, " ").trim()]));
+      // an inherited cell's pick sets the role on this scheme; ↺ inherits an own one again
+      const inherited = cells.find((c) => cls(c) === "inherited");
+      await click(inherited.all((e) => cls(e).includes("chip-button"))[0]);
+      await click(inherited.all((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-swatches")[0]);
+      await press("inherit ink from dark");
+      await choose(select("base of light"), "");
+      await choose(select("base of dark"), "light");
+      out(edits);
+    `);
+  assert.deepEqual(printed[0], ["", "dark", ["no base", "base: dark"]]);
+  assert.deepEqual(printed[1], [["", "text"], ["", "bg↺"], ["", "bg"], ["inherited", "bgfrom dark"]]);
+  assert.deepEqual(printed[2], [
+    { op: "use_color", path: ["theme", "schemes", "light", "colors", "paper"], value: "color.bg" },
+    { op: "remove", path: ["theme", "schemes", "light", "colors", "ink"] },
+    { op: "remove", path: ["theme", "schemes", "light", "base"] },
+    { op: "set", path: ["theme", "schemes", "dark", "base"], value: "light" },
+  ]);
+});
