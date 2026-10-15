@@ -1,11 +1,12 @@
 # Fonts
 
-A watch face cannot ship its own TTF/OTF, so `resources: fonts:` is how an author's own
-typeface reaches the wrist anyway: name a `.ttf`/`.otf` and a size, and the
-compiler bakes it into a bitmap sheet, per device, at build time. An element
-then names it with `font.<name>`, or names one of the device's own built-in
-`FONT_*` fonts directly, with no `fonts:` entry at all. `wfb fonts
-[DEVICE...]` lists a device's fonts — both the system (bitmap) fonts and any
+A watch face cannot ship its own TTF/OTF, so a `font:` naming a
+`.ttf`/`.otf` and a size is how an author's own typeface reaches the wrist
+anyway: the compiler bakes it into a bitmap sheet, per device, at build
+time. A `text` element writes its font inline (`font: {source:, size:}`),
+names a shared `resources: fonts:` entry with `font.<name>`, or names one of
+the device's own built-in `FONT_*` fonts directly. `wfb fonts [DEVICE...]`
+lists a device's fonts — both the system (bitmap) fonts and any
 device-resident scalable faces reachable with `face:` (below).
 
 ![two-tone clock](../screenshots/showcase-clock.png)
@@ -15,6 +16,7 @@ device-resident scalable faces reachable with `face:` (below).
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
+| `font:` | a `text` element, a pattern's text part | `{source:, size:, …}` or `{face:, size:, …}` inline, `font.<name>`, or a system name (`FONT_MEDIUM`, …) | — | [Fonts](#fonts) |
 | `fonts.<name>.source:` | `resources:` | path to a `.ttf`/`.otf` | — | [Fonts](#fonts) (baked font, relative to the design file) |
 | `fonts.<name>.size:` | `resources:` | `Length` (`px`/`%r`) | — | [`size:` is a `Length`](#size-is-a-length) |
 | `fonts.<name>.glyphs:` | `resources:` | a string of characters | derived from the design | [Everything else](#everything-else) |
@@ -23,26 +25,37 @@ device-resident scalable faces reachable with `face:` (below).
 | `fonts.<name>.align:` | `resources:` | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
 | `fonts.<name>.face:` | `resources:` | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
 | `fonts.<name>.unsupported:` | `resources:`, or a `text` element | `error`/`hide` | `error` | [`unsupported:`](#unsupported--and-what-error-actually-promises) |
-| `font:` | element | `font.<name>` or a system name (`FONT_MEDIUM`, …) | — | [Fonts](#fonts) |
 
 ## Example
 
 ```yaml
+elements:
+  date:
+    type: text
+    text: "{date.day_of_week} {date.day}"
+    font:                           # this element's own font, baked at build time
+      source: assets/ChivoMono-Bold.ttf
+      size: 12%r                    # scales with each watch's screen
+    at: { anchor: center, dy: 35% }
+    color: color.dim
+  # two elements sharing one font: declare it once under resources: fonts:
+  hours: { type: text, text: "{time.hour:02d}", font: font.digitalclock, at: { anchor: center, dx: -1%, dy: 7% }, align: right, color: color.fg, sleep_update: true } # also redrawn every second while asleep
+  minutes: { type: text, text: "{time.minute:02d}", font: font.digitalclock, at: { anchor: center, dx: 1%, dy: 7% }, align: left, color: color.accent, sleep_update: true }
+
 resources:
   fonts:
     digitalclock:
       source: assets/ChivoMono-Bold.ttf
-      size: 60%r            # scales with each watch's screen
+      size: 60%r
       monospace: true       # "11" and "00" take the same width: no jitter
       antialias: true
-
-elements:
-  hours: { type: text, text: "{time.hour:02d}", font: font.digitalclock, at: { anchor: center, dx: -1%, dy: 7% }, align: right, color: color.fg, sleep_update: true } # also redrawn every second while asleep
-  minutes: { type: text, text: "{time.minute:02d}", font: font.digitalclock, at: { anchor: center, dx: 1%, dy: 7% }, align: left, color: color.accent, sleep_update: true }
 ```
 
-`FONT_XTINY` … `FONT_NUMBER_THAI_HOT` name the watch's built-in fonts. A
-`font.<name>` reference uses one of your own from `fonts:`.
+A `text` element's `font:` takes the font itself — the same
+`{source:, size:, …}` (or `{face:, size:, …}`) object a `fonts:` entry
+takes — when only that element uses it. `FONT_XTINY` … `FONT_NUMBER_THAI_HOT`
+name the watch's built-in fonts. A `font.<name>` reference uses one of your
+own from `fonts:`, the shared form for a font several elements draw with.
 
 Every element is redrawn every second while the watch is awake and once a
 minute while it is asleep. `sleep_update: true` also redraws it every second
@@ -71,6 +84,35 @@ resources:
 
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
 per device.
+
+### A text's own font
+
+The same object, written as a `text` element's (or a pattern text part's)
+`font:`, is that element's own font:
+
+```yaml
+elements:
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: { source: assets/OpenSans-Regular.ttf, size: 18%r, monospace: true }
+    at: { anchor: center }
+    color: color.fg
+```
+
+It is the `fonts:` entry `clock_font` (`<element id>_font`; a pattern
+part's is `<element id>_<part id>_font`, so the `numeral` part of a
+`hour_ticks` pattern gets `hour_ticks_numeral_font`), and the build is
+byte for byte what that entry would have given: the same sheet, the same
+`fonts.xml` line, the same Monkey C. Two elements writing the identical
+object share one entry, named after the first; a name a declared entry
+already holds gets the first free `_2`, `_3`, … suffix. A mistake inside
+the object is reported on its own line inside the element, under the
+generated name (`font 'clock_font': size must be …`). Every key of a
+`fonts:` entry is accepted inline, `face:` and `unsupported:` included.
+Reach for a named entry when several elements share a font and one
+place should change them all, or to name a font a `data` element or an
+`aod: {font:}` override reads (those take `font.<name>` only).
 
 ### `size:` is a `Length`
 

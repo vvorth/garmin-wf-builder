@@ -1,9 +1,15 @@
 // Diagnostics: how they render for a terminal, and the load's own reports.
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { join } from "node:path";
+import { REPO_ROOT } from "../src/devices/node.ts";
 import { Bag, Diagnostic, Span } from "../src/diagnostics.ts";
+import { generate } from "../src/emit/project.ts";
+import { ICON_FONT } from "../src/emit/resources.ts";
+import type { Face } from "../src/ir/model.ts";
+import { readFontFile } from "../src/node.ts";
 import * as term from "../src/term.ts";
-import { face, load, MINIMAL, view } from "./designs.ts";
+import { db, face, load, MINIMAL, view } from "./designs.ts";
 
 afterEach(() => term.setMode("auto"));
 
@@ -526,4 +532,81 @@ test("mirror: x is refused on any part but a polygon, and a mirrored polygon sti
   const two = errorsOf(HANDS("          blade: { type: polygon, points: [{ dx: -3%r, dy: 8%r }, { dy: -46%r }] }"));
   assert.equal(two.length, 1, two.map((d) => d.message).join("\n"));
   assert.equal(two[0]!.message, "hand_sets.classic.hour.parts.blade: a polygon part needs at least 3 points -- 2 listed");
+});
+
+// -- a text's own font --
+
+const OPEN_SANS_TTF = "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf";
+const lineWith = (text: string, needle: string): number => text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+/** A `text` element `id`, its `font:` written as the block `font` (indented six spaces per line). */
+const OWN_FONT = (id: string, font: string, more = ""): string =>
+  `  ${id}:\n    type: text\n    text: "{time.hour:02d}"\n    at: {anchor: center}\n    color: color.fg\n${more}    font:\n${font}`;
+const DECLARED_FONT = (name: string, spec: string): string => MINIMAL.replace("  palette:", `  fonts:\n    ${name}:\n${spec}  palette:`);
+/** Every generated file, bytes rendered comparably. */
+function everyFile(text: string): Map<string, string> {
+  const f = face(text);
+  const out = new Map<string, string>();
+  for (const [name, content] of generate(f, f.targets.map((id) => db.get(id)), (p) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p))).files()) {
+    out.set(name, typeof content === "string" ? content : Buffer.from(content).toString("base64"));
+  }
+  return out;
+}
+const fontOf = (f: Face, id: string): [string, boolean] => {
+  const element = f.elements.find((e) => e.id === id) as unknown as { font: string; font_is_custom: boolean };
+  return [element.font, element.font_is_custom];
+};
+
+test("a text's own font: an inline {source, size} is a resources.fonts entry named after the element, generating the same files", () => {
+  const spec = `      source: ${OPEN_SANS_TTF}\n      size: 20%r\n      monospace: true\n`;
+  const inline = MINIMAL + OWN_FONT("clock", spec);
+  const built = face(inline);
+  assert.deepEqual([...built.fonts.keys()], ["clock_font"]);
+  assert.deepEqual(fontOf(built, "clock"), ["clock_font", true]);
+  assert.equal(built.fonts.get("clock_font")!.monospace, true);
+  const declared = DECLARED_FONT("clock_font", spec) + OWN_FONT("clock", "").replace("    font:\n", "    font: font.clock_font\n");
+  const [a, b] = [everyFile(inline), everyFile(declared)];
+  assert.ok(a.has("resources-fenix8solar47mm/fonts/fonts.xml") && [...a.keys()].some((n) => n.endsWith(".fnt")) && [...a.keys()].some((n) => n.endsWith(".png")));
+  assert.deepEqual([...a.keys()].sort(), [...b.keys()].sort());
+  for (const [name, content] of a) assert.equal(content, b.get(name), name);
+  // a vector face inline, the same way
+  const vector = face(MINIMAL + OWN_FONT("brand", "      face: [RobotoCondensedBold, RobotoCondensedRegular]\n      size: 10%r\n      unsupported: hide\n"));
+  assert.deepEqual(vector.fonts.get("brand_font")!.face, ["RobotoCondensedBold", "RobotoCondensedRegular"]);
+  assert.equal(vector.fonts.get("brand_font")!.unsupported, "hide");
+  // a pattern's text part: <element>_<part>_font
+  const ticks = face(MINIMAL + "  ticks:\n    type: pattern\n    pattern: radial\n    at: {anchor: center}\n    count: 12\n    color: color.fg\n    parts:\n"
+    + `      numeral:\n        type: text\n        text: "{(copy + 11) % 12 + 1}"\n        at: {dy: -40%r}\n        font: {source: ${OPEN_SANS_TTF}, size: 8%r}\n`);
+  assert.deepEqual([...ticks.fonts.keys()], ["ticks_numeral_font"]);
+  const part = (ticks.elements.find((e) => e.id === "ticks") as unknown as { parts: { font: string; font_is_custom: boolean }[] }).parts[0]!;
+  assert.deepEqual([part.font, part.font_is_custom], ["ticks_numeral_font", true]);
+  // the string forms are untouched
+  assert.deepEqual(fontOf(face(MINIMAL + OWN_FONT("clock", "").replace("    font:\n", "    font: FONT_SMALL\n")), "clock"), ["FONT_SMALL", false]);
+});
+
+test("a text's own font: a bad size is reported on the inline size: line; identical fonts share one entry; a taken name gets _2", () => {
+  const bad = MINIMAL + OWN_FONT("clock", `      source: ${OPEN_SANS_TTF}\n      size: 20\n`);
+  const bare = errorsOf(bad);
+  assert.equal(bare.length, 1, bare.map((d) => d.message).join("\n"));
+  assert.ok(bare[0]!.message.startsWith("font 'clock_font': size must be a length"), bare[0]!.message);
+  assert.equal(bare[0]!.span!.line, lineWith(bad, "size: 20"), "the inline size: line");
+  const missing = MINIMAL + OWN_FONT("clock", "      source: assets/Nowhere.ttf\n      size: 20%r\n");
+  const gone = errorsOf(missing);
+  assert.equal(gone.length, 1, gone.map((d) => d.message).join("\n"));
+  assert.equal(gone[0]!.message, "font 'clock_font': source file not found: assets/Nowhere.ttf");
+  assert.equal(gone[0]!.span!.line, lineWith(missing, "source: assets/Nowhere.ttf"));
+  // neither source nor face: the schema's word, the same one a declared entry gets, at the element's own key
+  const neither = MINIMAL + OWN_FONT("clock", "      size: 20%r\n");
+  const halves = errorsOf(neither);
+  assert.equal(halves.length, 1, halves.map((d) => d.message).join("\n"));
+  const declaredHalves = errorsOf(DECLARED_FONT("x", "      size: 20%r\n"));
+  assert.equal(halves[0]!.message, declaredHalves[0]!.message.replace("resources.fonts.x", "elements.clock.font"));
+  assert.equal(halves[0]!.span!.line, lineWith(neither, "size: 20%r"));
+  // two elements writing the identical object share the first one's entry; a different object is its own
+  const same = `      source: ${OPEN_SANS_TTF}\n      size: 20%r\n`;
+  const shared = face(MINIMAL + OWN_FONT("hours", same) + OWN_FONT("minutes", same) + OWN_FONT("seconds", `      source: ${OPEN_SANS_TTF}\n      size: 10%r\n`));
+  assert.deepEqual([...shared.fonts.keys()], ["hours_font", "seconds_font"]);
+  assert.deepEqual([fontOf(shared, "hours")[0], fontOf(shared, "minutes")[0], fontOf(shared, "seconds")[0]], ["hours_font", "hours_font", "seconds_font"]);
+  // a declared font already holding the name: the inline one takes the next free suffix
+  const taken = face(DECLARED_FONT("clock_font", same) + OWN_FONT("clock", `      source: ${OPEN_SANS_TTF}\n      size: 10%r\n`));
+  assert.deepEqual([...taken.fonts.keys()], ["clock_font", "clock_font_2"]);
+  assert.equal(fontOf(taken, "clock")[0], "clock_font_2");
 });

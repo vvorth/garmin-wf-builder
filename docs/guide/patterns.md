@@ -167,7 +167,7 @@ second rule.
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
 | `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | the centre transformed, `fillCircle`/`drawCircle` |
 | `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
-| `text` | `at` (the anchor, default the origin), `text`, `font`, `align`, `curve`, `unsupported`, `outline` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
+| `text` | `at` (the anchor, default the origin), `text`, `font` (inline, `font.<name>` or a system name, as a `text` element's), `align`, `curve`, `unsupported`, `outline` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
 
 A rounded rectangle (`corner_radius:`) and `ellipse` are rejected, because
 no `Dc` call draws either one turned. `icon` is rejected too (see [Not yet
@@ -232,9 +232,13 @@ static:
       numeral:
         type: text
         text: "{(copy + 11) % 12 + 1}" # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11"
-        font: font.hourfont
+        font: { source: assets/Dynalight-Regular.ttf, size: 30%r, antialias: true }   # this part's own font
         at: {dy: -55%r}                # copy 0's anchor, above the centre: +dy is down
 ```
+
+A text part's `font:` takes what a `text` element's does: the font written
+inline (above; it becomes the `fonts:` entry `hour_numerals_numeral_font`),
+a `font.<name>` entry, or a system font ([Fonts](fonts.md#a-texts-own-font)).
 
 **The glyphs stay upright by default.** A bitmap font cannot turn, and a
 dial's numerals need not either. Only the anchor point goes through the

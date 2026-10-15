@@ -228,6 +228,18 @@
         }
       ]
     },
+    "fontRef": {
+      "description": "A text's font: 'font.<name>' naming a 'resources: fonts:' entry, a system font name (FONT_MEDIUM, FONT_NUMBER_HOT, ...), or the font written inline -- the same {source:, size:, ...} or {face:, size:, ...} object a 'fonts:' entry takes. An inline font is this element's own: it becomes a 'fonts:' entry named '<element id>_font' (a pattern part's: '<element id>_<part id>_font'; a name already taken gets '_2', '_3', ...), and two elements writing the identical object share one entry, so the generated face is exactly what the named entry would give. Name an entry instead when several elements share a font and you want one place to change it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/font"
+        }
+      ]
+    },
     "curve": {
       "description": "Bends a 'text' element's content along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText. Both calls refuse a resource font outright ('These APIs only support scalable fonts and do not support custom fonts loaded as resources', SDK Core Topics: Graphics, Scalable Fonts) -- so the element's 'font:' must name a 'face:' (vector) 'fonts:' entry; a baked or system font under 'curve:' is a build error quoting that same sentence.",
       "type": "object",
@@ -2036,8 +2048,8 @@
           ]
         },
         "font": {
-          "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...).",
-          "type": "string"
+          "description": "A custom font (font.<name>), a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...), or this element's own font written inline: {source: assets/X.ttf, size: 22%r} or {face: RobotoCondensedBold, size: 22%r}, every key a 'fonts:' entry takes (docs/guide/fonts.md).",
+          "$ref": "#/$defs/fontRef"
         },
         "color": {
           "$ref": "#/$defs/colorExpression"
@@ -3065,8 +3077,8 @@
           "type": "string"
         },
         "font": {
-          "description": "'type: text' only. A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...). Default FONT_MEDIUM.",
-          "type": "string"
+          "description": "'type: text' only. A custom font (font.<name>), a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...), or this part's own font written inline ({source:, size:} or {face:, size:}, as a 'fonts:' entry is), which becomes the entry '<element id>_<part id>_font'. Default FONT_MEDIUM.",
+          "$ref": "#/$defs/fontRef"
         },
         "curve": {
           "description": "'type: text' only, and only with a 'face:' (vector) 'font:' Bends this copy's own text along a line or around a circle, exactly as a 'text' element's own 'curve:' does -- 'angle:' is in the part's own local (copy-0) frame; a radial pattern composes it with each copy's own rotation, so one angle serves every copy. A baked or system font here is a build error, the same 'text-curve' reasoning a 'text' element's own 'curve:' gives.",

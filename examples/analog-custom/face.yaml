@@ -1,7 +1,8 @@
 # Analog Custom -- a hand-tuned analog face, built from `examples/features/analog/`
 # and taken further into something wearable: a custom numeral font
-# (`assets/Dynalight-Regular.ttf`), hour numerals, two date windows and four
-# colour schemes on the Styles axis.
+# (`assets/Dynalight-Regular.ttf`, written inline on the numeral part that
+# uses it), hour numerals, two date windows and four colour schemes on the
+# Styles axis.
 #
 # Two `layouts:`: `classic`, drawn by hand, and `classic_generated`, kept as
 # the generated starting point it grew out of (it carries the small-seconds
@@ -33,13 +34,6 @@ build:
 # 0xAA or 0xFF.
 
 resources:
-  fonts:
-    hourfont:
-      # source: assets/MonteCarlo-Regular.ttf
-      source: assets/Dynalight-Regular.ttf
-      size: 30%r
-      antialias: true
-
   palette:
     # Primary Neutrals:
     white: { value: "#FFFFFF", label: "White" }
@@ -278,7 +272,11 @@ layouts:
           numeral:
             type: text
             text: "{(copy + 11) % 12 + 1}"
-            font: font.hourfont
+            font:                        # this part's own font, baked at build time
+              # source: assets/MonteCarlo-Regular.ttf
+              source: assets/Dynalight-Regular.ttf
+              size: 30%r
+              antialias: true
             at: { angle: 0deg, radius: 80%r }
             align: center
 

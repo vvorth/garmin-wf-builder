@@ -1,7 +1,7 @@
 // Rewrite a lowered design's element blocks into the one shape the IR
 // builder reads.
 //
-// Three rewrites live here. The first turns an element mapping, keyed by
+// Five rewrites live here. The first turns an element mapping, keyed by
 // id, into the list the builder walks, the key injected as the element's
 // `id`. Spans are the whole difficulty: a diagnostic must point at the
 // author's own line, so the rewritten sequence holds the same mapping
@@ -22,11 +22,21 @@
 // shorthand, gets the ids `part1`, `part2`, ... so every part the builder
 // sees is named.
 //
+// The fifth is a text's own `font:`, written inline as the object a
+// `resources: fonts:` entry takes. It is moved into `resources.fonts` under
+// `<element id>_font` (`<element id>_<part id>_font` for a pattern's text
+// part), the first free `_2`, `_3`, ... suffix when that name is taken,
+// and the element's `font:` becomes `font.<name>`; two elements writing the
+// identical object share one entry. The moved mapping keeps its own
+// positions, so a diagnostic on its `size:` still points at the author's
+// line inside the element, and the entry's own position is the element's
+// `font:` key.
+//
 // What the schema cannot see, a YAML alias giving one body two keys, is
 // reported here (`element-mapping`, `parts`).
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
-import { quoted } from "./py.ts";
+import { deepEqual, quoted } from "./py.ts";
 import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
 type Dict = Map<DataKey, Data>;
@@ -50,7 +60,73 @@ export function desugar(doc: YamlDocument, bag: Bag): boolean {
   let ok = rewrite(doc, data, "elements", bag);
   ok = staticBlock(doc, data, bag) && ok;
   ok = layoutsBlock(doc, data, bag) && ok;
-  return handSetParts(doc, data, bag) && ok;
+  ok = handSetParts(doc, data, bag) && ok;
+  inlineFonts(data);
+  return ok;
+}
+
+/** The `resources: fonts:` name a text's inline `font:` is declared under: the element's, or the pattern part's. */
+export function inlineFontName(elementId: string, partId: string | null = null): string {
+  return partId === null ? `${elementId}_font` : `${elementId}_${partId}_font`;
+}
+
+/** Every text element's and pattern text part's inline `font:` object moved into `resources.fonts`, the key rewritten to `font.<name>`. */
+function inlineFonts(data: Dict): void {
+  const hoisted: [spec: Dict, name: string][] = [];
+  let fonts: Dict | null = null;
+  const fontsBlock = (): Dict => {
+    if (fonts !== null) return fonts;
+    let resources = data.get("resources");
+    if (!isDict(resources)) {
+      resources = new Map();
+      ensureLc(resources);
+      data.set("resources", resources);
+    }
+    let block = resources.get("fonts");
+    if (!isDict(block)) {
+      block = new Map();
+      ensureLc(block);
+      resources.set("fonts", block);
+    }
+    return fonts = block;
+  };
+  const hoist = (owner: Dict, elementId: string, partId: string | null): void => {
+    const spec = owner.get("font");
+    if (!isDict(spec)) return;
+    let name = hoisted.find(([other]) => deepEqual(other, spec))?.[1];
+    if (name === undefined) {
+      const block = fontsBlock();
+      const base = inlineFontName(elementId, partId);
+      name = base;
+      for (let n = 2; block.has(name); n++) name = `${base}_${n}`;
+      block.set(name, spec);
+      // The entry is located at the element's own `font:` key and value.
+      const lc = lcOf(owner);
+      const key = lc?.key("font"), value = lc?.value("font");
+      if (key != null && value != null) ensureLc(block).addKvLineCol(name, [...key, ...value]);
+      hoisted.push([spec, name]);
+    }
+    owner.set("font", `font.${name}`);
+  };
+  const visit = (list: Data | undefined): void => {
+    if (!Array.isArray(list)) return;
+    for (const body of list) {
+      if (!isDict(body)) continue;
+      const id = body.get("id");
+      if (typeof id !== "string") continue;
+      const type = body.get("type");
+      if (type === "text") hoist(body, id, null);
+      else if (type === "group") visit(body.get("children"));
+      else if (type === "pattern") {
+        const parts = body.get("parts");
+        if (!Array.isArray(parts)) continue;
+        for (const part of parts) {
+          if (isDict(part) && part.get("type") === "text" && typeof part.get("id") === "string") hoist(part, id, part.get("id") as string);
+        }
+      }
+    }
+  };
+  visit(data.get("elements"));
 }
 
 /** The keys whose value is a part mapping or list, by the element type that owns them. */

@@ -80,6 +80,8 @@ const WIDGET_BY_REF: Record<string, Widget> = {
   align: "align",
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
   visible: "expression", expression: "expression",
+  // a text's `font:` keeps the font picker; its inline object form is edited as YAML there until it has a control of its own
+  fontRef: "font",
 };
 /** Keys the inspector leaves out: the layer tree owns an element's `children:`. */
 const SKIPPED = new Set(["children"]);
