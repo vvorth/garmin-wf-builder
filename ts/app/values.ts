@@ -220,3 +220,31 @@ export function lintSteps(element: Path, code: string, reason: string, written: 
   if (reason !== "" && reason !== block["reason"]) steps.push({ op: "set", path: [...lint, "reason"], value: reason });
   return steps;
 }
+
+/** The `config: style:` entries a new layout is made reachable through: each one's name and the layout it picks, if any. */
+export interface StyleRow {
+  name: string;
+  layout: string | null;
+}
+
+/**
+ * The edits that add the empty layout `name` and keep it reachable: with
+ * no `config: style:` entry yet, a style naming it (the default); else
+ * every style that picks no layout now picks it (a style without `layout:`
+ * once there are layouts, and layouts no style names, are build errors).
+ */
+export function addLayoutSteps(name: string, styles: { default: string | null; entries: readonly StyleRow[] }): EditOp[] {
+  const steps: EditOp[] = [{ op: "set", path: ["layouts", name], value: {}, block: true }];
+  if (styles.entries.length === 0 && styles.default === null) {
+    steps.push({ op: "set", path: ["config", "style"], value: { default: name, choices: { [name]: { layout: name } } }, block: true });
+    return steps;
+  }
+  for (const e of styles.entries) if (e.layout === null) steps.push({ op: "set", path: ["config", "style", "choices", e.name, "layout"], value: name });
+  return steps;
+}
+
+/** The label a new layout's change goes under, naming the styles it repoints. */
+export function addLayoutLabel(name: string, styles: { entries: readonly StyleRow[] }): string {
+  const picking = styles.entries.filter((e) => e.layout === null).map((e) => e.name);
+  return picking.length ? `add the layout ${name}, picked by ${picking.join(", ")}` : `add the layout ${name}`;
+}

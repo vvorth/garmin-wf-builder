@@ -933,7 +933,8 @@ export interface ElementTarget {
 
 /** One edit from the inspector or the Face panel, as `Document.edit` takes it. */
 export type EditOp =
-  | ({ op: "set"; path: Path; value: Value } & ElementTarget)
+  /** `block`: a mapping or list it makes under a block mapping is written in block style. */
+  | ({ op: "set"; path: Path; value: Value; block?: boolean } & ElementTarget)
   | ({ op: "remove"; path: Path } & ElementTarget)
   | ({ op: "rename"; path: Path; to: string; prefix?: string } & ElementTarget)
   | ({ op: "use_color"; path: Path; value: string } & ElementTarget)
@@ -953,13 +954,10 @@ export type EditOp =
   | { op: "duplicate_hand_set"; name: string }
   | { op: "rename_hand_set"; name: string; to: string }
   | { op: "delete_hand_set"; name: string }
-  | { op: "add_layout"; name: string }
   /** Renames the layout and every style's `layout: <name>`. */
   | { op: "rename_layout"; name: string; to: string }
   /** Removes the layout and every style naming it; `also_default` names the style to make the default when the default goes with it. */
   | { op: "delete_layout"; name: string; also_default?: string }
-  /** Makes `name` the `config: style: default:`. */
-  | { op: "set_default_style"; name: string }
   /** Moves a mapping entry to position `to` among its siblings (a `parts:` entry too; a part of the list form is a `move_item`). */
   | ({ op: "move_key"; path: Path; to: number } & ElementTarget)
   | ({ op: "insert_item"; path: Path; at: number; value: Value; block?: boolean } & ElementTarget)

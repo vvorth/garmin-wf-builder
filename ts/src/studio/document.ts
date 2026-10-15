@@ -196,7 +196,8 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   set: (doc, index, op) => {
     const base = doc.seededFor(index, op);
     const p = doc.editPath(base, op);
-    return withWhat(setValue(base, p, toData(op["value"])), `set ${dotted(p)} to ${shownValue(op["value"])}`);
+    // `block`: a mapping or list made under a block mapping is written in block style
+    return withWhat(setValue(base, p, toData(op["value"]), { block: op["block"] === true }), `set ${dotted(p)} to ${shownValue(op["value"])}`);
   },
   remove: (doc, index, op) => {
     const p = doc.editPath(index, op);
@@ -251,20 +252,6 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   duplicate_hand_set: (_, index, op) => hands.duplicateHandSet(index, text(op, "name")),
   rename_hand_set: (_, index, op) => hands.renameHandSet(index, text(op, "name"), text(op, "to")),
   delete_hand_set: (_, index, op) => hands.deleteHandSet(index, text(op, "name")),
-  // an empty layout, made reachable: a style naming it when there is no `config: style:` yet, else every style
-  // that picks no layout now picks this one (`layouts:` with no style naming any entry, a style's `layout:`
-  // with no `layouts:` at all, and a style without `layout:` once there are layouts, are each a build error)
-  add_layout: (_, index, op) => {
-    const name = text(op, "name");
-    let result = setValue(index, ["layouts", name], new Map(), { block: true });
-    if (index.get(["config", "style"]) === undefined) {
-      return chain(result, (i) => setValue(i, ["config", "style"], toData({ default: name, choices: { [name]: { layout: name } } }), { block: true }));
-    }
-    const choices = dataAt(index.data, ["config", "style", "choices"]);
-    const unpicked = choices instanceof Map ? [...choices].filter(([, e]) => !(e instanceof Map && e.has("layout"))).map(([k]) => String(k)) : [];
-    for (const entry of unpicked) result = chain(result, (i) => setValue(i, ["config", "style", "choices", entry, "layout"], name));
-    return unpicked.length === 0 ? result : withWhat(result, `add the layout ${name}, picked by ${unpicked.join(", ")}`);
-  },
   rename_layout: (_, index, op) => {
     const name = text(op, "name");
     if (index.get(["layouts", name]) === undefined) throw new Refused(`there is no layout called ${name}`);
@@ -293,11 +280,6 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     if (moved && fallback !== moved) result = chain(result, (i) => setValue(i, ["config", "style", "default"], moved));
     const styles = picking.length > 0 ? `, with the style${picking.length === 1 ? "" : "s"} ${picking.join(", ")}` : "";
     return withWhat(result, `delete the layout ${name}${styles}`);
-  },
-  set_default_style: (_, index, op) => {
-    const name = text(op, "name");
-    if (index.get(["config", "style", "choices", name]) === undefined) throw new Refused(`there is no style called ${name}`);
-    return withWhat(setValue(index, ["config", "style", "default"], name), `make ${name} the default style`);
   },
 };
 

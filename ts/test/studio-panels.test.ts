@@ -20,6 +20,13 @@ import { allowHostList, digest, start } from "../src/studio/server.ts";
 import type { EditContext, Inspect } from "../src/studio/protocol.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
+import { addLayoutLabel, addLayoutSteps } from "../app/values.ts";
+
+/** + Layout as the page sends it: the steps it composes from the face's styles, as one batch. */
+function addLayout(doc: Document, name: string): void {
+  const styles = globalsOf(doc.text, db).styles;
+  doc.batch({ op: "batch", label: addLayoutLabel(name, styles), edits: addLayoutSteps(name, styles) }, doc.version);
+}
 
 const SHAPES = "examples/features/shapes/face.yaml";
 const make = (studio: Studio, template = "minimal"): Document => studio.create(bundle("T", starters.instantiate(template, "T")), "new");
@@ -771,7 +778,7 @@ test("the last slot deleted takes its config block with it", async () => {
 
 test("+ Layout adds an empty layout, bootstrapping a style to name it when there is none yet", async () => {
   const doc = make(await newStudio());
-  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
+  addLayout(doc, "layout");
   assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout"]);
   assert.equal((globalsOf(doc.text, db)["styles"] as any).entries[0].layout, "layout");
   assert.notEqual(doc.analysis().face, null);
@@ -779,8 +786,8 @@ test("+ Layout adds an empty layout, bootstrapping a style to name it when there
 
 test("+ Layout adds a second, unreferenced layout without touching an existing style", async () => {
   const doc = make(await newStudio());
-  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
-  doc.edit({ op: "add_layout", name: "layout2" }, doc.version);
+  addLayout(doc, "layout");
+  addLayout(doc, "layout2");
   assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout", "layout2"]);
   assert.equal((globalsOf(doc.text, db)["styles"] as any).entries.length, 1);
   assert.notEqual(doc.analysis().face, null);
@@ -788,8 +795,8 @@ test("+ Layout adds a second, unreferenced layout without touching an existing s
 
 test("a layout with no style referencing it is deleted through the existing structural delete path", async () => {
   const doc = make(await newStudio());
-  doc.edit({ op: "add_layout", name: "layout" }, doc.version);
-  doc.edit({ op: "add_layout", name: "layout2" }, doc.version);
+  addLayout(doc, "layout");
+  addLayout(doc, "layout2");
   doc.edit({ op: "remove", path: ["layouts", "layout2"] }, doc.version);
   assert.deepEqual(globalsOf(doc.text, db)["layouts"], ["layout"]);
   assert.notEqual(doc.analysis().face, null);

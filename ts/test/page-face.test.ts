@@ -25,7 +25,7 @@ async function renderFace(summary: unknown, { vocab = {}, onEdit = "(op) => edit
       const edits = [];
       const root = document.createElement("div");
       render(html\`<\${FacePanel} doc=\${${JSON.stringify(summary)}} vocab=\${${JSON.stringify(vocab)}}
-        onEdit=\${${onEdit}} onSelect=\${(id) => edits.push({select: id})}
+        onEdit=\${${onEdit}} onBatch=\${(label, steps) => edits.push({ batch: label, edits: steps })} onSelect=\${(id) => edits.push({select: id})}
         onUpload=\${() => {}} onStructure=\${() => {}}
         onReveal=\${(line, end) => edits.push({reveal: [line, end]})} />\`, root);
       const cls = (e) => e.attributes.class || "";
@@ -228,7 +228,7 @@ test("the Styles matrix lists the entries in order, picks their layout and schem
   assert.deepEqual(printed[2], [true, false, false]);
   assert.deepEqual(printed[3], [true, true, false]);
   assert.deepEqual(printed[4], [
-    { op: "set_default_style", name: "a" },
+    { batch: "make a the default style", edits: [{ op: "set", path: ["config", "style", "default"], value: "a" }] },
     { op: "set", path: ["config", "style", "choices", "a", "layout"], value: "digital" },
     { op: "set", path: ["config", "style", "choices", "d", "scheme"], value: "light" },
     { op: "remove", path: ["config", "style", "choices", "l", "scheme"] },

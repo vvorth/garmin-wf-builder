@@ -655,11 +655,11 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
     ` },
 
     { key: "layouts", title: "Layouts", count: (g.layout_entries || []).length, body: html`
-      <${LayoutsSection} entries=${g.layout_entries || []} styles=${styles} onEdit=${onEdit} />
+      <${LayoutsSection} entries=${g.layout_entries || []} styles=${styles} onEdit=${onEdit} onBatch=${onBatch} />
     ` },
 
     { key: "styles", title: "Styles", count: styles.entries.length, body: html`
-      <${StylesMatrix} styles=${styles} layouts=${g.layouts || []} schemes=${schemes} onEdit=${onEdit}
+      <${StylesMatrix} styles=${styles} layouts=${g.layouts || []} schemes=${schemes} onEdit=${onEdit} onBatch=${onBatch}
         labels=${Object.fromEntries((g.layout_entries || []).map((l) => [l.name, l.label]))} />
     ` },
 

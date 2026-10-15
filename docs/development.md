@@ -391,10 +391,17 @@ Beside `set`, `remove`, `rename` and the list-item ops,
 `move_key` reorders a mapping entry among its siblings (block or flow; a
 `parts:` entry too, so parts draw in the order shown; a part of the list
 form is refused, naming `move_item`),
-`rename_layout` renames a layout and every style's `layout:`,
+`rename_layout` renames a layout and every style's `layout:`, and
 `delete_layout` removes a layout with the styles picking it (moving the
-default to `also_default`, or refused naming it), and `set_default_style`
-sets `config: style: default:`; each is one gated patch and a batch step.
+default to `also_default`, or refused naming it); each is one gated patch
+and a batch step. A named op stays only where it carries format knowledge
+the page should not repeat (a reference renamed everywhere, a refusal of
+what would dangle, a swatch found or named, a preset or a set's data the
+page does not hold); a change that is only primitives is a batch the page
+composes: + Layout (`addLayoutSteps` in `ts/app/values.ts`: the layout,
+and the styles that keep it reachable, `set` with `block`), the default
+style (one `set`, the gate refusing a name no style has), and accepting a
+lint warning (`lintSteps`).
 A drag (`Document.drag`, `ts/src/edit/geometry.ts`) names an element by id
 or a part by its tree path joined with `/`, the entered frame's item id. On
 an element: `move` (its `at:`, a line's `to:` with it, or every point of a

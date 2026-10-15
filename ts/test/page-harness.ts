@@ -93,7 +93,7 @@ export async function render(summary: unknown, body: string, { props = "", devic
       const edits = [];
       const root = document.createElement("div");
       render(html\`<\${FacePanel} doc=\${${JSON.stringify(summary)}} vocab=\${${JSON.stringify({ ...vocabulary(), devices })}} ${props}
-        onEdit=\${(op) => edits.push(op)} onSelect=\${(id) => edits.push({select: id})}
+        onEdit=\${(op) => edits.push(op)} onBatch=\${(label, steps) => edits.push({ batch: label, edits: steps })} onSelect=\${(id) => edits.push({select: id})}
         onUpload=\${() => {}} onStructure=\${() => {}}
         onReveal=\${(line, end) => edits.push({reveal: [line, end]})} />\`, root);
       const cls = (e) => e.attributes.class || "";

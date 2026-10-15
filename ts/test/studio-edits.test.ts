@@ -14,7 +14,15 @@ import * as starters from "../src/starters.ts";
 import { bundle } from "../src/studio/bundle.ts";
 import { type Document, frameKey, LABEL_WIDTH, type Studio } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
-import { Client, dataOf, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
+import { Client, dataOf, db, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
+import { addLayoutLabel, addLayoutSteps } from "../app/values.ts";
+import { globalsOf } from "../src/studio/inspect.ts";
+
+/** + Layout as the page sends it: the steps it composes from the face's styles, as one batch. */
+function addLayout(doc: Document, name: string): void {
+  const styles = globalsOf(doc.text, db).styles;
+  doc.batch({ op: "batch", label: addLayoutLabel(name, styles), edits: addLayoutSteps(name, styles) }, doc.version);
+}
 
 const SLOT_GAUGE = "examples/features/slot-gauge/face.yaml";
 
@@ -211,7 +219,7 @@ test("+ Layout on a face whose styles name only schemes points every style at th
   edit(doc, { op: "add_scheme", name: "light" });
   assert.deepEqual(dataOf(doc).config.style.choices, { dark: { scheme: "dark" }, light: { scheme: "light" } });
   const states = (doc.history()["total"] as number);
-  edit(doc, { op: "add_layout", name: "alt" });
+  addLayout(doc, "alt");
   assert.deepEqual(dataOf(doc).config.style.choices, { dark: { scheme: "dark", layout: "alt" }, light: { scheme: "light", layout: "alt" } });
   assert.deepEqual(dataOf(doc).layouts, { alt: {} });
   assert.notEqual(doc.analysis().face, null);
@@ -621,8 +629,8 @@ test("a layout is deleted with the styles naming it; the default moves, or the d
   refusedAlone(doc, [[/analog is the last layout, and every style picks it/, () => edit(doc, { op: "delete_layout", name: "analog", also_default: "analog_dark" })]]);
   // a face whose styles do not need a layout: the last one goes, and layouts: with it
   const plain = make(await newStudio());
-  edit(plain, { op: "add_layout", name: "only" });
-  edit(plain, { op: "add_layout", name: "spare" });
+  addLayout(plain, "only");
+  addLayout(plain, "spare");
   edit(plain, { op: "delete_layout", name: "spare" });
   assert.deepEqual(layoutsOf(plain), ["only"]);
   assert.deepEqual(Object.keys(stylesOf(plain).choices), ["only"]);
@@ -663,12 +671,23 @@ test("a mapping entry is moved among its siblings, its lines with it, in block a
   assert.equal(doc.text, before);
 });
 
-test("the default style is set from the panel", async () => {
+test("the default style is set from the panel as a plain set, and the gate refuses one that names no style", async () => {
   const doc = openExample(await newStudio(), SHOWCASE);
-  edit(doc, { op: "set_default_style", name: "analog_light" });
+  const setDefault = (name: string): void => {
+    doc.batch({ op: "batch", label: `make ${name} the default style`, edits: [{ op: "set", path: ["config", "style", "default"], value: name }] }, doc.version);
+  };
+  setDefault("analog_light");
   assert.equal(stylesOf(doc).default, "analog_light");
   assert.equal(doc.head.label, "make analog_light the default style");
-  refusedAlone(doc, [[/no style called nope/, () => edit(doc, { op: "set_default_style", name: "nope" })]]);
+  refusedAlone(doc, [[/default 'nope' is not one of 'choices:'/, () => setDefault("nope")]]);
+});
+
+test("the edits that were only a composition of primitives are gone: add_layout and set_default_style are unknown edits", async () => {
+  const doc = openExample(await newStudio(), SHOWCASE);
+  refusedAlone(doc, [
+    [/unknown edit 'add_layout'/, () => edit(doc, { op: "add_layout", name: "spare" })],
+    [/unknown edit 'set_default_style'/, () => edit(doc, { op: "set_default_style", name: "analog_light" })],
+  ]);
 });
 
 test("the layout and style ops are batch steps", async () => {
@@ -676,7 +695,7 @@ test("the layout and style ops are batch steps", async () => {
   doc.batch({ op: "batch", label: "reshuffle", edits: [
     { op: "rename_layout", name: "roman", to: "numerals" },
     { op: "move_key", path: ["layouts", "numerals"], to: 0 },
-    { op: "set_default_style", name: "roman_dark" },
+    { op: "set", path: ["config", "style", "default"], value: "roman_dark" },
     { op: "delete_layout", name: "analog" },
   ] }, doc.version);
   assert.deepEqual(layoutsOf(doc), ["numerals", "digital"]);

@@ -106,10 +106,21 @@ test("a styles label is set and cleared", async () => {
   assert.deepEqual(printed[1], [{"op": "set", "path": ["config", "style", "choices", "l", "label"], "value": "Day"}, {"op": "remove", "path": ["config", "style", "choices", "d", "label"]}]);
 });
 
-test("+ Layout adds a layout from the Styles section", async () => {
+test("+ Layout adds a layout from the Styles section as one batch of primitives, the style made to reach it, and a taken name is not sent", async () => {
   const text = summary(instantiate("minimal", "T"));
   const printed = await render(text, "\n      await openSection(\"Styles\");\n      await click(find((e) => e.localName === \"button\" && e.textContent.startsWith(\"+ Layout\"))[0]);\n      await typeName(\"layout\");\n      out(edits);\n    ");
-  assert.deepEqual(printed[0], [{"op": "add_layout", "name": "layout"}]);
+  assert.deepEqual(printed[0], [{ batch: "add the layout layout", edits: [
+    { op: "set", path: ["layouts", "layout"], value: {}, block: true },
+    { op: "set", path: ["config", "style"], value: { default: "layout", choices: { layout: { layout: "layout" } } }, block: true },
+  ] }]);
+  // on a face whose styles name only schemes, every style picks the new layout; a name in use is marked and not sent
+  const schemed = summary(instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n    light:\n      colors: { ink: color.bg }\n\nlayouts:\n  main: {}\n\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark, layout: main }, l: { scheme: light } }\n");
+  const again = await render(schemed, "\n      await openSection(\"Layouts\");\n      await click(find((e) => e.localName === \"button\" && e.textContent.startsWith(\"+ Layout\"))[0]);\n      await typeName(\"main\");\n      out(edits);\n      await typeName(\"alt\");\n      out(edits);\n    ");
+  assert.deepEqual(again[0], []);
+  assert.deepEqual(again[1], [{ batch: "add the layout alt, picked by l", edits: [
+    { op: "set", path: ["layouts", "alt"], value: {}, block: true },
+    { op: "set", path: ["config", "style", "choices", "l", "layout"], value: "alt" },
+  ] }]);
 });
 
 test("hand sets are listed added and shown in the yaml", async () => {

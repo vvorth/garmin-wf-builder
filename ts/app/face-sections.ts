@@ -9,11 +9,27 @@ import { html } from "htm/preact";
 import { useEffect, useState } from "preact/hooks";
 import type { JSX, VNode } from "preact";
 import { AddName, InlineName } from "./ui.ts";
-import { newStyleEntry } from "./values.ts";
+import { addLayoutLabel, addLayoutSteps, isIdentifier, newStyleEntry } from "./values.ts";
 import type { OnEdit } from "./panels.ts";
 import type {
-  DefaultsInfo, DeviceInfo, FaceInfo, LayoutEntry, Path, Schemes, Styles, UnreadableDevice, Value,
+  DefaultsInfo, DeviceInfo, EditOp, FaceInfo, LayoutEntry, Path, Schemes, Styles, UnreadableDevice, Value,
 } from "../src/studio/protocol.ts";
+
+/** Several primitive edits sent as one change, under `label`; without it each is sent in turn. */
+export type OnBatch = (label: string, edits: EditOp[]) => void;
+
+/** `edits` as one change: a batch where the page can send one, else each in turn. */
+function sendAll(onEdit: OnEdit, onBatch: OnBatch | undefined, label: string, edits: EditOp[]): void {
+  if (onBatch) onBatch(label, edits);
+  else edits.forEach((e) => void onEdit(e));
+}
+
+/** + Layout: a free name, then the layout added and kept reachable (`addLayoutSteps`), as one change. */
+function AddLayout({ layouts, styles, onEdit, onBatch }: { layouts: readonly string[]; styles: Styles; onEdit: OnEdit; onBatch?: OnBatch | undefined }): VNode {
+  return html`<${AddName} label="+ Layout" placeholder="layout name" suggest=${() => suggestLayoutName(layouts)}
+    valid=${(t: string) => isIdentifier(t) && !layouts.includes(t)}
+    onAdd=${(n: string) => sendAll(onEdit, onBatch, addLayoutLabel(n, styles), addLayoutSteps(n, styles))} />`;
+}
 
 type InputEvent = JSX.TargetedEvent<HTMLInputElement>;
 type SelectEvent = JSX.TargetedEvent<HTMLSelectElement>;
@@ -208,6 +224,7 @@ export interface LayoutsSectionProps {
   entries: LayoutEntry[];
   styles: Styles;
   onEdit: OnEdit;
+  onBatch?: OnBatch | undefined;
 }
 
 // `layouts:`, one row each: its name (edited in place; every style's
@@ -217,7 +234,7 @@ export interface LayoutsSectionProps {
 // it; when the worker refuses it because the default style is one of them,
 // the row offers the styles that stay, and the delete is sent again naming
 // the one to start in instead.
-export function LayoutsSection({ entries, styles, onEdit }: LayoutsSectionProps): VNode {
+export function LayoutsSection({ entries, styles, onEdit, onBatch }: LayoutsSectionProps): VNode {
   // the layout whose delete was refused for its default style, awaiting the style to start in
   const [moving, setMoving] = useState<string | null>(null);
   useEffect(() => { if (moving !== null && !entries.some((l) => l.name === moving)) setMoving(null); }, [entries]);
@@ -253,8 +270,7 @@ export function LayoutsSection({ entries, styles, onEdit }: LayoutsSectionProps)
         </select> instead</div>` : null}
     </li>`; })}</ul>`
     : html`<div class="dim note">A layout is a named set of elements the wearer switches to through a style; this face has none yet.</div>`}
-    <${AddName} label="+ Layout" placeholder="layout name" suggest=${() => suggestLayoutName(entries.map((l) => l.name))}
-      onAdd=${(n: string) => onEdit({ op: "add_layout", name: n })} />`;
+    <${AddLayout} layouts=${entries.map((l) => l.name)} styles=${styles} onEdit=${onEdit} onBatch=${onBatch} />`;
 }
 
 export interface StylesMatrixProps {
@@ -264,13 +280,14 @@ export interface StylesMatrixProps {
   labels?: Record<string, string | null> | undefined;
   schemes: Schemes;
   onEdit: OnEdit;
+  onBatch?: OnBatch | undefined;
 }
 
 // `config: style:` as a table, one row per entry in the order the wearer's
 // Style list shows: the layout and scheme it picks, the label the wearer
 // sees, the radio for the one the face opens in, ↑ ↓ and ×. Below it, a new
 // style shaped like the others, and a new layout.
-export function StylesMatrix({ styles, layouts, labels = {}, schemes, onEdit }: StylesMatrixProps): VNode {
+export function StylesMatrix({ styles, layouts, labels = {}, schemes, onEdit, onBatch }: StylesMatrixProps): VNode {
   const entries = [...styles.entries].sort((a, b) => a.index - b.index);
   const choices: Path = ["config", "style", "choices"];
   const pick = (name: string, key: "layout" | "scheme", value: string) =>
@@ -290,7 +307,8 @@ export function StylesMatrix({ styles, layouts, labels = {}, schemes, onEdit }: 
           onCommit=${(t: string) => onEdit(t.trim() ? { op: "set", path: [...choices, e.name, "label"], value: t.trim() }
                                                      : { op: "remove", path: [...choices, e.name, "label"] })} /></td>
         <td><input type="radio" name="default-style" aria-label=${`open in ${e.name}`} checked=${styles.default === e.name}
-          title="the one style the face opens in" onChange=${() => onEdit({ op: "set_default_style", name: e.name })} /></td>
+          title="the one style the face opens in"
+          onChange=${() => sendAll(onEdit, onBatch, `make ${e.name} the default style`, [{ op: "set", path: ["config", "style", "default"], value: e.name }])} /></td>
         <td class="actions">
           <${Reorder} index=${i} count=${entries.length} what=${`style ${e.name}`} onMove=${(to: number) => onEdit({ op: "move_key", path: [...choices, e.name], to })} />
           <button class="reset" title="delete this style" aria-label=${`delete style ${e.name}`} onClick=${() => onEdit({ op: "remove", path: [...choices, e.name] })}>×</button>
@@ -305,7 +323,6 @@ export function StylesMatrix({ styles, layouts, labels = {}, schemes, onEdit }: 
             ? { op: "set", path: [...choices, n], value: entry }
             : { op: "set", path: ["config", "style"], value: { default: n, choices: { [n]: entry } } });
         }} />` : null}
-      <${AddName} label="+ Layout" placeholder="layout name" suggest=${() => suggestLayoutName(layouts)}
-        onAdd=${(n: string) => onEdit({ op: "add_layout", name: n })} />
+      <${AddLayout} layouts=${layouts} styles=${styles} onEdit=${onEdit} onBatch=${onBatch} />
     </div>`;
 }

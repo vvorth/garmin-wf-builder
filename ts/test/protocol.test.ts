@@ -277,7 +277,7 @@ test("every answer the worker sends has the protocol's shape", async () => {
   const reorder: EditOp[] = [
     { op: "rename_layout", name: layouts[0], to: "renamed" },
     { op: "move_key", path: ["layouts", "renamed"], to: layouts.length - 1 },
-    { op: "set_default_style", name: face.globals.styles.entries[0].name },
+    { op: "set", path: ["config", "style", "default"], value: face.globals.styles.entries[0].name },
   ];
   structured(take(await ok("batch", { id, version, label: "reorder", edits: reorder })), "batch of layout ops");
   const spare = face.globals.layout_entries.find((l: any) => !l.styles.includes(face.globals.styles.entries[0].name) && l.name !== layouts[0]);
