@@ -17,12 +17,16 @@
 // holds what is typed, each with the rows it sits under; Escape or × clears
 // it, and the selection stays as it was. A row shows its element's `z:`,
 // when written, as a badge: it orders drawing before the rows' own order.
+// Each element's row has two toggles of the editor's own, kept beside the
+// face and never in its text: 🔒 locks it (the canvas neither picks nor
+// drags it; this list and Properties still reach it) and 👁 hides it in
+// the editor's frame. Either on a group reaches everything inside it.
 
 import type { JSX, VNode } from "preact";
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 import type { EditOp, Path, StructureOp, Summary, TreeBlock, TreeNode, Vocabulary } from "../src/studio/protocol.ts";
-import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, hasParts, isPartPath, matchingRows, partDrop, selectionId, siblingsOf, stepOp } from "./tree.ts";
+import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, hasParts, isPartPath, matchingRows, partDrop, selectionId, siblingsOf, stepOp, withInside } from "./tree.ts";
 import type { DropTarget } from "./tree.ts";
 
 /** How a click changes the selection: `"range"` (Shift) every row from the selection to it, true (Ctrl/Cmd) toggles it, false selects it alone. */
@@ -40,6 +44,13 @@ interface Ctx {
   entered: string | null;
   /** The rows a search leaves (`selectionId`s), or null for every row. */
   shown: ReadonlySet<string> | null;
+  /** The elements locked and hidden in the editor, as toggled, and with what is inside them. */
+  locked: readonly string[];
+  hidden: readonly string[];
+  lockedAll: ReadonlySet<string>;
+  hiddenAll: ReadonlySet<string>;
+  onLock: ((id: string) => void) | undefined;
+  onHide: ((id: string) => void) | undefined;
   /** `owner`: the element a hand or part row sits under. */
   onSelect: (id: string, mode: SelectMode, owner?: Path) => void;
   onDrop: (path: Path, target: DropTarget["target"] | null) => void;
@@ -83,11 +94,20 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
   const entered = ctx.entered === node.path.join("/");
   const enterable = hasParts(node);
   const zone = (e: JSX.TargetedDragEvent<HTMLDivElement>): DropTarget => dropTarget(node, fractionOf(e), next);
+  const hiddenRow = ctx.hiddenAll.has(node.id);
+  // a toggle on this row, or reached from a group around it (shown on, not toggled here)
+  const toggle = (own: readonly string[], all: ReadonlySet<string>, on: string, off: string, label: string, act: ((id: string) => void) | undefined): VNode | null => {
+    if (!act) return null;
+    const mine = own.includes(node.id), inherited = !mine && all.has(node.id);
+    return html`<button class=${(mine || inherited ? "on" : "") + (inherited ? " inherited" : "")} aria-pressed=${mine || inherited}
+      aria-label=${`${label} ${node.id}`} title=${inherited ? `${on} with the group around it` : mine ? `${on} in the editor: click to undo` : off}
+      disabled=${inherited} onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); act(node.id); }}>${label === "lock" ? "🔒" : "👁"}</button>`;
+  };
   // a part's row dropped on an element goes nowhere: parts stay in their mapping
   const accepts = (e: JSX.TargetedDragEvent<HTMLDivElement>): boolean => carriesPath(e.dataTransfer?.types);
   return html`<li>
     <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") + (entered ? " entered" : "") +
-                 (drawn && !anyDrawn(node, drawn) ? " undrawn" : "")}
+                 (drawn && !anyDrawn(node, drawn) ? " undrawn" : "") + (hiddenRow ? " hidden-row" : "") + (ctx.lockedAll.has(node.id) ? " locked-row" : "")}
          draggable="true" title=${`line ${node.line}`}
          onClick=${(e: JSX.TargetedMouseEvent<HTMLDivElement>) => ctx.onSelect(node.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey)}
          onDblClick=${() => { if (enterable) ctx.onEnter(node.path); }}
@@ -102,6 +122,10 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
       ${node.z !== undefined ? html`<span class="z-badge" title=${`z: ${String(node.z)}: drawn by this number among its siblings before their order here`}>z ${String(node.z)}</span>` : null}
       ${enterable ? html`<button class="enter" title=${entered ? "the parts of this element are on the face" : "Enter: edit its parts on the face (or double-click the row)"}
           disabled=${entered} onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); ctx.onEnter(node.path); }}>↘</button>` : null}
+      ${ctx.onLock || ctx.onHide ? html`<span class="row-toggles">
+        ${toggle(ctx.locked, ctx.lockedAll, "locked", "lock it: the canvas will not pick or drag it (Layers and Properties still do)", "lock", ctx.onLock)}
+        ${toggle(ctx.hidden, ctx.hiddenAll, "hidden", "hide it in the editor's frame (the face itself keeps it)", "hide", ctx.onHide)}
+      </span>` : null}
     </div>
     ${node.children.length ? html`<ul class="tree">${inDrawOrder(node.children, ctx, depth + 1, enterable ? node.path : null)}</ul>` : null}
   </li>`;
@@ -186,9 +210,15 @@ export interface LayersProps {
   onEdit?: ((op: EditOp) => unknown) | undefined;
   onEnter?: ((path: Path) => void) | undefined;
   onExit?: (() => void) | undefined;
+  /** The elements locked and hidden in the editor (by id), and the toggles that change them. */
+  locked?: readonly string[] | undefined;
+  hidden?: readonly string[] | undefined;
+  onLock?: ((id: string) => void) | undefined;
+  onHide?: ((id: string) => void) | undefined;
 }
 
-export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onSelect, onStructure, onEdit, onEnter, onExit }: LayersProps): VNode {
+export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onSelect, onStructure, onEdit, onEnter, onExit,
+                         locked = [], hidden = [], onLock, onHide }: LayersProps): VNode {
   const [type, setType] = useState("");
   const [choice, setChoice] = useState("");
   const [query, setQuery] = useState("");
@@ -225,6 +255,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
   };
   const ctx: Ctx = {
     selected, extra, drawn, onSelect, entered: entered ? entered.join("/") : null, shown,
+    locked, hidden, lockedAll: withInside(doc.tree, locked), hiddenAll: withInside(doc.tree, hidden), onLock, onHide,
     onDrop: (path, target) => {
       if (!target || JSON.stringify(path) === JSON.stringify([...target.block, target.before])) return;
       onStructure({ op: "move", path, block: target.block, before: target.before });

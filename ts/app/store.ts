@@ -12,8 +12,9 @@
 // editing context -- the element, the viewed device, the frame and the
 // style -- and asked again whenever one of those changes. Per-browser
 // preferences (`view`, `ui`) are read once from `localStorage` and written
-// back through `persist()`; a face's editor-only state (`faceState`) lives
-// beside the face in the worker's store.
+// back through `persist()`; a face's editor-only state (`faceState`: the
+// elements locked and hidden in the editor) lives beside the face in the
+// worker's store, and the frame is asked without the hidden ones.
 
 import { createContext } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
@@ -307,6 +308,13 @@ export const chosenIds = (sel: Selection): string[] => (sel.primary ? [sel.prima
 export const elementOf = (s: EditorState): TreeNode | null => (s.doc && s.selection.primary ? nodeById(s.doc.tree, s.selection.primary) : null);
 /** The entered element's node, or null. */
 export const enteredOf = (s: EditorState): TreeNode | null => (s.doc && s.context.entered ? nodeAtPath(s.doc.tree, s.context.entered) : null);
+const NONE: readonly string[] = Object.freeze([]);
+/** The open face's editor-only state, or an empty one. */
+const faceUi = (s: EditorState): FaceUiState => (s.docId !== null ? s.faceState[s.docId] : undefined) ?? {};
+/** The elements locked in the editor (by id, as the author locked them): the canvas neither picks nor drags them. */
+export const lockedOf = (s: EditorState): readonly string[] => faceUi(s).locked ?? NONE;
+/** The elements hidden in the editor's frame (by id, as the author hid them). */
+export const hiddenOf = (s: EditorState): readonly string[] => faceUi(s).hidden ?? NONE;
 /** Whether the YAML tab's text is saved: `textsync.plan`'s kind, "send" while a send is out. */
 export const yamlSaving = (s: EditorState): PlanKind => (s.yaml.sending ? "send" : sync.plan(s.yaml.sync, s.yaml.text).kind);
 /** The top bar's saved state: the outbox and the YAML tab together. */
@@ -396,7 +404,12 @@ export class EditorStore {
       api("vocabulary").then((v) => { this.set({ vocab: v, devices: v.devices }); this.reconcile(); }, (e: unknown) => this.error(e));
     }
     api("ui_state", { id: docId, action: "get" }).then(
-      (r) => { if (this.state.docId === docId) this.set({ faceState: { ...this.state.faceState, [docId]: r.state } }); },
+      (r) => {
+        if (this.state.docId !== docId) return;
+        this.set({ faceState: { ...this.state.faceState, [docId]: r.state } });
+        // the frame leaves out what this face hides in the editor
+        this.askFrame();
+      },
       (e: unknown) => { if (this.state.docId === docId && statusOf(e) !== 404) this.error(e); });
   }
 
@@ -705,7 +718,8 @@ export class EditorStore {
     }
     const args: FrameArgs = { id: doc.id, device: context.device, scale: scaleOf(s), style: context.style, time: shownTime(s), date: shownDate(s),
                               asleep: context.frame === "asleep", aod: context.frame === "aod", picks: picksParam(context.picks, doc.globals.slots),
-                              ...(context.entered !== null ? { enter: context.entered } : {}) };
+                              ...(context.entered !== null ? { enter: context.entered } : {}),
+                              ...(hiddenOf(s).length ? { hidden: [...hiddenOf(s)] } : {}) };
     const key = `${doc.version}\0${JSON.stringify(args)}`;
     if (key === this.frameKey) return;
     this.frameKey = key;
@@ -862,6 +876,19 @@ export class EditorStore {
     write("wfb-panel-right", String(view.panels.right));
     write("wfb-face-section", ui.faceSection);
     write("wfb-fold", JSON.stringify(ui.folds));
+  }
+
+  /** Lock the element `id` in the editor, or unlock it: a locked one is not picked or dragged on the canvas; Layers and Properties still reach it. */
+  toggleLocked(id: string): void {
+    const locked = lockedOf(this.state);
+    this.setFaceState({ locked: locked.includes(id) ? locked.filter((x) => x !== id) : [...locked, id] });
+  }
+
+  /** Hide the element `id` in the editor's frame, or show it again; the face itself is not changed. */
+  toggleHidden(id: string): void {
+    const hidden = hiddenOf(this.state);
+    this.setFaceState({ hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] });
+    this.askFrame();
   }
 
   /** The open face's editor-only state, changed by `partial` and written beside the face. */

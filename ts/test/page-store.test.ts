@@ -230,6 +230,43 @@ test("a face's editor-only state is read when it opens and written beside the fa
   assert.deepEqual(printed[3], { locked: ["clock"] });
 });
 
+test("hiding an element in the editor asks the frame without it and keeps it beside the face, and a lock is kept without touching the frame", async () => {
+  const face = faceFixture();
+  face.summary.targets = ["fenix8solar47mm"];
+  const printed = await store(face, FRAME_OF + `
+      const asked = () => requests.filter(([op]) => op === "frame").map(([, a]) => a.hidden ?? null);
+      const answer = async () => { while (unanswered.length) { unanswered.shift()({ status: 200, json: frameOf({ device: summary.targets[0], scale: 2 }) }); await settle(); } };
+      const s = new EditorStore(summary.id);
+      await settle(); await answer();
+      out(asked());
+      s.toggleHidden("clock");
+      await settle(); await answer();
+      out([asked(), s.state.faceState[summary.id], storeMod.hiddenOf(s.state)]);
+      // a lock changes no frame
+      s.toggleLocked("seconds");
+      await settle(); await answer();
+      out([asked().length, storeMod.lockedOf(s.state), s.state.faceState[summary.id]]);
+      // what was written beside the face, each time whole
+      out(requests.filter(([op, a]) => op === "ui_state" && a.action === "set").map(([, a]) => a.state));
+      // the face opened again (another tab, a reload) hides it again, and keeps the lock
+      const again = new EditorStore(null);
+      again.open(summary.id);
+      await settle(); await answer();
+      out([asked().at(-1), storeMod.lockedOf(again.state)]);
+      // shown again: the frame is asked with nothing hidden
+      again.toggleHidden("clock");
+      await settle(); await answer();
+      out([asked().at(-1), storeMod.hiddenOf(again.state)]);
+      s.dispose(); again.dispose();
+    `);
+  assert.deepEqual(printed[0], [null]);
+  assert.deepEqual(printed[1], [[null, ["clock"]], { hidden: ["clock"] }, ["clock"]]);
+  assert.deepEqual(printed[2], [2, ["seconds"], { hidden: ["clock"], locked: ["seconds"] }]);
+  assert.deepEqual(printed[3], [{ hidden: ["clock"] }, { hidden: ["clock"], locked: ["seconds"] }]);
+  assert.deepEqual(printed[4], [["clock"], ["seconds"]]);
+  assert.deepEqual(printed[5], [null, []]);
+});
+
 test("the editing context asks the inspector again when the frame changes, and Edit for decides a geometry edit's scope", async () => {
   const face = faceFixture();
   face.summary.targets = ["fenix8solar47mm"];

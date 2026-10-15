@@ -205,8 +205,9 @@ function inkAt(frame: Frame, prepared: Prepared, layer: PreparedLayer, x: number
 // ready, else the smallest drawn box holding the point. `frame.items` may
 // be shifted (`shiftItems`) by `by`, the moves not drawn yet: a moved
 // layer is read where it will be. In an entered frame the parts are picked
-// by their boxes alone: the ghost round them is one image.
-function pick(frame: Frame, prepared: Prepared | null, x: number, y: number, by: Offsets = new Map()): string | null {
+// by their boxes alone: the ghost round them is one image. An element
+// locked in the editor is passed over: the press reaches what is under it.
+function pick(frame: Frame, prepared: Prepared | null, x: number, y: number, by: Offsets = new Map(), locked: ReadonlySet<string> = new Set()): string | null {
   if (prepared && !frame.local) {
     const layers: readonly (PreparedLayer | ShiftedLayer)[] = by.size ? prepared.layers.map((l): PreparedLayer | ShiftedLayer => {
       const o = by.get(elementOf(l.id));
@@ -214,14 +215,15 @@ function pick(frame: Frame, prepared: Prepared | null, x: number, y: number, by:
       const box: Box | null = l.box && [l.box[0] + o[0], l.box[1] + o[1], l.box[2], l.box[3]];
       return { id: l.id, box, base: l, off: o };
     }) : prepared.layers;
-    const hit = topmost(layers, x, y, (layer) => ("base" in layer
+    const pickable = locked.size ? layers.filter((l) => !locked.has(elementOf(l.id))) : layers;
+    const hit = topmost(pickable, x, y, (layer) => ("base" in layer
       ? inkAt(frame, prepared, layer.base, x - layer.off[0], y - layer.off[1])
       : inkAt(frame, prepared, layer, x, y)));
     if (hit) return elementOf(hit.id);
   }
   let best: FrameItem | null = null;
   for (const item of frame.items) {
-    if (!item.drawn) continue;
+    if (!item.drawn || locked.has(item.id)) continue;
     const [bx, by0, bw, bh] = item.box;
     if (x >= bx && y >= by0 && x < bx + bw && y < by0 + bh && (!best || bw * bh <= best.box[2] * best.box[3])) best = item;
   }
@@ -553,6 +555,8 @@ function sent(g: Own): AnyGesture {
   return rest;
 }
 
+const NO_LOCKS: ReadonlySet<string> = new Set();
+
 /** The handles a press may take: a mirrored vertex is shown, never dragged. */
 const pressable = (item: FrameItem): FrameItem => ({ ...item, handles: item.handles.filter((h) => !h.mirrored) });
 
@@ -577,6 +581,8 @@ export interface CanvasProps {
   zoom?: number;
   /** The watch drawn round the screen, at the frame's scale, with where the screen sits in it. */
   skin?: Skin | null;
+  /** Elements locked in the editor (with what is inside a locked group): never picked, and neither they nor a selection holding one is dragged. */
+  locked?: ReadonlySet<string>;
 }
 
 /**
@@ -585,7 +591,7 @@ export interface CanvasProps {
  * deselects).
  */
 export function Canvas({ frame, selected, extra = [], tree = [], queue = [], vertex = null, onPick, onVertex, onDrag,
-                         zoom = frame.scale, skin = null }: CanvasProps): VNode {
+                         zoom = frame.scale, skin = null, locked = NO_LOCKS }: CanvasProps): VNode {
   const overlay = useRef<HTMLCanvasElement | null>(null);
   const [drag, setDragState] = useState<Drag | null>(null);     // a press, maybe a gesture
   // The handlers read the press from a ref: two pointer events can arrive
@@ -641,11 +647,12 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], ver
       const [x, y, w, h] = one.box;
       ctx.strokeRect(x * s - k, y * s - k, w * s + 2 * k, h * s + 2 * k);
     }
-    // handles act on one element, so a selection of several shows none
+    // handles act on one element, so a selection of several shows none; a locked one has none to drag
+    if ([item.id, ...extra].some((id) => locked.has(id))) return;
     if (!others.length) for (const hd of item.handles) drawHandle(ctx, hd, s, k, isVertex(hd) && !hd.mirrored && hd.index === vertex);
     const grip = moveHandle(seen.items, [item.id, ...extra], (GRIP + 2) / zoom);
     if (grip) drawGrip(ctx, grip.x, grip.y, s, k);
-  }, [frame, seen, usable, selected, extra, live, waiting, zoom, vertex]);
+  }, [frame, seen, usable, selected, extra, live, waiting, zoom, vertex, locked]);
 
   // The pointer in device pixels (`x`, `y`), and on the screen (`sx`, `sy`).
   const point = (e: PointerEv): { x: number; y: number; sx: number; sy: number } => {
@@ -666,10 +673,12 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], ver
     if (e.button !== 0) return;
     const p = point(e);
     const chosen = [selected, ...extra].filter((id): id is string => id !== null);
-    const grip = moveHandle(seen.items, chosen, (GRIP + 2) / zoom);
+    // a selection holding a locked element offers no handle and no grip: it is moved from Properties only
+    const fixed = chosen.some((id) => locked.has(id));
+    const grip = fixed ? null : moveHandle(seen.items, chosen, (GRIP + 2) / zoom);
     const onGrip = grip !== null && Math.hypot((grip.x - p.x) * zoom, (grip.y - p.y) * zoom) <= GRIP + 2;
-    const handle = !onGrip && item && !extra.length ? handleAt(pressable(item), p.x, p.y, zoom, HANDLE + 2) : null;
-    const under = handle || onGrip ? null : pick(seen, usable, p.x, p.y, by);
+    const handle = !fixed && !onGrip && item && !extra.length ? handleAt(pressable(item), p.x, p.y, zoom, HANDLE + 2) : null;
+    const under = handle || onGrip ? null : pick(seen, usable, p.x, p.y, by, locked);
     if (!handle && !onGrip && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       if (under) onPick(under, true);
       return;
@@ -677,7 +686,7 @@ export function Canvas({ frame, selected, extra = [], tree = [], queue = [], ver
     let ids: string[], click: string | null = null;
     if (handle && item) ids = [item.id];
     else if (onGrip) ids = chosen;
-    else if (under && chosen.includes(under)) {
+    else if (under && chosen.includes(under) && !fixed) {
       ids = chosen;
       click = under;
     } else {

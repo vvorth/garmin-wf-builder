@@ -846,6 +846,8 @@ export interface FrameArgs extends DocArgs {
   picks?: string;
   /** The tree path of a `hands`, `pattern` or `style: needle` element to enter: the frame is then its parts' (`Frame.local`). */
   enter?: Path;
+  /** Elements, by id, the editor hides in its frame (with everything inside them): left out of the image and the layers, and listed undrawn. Never part of the face. */
+  hidden?: string[];
   v?: number;
 }
 
@@ -1013,9 +1015,10 @@ export interface CopyArgs extends DocArgs {
 /**
  * The editor's own state for a face, kept beside it in this browser and
  * never in its text: a JSON object the page owns, read and written whole.
- * Nothing is in it yet.
+ * `locked` lists the elements (by id) the canvas will not pick or drag,
+ * `hidden` those the editor's frame leaves out (`FrameArgs.hidden`).
  */
-export type FaceUiState = Record<string, Value>;
+export type FaceUiState = Record<string, Value> & { locked?: string[]; hidden?: string[] };
 
 /** Read (`get`) or replace (`set`, with `state`) a face's `FaceUiState`. */
 export interface UiStateArgs extends DocArgs {

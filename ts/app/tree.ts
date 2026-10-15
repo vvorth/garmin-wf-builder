@@ -79,6 +79,21 @@ export function matchingRows(tree: readonly TreeBlock[], query: string): Set<str
   return out;
 }
 
+// The elements `ids` name and every element inside one (a group's
+// children, theirs, ...): what a lock or a hide on a group reaches.
+export function withInside(tree: readonly TreeBlock[], ids: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  if (ids.length === 0) return out;
+  const walk = (list: readonly TreeNode[], inside: boolean): void => list.forEach((n) => {
+    if (n.kind !== "element") return;
+    const on = inside || ids.includes(n.id);
+    if (on) out.add(n.id);
+    walk(n.children, on);
+  });
+  tree.forEach((b) => walk(b.children, false));
+  return out;
+}
+
 // Whether `path` names a part written in an id-keyed `parts:` (or a
 // needle's `needle:`) mapping: one a `move_key` can reorder.
 export const isPartPath = (path: Path): boolean => path.length >= 3 && (path[path.length - 2] === "parts" || path[path.length - 2] === "needle") && typeof path[path.length - 1] === "string";

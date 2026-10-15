@@ -508,6 +508,8 @@ h3.fold:hover { color: var(--text); }
 .tree .item:hover .row-toggles button, .tree .item .row-toggles button.on { opacity: 1; }
 .tree .item button.enter + .row-toggles { margin-left: 0; }
 .tree .item.hidden-row > span:first-child { text-decoration: line-through; opacity: .6; }
+.tree .item .row-toggles button.inherited { opacity: .6; cursor: default; }
+.tree .item .row-toggles button[aria-label^="hide"].on { text-decoration: line-through; }
 .modal-body.shortcuts section h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim, inherit); }
 .modal-body.shortcuts dl { display: grid; grid-template-columns: minmax(0, 13em) 1fr; gap: 3px 12px; margin: 0; }
 .modal-body.shortcuts dt, .modal-body.shortcuts dd { margin: 0; }

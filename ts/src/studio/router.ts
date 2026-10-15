@@ -108,13 +108,20 @@ function picks(raw: string | null): [string, string][] {
   return out.sort((a, b) => (a[0] + "\0" + a[1] < b[0] + "\0" + b[1] ? -1 : 1));
 }
 
+/** The ids a frame hides: a list of element ids, or none. */
+function hiddenList(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || !raw.every((id) => typeof id === "string")) throw new Refused("hidden is a list of element ids");
+  return [...new Set(raw as string[])].sort();
+}
+
 function key(args: Json, scale: number | null = null): FrameKey {
   const enter = args["enter"];
   return frameKey({
     device: text(args, "device"), style: text(args, "style") || null, time: time(text(args, "time")), date: date(text(args, "date")),
     asleep: args["asleep"] === true, aod: args["aod"] === true,
     scale: Math.min(4, Math.max(1, scale ?? (args["scale"] === undefined ? 2 : int(args, "scale")))), picks: picks(text(args, "picks")),
-    enter: enter === undefined || enter === null ? null : path(enter),
+    enter: enter === undefined || enter === null ? null : path(enter), hidden: hiddenList(args["hidden"]),
   });
 }
 

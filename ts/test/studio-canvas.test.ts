@@ -99,6 +99,43 @@ test("a group is an item even though it draws nothing", async () => {
   assert.ok(groups.length > 0 && !groups.some((g: any) => g.drawn));
 });
 
+test("a frame asked with hidden leaves those elements, and everything inside a hidden group, out of its image and layers, and lists them undrawn", async () => {
+  const client = await Client.open();
+  const doc = client.studio.create(readUpload("face.yaml", read("examples/features/align/face.yaml")), "open");
+  const ask = async (hidden?: unknown): Promise<any> => (await client.call("frame", { id: doc.id, device: "fr955", scale: 1, ...(hidden !== undefined ? { hidden } : {}) }));
+  const whole = (await ask()).json;
+  const group = whole.items.find((i: any) => i.kind === "group").id;
+  const inside = dataOf(doc);
+  // the group's children, wherever the group is written
+  const holder = [inside.elements, inside.static].find((b: any) => b && b[group]);
+  const children = Object.keys(holder[group].children);
+  const leaf = whole.items.find((i: any) => i.drawn && i.kind !== "group" && !children.includes(i.id)).id;
+  const hid = (await ask([leaf, group])).json;
+  const byId = (f: any): Record<string, any> => Object.fromEntries(f.items.map((i: any) => [i.id, i]));
+  // still listed, so Layers can name them, but undrawn and without handles
+  for (const id of [leaf, group, ...children]) {
+    assert.ok(id in byId(hid), id);
+    assert.equal(byId(hid)[id].drawn, false, id);
+    assert.deepEqual(byId(hid)[id].handles, [], id);
+  }
+  assert.ok(children.every((id) => byId(whole)[id].drawn), "the group's children draw when nothing is hidden");
+  const layerIds = (f: any): string[] => f.layers.map((l: any) => l.id);
+  for (const id of [leaf, ...children]) {
+    assert.ok(layerIds(whole).includes(id), id);
+    assert.ok(!layerIds(hid).includes(id), id);
+  }
+  // the rest is drawn as before, and the image differs where the hidden ones were
+  const others = whole.items.filter((i: any) => i.drawn && ![leaf, group, ...children].includes(i.id)).map((i: any) => i.id);
+  assert.ok(others.length > 0 && others.every((id: string) => byId(hid)[id].drawn));
+  assert.notEqual(hid.frame, whole.frame);
+  // an id the face does not have hides nothing; the text is never touched
+  assert.equal((await ask(["nothing_called_this"])).json.frame, whole.frame);
+  assert.equal(doc.version, 1);
+  // hidden is a list of ids
+  assert.equal((await ask("seconds")).status, 400);
+  assert.equal((await ask([3])).status, 400);
+});
+
 // -- drags --
 
 test("a drag moves the element by the dragged pixels", async () => {

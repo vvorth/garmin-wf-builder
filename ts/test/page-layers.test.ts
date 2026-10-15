@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { appUri, htmPreactUri, instantiate, node, preactUri, summary, testUri } from "./page-harness.ts";
 
 /** `Layers` rendered over `doc` with `entered`, then `body` run with `root`, `rows`, `row`, `cls`, `calls` and `out`: what it printed, one JSON value a line. */
-function layers(doc: unknown, entered: unknown, body: string): any[] {
+function layers(doc: unknown, entered: unknown, body: string, locks: { locked?: string[]; hidden?: string[] } | null = null): any[] {
   const done = node(`
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
@@ -21,7 +21,9 @@ function layers(doc: unknown, entered: unknown, body: string): any[] {
         entered=\${${JSON.stringify(entered)}}
         onSelect=\${(id, mode, owner) => calls.push({ select: id, mode, owner: owner ?? null })}
         onStructure=\${(op) => calls.push({ structure: op })} onEdit=\${(op) => calls.push({ edit: op })}
-        onEnter=\${(path) => calls.push({ enter: path })} onExit=\${() => calls.push({ exit: true })} />\`, root);
+        onEnter=\${(path) => calls.push({ enter: path })} onExit=\${() => calls.push({ exit: true })}
+        ${locks ? `locked=\${${JSON.stringify(locks.locked ?? [])}} hidden=\${${JSON.stringify(locks.hidden ?? [])}}
+        onLock=\${(id) => calls.push({ lock: id })} onHide=\${(id) => calls.push({ hide: id })}` : ""} />\`, root);
       const cls = (e) => e.attributes.class || "";
       const rows = () => root.all((e) => cls(e).startsWith("item"));
       // the row of the element \`id\`, or of the part or hand whose path joined with "/" is \`id\`
@@ -169,4 +171,91 @@ test("a row shows its element's z: as a badge when written, and none when not", 
       out([badge("seconds"), badge("clock"), badge("background")]);
     `);
   assert.deepEqual(printed[0], [["z 5"], [], []]);
+});
+
+/** The minimal face with a group `box` holding a circle `dot`, in front of the clock. */
+const GROUPED = instantiate("minimal", "T").replace("elements:\n", "elements:\n  box:\n    type: group\n    children:\n      dot:\n        type: circle\n" +
+  "        at: { anchor: center }\n        radius: 5%r\n        color: color.text\n\n");
+
+test("each element's row toggles its lock and its hide in the editor without selecting it, a group's reaching what is inside it", () => {
+  const doc = summary(GROUPED);
+  const printed = layers(doc, null, `
+      const toggles = (id) => row(id).all((e) => e.localName === "button" && cls(row(id)).length && e.parentNode && cls(e.parentNode) === "row-toggles");
+      const state = (id) => toggles(id).map((b) => [b.attributes["aria-label"], b.attributes["aria-pressed"], "disabled" in b.attributes || b.disabled === true]);
+      out(["box", "dot", "clock", "seconds", "background"].map(state));
+      out(["box", "dot", "clock"].map((id) => cls(row(id))));
+      // a click on a toggle sends the toggle, never a selection
+      toggles("clock")[0].click(); toggles("seconds")[1].click(); toggles("box")[0].click();
+      out(calls);
+    `, { locked: ["box"], hidden: ["seconds"] });
+  assert.deepEqual(printed[0], [
+    [["lock box", "true", false], ["hide box", "false", false]],
+    // reached from the locked group: shown on, and not toggled here
+    [["lock dot", "true", true], ["hide dot", "false", false]],
+    [["lock clock", "false", false], ["hide clock", "false", false]],
+    [["lock seconds", "false", false], ["hide seconds", "true", false]],
+    [["lock background", "false", false], ["hide background", "false", false]],
+  ]);
+  assert.ok(printed[1][0].includes("locked-row") && printed[1][1].includes("locked-row") && !printed[1][2].includes("locked-row"));
+  assert.deepEqual(printed[2], [{ lock: "clock" }, { hide: "seconds" }, { lock: "box" }]);
+});
+
+test("the canvas passes over a locked element: a press reaches what is under it, and neither it nor a selection holding it is dragged", () => {
+  const frame = {
+    version: 1, device: "fr955", scale: 1, width: 100, height: 100, shape: "round", minor_radius: 50, frame: "",
+    items: [
+      { id: "card", kind: "rectangle", drawn: true, line: 1, box: [0, 0, 100, 100], center: [50, 50], handles: [] },
+      { id: "dot", kind: "circle", drawn: true, line: 2, box: [40, 40, 20, 20], center: [50, 50],
+        handles: [{ kind: "size", key: ["radius"], axis: "x", gain: 1, x: 60, y: 50 }] },
+    ],
+    layers: [], tiles: { data: "", index: {} }, local: null,
+  };
+  const printed = node(`
+      import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
+      const document = install();
+      globalThis.addEventListener = () => {}; globalThis.removeEventListener = () => {};
+      // the overlay draws nothing here: a canvas without a 2D context
+      const makeNS = document.createElementNS;
+      document.createElementNS = (ns, name) => { const e = makeNS(ns, name); if (name === "canvas") e.getContext = () => null; return e; };
+      const { html } = await import(${JSON.stringify(htmPreactUri)});
+      const { render } = await import(${JSON.stringify(preactUri)});
+      const { Canvas } = await import(${JSON.stringify(appUri("canvas.ts"))});
+      const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
+      const out = (v) => console.log(JSON.stringify(v));
+      const frame = ${JSON.stringify(frame)};
+      // a press at (x, y), dragged by (dx, dy) watch pixels, on the canvas shown with \`selected\` and \`locked\`
+      const press = async (selected, locked, x, y, dx, dy) => {
+        const calls = [];
+        const root = document.createElement("div");
+        render(html\`<\${Canvas} frame=\${frame} selected=\${selected} zoom=\${1} locked=\${new Set(locked)}
+          onPick=\${(id, add) => calls.push({ pick: id, add })} onDrag=\${(ids, g) => calls.push({ drag: ids, kind: g.kind, key: g.key ?? null })} />\`, root);
+        await settle();
+        const hit = root.all((e) => (e.attributes.class || "").startsWith("hit"))[0];
+        const at = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }), setPointerCapture() {} };
+        hit.dispatch("pointerdown", { button: 0, clientX: x, clientY: y, currentTarget: at, pointerId: 1 });
+        await settle();
+        hit.dispatch("pointermove", { clientX: x + dx, clientY: y + dy, currentTarget: at, altKey: true });
+        await settle();
+        hit.dispatch("pointerup", { currentTarget: at });
+        await settle();
+        render(null, root);
+        return calls;
+      };
+      // unlocked, a press on the dot picks it and drags it
+      out(await press(null, [], 50, 50, 10, 0));
+      // locked, the same press reaches the card beneath and drags that
+      out(await press(null, ["dot"], 50, 50, 10, 0));
+      // selected from Layers and locked: no handle (its radius handle is passed over) and no drag of it
+      out(await press("dot", ["dot"], 60, 50, 10, 0));
+      out(await press("dot", [], 60, 50, 10, 0));
+      // with everything locked, a press picks nothing and drags nothing
+      out(await press("dot", ["dot", "card"], 50, 50, 10, 0));
+    `);
+  if (printed.returncode !== 0) throw new Error(printed.stderr.slice(-2500));
+  const lines = printed.stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  assert.deepEqual(lines[0], [{ pick: "dot", add: false }, { drag: ["dot"], kind: "move", key: null }]);
+  assert.deepEqual(lines[1], [{ pick: "card", add: false }, { drag: ["card"], kind: "move", key: null }]);
+  assert.deepEqual(lines[2], [{ pick: "card", add: false }, { drag: ["card"], kind: "move", key: null }]);
+  assert.deepEqual(lines[3], [{ drag: ["dot"], kind: "resize", key: ["radius"] }], "unlocked, the same press takes the radius handle");
+  assert.deepEqual(lines[4], [{ pick: null, add: false }]);
 });

@@ -327,7 +327,13 @@ undrawn; the image is the whole face with everything but the entered
 element dimmed to 35% (`layers(..., paintAll)`, every other layer's alpha
 scaled, then `compose`), and `layers` holds the element's own layer alone.
 The hand-set thumbnail route (`handset`, `Document.handSetImage`) is kept
-as it was for the Face tab.
+as it was for the Face tab. A frame asked for with `hidden` (element ids the
+editor hides, `FrameArgs.hidden`) leaves those elements and everything
+written inside them out of its image (`layers(..., paintAll)` without them,
+then `compose`) and its layers, and lists them undrawn with no handles; the
+page keeps which elements are hidden and which locked in the face's
+editor-only state (`FaceUiState`, the `ui_state` request), beside the face
+and never in its text, and the canvas passes over a locked element.
 
 The Layers tree (`Document.tree`) lists, under a `hands` element, its set's
 hands (`kind: "hand"`, their paths under `resources: hand_sets:`) each with

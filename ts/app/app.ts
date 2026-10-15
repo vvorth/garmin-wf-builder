@@ -25,10 +25,10 @@ import { FacePanel, Inspector } from "./panels.ts";
 import { picksParam, severityCounts, typeLabel } from "./values.ts";
 import { Diagnostics, diagnosticsLabel } from "./diagnostics.ts";
 import type { DiagnosticFilter } from "./diagnostics.ts";
-import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp } from "./tree.ts";
+import { blocksOf, deleteOp, elementsYaml, siblingsOf, stepOp, withInside } from "./tree.ts";
 import { latestText } from "./textsync.ts";
 import {
-  EditorStore, PANEL_DEFAULTS, StoreProvider, chosenIds, clampPanel, deviceInfoOf, elementOf, go, isAmoled, realZoomOf, route, savedState,
+  EditorStore, PANEL_DEFAULTS, StoreProvider, chosenIds, clampPanel, deviceInfoOf, elementOf, go, hiddenOf, isAmoled, lockedOf, realZoomOf, route, savedState,
   shownDate, shownTime, useEditorStore, useStore, zoomOf,
 } from "./store.ts";
 import type { Clock, Context, EditorState, FrameMode, Message, SelectMode, Shown } from "./store.ts";
@@ -569,6 +569,8 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
   const selection = useStore((s) => s.selection);
   const frame = useStore((s) => s.frame.current);
   const entered = useStore((s) => s.context.entered);
+  const locked = useStore(lockedOf);
+  const hidden = useStore(hiddenOf);
   // inside an entered element the frame lists its parts: the rows of the face's elements are not dimmed for it
   const drawn = useMemo(() => (frame && !frame.local ? new Set(frame.items.filter((i) => i.drawn).map((i) => i.id)) : null), [frame]);
   const select: OnSelect = (id, mode, owner) => store.select(id, mode, owner);
@@ -581,7 +583,8 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
     <div class="panel-scroll">${left === "layers"
       ? html`<${Layers} doc=${doc} vocab=${vocab ?? {}} selected=${selection.primary} extra=${selection.extra} drawn=${drawn} entered=${entered}
                         onSelect=${select} onStructure=${structure} onEdit=${(op: EditOp) => store.edit(op)}
-                        onEnter=${(path: Path) => store.enter(path)} onExit=${() => store.leave()} />`
+                        onEnter=${(path: Path) => store.enter(path)} onExit=${() => store.leave()}
+                        locked=${locked} hidden=${hidden} onLock=${(id: string) => store.toggleLocked(id)} onHide=${(id: string) => store.toggleHidden(id)} />`
       : html`<${FacePanel} doc=${doc} vocab=${vocab ?? {}} onEdit=${(op: EditOp) => store.edit(op)}
                            onUpload=${(file: File, what: Parameters<EditorStore["upload"]>[1]) => store.upload(file, what)}
                            onSelect=${select} onStructure=${structure} onReveal=${(line: number, end: number) => store.reveal(line, end)}
@@ -686,6 +689,8 @@ function Stage({ doc, panZoom }: { doc: Summary; panZoom: PanZoom }): VNode {
   const time = useStore(shownTime);
   const date = useStore(shownDate);
   const picks = useStore(picksParamOf);
+  const lockedIds = useStore(lockedOf);
+  const locked = useMemo(() => withInside(doc.tree, lockedIds), [doc.tree, lockedIds]);
   return html`<div class="stage">
     <${Controls} doc=${doc} />
     ${pane === "yaml"
@@ -694,7 +699,7 @@ function Stage({ doc, panZoom }: { doc: Summary; panZoom: PanZoom }): VNode {
           ${busy ? html`<div class="busy">rendering…</div>` : null}
           ${frame ? html`<${Canvas} frame=${frame} selected=${selection.primary} vertex=${selection.vertex}
                                     extra=${selection.extra} tree=${doc.tree} queue=${queue}
-                                    zoom=${zoom} skin=${skin && skin.scale === frame.scale ? skin : null}
+                                    zoom=${zoom} skin=${skin && skin.scale === frame.scale ? skin : null} locked=${locked}
                                     onPick=${(id: string | null, additive: boolean) => store.select(id, additive)}
                                     onVertex=${(index: number | null) => store.selectVertex(index)}
                                     onDrag=${(ids: string[], gesture: AnyGesture, shown: Shown) => store.drag(ids, gesture, shown)} />`
@@ -757,6 +762,10 @@ function useEditorKeys(store: EditorStore, panZoom: PanZoom): void {
     nudge: (dx: number, dy: number): boolean => {
       const face = onFace(), ids = chosen();
       if (!face || !ids.length) return false;
+      // a locked element is not moved on the face, by the keys either
+      const locked = withInside(face.doc.tree, lockedOf(s()));
+      const fixed = ids.filter((id) => locked.has(id));
+      if (fixed.length) { store.notice(`${fixed.join(", ")} ${fixed.length > 1 ? "are" : "is"} locked in the editor: unlock it in Layers, or edit it in Properties`); return true; }
       const item = ids.length > 1 ? together(face.frame.items, ids) : face.frame.items.find((i) => i.id === ids[0]);
       if (!item || !item.box) return false;
       store.moveAll(ids, dx, dy, { item, moving: movedBy(face.doc.tree, ids) });

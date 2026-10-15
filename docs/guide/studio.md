@@ -175,7 +175,8 @@ editor remembers it.
 ### On the face
 
 Click an element to select it; its box and handles appear. Drag it to move
-it. Its handles resize it:
+it. Its handles resize it (an element locked in Layers takes no click,
+drag or handle on the face, [below](#layers)):
 
 | Handle | Where | Changes |
 |---|---|---|
@@ -493,6 +494,18 @@ needles](#hands-patterns-and-needles-enter-the-set)), and **Exit** at the
 top of the list leaves it. A row whose element writes `z:` shows it as a
 small badge (**z 5**): `z:` orders drawing among its siblings before their
 order in the list does ([elements](elements.md)).
+
+Each element's row has two switches of the editor's own, at its right
+end: **🔒** locks the element, so a click or a drag on the face passes
+over it to whatever is under it, and its handles and the move handle are
+not offered (the arrow keys do not move it either); it is still selected
+from Layers, and Properties still edits it. **👁** hides it in the
+editor: the face is drawn without it (its row dimmed and struck through),
+so you can reach what it covers, and Properties still edits it. Either
+one on a group reaches everything inside it. Neither is part of the face:
+the face's text, its build and the small frames under the face are
+unchanged. The editor keeps them for each face in this browser, beside the
+face, so they are there again when you reopen it.
 
 The box above the tree searches it: typing narrows the rows to those whose
 id or type holds what you typed, in any case, each shown under the rows it

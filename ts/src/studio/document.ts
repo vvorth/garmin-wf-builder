@@ -77,10 +77,12 @@ export interface FrameKey {
   picks: [string, string][];
   /** The tree path of the element entered, whose parts the frame is of, or `null`. */
   enter: Path | null;
+  /** Elements (by id) the editor hides in its frame, with everything inside them; sorted. */
+  hidden: string[];
 }
 
 export function frameKey(fields: Partial<FrameKey> & { device: string }): FrameKey {
-  return { style: null, time: null, date: null, asleep: false, aod: false, scale: 2, picks: [], enter: null, ...fields };
+  return { style: null, time: null, date: null, asleep: false, aod: false, scale: 2, picks: [], enter: null, hidden: [], ...fields };
 }
 
 /** One text through the whole pipeline: the load, one resolve per target and the lint. */
@@ -377,6 +379,14 @@ function dimmed<T extends { id: string; image: { data: Uint8ClampedArray } | nul
 
 /** How much of the face round an entered element the ghost keeps. */
 const GHOST = 0.35;
+
+/** The ids of the elements `hidden` names and of every element written inside one (a group's children, a layout's). */
+function hiddenIds(index: SpanIndex, hidden: readonly string[]): Set<string> {
+  if (hidden.length === 0) return new Set();
+  const all = index.elements();
+  const roots = all.filter((e) => hidden.includes(e.name)).map((e) => e.path);
+  return new Set(all.filter((e) => roots.some((r) => r.every((step, i) => e.path[i] === step))).map((e) => e.name));
+}
 
 /**
  * Where a gesture's history label says it was written: the device for a
@@ -928,6 +938,10 @@ export class Document {
    * at its hand's angle) with the element itself undrawn, the image the
    * face with everything but the element dimmed to a ghost, and the layers
    * the element's alone.
+   *
+   * The elements `key.hidden` names (and everything inside them) are left
+   * out of the image and the layers, and listed undrawn, without handles:
+   * the editor's own choice, never the face's.
    */
   frame(key: FrameKey): Frame {
     return this.cached("frame", key, (): Frame => {
@@ -938,6 +952,8 @@ export class Document {
       const index = indexFor(this.text);
       // A group the author wrote; the `static:` block's and a layout's own groups are containers, not elements.
       const authored = index.elementIds();
+      const hidden = hiddenIds(index, key.hidden);
+      const shown = <T extends { id: string }>(stack: T[]): T[] => (hidden.size === 0 ? stack : stack.filter((layer) => !hidden.has(layer.id)));
       const items: FrameItem[] = [];
       let local: Frame["local"] = null;
       let image: Uint8Array;
@@ -961,7 +977,7 @@ export class Document {
             box: [box.x, box.y, box.width, box.height], center, handles: partHandles, path: [...part.target.path], angle: part.target.angle,
           });
         }
-        const stack = dimmed(layers(resolved, options, { paintAll: true }), placed.id, GHOST);
+        const stack = dimmed(layers(resolved, options, { paintAll: true }).filter((layer) => layer.id === placed.id || !hidden.has(layer.id)), placed.id, GHOST);
         image = pngBytes(compose(stack, resolved, options));
         painted = stack.filter((layer) => layer.id === placed.id);
       } else {
@@ -969,13 +985,14 @@ export class Document {
           if (!drawn.has(placed.id) && !(placed.kind === "group" && authored.has(placed.id) && inLayout(placed, layout))) continue;
           const box = placed.box;
           const span = placed.element.span;
+          const off = hidden.has(placed.id);
           items.push({
-            id: placed.id, kind: placed.kind, drawn: drawn.has(placed.id), line: span !== null ? span.line : null,
-            box: [box.x, box.y, box.width, box.height], center: [...placed.center], handles: handles(placed),
+            id: placed.id, kind: placed.kind, drawn: drawn.has(placed.id) && !off, line: span !== null ? span.line : null,
+            box: [box.x, box.y, box.width, box.height], center: [...placed.center], handles: off ? [] : handles(placed),
           });
         }
-        image = pngBytes(render(resolved, options));
-        painted = layers(resolved, options, { paintAll: false });
+        image = pngBytes(hidden.size === 0 ? render(resolved, options) : compose(shown(layers(resolved, options, { paintAll: true })), resolved, options));
+        painted = shown(layers(resolved, options, { paintAll: false }));
       }
       const stack: FrameLayer[] = [];
       let tiles = null;
