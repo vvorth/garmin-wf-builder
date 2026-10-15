@@ -195,9 +195,39 @@ input[type="color"] { width: 28px; height: 24px; padding: 0 2px; }
 .align { display: inline-flex; flex-direction: column; gap: 2px; }
 .align-row { display: flex; gap: 2px; }
 .align button { width: 16px; height: 16px; padding: 0; border-radius: 3px; }
-.template { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
-.template input { flex: 1 1 10em; min-width: 0; }
+.template { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; align-items: center; }
+.template.raw input { flex: 1 1 10em; min-width: 0; }
 .template select { max-width: 7em; }
+button.link { background: none; border: none; padding: 0 2px; color: var(--dim); font-size: 11px; text-decoration: underline; }
+button.link:hover { color: var(--accent); }
+/* a template's chips: literal text, a placeholder, {unit}; each dragged onto another to reorder */
+.tpl-chip { display: inline-flex; align-items: center; gap: 1px; border: 1px solid var(--line); border-radius: 10px; padding: 0 2px 0 4px; background: var(--raised); cursor: grab; }
+.tpl-chip.over { border-color: var(--accent); }
+.tpl-chip.tpl-data { border-color: var(--note); }
+.tpl-chip input.tpl-literal { border: none; background: transparent; padding: 1px 2px; min-width: 1ch; font: inherit; }
+.tpl-chip .tpl-data-button { border: none; background: none; padding: 1px 2px; display: inline-flex; gap: 3px; align-items: baseline; }
+.tpl-chip .tpl-spec { color: var(--note); }
+.tpl-chip .tpl-unit-hint, .tpl-chip .tpl-label { font-size: 10px; color: var(--dim); }
+.tpl-chip button.tpl-remove { border: none; background: none; padding: 0 3px; }
+.tpl-add { display: inline-flex; gap: 4px; align-items: center; }
+.popover-body.pop.tpl-pop { width: 300px; }
+.tpl-pop select { max-width: 100%; }
+.tpl-specs { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; margin: 2px 0; }
+.tpl-specs .dim { font-size: 11px; min-width: 5.5em; }
+.tpl-specs button.spec { padding: 0 5px; font-size: 11px; }
+.tpl-specs button.spec.on { border-color: var(--accent); }
+.tpl-field { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--dim); margin-top: 4px; }
+.tpl-field input { flex: 1; min-width: 0; }
+/* a value that follows data: rows of source · operator · value → result, and else */
+.condition { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; width: 100%; }
+.condition.raw input { flex: 1 1 10em; min-width: 0; }
+.condition.rows { flex-direction: column; align-items: stretch; gap: 3px; }
+.condition .rule { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; }
+.condition .rule.else { border-style: dashed; }
+.condition .cond { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.condition .cond select { max-width: 11em; }
+.condition .cond input[aria-invalid="true"] { border-color: var(--error); }
+.condition .rule-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--dim); }
 .face-panel .face-nav { flex-wrap: wrap; }
 .face-panel .face-nav button { flex: none; padding: 6px 10px; }

@@ -1,6 +1,6 @@
 // The Properties panel's controls against the real worker, each change read
 // back from the YAML text: numbers and units, the align picker, the colour
-// picker's three groups, a text's `+ data`, the font, icon and `on_hold`
+// picker's three groups, a text's `+ data` chip, the font, icon and `on_hold`
 // selects, Edit for writing overrides and `×` pruning an
 // emptied one, renaming an element, and `curve:` on a curved text.
 
@@ -91,12 +91,12 @@ h.test("the align picker, a text's + data, its font and on_hold, and × back to 
   after = await written(s, after);
   assert.equal(after.text, base.text, `× did not put the text back: ${diffLines(base.text, after.text).join(" ; ")}`);
 
-  // + data inserts a placeholder into the template
+  // + data adds a placeholder chip to the template, at the end
   const template = s.topField("text").locator(".template");
-  await template.locator("select").selectOption("time.hour");
+  await template.locator("select[aria-label='add data']").selectOption("time.hour");
   after = await written(s, after);
-  assert.match(lines(after, "label"), /text: "(SHAPES\{time\.hour\}|\{time\.hour\}SHAPES)"/, lines(after, "label"));
-  await s.expectValue(template.locator("input"), lines(after, "label").match(/text: "([^"]*)"/)![1]!);
+  assert.match(lines(after, "label"), /text: "SHAPES\{time\.hour\}"/, lines(after, "label"));
+  await s.expectText(template.locator(".tpl-data .tpl-expr"), "time.hour");
   await undoTo(s, base, "+ data");
 
   // the font select offers the watch's system fonts

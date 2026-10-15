@@ -61,6 +61,8 @@ export interface InspectorProps {
   vertex?: number | null | undefined;
   /** A `points:` item hovered or focused picks its vertex on the face. */
   onHoverVertex?: ((index: number) => void) | undefined;
+  /** Several edits as one change: a control that writes a key in more than one step. */
+  onBatch?: ((label: string, edits: EditOp[]) => void) | undefined;
 }
 
 /** Whether `ins` answers for the element at `path`. */
@@ -72,13 +74,13 @@ const answersFor = (ins: Inspect, path: Path): boolean => ins.element.length ===
 // hand or a part is named with what it belongs to (`vintage › hour`,
 // `hour › blade`, `ticks › tick`); it has no overrides and no `aod:` block,
 // so its keys are edited as they are, whatever the frame.
-export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, onSelect, onFaceSection, vertex = null, onHoverVertex }: InspectorProps): VNode {
+export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, onSelect, onFaceSection, vertex = null, onHoverVertex, onBatch }: InspectorProps): VNode {
   if (!element) return html`<div class="body dim">Select an element on the face or in the layers.</div>`;
   if (!ins || !answersFor(ins, element.path)) return html`<div class="body dim">…</div>`;
   if (ins.error) return html`<div class="body dim">${ins.error}</div>`;
   const deviceInfo = (vocab.devices || []).find((d) => d.id === ins.device);
   const ctx: WidgetCtx = { globals: doc.globals, vocab, systemFonts: deviceInfo ? deviceInfo.fonts : [], onReveal, onFaceSection,
-                           elementType: ins.type, vertex, onHoverVertex };
+                           elementType: ins.type, vertex, onHoverVertex, onBatch, assets: doc.assets ?? [] };
   if (ins.subject === "part" || ins.subject === "hand") {
     // a part under its hand or its pattern, a hand under its set: the step before the `parts:` key, or the set's name
     const under = ins.element[ins.element.length - (ins.subject === "part" ? 3 : 2)];

@@ -126,7 +126,10 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     the Inspector renders over that tree (a field by its kind: scalar,
     object, list, choice), deciding from the context where each edit lands
     (the `aod` scope in the AOD frame, Edit for's override scope for a
-    geometry key), with the small controls the Face panel shares.
+    geometry key), with the small controls the Face panel shares;
+    `template-editor.ts` (a `text:` template as chips) and
+    `condition-editor.ts` (a value that follows data as rows) are the two
+    editors it hands those keys to.
     The leaf panels (`Layers`,
     `FacePanel`, `Inspector`, `Canvas`, `Strip`, `Diagnostics`) still
     take props, so a test renders one alone. `main.ts` sets `globalThis.wfbStudio =

@@ -404,7 +404,7 @@ function PropertiesSection({ doc }: { doc: Summary }): VNode {
           </div>` : null}
         <${Inspector} doc=${doc} element=${element} ins=${ins} target=${target} vocab=${vocab ?? {}}
                       vertex=${selection.vertex} onHoverVertex=${(i: number) => store.selectVertex(i)}
-                      onEdit=${(op: EditOp) => store.edit(op)}
+                      onEdit=${(op: EditOp) => store.edit(op)} onBatch=${(label: string, edits: EditOp[]) => { void store.batch(label, edits); }}
                       onReveal=${(line: number, end?: number) => store.reveal(line, end)} onSelect=${(id: string) => store.select(id)}
                       onFaceSection=${(key: string) => store.openFaceSection(key)} />
       </div>`}

@@ -857,3 +857,54 @@ test("a part's keys are edited at its path: a point's dx, a point removed, the p
     [/is not a part/, () => patterns.drag("static/segments/parts/segment/radius", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
   ]);
 });
+
+// -- conditions written from rows --
+
+test("a colour built in rows is the rule list the examples write, compiles as the ternary it replaces, and an edit keeps a block list block", async () => {
+  const { readCondition, writeRows, ruleListSteps } = await import("../app/condition-editor.ts");
+  const { generated } = await import("./designs.ts");
+  const showcase = (await import("./studio-client.ts")).readText(SHOWCASE);
+  const studio = await newStudio();
+  const DND = ["layouts", "digital", "elements", "dnd_icon"];
+  const at = (doc: Document, path: (string | number)[]): any => path.reduce((d: any, k) => d[k], dataOf(doc));
+  /** What the rows write over the key's value, through the Document: one set, or the in-place steps as one batch. */
+  const write = (doc: Document, element: (string | number)[], value: unknown, next: unknown): void => {
+    const steps = ruleListSteps(value as any, next as any) ?? [{ op: "set", path: [], value: next }];
+    const edits = steps.map((s: any) => ({ ...s, element, scope: "all", device: null, path: ["color", ...s.path] }));
+    if (edits.length === 1) doc.edit(edits[0]!, doc.version);
+    else doc.batch({ label: "rows", edits }, doc.version);
+  };
+  // dnd_icon written as the ternary the showcase's comment names, opened in rows and written back from them
+  const ternary = "device.do_not_disturb ? color.accent : color.dark";
+  const block = /        color: {26}[^\n]*\n          - when: device\.do_not_disturb\n            value: color\.accent\n          - else: color\.dark\n/;
+  assert.match(showcase, block);
+  const asTernary = make(studio, showcase.replace(block, `        color: "${ternary}"\n`));
+  const reading = readCondition(ternary, "color");
+  assert.equal(reading.mode, "rows");
+  write(asTernary, DND, ternary, writeRows((reading as any).rows, "color"));
+  assert.deepEqual(at(asTernary, [...DND, "color"]), at(make(studio, showcase), [...DND, "color"]), "the showcase's own rule list");
+  assert.match(asTernary.text, /\n        color: \[\{ when: device\.do_not_disturb, value: color\.accent \}, \{ else: color\.dark \}\]\n/);
+  // the same Monkey C as the ternary it replaces, on every target (a face with no font file, which the generator reads from disk)
+  const plainTernary = "device.do_not_disturb ? color.text : color.dim";
+  const small = minimal() + `  dnd:\n    type: text\n    text: DND\n    font: FONT_SMALL\n    color: "${plainTernary}"\n`;
+  const smallDoc = make(studio, small);
+  write(smallDoc, ["elements", "dnd"], plainTernary, writeRows((readCondition(plainTernary, "color") as any).rows, "color"));
+  assert.notEqual(smallDoc.text, small);
+  const fromRows = generated(smallDoc.text), fromTernary = generated(small);
+  assert.deepEqual([...fromRows.keys()].sort(), [...fromTernary.keys()].sort());
+  for (const [file, source] of fromTernary) if (file.endsWith(".mc")) assert.equal(fromRows.get(file), source, file);
+  // a row changed in the showcase's block list: that one line (the patch engine quotes a scalar holding ">"), the list still block style
+  const doc = make(studio, showcase);
+  const alarm = ["layouts", "digital", "elements", "alarm_icon"];
+  const own = at(doc, [...alarm, "color"]);
+  const rows = readCondition(own, "color");
+  assert.equal(rows.mode, "rows");
+  const changed = { ...(rows as any).rows, rules: [{ ...(rows as any).rows.rules[0], when: { source: "device.alarm_count", op: ">", value: "1" } }] };
+  write(doc, alarm, own, writeRows(changed, "color"));
+  const before = showcase.split("\n"), after = doc.text.split("\n");
+  assert.deepEqual(after.map((l, i) => [l, before[i]]).filter(([a, b]) => a !== b), [['          - when: "device.alarm_count > 1"', "          - when: device.alarm_count > 0"]]);
+  // a row added to it is a block item before the else
+  const more = { ...changed, rules: [...changed.rules, { when: { source: "system.charging", op: "==", value: "true" }, value: "color.fg" }] };
+  write(doc, alarm, at(doc, [...alarm, "color"]), writeRows(more, "color"));
+  assert.match(doc.text, /          - when: "device\.alarm_count > 1"\n            value: color\.accent\n          - when: system\.charging\n            value: color\.fg\n          - else: color\.dark\n/);
+});

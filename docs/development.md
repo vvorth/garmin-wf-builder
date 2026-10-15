@@ -216,7 +216,10 @@ ts/                   the compiler, its tests and tools: one package for the
                         TypeScript; store.ts holds the editor's state (one
                         EditorStore, read through useStore), outbox.ts and
                         textsync.ts the pure rules it runs; form.ts the
-                        generic form over the inspector's field tree; vendor/
+                        generic form over the inspector's field tree, with
+                        template-editor.ts (a text: template as chips) and
+                        condition-editor.ts (a value that follows data as
+                        rows, written as a rule list); vendor/
                         holds CodeMirror (built from tools/studio-frontend/ by
                         tools/vendor-studio-frontend.sh) and marked
   templates/            the starters for `wfb new` and the hand presets
@@ -407,6 +410,16 @@ style and asks again when one changes; the form decides each edit's scope
 from that context: `aod` for a restyled key in the AOD frame (the others
 read-only there), Edit for's override scope for a geometry key, else `all`;
 a hand's or a part's keys are always its own (`all`), in every frame.
+Two keys get editors of their own: a `template` widget is the chip editor
+(`ts/app/template-editor.ts`), which reads the template through the
+compiler's `parseTemplate` and writes it whole; a field with `rules` (the
+rule-list family its `$defs` entry admits: `value`, `color`, `boolean`) is
+the condition editor (`ts/app/condition-editor.ts`), which reads a rule
+list or a `?:` chain through `expr.ts`'s `parse` and writes a rule list,
+rewriting one already written in place (`ruleListSteps`: leaf `set`s,
+`insert_item`, `remove_item`, sent as one batch with any `use_color` a
+picked hex needs). The pickers read the catalogue from the vocabulary
+(`Words.source_info`, `Words.format_codes`).
 
 The page names a selection by an element's id, or a hand's or part's tree
 path joined with `/` (`ts/app/tree.ts`, `selectionId`), the entered frame's

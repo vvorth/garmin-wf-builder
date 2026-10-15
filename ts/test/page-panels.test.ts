@@ -281,7 +281,8 @@ function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?:
       const show = async () => {
         render(html\`<\${Inspector} doc=\${doc} element=\${{ path: ins.element }} ins=\${ins} target=\${target} vocab=\${${JSON.stringify(props.vocab ?? {})}}
           vertex=\${${JSON.stringify(props.vertex ?? null)}} onHoverVertex=\${(i) => edits.push({ hover: i })}
-          onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }} onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
+          onEdit=\${(op) => { edits.push(op); return Promise.resolve(true); }} onBatch=\${(label, steps) => edits.push({ batch: label, edits: steps })}
+          onReveal=\${() => {}} onSelect=\${() => {}} />\`, root);
         await settle(); await settle();
       };
       await show();
@@ -545,6 +546,8 @@ test("in the AOD frame the restyled keys write the aod: block, the others are re
       out([badge(color), color.all((e) => cls(e) === "value")[0].attributes.title, color.all((e) => cls(e) === "chip-button")[0].textContent]);
       await click(color.all((e) => cls(e) === "chip-button")[0]);
       await click(color.all((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-swatches")[2]);   // gray
+      // the template's chips, as text
+      await click(field("text").all((e) => e.localName === "button" && e.textContent === "edit as text")[0]);
       await commit(field("text"), "{time.clock:%H.%M}");
       // a key the kind does not restyle in AOD is shown, not edited
       const at = field("at");
@@ -660,4 +663,250 @@ test("a part's Properties say which hand or pattern it belongs to, edit its keys
   assert.deepEqual(printed[4], [0, 0, false]);
   assert.deepEqual(printed[5], [{ op: "set", element: blade, path: ["points", 0, "dx"], scope: "all", device: "fenix8solar47mm", value: "-3%r" }]);
   assert.deepEqual(printed[6], ["vintage › hour", ["color", "parts"]]);
+});
+
+// -- the data editors: the template chips --
+
+test("every text: template of the examples reads as chips and rebuilds to the identical string", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const YAML = (await import("yaml")).default;
+  const { REPO_ROOT } = await import("../src/devices/node.ts");
+  const templates: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
+      const p = `${dir}/${name}`;
+      if (statSync(join(REPO_ROOT, p)).isDirectory()) { if (name !== "dashboard") walk(p); continue; }
+      if (name !== "face.yaml") continue;
+      const visit = (v: unknown): void => {
+        if (Array.isArray(v)) v.forEach(visit);
+        else if (v !== null && typeof v === "object") for (const [k, x] of Object.entries(v)) { if (k === "text" && typeof x === "string") templates.push(x); visit(x); }
+      };
+      visit(YAML.parse(repoText(p), { version: "1.1" }));
+    }
+  };
+  walk("examples");
+  assert.ok(templates.length > 100 && templates.some((t) => t.includes("{(copy ==")) && templates.some((t) => t.includes("{unit}")), "the examples' templates, the hard ones among them");
+  const printed = printedBy(`
+    const { chipsOf, templateOf } = await import(${JSON.stringify(appUri("template-editor.ts"))});
+    const { parseTemplate } = await import(${JSON.stringify(new URL("../src/template.ts", import.meta.url).href)});
+    const bad = [];
+    for (const t of ${JSON.stringify(templates)}) {
+      const read = chipsOf(t);
+      if (!read.ok) { bad.push(["unread", t, read.error]); continue; }
+      if (templateOf(read.chips) !== t) bad.push(["rebuilt", t, templateOf(read.chips)]);
+      const placeholders = parseTemplate(t).placeholders.length;
+      if (read.chips.filter((c) => c.kind === "data").length !== placeholders) bad.push(["chips", t]);
+    }
+    // spaces round an expression, an empty spec, escaped braces and {unit} come back as written
+    for (const t of ["{ activity.steps :d} {{x}} { unit }", "{x:}", "a}}{{b{c}"]) { const r = chipsOf(t); if (!r.ok || templateOf(r.chips) !== t) bad.push(["edge", t]); }
+    console.log(JSON.stringify(bad));
+  `);
+  assert.deepEqual(printed[0], []);
+});
+
+test("the template chips add data at the caret, set a spec from the source's type, reorder by drag, remove, and fall back to text", async () => {
+  const showcase = repoText("examples/showcase/face.yaml");
+  installAssets();
+  const path = ["layouts", "digital", "elements", "weather_now"];
+  const vocab = (await import("../src/studio/inspect.ts")).vocabulary();
+  const printed = printedBy(inspector(summary(showcase), slim(plain(inspect(showcase, path, null))), { vocab }, `
+      const text = () => field("text");
+      const chips = () => text().all((e) => cls(e).startsWith("tpl-chip"));
+      // the worker's answer: the key now holds \`value\`, as the page is shown it again
+      const answer = async (value) => { ins = { ...ins, fields: ins.fields.map((f) => (f.key === "text" ? { ...f, value } : f)) }; await show(); };
+      const written = async () => { const values = edits.splice(0).map((e) => e.value); if (values.length) await answer(values[values.length - 1]); return values; };
+      out(chips().map((c) => cls(c).split(" ")[1] + ":" + c.textContent.replace("×", "")));
+      // + data at the end
+      const adder = text().all((e) => e.localName === "select" && e.attributes["aria-label"] === "add data")[0];
+      adder.value = "activity.steps"; adder.dispatch("change", { target: adder }); await settle();
+      out(await written());
+      out(chips().length);
+      // the new chip's picker: the number specs and the duration codes; a pick sets the spec
+      const steps = chips()[2];
+      await click(steps.all((e) => e.localName === "button" && cls(e).includes("tpl-data-button"))[0]);
+      out(steps.all((e) => cls(e) === "dim").map((e) => e.textContent));
+      await click(steps.all((e) => e.localName === "button" && cls(e).startsWith("spec") && e.textContent === "d")[0]);
+      out(await written());
+      // the literal "°" dragged onto the first chip goes first
+      chips()[1].dispatch("dragstart", {}); chips()[0].dispatch("dragover", {}); chips()[0].dispatch("drop", {}); await settle();
+      out(await written());
+      // a literal edited in place, its braces escaped
+      await commit(chips()[0], "{°}");
+      out(await written());
+      // × removes a chip
+      await click(chips()[2].all((e) => cls(e).includes("tpl-remove"))[0]);
+      out(await written());
+      // + data at the caret: inside the literal, which it splits
+      const literal = chips()[0].all((e) => e.localName === "input")[0];
+      literal.selectionStart = 1; literal.dispatch("focus", { target: literal });
+      const adder2 = text().all((e) => e.localName === "select" && e.attributes["aria-label"] === "add data")[0];
+      adder2.value = "system.battery"; adder2.dispatch("change", { target: adder2 }); await settle();
+      out(await written());
+      // edit as text: one box; a template that does not parse opens there with its error
+      await click(text().all((e) => e.localName === "button" && e.textContent === "edit as text")[0]);
+      out(text().all((e) => cls(e).includes("tpl-raw")).map((e) => e.attributes.value));
+      await answer("{weather.temperature");
+      out([text().all((e) => cls(e).includes("tpl-raw")).length, text().all((e) => cls(e).includes("error-text")).map((e) => e.textContent)]);
+      await commit(text(), "{weather.temperature}°");
+      out(edits.splice(0).map((e) => [e.op, e.path, e.value]));
+    `));
+  assert.deepEqual(printed[0], ["tpl-data:weather.feels_like_temperature:dcelsius", "tpl-text:"], "a placeholder shows its source, spec and unit");
+  assert.deepEqual(printed[1], ["{weather.feels_like_temperature:d}°{activity.steps}"]);
+  assert.equal(printed[2], 3);
+  assert.deepEqual(printed[3], ["number", "as seconds"]);
+  assert.deepEqual(printed[4], ["{weather.feels_like_temperature:d}°{activity.steps:d}"]);
+  assert.deepEqual(printed[5], ["°{weather.feels_like_temperature:d}{activity.steps:d}"]);
+  assert.deepEqual(printed[6], ["{{°}}{weather.feels_like_temperature:d}{activity.steps:d}"]);
+  assert.deepEqual(printed[7], ["{{°}}{weather.feels_like_temperature:d}"]);
+  assert.deepEqual(printed[8], ["{{{system.battery}°}}{weather.feels_like_temperature:d}"]);
+  assert.deepEqual(printed[9], ["{{{system.battery}°}}{weather.feels_like_temperature:d}"]);
+  assert.deepEqual(printed[10], [1, ["a '{' with no closing '}'; write '{{' for a literal brace: edited as text until it reads"]]);
+  assert.deepEqual(printed[11], [["set", ["text"], "{weather.temperature}°"]]);
+});
+
+// -- the data editors: conditions as rows --
+
+/** Every key of every element, hand and part of `text` that takes a rule list and is written: [where, value, family]. */
+function conditionKeys(text: string): [string, unknown, string][] {
+  installAssets();
+  const out: [string, unknown, string][] = [];
+  const nodes = (blocks: any[]): any[] => blocks.flatMap((b) => b.children.flatMap((n: any) => [n, ...nodes([n])]));
+  for (const node of nodes(summary(text).tree)) {
+    const visit = (fields: any[], at: string): void => {
+      for (const f of fields ?? []) {
+        if (f.rules && f.present) out.push([`${at}${f.key}`, f.value, f.rules]);
+        if (f.children) visit(f.children, `${at}${f.key}.`);
+        if (f.branches && f.chosen !== null && f.chosen !== undefined) visit([f.branches[f.chosen]], at);
+      }
+    };
+    visit((inspect(text, node.path, null) as any).fields, `${node.path.join(".")}: `);
+  }
+  return out;
+}
+
+test("on the showcase and enduro every visible, color, value, max and min opens in rows or in its own control, none as raw", async () => {
+  const keys = [...conditionKeys(repoText("examples/showcase/face.yaml")), ...conditionKeys(repoText("examples/enduro/face.yaml"))];
+  const printed = printedBy(`
+    const { readCondition } = await import(${JSON.stringify(appUri("condition-editor.ts"))});
+    const modes = {};
+    const raw = [];
+    for (const [where, value, family] of ${JSON.stringify(keys)}) {
+      const r = readCondition(value, family);
+      modes[r.mode] = (modes[r.mode] ?? 0) + 1;
+      if (r.mode === "raw") raw.push([where, r.why]);
+    }
+    console.log(JSON.stringify([modes, raw]));
+  `);
+  const [modes, raw] = printed[0];
+  // the raw cases, each with why the rows cannot hold it: none on these two faces
+  const DOCUMENTED_RAW: [string, string][] = [];
+  assert.deepEqual(raw, DOCUMENTED_RAW);
+  assert.ok(keys.some(([w]) => w.endsWith(": visible")) && keys.some(([w]) => /: (value|max)$/.test(w)) && keys.some(([w]) => w.includes("parts.")),
+    "visible, a gauge's value and max, and the parts' colours are among the keys");
+  assert.ok(modes.rows >= 5 && modes.plain > 50, JSON.stringify(modes));
+});
+
+test("conditions read as rows, write back as the rule list, and say why the rows cannot hold the rest", async () => {
+  const printed = printedBy(`
+    const { readCondition, writeRows, chainText } = await import(${JSON.stringify(appUri("condition-editor.ts"))});
+    const cases = [
+      ["heart_rate.current > 150 ? color.hot : system.charging ? color.dim : color.text", "color"],
+      [[{ when: "device.do_not_disturb", value: "color.accent" }, { else: "color.dark" }], "color"],
+      ["weather.temperature == null ? 0 : activity.steps", "value"],
+      ["system.charging", "boolean"],
+      ["not device.phone_connected or system.battery <= 15.5", "boolean"],
+      ["activity.steps > 0 and system.charging", "boolean"],
+      ["heart_rate.current > 150 and system.charging ? color.hot : color.text", "color"],
+      ["x > 1 ? activity.steps / 1000.0 : 0", "value"],
+      [[{ when: "a > 1 and b", value: 1 }, { else: 0 }], "value"],
+      ["#FF0000", "color"], ["color.fg", "color"], ["activity.steps", "value"], [10000, "value"],
+      [[{ when: "date.day_of_week == \\"Mon\\"", value: true }, { when: "system.charging", value: true }, { else: false }], "boolean"],
+    ];
+    for (const [value, family] of cases) {
+      const r = readCondition(value, family);
+      console.log(JSON.stringify(r.mode === "rows" ? [r.mode, writeRows(r.rows, family)] : r.mode === "raw" ? [r.mode, r.text, r.why] : [r.mode]));
+    }
+    console.log(JSON.stringify(chainText([{ when: "a > 1", value: "x ? 1 : 2" }, { else: 3 }])));
+  `);
+  assert.deepEqual(printed, [
+    ["rows", [{ when: "heart_rate.current > 150", value: "color.hot" }, { when: "system.charging", value: "color.dim" }, { else: "color.text" }]],
+    ["rows", [{ when: "device.do_not_disturb", value: "color.accent" }, { else: "color.dark" }]],
+    ["rows", [{ when: "weather.temperature == null", value: 0 }, { else: "activity.steps" }]],
+    ["rows", "system.charging"],
+    ["rows", [{ when: "not device.phone_connected", value: true }, { when: "system.battery <= 15.5", value: true }, { else: false }]],
+    ["raw", "activity.steps > 0 and system.charging", "rows hold one comparison each, any one of which shows it; this is more"],
+    ["raw", "heart_rate.current > 150 and system.charging ? color.hot : color.text", "a condition is more than one comparison"],
+    ["raw", "x > 1 ? activity.steps / 1000.0 : 0", "a branch is computed, not a plain value"],
+    ["raw", "a > 1 and b ? 1 : 0", "the condition \"a > 1 and b\" is more than one comparison"],
+    ["plain"], ["plain"], ["plain"], ["plain"],
+    ["rows", [{ when: "date.day_of_week == \"Mon\"", value: true }, { when: "system.charging", value: true }, { else: false }]],
+    "a > 1 ? (x ? 1 : 2) : 3",
+  ]);
+});
+
+test("a colour follows data in rows, a visible: switches between rows and its expression, and a picked hex is named in the same change", async () => {
+  const showcase = repoText("examples/showcase/face.yaml");
+  installAssets();
+  const vocab = (await import("../src/studio/inspect.ts")).vocabulary();
+  const bezel = ["layouts", "digital", "elements", "notification_count"];
+  const printed = printedBy(inspector(summary(showcase), slim(plain(inspect(showcase, bezel, null))), { vocab }, `
+      const answer = async (key, value) => { ins = { ...ins, fields: ins.fields.map((f) => (f.key === key ? { ...f, value } : f)) }; await show(); };
+      const select = async (within, label, value) => { const s = within.all((e) => e.localName === "select" && e.attributes["aria-label"] === label).pop(); s.value = value; s.dispatch("change", { target: s }); await settle(); };
+      const button = (within, text) => within.all((e) => e.localName === "button" && e.textContent === text)[0];
+      // color: color.notify, plain, with "follows data…" into one blank row and else the colour it had
+      out(field("color").all((e) => cls(e).startsWith("condition")).map(cls));
+      await click(button(field("color"), "follows data…"));
+      out([field("color").all((e) => cls(e) === "rule").length, field("color").all((e) => cls(e) === "rule else").length]);
+      await select(field("color"), "source", "system.battery");
+      await select(field("color"), "operator", "<");
+      const valueBox = field("color").all((e) => e.localName === "input" && e.attributes["aria-label"] === "value")[0];
+      out(valueBox.attributes.placeholder);
+      valueBox.value = "20"; valueBox.dispatch("blur", { target: valueBox }); await settle();
+      out(edits.length);                      // not written: the row has no colour yet
+      // the row's colour, from this face's swatches
+      const rule = field("color").all((e) => cls(e) === "rule")[0];
+      await click(rule.all((e) => cls(e).includes("chip-button"))[0]);
+      await click(rule.all((e) => cls(e).startsWith("swatch") && e.attributes["aria-label"] === "red")[0]);
+      out(edits.splice(0));
+      // a hex picked for a rule: the list and the swatch it needs, in one batch
+      await answer("color", [{ when: "system.battery < 20", value: "color.red" }, { else: "color.notify" }]);
+      const rule2 = field("color").all((e) => cls(e) === "rule")[0];
+      await click(rule2.all((e) => cls(e).includes("chip-button"))[0]);
+      await click(rule2.all((e) => cls(e).startsWith("swatch") && e.attributes["aria-label"] === "Green")[0]);
+      out(edits.splice(0));
+      // visible: one row; a second row writes the rule list; as expression shows its chain, and back
+      out([field("visible").all((e) => cls(e) === "rule").length]);
+      await click(button(field("visible"), "+ row"));
+      await select(field("visible"), "source", "system.charging");
+      out(edits.splice(0));
+      await answer("visible", [{ when: "device.notification_count > 0", value: true }, { when: "system.charging", value: true }, { else: false }]);
+      await click(button(field("visible"), "as expression"));
+      out(field("visible").all((e) => e.localName === "input" && e.attributes["aria-label"] === "expression").map((e) => e.attributes.value));
+      await click(button(field("visible"), "rows"));
+      out(field("visible").all((e) => cls(e) === "rule").length);
+      // an expression the rows cannot hold: its box, rows disabled with the reason
+      await answer("visible", "activity.steps > 0 and system.charging");
+      const rows = button(field("visible"), "rows");
+      out([rows.attributes.disabled !== undefined && rows.attributes.disabled !== "false", rows.attributes.title]);
+      await commit(field("visible"), "system.charging");
+      out(edits.splice(0));
+    `));
+  const set = (path: (string | number)[], value: unknown) => ({ op: "set", element: bezel, path, scope: "all", device: null, value });
+  assert.deepEqual(printed[0], ["condition plain"]);
+  assert.deepEqual(printed[1], [1, 1], "one blank row, and else");
+  assert.equal(printed[2], "percent", "a number's unit is its box's placeholder");
+  assert.equal(printed[3], 0);
+  assert.deepEqual(printed[4], [set(["color"], [{ when: "system.battery < 20", value: "color.red" }, { else: "color.notify" }])]);
+  // the rule's value set in place (the list is not written again whole), then named
+  assert.deepEqual(printed[5], [{ batch: "set color", edits: [
+    set(["color", 0, "value"], "#00FF00"),
+    { op: "use_color", element: bezel, path: ["color", 0, "value"], scope: "all", device: null, value: "#00FF00" },
+  ] }]);
+  assert.deepEqual(printed[6], [1]);
+  assert.deepEqual(printed[7], [set(["visible"], [{ when: "device.notification_count > 0", value: true }, { when: "system.charging", value: true }, { else: false }])]);
+  assert.deepEqual(printed[8], ["device.notification_count > 0 ? true : system.charging ? true : false"]);
+  assert.equal(printed[9], 2);
+  assert.deepEqual(printed[10], [true, "the rows cannot hold this: rows hold one comparison each, any one of which shows it; this is more"]);
+  assert.deepEqual(printed[11], [set(["visible"], "system.charging")]);
 });

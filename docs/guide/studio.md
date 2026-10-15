@@ -349,15 +349,17 @@ cannot edit:
 
 - A plain value has the control for its kind: a number and its unit, an
   angle, the 3×3 alignment picker, a colour ([the colour
-  picker](#the-colour-picker)), a text with **+ data** to insert a
-  reading, a font, an icon, a touch-and-hold target, a slot, a hand set
+  picker](#the-colour-picker)), a `text:` template as chips
+  ([below](#a-text-template-as-chips)), a font, an icon, a touch-and-hold target, a slot, a hand set
   (with **edit the set**, its lines in the YAML tab), a list of choices, on
   or off. A colour bound to a scheme role, rather than one of the face's
-  swatches, names the role and jumps to the Schemes section. A key written
-  in a shape its control does not take (an `icon:` that follows data, or a
-  colour written as a [rule list](data.md#rules)) is edited as the YAML it
-  is written as, in a text box: what you type is
-  read as a YAML value when you leave the box and written if it reads.
+  swatches, names the role and jumps to the Schemes section. A colour,
+  `visible:`, a gauge's `value:`/`max:` and a graph's `min:`/`max:` can
+  follow data, edited as rows ([below](#a-value-that-follows-data-rows)). A
+  key written in a shape its control does not take (an `icon:` that follows
+  data) is edited as the YAML it is written as, in a text box: what you
+  type is read as a YAML value when you leave the box and written if it
+  reads.
 - A key holding keys (`at:`, `curve:`, `outline:`, `lint:`, `aod:` in the
   awake frame) is a fieldset of them, indented under its name. One with
   nothing written yet is folded to its name and a **+**; open it and set a
@@ -411,6 +413,55 @@ compiler would not take.
   awake frame the `aod:` block is an ordinary fieldset, so either frame
   can edit it. The asleep frame of a MIP watch draws the awake design, so
   it edits as awake does.
+
+#### A text template as chips
+
+A `text:` template ([the `text:` template](text.md#the-text-template)) is
+shown as chips: one for each run of literal text, edited in place; one for
+each placeholder, naming the source it reads, its format spec and the
+source's unit; and one for `{unit}` where the template has one. Click a
+placeholder for its picker: the sources by namespace (each one's
+description on hover), the expression itself for a computed reading, the
+specs the source's type takes (a number's `d`, `02d`, `.1f`, … set the
+spec; a clock's, a date's and a duration's `%H`, `%e`, `%-M`, … add to
+it, [formats](data.md#formats)) and the spec as text. Drag a chip onto
+another to move it there; **×** removes one; **+ text** and **+ data** add
+one where the caret is (the chip you were in, splitting a literal at its
+caret), or at the end. Each change writes the whole template once, and a
+chip you did not touch is written back exactly as it was. **edit as text**
+gives the template as one line of text; a template that does not read
+(a lone `{`) opens that way, with the reason, so nothing typed is lost.
+
+#### A value that follows data: rows
+
+A key whose value may depend on data (`color:` and the other colours,
+`visible:`, a gauge's `value:` and `max:`, a graph's `min:` and `max:`,
+`absent: {value:}`, and the same keys in `aod:`) is edited as rows of
+**source · operator · value → result**, tried in order, and an **else**
+row for the rest: a [rule list](data.md#rules). The source is picked from
+the catalogue by namespace (its description on hover); the operators are
+`<`, `≤`, `>`, `≥`, `=`, `≠`, **is absent** and **is present**; the value
+is true/false for a boolean source, a number for a number (its unit is the
+box's placeholder) and text for a string; the result is the key's own
+control (the colour picker for a colour, a value box for a number). A
+picked colour that is not yet one of the face's is added as a swatch in
+the same change, since a rule names its colour. The rows are written
+once every row is complete, as the rule list; a list already written is
+changed in place, row by row, so what you did not change stays as it was.
+
+`visible:` has no result column: its rows are the conditions it is shown
+under, any one of which shows it. One row is written as the condition
+alone (`visible: system.charging`); several as the rule list of `true`
+rows and `else: false`.
+
+A value with no condition opens in the key's own control, with **follows
+data…** (a colour) or **rows** beside it. A `?:` expression whose
+conditions are one comparison each and whose branches are plain values (a
+reading, a number, a `color.<name>`) opens in the rows too, and is written
+back as the rule list. **as expression** shows the value as one
+expression, edited as text; a value the rows cannot hold (two comparisons
+joined by `and`, a computed colour) opens that way, its **rows** button
+disabled with the reason.
 
 ### Layers
 

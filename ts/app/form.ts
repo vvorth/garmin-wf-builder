@@ -26,6 +26,8 @@ import {
   ANGLE_UNITS, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.ts";
 import { AddName, Popover } from "./ui.ts";
+import { TemplateEditor } from "./template-editor.ts";
+import { ConditionEditor, type ListStep, resultOf, ruleListSteps } from "./condition-editor.ts";
 import type {
   EditOp, EditScope, Effective, Field, Globals, IconSpelling, Inspect, Path, Scope, Summary, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
@@ -56,6 +58,10 @@ export interface WidgetCtx extends FaceCtx {
   vertex?: number | null | undefined;
   /** A `points:` item hovered or focused: that point is picked on the face. */
   onHoverVertex?: ((index: number) => void) | undefined;
+  /** The face's own files (`assets/…`), for a font's `source:`. */
+  assets?: string[] | undefined;
+  /** Several edits sent as one change, under `label`: a rule list written with the swatch a picked colour needs. */
+  onBatch?: ((label: string, edits: EditOp[]) => void) | undefined;
 }
 
 // An event on the input, select or link the handler is on: `currentTarget` is that element.
@@ -239,36 +245,6 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
   </span>`;
 }
 
-interface TemplateProps {
-  value: string;
-  /** Data sources by namespace, for the "+ data" insert. */
-  sources: Record<string, string[]>;
-  onCommit: (text: string) => void;
-}
-
-function Template({ value, sources, onCommit }: TemplateProps): VNode {
-  const input = useRef<HTMLInputElement | null>(null);
-  const insert = (path: string) => {
-    if (!path) return;
-    const el = input.current;
-    const text = el ? el.value : (value || "");
-    const at = el && el.selectionStart != null ? el.selectionStart : text.length;
-    onCommit(text.slice(0, at) + `{${path}}` + text.slice(at));
-  };
-  const [text, setText] = useState<string>(value ?? "");
-  useEffect(() => setText(value ?? ""), [value]);
-  return html`<span class="template">
-    <input type="text" class="mono" ref=${input} value=${text} onInput=${(e: InputEvent) => setText(e.currentTarget.value)}
-      onBlur=${(e: InputEvent) => { if (e.currentTarget.value !== (value ?? "")) onCommit(e.currentTarget.value); }}
-      onKeyDown=${(e: KeyEvent) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
-    <select value="" onChange=${(e: SelectEvent) => { insert(e.currentTarget.value); e.currentTarget.value = ""; }} title="Insert a data placeholder">
-      <option value="">+ data</option>
-      ${Object.entries(sources).map(([ns, paths]) => html`<optgroup label=${ns}>
-        ${paths.map((p) => html`<option value=${p}>${p}</option>`)}</optgroup>`)}
-    </select>
-  </span>`;
-}
-
 export interface GlyphProps {
   /** A catalogue icon's name; anything else draws nothing. */
   name?: Value | null | undefined;
@@ -367,6 +343,34 @@ interface WidgetProps {
   onPickColor: (value: string) => void;
   /** The value an override would replace, for a quantity's starting unit. */
   like?: Value | undefined;
+  /** What the edited scope holds for the key, which a rule list is rewritten over in place. */
+  own?: Value | undefined;
+  /** Several steps written as one change, each at a path under the key. */
+  onSteps?: ((steps: Step[]) => void) | undefined;
+}
+
+/** One step of a change a control makes in several, its path under the key. */
+export type Step = ListStep | { op: "use_color"; path: Path; value: string };
+
+/** A colour written as a hex, not by name. */
+const HEX_COLOR = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/**
+ * The steps that write the rule list `next` over `own`, what the key holds:
+ * in place where `own` is a rule list (`ruleListSteps`), else one `set` of
+ * the whole; then, for a colour, each hex picked for a rule turned into the
+ * swatch holding it (`use_color`), since a rule names its colour.
+ */
+export function ruleSteps(own: Value | undefined, next: Value, color: boolean): Step[] {
+  const steps: Step[] = ruleListSteps(own, next) ?? [{ op: "set", path: [], value: next }];
+  if (!color || !Array.isArray(next)) return steps;
+  next.forEach((rule, i) => {
+    if (rule === null || typeof rule !== "object" || Array.isArray(rule)) return;
+    const key = "else" in rule ? "else" : "value";
+    const v = rule[key];
+    if (typeof v === "string" && HEX_COLOR.test(v)) steps.push({ op: "use_color", path: [i, key], value: v });
+  });
+  return steps;
 }
 
 /**
@@ -378,7 +382,14 @@ function unknownWidget(_widget: never, fallback: VNode): VNode {
   return fallback;
 }
 
-function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps): VNode {
+function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps }: WidgetProps): VNode {
+  // a rule list: rewritten in place over what the key holds, in one change
+  const commitRules = (v: Value): void => {
+    const steps = ruleSteps(own, v, field.widget === "color");
+    if (steps.length === 1 && steps[0]!.op === "set" && steps[0]!.path.length === 0) onCommit(v);
+    else if (steps.length > 0 && onSteps) onSteps(steps);
+    else if (steps.length > 0) onCommit(v);
+  };
   const enumSelect = (options: string[], extra?: string[]) => html`<select value=${value ?? ""} onChange=${(e: SelectEvent) => e.currentTarget.value !== "" && onCommit(e.currentTarget.value)}>
     <option value="">${field.default != null ? `default (${field.default})` : "—"}</option>
     ${(extra || []).map((o) => html`<option value=${o}>${o}</option>`)}
@@ -392,16 +403,25 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps)
     case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
     case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
     case "color": {
-      // an expression choosing a colour is edited as text
+      const colorControl = (v: Value | undefined, pick: (v: string) => void): VNode => {
+        const ref = colorName(v);
+        const isRole = ref && !(ctx.globals.palette || []).some((p) => p.name === ref) && (ctx.globals.roles || []).includes(ref);
+        return html`<span class="color-field"><${ColorPop} value=${v} ctx=${ctx} onPick=${pick} />
+          ${isRole ? html`<span class="dim">role <code>${ref}</code></span>
+            ${ctx.onFaceSection ? html`<a href="#" title="jump to the Schemes section"
+              onClick=${(e: LinkClick) => { e.preventDefault(); ctx.onFaceSection?.("schemes"); }}>Schemes</a>` : null}` : null}</span>`;
+      };
+      // a colour that follows data: rows of conditions, each picking a colour
+      if (field.rules === "color") {
+        return html`<${ConditionEditor} family="color" value=${value} vocab=${ctx.vocab} plain=${colorControl(value, onPickColor)}
+          result=${(v: Value | undefined, pick: (v: Value) => void) => colorControl(v, pick)}
+          onCommit=${commitRules} />`;
+      }
+      // an expression choosing a colour, where the key takes no rules, is edited as text
       if (value != null && !colorName(value) && !parseHex(value)) return html`<${Commit} value=${String(value)} mono onCommit=${onCommit} />`;
-      const ref = colorName(value);
-      const isRole = ref && !(ctx.globals.palette || []).some((p) => p.name === ref) && (ctx.globals.roles || []).includes(ref);
-      return html`<span class="color-field"><${ColorPop} value=${value} ctx=${ctx} onPick=${onPickColor} />
-        ${isRole ? html`<span class="dim">role <code>${ref}</code></span>
-          ${ctx.onFaceSection ? html`<a href="#" title="jump to the Schemes section"
-            onClick=${(e: LinkClick) => { e.preventDefault(); ctx.onFaceSection?.("schemes"); }}>Schemes</a>` : null}` : null}</span>`;
+      return colorControl(value, onPickColor);
     }
-    case "template": return html`<${Template} value=${shown(value)} sources=${ctx.vocab.sources || {}} onCommit=${onCommit} />`;
+    case "template": return html`<${TemplateEditor} value=${shown(value)} vocab=${ctx.vocab} onCommit=${onCommit} />`;
     case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
     case "icon": return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} onPick=${(v: IconSpelling | null) => v && onCommit(v)} />`;
     case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
@@ -419,8 +439,15 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like }: WidgetProps)
       <option value="true">true</option><option value="false">false</option></select>`;
     case "number": return html`<${Commit} value=${shown(value)} width="6em"
         onCommit=${(t: string) => t.trim() !== "" && !Number.isNaN(Number(t)) && onCommit(Number(t))} />`;
-    case "expression":
-    case "text": return html`<${Commit} value=${shown(value)} mono=${field.widget === "expression"} onCommit=${onCommit} />`;
+    case "expression": {
+      const box = html`<${Commit} value=${shown(value)} mono onCommit=${onCommit} />`;
+      if (!field.rules) return box;
+      return html`<${ConditionEditor} family=${field.rules} value=${value} vocab=${ctx.vocab} plain=${box}
+        result=${(v: Value | undefined, pick: (v: Value) => void) => html`<${Commit} value=${shown(v)} mono width="7em" placeholder="value"
+          onCommit=${(t: string) => { if (t.trim() !== "") pick(resultOf(t)); }} />`}
+        onCommit=${commitRules} />`;
+    }
+    case "text": return html`<${Commit} value=${shown(value)} onCommit=${onCommit} />`;
     case "object":
     case "yaml": return asYaml();
     default: return unknownWidget(field.widget, asYaml());
@@ -686,6 +713,16 @@ function Remove({ lane, onClick }: RemoveProps): VNode {
   return html`<button class="reset" title=${title} aria-label=${label} onClick=${onClick}>×</button>`;
 }
 
+/** Steps under a key sent as one change: one edit, or a batch of them (where the page cannot send a batch, each in turn). */
+function stepsOf(ctx: WidgetCtx, base: { element: Path; scope: EditScope; device: string | null; path: Path }, onEdit: OnEdit): (steps: Step[]) => void {
+  return (steps) => {
+    const edits = steps.map((step): EditOp => ({ ...step, ...base, path: [...base.path, ...step.path] } as EditOp));
+    if (edits.length === 1) void onEdit(edits[0]!);
+    else if (ctx.onBatch) ctx.onBatch(`set ${dotted(base.path)}`, edits);
+    else edits.forEach((e) => void onEdit(e));
+  };
+}
+
 function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): VNode {
   const r = reading(field, ins, lane, depth);
   const base = { ...baseOf(ins, lane), path: field.path };
@@ -694,9 +731,10 @@ function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
     <${Name} field=${field} badge=${r.badge} />
     <div class="value" title=${r.title}>
       ${lane.readonly ? html`<code class="shown">${asText(r.value)}</code>`
-        : html`<${Widget} field=${field} value=${r.value} ctx=${ctx} like=${r.like}
+        : html`<${Widget} field=${field} value=${r.value} ctx=${ctx} like=${r.like} own=${r.own}
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
-            onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })} />`}
+            onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })}
+            onSteps=${stepsOf(ctx, base, onEdit)} />`}
       ${!lane.readonly && r.own != null && !field.required && field.widget !== "readonly"
         ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
@@ -816,9 +854,10 @@ function ChoiceField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
         <button class=${i === chosen ? "on" : ""} aria-pressed=${i === chosen} disabled=${lane.readonly} title=${b.description || branchLabel(b)}
           onClick=${() => pick(i)}>${branchLabel(b)}</button>`)}</span>
       ${branch && branch.kind === "scalar" ? (lane.readonly ? html`<code class="shown">${asText(r.value)}</code>`
-        : html`<${Widget} field=${branch} value=${r.value} ctx=${ctx} like=${r.like}
+        : html`<${Widget} field=${branch} value=${r.value} ctx=${ctx} like=${r.like} own=${r.own}
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
-            onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })} />`) : null}
+            onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })}
+            onSteps=${stepsOf(ctx, base, onEdit)} />`) : null}
       ${!lane.readonly && r.own != null && !field.required ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
     </div>
