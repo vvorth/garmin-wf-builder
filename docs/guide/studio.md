@@ -438,8 +438,8 @@ placeholder for its picker: the sources by namespace (each one's
 description on hover), the expression itself for a computed reading, the
 specs the source's type takes (a number's `d`, `02d`, `.1f`, … set the
 spec; a clock's, a date's and a duration's `%H`, `%e`, `%-M`, … add to
-it, [formats](data.md#formats)) and the spec as text. Drag a chip onto
-another to move it there; **×** removes one; **+ text** and **+ data** add
+it, [formats](data.md#formats)) and the spec as text. Drag a chip by its
+grip (⠿) onto another to move it there; **×** removes one; **+ text** and **+ data** add
 one where the caret is (the chip you were in, splitting a literal at its
 caret), or at the end. Each change writes the whole template once, and a
 chip you did not touch is written back exactly as it was. **edit as text**

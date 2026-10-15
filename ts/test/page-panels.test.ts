@@ -264,6 +264,8 @@ function inspector(doc: unknown, ins: unknown, props: { target?: string; vocab?:
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
       const focused = [];
+      // a popover opened on the right places itself by the window's width
+      globalThis.innerWidth = 1600; globalThis.innerHeight = 1000;
       // Preact creates every element through createElementNS
       const makeNS = document.createElementNS;
       document.createElementNS = (ns, n) => { const e = makeNS(ns, n); e.focus = () => focused.push(e.attributes.placeholder ?? ""); return e; };
@@ -716,7 +718,7 @@ test("the template chips add data at the caret, set a spec from the source's typ
       // the worker's answer: the key now holds \`value\`, as the page is shown it again
       const answer = async (value) => { ins = { ...ins, fields: ins.fields.map((f) => (f.key === "text" ? { ...f, value } : f)) }; await show(); };
       const written = async () => { const values = edits.splice(0).map((e) => e.value); if (values.length) await answer(values[values.length - 1]); return values; };
-      out(chips().map((c) => cls(c).split(" ")[1] + ":" + c.textContent.replace("×", "")));
+      out(chips().map((c) => cls(c).split(" ")[1] + ":" + c.textContent.replace("×", "").replace("⠿", "")));
       // + data at the end
       const adder = text().all((e) => e.localName === "select" && e.attributes["aria-label"] === "add data")[0];
       adder.value = "activity.steps"; adder.dispatch("change", { target: adder }); await settle();

@@ -762,7 +762,8 @@ The browser suite (`ts/browser/`, `npm run test:browser`, not part of `npm
 test`) drives `wfb studio`'s pages with Playwright in headless Chromium,
 against the real server and worker: every example and template opened as a
 `.yaml` or a zip, each element type selected and moved, every handle, the
-Properties controls, the Layers actions, every Face-tab section, the YAML
+Properties controls, the data editors (a template's chips, a condition's
+rows, a text's own font and its size handle), the Layers actions, every Face-tab section, the YAML
 tab (valid, invalid, a compiler error, the two-tab conflict), the view
 controls, Ctrl+K, history, download and one `monkeyc` build. Every
 assertion reads the face's YAML text back from the worker as well as the

@@ -276,7 +276,8 @@ export function ConditionEditor({ family, value, vocab, plain, result, onCommit 
   const [view, setView] = useState<"auto" | "rows" | "raw">("auto");
   const [draft, setDraft] = useState<Rows | null>(null);
   const key = JSON.stringify(value ?? null);
-  useEffect(() => { setDraft(null); }, [key]);
+  // a new value (an answer from the worker, another element selected) opens as it reads
+  useEffect(() => { setDraft(null); setView("auto"); }, [key]);
   const intoRows = family === "color" ? "follows data…" : "rows";
   if (view === "raw" || reading.mode === "raw") {
     const text = reading.mode === "raw" ? reading.text : typeof value === "string" ? value : Array.isArray(value) ? chainText(value) : value == null ? "" : String(value);

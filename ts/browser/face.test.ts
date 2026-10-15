@@ -185,7 +185,7 @@ h.test("Colour schemes: make switchable, the table, + Scheme, + Role, renames, d
   let doc = await written(s, base);
   assert.match(doc.text, /^theme:\n  schemes:\n    dark:\n      colors:\n        bg: "#000000"\n        text: "#FFFFFF"\n\nconfig:\n  style:\n    default: dark\n    choices:\n      dark:\n        scheme: dark$/m, diffLines(base.text, doc.text).join(" ; "));
   assert.doesNotMatch(doc.text, /^    bg: "#000000"$/m, "bg stayed in the palette");
-  assert.deepEqual(doc.globals.schemes, { names: ["dark"], roles: ["bg", "text"], colors: { dark: { bg: "#000000", text: "#FFFFFF" } } });
+  assert.deepEqual(doc.globals.schemes, { names: ["dark"], roles: ["bg", "text"], colors: { dark: { bg: "#000000", text: "#FFFFFF" } }, base: { dark: null }, inherited: { dark: [] } });
   assert.equal(doc.history.undo, "make bg, text switchable, in the scheme dark");
 
   // + Scheme: a copy of the first, and a style picking it

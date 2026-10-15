@@ -3,7 +3,7 @@
 // format spec and the source's unit; a click opens a source picker grouped
 // by namespace, the specs its type takes, a free spec box and the
 // expression itself), and a `{unit}` chip where the template has one. Chips
-// reorder by dragging one onto another, × removes one, "+ text" and
+// reorder by dragging one by its grip onto another, × removes one, "+ text" and
 // "+ data" add one at the caret (the chip last focused, splitting a
 // literal at its caret) or at the end. Every change writes the whole
 // template once, rebuilt from the chips: what a chip did not change is
@@ -160,7 +160,8 @@ export interface TemplateEditorProps {
 export function TemplateEditor({ value, vocab, onCommit }: TemplateEditorProps): VNode {
   const parsed = chipsOf(value);
   const [asText, setAsText] = useState<boolean>(false);
-  useEffect(() => { if (!parsed.ok) setAsText(false); }, [value]);
+  // a new value (an answer from the worker, another element selected) opens as chips where it reads
+  useEffect(() => { setAsText(false); }, [value]);
   if (!parsed.ok || asText) {
     return html`<span class="template raw">
       <${RawTemplate} value=${value} onCommit=${onCommit} />
@@ -223,12 +224,13 @@ function ChipEditor({ value, chips: written, vocab, onCommit, onAsText }: ChipEd
   const sources = vocab.sources || {};
   return html`<span class="template chips">
     ${chips.map((chip, i) => html`<span key=${i} class=${"tpl-chip tpl-" + chip.kind + (over === i ? " over" : "")} draggable="true"
-        title="drag onto another chip to reorder"
+        title="drag by its grip onto another chip to reorder"
         onDragStart=${(e: DragEvent) => { dragging.current = i; try { e.dataTransfer?.setData("text/plain", String(i)); } catch { /* a test's event has none */ } }}
         onDragOver=${(e: DragEvent) => { e.preventDefault(); if (over !== i) setOver(i); }}
         onDragLeave=${() => { if (over === i) setOver(null); }}
         onDrop=${(e: DragEvent) => { e.preventDefault(); drop(i); }}
         onDragEnd=${() => { dragging.current = null; setOver(null); }}>
+      <span class="tpl-grip" aria-hidden="true">⠿</span>
       ${chip.kind === "text" ? html`<${LiteralChip} chip=${chip}
           onCaret=${(offset: number | null) => { caret.current = { index: i, offset }; }}
           onCommit=${(text: string) => replace(i, text === "" ? null : { kind: "text", text })} />`
@@ -287,7 +289,7 @@ interface DataChipProps {
 function DataChipView({ chip, vocab, onFocus, onChange }: DataChipProps): VNode {
   const info = vocab.source_info?.[chip.expr];
   const label = html`<span class="tpl-expr mono">${chip.expr || "…"}</span>${chip.spec ? html`<span class="tpl-spec mono">:${chip.spec}</span>` : null}${info?.unit ? html`<span class="tpl-unit-hint dim">${info.unit}</span>` : null}`;
-  return html`<span onFocusIn=${onFocus}><${Popover} buttonClass="tpl-data-button" bodyClass="pop tpl-pop" title=${info ? `${chip.expr}: ${info.doc}` : chip.expr} label=${label}>
+  return html`<span onFocusIn=${onFocus}><${Popover} buttonClass="tpl-data-button" bodyClass="pop tpl-pop" align="right" title=${info ? `${chip.expr}: ${info.doc}` : chip.expr} label=${label}>
     <${DataPicker} chip=${chip} vocab=${vocab} onChange=${onChange} />
   </${Popover}></span>`;
 }

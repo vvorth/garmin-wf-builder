@@ -157,7 +157,7 @@ button:disabled:hover { border-color: var(--line); }
 .ins-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 12px 8px; }
 .ins-head .frame-note { margin-left: auto; font-size: 11px; color: var(--note); cursor: help; }
 .align button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.field { display: grid; grid-template-columns: 96px 1fr; gap: 6px; padding: 3px 12px; align-items: start; }
+.field { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px; padding: 3px 12px; align-items: start; }
 .field.absent .name { color: var(--dim); }
 .field .name { font-size: 12px; padding-top: 5px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
 .field .req { color: var(--warning); margin-left: 2px; }
@@ -171,7 +171,7 @@ button:disabled:hover { border-color: var(--line); }
 .field.readonly .value { padding-top: 5px; }
 .field.readonly code.shown { font-size: 12px; color: var(--dim); }
 /* an object, a list or a choice's branch: its name on one row, its children indented beneath */
-.field.object, .field.list, .field.choice { grid-template-columns: 1fr; }
+.field.object, .field.list, .field.choice { grid-template-columns: minmax(0, 1fr); }
 .field.choice > .name { padding-top: 0; }
 .field .head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .field .head .name { padding-top: 0; }
@@ -201,7 +201,12 @@ input[type="color"] { width: 28px; height: 24px; padding: 0 2px; }
 button.link { background: none; border: none; padding: 0 2px; color: var(--dim); font-size: 11px; text-decoration: underline; }
 button.link:hover { color: var(--accent); }
 /* a template's chips: literal text, a placeholder, {unit}; each dragged onto another to reorder */
-.tpl-chip { display: inline-flex; align-items: center; gap: 1px; border: 1px solid var(--line); border-radius: 10px; padding: 0 2px 0 4px; background: var(--raised); cursor: grab; }
+.tpl-chip { display: inline-flex; align-items: center; gap: 1px; max-width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 0 2px 0 3px; background: var(--raised); }
+.tpl-chip .tpl-grip { cursor: grab; color: var(--dim); font-size: 10px; padding-right: 2px; user-select: none; }
+.tpl-chip .popover { min-width: 0; }
+.tpl-chip .tpl-data-button { min-width: 0; max-width: 100%; overflow: hidden; }
+.tpl-chip .tpl-expr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tpl-add button, .tpl-add .link { white-space: nowrap; }
 .tpl-chip.over { border-color: var(--accent); }
 .tpl-chip.tpl-data { border-color: var(--note); }
 .tpl-chip input.tpl-literal { border: none; background: transparent; padding: 1px 2px; min-width: 1ch; font: inherit; }
