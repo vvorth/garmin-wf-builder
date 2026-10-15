@@ -174,6 +174,8 @@ export interface Schemes {
   base: Record<string, string | null>;
   /** Each scheme's roles that come from its base chain, not its own `colors:`. */
   inherited: Record<string, string[]>;
+  /** Each scheme's `label:` as written, or `null`. */
+  labels: Record<string, string | null>;
 }
 
 /** One `config: style: choices:` entry: a name the author wrote is text, or `null` when absent or not text. */

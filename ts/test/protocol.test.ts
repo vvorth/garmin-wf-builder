@@ -90,7 +90,7 @@ const globals = obj({
   face: obj({ name: nullable(str), version: nullable(str), id: nullable(str) }),
   defaults: obj({ antialias: value, min_1px: value, aod: obj({ visible: value, dim: value, mask: value }) }),
   palette: list(obj({ name: str, value, label: value, long: bool, dithers_on: list(str), used_by: list(str), automatic: bool, problem: nullable(str), launcher: bool })),
-  schemes: obj({ names: list(str), roles: list(str), colors: record(record(value)), base: record(nullable(str)), inherited: record(list(str)) }),
+  schemes: obj({ names: list(str), roles: list(str), colors: record(record(value)), base: record(nullable(str)), inherited: record(list(str)), labels: record(nullable(str)) }),
   styles: obj({ default: nullable(str), entries: list(obj({ name: str, index: int, label: nullable(str), layout: nullable(str), scheme: nullable(str) })) }),
   layouts: list(str),
   layout_entries: list(obj({ name: str, label: nullable(str), elements: int, static: int, styles: list(str) })),

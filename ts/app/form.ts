@@ -113,12 +113,14 @@ interface CommitProps {
   list?: string;
   width?: string;
   focus?: boolean;
+  /** The input's accessible name. */
+  aria?: string | undefined;
 }
 
 // A text input that commits on Enter or when it loses focus, and resets
 // when the value it shows changes underneath it. `focus` true takes the
 // focus, so the author can type at once.
-export function Commit({ value, onCommit, placeholder, mono, list, width, focus = false }: CommitProps): VNode {
+export function Commit({ value, onCommit, placeholder, mono, list, width, focus = false, aria }: CommitProps): VNode {
   const [text, setText] = useState<string>(value ?? "");
   const input = useRef<HTMLInputElement | null>(null);
   useEffect(() => setText(value ?? ""), [value]);
@@ -127,7 +129,7 @@ export function Commit({ value, onCommit, placeholder, mono, list, width, focus 
   // re-render that typing schedules.
   const commit = (e: InputEvent) => { if (e.currentTarget.value !== (value ?? "")) onCommit(e.currentTarget.value); };
   return html`<input type="text" class=${mono ? "mono" : ""} value=${text} placeholder=${placeholder || ""}
-    list=${list} style=${width ? `width:${width}` : ""} ref=${input}
+    list=${list} style=${width ? `width:${width}` : ""} ref=${input} aria-label=${aria}
     onInput=${(e: InputEvent) => setText(e.currentTarget.value)} onBlur=${commit}
     onKeyDown=${(e: KeyEvent) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setText(value ?? ""); }} />`;
 }

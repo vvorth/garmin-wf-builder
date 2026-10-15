@@ -602,6 +602,7 @@ function schemesOf(schemes: unknown, roles: string[]): Globals["schemes"] {
     names, roles, colors,
     base: Object.fromEntries(names.map((n) => [n, baseOf(n)])),
     inherited: Object.fromEntries(names.map((n) => [n, Object.keys(colors[n]!).filter((k) => !(k in own(n)))])),
+    labels: Object.fromEntries(names.map((n) => [n, name(g(g(schemes, n), "label"))])),
   };
 }
 
@@ -609,7 +610,7 @@ function schemesOf(schemes: unknown, roles: string[]): Globals["schemes"] {
 const NO_GLOBALS: Globals = {
   face: { name: null, version: null, id: null },
   defaults: { antialias: null, min_1px: null, aod: { visible: null, dim: null, mask: null } },
-  palette: [], schemes: { names: [], roles: [], colors: {}, base: {}, inherited: {} }, styles: { default: null, entries: [] }, layouts: [], layout_entries: [], fonts: [], slots: [],
+  palette: [], schemes: { names: [], roles: [], colors: {}, base: {}, inherited: {}, labels: {} }, styles: { default: null, entries: [] }, layouts: [], layout_entries: [], fonts: [], slots: [],
   roles: [], axes: { accent_color: null, data_color: null }, displays: [], hand_sets: [], hands: [], targets: [], target_problems: {},
 };
 

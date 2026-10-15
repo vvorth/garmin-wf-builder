@@ -250,6 +250,11 @@ function Schemes({ schemes, palette, styles, ctx, onEdit }: SchemesProps): VNode
         <${InlineName} value=${s} title="click to rename (every style naming it follows)"
           onRename=${(n: string) => onEdit({ op: "rename_scheme", name: s, to: n })} />
         <button class="reset" title="delete this scheme and the styles that pick it" aria-label="delete this scheme and the styles that pick it" onClick=${() => onEdit({ op: "delete_scheme", name: s })}>×</button>
+        <div><${Commit} value=${schemes.labels?.[s] ?? ""} placeholder="label" width="7em" aria=${`label of ${s}`}
+          onCommit=${(t: string) => {
+            if (t.trim()) onEdit({ op: "set", path: ["theme", "schemes", s, "label"], value: t.trim() });
+            else if (schemes.labels?.[s] != null) onEdit({ op: "remove", path: ["theme", "schemes", s, "label"] });
+          }} /></div>
         ${schemes.names.length > 1 ? html`<div><select class="scheme-base" value=${baseOf(s) ?? ""} aria-label=${`base of ${s}`}
             title="a scheme it inherits every role from, but the ones it sets itself"
             onChange=${(e: SelectEvent) => {
@@ -499,6 +504,18 @@ function FontOptions({ name, doc, ctx, onInspect, onEdit, onBatch }: FontOptions
   </div>`;
 }
 
+/**
+ * The edit that gives the palette colour `p` the label `label`: a bare
+ * colour becomes the long form (`{value, label}`), a long one has its label
+ * set; an empty label goes back to the bare colour. Null when nothing
+ * changes.
+ */
+export function labelOp(p: PaletteEntry, label: string): EditOp | null {
+  const path: Path = ["resources", "palette", p.name];
+  if (label) return p.long ? { op: "set", path: [...path, "label"], value: label } : { op: "set", path, value: { value: p.value, label } };
+  return p.long && p.label != null ? { op: "set", path, value: p.value } : null;
+}
+
 /** A font file added to the bundle: declared as the font `font` at `size`, or pointed at by every font whose `source:` is `reference`. */
 export type OnUpload = (file: File, what: { font?: string; size?: string; reference?: string | null }) => unknown;
 
@@ -588,6 +605,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
           ${p.dithers_on.length ? html`<span class="warn" title=${`dithers on ${p.dithers_on.join(", ")}`}>⚠</span>` : null}
           ${p.problem ? html`<span class="warn" title=${p.problem}>⚠ not a colour</span>` : null}
           ${p.automatic ? html`<span class="tag" title="named after its colour: renamed when its colour changes, removed when nothing uses it">auto</span>` : null}
+          <${Commit} value=${typeof p.label === "string" ? p.label : ""} placeholder="label" width="7em" aria=${`label of ${p.name}`}
+            onCommit=${(t: string) => { const op = labelOp(p, t.trim()); if (op) onEdit(op); }} />
           <${Reorder} index=${i} count=${palette.length} what=${p.name} onMove=${(to: number) => onEdit({ op: "move_key", path: ["resources", "palette", p.name], to })} />
           <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "palette", p.name] })}>×</button>
           <div class="note">${p.used_by.length ? html`used by ${users(p.used_by)}`

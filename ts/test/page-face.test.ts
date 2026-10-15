@@ -377,3 +377,41 @@ test("a font's options open under its row as the generic form over its entry: a 
     { op: "set", ...dial, path: ["face"], value: "BionicSemiBold" },
   ]);
 });
+
+test("a palette label writes the long form and, cleared, the bare colour again; a scheme's label is set and removed", async () => {
+  const { newStudio } = await import("./studio-client.ts");
+  const { bundle } = await import("../src/studio/bundle.ts");
+  const studio = await newStudio();
+  const original = instantiate("minimal", "T") + "\ntheme:\n  schemes:\n    dark:\n      colors: { ink: color.text }\n    light:\n      label: Daylight\n      colors: { ink: color.bg }\n\nconfig:\n  style:\n    default: d\n    choices: { d: { scheme: dark }, l: { scheme: light } }\n";
+  const doc = studio.create(bundle("T", original), "new");
+  // the edits the panel sends, made by the worker
+  const apply = (edits: unknown): void => { for (const op of edits as Record<string, unknown>[]) doc.edit(op, doc.version); };
+  const typeLabel = (name: string, value: string): string => `{
+      const input = find((e) => e.localName === "input" && e.attributes["aria-label"] === "label of ${name}")[0];
+      out(input.attributes.value ?? input.value);
+      input.value = ${JSON.stringify(value)}; input.dispatch("blur", { target: input }); await settle();
+      out(edits); }`;
+  let printed: any = await render(summary(doc.text), `await openSection("Colours");` + typeLabel("dim", " Dim grey "));
+  assert.deepEqual(printed, ["", [{ op: "set", path: ["resources", "palette", "dim"], value: { value: "#AAAAAA", label: "Dim grey" } }]]);
+  apply(printed[1]);
+  assert.ok(doc.text.includes('    dim: { value: "#AAAAAA", label: Dim grey }\n'), doc.text);
+  // a label on the long form changes just the label
+  printed = await render(summary(doc.text), `await openSection("Colours");` + typeLabel("dim", "Grey"));
+  assert.deepEqual(printed, ["Dim grey", [{ op: "set", path: ["resources", "palette", "dim", "label"], value: "Grey" }]]);
+  apply(printed[1]);
+  // cleared: the bare colour, and the text is as it was
+  printed = await render(summary(doc.text), `await openSection("Colours");` + typeLabel("dim", ""));
+  assert.deepEqual(printed, ["Grey", [{ op: "set", path: ["resources", "palette", "dim"], value: "#AAAAAA" }]]);
+  apply(printed[1]);
+  assert.equal(doc.text, original);
+  // a bare colour with no label: clearing sends nothing
+  printed = await render(summary(doc.text), `await openSection("Colours");` + typeLabel("bg", ""));
+  assert.deepEqual(printed, ["", []]);
+  // a scheme's label, under its name in the table
+  printed = await render(summary(doc.text), `await openSection("Colour schemes");` + typeLabel("dark", "Night") + typeLabel("light", ""));
+  assert.deepEqual(printed, ["", [{ op: "set", path: ["theme", "schemes", "dark", "label"], value: "Night" }],
+    "Daylight", [{ op: "set", path: ["theme", "schemes", "dark", "label"], value: "Night" }, { op: "remove", path: ["theme", "schemes", "light", "label"] }]]);
+  apply(printed[3]);
+  assert.ok(doc.text.includes("    dark:\n      colors: { ink: color.text }\n      label: Night\n"), doc.text);
+  assert.ok(!doc.text.includes("Daylight"));
+});

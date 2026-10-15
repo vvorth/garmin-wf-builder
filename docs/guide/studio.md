@@ -585,7 +585,12 @@ it is what the wearer's list shows, or the order the face is drawn in.
 - **Colours**: each colour with what uses it (click an element to select
   it). Click a name to rename it: every `color.<name>` in the face
   follows. Its chip opens the picker, and a new colour reaches **every**
-  user listed. **+ Colour** adds one; **×** deletes one, refused while
+  user listed. Its **label** box is the name the watch's editor shows for
+  it when a colour setting offers it ([the long
+  form](colors.md#long-form-a-label-for-the-on-device-editor)): typed, the
+  colour is written in the long form (`dim: { value: "#AAAAAA", label: Dim
+  grey }`); emptied, it goes back to the bare colour (`dim: "#AAAAAA"`).
+  **+ Colour** adds one; **×** deletes one, refused while
   something uses it; **Remove unused** deletes every colour nothing
   uses, except `bg`, `accent`, `text` and `fg`, which the launcher icon
   reads. A ⚠ marks a colour a target's screen would dither
@@ -614,7 +619,8 @@ it is what the wearer's list shows, or the order the face is drawn in.
     or every `color.<role>`, follow. **×** deletes a scheme with the styles
     that pick it (not the last scheme), or a role from every scheme
     (refused while something uses it). Under each scheme's name, its
-    **base** ([`base:`](colors.md#colour-schemes)): one of the other
+    **label** (the name the watch's Style list shows for it; emptied, it is
+    removed), and its **base** ([`base:`](colors.md#colour-schemes)): one of the other
     schemes, whose roles it inherits, or **no base**. A role a scheme
     inherits is shown greyed with **from** its base; picking a colour there
     sets it on this scheme, and **↺** beside a role it sets itself, where
