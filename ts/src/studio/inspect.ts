@@ -43,12 +43,13 @@ import { subjectOf } from "./parts.ts";
 import { Color, ColorError, MIP64_NAMED } from "../palette.ts";
 import { hasSkin } from "../preview.ts";
 import { DATA_SAMPLE } from "../sample.ts";
+import { DATE_CODES, DURATION_CODES, TIME_CODES } from "../formatting.ts";
 import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
 import type {
-  Axes, AxisEntry, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
-  OverrideSummary, PartsSummary, SlotEntry, StyleEntry, UnreadableDevice, Value, Widget, Words,
+  Axes, AxisEntry, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, FormatCode, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
+  OverrideSummary, PartsSummary, RuleFamily, SlotEntry, StyleEntry, UnreadableDevice, Value, Widget, Words,
 } from "./protocol.ts";
 
 /** A schema node, as JSON. */
@@ -80,9 +81,11 @@ const WIDGET_BY_REF: Record<string, Widget> = {
   align: "align",
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
   visible: "expression", partVisible: "expression", expression: "expression",
-  // a text's `font:` keeps the font picker; its inline object form is edited as YAML there until it has a control of its own
+  // a text's `font:`: a name, or the font written inline
   fontRef: "font",
 };
+/** `$defs` entries whose value may be a rule list, and of which family. */
+const RULES_BY_REF: Record<string, RuleFamily> = { expression: "value", colorExpression: "color", visible: "boolean", partVisible: "boolean" };
 /** Keys the inspector leaves out: the layer tree owns an element's `children:`. */
 const SKIPPED = new Set(["children"]);
 
@@ -243,11 +246,16 @@ function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, re
     effective: effectiveOf(r, path),
   };
   if (depth > MAX_DEPTH) return { ...out, kind: "scalar", widget: "text", truncated: true };
+  const rules = RULES_BY_REF[deref(node)[0] ?? ""];
+  if (kind === "scalar" && rules !== undefined) out.rules = rules;
   if (kind === "scalar") {
     if (Array.isArray(resolved["enum"])) out.enum = value(resolved["enum"]) as Value[];
-    // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` is one of its spellings
+    // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` is one of its spellings,
+    // a rule list a conditional value's, and a font written inline a font's
     const codepoint = widget === "icon" && isMap(raw) && raw.size === 1 && typeof raw.get("codepoint") === "string";
-    if (present && !isScalar(raw) && !codepoint) out.widget = "yaml";
+    const ruled = rules !== undefined && Array.isArray(raw);
+    const inline = widget === "font" && isMap(raw);
+    if (present && !isScalar(raw) && !codepoint && !ruled && !inline) out.widget = "yaml";
   } else if (kind === "object") {
     const props = (resolved["properties"] ?? {}) as Record<string, Json>;
     const extra = resolved["additionalProperties"];
@@ -555,11 +563,39 @@ function defaultsInfo(data: unknown): Globals["defaults"] {
   };
 }
 
+/**
+ * `theme: schemes:` with each scheme's `base:` folded in as the compiler
+ * folds it: the base's roles in the base's order, a role the scheme lists
+ * itself in its place, a role only it has after them. A base no scheme
+ * declares, or a chain that comes back round, is not followed (the build
+ * reports it).
+ */
+function schemesOf(schemes: unknown, roles: string[]): Globals["schemes"] {
+  const names = keysOf(schemes).map(String);
+  const own = (n: string): Record<string, Value> => mapping(g(g(schemes, n), "colors"));
+  const baseOf = (n: string): string | null => name(g(g(schemes, n), "base"));
+  const fold = (n: string, seen: Set<string>): Record<string, Value> => {
+    const mine = own(n);
+    const base = baseOf(n);
+    if (base === null || !names.includes(base) || seen.has(base)) return mine;
+    const inherited = fold(base, new Set([...seen, base]));
+    const out: Record<string, Value> = Object.fromEntries(Object.keys(inherited).map((k) => [k, k in mine ? mine[k]! : inherited[k]!]));
+    for (const [k, v] of Object.entries(mine)) if (!(k in out)) out[k] = v;
+    return out;
+  };
+  const colors = Object.fromEntries(names.map((n) => [n, fold(n, new Set([n]))]));
+  return {
+    names, roles, colors,
+    base: Object.fromEntries(names.map((n) => [n, baseOf(n)])),
+    inherited: Object.fromEntries(names.map((n) => [n, Object.keys(colors[n]!).filter((k) => !(k in own(n)))])),
+  };
+}
+
 /** `globalsOf` for a text that does not parse: nothing in it. */
 const NO_GLOBALS: Globals = {
   face: { name: null, version: null, id: null },
   defaults: { antialias: null, min_1px: null, aod: { visible: null, dim: null, mask: null } },
-  palette: [], schemes: { names: [], roles: [], colors: {} }, styles: { default: null, entries: [] }, layouts: [], layout_entries: [], fonts: [], slots: [],
+  palette: [], schemes: { names: [], roles: [], colors: {}, base: {}, inherited: {} }, styles: { default: null, entries: [] }, layouts: [], layout_entries: [], fonts: [], slots: [],
   roles: [], axes: { accent_color: null, data_color: null }, displays: [], hand_sets: [], hands: [], targets: [], target_problems: {},
 };
 
@@ -622,10 +658,7 @@ export function globalsOf(text: string, db: DeviceDatabase): Globals {
     face: faceInfo(data),
     defaults: defaultsInfo(data),
     palette,
-    schemes: {
-      names: keysOf(schemes).map(String), roles,
-      colors: Object.fromEntries(keysOf(schemes).map((n) => [String(n), mapping(g(g(schemes, n), "colors"))])),
-    },
+    schemes: schemesOf(schemes, roles),
     styles: { default: name(g(style, "default")), entries },
     layouts: keysOf(layouts).map(String),
     layout_entries: layoutEntries,
@@ -652,6 +685,22 @@ function complicationType(name: string): ComplicationType {
   };
 }
 
+/** strftime-style codes as written after a placeholder's colon (`%H`, `%-M`), each with what it draws. */
+function codesOf(codes: ReadonlyMap<string, { description: string }>): FormatCode[] {
+  return [...codes].map(([code, c]) => [`%${code}`, c.description]);
+}
+
+/** A number's specs, the commonest first: `[0][width][.precision]` and `d`, `f` or `s` (`docs/guide/data.md`, Formats). */
+const NUMBER_SPECS: readonly FormatCode[] = [
+  ["d", "a whole number (a Float truncates)"],
+  ["02d", "a whole number, two digits, zero-padded"],
+  [".1f", "one decimal, rounded"],
+  [".2f", "two decimals, rounded"],
+  [".0f", "no decimals, rounded"],
+  ["3d", "a whole number, three wide, space-padded"],
+  ["s", "the value's own text"],
+];
+
 let words: Words | null = null;
 
 /** What the pickers offer: data sources by namespace, icon names and complication types. Device-independent. */
@@ -670,6 +719,13 @@ export function vocabulary(): Words {
       categories: [...complications.CATEGORIES],
       complication_types: complications.names().map(complicationType),
       icon_glyphs: glyphs,
+      source_info: Object.fromEntries([...catalog.CATALOG.keys()].sort().map((path) => {
+        const source = catalog.get(path)!;
+        return [path, { type: source.type, unit: source.unit, quantity: source.quantity, doc: source.doc, nullable: source.nullable }];
+      })),
+      format_codes: {
+        time: codesOf(TIME_CODES), date: codesOf(DATE_CODES), duration: codesOf(DURATION_CODES), number: NUMBER_SPECS.map(([spec, label]) => [spec, label]),
+      },
     };
   }
   return words;

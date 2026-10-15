@@ -6,7 +6,7 @@
 // interfaces; this holds what actually crosses `postMessage` to them.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHIVO, Client, minimalText, newStudio, openExample, read, type Reply, SHOWCASE } from "./studio-client.ts";
+import { CHIVO, Client, minimalText, newStudio, openExample, read, readText, type Reply, SHOWCASE } from "./studio-client.ts";
 import type { EditOp } from "../src/studio/protocol.ts";
 
 // -- the checks ----------------------------------------------------------------
@@ -90,7 +90,7 @@ const globals = obj({
   face: obj({ name: nullable(str), version: nullable(str), id: nullable(str) }),
   defaults: obj({ antialias: value, min_1px: value, aod: obj({ visible: value, dim: value, mask: value }) }),
   palette: list(obj({ name: str, value, label: value, long: bool, dithers_on: list(str), used_by: list(str), automatic: bool, problem: nullable(str), launcher: bool })),
-  schemes: obj({ names: list(str), roles: list(str), colors: record(record(value)) }),
+  schemes: obj({ names: list(str), roles: list(str), colors: record(record(value)), base: record(nullable(str)), inherited: record(list(str)) }),
   styles: obj({ default: nullable(str), entries: list(obj({ name: str, index: int, label: nullable(str), layout: nullable(str), scheme: nullable(str) })) }),
   layouts: list(str),
   layout_entries: list(obj({ name: str, label: nullable(str), elements: int, static: int, styles: list(str) })),
@@ -142,7 +142,7 @@ const field: Check = (v, at) => obj({
   key: str, path, kind: literal("scalar", "object", "list", "choice"), widget: literal(...WIDGETS), description: str, value, present: bool, required: bool,
   default: value, geometry: bool, effective,
   enum: opt(list(value)), children: opt(list(field)), item: opt(field), items: opt(list(field)), branches: opt(list(field)), chosen: opt(nullable(int)), truncated: opt(literal(true)),
-  text: opt(str),
+  text: opt(str), rules: opt(literal("value", "color", "boolean")),
 })(v, at);
 const scopeOverride = obj({ selector: str, keys: record(value) });
 const context = obj({ frame: literal("awake", "asleep", "aod"), style: nullable(str) });
@@ -157,6 +157,8 @@ const vocabulary = obj({
   sources: record(list(str)), icons: list(str), complications: list(str), series: list(str), types: list(str),
   mip: list(obj({ name: str, value: str, label: str })), hand_presets: list(str), categories: list(str),
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str) })), icon_glyphs: record(int),
+  source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),
+  format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)) }),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str) })),
   unreadable_devices: list(obj({ id: str, reason: str })),
 });
@@ -332,4 +334,52 @@ test("every answer the worker sends has the protocol's shape", async () => {
   }
   assert.deepEqual([...seen].sort(), ["changed", "created", "deleted", "renamed", "snapshot"]);
   assert.ok(client.events.some(([n, d]) => n === "changed" && d["tab"] === "tab-1"), "a change names its tab");
+});
+
+test("the words describe every source and the specs a placeholder takes, by what it reads", async () => {
+  const studio = await newStudio();
+  const client = new Client(studio);
+  const words = (await client.call("vocabulary", {})).json;
+  const catalog = await import("../src/catalog.ts");
+  // every catalogue path, with its own type, unit, quantity, doc and nullability, and nothing else
+  assert.deepEqual(Object.keys(words.source_info).sort(), [...catalog.CATALOG.keys()].sort());
+  assert.deepEqual(words.source_info["activity.steps"], { type: "number", unit: null, quantity: null, doc: "steps today", nullable: true });
+  assert.deepEqual(words.source_info["weather.temperature"].quantity, "temperature");
+  assert.equal(words.source_info["time.clock"].type, "time");
+  // the codes as written after the colon, each with what it draws: a clock's, a date's and a duration's differ where they must
+  const codes = (kind: string): string[] => words.format_codes[kind].map(([spec]: [string, string]) => spec);
+  assert.ok(codes("time").includes("%H") && codes("time").includes("%h") && !codes("time").includes("%Y"), codes("time").join(" "));
+  assert.ok(codes("date").includes("%Y") && codes("date").includes("%b") && !codes("date").includes("%H"), codes("date").join(" "));
+  assert.ok(codes("duration").includes("%-H") && codes("duration").includes("%S"), codes("duration").join(" "));
+  assert.deepEqual(codes("number").slice(0, 3), ["d", "02d", ".1f"]);
+  assert.ok(words.format_codes.time.every(([, label]: [string, string]) => label.length > 0));
+});
+
+test("a scheme's base, and the roles it inherits from it, are in the globals", async () => {
+  const studio = await newStudio();
+  const doc = openExample(studio, "examples/analog-custom/face.yaml");
+  const { globalsOf } = await import("../src/studio/inspect.ts");
+  const schemes = globalsOf(doc.text, (await import("./studio-client.ts")).db).schemes;
+  assert.deepEqual(schemes.base, { dark: null, light: "dark", blue: "dark", green: "dark" });
+  assert.deepEqual(schemes.inherited, { dark: [], light: ["track"], blue: ["fg", "track"], green: ["fg", "track"] });
+  // a derived scheme's colours are what it draws with: its own, then the base's, in the base's order
+  assert.deepEqual(schemes.colors["blue"], { bg: "color.darkest_blue", fg: "color.white", track: "color.light_gray" });
+  assert.deepEqual(schemes.colors["light"], { bg: "color.white", fg: "color.black", track: "color.light_gray" });
+});
+
+test("a key that takes a rule list says which family, and a rule list or an inline font keeps its key's control", async () => {
+  const { inspect } = await import("../src/studio/inspect.ts");
+  const showcase = readText(SHOWCASE);
+  const fields = (path: (string | number)[]): any[] => (inspect(showcase, path, null) as any).fields;
+  const dnd = fields(["layouts", "digital", "elements", "dnd_icon"]);
+  const color = dnd.find((f) => f.key === "color");
+  assert.deepEqual([color.widget, color.rules, color.value], ["color", "color", [{ when: "device.do_not_disturb", value: "color.accent" }, { else: "color.dark" }]]);
+  assert.deepEqual(dnd.find((f) => f.key === "visible").rules, "boolean");
+  assert.equal(dnd.find((f) => f.key === "size").rules, undefined);
+  const gauge = fields(["layouts", "digital", "elements", "steps_bar"]);
+  assert.deepEqual(["value", "max"].map((k) => gauge.find((f) => f.key === k)?.rules), ["value", "value"]);
+  // an inline font is the font control's, not a YAML box
+  const inline = minimalText() + "  own:\n    type: text\n    text: X\n    font: { source: assets/A.ttf, size: 12%r }\n";
+  const font = (inspect(inline, ["elements", "own"], null) as any).fields.find((f: any) => f.key === "font");
+  assert.deepEqual([font.widget, font.value], ["font", { source: "assets/A.ttf", size: "12%r" }]);
 });

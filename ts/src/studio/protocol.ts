@@ -159,11 +159,19 @@ export interface PaletteEntry {
   launcher: boolean;
 }
 
-/** `theme: schemes:`: the scheme names, every role any scheme sets, and each scheme's colours by role. */
+/**
+ * `theme: schemes:`: the scheme names, every role any scheme sets, and each
+ * scheme's colours by role. A scheme with `base:` inherits every role it does
+ * not list itself: its `colors` hold those too, and `inherited` names them.
+ */
 export interface Schemes {
   names: string[];
   roles: string[];
   colors: Record<string, Record<string, Value>>;
+  /** Each scheme's `base:` as written, or `null`. */
+  base: Record<string, string | null>;
+  /** Each scheme's roles that come from its base chain, not its own `colors:`. */
+  inherited: Record<string, string[]>;
 }
 
 /** One `config: style: choices:` entry: a name the author wrote is text, or `null` when absent or not text. */
@@ -500,6 +508,14 @@ export interface Effective {
   group?: string;
 }
 
+/**
+ * The rule lists a key accepts beside its own value: a `value` (an
+ * expression, each rule's value one too), a `color` (each rule's value a
+ * `color.<name>`), or a `boolean` (`visible:`, each rule's value true or
+ * false or a condition).
+ */
+export type RuleFamily = "value" | "color" | "boolean";
+
 /** One key of the selected element, in schema order; a node of the field tree. */
 export interface Field {
   key: string;
@@ -535,6 +551,8 @@ export interface Field {
   truncated?: true;
   /** A `yaml` widget's value as text. */
   text?: string;
+  /** The rule lists the key accepts, when it accepts any: its value may be a condition, edited as rows. */
+  rules?: RuleFamily;
 }
 
 /** The element's override for the viewed device, or for its screen shape. */
@@ -635,6 +653,26 @@ export interface ComplicationType {
   sample: string | null;
 }
 
+/** One data source as the pickers describe it: its type, its unit and quantity (or `null`), what it is, and whether it can be absent. */
+export interface SourceInfo {
+  type: "number" | "float" | "boolean" | "string" | "time" | "date" | "color";
+  unit: string | null;
+  quantity: string | null;
+  doc: string;
+  nullable: boolean;
+}
+
+/** A format spec or code a placeholder takes, and what it draws. */
+export type FormatCode = [spec: string, label: string];
+
+/** The specs a placeholder may take, by what it reads: a clock's and a date's strftime codes, a number of seconds' duration codes, and a number's own specs. */
+export interface FormatCodes {
+  time: FormatCode[];
+  date: FormatCode[];
+  duration: FormatCode[];
+  number: FormatCode[];
+}
+
 /** What the pickers offer, independent of any face: the format's words. */
 export interface Words {
   /** Data sources by namespace (`activity` → `activity.steps`, …). */
@@ -653,6 +691,9 @@ export interface Words {
   complication_types: ComplicationType[];
   /** Each catalogue icon's code point. */
   icon_glyphs: Record<string, number>;
+  /** Every data source, by path. */
+  source_info: Record<string, SourceInfo>;
+  format_codes: FormatCodes;
 }
 
 /** The words and the installed devices. */
