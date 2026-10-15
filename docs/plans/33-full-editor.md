@@ -207,6 +207,17 @@ predicts the edit" covers the new handles.
 
 ## Slice 4 — Data editors (D7, D8)
 
+**Shipped 2026-10-15**: F8 a text's own inline `font:` (9062fe1), F9 `base:`
+on a scheme and `label:` on a layout (e182051), F10 rule lists (cde2c13);
+the editors over them (501f098 to 510dd9f): a text template as chips over
+`parseTemplate` with a source and spec picker, a value that follows data
+as condition rows written as a rule list (every template and expression of
+the showcase and enduro opens without a raw fallback, and a colour built
+in rows generates the Monkey C of the ternary it replaces), "own font…"
+with a font-size handle on the canvas (re-baked, so never a live handle),
+and the Face tab's layout labels and scheme bases. New rule lists are
+written in flow style, the patch engine's rule for replacing a scalar.
+
 - **Templates**: a chip editor over `parseTemplate` for `text:` and
   pattern text parts — literal chips, placeholder chips with a source
   picker over the catalogue, a format-spec picker per source type, units;
