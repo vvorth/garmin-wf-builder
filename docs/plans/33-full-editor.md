@@ -137,16 +137,18 @@ record:
 
 - F3 and F5 mechanically rewrote `examples/dashboard/face.yaml`, the
   user's playground (`absent:` and `icon:` spellings only; nothing else
-  in it changed). The generated Monkey C comments in
-  `ts/test/goldens/monkeyc/` still quote the old spellings until the
-  goldens are regenerated.
-- The goldens were frozen with five devices this container lacks
+  in it changed). No Monkey C golden quotes an old spelling: the
+  reviewed Monkey C goldens are the slice fixture and `outline_text`,
+  which the format changes left as they were.
+- The goldens were frozen with five devices this container lacked
   (`venusq2`, `instinct2`, `instinct2x`, `instinct3solar45mm`,
-  `instincte45mm`), so `WFB_UPDATE_GOLDENS=1` has not been run: the two
-  golden tests and one `display:` override test stay red with diffs read
-  and accounted for per format change (baseline 156 corpus designs from
-  the missing devices; F3 17, F6 11, F4 157, F5 about 177, F7 14). They
-  are regenerated once the user uploads those device folders.
+  `instincte45mm`), so they stayed red through slices 2 to 4 with every
+  diff read and accounted for per format change. They were regenerated on
+  2026-10-15 once the user supplied those device folders: with all devices
+  installed, the 463 corpus designs and 12 examples that still differed
+  were each traced to one of F1 to F10 (a new schema error for an old
+  spelling, a relabelled part, a schema description's wording, or a line
+  shift in a rewritten example), and no Monkey C golden changed.
 
 - **The generic form**: a recursive renderer over the schema branch —
   object → fieldset, list → list editor on the slice-0 primitives, `oneOf`/
