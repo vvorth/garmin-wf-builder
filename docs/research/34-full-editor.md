@@ -8,8 +8,8 @@ full-featured GUI, with full freedom to change the YAML format and to
 rewrite the GUI from scratch if needed.
 
 **Status (2026-10-13): research complete; the user took every decision in
-§10 as recommended the same day.** Plan 33 (`docs/plans/33-full-editor.md`)
-builds it, slice by slice.
+§10 as recommended the same day.** Plan 33 built it, slice by slice, and was
+deleted once built on 2026-10-15 (`docs/plans/README.md` says how to read it).
 
 **Method.** Three audits of the code as it stands at `695d1e9` (every file
 under `ts/app/`, `ts/src/studio/`, `ts/src/edit/`, the schema, the guide

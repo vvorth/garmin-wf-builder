@@ -8,9 +8,7 @@ back here.
 
 ## Open
 
-| Plan | What it does |
-|---|---|
-| [33 a full-featured editor](33-full-editor.md) | `wfb studio` rebuilt over its engine: first the four live-session defects that brick a face or lose work, then list primitives, batched edits and a typed contract; the page in TypeScript; a generic schema form and an editing context that decides where `overrides:`/`aod:`/layout edits land; parts, points, template and condition editors; ten format changes; Playwright tests. Waits on research 34's decisions D1–D11 |
+None.
 
 ## Built and deleted
 
@@ -48,3 +46,4 @@ records its own slices and decisions. Its commits are
 | 30 the editor's gaps | `git show 07446be:docs/plans/30-editor-gaps.md` |
 | 31 TypeScript migration | `git show 7aea248:docs/plans/31-typescript-migration.md` (commits `git log --grep "port slice"`; slice 10's open shape rules are in `docs/research/probes/garmin-raster/README.md`) |
 | 32 GUIv2 | `git show 19ae010:docs/plans/32-gui-v2.md` (commits `git log --grep "plan 32"`; built from `docs/research/33-gui-v2.md`) |
+| 33 a full-featured editor | `git show 6ec6c61:docs/plans/33-full-editor.md` (commits `git log --grep "plan 33"` and the slice headings' hashes; built from `docs/research/34-full-editor.md`; ten format changes F1–F10, the editor rebuilt over its engine, the browser suite and the fixture device) |
