@@ -230,9 +230,11 @@ built.
 8. Sideloading from the editor (`wfb studio`): it builds and downloads a
    watch's `.prg`; copying it to the watch is by hand (as `wfb install`,
    item 10, is unbuilt).
-9. CI does not exist. The fast suite, the type check and the slow suite
-   (`npm test`, `npm run typecheck`, `npm run test:slow` in `ts/`) run by
-   hand.
+9. CI runs only what needs no Garmin file: the type check and part of the
+   fast suite, on the fixture device (`docs/development.md`, "Continuous
+   integration"). The rest of the fast suite, the browser suite and the
+   slow suite (`npm test`, `npm run test:browser`, `npm run test:slow` in
+   `ts/`) run by hand.
 10. `wfb install`, `package`.
 11. A `pattern`'s or `data` element's own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and

@@ -564,10 +564,12 @@ only device folder visible (`WFB_DEVICES`, plus a new
   (`page.waitForFunction: Timeout 60000ms exceeded`). The rest of the suite
   was not run on it.
 
-So the secret stays the route for the full suites, and the fixture carries
-a fork's pull request: the type check, those 21 files, and
-`ts/test/fixture-device.test.ts` among them (`docs/development.md`,
-"Continuous integration").
+So the full suites need the owner's files. On 2026-10-15 the user chose to
+run CI without them altogether: every pull request and push to `main` runs
+on the fixture alone, the type check and those 21 files
+(`ts/test/fixture-device.test.ts` among them), with the files that need
+real devices listed commented out (`docs/development.md`, "Continuous
+integration").
 
 The three failures the fast suite shows in this container are not
 regressions: the goldens were frozen with five devices (`venusq2`,

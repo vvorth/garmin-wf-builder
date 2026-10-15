@@ -823,65 +823,41 @@ frozen on them, so they need the real device files.
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs `npm run typecheck`, `npm test` and `npm run
-test:browser` on Node 24 for every push and pull request that has the
-device secret, after
-`tools/setup-env.sh` has installed the SDK (cached between runs), the
-developer key, the device reference and the fonts, and Playwright has
-installed Chromium. The goldens are expected green there, since the owner's
-full device set is present. The slow suite is not run in CI.
+`.github/workflows/ci.yml` runs on every pull request and every push to
+`main`, on Node 24, with **no Garmin file at all**: Garmin's device
+definitions are the owner's licensed copy and are never in the repository
+(root `CLAUDE.md` §2). It runs on the project's own fixture device,
+`wfbtest` (`ts/test/fixtures/devices/`), which `WFB_DEVICES` and
+`WFB_DEVICE_REFERENCE` make the only device anything sees, and installs no
+SDK, Java, device reference or Chromium: `npm ci`, the icon font and the
+three system-font stand-ins `wfbtest` names (`tools/fetch-system-fonts.ts`),
+then `npm run typecheck` and the fast suite's files that need no real
+device.
 
-**The device files come from the repository owner.** They cannot be
-downloaded, and a GitHub secret holds at most 48 KB, so the archive travels
-as an encrypted release asset and only its passphrase is a secret: the
-workflow downloads `devices.tar.bz2.gpg` from the release tagged
-`ci-devices`, decrypts it with the secret `GARMIN_DEVICES_PASSPHRASE` and
-unpacks it into `~/.Garmin/ConnectIQ/`. The owner creates both once from
-their SDK Manager copy (macOS paths shown; on Linux the folder is
-`~/.Garmin/ConnectIQ`); `Fonts` is optional, since the tests read the
-registry's stand-ins, and large:
+The test step lists every file in `ts/test/`. Those that name a real device
+are listed **commented out**, each group with its reason, as is the browser
+suite's step:
 
-```sh
-cd "$HOME/Library/Application Support/Garmin/ConnectIQ"
-tar -cjf - Devices | gpg --symmetric --batch --cipher-algo AES256 \
-    --passphrase "$PASSPHRASE" --pinentry-mode loopback -o /tmp/devices.tar.bz2.gpg
-gh secret set GARMIN_DEVICES_PASSPHRASE --body "$PASSPHRASE"
-gh release create ci-devices /tmp/devices.tar.bz2.gpg --title "CI device files" \
-    --notes "Garmin's device definitions, encrypted, for the CI workflow only" --prerelease
-```
-
-A newer device set replaces the asset: `gh release upload ci-devices
-/tmp/devices.tar.bz2.gpg --clobber`.
-
-**Without the secret** (a pull request from a fork has none) the run falls
-back to the fixture device, says so in a notice, and sets `WFB_DEVICES` and
-`WFB_DEVICE_REFERENCE` to it. It installs no SDK, Java, device reference or
-Chromium: `npm ci`, the icon font and the three system-font stand-ins
-`wfbtest` names (`tools/fetch-system-fonts.ts`), then `npm run typecheck`
-and the test files in the workflow's `FIXTURE_TESTS`, which pass with no
-Garmin file at all:
-
-| Runs on the fixture alone | Needs the owner's devices (not run without the secret) |
+| Runs in CI, on the fixture alone | Commented out: needs the owner's devices |
 |---|---|
-| `bake`, `bundle`, `data`, `doc-citations`, `draw`, `emit`, `expr`, `fixture-device`, `gate`, `kinds`, `lint`, `page-app`, `page-face`, `page-layers`, `page-modules`, `page-store`, `palette`, `py`, `units`, `uuid`, `yaml` | `aod`, `availability`, `barrel`, `cli`, `devices`, `diagnostics`, `edit`, `formatting`, `garmin-raster`, `geometry`, `golden-monkeyc`, `goldens`, `hold`, `layout`, `overrides`, `page-panels`, `parameter-limits`, `protocol`, `studio`, `studio-canvas`, `studio-edits`, `studio-panels`, and the browser suite |
+| `bake`, `bundle`, `data`, `doc-citations`, `draw`, `emit`, `expr`, `fixture-device`, `gate`, `kinds`, `lint`, `page-app`, `page-face`, `page-layers`, `page-modules`, `page-store`, `palette`, `py`, `units`, `uuid`, `yaml` | `aod`, `availability`, `barrel`, `cli`, `devices`, `diagnostics`, `edit`, `formatting`, `garmin-raster`, `geometry`, `golden-monkeyc`, `goldens`, `hold`, `layout`, `overrides`, `page-accept`, `page-panels`, `parameter-limits`, `protocol`, `studio`, `studio-canvas`, `studio-edits`, `studio-panels`, and the browser suite |
 
 The second column's files name real devices (the verification devices,
 `fenix847mm`, and the goldens' whole set), so on the fixture alone they
-fail, mostly with `unknown device '…'.  Installed: wfbtest`, the rest on
-an assertion about a face drawn on a named device. They fail rather than
-skip on purpose: a skip would let a missing device turn a test off
-unnoticed in the full run too. To run the fixture's set by hand, with no
-Garmin file visible:
+fail, mostly with `unknown device '…'.  Installed: wfbtest`. They fail
+rather than skip on purpose: a skip would let a missing device turn a test
+off unnoticed in the full run too. They, the browser suite and the slow
+suite run locally after `tools/setup-env.sh`; `npm test` there runs every
+file. A new test file that needs no real device goes in the active list; a
+test that needs one goes in a file of the commented list (as `page-accept`
+holds the one page test whose lint warning is measured on real watches).
+To run CI's set by hand, with no Garmin file visible:
 
 ```sh
 cd ts
 WFB_DEVICES="$PWD/test/fixtures/devices" WFB_DEVICE_REFERENCE="$PWD/test/fixtures/devices/reference" \
-  WFB_NO_GARMIN_FONTS=1 node --test test/bake.test.ts test/bundle.test.ts …   # the FIXTURE_TESTS list
+  WFB_NO_GARMIN_FONTS=1 node --test test/bake.test.ts test/bundle.test.ts …   # the workflow's active list
 ```
-
-The workflow has not yet been run on GitHub; both paths are written to be
-right by reading, and the fallback's commands were run in a copy of the
-repository with no device files, no SDK and an empty home folder.
 
 ## What is decided
 

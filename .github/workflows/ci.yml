@@ -1,36 +1,33 @@
-# The type check, the fast suite and the browser suite, on every push and
-# pull request. The compiler needs Garmin's device definitions, which cannot
-# be downloaded: the repository owner publishes their own copy as an
-# encrypted release asset and keeps the passphrase in a repository secret
-# (docs/development.md, "Continuous integration"). Without the secret (a
-# fork's pull request) the run falls back to the project's own fixture
-# device, wfbtest (ts/test/fixtures/devices/): the type check and the test
-# files listed in FIXTURE_TESTS, which need no Garmin device. The slow suite
-# (every design through monkeyc) runs by hand only.
+# The type check and the fast suite's tests that need no Garmin file, on every
+# pull request and every push to main.
+#
+# Garmin's device definitions (vendor/devices/, ~/.Garmin/ConnectIQ/Devices)
+# are the owner's licensed copy and are never in the repository, so CI runs
+# on the project's own fixture device, wfbtest (ts/test/fixtures/devices/),
+# with no SDK, no device reference and no Garmin font. The test files that
+# name a real device, and the browser suite, are listed below commented out
+# with the reason; run them locally after tools/setup-env.sh
+# (docs/development.md, "Continuous integration"). The slow suite (every
+# design through monkeyc) runs by hand only.
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ts
     env:
-      # The test files that pass with no Garmin device file at all, the fixture
-      # device alone visible; every other file in test/ needs the owner's
-      # devices (docs/development.md, "Continuous integration").
-      FIXTURE_TESTS: >-
-        test/bake.test.ts test/bundle.test.ts test/data.test.ts test/doc-citations.test.ts
-        test/draw.test.ts test/emit.test.ts test/expr.test.ts test/fixture-device.test.ts
-        test/gate.test.ts test/kinds.test.ts test/lint.test.ts test/page-app.test.ts
-        test/page-face.test.ts test/page-layers.test.ts test/page-modules.test.ts
-        test/page-store.test.ts test/palette.test.ts test/py.test.ts test/units.test.ts
-        test/uuid.test.ts test/yaml.test.ts
+      # the fixture device is the only device anything sees
+      WFB_DEVICES: ${{ github.workspace }}/ts/test/fixtures/devices
+      WFB_DEVICE_REFERENCE: ${{ github.workspace }}/ts/test/fixtures/devices/reference
+      WFB_NO_GARMIN_FONTS: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -40,92 +37,74 @@ jobs:
           cache: npm
           cache-dependency-path: ts/package-lock.json
 
-      # The owner's device files when the secret is set; otherwise the fixture
-      # device, through WFB_DEVICES and WFB_DEVICE_REFERENCE.
-      - name: Restore the device definitions, or fall back to the fixture device
-        id: devices
-        working-directory: .
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PASSPHRASE: ${{ secrets.GARMIN_DEVICES_PASSPHRASE }}
-        run: |
-          if [ -z "$PASSPHRASE" ]; then
-            echo "::notice::the secret GARMIN_DEVICES_PASSPHRASE is not set (a fork's pull request has none), so this run uses the fixture device wfbtest: the type check and the test files that need no Garmin device (FIXTURE_TESTS); the rest of the fast suite and the browser suite need the owner's devices and are not run. See docs/development.md, 'Continuous integration'"
-            echo "WFB_DEVICES=$GITHUB_WORKSPACE/ts/test/fixtures/devices" >> "$GITHUB_ENV"
-            echo "WFB_DEVICE_REFERENCE=$GITHUB_WORKSPACE/ts/test/fixtures/devices/reference" >> "$GITHUB_ENV"
-            echo "fixture=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          mkdir -p ~/.Garmin/ConnectIQ
-          gh release download ci-devices --repo "$GITHUB_REPOSITORY" --pattern devices.tar.bz2.gpg --output /tmp/devices.tar.bz2.gpg
-          gpg --decrypt --batch --quiet --pinentry-mode loopback --passphrase "$PASSPHRASE" /tmp/devices.tar.bz2.gpg \
-            | tar -xj -C ~/.Garmin/ConnectIQ
-          rm /tmp/devices.tar.bz2.gpg
-          echo "$(ls ~/.Garmin/ConnectIQ/Devices | wc -l) devices restored"
-          echo "fixture=false" >> "$GITHUB_OUTPUT"
-
-      # -- with the owner's devices: everything --
-
-      # monkeyc runs on Java
-      - uses: actions/setup-java@v4
-        if: steps.devices.outputs.fixture == 'false'
-        with:
-          distribution: temurin
-          java-version: 21
-
-      # the Connect IQ SDK tools/setup-env.sh downloads (~200 MB), kept between runs
-      - uses: actions/cache@v4
-        if: steps.devices.outputs.fixture == 'false'
-        with:
-          path: ~/ciq/sdks
-          key: ciq-sdk-${{ runner.os }}-${{ hashFiles('tools/setup-env.sh') }}
-
-      # the SDK, the developer key, the device reference, the icon font, the system fonts and ts/'s dependencies
-      - name: Set up the build environment
-        if: steps.devices.outputs.fixture == 'false'
-        working-directory: .
-        run: ./tools/setup-env.sh
-
-      - name: Point at the SDK
-        if: steps.devices.outputs.fixture == 'false'
-        run: |
-          sdk="$(ls -d "$HOME"/ciq/sdks/* | sort -V | tail -n 1)"
-          echo "CIQ_SDK=$sdk" >> "$GITHUB_ENV"
-          echo "$sdk/bin" >> "$GITHUB_PATH"
-
-      - name: Install Chromium for the browser suite
-        if: steps.devices.outputs.fixture == 'false'
-        run: npx playwright install --with-deps chromium
-
-      - if: steps.devices.outputs.fixture == 'false'
-        run: npm run typecheck
-      - if: steps.devices.outputs.fixture == 'false'
-        run: npm test
-      - if: steps.devices.outputs.fixture == 'false'
-        run: npm run test:browser
-
-      - name: Keep the screenshots of failed browser tests
-        if: failure() && steps.devices.outputs.fixture == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: browser-shots
-          path: ts/browser/shots/
-          if-no-files-found: ignore
-
-      # -- on the fixture device alone: no SDK, no device reference, no Garmin file --
-
-      # ts/'s dependencies, the icon font, and the system-font stand-ins wfbtest names
-      - name: Set up for the fixture device
-        if: steps.devices.outputs.fixture == 'true'
+      # ts/'s dependencies, the icon font, and the free system-font stand-ins wfbtest names
+      - name: Install
         run: |
           npm ci --no-audit --no-fund
           node tools/fetch-icon-font.ts
           node tools/fetch-system-fonts.ts
 
-      - name: Type check (fixture device)
-        if: steps.devices.outputs.fixture == 'true'
+      - name: Type check
         run: npm run typecheck
 
-      - name: The tests that need no Garmin device (fixture device)
-        if: steps.devices.outputs.fixture == 'true'
-        run: node --test $FIXTURE_TESTS
+      - name: Tests that need no Garmin device file
+        run: |
+          tests=(
+            test/bake.test.ts
+            test/bundle.test.ts
+            test/data.test.ts
+            test/doc-citations.test.ts
+            test/draw.test.ts
+            test/emit.test.ts
+            test/expr.test.ts
+            test/fixture-device.test.ts
+            test/gate.test.ts
+            test/kinds.test.ts
+            test/lint.test.ts
+            test/page-app.test.ts
+            test/page-face.test.ts
+            test/page-layers.test.ts
+            test/page-modules.test.ts
+            test/page-store.test.ts
+            test/palette.test.ts
+            test/py.test.ts
+            test/units.test.ts
+            test/uuid.test.ts
+            test/yaml.test.ts
+            # Need the owner's Garmin device files (vendor/devices/): each
+            # names a real device (the verification devices fenix8solar47mm,
+            # fenix8solar51mm and fr955, fenix847mm, or the goldens' whole
+            # set), which the fixture device cannot stand in for.
+            # test/aod.test.ts
+            # test/availability.test.ts
+            # test/barrel.test.ts
+            # test/cli.test.ts
+            # test/devices.test.ts
+            # test/diagnostics.test.ts
+            # test/edit.test.ts
+            # test/formatting.test.ts
+            # test/garmin-raster.test.ts
+            # test/geometry.test.ts
+            # test/golden-monkeyc.test.ts
+            # test/goldens.test.ts
+            # test/hold.test.ts
+            # test/layout.test.ts
+            # test/overrides.test.ts
+            # test/page-accept.test.ts
+            # test/page-panels.test.ts
+            # test/parameter-limits.test.ts
+            # test/protocol.test.ts
+            # test/studio.test.ts
+            # test/studio-canvas.test.ts
+            # test/studio-edits.test.ts
+            # test/studio-panels.test.ts
+          )
+          node --test "${tests[@]}"
+
+      # The browser suite (ts/browser/) drives the editor over the example
+      # faces, which target real devices, so it needs the owner's device
+      # files too; it runs locally with `npm run test:browser`.
+      # - name: Install Chromium for the browser suite
+      #   run: npx playwright install --with-deps chromium
+      # - name: Browser suite
+      #   run: npm run test:browser
