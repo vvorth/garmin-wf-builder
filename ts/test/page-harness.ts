@@ -35,9 +35,13 @@ export const len = (x: unknown): number => (typeof x === "string" || Array.isArr
 export const count = (container: string | unknown[], item: unknown): number =>
   typeof container === "string" ? container.split(item as string).length - 1 : container.filter((x) => eq(x, item)).length;
 
-/** A script run as an ES module in a fresh Node: its exit code and output. */
+/**
+ * A script run as an ES module in a fresh Node: its exit code and output.
+ * The script goes in on stdin, not as an argument: a script carrying an
+ * inspected field tree outgrows the kernel's limit on one argument (128 KiB).
+ */
 export function node(script: string): { returncode: number; stdout: string; stderr: string } {
-  const done = spawnSync(process.execPath, ["--import", testUri("dist_hook.mjs"), "--input-type=module", "-e", script], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const done = spawnSync(process.execPath, ["--import", testUri("dist_hook.mjs"), "--input-type=module"], { input: script, encoding: "utf8", maxBuffer: 64 << 20 });
   return { returncode: done.status ?? 1, stdout: done.stdout, stderr: done.stderr };
 }
 
