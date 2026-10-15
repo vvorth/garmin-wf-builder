@@ -5,7 +5,7 @@
 // a refused edit leaves the face as it was and says why.
 
 import { html } from "htm/preact";
-import { useState, useRef } from "preact/hooks";
+import { useEffect, useState, useRef } from "preact/hooks";
 import type { JSX, VNode } from "preact";
 import { afterRemovingSchemes, colorName, newStyleEntry, parseHex, toHex } from "./values.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
@@ -462,6 +462,43 @@ function NewSlot({ vocab, taken, onEdit }: NewSlotProps): VNode {
   </div>`;
 }
 
+/** The field tree of a path that is not the selection (a `resources: fonts:` entry), as the worker answers it. */
+export type OnInspect = (path: Path) => Promise<Inspect>;
+
+interface FontOptionsProps {
+  name: string;
+  doc: Summary;
+  ctx: FaceCtx;
+  onInspect: OnInspect;
+  onEdit: OnEdit;
+  onBatch?: ((label: string, edits: EditOp[]) => void) | undefined;
+}
+
+/** The keys a font's own row edits already: its file and its size. */
+const FONT_ROW_KEYS = new Set(["source", "size"]);
+
+// Every other key of one `resources: fonts:` entry, as the generic form over
+// the worker's field tree for it: a baked font's `glyphs`, `antialias`,
+// `monospace` and `align`, a vector font's `face` (one name, or a list of
+// them tried in order, the faces the face's watches publish suggested) and
+// `unsupported`. Asked again whenever the face changes.
+function FontOptions({ name, doc, ctx, onInspect, onEdit, onBatch }: FontOptionsProps): VNode {
+  const [ins, setIns] = useState<Inspect | null>(null);
+  const path: Path = ["resources", "fonts", name];
+  useEffect(() => {
+    let live = true;
+    onInspect(path).then((answer) => { if (live) setIns(answer); }, () => { if (live) setIns(null); });
+    return () => { live = false; };
+  }, [name, doc.version]);
+  if (!ins || ins.error) return html`<div class="font-options dim">${ins ? ins.error : "…"}</div>`;
+  const devices = (ctx.vocab.devices || []).filter((d) => doc.globals.targets.includes(d.id));
+  const faceNames = [...new Set(devices.flatMap((d) => d.faces ?? []))].sort();
+  const wctx: WidgetCtx = { ...ctx, systemFonts: [], elementType: "font", onReveal: () => {}, onBatch, faceNames, assets: doc.assets ?? [] };
+  return html`<div class="font-options">
+    <${Form} ins=${{ ...ins, fields: ins.fields.filter((f) => !FONT_ROW_KEYS.has(f.key)) }} target="all" ctx=${wctx} onEdit=${onEdit} />
+  </div>`;
+}
+
 /** A font file added to the bundle: declared as the font `font` at `size`, or pointed at by every font whose `source:` is `reference`. */
 export type OnUpload = (file: File, what: { font?: string; size?: string; reference?: string | null }) => unknown;
 
@@ -473,6 +510,10 @@ export interface FacePanelProps {
   onSelect: OnSelect;
   onStructure: OnStructure;
   onReveal?: OnReveal | undefined;
+  /** A font's field tree, for its options; without it a font shows its file and size only. */
+  onInspect?: OnInspect | undefined;
+  /** Several edits as one change, under `label`. */
+  onBatch?: ((label: string, edits: EditOp[]) => void) | undefined;
   /** The open section, when the editor holds it; the panel keeps its own otherwise. */
   section?: string | null | undefined;
   onSection?: ((key: SectionKey) => void) | undefined;
@@ -501,7 +542,7 @@ interface FaceSection {
  * The Face tab: one section at a time (`section`, a key below, and
  * `onSection` to switch), as the editor holds it.
  */
-export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, section, onSection }: FacePanelProps): VNode {
+export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, onInspect, onBatch, section, onSection }: FacePanelProps): VNode {
   const g = doc.globals;
   const palette = g.palette;
   const schemes = g.schemes;
@@ -510,6 +551,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
   const unreadable = vocab.unreadable_devices || [];
   // a font file chosen and waiting for its name
   const [newFont, setNewFont] = useState<File | null>(null);
+  // the fonts whose options are open
+  const [fontsOpen, setFontsOpen] = useState<string[]>([]);
   const fontFile = useRef<HTMLInputElement | null>(null);
   const replaceFor = useRef<string | null>(null);
   const replaceFile = useRef<HTMLInputElement | null>(null);
@@ -598,6 +641,9 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, se
           onCommit=${(v: string | number) => onEdit({ op: "set", path: ["resources", "fonts", f.name, "size"], value: v })} />` : null}
         ${f.source ? html`<button title="replace the font file" onClick=${() => { replaceFor.current = f.source; replaceFile.current?.click(); }}>Replace…</button>` : null}
         <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "fonts", f.name] })}>×</button>
+        ${onInspect ? html`<button class="font-toggle" aria-expanded=${fontsOpen.includes(f.name)} title=${f.source ? "glyphs, antialias, monospace, align" : "face names, unsupported"}
+            onClick=${() => setFontsOpen(fontsOpen.includes(f.name) ? fontsOpen.filter((n) => n !== f.name) : [...fontsOpen, f.name])}>${fontsOpen.includes(f.name) ? "options ▾" : "options ▸"}</button>` : null}
+        ${onInspect && fontsOpen.includes(f.name) ? html`<${FontOptions} key=${f.name} name=${f.name} doc=${doc} ctx=${ctx} onInspect=${onInspect} onEdit=${onEdit} onBatch=${onBatch} />` : null}
       </li>`)}</ul>
       ${newFont ? html`<div class="row"><span class="dim">${newFont.name} as</span>
           <${AddName} key=${newFont.name} label="font name" placeholder="font name" startOpen=${true}

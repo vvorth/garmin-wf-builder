@@ -552,3 +552,8 @@ table.styles-matrix td.actions { white-space: nowrap; }
 .diags .accept-form { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; font-size: 12px; }
 .diags .accept-form input.reason { flex: 1; min-width: 8em; padding: 2px 6px; font-size: 12px; }
 .diags .accept-form button { padding: 1px 8px; font-size: 12px; }
+
+/* a font's options under its row: the generic form over its entry */
+.rows li.font { flex-wrap: wrap; }
+.font .font-toggle { padding: 1px 8px; font-size: 12px; }
+.font .font-options { flex-basis: 100%; padding: 4px 0 2px 8px; }

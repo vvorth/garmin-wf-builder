@@ -591,6 +591,8 @@ function LeftPanel({ doc }: { doc: Summary }): VNode {
       : html`<${FacePanel} doc=${doc} vocab=${vocab ?? {}} onEdit=${(op: EditOp) => store.edit(op)}
                            onUpload=${(file: File, what: Parameters<EditorStore["upload"]>[1]) => store.upload(file, what)}
                            onSelect=${select} onStructure=${structure} onReveal=${(line: number, end: number) => store.reveal(line, end)}
+                           onInspect=${(p: Path) => api("inspect", { id: doc.id, element: p })}
+                           onBatch=${(label: string, edits: EditOp[]) => { void store.batch(label, edits); }}
                            section=${faceSection} onSection=${(key: string) => store.setUi({ faceSection: key })} />`}</div>
   </div>`;
 }

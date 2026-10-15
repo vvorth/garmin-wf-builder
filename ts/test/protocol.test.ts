@@ -135,7 +135,7 @@ const frame = obj({
   tiles: obj({ data: str, index: record(tuple(int, int, int, literal("mask", "rgba"))) }),
 });
 
-const WIDGETS = ["readonly", "object", "length", "angle", "align", "color", "expression", "template", "enum", "slot", "handset", "font", "icon",
+const WIDGETS = ["readonly", "object", "length", "angle", "align", "color", "expression", "template", "enum", "slot", "handset", "font", "face", "icon",
   "complication", "bool", "number", "text", "yaml"];
 const effective = obj({ value, from: literal("own", "override", "aod", "group", "defaults", "absent"), selector: opt(str), group: opt(str) });
 const field: Check = (v, at) => obj({
@@ -147,7 +147,7 @@ const field: Check = (v, at) => obj({
 const scopeOverride = obj({ selector: str, keys: record(value) });
 const context = obj({ frame: literal("awake", "asleep", "aod"), style: nullable(str) });
 const inspect = obj({
-  element: path, id: str, type: str, subject: literal("element", "hand", "part"), context, fields: list(field), unknown: list(str), aod_keys: list(str),
+  element: path, id: str, type: str, subject: literal("element", "hand", "part", "font"), context, fields: list(field), unknown: list(str), aod_keys: list(str),
   overrides: obj({ device: opt(scopeOverride), shape: opt(scopeOverride), display: opt(scopeOverride) }),
   overridden: list(obj({ selector: str, keys: record(value), line: int, end: int })), parts: nullable(obj({ count: int, shapes: list(str), line: int, end: int })),
   device: nullable(str), shape: nullable(str), display: nullable(str), error: nullable(str),
@@ -160,7 +160,7 @@ const vocabulary = obj({
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),
   format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)) }),
   lint_codes: list(str),
-  devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str) })),
+  devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str), faces: list(str) })),
   unreadable_devices: list(obj({ id: str, reason: str })),
 });
 const home = obj({

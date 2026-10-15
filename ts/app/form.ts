@@ -62,6 +62,27 @@ export interface WidgetCtx extends FaceCtx {
   assets?: string[] | undefined;
   /** Several edits sent as one change, under `label`: a rule list written with the swatch a picked colour needs. */
   onBatch?: ((label: string, edits: EditOp[]) => void) | undefined;
+  /** The device-resident faces a vector font may name (the face's watches'), offered as a `face:` is typed. */
+  faceNames?: readonly string[] | undefined;
+}
+
+/** A datalist's id, one per face-name box, so each names its own suggestions. */
+let faceLists = 0;
+
+interface FaceNameProps {
+  value: Value | undefined;
+  names: readonly string[];
+  onCommit: (value: Value) => void;
+}
+
+// A vector font's face name: free text, with the faces the face's watches
+// publish as suggestions.
+function FaceName({ value, names, onCommit }: FaceNameProps): VNode {
+  const [id] = useState<string>(() => `wfb-faces-${++faceLists}`);
+  return html`<span class="face-name">
+    <${Commit} value=${shown(value)} list=${id} placeholder="a face the watch publishes" onCommit=${(t: string) => { if (t.trim()) onCommit(t.trim()); }} />
+    <datalist id=${id}>${names.map((n) => html`<option value=${n} />`)}</datalist>
+  </span>`;
 }
 
 // An event on the input, select or link the handler is on: `currentTarget` is that element.
@@ -512,6 +533,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, 
         onCommit=${commitRules} />`;
     }
     case "text": return html`<${Commit} value=${shown(value)} onCommit=${onCommit} />`;
+    case "face": return html`<${FaceName} value=${value} names=${ctx.faceNames ?? []} onCommit=${onCommit} />`;
     case "object":
     case "yaml": return asYaml();
     default: return unknownWidget(field.widget, asYaml());
@@ -593,7 +615,7 @@ function reading(field: Field, ins: Inspect, lane: Lane, depth: number): Reading
  * first branch, an enum's first value, false, 0, or the empty string (a
  * colour: the face's first swatch).
  */
-export function seedOf(field: Field, ctx?: FaceCtx): Value {
+export function seedOf(field: Field, ctx?: FaceCtx & { faceNames?: readonly string[] | undefined }): Value {
   if (field.default !== null && field.default !== undefined) return field.default;
   switch (field.kind) {
     case "object": {
@@ -609,6 +631,7 @@ export function seedOf(field: Field, ctx?: FaceCtx): Value {
         case "bool": return false;
         case "number": case "length": case "angle": return 0;
         case "color": { const first = ctx?.globals.palette[0]; return first ? `color.${first.name}` : "#FFFFFF"; }
+        case "face": return ctx?.faceNames?.[0] ?? "";
         default: return "";
       }
     }
@@ -632,6 +655,7 @@ function branchLabel(branch: Field): string {
     case "color": return "colour";
     case "expression": return "expression";
     case "template": return "text";
+    case "face": return "one face";
     default: return branch.widget;
   }
 }
@@ -649,6 +673,18 @@ function admits(branch: Field, value: Value): boolean {
     case "length": case "angle": return typeof value === "number" || typeof value === "string";
     default: return typeof value === "string";
   }
+}
+
+/**
+ * What a value becomes in another branch when it can go there whole: one
+ * value into a list of them (its one item), a list's first item out of it.
+ * Undefined when it cannot, for the branch's seed instead.
+ */
+function carried(to: Field, value: Value | undefined): Value | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (to.kind === "list" && !Array.isArray(value) && to.item && admits(to.item, value)) return [value];
+  if (to.kind !== "list" && Array.isArray(value) && value.length > 0 && admits(to, value[0] as Value)) return value[0] as Value;
+  return undefined;
 }
 
 /** The branch of `field` the shown `value` has the shape of: the worker's when the value is the key's own, else matched here. */
@@ -701,7 +737,7 @@ function aodFields(ins: Inspect): Field[] {
 }
 
 /** Whether the tree answers for a hand or a part: neither has overrides or an `aod:` block, so its keys are edited as they are in every frame. */
-const isPartLike = (ins: Inspect): boolean => ins.subject === "part" || ins.subject === "hand";
+const isPartLike = (ins: Inspect): boolean => ins.subject === "part" || ins.subject === "hand" || ins.subject === "font";
 
 /** Where a top-level key's edits go: the `aod:` block in the always-on frame (else read-only), the Edit for target for a geometry key, else the key itself; a part's or a hand's always its own key. */
 function laneOf(field: Field, ins: Inspect, target: Scope): Lane {
@@ -910,7 +946,7 @@ function ChoiceField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
   const pick = (i: number): void => {
     const to = branches[i];
     if (i === chosen || !to) return;
-    void onEdit({ op: "set", ...base, value: seedOf(to, ctx) });
+    void onEdit({ op: "set", ...base, value: carried(to, r.value) ?? seedOf(to, ctx) });
   };
   return html`<div class=${classes} style=${`--depth:${depth}`}>
     <${Name} field=${field} badge=${r.badge} />

@@ -355,7 +355,13 @@ a part's path (`subject`: `hand`, `part`), it answers the hand's keys
 `patternPart`), narrowed to the keys its type reads by the compiler's own
 tables, read as written: a part has no overrides and no `aod:` block, so
 `aod_keys` is empty, `overrides` has no entry, and the context's frame does
-not change what it reads. Its `fields` are a
+not change what it reads. Given a `resources: fonts:` entry's path
+(`subject: "font"`), it answers that entry's `bakedFont` or `vectorFont`
+branch (by `source:` or `face:`), without the keys the schema keeps there
+only to name the mistake ("Baked-font key. A build error here"), and a
+`face:` name's widget is `face`; the Face tab's Fonts section renders it
+with the same form, its edits the generic ops with the entry as their
+element target. Its `fields` are a
 tree generated from the element's schema branch: each node's `kind` is
 `scalar` (with the control its `$defs` entry picks, `widget`), `object`
 (`children`, every property present or not; one whose keys the author names,

@@ -954,3 +954,48 @@ test("accept here: the lint block the page composes lands in one batch and the w
   // every code it offers is one the compiler lets a lint: block accept
   assert.ok(vocabulary().lint_codes.includes("text-outline-interior") && !vocabulary().lint_codes.includes("lint-allow"));
 });
+
+// -- a font's options --
+
+test("a fonts: entry inspects as its own branch and its options are edited through the generic ops", async () => {
+  const client = await Client.open();
+  const doc = openExample(client.studio, "examples/features/vector-text/face.yaml");
+  const ask = async (name: string): Promise<any> => (await client.call("inspect", { id: doc.id, element: ["resources", "fonts", name] })).json;
+  const baked = await ask("clock");
+  assert.equal(baked.subject, "font");
+  assert.equal(baked.type, "font");
+  assert.equal(baked.error, null);
+  // a baked font's own keys, written first; a vector font's keys, a build error here, are not offered
+  assert.deepEqual(baked.fields.map((f: any) => f.key), ["source", "size", "monospace", "antialias", "glyphs", "align"]);
+  assert.deepEqual(Object.fromEntries(baked.fields.map((f: any) => [f.key, f.widget])),
+    { source: "text", size: "length", monospace: "bool", antialias: "bool", glyphs: "text", align: "enum" });
+  const vector = await ask("dial");
+  assert.deepEqual(vector.fields.map((f: any) => f.key), ["face", "size", "unsupported"]);
+  const face = vector.fields[0];
+  assert.equal(face.kind, "choice");
+  assert.equal(face.chosen, 1, "a list of faces");
+  assert.deepEqual(face.branches.map((b: any) => b.kind === "list" ? `list of ${b.item.widget}` : b.widget), ["face", "list of face"]);
+  assert.deepEqual(face.branches[1].items.map((i: any) => i.value), ["BionicSemiBold", "RobotoCondensedBold"]);
+  // the ops a font's form sends: the entry is the element target, in the all scope
+  const target = { element: ["resources", "fonts", "clock"], scope: "all" };
+  const edited = async (op: Record<string, unknown>): Promise<number> => (await client.call("edit", { id: doc.id, version: doc.version, edit: { ...op, ...target } })).status;
+  assert.equal(await edited({ op: "set", path: ["glyphs"], value: "0123456789:" }), 200);
+  assert.equal(await edited({ op: "set", path: ["align"], value: "right" }), 200);
+  assert.equal(await edited({ op: "set", path: ["antialias"], value: false }), 200);
+  const clock = dataOf(doc).resources.fonts.clock;
+  assert.deepEqual([clock.glyphs, clock.align, clock.antialias, clock.monospace], ["0123456789:", "right", false, true]);
+  // align without monospace is a build error the gate refuses
+  const refused = await client.call("edit", { id: doc.id, version: doc.version, edit: { op: "set", path: ["monospace"], value: false, ...target } });
+  assert.equal(refused.status, 400);
+  // a vector font's face list, an item added and the list made one name again
+  const dial = { element: ["resources", "fonts", "dial"], scope: "all" };
+  const r1 = await client.call("edit", { id: doc.id, version: doc.version, edit: { op: "insert_item", path: ["face"], at: 2, value: "RobotoBlack", ...dial } });
+  assert.equal(r1.status, 200, JSON.stringify(r1.json));
+  assert.deepEqual(dataOf(doc).resources.fonts.dial.face, ["BionicSemiBold", "RobotoCondensedBold", "RobotoBlack"]);
+  const r2 = await client.call("edit", { id: doc.id, version: doc.version, edit: { op: "set", path: ["face"], value: "RobotoCondensedBold", ...dial } });
+  assert.equal(r2.status, 200, JSON.stringify(r2.json));
+  assert.equal(dataOf(doc).resources.fonts.dial.face, "RobotoCondensedBold");
+  // each target's published faces come with the vocabulary, to suggest
+  const devices = (await client.call("vocabulary", {})).json.devices;
+  assert.ok(devices.find((d: any) => d.id === "fenix8solar47mm").faces.includes("BionicSemiBold"));
+});

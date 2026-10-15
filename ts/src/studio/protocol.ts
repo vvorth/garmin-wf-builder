@@ -483,7 +483,7 @@ export interface Frame {
  */
 export type Widget =
   | "readonly" | "object" | "length" | "angle" | "align" | "color" | "expression" | "template" | "enum"
-  | "slot" | "handset" | "font" | "icon" | "complication" | "bool" | "number" | "text" | "yaml";
+  | "slot" | "handset" | "font" | "face" | "icon" | "complication" | "bool" | "number" | "text" | "yaml";
 
 /**
  * What a field's schema branch is: a `scalar` (one control, `widget`), an
@@ -583,17 +583,19 @@ export interface PartsSummary {
 
 /**
  * The selected element's keys as a field tree, for one editing context.
- * `element` may be a hand's path (`subject` "hand": its `color` and `parts`)
- * or a part's (`subject` "part": the part's own keys, `type` the part's);
- * neither has overrides or an `aod:` block, so `aod_keys` is empty and
- * `overrides` has no entry. With `error` set, `element` is none of these
+ * `element` may be a hand's path (`subject` "hand": its `color` and `parts`),
+ * a part's (`subject` "part": the part's own keys, `type` the part's) or a
+ * `resources: fonts:` entry's (`subject` "font", `type` "font": the keys of
+ * its baked or vector branch, without those the schema marks a build error
+ * there, a `face:` name's widget `face`); none has overrides or an `aod:`
+ * block, so `aod_keys` is empty and `overrides` has no entry. With `error` set, `element` is none of these
  * and the rest is empty.
  */
 export interface Inspect {
   element: Path;
   id: string;
   type: string;
-  subject: "element" | "hand" | "part";
+  subject: "element" | "hand" | "part" | "font";
   /** The context the fields' effective values are read for. */
   context: EditContext;
   fields: Field[];
@@ -630,6 +632,8 @@ export interface DeviceInfo {
   display: string;
   /** Its system font names. */
   fonts: string[];
+  /** The device-resident scalable faces it publishes to `Graphics.getVectorFont`, by name. */
+  faces: string[];
 }
 
 /** An installed device whose files could not be read. */

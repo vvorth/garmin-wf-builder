@@ -81,8 +81,9 @@ const vocabulary = (): Record<string, unknown> => {
 /**
  * The Face panel rendered over `summary`, then `body` run (it has `root`,
  * `find`, `click`, `settle`, `typeName`, `out` and `edits`): what it printed.
+ * `props` adds to the panel's props (htm source), `devices` is the vocabulary's.
  */
-export async function render(summary: unknown, body: string): Promise<any[]> {
+export async function render(summary: unknown, body: string, { props = "", devices = [] }: { props?: string; devices?: unknown[] } = {}): Promise<any[]> {
   return printed(`
       import { install } from ${JSON.stringify(testUri("studio_dom.mjs"))};
       const document = install();
@@ -91,7 +92,7 @@ export async function render(summary: unknown, body: string): Promise<any[]> {
       const { FacePanel } = await import(${JSON.stringify(appUri("panels.ts"))});
       const edits = [];
       const root = document.createElement("div");
-      render(html\`<\${FacePanel} doc=\${${JSON.stringify(summary)}} vocab=\${${JSON.stringify({ ...vocabulary(), devices: [] })}}
+      render(html\`<\${FacePanel} doc=\${${JSON.stringify(summary)}} vocab=\${${JSON.stringify({ ...vocabulary(), devices })}} ${props}
         onEdit=\${(op) => edits.push(op)} onSelect=\${(id) => edits.push({select: id})}
         onUpload=\${() => {}} onStructure=\${() => {}}
         onReveal=\${(line, end) => edits.push({reveal: [line, end]})} />\`, root);

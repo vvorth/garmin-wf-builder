@@ -14,7 +14,10 @@
 // The path inspected may name a hand of a hand set, or a part of a hand, a
 // pattern or a needle (`subject`): the fields are then the hand's (`color`,
 // `parts`) or the part's own schema branch (`handPart`, `patternPart`),
-// read as written, since neither has overrides or an `aod:` block.
+// read as written, since neither has overrides or an `aod:` block. It may
+// also name a `resources: fonts:` entry (`subject` "font"): the fields of
+// its branch, `bakedFont` with a `source:` and `vectorFont` with a `face:`,
+// without the keys the schema marks a build error on that branch.
 //
 // Values are the author's, read from the text: what the author wrote, in
 // their units, or nothing when the key is absent. Beside each, `effective`
@@ -212,6 +215,8 @@ function classify(key: string, type: string, path: Path, node: Json): [FieldKind
   if (key === "slot" && path.length === 1) return scalar("slot");
   if (key === "set" && type === "hands" && path.length === 1) return scalar("handset");
   if (key === "font" && kind === "string") return scalar("font");
+  // a vector font's face names, one or each of a list
+  if (type === "font" && path[0] === "face" && kind === "string") return scalar("face");
   // an element's icon: a name or a {codepoint}, one picker (a data element's icon: is the block placing the pick's own)
   if (key === "icon" && type !== "data" && (kind === "string" || Array.isArray(resolved["oneOf"]))) return scalar("icon");
   // a data element's hold opens the wearer's own pick, so `auto` is its only target
@@ -440,11 +445,19 @@ export function inspect(text: string, element: Path, device: Device | null, cont
     aod_keys: [], overrides: {}, overridden: [], parts: null,
     device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null, error: null,
   };
-  const subject = subjectOf(index, element);
+  const font = element.length === 3 && element[0] === "resources" && element[1] === "fonts" && isMap(data);
+  const subject = font ? "font" : subjectOf(index, element);
   if (subject === null || !isMap(data)) return { ...out, error: "not an element" };
   const defs = schema()["$defs"] as Record<string, Json>;
   let type: string, branch: Json, hide: Set<string>, reading: Reading;
-  if (subject === "element") {
+  if (subject === "font") {
+    // the branch its shape picks; a key the schema keeps on it only to name the mistake is not offered
+    type = "font";
+    branch = (data.has("face") && !data.has("source") ? defs["vectorFont"] : defs["bakedFont"]) ?? { properties: {} };
+    const props = (branch["properties"] ?? {}) as Record<string, Json>;
+    hide = new Set(Object.keys(props).filter((k) => /^(Baked|Vector)-font key\. A build error here/.test(String(props[k]!["description"] ?? ""))));
+    reading = { type, data, device: null, context: { ...context, frame: "awake" }, aodKeys: new Set(), cascade: { own: null, group: null, defaults: null, hiddenBy: null } };
+  } else if (subject === "element") {
     type = String(data.get("type"));
     branch = elementSchema(type) ?? { properties: {} };
     hide = hidden(type);
@@ -751,7 +764,7 @@ export function devices(db: DeviceDatabase): [DeviceInfo[], UnreadableDevice[]] 
       id: device.id, name: (device.compiler["displayName"] as string | undefined) || device.id, shape: device.shape,
       size: `${device.width}x${device.height}`, width: device.width, height: device.height,
       ppi: typeof ppi === "number" && ppi > 0 ? ppi : null, skin: hasSkin(device), display: device.displayType,
-      fonts: [...device.systemFonts.keys()],
+      fonts: [...device.systemFonts.keys()], faces: device.scalableFaces,
     });
   }
   const lower = (d: DeviceInfo): string => d.name.toLowerCase();

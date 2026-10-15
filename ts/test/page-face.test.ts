@@ -6,6 +6,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appUri, htmPreactUri, instantiate, node, preactUri, render, repoText, summary, testUri } from "./page-harness.ts";
+import { inspect } from "../src/studio/inspect.ts";
+import { installAssets } from "../src/node.ts";
 
 /**
  * The Face panel rendered over `summary` with `vocab` and `onEdit` (a
@@ -330,5 +332,48 @@ test("a scheme's base is a select over the other schemes, and the roles it inher
     { op: "remove", path: ["theme", "schemes", "light", "colors", "ink"] },
     { op: "remove", path: ["theme", "schemes", "light", "base"] },
     { op: "set", path: ["theme", "schemes", "dark", "base"], value: "light" },
+  ]);
+});
+
+test("a font's options open under its row as the generic form over its entry: a baked font's switches, a vector font's face names with suggestions", async () => {
+  installAssets();
+  const text = repoText("examples/features/vector-text/face.yaml");
+  const doc = summary(text);
+  const inspects = Object.fromEntries(["clock", "dial"].map((n) => [n, inspect(text, ["resources", "fonts", n], null)]));
+  const devices = [{ id: doc.globals.targets[0], name: "a", shape: "round", size: "260x260", width: 260, height: 260, ppi: null, skin: false, display: "mip",
+                     fonts: [], faces: ["RobotoBlack", "BionicSemiBold"] }];
+  const printed = await render(doc, `
+      await openSection("Fonts");
+      const toggle = (name) => find((e) => e.localName === "button" && cls(e) === "font-toggle" && e.parentNode.textContent.includes("font." + name))[0];
+      out(find((e) => cls(e) === "font-toggle").map((b) => b.textContent));
+      await click(toggle("clock"));
+      const keys = () => find((e) => cls(e) === "key" && within(e, "font-options")).map((e) => e.textContent);
+      out(keys());
+      // a switch: monospace off
+      const selects = find((e) => e.localName === "select" && within(e, "font-options"));
+      selects[0].value = "false"; selects[0].dispatch("change", { currentTarget: selects[0] }); await settle();
+      await click(toggle("clock"));
+      await click(toggle("dial"));
+      out(keys());
+      // the list of faces: the watches' faces suggested, + add takes the first, and "one face" keeps the first of the list
+      out(find((e) => e.localName === "option" && e.parentNode.localName === "datalist").map((o) => o.attributes.value));
+      out(find((e) => e.localName === "button" && within(e, "font-options") && cls(e.parentNode) === "seg").map((b) => [b.textContent, b.attributes["aria-pressed"]]));
+      await click(find((e) => e.localName === "button" && cls(e) === "add" && within(e, "font-options"))[0]);
+      await click(find((e) => e.localName === "button" && e.textContent === "one face")[0]);
+      out(edits);
+    `, { props: `onInspect=\${async (path) => (${JSON.stringify(inspects)})[path[2]]}`, devices });
+  assert.deepEqual(printed[0], ["options ▸", "options ▸", "options ▸"]);
+  // its file and size stay on the row; the rest below it
+  assert.deepEqual(printed[1], ["monospace", "antialias", "glyphs", "align"]);
+  // the list of faces is a list under its key: an item per name
+  assert.deepEqual(printed[2], ["face", "face", "0", "1", "unsupported"]);
+  assert.deepEqual(printed[3], ["BionicSemiBold", "RobotoBlack", "BionicSemiBold", "RobotoBlack"], "each name box suggests the faces, sorted");
+  assert.deepEqual(printed[4], [["one face", "false"], ["list", "true"]]);
+  const clock = { element: ["resources", "fonts", "clock"], scope: "all", device: null };
+  const dial = { element: ["resources", "fonts", "dial"], scope: "all", device: null };
+  assert.deepEqual(printed[5], [
+    { op: "set", ...clock, path: ["monospace"], value: false },
+    { op: "insert_item", ...dial, path: ["face"], at: 2, value: "BionicSemiBold" },
+    { op: "set", ...dial, path: ["face"], value: "BionicSemiBold" },
   ]);
 });

@@ -686,7 +686,15 @@ it is what the wearer's list shows, or the order the face is drawn in.
 - **Fonts**: a font's size, **Replace…** its file, **+ Font from a file…**
   (then its name), **×** deletes it, refused while an element uses it
   ([fonts](fonts.md)). A file that is not a TrueType or OpenType font (its
-  first bytes say so) is refused before anything is stored.
+  first bytes say so) is refused before anything is stored. **options ▸**
+  opens the rest of the font's keys beneath it, edited as Properties edits
+  an element's: for a font baked from a file, `glyphs`, `antialias`,
+  `monospace` and `align`; for a watch's own scalable face, `face` (one
+  name, or a list of names tried in order, each box suggesting the faces
+  the face's watches publish; switching between the two keeps the names)
+  and `unsupported`. A key that is a build error on the font's kind (a
+  vector font's `glyphs`, a baked font's `unsupported`) is not offered,
+  unless the font writes it, so it can be removed.
 
 A name is always edited in place: click it, type, then **Enter** (or
 click away) to rename and **Escape** to keep it. A new name (a scheme, a
