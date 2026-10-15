@@ -17,6 +17,7 @@ both at once, such as "Big · Dark" versus "Compact · Dark" below.
 | `layouts: <name>: static:` | one layout | mapping of elements | — | this layout's own fixed furniture |
 | `layouts: <name>: elements:` | one layout | mapping of elements | — | this layout's own per-frame elements |
 | `layouts: <name>: lint:` | one layout | `{allow: [...], reason: ...}` | — | suppress `unreachable-layout` on this layout |
+| `layouts: <name>: label:` | one layout | string | — | the layout's name in the editor's Styles matrix and Layouts section; nothing on the watch reads it |
 | `layout:` | a `config: style:` entry | bare `layouts:` name | — | required once `layouts:` is declared |
 | `scheme:` | a `config: style:` entry | bare `theme: schemes:` name | — | see [Configuration](configuration.md); all-or-none per `choices:` list |
 | `label:` | a `config: style:` entry | string | falls back to the scheme's own `label:` | shown in the editor's Styles list |
@@ -27,6 +28,7 @@ both at once, such as "Big · Dark" versus "Compact · Dark" below.
 ```yaml
 layouts:                       # ordered; layout index = declaration order
   digital:
+    label: "Digital"           # editor-only: the wearer sees the style entries' labels below
     static:
       steps_track: { type: arc, ... }
     elements:
@@ -56,6 +58,12 @@ top-level `static:`/`elements:` instead. At build time each layout's
 top-level `elements:` (`ts/src/desugar.ts`), so a layout's own content is
 written exactly like `elements:` and the top-level `static:`: a mapping
 keyed by id.
+
+**`label:` on a layout is the editor's name for it** -- what the Styles
+matrix and the Layouts section of `wfb studio` show in place of the bare
+key. It reaches nothing on the watch: a `config: style:` entry's own
+`label:` is what the wearer sees, and a layout with no `label:` is shown by
+its key.
 
 **`layout:` on a `config: style:` entry** names one declared `layouts:` entry
 by its bare name (`layout: digital`, not `layouts.digital`), the same

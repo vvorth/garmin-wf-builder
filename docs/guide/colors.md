@@ -18,7 +18,7 @@ data. **The display is a 64-colour MIP panel: every channel must land on
 |---|---|---|---|---|
 | `palette:` | `resources:` | name → colour | — | [Named colours, short form](#palette) |
 | a `palette:` entry, long form | `resources: palette:` | `{value, label}` | — | [colour plus an editor label](#long-form-a-label-for-the-on-device-editor) |
-| `schemes:` | `theme:` | name → `{label?, colors}` | — | [named role → colour sets](#colour-schemes) |
+| `schemes:` | `theme:` | name → `{label?, base?, colors}` | — | [named role → colour sets](#colour-schemes); `base:` inherits another scheme's roles |
 | `color:` and every other colour key | element, part, scheme | `#RRGGBB`, `color.<name>`, or an expression | — | [Colour references](#colour-references) |
 
 ## Example
@@ -170,6 +170,35 @@ none, named by an entry with none, produces a generated `<style>` with no
 `bg`/`fg`/`dim` and `light` declaring only `bg`/`fg` is an error naming the
 missing role and the scheme that lacks it -- otherwise `color.dim` would be
 undefined the moment the wearer picked `light`.
+
+**`base:` names another scheme to inherit from**, so a variant that changes
+two colours writes two:
+
+```yaml
+theme:
+  schemes:
+    dark:
+      label: "Dark"
+      colors: { bg: color.black, fg: color.white, dim: color.dark_gray }
+    light:
+      label: "Light"
+      base: dark                                  # every role of dark ...
+      colors: { bg: color.white, fg: color.black } # ... these two replaced
+    navy:
+      base: dark
+      colors: { bg: color.darkest_blue }
+```
+
+`light` ends up with `bg`/`fg`/`dim`, `dim` being `dark`'s; the roles keep
+the base's order, an override in its role's place, a role the base lacks
+after them. A base may itself have a `base:`. The compiler folds the chain
+before anything reads the schemes, so the generated face is exactly what
+writing every role out would give, and the identical-roles rule is checked
+on the folded sets: a derived scheme adding a role its base lacks is still
+an error, reported on the base as any mismatch is. A `base:` no scheme
+declares, and a chain that comes back round to its own scheme
+(`dark: {base: light}` with `light: {base: dark}`), are each one error
+naming the scheme at its `base:` line.
 
 Reference a role as an ordinary colour, exactly like a swatch:
 

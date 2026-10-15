@@ -142,6 +142,7 @@ elements:
 
 layouts:
   big:
+    label: "Big clock"              # the editor's name for it; the wearer sees the style entries' labels
     static:
       big_ring:
         type: arc
@@ -162,6 +163,7 @@ layouts:
         on_hold: heart_rate
 
   compact:
+    label: "Compact"
     static:
       steps_track:
         type: arc

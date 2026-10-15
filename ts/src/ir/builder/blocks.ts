@@ -121,30 +121,57 @@ export class TopLevelBlocks extends FontBlock {
     }
   }
 
-  /** `theme: schemes:`: named role-to-colour sets; every accepted scheme must declare the same roles. */
+  /**
+   * `theme: schemes:`: named role-to-colour sets. A scheme with `base:`
+   * inherits that scheme's roles and overrides the ones it lists, so the IR
+   * holds every scheme's full role set; every accepted scheme must end up
+   * with the same roles.
+   */
   buildColorScheme(raw: Node): void {
-    const roleSets = new Map<string, Map<string, Color>>();
-    for (const [name, spec] of raw as Map<string, Node>) {
-      const span = this.doc.span(raw, name);
-      this.color_scheme.declare(name, span);
-      const label = (spec.get("label") ?? null) as string | null;
-      const rawColors = spec.get("colors") as Node;
-      const colors = new Map<string, Color>();
-      let ok = true;
-      for (const role of rawColors.keys() as Iterable<string>) {
-        const roleSpan = this.doc.span(rawColors, role);
-        const color = this.resolveConfigColor(rawColors.get(role), `theme.schemes.${name}.colors.${role}`, roleSpan);
-        if (color === null) {
-          ok = false;
-          continue;
+    const specs = raw as Map<string, Node>;
+    for (const name of specs.keys()) this.color_scheme.declare(name, this.doc.span(raw, name));
+    // Each scheme's own colours first: a base's bad colour is reported once, at the base.
+    const own = new Map<string, Map<string, Color> | null>();
+    for (const [name, spec] of specs) own.set(name, this.schemeColors(name, spec.get("colors") as Node));
+    // Then the inheritance, each scheme once; a chain that comes back round is reported where it closes.
+    const merged = new Map<string, Map<string, Color> | null>();
+    const resolving: string[] = [];
+    const resolve = (name: string): Map<string, Color> | null => {
+      if (merged.has(name)) return merged.get(name)!;
+      const spec = specs.get(name)!;
+      const base = spec.get("base");
+      let colors = own.get(name) ?? null;
+      if (colors !== null && typeof base === "string") {
+        const open = resolving.indexOf(name);
+        if (open >= 0) {
+          const chain = [...resolving.slice(open), name];
+          this.bag.error("color-scheme", `theme.schemes.${name}: 'base:' runs in a circle: ${chain.join(" -> ")}`, this.doc.span(spec, "base"),
+            { notes: ["a scheme inherits its base's roles, so the chain of bases has to end at a scheme with none"] });
+          colors = null;
+        } else if (!specs.has(base)) {
+          this.bag.error("color-scheme", `theme.schemes.${name}: base ${quoted(base)} is not a declared scheme`, this.doc.span(spec, "base"),
+            { notes: [`declared schemes (theme: schemes:): ${[...specs.keys()].sort().join(", ")}`] });
+          colors = null;
+        } else {
+          resolving.push(name);
+          const inherited = resolve(base);
+          resolving.pop();
+          // An override keeps its role's place in the base's order; a new role follows them.
+          colors = inherited === null ? null : new Map([...inherited, ...colors]);
         }
-        colors.set(role, color);
       }
-      if (!ok) {
+      merged.set(name, colors);
+      return colors;
+    };
+    const roleSets = new Map<string, Map<string, Color>>();
+    for (const [name, spec] of specs) {
+      const colors = resolve(name);
+      if (colors === null) {
         this.color_scheme.reject(name);
         continue;
       }
-      this.color_scheme.set(name, ColorScheme.create({ name, label, colors, span }));
+      const label = (spec.get("label") ?? null) as string | null;
+      this.color_scheme.set(name, ColorScheme.create({ name, label, colors, span: this.doc.span(raw, name) }));
       roleSets.set(name, colors);
     }
     if (roleSets.size < 2) return;
@@ -153,16 +180,30 @@ export class TopLevelBlocks extends FontBlock {
     for (const [name, colors] of roleSets) {
       const missing = [...union].filter((r) => !colors.has(r));
       if (missing.length === 0) continue;
+      const base = (raw as Map<string, Node>).get(name)!.get("base");
       this.bag.error("color-scheme", `theme.schemes.${name}: missing role(s) ${missing.sort().join(", ")} -- every scheme must declare the `
         + "same roles", this.color_scheme.get(name)!.span, {
         notes: [
-          `theme.schemes.${name} declares: ` + ([...colors.keys()].sort().join(", ") || "(none)"),
+          `theme.schemes.${name} declares${typeof base === "string" ? `, with base ${base}` : ""}: ` + ([...colors.keys()].sort().join(", ") || "(none)"),
           "otherwise 'color.<role>' would be undefined whenever the wearer picks the scheme that lacks it",
         ],
       });
       this.color_scheme.reject(name);
       this.color_scheme.delete(name);
     }
+  }
+
+  /** One scheme's own `colors:` resolved to build-time colours, or `null` once a role's colour was reported. */
+  private schemeColors(name: string, rawColors: Node): Map<string, Color> | null {
+    const colors = new Map<string, Color>();
+    let ok = true;
+    for (const role of rawColors.keys() as Iterable<string>) {
+      this.scheme_roles_declared.add(role);
+      const color = this.resolveConfigColor(rawColors.get(role), `theme.schemes.${name}.colors.${role}`, this.doc.span(rawColors, role));
+      if (color === null) ok = false;
+      else colors.set(role, color);
+    }
+    return ok ? colors : null;
   }
 
   /** A bare scheme name from a `config: style:` entry's `scheme:`. */
@@ -207,7 +248,8 @@ export class TopLevelBlocks extends FontBlock {
       this.configColorsRoles = [...defaultScheme.colors.keys()].sort();
       for (const role of defaultScheme.colors.keys()) this.defineConfigColor(`color.${role}`, configField(`colors_${role}`));
     } else if (this.rejected_config.has("style")) {
-      const roles = new Set<string>();
+      // Rejected schemes' roles too: their one error has been reported.
+      const roles = new Set<string>(this.scheme_roles_declared);
       for (const scheme of this.color_scheme.values()) for (const role of scheme.colors.keys()) roles.add(role);
       if (roles.size > 0) {
         this.configColorsRoles = [...roles].sort();

@@ -179,6 +179,8 @@ export interface StyleEntry {
 /** One `layouts:` entry: how many elements its two blocks hold, and the styles that pick it. */
 export interface LayoutEntry {
   name: string;
+  /** Its `label:`, the name the Styles matrix shows; `null` when it has none. */
+  label: string | null;
   /** The elements in its `elements:` block. */
   elements: number;
   /** The elements in its `static:` block. */

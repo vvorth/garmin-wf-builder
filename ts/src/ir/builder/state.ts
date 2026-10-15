@@ -103,6 +103,8 @@ export class BuilderState {
   config_style: ConfigStyle | null = null;
   /** The scheme roles `color.<role>` may name; `null` means no Styles colours at all. */
   configColorsRoles: string[] | null = null;
+  /** Every role any `theme: schemes:` entry writes, rejected schemes included, so a reference to one stays quiet after the scheme's own error. */
+  scheme_roles_declared = new Set<string>();
   /** Each declared colour axis's role, rejected axes included. */
   config_roles = new Map<string, string>();
   scope = new expr.Scope();

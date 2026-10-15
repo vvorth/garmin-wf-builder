@@ -610,3 +610,57 @@ test("a text's own font: a bad size is reported on the inline size: line; identi
   assert.deepEqual([...taken.fonts.keys()], ["clock_font", "clock_font_2"]);
   assert.equal(fontOf(taken, "clock")[0], "clock_font_2");
 });
+
+// -- base: on a scheme, label: on a layout --
+
+/** `MINIMAL` with `theme: schemes:` (roles `paper`, `ink`, `dim`), a style per named scheme, and a text reading `color.ink`. */
+const THEMED = (schemes: string, styled: string[] = ["dark", "light"]): string => MINIMAL.replace("elements:\n",
+  `theme:\n  schemes:\n${schemes}config:\n  style:\n    default: ${styled[0]}\n    choices:\n${styled.map((s) => `      ${s}: {scheme: ${s}}\n`).join("")}elements:\n`)
+  + "  clock:\n    type: text\n    text: \"a\"\n    at: {anchor: center}\n    color: color.ink\n    font: FONT_SMALL\n";
+const DARK = "    dark:\n      colors: {paper: \"#000000\", ink: \"#FFFFFF\", dim: \"#AAAAAA\"}\n";
+const schemeColors = (f: Face, name: string): [string, number][] => [...f.color_scheme.get(name)!.colors].map(([role, c]) => [role, c.value]);
+
+test("base: a scheme inherits its base's roles, overriding the ones it lists, and generates what the written-out scheme does", () => {
+  const derived = THEMED(DARK + "    light:\n      base: dark\n      colors: {paper: \"#FFFFFF\", ink: \"#000000\"}\n");
+  const built = face(derived);
+  assert.deepEqual(schemeColors(built, "light"), [["paper", 0xFFFFFF], ["ink", 0x000000], ["dim", 0xAAAAAA]]);
+  assert.deepEqual(schemeColors(built, "dark"), [["paper", 0x000000], ["ink", 0xFFFFFF], ["dim", 0xAAAAAA]]);
+  const written = THEMED(DARK + "    light:\n      colors: {paper: \"#FFFFFF\", ink: \"#000000\", dim: \"#AAAAAA\"}\n");
+  const [a, b] = [everyFile(derived), everyFile(written)];
+  assert.deepEqual([...a.keys()].sort(), [...b.keys()].sort());
+  for (const [name, content] of a) assert.equal(content, b.get(name), name);
+  // a base may itself derive; a derived scheme may add a role its base then lacks -- reported on the base, as any mismatch is
+  const chained = face(THEMED(DARK + "    light:\n      base: dark\n      colors: {paper: \"#FFFFFF\", ink: \"#000000\"}\n    navy:\n      base: light\n      colors: {paper: \"#000055\"}\n", ["dark", "light", "navy"]));
+  assert.deepEqual(schemeColors(chained, "navy"), [["paper", 0x000055], ["ink", 0x000000], ["dim", 0xAAAAAA]]);
+  const extra = THEMED(DARK + "    light:\n      base: dark\n      colors: {paper: \"#FFFFFF\", glow: \"#FFAA00\"}\n");
+  const mismatch = errorsOf(extra);
+  assert.equal(mismatch.length, 1, mismatch.map((d) => d.message).join("\n"));
+  assert.equal(mismatch[0]!.message, "theme.schemes.dark: missing role(s) glow -- every scheme must declare the same roles");
+  // a layout's label: is the editor's, and changes nothing generated
+  const LAYOUTS = (label: string): string => MINIMAL.replace("elements:\n", `layouts:\n  big:\n${label}    elements:\n      clock: {type: text, text: "a", at: {anchor: center}, color: color.fg, font: FONT_SMALL}\n`
+    + "config:\n  style:\n    default: big\n    choices:\n      big: {layout: big}\nelements:\n");
+  const [labelled, plain] = [everyFile(LAYOUTS("    label: \"Big clock\"\n")), everyFile(LAYOUTS(""))];
+  assert.deepEqual([...labelled.keys()].sort(), [...plain.keys()].sort());
+  for (const [name, content] of labelled) assert.equal(content, plain.get(name), name);
+});
+
+test("base: an unknown base and a circle are one error each, naming the scheme, and a derived scheme of a rejected one stays quiet", () => {
+  const unknown = THEMED(DARK + "    light:\n      base: drak\n      colors: {paper: \"#FFFFFF\"}\n");
+  const missing = errorsOf(unknown);
+  assert.equal(missing.length, 1, missing.map((d) => d.message).join("\n"));
+  assert.equal(missing[0]!.message, "theme.schemes.light: base 'drak' is not a declared scheme");
+  assert.equal(missing[0]!.span!.line, lineWith(unknown, "base: drak"));
+  assert.ok(missing[0]!.notes.some((n) => n.includes("dark")), "names the declared schemes");
+  const circle = THEMED("    dark:\n      base: light\n      colors: {paper: \"#000000\", ink: \"#FFFFFF\"}\n    light:\n      base: dark\n      colors: {paper: \"#FFFFFF\", ink: \"#000000\"}\n");
+  const round = errorsOf(circle);
+  assert.equal(round.length, 1, round.map((d) => d.message).join("\n"));
+  assert.equal(round[0]!.message, "theme.schemes.dark: 'base:' runs in a circle: dark -> light -> dark");
+  assert.equal(round[0]!.span!.line, lineWith(circle, "base: light"));
+  const self = errorsOf(THEMED(DARK + "    light:\n      base: light\n      colors: {paper: \"#FFFFFF\"}\n"));
+  assert.equal(self.length, 1, self.map((d) => d.message).join("\n"));
+  assert.equal(self[0]!.message, "theme.schemes.light: 'base:' runs in a circle: light -> light");
+  // the base's own mistake is the one error: the scheme deriving from it, and the styles naming either, say nothing more
+  const badBase = errorsOf(THEMED("    dark:\n      colors: {paper: \"#000000\", ink: color.nowhere, dim: \"#AAAAAA\"}\n    light:\n      base: dark\n      colors: {paper: \"#FFFFFF\"}\n"));
+  assert.equal(badBase.length, 1, badBase.map((d) => d.message).join("\n"));
+  assert.ok(badBase[0]!.message.includes("nowhere"), badBase[0]!.message);
+});

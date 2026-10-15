@@ -614,7 +614,7 @@ export function globalsOf(text: string, db: DeviceDatabase): Globals {
   const layoutEntries: LayoutEntry[] = keysOf(layouts).map((key) => {
     const layout = g(layouts, key);
     return {
-      name: String(key), elements: keysOf(g(layout, "elements")).length, static: keysOf(g(layout, "static")).length,
+      name: String(key), label: name(g(layout, "label")), elements: keysOf(g(layout, "elements")).length, static: keysOf(g(layout, "static")).length,
       styles: entries.filter((e) => e.layout === String(key)).map((e) => e.name),
     };
   });

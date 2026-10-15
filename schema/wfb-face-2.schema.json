@@ -830,7 +830,7 @@
       ]
     },
     "scheme": {
-      "description": "One 'theme: schemes:' entry: an optional editor label plus a role -> colour mapping. Every scheme in a design must declare the identical set of roles.",
+      "description": "One 'theme: schemes:' entry: an optional editor label, an optional 'base:' scheme to inherit from, plus a role -> colour mapping. Every scheme in a design must end up with the identical set of roles, its base's included.",
       "type": "object",
       "required": [
         "colors"
@@ -842,8 +842,12 @@
           "type": "string",
           "minLength": 1
         },
+        "base": {
+          "description": "Another 'theme: schemes:' entry by its bare name: this scheme inherits every role of it and overrides the ones its own 'colors:' lists, so a variant that changes two colours writes two. A base may itself have a base; a name no scheme declares, and a chain that comes back round to this scheme, are errors naming the scheme. The compiler works with the merged roles, so the generated face is exactly what writing every role out would give.",
+          "$ref": "#/$defs/identifier"
+        },
         "colors": {
-          "description": "Role name -> colour, a literal '#RRGGBB'/'#RGB' or a 'color.<swatch>'. A role is read as 'color.<role>' and follows the active style's scheme.",
+          "description": "Role name -> colour, a literal '#RRGGBB'/'#RGB' or a 'color.<swatch>'. A role is read as 'color.<role>' and follows the active style's scheme. With 'base:', the roles this scheme changes or adds; the rest come from the base.",
           "type": "object",
           "minProperties": 1,
           "propertyNames": {
@@ -1056,7 +1060,7 @@
       "additionalProperties": false,
       "properties": {
         "schemes": {
-          "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'scheme:'. Every scheme must declare the identical set of roles, or 'color.<role>' would be undefined under some style.",
+          "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'scheme:'. Every scheme must have the identical set of roles once its 'base:' is folded in, or 'color.<role>' would be undefined under some style.",
           "type": "object",
           "minProperties": 1,
           "propertyNames": {
@@ -1114,6 +1118,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "The layout's name as the editor's Styles matrix and Layouts section show it ('Big clock' for 'big'). Editor-only: nothing on the watch reads it -- a style entry's own 'label:' is what the wearer sees.",
+          "type": "string",
+          "minLength": 1
+        },
         "static": {
           "description": "This layout's own fixed furniture, drawn once into the shared static buffer while this layout is active, after the design's shared static content.",
           "$ref": "#/$defs/elementMapping"

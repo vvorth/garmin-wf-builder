@@ -184,15 +184,20 @@ theme:
     dark:
       label: "Dark"
       colors: { bg: color.black, fg: color.white, track: color.light_gray }
+    # The other three are `dark` with a different background (and ink): a
+    # scheme with `base:` inherits every role it does not list itself.
     light:
       label: "Light"
-      colors: { bg: color.white, fg: color.black, track: color.light_gray }
+      base: dark
+      colors: { bg: color.white, fg: color.black }
     blue:
       label: "Blue"
-      colors: { bg: color.darkest_blue, fg: color.white, track: color.light_gray }
+      base: dark
+      colors: { bg: color.darkest_blue }
     green:
       label: "Blue"
-      colors: { bg: color.dark_green, fg: color.white, track: color.light_gray }
+      base: dark
+      colors: { bg: color.dark_green }
 
 config:
   accent_color:
