@@ -340,8 +340,6 @@ function checkReserved(doc: YamlDocument, bag: Bag): Path[] {
   if (isDict(resources) && resources.has("components")) {
     report(resources, "components", "components are reserved and not implemented yet", ["resources", "components"]);
   }
-  const ruleList = (value: unknown): boolean => Array.isArray(value) && value.length > 0
-    && value.every((item) => isDict(item) && (item.has("when") || item.has("else")));
   const parts = (element: Dict, key: string, here: Path, pattern: boolean): void => {
     for (const [step, part] of partsOf(element, key)) {
       if (!part.has("outline")) continue;
@@ -354,12 +352,6 @@ function checkReserved(doc: YamlDocument, bag: Bag): Path[] {
     for (const [key, message] of RESERVED_ELEMENT_KEYS) if (element.has(key)) report(element, key, message, [...here, key]);
     if (element.get("type") === "data") {
       for (const [key, message] of RESERVED_DATA_KEYS) if (element.has(key)) report(element, key, message, [...here, key]);
-    }
-    for (const [key, value] of element) {
-      if (ruleList(value)) {
-        report(element, key as string, "'when:' rule lists are reserved and not implemented yet", [...here, key as Step],
-          "for now, write the choice as one expression: \"cond ? a : b\"");
-      }
     }
     if (element.get("type") === "gauge") parts(element, "needle", here, false);
     if (element.get("type") === "pattern") parts(element, "parts", here, true);

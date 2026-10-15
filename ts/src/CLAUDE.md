@@ -5,7 +5,9 @@ is in `docs/development.md`, "Pipeline".
 
 - The builder reads format 2's keys and kind names as the author writes
   them. `lower.ts` checks what the schema cannot (colour names, `text:`
-  templates) and spells out compass aliases; it renames nothing. A
+  templates) and spells out compass aliases and rule lists (a rule list
+  becomes the `?:` chain it stands for, each piece located at its own
+  rule); it renames nothing. A
   diagnostic or a generated comment names what the author wrote
   (`Expression.shown` for an expression).
 - `desugar.ts` runs after `lower.ts` and rewrites the element blocks (the

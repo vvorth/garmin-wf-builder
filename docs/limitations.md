@@ -749,6 +749,7 @@ are `Toybox.SensorHistory`-backed, which a watch face may not use (§1,
 | In `wfb studio`: sideloading, and sharing faces between browsers | each is done by hand today: the `.prg` copied to the watch, a face moved by download and upload (`docs/guide/studio.md`, "What it does not do") |
 | In `wfb studio`: a text's inline `font:` (`docs/guide/fonts.md`, "A text's own font") | the editor reads `resources: fonts:` only: an inline font is not listed in the Face tab's Fonts section, and a download does not bundle its `source:` file |
 | In `wfb studio`: a scheme's `base:` and a layout's `label:` (`docs/guide/colors.md`, "Colour schemes"; `docs/guide/styles-and-layouts.md`) | the scheme operations read each scheme's own `colors:` only, so copying a derived scheme (+ Scheme, "like") is refused for its missing roles, and renaming its base leaves `base:` behind; the layout label is reported in the editor's summary and shown nowhere yet |
+| In `wfb studio`: a rule list (`docs/guide/data.md`, "Rules") | the Inspector has no rows for it yet: a key written as a rule list is shown and edited as its YAML in a text box, and the colour control is not offered for it |
 | Catalogue generation from the SDK | ADR 0005 §1; the catalogue is hand-written |
 | An SDK check outside `wfb build` (`validate`, `preview`) | `wfb build` warns when the device reference came from another SDK than the one it compiles with, and records both in `build-info.json`; `wfb doctor` reports the mismatch too. `validate` and `preview` compile nothing, so they do not check |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `sourceUnavailable` in `ts/src/availability.ts` but set on no source, because none needs it today |
@@ -779,7 +780,6 @@ will be, never an unknown key. Each needs its own plan before it is built.
 | `effects:` on an element (`effects: {shadow: {color:, dx:, dy:}}`) | drop shadows, replacing duplicated shadow elements |
 | `outline:` on a single hand, pattern or needle part (other than a pattern's `type: text` part) | a ring round one part; the element-level `outline:` already rings each hand, copy or needle whole (`docs/guide/outlines.md`) |
 | `parts:`, `arrange:`, `requires:`, `fallback:` on `type: data` | a data widget built from an icon, value, label, graph or gauge |
-| A `[ {when: …, value: …}, …, {else: …} ]` rule list as any value | values chosen by rules over live data, never the power state |
 | An advisory `static-candidate` lint | not a format change; may be built at any time |
 
 ### Declined

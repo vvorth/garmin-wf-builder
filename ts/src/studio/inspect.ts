@@ -79,7 +79,7 @@ const WIDGET_BY_REF: Record<string, Widget> = {
   angle: "angle",
   align: "align",
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
-  visible: "expression", expression: "expression",
+  visible: "expression", partVisible: "expression", expression: "expression",
   // a text's `font:` keeps the font picker; its inline object form is edited as YAML there until it has a control of its own
   fontRef: "font",
 };

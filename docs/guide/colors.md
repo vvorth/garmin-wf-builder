@@ -19,7 +19,7 @@ data. **The display is a 64-colour MIP panel: every channel must land on
 | `palette:` | `resources:` | name → colour | — | [Named colours, short form](#palette) |
 | a `palette:` entry, long form | `resources: palette:` | `{value, label}` | — | [colour plus an editor label](#long-form-a-label-for-the-on-device-editor) |
 | `schemes:` | `theme:` | name → `{label?, base?, colors}` | — | [named role → colour sets](#colour-schemes); `base:` inherits another scheme's roles |
-| `color:` and every other colour key | element, part, scheme | `#RRGGBB`, `color.<name>`, or an expression | — | [Colour references](#colour-references) |
+| `color:` and every other colour key | element, part, scheme | `#RRGGBB`, `color.<name>`, an expression, or a rule list | — | [Colour references](#colour-references); [Rules](data.md#rules) for the list |
 
 ## Example
 
@@ -27,7 +27,10 @@ data. **The display is a 64-colour MIP panel: every channel must land on
 notification_badge:
   type: icon
   icon: notification
-  color: "device.notification_count > 0 ? color.accent : color.dark"
+  color:                               # or, as one expression:
+    - when: device.notification_count > 0   #   "device.notification_count > 0 ? color.accent : color.dark"
+      value: color.accent
+    - else: color.dark
 
 notification_count:
   type: text
@@ -47,9 +50,11 @@ battery_arc_l:
 
 A `color:` key takes the same expression language as any other value, so the
 notification badge switches between the accent colour and a dimmed one based
-on `device.notification_count`, and the whole badge hides itself with
-`visible:` when the count is zero. See [Data binding, expressions and
-formats](data.md) for the expression language, and [Gauges and
+on `device.notification_count` -- written here as a rule list, the rows the
+editor writes, which compiles to exactly what the one-line `?:` does -- and
+the whole badge hides itself with `visible:` when the count is zero. See
+[Data binding, expressions and formats](data.md) for the expression
+language and [Rules](data.md#rules) for the list form, and [Gauges and
 graphs](progress-and-graphs.md) for `type: gauge` and `style: arc`.
 
 ## Colour references
@@ -205,6 +210,10 @@ Reference a role as an ordinary colour, exactly like a swatch:
 ```yaml
 color: color.fg
 color: "heart_rate.current > 120 ? color.hot : color.fg"
+color:
+  - when: heart_rate.current > 120
+    value: color.hot
+  - else: color.fg
 ```
 
 This is why a role and a swatch may not share a name: `color.fg` above has

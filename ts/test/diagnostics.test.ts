@@ -664,3 +664,105 @@ test("base: an unknown base and a circle are one error each, naming the scheme, 
   assert.equal(badBase.length, 1, badBase.map((d) => d.message).join("\n"));
   assert.ok(badBase[0]!.message.includes("nowhere"), badBase[0]!.message);
 });
+
+// -- rule lists --
+
+/** `MINIMAL` plus a circle whose `color:` is written as `color` (indented four spaces per line). */
+const RULED = (color: string): string => MINIMAL + `  badge:\n    type: circle\n    at: {anchor: center}\n    radius: 10%r\n${color}`;
+const exprText = (f: Face, id: string, key: string): string => ((f.elements.find((e) => e.id === id) as unknown as Record<string, { text: string } | null>)[key])!.text;
+const RULES_ONE = "    color:\n      - when: device.notification_count > 0\n        value: color.fg\n      - else: color.bg\n";
+const RULES_TWO = "    color:\n      - when: device.notification_count > 0\n        value: color.fg\n      - when: system.charging\n        value: color.bg\n      - else: color.fg\n";
+/** The 1-based line whose text, trimmed at the end, is exactly `line`. */
+const lineExactly = (text: string, line: string): number => text.split("\n").findIndex((l) => l.trimEnd() === line) + 1;
+
+test("rule lists: a rule list is the nested ternary, and generates what that ternary written by hand does", () => {
+  const one = face(RULED(RULES_ONE));
+  assert.equal(exprText(one, "badge", "color"), "device.notification_count > 0 ? color.fg : color.bg");
+  const two = face(RULED(RULES_TWO));
+  assert.equal(exprText(two, "badge", "color"), "device.notification_count > 0 ? color.fg : system.charging ? color.bg : color.fg");
+  for (const [rules, hand] of [
+    [RULES_ONE, "    color: \"device.notification_count > 0 ? color.fg : color.bg\"\n"],
+    [RULES_TWO, "    color: \"device.notification_count > 0 ? color.fg : system.charging ? color.bg : color.fg\"\n"],
+  ] as const) {
+    const [a, b] = [everyFile(RULED(rules)), everyFile(RULED(hand))];
+    assert.deepEqual([...a.keys()].sort(), [...b.keys()].sort());
+    for (const [name, content] of a) assert.equal(content, b.get(name), name);
+  }
+  // visible: takes booleans for its values; value:/max:/min: take numbers; aod: visible: and a part's visible: take a list too
+  const shown = face(RULED("    color: color.fg\n    visible:\n      - when: device.notification_count > 0\n        value: true\n      - else: false\n"));
+  assert.equal(exprText(shown, "badge", "visible"), "device.notification_count > 0 ? true : false");
+  const gauge = face(MINIMAL + "  battery:\n    type: gauge\n    style: arc\n    at: {anchor: center}\n    radius: 40%r\n    thickness: 4px\n    start_angle: 0deg\n    sweep: 270deg\n    color: color.fg\n"
+    + "    value:\n      - when: system.charging\n        value: 100\n      - else: system.battery\n    max: 100\n");
+  assert.equal(exprText(gauge, "battery", "value"), "system.charging ? 100 : system.battery");
+  const ticks = face(MINIMAL + "  ticks:\n    type: pattern\n    pattern: radial\n    at: {anchor: center}\n    count: 12\n    color: color.fg\n    parts:\n"
+    + "      dot:\n        type: circle\n        at: {dy: -40%r}\n        radius: 2%r\n        visible:\n          - when: copy % 3 == 0\n            value: \"true\"\n          - else: \"false\"\n");
+  const dot = (ticks.elements.find((e) => e.id === "ticks") as unknown as { parts: { visible: { text: string } | null }[] }).parts[0]!;
+  assert.equal(dot.visible!.text, "copy % 3 == 0 ? true : false");
+  // a piece that is a conditional itself is the one parenthesised; the chain needs none
+  const nested = face(RULED("    color:\n      - when: \"system.charging ? device.notification_count > 0 : false\"\n        value: \"system.battery < 20 ? color.bg : color.fg\"\n      - else: color.fg\n"));
+  assert.equal(exprText(nested, "badge", "color"), "(system.charging ? device.notification_count > 0 : false) ? (system.battery < 20 ? color.bg : color.fg) : color.fg");
+  // an aod: block takes a rule list too
+  const aod = face(RULED("    color: color.fg\n    aod:\n      color:\n        - when: system.charging\n          value: color.bg\n        - else: color.fg\n"));
+  const aodColor = (aod.elements.find((e) => e.id === "badge") as unknown as { aod: { color: { text: string } | null } | null }).aod!.color!;
+  assert.equal(aodColor.text, "system.charging ? color.bg : color.fg");
+  // the string spelling is untouched: no parentheses are added to it
+  assert.equal(exprText(face(RULED("    color: \"device.notification_count > 0 ? color.fg : color.bg\"\n")), "badge", "color"), "device.notification_count > 0 ? color.fg : color.bg");
+});
+
+test("rule lists: the shape is checked, and a mistake inside a rule is reported on that rule's own line", () => {
+  const noElse = RULED("    color:\n      - when: device.notification_count > 0\n        value: color.fg\n");
+  let found = errorsOf(noElse);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: a rule list ends with an {else: ...} rule, the value when no 'when:' holds");
+  assert.equal(found[0]!.span!.line, lineExactly(noElse, "    color:"));
+  const twoElse = RULED("    color:\n      - when: device.notification_count > 0\n        value: color.fg\n      - else: color.bg\n      - else: color.fg\n");
+  found = errorsOf(twoElse);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: one {else: ...} rule, not two");
+  assert.equal(found[0]!.span!.line, lineWith(twoElse, "- else: color.fg"));
+  const elseFirst = RULED("    color:\n      - else: color.bg\n      - when: device.notification_count > 0\n        value: color.fg\n");
+  found = errorsOf(elseFirst);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: the {else: ...} rule comes last");
+  assert.equal(found[0]!.span!.line, lineWith(elseFirst, "- else: color.bg"));
+  const onlyElse = RULED("    color:\n      - else: color.bg\n");
+  found = errorsOf(onlyElse);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: a rule list needs a {when: ..., value: ...} rule before its else -- a value that never varies is written on its own");
+  // a when: that is not boolean: the type error, on that rule's line, at its when:
+  const notBoolean = RULED("    color:\n      - when: device.notification_count > 0\n        value: color.fg\n      - when: device.notification_count\n        value: color.bg\n      - else: color.fg\n");
+  found = errorsOf(notBoolean);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: ?: needs a boolean, got number");
+  assert.equal(found[0]!.span!.line, lineExactly(notBoolean, "      - when: device.notification_count"));
+  assert.equal(found[0]!.span!.col, notBoolean.split("\n")[found[0]!.span!.line - 1]!.indexOf("device.notification_count") + 1);
+  // inside a piece the rewrite parenthesised, the column is still the author's
+  const inner = RULED("    color:\n      - when: system.charging\n        value: color.bg\n      - else: \"system.battery > 20 ? color.fg : foo.bar\"\n");
+  found = errorsOf(inner);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: unknown data source 'foo.bar'");
+  assert.equal(found[0]!.span!.line, lineWith(inner, "- else: \"system.battery"));
+  assert.equal(found[0]!.span!.col, inner.split("\n")[found[0]!.span!.line - 1]!.indexOf("foo.bar") + 1);
+  // a literal colour is not an expression: it is refused naming the palette, on its rule's line
+  const literal = RULED("    color:\n      - when: device.notification_count > 0\n        value: color.fg\n      - else: \"#AAAAAA\"\n");
+  found = errorsOf(literal);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "color: a literal colour cannot be a rule's value -- add '#AAAAAA' to 'resources: palette:' and write 'color.<name>'");
+  assert.equal(found[0]!.span!.line, lineWith(literal, "- else: \"#AAAAAA\""));
+  // an unknown colour inside a value: on that rule's line
+  const unknown = RULED("    color:\n      - when: device.notification_count > 0\n        value: color.fgg\n      - else: color.bg\n");
+  found = errorsOf(unknown);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.message, "unknown colour 'color.fgg'");
+  assert.equal(found[0]!.span!.line, lineWith(unknown, "value: color.fgg"));
+  // a value of the wrong kind for the key: the schema's error, at the rule
+  const wrongKind = RULED("    color:\n      - when: device.notification_count > 0\n        value: 5\n      - else: color.bg\n");
+  found = errorsOf(wrongKind);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.match(found[0]!.message, /^elements\.badge\.color\[0\]\.value: /);
+  assert.equal(found[0]!.span!.line, lineWith(wrongKind, "value: 5"));
+  const visibleNumber = RULED("    color: color.fg\n    visible:\n      - when: device.notification_count > 0\n        value: 5\n      - else: false\n");
+  found = errorsOf(visibleNumber);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.match(found[0]!.message, /^elements\.badge\.visible\[0\]\.value: /);
+});

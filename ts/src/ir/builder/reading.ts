@@ -108,9 +108,13 @@ export class Readers extends BuilderState {
         message = `color.${match[1]} is a role of 'theme: schemes:', but no 'config: style:' entry picks a scheme`;
         notes = ["add a 'config: style:' entry with 'scheme:', or make it a palette colour"];
       }
+      let at = span;
       let offset = origin === null ? error.offset : origin.authorOffset(error.offset);
-      if (this.quotedAt(span)) offset += 1; // the offset is into the value, after its opening quote
-      this.bag.error(errorCode, `${origin !== null ? origin.key : key}: ${message}`, offsetSpan(span, offset), { notes });
+      // A rule list's error is placed in the rule's own scalar.
+      const piece = origin !== null ? origin.spanAt(error.offset) : null;
+      if (piece !== null) [at, offset] = piece;
+      if (this.quotedAt(at)) offset += 1; // the offset is into the value, after its opening quote
+      this.bag.error(errorCode, `${origin !== null ? origin.key : key}: ${message}`, offsetSpan(at, offset), { notes });
       for (const path of before) this.scope.used.add(path);
       return null;
     }

@@ -36,7 +36,7 @@ geometry, colour and visibility, [Placement](placement.md#per-device-and-per-sha
 | `at` | every element | anchor / `dx`,`dy` / `angle`,`radius` | — | position, axis or origin — see [Placement](placement.md#placement-at-and-align) |
 | `align` | kinds with a placement box: `group`, `text`, the primitives (not `polygon`/`line`), `gauge`, `graph`, `icon`, `data` | one of the nine anchor names (`top_left` … `center` … `bottom_right`), or a compass alias | `center` | which point of the box sits at `at:` |
 | `color` | most kinds (not `group`) | `color.<name>`, a literal, or a conditional | — | fill/line colour — see each element's own chapter |
-| `visible` | every element | boolean expression | — | [draw only while true](#visible--draw-this-only-sometimes); absent means hidden |
+| `visible` | every element | boolean expression, or a rule list | — | [draw only while true](#visible--draw-this-only-sometimes); absent means hidden |
 | `antialias` | `group`, the primitives, `gauge`, `graph`, `hands`, `pattern`, `icon`, `data` (not `text`) | `true`\|`false` | `defaults:` (`false`) | [soften the edge](#antialias--soften-an-edge) |
 | `min_1px` | `group`, the primitives, `gauge`, `graph`, `hands`, `pattern`, and a hand/pattern part (not `text`, `icon`, `data`) | `true`\|`false` | `defaults:` (`false`) | [clamp a length to at least 1px](#min_1px--never-let-a-relative-length-round-to-nothing) |
 | `sleep_update` | every element | `true`\|`false` | `false` | also redraw every second while a MIP watch sleeps — see [Power modes](modes-and-interaction.md) |
@@ -131,7 +131,10 @@ An expression that must type as a **boolean** — a comparison, `and`/`or`/`not`
 or a `?:` whose branches are booleans. There is no truthiness rule, so
 `visible: activity.steps` is an error naming the type it got: Monkey C has no
 truthy Number either, and guessing what the author meant is how a face ends up
-showing something nobody asked for.
+showing something nobody asked for. The same condition is written as rows
+with `true`/`false` values -- `visible: [{when: system.charging, value: true},
+{else: false}]`, the form the editor writes -- and compiles to the same
+guard ([Rules](data.md#rules)).
 
 **Absent means hidden.** If the condition reads a nullable source and the device
 cannot supply it, the element is not drawn. There is deliberately **no

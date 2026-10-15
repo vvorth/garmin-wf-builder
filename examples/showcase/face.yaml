@@ -781,14 +781,20 @@ layouts:
         icon: dnd
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: -12% }
-        color: "device.do_not_disturb ? color.accent : color.dark"
+        color:                           # a rule list: the same choice as "device.do_not_disturb ? color.accent : color.dark"
+          - when: device.do_not_disturb
+            value: color.accent
+          - else: color.dark
 
       notification_badge:
         type: icon
         icon: notification
         size: 25%r
         at: { anchor: bottom, dy: -10% }
-        color: "device.notification_count > 0 ? color.accent : color.dark"
+        color:
+          - when: device.notification_count > 0
+            value: color.accent
+          - else: color.dark
 
       notification_count:
         type: text
@@ -803,7 +809,10 @@ layouts:
         icon: alarm
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: 12% }
-        color: "device.alarm_count > 0 ? color.accent : color.dark"
+        color:
+          - when: device.alarm_count > 0
+            value: color.accent
+          - else: color.dark
 
   # -------------------------------------------------------------------
   # Roman: a classy, vintage dial. Big roman numerals curved

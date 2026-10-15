@@ -331,6 +331,46 @@ and the preview draws values with the same rules:
   error; write one side with a decimal point to work in Float. A reading
   that overflows at run time wraps round, on the watch and in the preview.
 
+### Rules
+
+A value that depends on live data is written as one `?:` expression, or
+as the same choice laid out in rows: a **rule list**, `when:` rules tried
+in order and one `else:` for the rest. The two spellings are one thing to
+the compiler:
+
+```yaml
+# as an expression ...
+color: "heart_rate.current > 150 ? color.hot : system.charging ? color.dim : color.text"
+
+# ... and as rules
+color:
+  - when: heart_rate.current > 150
+    value: color.hot
+  - when: system.charging
+    value: color.dim
+  - else: color.text
+```
+
+A rule list is read as the conditional chain
+`when1 ? value1 : when2 ? value2 : else` (`?:` groups to the right, so
+the chain needs no parentheses; a piece that is itself a `?:` is
+parenthesised), so it generates exactly the Monkey C that expression
+does, and it is accepted wherever an
+expression is: `color:`, `track_color:`, `outline.color`, `icon.color`,
+`visible:` (its values `true`/`false`, or boolean expressions), a gauge's
+`value:` and `max:`, a graph's `min:`/`max:`, `absent: {value:}`, and the
+same keys inside `aod:`, `overrides:` and a pattern's parts. The shape is
+checked: at least one `when:` rule, then exactly one `else:`, last, each
+mistake reported at the rule concerned. Every `when:` is a boolean
+expression and every `value:` is what the key takes, so a `when:` that is
+a number, or an unknown `color.<name>` in a value, is reported on that
+rule's own line. A colour value is a `color.<name>`: the expression
+language has no `#RRGGBB` literal, so a literal colour in a rule is an
+error naming the palette entry to add. A ternary whose branches are
+themselves expressions (`steps > 0 ? steps / 1000.0 : 0`) is written as a
+rule list just the same, the expression in `value:`; nothing stops the
+string form either way.
+
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
 (see [`pattern`](patterns.md#pattern)) -- both compile to the same

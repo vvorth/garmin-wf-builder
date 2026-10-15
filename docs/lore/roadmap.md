@@ -35,7 +35,9 @@ or AOD-related has been observed on a watch or in the simulator.
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
   `ts/src/conversion.ts`) and duration formats on a number of seconds
   (`DURATION_CODES` in `ts/src/formatting.ts`, `WfbTime.durationPart`).
-  `docs/guide/data.md`.
+  A conditional value written as a rule list (`[{when:, value:}, ...,
+  {else:}]`) wherever an expression is taken, rewritten to the `?:` chain
+  by `ts/src/lower.ts`. `docs/guide/data.md` ("Rules").
 - **Interactivity** — `on_hold:` (including `on_hold: auto`) on every
   element; `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
 - **Configuration: all four native axes** — `accent_color`, `data_color`,
@@ -247,8 +249,8 @@ built.
 
 13. **Reserved by format 2**, each a friendly "not
     implemented" error today: `components`/`use:`/`with:`, `effects:`, `outline:` on parts, the
-    data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, `when:`
-    rule lists, and an advisory `static-candidate` lint.
+    data widget's `parts:`/`arrange:`/`requires:`/`fallback:`, and an
+    advisory `static-candidate` lint.
     `docs/limitations.md` §2. `outline:` on the element (every kind but
     `data`, `graph` and a ticked gauge) and on a group is built;
     only the per-part form stays reserved.

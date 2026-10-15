@@ -66,12 +66,32 @@ export class Origin {
   readonly offsets: readonly (readonly [number, number])[];
   /** What a diagnostic quotes for this value, when not `text` itself. */
   readonly quote: string | null;
+  /** For a value assembled from several scalars (a rule list): `[rewritten offset, that scalar's span, its length]` per piece, ascending. */
+  readonly spans: readonly (readonly [number, Span | null, number])[];
 
-  constructor(key: string, text: string | null = null, offsets: readonly (readonly [number, number])[] = [], quote: string | null = null) {
+  constructor(key: string, text: string | null = null, offsets: readonly (readonly [number, number])[] = [], quote: string | null = null,
+    spans: readonly (readonly [number, Span | null, number])[] = []) {
     this.key = key;
     this.text = text;
     this.offsets = offsets;
     this.quote = quote;
+    this.spans = spans;
+  }
+
+  /**
+   * The scalar an offset into the rewritten text falls in, and the offset
+   * inside it -- its start, when the offset is on the punctuation between
+   * two pieces. `null` for a value the author wrote as one scalar.
+   */
+  spanAt(offset: number): [Span | null, number] | null {
+    if (this.spans.length === 0) return null;
+    let piece = this.spans[0]!;
+    for (const candidate of this.spans) {
+      if (candidate[0] > offset) break;
+      piece = candidate;
+    }
+    const within = offset - piece[0];
+    return [piece[1], within < piece[2] ? within : 0];
   }
 
   authorOffset(offset: number): number {

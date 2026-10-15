@@ -15,7 +15,7 @@ wordmark on this platform.
 | `text:` | a literal string, or a template with `{expr:spec}` placeholders | required | [The `text:` template](#the-text-template) |
 | `units:` | `auto`/`metric`/`statute` | — | show the placeholder's reading in the wearer's units — see [Units](data.md#units) |
 | `font:` | `{source:, size:, …}` or `{face:, size:, …}` inline, `font.<name>`, or a system name | — | [Fonts](fonts.md#a-texts-own-font) |
-| `color:` | colour expression | — | [Colours](colors.md) |
+| `color:` | colour expression, or a rule list | — | [Colours](colors.md); [Rules](data.md#rules) |
 | `align:` | one of the nine anchor names, or a compass alias | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |
 | `absent:` | `hide`, `{text: "--"}` or `{value: <expr>}` | — | required for a nullable reading — see [Data binding](data.md#absence-is-the-normal-case) |
 | `curve.style:` | `angled`/`radial` | — | [`curve:`](#curve--rotated-and-radial-text) |

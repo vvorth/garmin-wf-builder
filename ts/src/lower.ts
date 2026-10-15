@@ -11,17 +11,21 @@
 //   parenthesised, `{unit}` has a reading to label, several placeholders
 //   only where several are drawn, and an `aod: {text:}` restyle reads the
 //   element's own expression;
-// - every drawn text (a template, an `absent:` placeholder) is one line.
+// - every drawn text (a template, an `absent:` placeholder) is one line;
+// - every rule list has its shape: `when:` rules, then one `else:`, last.
 //
-// It changes one thing: a compass alias (`align: NE`, `anchor: SW`) is
-// spelled out. And it records, for a nested key the builder compiles
-// (`outline.color`, `absent.value`), the dotted name a diagnostic gives it
-// (`Origin`).
+// It changes two things: a compass alias (`align: NE`, `anchor: SW`) is
+// spelled out, and a rule list becomes the conditional expression it
+// stands for, `when1 ? value1 : when2 ? value2 : else`, each
+// rule's scalar located in the `Origin` so an error inside one points at
+// that rule's own line. And it records, for a nested key the builder
+// compiles (`outline.color`, `absent.value`), the dotted name a
+// diagnostic gives it (`Origin`).
 import { type Bag, getCloseMatches, type Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { ExprError, tokenize, type Token } from "./expr.ts";
 import { controlCharacter } from "./mcsource.ts";
-import { compareStrings, quoted } from "./py.ts";
+import { compareStrings, quoted, str } from "./py.ts";
 import {
   aodFormat, parseTemplate, type Placeholder, segments, stripTemplateParens, type Template, TemplateError, toValueFormat,
 } from "./template.ts";
@@ -168,8 +172,87 @@ class Lowering {
 
   /** Check the colour references in `node[key]`, and record the key's author name for the builder's diagnostics. */
   exprKey(node: Dict, key: string, author: string | null = null): void {
+    if (Array.isArray(node.get(key))) {
+      this.ruleList(node, key, author ?? key);
+      return;
+    }
     if (!node.has(key) || typeof node.get(key) !== "string") return;
     if (this.checkRefs(node, key, { author })) this.doc.setOrigin(node, key, new Origin(author ?? key, node.get(key) as string));
+  }
+
+  /**
+   * `node[key]`, a rule list `[{when, value}, ..., {else}]`, checked for its
+   * shape and rewritten into the conditional it stands for. The `Origin`
+   * maps every piece of the text back to the rule's own scalar.
+   */
+  ruleList(node: Dict, key: string, author: string): void {
+    const rules = node.get(key) as Data[];
+    const items = rules.filter(isDict); // the schema has refused anything else
+    const whens = items.filter((rule) => rule.has("when"));
+    const elses = items.filter((rule) => rule.has("else"));
+    if (elses.length === 0) {
+      this.error("rules", `${author}: a rule list ends with an {else: ...} rule, the value when no 'when:' holds`, this.span(node, key, "key"),
+        "every reading the rules do not cover needs a value; write it as the last rule, '- else: ...'");
+      return;
+    }
+    if (elses.length > 1) {
+      this.error("rules", `${author}: one {else: ...} rule, not two`, this.span(rules, rules.indexOf(elses[1]!)),
+        "the else is the value when no 'when:' holds; a second condition is another '- when: ...' rule");
+      return;
+    }
+    if (items[items.length - 1] !== elses[0]) {
+      this.error("rules", `${author}: the {else: ...} rule comes last`, this.span(rules, rules.indexOf(elses[0]!)),
+        "the rules are tried in order and the else catches what none of them did, so nothing after it could ever be chosen");
+      return;
+    }
+    if (whens.length === 0) {
+      this.error("rules", `${author}: a rule list needs a {when: ..., value: ...} rule before its else -- a value that never varies is written on its own`,
+        this.span(node, key, "key"));
+      return;
+    }
+    let ok = true;
+    for (const [rule, k] of [...whens.flatMap((rule): [Dict, string][] => [[rule, "when"], [rule, "value"]]), [elses[0]!, "else"] as [Dict, string]]) {
+      const value = rule.get(k);
+      if (typeof value === "string" && value.startsWith("#")) {
+        // The expression language has no colour literal: a hex colour is a palette swatch's value, never a branch's.
+        this.error("rules", `${author}: a literal colour cannot be a rule's value -- add ${quoted(value)} to 'resources: palette:' and write 'color.<name>'`,
+          this.span(rule, k));
+        ok = false;
+        continue;
+      }
+      ok = this.checkRefs(rule, k) && ok;
+    }
+    if (!ok) return;
+    // `?:` is the loosest operator and groups to the right, so the chain
+    // needs no parentheses of its own: `w1 ? v1 : w2 ? v2 : e` is the text an
+    // author writes by hand, and only a piece that is a conditional itself
+    // is parenthesised. Offsets count code points, as the expression's do.
+    let text = "";
+    let at = 0;
+    const spans: [number, Span | null, number][] = [];
+    const add = (s: string): void => {
+      text += s;
+      at += Array.from(s).length;
+    };
+    const piece = (rule: Dict, k: string): void => {
+      const raw = rule.get(k);
+      const value = typeof raw === "boolean" ? String(raw) : str(raw);
+      const wrap = isConditional(value);
+      if (wrap) add("(");
+      spans.push([at, this.span(rule, k), Array.from(value).length]);
+      add(value);
+      if (wrap) add(")");
+    };
+    whens.forEach((rule, i) => {
+      if (i > 0) add(" : ");
+      piece(rule, "when");
+      add(" ? ");
+      piece(rule, "value");
+    });
+    add(" : ");
+    piece(elses[0]!, "else");
+    node.set(key, text);
+    this.doc.setOrigin(node, key, new Origin(author, null, [], null, spans));
   }
 
   /** A colour that must be a build-time literal: a hex literal, or a `color.<swatch>`. */
@@ -433,15 +516,26 @@ class Lowering {
     }
   }
 
+  /** The parts of a hand, a needle or a pattern, in either form: a list, or a mapping by id. */
   parts(parts: unknown, pattern = false): void {
-    if (!Array.isArray(parts)) return;
-    for (const part of parts) {
+    const list = Array.isArray(parts) ? parts : isDict(parts) ? [...parts.values()] : [];
+    for (const part of list) {
       if (!isDict(part)) continue;
       this.align(part);
       for (const key of ["color", "visible"]) this.exprKey(part, key);
       if (part.has("outline")) this.outline(part);
       if (pattern && part.get("type") === "text") this.text(part);
     }
+  }
+}
+
+/** Whether `text` holds a `?:` of its own (a `?` token outside any string literal). */
+function isConditional(text: string): boolean {
+  try {
+    return tokenize(text).some((token) => token.kind === "op" && token.text === "?");
+  } catch (error) {
+    if (error instanceof ExprError) return text.includes("?");
+    throw error;
   }
 }
 

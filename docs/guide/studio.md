@@ -354,8 +354,9 @@ cannot edit:
   (with **edit the set**, its lines in the YAML tab), a list of choices, on
   or off. A colour bound to a scheme role, rather than one of the face's
   swatches, names the role and jumps to the Schemes section. A key written
-  in a shape its control does not take (an `icon:` that follows data, say)
-  is edited as the YAML it is written as, in a text box: what you type is
+  in a shape its control does not take (an `icon:` that follows data, or a
+  colour written as a [rule list](data.md#rules)) is edited as the YAML it
+  is written as, in a text box: what you type is
   read as a YAML value when you leave the box and written if it reads.
 - A key holding keys (`at:`, `curve:`, `outline:`, `lint:`, `aod:` in the
   awake frame) is a fieldset of them, indented under its name. One with

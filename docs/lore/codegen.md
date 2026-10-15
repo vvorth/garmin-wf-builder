@@ -118,7 +118,9 @@ These cost real time to discover; do not rediscover them.
   `align: top_left`, `type: gauge`, `icon: {for:}`, `color.<name>` -- so a
   diagnostic names a key by the key itself. `ts/src/lower.ts` runs between the
   schema and `ts/src/desugar.ts` and only checks what a JSON Schema cannot (a
-  colour name, a template) and spells out a compass alias. Where the IR
+  colour name, a template, a rule list's shape) and spells out a compass
+  alias and a rule list (`when1 ? value1 : ... : else`, its `Origin`
+  locating each piece at its own rule's scalar). Where the IR
   splits one author key into fields, the builder does the split in one
   place: `Readers.alignment` (`align:` into horizontal and vertical),
   `Readers.absence` (`absent:` into policy, placeholder and fallback),
