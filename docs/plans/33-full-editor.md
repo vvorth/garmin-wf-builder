@@ -1,9 +1,9 @@
 # Plan 33 — A full-featured editor: `wfb studio` rebuilt over its engine
 
-**Status: open, in progress.** The user took every decision D1–D11 of
+**Status: built, 2026-10-15.** The user took every decision D1–D11 of
 `docs/research/34-full-editor.md` §10 as recommended on 2026-10-13 and
 asked for the slices to be built in order, unattended, starting with 0a.
-Each slice's status is noted at its heading as it ships.
+Every slice shipped; each slice's heading says where.
 
 **Scope.** Keep the engine (`ts/src/edit/`, `store.ts`, `router.ts`,
 `worker.ts`, `gate.ts`, `bundle.ts`, the rasteriser). Replace the page
@@ -239,6 +239,16 @@ byte-identical Monkey C to the ternary it replaces (goldens).
 
 ## Slice 5 — Layers, palette, the rest of the surface
 
+**Shipped 2026-10-15** (c302fdd to 0f65d5a): Layers search, `z:` badges,
+lock and hide-in-editor kept beside the face (`FaceUiState`, the frame's
+`hidden`), **accept here…** on a lint warning, every font option through
+the generic form (a font is an inspect subject), palette and scheme
+labels, a colour setting's choices inline; `add_layout` and
+`set_default_style` retired for page-side batches, every other compound
+op kept because it carries a check or a reference rename. The guide's
+"What it does not do" lists the `.prg` on the watch, another computer and
+sharing between browsers only, and `docs/limitations.md` matches.
+
 Search in Layers; lock and hide-in-editor as browser state beside the face
 (D9); `z:` badges; the diagnostic row's **accept here…** writing `lint:
 {allow, reason}`; fonts with every option (`glyphs`, `antialias`,
@@ -253,6 +263,15 @@ between browsers only; `docs/limitations.md` §2's `wfb studio` row shrinks
 to match, in the same commit.
 
 ## Slice 6 — Browser tests and CI (D10)
+
+**Shipped 2026-10-14/15** (a55173f; the fixture device e01069c): the
+Playwright suite over the real server and worker (76 tests at the end of
+slice 5), CI on every push with the owner's encrypted device archive, and
+the fixture device `wfbtest`, written by the project, which a run without
+the secret falls back to (the type check and the 21 test files that need
+no Garmin device). Not done: CI has not run on GitHub yet, because the
+owner has not published the device archive and passphrase
+(`docs/development.md`, "Continuous integration").
 
 Opened at slice 1 and grown with every slice: Playwright against the real
 server and worker in headless Chromium — open each example as yaml and

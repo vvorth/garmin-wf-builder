@@ -93,8 +93,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     pattern's or needle's parts for the tree, the entered frame and a drag;
     `document.ts`'s `EDITS` table holds
     every edit op, each one gated patch (an element key in a scope, `aod`
-    among them; `move_key`, `rename_layout`, `delete_layout`,
-    `set_default_style` beside the colour, scheme, slot and hand-set ops);
+    among them; `move_key`, `rename_layout` and `delete_layout` beside the
+    colour, scheme, slot and hand-set ops; composition is a page-side `batch`);
     `server.ts` (Node) sends the app, the devices' digest, a
     device's skin and font files, the docs for Help (`/help/`), and builds.
     `protocol.ts` is the one place the page/worker contract lives: every
