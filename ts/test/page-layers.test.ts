@@ -115,3 +115,58 @@ test("while entered, the element's row is marked, Exit heads the list, and a par
     { edit: { op: "move_key", element: SECOND, path: ["parts", "counterweight"], to: 0 } },
   ]);
 });
+
+test("the search narrows the rows to the ids and types holding it, each match under its ancestors; Escape and × clear it, and the selection stays", () => {
+  const doc = summary(instantiate("analog", "T"));
+  const printed = layers(doc, null, `
+      const search = root.all((e) => e.localName === "input" && cls(e) === "search")[0];
+      const shownIds = () => rows().map((e) => e.attributes["data-path"] ?? e.childNodes[0].textContent);
+      const blocks = () => root.all((e) => cls(e).startsWith("block")).map((e) => e.textContent.trim());
+      const type = async (v) => { search.value = v; search.dispatch("input", { target: search }); await new Promise((r) => setTimeout(r, 0)); };
+      const all = shownIds();
+      // "BLADE" in any case: the two blade parts, under their hands and the hands element, and nothing else
+      await type("BLADE");
+      out(shownIds());
+      out(blocks());
+      // a type matches too: every rectangle
+      await type("rectangle");
+      out(shownIds());
+      // nothing matches: no row, and a note says so
+      await type("zzz");
+      out([shownIds().length, root.textContent.includes("no element's id or type holds")]);
+      // × clears it; so does Escape, which goes no further than the box
+      await type("pin");
+      out(shownIds());
+      root.all((e) => e.localName === "button" && e.attributes["aria-label"] === "clear the search")[0].click();
+      await new Promise((r) => setTimeout(r, 0));
+      out(shownIds().length === all.length);
+      await type("pin");
+      let stopped = false;
+      search.dispatch("keydown", { key: "Escape", target: search, stopPropagation() { stopped = true; } });
+      await new Promise((r) => setTimeout(r, 0));
+      out([shownIds().length === all.length, stopped]);
+      // the search sends nothing and selects nothing
+      out(calls);
+    `);
+  const blade = (hand: string): string => ["resources", "hand_sets", "classic", hand, "parts", "blade"].join("/");
+  const hand = (h: string): string => ["resources", "hand_sets", "classic", h].join("/");
+  assert.deepEqual(printed[0], ["hands", hand("hour"), blade("hour"), hand("minute"), blade("minute")]);
+  assert.deepEqual(printed[1], ["elements"], "a block none of whose rows match is left out");
+  assert.deepEqual(printed[2], ["background", "hour_ticks", "static/hour_ticks/parts/tick", "date_frame", "hands", hand("minute"), blade("minute")],
+    "a type matches as an id does: the static background, the pattern's tick part, the minute blade and the date frame, each under its ancestors");
+  assert.deepEqual(printed[3], [0, true]);
+  assert.deepEqual(printed[4], ["pin"]);
+  assert.equal(printed[5], true);
+  assert.deepEqual(printed[6], [true, true]);
+  assert.deepEqual(printed[7], []);
+});
+
+test("a row shows its element's z: as a badge when written, and none when not", () => {
+  const text = instantiate("minimal", "T").replace("    font: FONT_SMALL\n", "    font: FONT_SMALL\n    z: 5\n");
+  const doc = summary(text);
+  const printed = layers(doc, null, `
+      const badge = (id) => row(id).all((e) => cls(e) === "z-badge").map((e) => e.textContent);
+      out([badge("seconds"), badge("clock"), badge("background")]);
+    `);
+  assert.deepEqual(printed[0], [["z 5"], [], []]);
+});

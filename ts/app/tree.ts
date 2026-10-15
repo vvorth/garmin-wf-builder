@@ -60,6 +60,25 @@ export function nodeAtPath(tree: readonly TreeBlock[], path: Path): TreeNode | n
   return found;
 }
 
+// The rows Layers shows for a search: every node (by `selectionId`) whose
+// id or type holds `query`, case-insensitively, and the ancestors of each,
+// so a match is seen where it sits. Null for an empty query: every row.
+export function matchingRows(tree: readonly TreeBlock[], query: string): Set<string> | null {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  const out = new Set<string>();
+  const hit = (n: TreeNode): boolean => n.id.toLowerCase().includes(q) || String(n.type ?? "").toLowerCase().includes(q);
+  // whether `n` or anything under it matches; each such node is kept
+  const walk = (n: TreeNode): boolean => {
+    let any = hit(n);
+    for (const c of n.children) if (walk(c)) any = true;
+    if (any) out.add(selectionId(n));
+    return any;
+  };
+  tree.forEach((b) => b.children.forEach(walk));
+  return out;
+}
+
 // Whether `path` names a part written in an id-keyed `parts:` (or a
 // needle's `needle:`) mapping: one a `move_key` can reorder.
 export const isPartPath = (path: Path): boolean => path.length >= 3 && (path[path.length - 2] === "parts" || path[path.length - 2] === "needle") && typeof path[path.length - 1] === "string";

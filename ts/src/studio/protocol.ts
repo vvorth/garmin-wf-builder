@@ -84,6 +84,8 @@ export interface TreeNode {
   /** Its first and last lines in the text, 1-based. */
   line: number;
   end: number;
+  /** An element's `z:` as written; absent when it has none. */
+  z?: Value;
   children: TreeNode[];
 }
 

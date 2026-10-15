@@ -490,7 +490,15 @@ since a group never draws itself. A `hands` element lists its set's hands
 and their parts beneath it, a `pattern` or a needle gauge its parts, each
 part with its type; its **↘** enters the element ([hands, patterns and
 needles](#hands-patterns-and-needles-enter-the-set)), and **Exit** at the
-top of the list leaves it.
+top of the list leaves it. A row whose element writes `z:` shows it as a
+small badge (**z 5**): `z:` orders drawing among its siblings before their
+order in the list does ([elements](elements.md)).
+
+The box above the tree searches it: typing narrows the rows to those whose
+id or type holds what you typed, in any case, each shown under the rows it
+sits in (its groups, its element, its hand), and a block with none of them
+is left out. **Escape** in the box, or its **×**, clears it. Searching
+selects nothing and keeps the selection as it was.
 
 - **+ add…** adds an element of any type in front of the selection (or
   at the front of `elements`). A graph asks for its series, a data

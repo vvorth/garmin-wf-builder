@@ -12,12 +12,17 @@
 // a part row dragged onto a sibling part reorders the parts.
 // Every change is one structural edit (or, for the parts, one `move_key`)
 // the worker patches into the text, checks and records.
+//
+// The search box above the tree narrows it to the rows whose id or type
+// holds what is typed, each with the rows it sits under; Escape or × clears
+// it, and the selection stays as it was. A row shows its element's `z:`,
+// when written, as a badge: it orders drawing before the rows' own order.
 
 import type { JSX, VNode } from "preact";
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 import type { EditOp, Path, StructureOp, Summary, TreeBlock, TreeNode, Vocabulary } from "../src/studio/protocol.ts";
-import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, hasParts, isPartPath, partDrop, selectionId, siblingsOf, stepOp } from "./tree.ts";
+import { anyDrawn, PATH_TYPE, blocksOf, carriesPath, deleteOp, droppedPath, dropTarget, hasParts, isPartPath, matchingRows, partDrop, selectionId, siblingsOf, stepOp } from "./tree.ts";
 import type { DropTarget } from "./tree.ts";
 
 /** How a click changes the selection: `"range"` (Shift) every row from the selection to it, true (Ctrl/Cmd) toggles it, false selects it alone. */
@@ -33,6 +38,8 @@ interface Ctx {
   extra: readonly string[];
   drawn: ReadonlySet<string> | null | undefined;
   entered: string | null;
+  /** The rows a search leaves (`selectionId`s), or null for every row. */
+  shown: ReadonlySet<string> | null;
   /** `owner`: the element a hand or part row sits under. */
   onSelect: (id: string, mode: SelectMode, owner?: Path) => void;
   onDrop: (path: Path, target: DropTarget["target"] | null) => void;
@@ -92,6 +99,7 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
          onDragLeave=${() => setOver(null)}
          onDrop=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => { e.preventDefault(); setOver(null); dropped(e, ctx, zone(e).target); }}>
       <span>${node.id}</span><span class="type">${node.type}</span>
+      ${node.z !== undefined ? html`<span class="z-badge" title=${`z: ${String(node.z)}: drawn by this number among its siblings before their order here`}>z ${String(node.z)}</span>` : null}
       ${enterable ? html`<button class="enter" title=${entered ? "the parts of this element are on the face" : "Enter: edit its parts on the face (or double-click the row)"}
           disabled=${entered} onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); ctx.onEnter(node.path); }}>↘</button>` : null}
     </div>
@@ -131,9 +139,12 @@ function PartRow({ node, ctx, depth, owner, siblings }: RowProps): VNode {
 
 // `children` as rows in draw order: each told the sibling drawn after it,
 // the row below it; a hand or a part under `owner`, the element they sit in.
+// A search shows only the rows it leaves, but a drop still lands by the
+// real siblings.
 function inDrawOrder(children: readonly TreeNode[], ctx: Ctx, depth: number, owner: Path | null = null): VNode[] {
-  return children.map((c, i) => html`<${c.kind === "element" ? Row : PartRow} key=${selectionId(c)} node=${c} next=${children[i + 1]?.id ?? null}
-                                             siblings=${children} ctx=${ctx} depth=${depth} owner=${owner} />`);
+  return children.flatMap((c, i) => (ctx.shown && !ctx.shown.has(selectionId(c)) ? []
+    : [html`<${c.kind === "element" ? Row : PartRow} key=${selectionId(c)} node=${c} next=${children[i + 1]?.id ?? null}
+                                             siblings=${children} ctx=${ctx} depth=${depth} owner=${owner} />`]));
 }
 
 interface BlockProps {
@@ -141,8 +152,10 @@ interface BlockProps {
   ctx: Ctx;
 }
 
-function Block({ block, ctx }: BlockProps): VNode {
+function Block({ block, ctx }: BlockProps): VNode | null {
   const [over, setOver] = useState(false);
+  // a search hides a block none of whose rows it leaves
+  if (ctx.shown && !block.children.some((c) => ctx.shown!.has(selectionId(c)))) return null;
   return html`<li>
     <div class=${"block" + (over ? " drop-into" : "")}
          onDragOver=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => { e.preventDefault(); if (carriesPath(e.dataTransfer?.types)) setOver(true); }}
@@ -178,6 +191,8 @@ export interface LayersProps {
 export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onSelect, onStructure, onEdit, onEnter, onExit }: LayersProps): VNode {
   const [type, setType] = useState("");
   const [choice, setChoice] = useState("");
+  const [query, setQuery] = useState("");
+  const shown = matchingRows(doc.tree, query);
   const blocks = blocksOf(doc.tree);
   const selectedNode = selected ? blocks.nodes.find((n) => n.id === selected) : undefined;
   const enteredNode = entered ? blocks.nodes.find((n) => n.path.join("/") === entered.join("/")) : undefined;
@@ -209,7 +224,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
     if (op) onStructure(op);
   };
   const ctx: Ctx = {
-    selected, extra, drawn, onSelect, entered: entered ? entered.join("/") : null,
+    selected, extra, drawn, onSelect, entered: entered ? entered.join("/") : null, shown,
     onDrop: (path, target) => {
       if (!target || JSON.stringify(path) === JSON.stringify([...target.block, target.before])) return;
       onStructure({ op: "move", path, block: target.block, before: target.before });
@@ -255,7 +270,14 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
       <button class="exit" title="Leave the parts and edit the face again (Esc)" onClick=${() => { if (onExit) onExit(); }}>↖ Exit</button>
       <span class="dim">the parts of <code>${enteredNode.id}</code> are on the face</span>
     </div>` : null}
+    <div class="layer-search">
+      <input type="search" class="search" placeholder="search ids and types" aria-label="search the layers" value=${query}
+        onInput=${(e: JSX.TargetedEvent<HTMLInputElement>) => setQuery(e.currentTarget.value)}
+        onKeyDown=${(e: JSX.TargetedKeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape" && query) { e.stopPropagation(); setQuery(""); } }} />
+      ${query ? html`<button class="reset" title="clear the search" aria-label="clear the search" onClick=${() => setQuery("")}>×</button>` : null}
+    </div>
     <div class="order-note dim" title="Each block draws its rows top to bottom">front at the bottom</div>
+    ${shown && shown.size === 0 ? html`<div class="dim note">no element's id or type holds “${query.trim()}”</div>` : null}
     <ul class="tree root">${doc.tree.map((b) => html`<${Block} block=${b} ctx=${ctx} />`)}</ul>
   </div>`;
 }

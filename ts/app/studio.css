@@ -498,6 +498,16 @@ h3.fold:hover { color: var(--text); }
 
 /* Layers' order, and the shortcut list */
 .layers .order-note { padding: 4px 12px 0; font-size: 11px; }
+/* Layers' search, a row's z: badge, and its lock and hide toggles (the editor's own, never the face's) */
+.layers .layer-search { display: flex; gap: 4px; align-items: center; padding: 6px 12px 0; }
+.layers .layer-search input { flex: 1; min-width: 0; padding: 2px 8px; font-size: 12px; }
+.tree .z-badge { font-size: 10px; color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; line-height: 1.4; }
+.tree .item.selected .z-badge { color: #dfe9ff; border-color: #dfe9ff; }
+.tree .item .row-toggles { margin-left: auto; display: flex; gap: 2px; }
+.tree .item .row-toggles button { padding: 0 4px; font-size: 11px; line-height: 1.3; border-color: transparent; background: transparent; opacity: .35; }
+.tree .item:hover .row-toggles button, .tree .item .row-toggles button.on { opacity: 1; }
+.tree .item button.enter + .row-toggles { margin-left: 0; }
+.tree .item.hidden-row > span:first-child { text-decoration: line-through; opacity: .6; }
 .modal-body.shortcuts section h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim, inherit); }
 .modal-body.shortcuts dl { display: grid; grid-template-columns: minmax(0, 13em) 1fr; gap: 3px 12px; margin: 0; }
 .modal-body.shortcuts dt, .modal-body.shortcuts dd { margin: 0; }

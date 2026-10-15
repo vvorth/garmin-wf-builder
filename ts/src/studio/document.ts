@@ -351,6 +351,8 @@ function children(index: SpanIndex, block: Entry): TreeNode[] {
       kind: "element", id: entry.name, type: plain((data as Map<unknown, unknown>).get("type") ?? null) as Value, path: [...entry.path],
       line: entry.key.start.line + 1, end, children: [],
     };
+    const z = (data as Map<unknown, unknown>).get("z");
+    if (z !== undefined && z !== null) node.z = plain(z) as Value;
     for (const sub of ELEMENT_BLOCKS) {
       const childBlock = index.get([...entry.path, sub]);
       if (childBlock !== undefined) node.children.push(...children(index, childBlock));

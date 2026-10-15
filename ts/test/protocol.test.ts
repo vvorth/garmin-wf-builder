@@ -78,7 +78,7 @@ const oneOf = (...cs: Check[]): Check => (v, at) => {
 // -- the shapes, one per interface of protocol.ts ---------------------------------
 
 const path = list(oneOf(str, int));
-const treeNode: Check = (v, at) => obj({ kind: literal("element", "hand", "part"), id: str, type: value, path, line: int, end: int, children: list(treeNode) })(v, at);
+const treeNode: Check = (v, at) => obj({ kind: literal("element", "hand", "part"), id: str, type: value, path, line: int, end: int, z: opt(value), children: list(treeNode) })(v, at);
 const treeBlock = obj({ kind: literal("block"), label: str, path, line: nullable(int), children: list(treeNode) });
 const diagnostic = obj({ severity: literal("error", "warning", "note"), code: str, message: str, notes: list(str), file: opt(str), line: opt(int), col: opt(int) });
 const history = obj({
