@@ -20,7 +20,7 @@ import { createContext } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import type {
   Answer, Args, AssetArgs, DeviceInfo, Dragged, EditOp, FaceUiState, Frame, FrameArgs, Gesture, Inspect, InspectArgs, Op, Path, Scope, Skin, Structured,
-  StructureOp, Summary, TreeNode, VersionArgs, Vocabulary,
+  StructureOp, Summary, TreeNode, Value, VersionArgs, Vocabulary,
 } from "../src/studio/protocol.ts";
 import { api, call, listen } from "./api.ts";
 import type { DiagnosticFilter } from "./diagnostics.ts";
@@ -31,7 +31,7 @@ import { nodeAtPath, nodeById } from "./tree.ts";
 import { TAB } from "./session.ts";
 import * as sync from "./textsync.ts";
 import type { PlanKind, SyncState } from "./textsync.ts";
-import { picksParam } from "./values.ts";
+import { lintSteps, picksParam } from "./values.ts";
 import { CSS_PX_PER_INCH, clampZoom, realZoom, serverScale } from "./zoom.ts";
 
 // -- the state ----------------------------------------------------------------------------
@@ -876,6 +876,22 @@ export class EditorStore {
     write("wfb-panel-right", String(view.panels.right));
     write("wfb-face-section", ui.faceSection);
     write("wfb-fold", JSON.stringify(ui.folds));
+  }
+
+  /** The element at `element`'s `lint:` as written, or null: what "accept here…" adds to. */
+  async lintOf(element: Path): Promise<Value | null> {
+    const doc = this.state.doc;
+    if (!doc) return null;
+    const ins = await api("inspect", { id: doc.id, element });
+    const field = ins.fields.find((f) => f.key === "lint");
+    return field && field.present ? field.value : null;
+  }
+
+  /** Accept the lint `code` on the element at `element` with `reason`, over its `lint:` as written, as one change. */
+  acceptLint(element: Path, code: string, reason: string, written: Value | null): Promise<void> {
+    const steps = lintSteps(element, code, reason, written);
+    const id = String(element[element.length - 1]);
+    return steps.length ? this.batch(`accept ${code} on ${id}`, steps) : Promise.resolve();
   }
 
   /** Lock the element `id` in the editor, or unlock it: a locked one is not picked or dragged on the canvas; Layers and Properties still reach it. */

@@ -697,6 +697,8 @@ export interface Words {
   /** Every data source, by path. */
   source_info: Record<string, SourceInfo>;
   format_codes: FormatCodes;
+  /** The diagnostic codes an element's `lint: {allow: [...], reason}` may accept, sorted. */
+  lint_codes: string[];
 }
 
 /** The words and the installed devices. */

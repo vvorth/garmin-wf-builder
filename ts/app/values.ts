@@ -1,7 +1,7 @@
 // Values as the author writes them: pure functions, no DOM, so Node can
 // check them (test/page-modules.test.ts).
 
-import type { ComplicationType, Diagnostic, MipColor, PaletteEntry, Severity, SlotEntry, Value } from "../src/studio/protocol.ts";
+import type { ComplicationType, Diagnostic, EditOp, MipColor, PaletteEntry, Path, Severity, SlotEntry, Value } from "../src/studio/protocol.ts";
 
 /** A colour's channels, 0 to 255. */
 export type RGB = [number, number, number];
@@ -200,4 +200,23 @@ export function shownDiagnostics(items: readonly Diagnostic[], filter: "all" | S
   return kept.map((d, i): [Diagnostic, number] => [d, i])
     .sort(([a, i], [b, j]) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3) || i - j)
     .map(([d]) => d);
+}
+
+/**
+ * The edits that accept the lint `code` on the element at `element`, with
+ * `reason`: its `lint:` block written whole when it has none; else `code`
+ * appended to the `allow:` it has (made when missing), and the reason set
+ * only when it differs from the one written. `written` is the element's
+ * `lint:` as written, or null.
+ */
+export function lintSteps(element: Path, code: string, reason: string, written: Value | null | undefined): EditOp[] {
+  const lint: Path = [...element, "lint"];
+  const block = written !== null && typeof written === "object" && !Array.isArray(written) ? written : null;
+  if (block === null) return [{ op: "set", path: lint, value: { allow: [code], reason } }];
+  const steps: EditOp[] = [];
+  const allow = block["allow"];
+  if (!Array.isArray(allow)) steps.push({ op: "set", path: [...lint, "allow"], value: [code] });
+  else if (!allow.includes(code)) steps.push({ op: "insert_item", path: [...lint, "allow"], at: allow.length, value: code });
+  if (reason !== "" && reason !== block["reason"]) steps.push({ op: "set", path: [...lint, "reason"], value: reason });
+  return steps;
 }

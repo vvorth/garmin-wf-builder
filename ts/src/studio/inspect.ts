@@ -36,6 +36,7 @@ import { indexFor, type Path, Refused, type SpanIndex } from "../edit/spans.ts";
 import { elementTypes } from "../edit/structure.ts";
 import { WholeFloat } from "../edit/yaml.ts";
 import * as icons from "../icons.ts";
+import { SUPPRESSIBLE } from "../lint.ts";
 import { HAND_PART_FILLED_SHAPES, HAND_PART_GEOMETRY_KEYS, PATTERN_PART_GEOMETRY_KEYS } from "../ir/builder/hands.ts";
 import type { Face } from "../ir/model.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../kinds/shape.ts";
@@ -726,6 +727,7 @@ export function vocabulary(): Words {
       format_codes: {
         time: codesOf(TIME_CODES), date: codesOf(DATE_CODES), duration: codesOf(DURATION_CODES), number: NUMBER_SPECS.map(([spec, label]) => [spec, label]),
       },
+      lint_codes: [...SUPPRESSIBLE].sort(),
     };
   }
   return words;

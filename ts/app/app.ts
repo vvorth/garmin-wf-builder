@@ -417,6 +417,7 @@ function ReportsSection({ doc }: { doc: Summary }): VNode {
   const folded = useStore((s) => s.ui.folds.lower);
   const tab = useStore((s) => s.ui.reportsTab);
   const filter = useStore((s) => s.ui.diagFilter);
+  const vocab = useStore((s) => s.vocab);
   const onFold = (f: boolean): void => store.setFolded("lower", f);
   const show = (reportsTab: EditorState["ui"]["reportsTab"]): void => store.setUi({ reportsTab, folds: { ...store.state.ui.folds, lower: false } });
   return html`
@@ -431,7 +432,9 @@ function ReportsSection({ doc }: { doc: Summary }): VNode {
       </div>
       ${folded ? null : html`<div class="section-scroll">${tab === "diagnostics"
         ? html`<${Diagnostics} items=${doc.diagnostics} tree=${doc.tree} onSelect=${(id: string) => store.select(id)}
-                               filter=${filter} onFilter=${(f: DiagnosticFilter) => store.setUi({ diagFilter: f })} />`
+                               filter=${filter} onFilter=${(f: DiagnosticFilter) => store.setUi({ diagFilter: f })}
+                               lintCodes=${vocab?.lint_codes ?? []} lintOf=${(p: Path) => store.lintOf(p)}
+                               onAccept=${(p: Path, code: string, reason: string, written: Value | null) => { void store.acceptLint(p, code, reason, written); }} />`
         : html`<${HistoryTab} doc=${doc} />`}</div>`}
     </section>`;
 }

@@ -908,3 +908,49 @@ test("a colour built in rows is the rule list the examples write, compiles as th
   write(doc, alarm, at(doc, [...alarm, "color"]), writeRows(more, "color"));
   assert.match(doc.text, /          - when: "device\.alarm_count > 1"\n            value: color\.accent\n          - when: system\.charging\n            value: color\.fg\n          - else: color\.dark\n/);
 });
+
+// -- a lint warning accepted on its element --
+
+test("accept here: the lint block the page composes lands in one batch and the warning clears, an existing block keeping its codes and reason", async () => {
+  const { lintSteps } = await import("../app/values.ts");
+  const studio = await newStudio();
+  const doc = openExample(studio, "examples/features/outline/face.yaml");
+  const LINT = /\n    lint:\n      allow: \[text-outline-interior\]\n      reason: "[^"]*"/;
+  assert.ok(LINT.test(doc.text));
+  const warned = (d: Document): string[] => d.diagnostics().filter((x) => x.code === "text-outline-interior" && x.severity === "warning")
+    .map((x) => String(x.line));
+  const labelLine = (d: Document): number => indexFor(d.text).get(["elements", "label"])!.key.start.line + 1;
+  // without its block, the label warns, on a line inside the element
+  doc.replaceText(doc.text.replace(LINT, ""), doc.version);
+  const lines = warned(doc).map(Number);
+  assert.ok(lines.length > 0 && lines.every((l) => l >= labelLine(doc) && l < labelLine(doc) + 8), String(lines));
+  const before = doc.text;
+  // no block: the whole block is written, as one change
+  const steps = lintSteps(["elements", "label"], "text-outline-interior", "an opaque label the ring decorates", null);
+  assert.deepEqual(steps, [{ op: "set", path: ["elements", "label", "lint"], value: { allow: ["text-outline-interior"], reason: "an opaque label the ring decorates" } }]);
+  const v = doc.version;
+  doc.batch({ op: "batch", label: "accept text-outline-interior on label", edits: steps }, doc.version);
+  assert.equal(doc.version, v + 1);
+  assert.deepEqual(warned(doc), []);
+  assert.deepEqual(dataOf(doc).elements.label.lint, { allow: ["text-outline-interior"], reason: "an opaque label the ring decorates" });
+  assert.equal(doc.history().states[0]!.label, "accept text-outline-interior on label");
+  // byte-exact outside the element's new block
+  const added = doc.text.split("\n").filter((l) => !before.split("\n").includes(l));
+  assert.deepEqual(added, ["    lint: { allow: [text-outline-interior], reason: an opaque label the ring decorates }"]);
+
+  // an element with a block already: the code joins its allow list and its reason stays
+  const doc2 = openExample(studio, "examples/features/outline/face.yaml");
+  doc2.replaceText(doc2.text.replace(LINT, "\n    lint:\n      allow: [contrast]\n      reason: \"kept as it was\""), doc2.version);
+  assert.ok(warned(doc2).length > 0);
+  const written = dataOf(doc2).elements.label.lint;
+  const kept = lintSteps(["elements", "label"], "text-outline-interior", "kept as it was", written);
+  assert.deepEqual(kept, [{ op: "insert_item", path: ["elements", "label", "lint", "allow"], at: 1, value: "text-outline-interior" }]);
+  doc2.batch({ op: "batch", label: "accept", edits: kept }, doc2.version);
+  assert.deepEqual(warned(doc2), []);
+  assert.deepEqual(dataOf(doc2).elements.label.lint, { allow: ["contrast", "text-outline-interior"], reason: "kept as it was" });
+  // a reason the author changed is written too
+  assert.deepEqual(lintSteps(["elements", "label"], "contrast", "new words", { allow: ["contrast"], reason: "old" }),
+    [{ op: "set", path: ["elements", "label", "lint", "reason"], value: "new words" }]);
+  // every code it offers is one the compiler lets a lint: block accept
+  assert.ok(vocabulary().lint_codes.includes("text-outline-interior") && !vocabulary().lint_codes.includes("lint-allow"));
+});

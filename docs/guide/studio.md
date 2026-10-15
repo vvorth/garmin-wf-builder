@@ -110,6 +110,16 @@ you visit History and come back, and the tab says so (**· warnings
 only**). Clicking a diagnostic selects the element it is about. When the
 face has errors, the top bar counts them; click the count to see them.
 
+A warning you may accept on the element it is about (a check `lint:
+{allow: [...]}` can silence, on a line inside an element; [lint
+suppression](lints.md#lint-suppression)) has **accept here…**. It asks why, in a box on the
+row: type the reason and press **Enter** or **Accept** (the reason cannot
+be empty), or **Escape** or **×** to keep the warning. The element's
+`lint:` is then written as one change: `lint: {allow: [<code>], reason:
+<why>}` when it has none, else the code joins its `allow:` list, and its
+reason, which the box starts with, is kept unless you change it. The
+warning goes, since the element now accepts it.
+
 The bar above the centre picks the watch, where a geometry edit lands
 (**Edit for**, [below](#on-the-face)), the style and the zoom.
 **Preview ▾** holds the rest of what the face is drawn at: the time and

@@ -159,6 +159,7 @@ const vocabulary = obj({
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str) })), icon_glyphs: record(int),
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),
   format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)) }),
+  lint_codes: list(str),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str) })),
   unreadable_devices: list(obj({ id: str, reason: str })),
 });
