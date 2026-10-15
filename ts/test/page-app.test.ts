@@ -290,7 +290,7 @@ test("accept here… on a lint warning asks the reason inline and writes the ele
       const acceptButton = () => find((e) => e.localName === "button" && e.textContent === "Accept")[0];
       // asked for: the reason, empty while the element has none, and nothing sent without one; clicking it selected nothing
       out([reason().attributes.value ?? reason().value, "disabled" in acceptButton().attributes || acceptButton().disabled === true,
-           requests.filter(([op]) => op === "inspect").map(([, a]) => a.element)]);
+           requests.filter(([op]) => op === "inspect").map(([, a]) => a.element), find((e) => cls(e) === "accept-form").length]);
       const input = reason();
       input.value = "a seconds readout left off the dial on purpose"; input.dispatch("input", { target: input }); await settle();
       input.dispatch("keydown", { key: "Enter", target: input }); await settle();
@@ -309,7 +309,8 @@ test("accept here… on a lint warning asks the reason inline and writes the ele
   const element = ["elements", "seconds"];
   assert.ok(printed[0].length > 1);
   for (const [severity, n] of printed[0]) assert.equal(n, severity === "warning" ? 1 : 0, severity);
-  assert.deepEqual(printed[1], ["", true, [element]]);
+  // one row asks, even where two rows say the same thing (one per target)
+  assert.deepEqual(printed[1], ["", true, [element], 1]);
   assert.deepEqual(printed[2], [["batch", { label: "accept off-screen on seconds", id: face.summary.id, version: face.summary.version,
     edits: [{ op: "set", path: [...element, "lint"], value: { allow: ["off-screen"], reason: "a seconds readout left off the dial on purpose" } }] }]]);
   assert.equal(printed[3], "the readout is two digits");

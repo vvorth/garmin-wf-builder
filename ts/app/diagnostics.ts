@@ -49,8 +49,8 @@ interface Accepting {
   reason: string;
 }
 
-/** A diagnostic row's identity while the list is shown. */
-const keyOf = (d: Diagnostic): string => `${d.code}\0${d.line ?? ""}\0${d.message}`;
+/** A diagnostic row's identity while the list is shown: its place, and what it says (two rows may say the same). */
+const keyOf = (d: Diagnostic, i: number): string => `${i}\0${d.code}\0${d.line ?? ""}\0${d.message}`;
 
 // The compiler's diagnostics, most severe first; with more than one
 // severity present, chips filter them to one. The editor holds the filter
@@ -71,15 +71,15 @@ export function Diagnostics({ items, tree, onSelect, filter, onFilter, lintCodes
                                         onClick=${() => setFilter(s)}>${names[s]} ${counts[s]}</button>`)}
     </div>` : null}
     <ul class="diags">
-    ${shownDiagnostics(items, which).map((d) => {
+    ${shownDiagnostics(items, which).map((d, i) => {
       const el = d.line ? elementAtLine(tree, d.line) : null;
       // a warning an element's own lint: block may accept
       const acceptable = onAccept && el && d.severity === "warning" && lintCodes.includes(d.code);
-      const open = accepting && accepting.key === keyOf(d) ? accepting : null;
+      const open = accepting && accepting.key === keyOf(d, i) ? accepting : null;
       const start = (e: JSX.TargetedMouseEvent<HTMLButtonElement>): void => {
         e.stopPropagation();
         if (!el) return;
-        const key = keyOf(d);
+        const key = keyOf(d, i);
         setAccepting({ key, element: el, code: d.code, written: null, read: !lintOf, reason: "" });
         // the reason the element's lint: has already is offered to keep
         if (lintOf) {

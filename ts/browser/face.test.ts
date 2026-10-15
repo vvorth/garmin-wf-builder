@@ -126,18 +126,18 @@ h.test("Colour settings: an accent setting added, its choices, default and role,
   let doc = await written(s, base);
   assert.match(doc.text, /^  accent_color: \{ default: color\.black, choices: \[color\.black\] \}$/m, diffLines(base.text, doc.text).join(" ; "));
   const axis = body.locator(".axis").first();
-  // tick a colour: the list is always written out
-  await axis.locator(".axis-choices label", { hasText: "white" }).locator("input").click();
+  // + add a face colour: listed inline, and the list is always written out
+  await axis.locator(".axis-add button.chip-button").click();
+  await s.page.locator(".popover-body.pop .pop-swatches button[aria-label=white]").click();
   doc = await written(s, doc);
   assert.match(doc.text, /accent_color: \{ default: color\.black, choices: \[color\.black, color\.white\] \}/);
-  // the default: one of the listed, which then cannot be unticked
+  assert.deepEqual(await axis.locator(".axis-choice > span:nth-child(2)").allTextContents(), ["black", "white"]);
+  // the default: one of the listed, which then cannot be taken off the list
   await axis.locator("select").selectOption("color.white");
   doc = await written(s, doc);
   assert.match(doc.text, /accent_color: \{ default: color\.white, choices: \[color\.black, color\.white\] \}/);
-  await s.page.waitForFunction(() => {
-    const label = [...document.querySelectorAll(".axis .axis-choices label")].find((l) => /white/.test(l.textContent!));
-    return label !== undefined && (label.querySelector("input") as HTMLInputElement).disabled;
-  }, null, { timeout: 8000 });
+  await s.page.waitForFunction(() => (document.querySelector(".axis .axis-choice button[aria-label='remove white']") as HTMLButtonElement | null)?.disabled === true,
+    null, { timeout: 8000 });
   // the role it binds
   const role = axis.locator(".axis-head input");
   await role.fill("glow");
@@ -163,11 +163,11 @@ h.test("Colour settings: an accent setting added, its choices, default and role,
   await s.faceSection("Colour settings");
   const accent = s.page.locator(".face-section-body .axis").first();
   await s.expectText(accent.locator(".note"), /choices: any/);
-  assert.equal(await accent.locator(".axis-choices").count(), 0);
+  assert.equal(await accent.locator(".axis-list").count(), 0);
   await accent.locator("button", { hasText: "Make it a list" }).click();
   doc = await written(s, any);
   assert.match(doc.text, /^    choices: \[color\.orange, color\.black, color\.white, color\.light_gray, color\.dark_gray, color\.amber, color\.cyan, color\.sky_blue, color\.lime\]$/m, diffLines(any.text, doc.text).join(" ; "));
-  await accent.locator(".axis-choices").waitFor({ timeout: 8000 });
+  await accent.locator(".axis-list").waitFor({ timeout: 8000 });
   await undoTo(s, any, "Make it a list");
   assert.deepEqual(s.errors, []);
 });
@@ -185,7 +185,7 @@ h.test("Colour schemes: make switchable, the table, + Scheme, + Role, renames, d
   let doc = await written(s, base);
   assert.match(doc.text, /^theme:\n  schemes:\n    dark:\n      colors:\n        bg: "#000000"\n        text: "#FFFFFF"\n\nconfig:\n  style:\n    default: dark\n    choices:\n      dark:\n        scheme: dark$/m, diffLines(base.text, doc.text).join(" ; "));
   assert.doesNotMatch(doc.text, /^    bg: "#000000"$/m, "bg stayed in the palette");
-  assert.deepEqual(doc.globals.schemes, { names: ["dark"], roles: ["bg", "text"], colors: { dark: { bg: "#000000", text: "#FFFFFF" } }, base: { dark: null }, inherited: { dark: [] } });
+  assert.deepEqual(doc.globals.schemes, { names: ["dark"], roles: ["bg", "text"], colors: { dark: { bg: "#000000", text: "#FFFFFF" } }, base: { dark: null }, inherited: { dark: [] }, labels: { dark: null } });
   assert.equal(doc.history.undo, "make bg, text switchable, in the scheme dark");
 
   // + Scheme: a copy of the first, and a style picking it
