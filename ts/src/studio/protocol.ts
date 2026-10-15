@@ -351,7 +351,8 @@ export interface Dragged extends Summary {
 /**
  * A handle on a placed element or part, in device pixels: a line's `end`, a
  * `size` edge (`key` the size key, `axis` the direction, `gain` the pixels
- * of size per pixel of drag), an arc's `angle` (about `cx`, `cy`, from
+ * of size per pixel of drag; a text's `["font", "size"]` sits at its box's
+ * top right, growing as it is dragged up), an arc's `angle` (about `cx`, `cy`, from
  * `start` over `sweep`), a polygon's `vertex` (point `index`; dragging it is
  * a `vertex` gesture) or `segment` (the midpoint of the edge after point
  * `after`; dragging it is an `add_vertex` gesture there). A `mirror: x`

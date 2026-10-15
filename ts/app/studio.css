@@ -228,6 +228,8 @@ button.link:hover { color: var(--accent); }
 .condition .cond select { max-width: 11em; }
 .condition .cond input[aria-invalid="true"] { border-color: var(--error); }
 .condition .rule-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.own-font { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.own-font select { max-width: 12em; }
 code.yaml { font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--dim); }
 .face-panel .face-nav { flex-wrap: wrap; }
 .face-panel .face-nav button { flex: none; padding: 6px 10px; }

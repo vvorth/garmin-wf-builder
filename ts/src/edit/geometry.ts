@@ -24,11 +24,12 @@ import {
   type AnyHandPart, type Element, type Face, type Gauge, Group, type HandsElement, type PatternElement, Position, Shape,
 } from "../ir/model.ts";
 import {
-  type Placed, PlacedGauge, PlacedHands, PlacedPattern, type ResolvedFace, type ResolvedHandPart, ResolveError, Resolver, resolve,
+  type Placed, PlacedGauge, PlacedHands, PlacedPattern, PlacedText, type ResolvedFace, type ResolvedHandPart, ResolveError, Resolver, resolve,
   roundHalfAway,
 } from "../layout.ts";
 import { degrees, floorMod, formatFixed, formatG, hypot, radians, roundHalfEven } from "../py.ts";
 import { type Axis, Box, Length, UnitError } from "../units.ts";
+import { userNames } from "./colors.ts";
 import { type Loaded, loadText } from "./gate.ts";
 import { child, insertItem, number, type Patch, patch as makePatch, removeItem, setScalars, setValue } from "./patch.ts";
 import { dotted, indexFor, isElement, type Path, Refused, type SpanIndex } from "./spans.ts";
@@ -465,6 +466,7 @@ export function turn(view: View, subject: Subject, key: string, degreesValue: nu
 /** Change the extent `key` (`["size", "width"]`, `["radius"]`, `["thickness"]`) by `delta` device pixels; on a part, `resizePart`. */
 export function resize(view: View, subject: Subject, key: readonly string[], delta: number, scope: Scope = "auto"): Converted {
   if (isPart(subject)) return resizePart(view, subject, key, delta, scope);
+  if (key.length === 2 && key[0] === "font" && key[1] === "size") return resizeFont(view, subject, delta, scope);
   const elementId = subject;
   const measure = EXTENTS.get(key.join("\0"));
   if (measure === undefined) throw new Refused(`${dotted(key)} is not a size, radius or thickness`);
@@ -491,6 +493,53 @@ export function resize(view: View, subject: Subject, key: readonly string[], del
   const keys = [{ write: target(index, element, key, view.device, scope), spelling,
     values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
   return settle(view, index, keys, elementId, (p) => measure(p) === goal, effective.kind === "icon");
+}
+
+/** The key that sizes a font. */
+export const FONT_SIZE: readonly string[] = ["font", "size"];
+
+/**
+ * Grow a text's baked font by `delta` pixels: the element's own `font.size`
+ * when its font is written inline, or the shared `resources: fonts:`
+ * entry's `size:` when only this element draws with it (another element
+ * using it would change too, so that is refused, naming them). A font's
+ * size is the same on every watch, so there is no override to write. The
+ * landing is checked with the fonts baked again at each candidate size,
+ * since the size a sheet is baked at is what places the text.
+ */
+function resizeFont(view: View, elementId: string, delta: number, scope: Scope): Converted {
+  if (scope === "device" || scope === "shape" || scope === "display") {
+    throw new Refused(`a font's size is the same on every watch: ${elementId}'s font has no override to write`);
+  }
+  const element = view.authorPath(elementId);
+  const placed = view.placed(elementId);
+  if (!(placed instanceof PlacedText) || !placed.font.is_custom || placed.font.is_vector) {
+    throw new Refused(`${elementId} does not draw in a font baked from a file, so it has no size to change here`);
+  }
+  const written = view.index.get([...element, "font"]) !== undefined ? dataAt(view.index, [...element, "font"]) : undefined;
+  let sizePath: Path;
+  if (written instanceof Map) {
+    sizePath = [...element, "font", "size"];
+  } else if (typeof written === "string" && written.startsWith("font.")) {
+    const name = written.slice("font.".length);
+    const others = userNames(view.index, name, "font.").filter((user) => user !== elementId);
+    if (others.length > 0) {
+      throw new Refused(`the font ${name} is shared with ${others.join(", ")}: change its size in the Face tab's Fonts, or give ${elementId} its own font`);
+    }
+    sizePath = ["resources", "fonts", name, "size"];
+  } else {
+    throw new Refused(`${elementId}'s font is not written where its size can be changed`);
+  }
+  if (view.index.get(sizePath) === undefined) throw new Refused(`${dotted(sizePath)} is not written`);
+  const raw = dataAt(view.index, sizePath);
+  const spelling = lengthSpelling(raw);
+  if (spelling.unit !== "px" && spelling.unit !== "%r") throw new Refused(`${dotted(sizePath)} is in ${spelling.unit}; a font's size is px or %r`);
+  const goal = placed.font.px + delta;
+  if (goal < 1) throw new Refused(`${elementId}'s font cannot be smaller than 1 px`);
+  const per = pxPerUnit(spelling.unit, "minor", HAND_FRAME, view.device.minorRadius);
+  const current = Length.parse(raw).resolve(HAND_FRAME, "minor", view.device.minorRadius) / per;
+  const keys = [{ write: sizePath, spelling, values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
+  return settle(view, view.index, keys, elementId, (p) => p instanceof PlacedText && p.font.px === goal, true);
 }
 
 // -- parts ---------------------------------------------------------------------------

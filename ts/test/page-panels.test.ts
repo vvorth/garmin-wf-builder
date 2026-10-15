@@ -910,3 +910,32 @@ test("a colour follows data in rows, a visible: switches between rows and its ex
   assert.deepEqual(printed[10], [true, "the rows cannot hold this: rows hold one comparison each, any one of which shows it; this is more"]);
   assert.deepEqual(printed[11], [set(["visible"], "system.charging")]);
 });
+
+// -- the data editors: a text's own font --
+
+test("the font control offers the face's fonts, the watch's and own font…, which writes the font inline; an inline font shows its file and a size box", async () => {
+  const outline = repoText("examples/features/outline/face.yaml");
+  installAssets();
+  const clock = ["elements", "clock"];
+  const printed = printedBy(inspector(summary(outline), slim(plain(inspect(outline, clock, null))), {}, `
+      const font = () => field("font");
+      const select = (label) => font().all((e) => e.localName === "select" && e.attributes["aria-label"] === label)[0];
+      const choose = async (s, value) => { s.value = value; s.dispatch("change", { target: s }); await settle(); };
+      out(select("font").all((e) => e.localName === "option").map((o) => o.textContent));
+      await choose(select("font"), "own font…");
+      out(edits.splice(0));
+      // shown inline: its file, its size, and the way back to a named font
+      ins = { ...ins, fields: ins.fields.map((f) => (f.key === "font" ? { ...f, value: { source: "assets/ChivoMono-Bold.ttf", size: "22%r", monospace: true } } : f)) }; await show();
+      out([select("font file").attributes.value ?? select("font file").value, font().all((e) => e.localName === "input").map((i) => i.attributes.value)]);
+      await commit(font(), "25");
+      out(edits.splice(0));
+      await choose(select("font"), "font.label");
+      out(edits.splice(0));
+    `));
+  const set = (path: (string | number)[], value: unknown) => ({ op: "set", element: clock, path, scope: "all", device: null, value });
+  assert.deepEqual(printed[0], ["—", "font.clock", "font.label", "font.bezel", "own font…"]);
+  assert.deepEqual(printed[1], [set(["font"], { source: "assets/ChivoMono-Bold.ttf", size: "22%r" })], "the named font's file and size, as this element's own");
+  assert.deepEqual(printed[2], ["assets/ChivoMono-Bold.ttf", ["22"]]);
+  assert.deepEqual(printed[3], [set(["font", "size"], "25%r")], "the size alone, the rest of the font as written");
+  assert.deepEqual(printed[4], [set(["font"], "font.label")]);
+});

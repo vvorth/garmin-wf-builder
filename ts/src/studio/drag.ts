@@ -11,6 +11,9 @@
 //   right, a centred one both ways, so dragging its right edge by one pixel
 //   is two pixels of width (`gain`);
 // - `radius:`: `resize`, on the circle's right;
+// - a text's font baked from a file: `resize` of `font.size`, at its box's
+//   top right, a pixel up one pixel of font (`edit/geometry.ts`'s
+//   `resizeFont` decides which `size:` that writes, or refuses);
 // - an arc's `start_angle` and `sweep`: `turn`, at the arc's two ends;
 // - a polygon's points: `vertex` on each, and `segment` at each edge's
 //   midpoint, where `add_vertex` inserts one.
@@ -22,10 +25,10 @@
 //
 // All coordinates are device pixels.
 import type { Device } from "../devices/device.ts";
-import { ANGLES, EXTENTS, onAxis } from "../edit/geometry.ts";
+import { ANGLES, EXTENTS, FONT_SIZE, onAxis } from "../edit/geometry.ts";
 import { forPlaced } from "../kinds/index.ts";
 import { PatternTextAngle, patternTextAnchor } from "../kinds/pattern.ts";
-import { type Placed, PlacedPattern, type ResolvedHandPart, textInk } from "../layout.ts";
+import { type Placed, PlacedPattern, PlacedText, type ResolvedHandPart, textInk } from "../layout.ts";
 import { formatG } from "../py.ts";
 import { Box, type IntBox, Length, roundPx } from "../units.ts";
 import type { PartPlacement } from "./parts.ts";
@@ -64,6 +67,14 @@ function rawHandles(placed: Placed): Handle[] {
     return out;
   }
   if (element["shape"] === "polygon") return polygonHandles((p["points"] as [number, number][]) ?? [], (i) => i, null);
+  if (placed instanceof PlacedText) {
+    // a font baked from a file: its size, at the box's top right, growing as it is dragged up
+    const font = placed.font;
+    if (!font.is_custom || font.is_vector) return out;
+    const box = placed.innerBox;
+    out.push({ kind: "size", key: [...FONT_SIZE], axis: "y", gain: -1, x: box.x + box.width, y: box.y });
+    return out;
+  }
   const box = placed.innerBox;
   const [cx, cy] = placed.center;
   const width = length(element, "size", "width"), height = length(element, "size", "height");

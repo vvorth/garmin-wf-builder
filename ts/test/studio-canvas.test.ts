@@ -536,6 +536,7 @@ test("every live handle predicts the edit", async () => {
   const exists = (p: string): boolean => { try { read(p); return true; } catch { return false; } };
   const bake = (face: any, d: any): any => bakeFonts(face, d, (p) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p)));
   const wrong: string[] = [];
+  const fontHandles: string[] = [];
   let checked = 0;
   const walk = (dir: string, out: string[] = []): string[] => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
@@ -565,6 +566,11 @@ test("every live handle predicts the edit", async () => {
           }
           continue;
         }
+        if (Array.isArray(h.key) && h.key.join(".") === "font.size") {
+          // a font's size handle is never live: the edit bakes the font again, and new glyph sheets are nothing ops can predict
+          fontHandles.push(`${path}: ${placed.id}${h.live ? " (live)" : ""}`);
+          continue;
+        }
         if (h.kind === "end" || h.kind === "segment" || h.live === null || h.live === undefined) continue;
         const tiles = new Tiles();
         const before = opsOf(view.resolved, placed.id, tiles);
@@ -591,6 +597,42 @@ test("every live handle predicts the edit", async () => {
   }
   assert.ok(checked > 0);
   assert.deepEqual(wrong, []);
+  // the font size handles, every one listed as not live: a text in a font baked from a file, never a system or vector font
+  assert.ok(fontHandles.includes("examples/features/outline/face.yaml: clock") && fontHandles.includes("examples/showcase/face.yaml: hours"), fontHandles.join(", "));
+  assert.ok(!fontHandles.some((h) => h.endsWith("(live)")) && !fontHandles.some((h) => h.includes("system-fonts/")), fontHandles.join(", "));
+});
+
+test("a text's font size handle writes its own font's size, or a shared font's when only it uses one, and refuses a font others share", async () => {
+  const OUTLINE = "examples/features/outline/face.yaml";
+  const doc = openExample(await newStudio(), OUTLINE);
+  const pxOf = (id: string): number => (doc.analysis().resolved.get("fr955")!.items.find((p) => p.id === id) as any).font.px;
+  const frameHandle = (id: string): any => frameOf(doc, "fr955", 1).items.find((i: any) => i.id === id)!.handles.find((h: any) => h.kind === "size");
+  // clock is the only user of font.clock: its entry's size
+  assert.deepEqual(frameHandle("clock"), { ...frameHandle("clock"), key: ["font", "size"], axis: "y", gain: -1, live: null });
+  const before = pxOf("clock");
+  const [, landed] = doc.drag("clock", { kind: "resize", key: ["font", "size"], delta: 4 }, "fr955", "auto", doc.version);
+  assert.ok(landed);
+  assert.equal(pxOf("clock"), before + 4);
+  assert.notEqual(dataOf(doc).resources.fonts.clock.size, "22%r");
+  assert.match(String(dataOf(doc).resources.fonts.clock.size), /%r$/, "written in the author's unit");
+  // label's font is today's too: refused, naming it
+  assert.throws(() => doc.drag("label", { kind: "resize", key: ["font", "size"], delta: 2 }, "fr955", "auto", doc.version),
+    (e: Error) => e instanceof Refused && /shared with today/.test(e.message));
+  // per watch it is refused: a font's size is the same everywhere
+  assert.throws(() => doc.drag("clock", { kind: "resize", key: ["font", "size"], delta: 2 }, "fr955", "device", doc.version),
+    (e: Error) => e instanceof Refused && /same on every watch/.test(e.message));
+  // an inline font: the element's own font.size, nothing else
+  doc.edit({ op: "set", element: ["elements", "today"], path: ["font"], scope: "all", device: null, value: { source: "assets/ChivoMono-Bold.ttf", size: "9%r" } }, doc.version);
+  const text = doc.text;
+  const todayPx = pxOf("today");
+  const [, ok] = doc.drag("today", { kind: "resize", key: ["font", "size"], delta: 3 }, "fr955", "auto", doc.version);
+  assert.ok(ok);
+  assert.equal(pxOf("today"), todayPx + 3);
+  const changed = doc.text.split("\n").filter((l, i) => l !== text.split("\n")[i]);
+  assert.equal(changed.length, 1, changed.join(" | "));
+  assert.match(changed[0]!, /^    font: \{ ?source: assets\/ChivoMono-Bold\.ttf, size: [\d.]+%r ?\}$/);
+  // a system font has no handle
+  assert.equal(frameHandle("badge"), undefined);
 });
 
 // -- parts and points --

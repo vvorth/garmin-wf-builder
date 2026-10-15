@@ -385,7 +385,11 @@ sets `config: style: default:`; each is one gated patch and a batch step.
 A drag (`Document.drag`, `ts/src/edit/geometry.ts`) names an element by id
 or a part by its tree path joined with `/`, the entered frame's item id. On
 an element: `move` (its `at:`, a line's `to:` with it, or every point of a
-polygon), `resize`, `turn`, and on a polygon `vertex` (one point, by a
+polygon), `resize` (a size, a radius, a thickness, or a text's
+`["font", "size"]`: the size of its inline font, or of its `fonts:` entry
+when no other element uses it, the landing search baking the fonts again
+at each candidate, so that handle is never `live`), `turn`, and on a
+polygon `vertex` (one point, by a
 screen delta), `add_vertex` (a point inserted after another, at a screen
 position, written in the unit its neighbours use with their `anchor:`) and
 `remove_vertex` (never below three points). On a part, the same gestures

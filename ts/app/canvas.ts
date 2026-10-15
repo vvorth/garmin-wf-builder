@@ -522,7 +522,8 @@ function gestureAt(frame: Frame, item: Target, g: Press | Dragging, x: number, y
       return { kind: "resize", key: h.key, delta: to - r0, to, handle: h };
     }
     let delta = resizeDelta(h, dx, dy);
-    if (!free) {
+    // a font's size is pixels of font, not of the box: it does not snap to the box grid
+    if (!free && h.key[0] !== "font") {
       const extent = h.axis === "x" ? item.box[2] : item.box[3];
       delta = snapLength(extent + delta, frame.minor_radius, GRID_PERCENT) - extent;
     }

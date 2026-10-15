@@ -185,6 +185,16 @@ it. Its handles resize it:
 | end | a line's two ends | `at:`, `to:` |
 | vertex | each point of a polygon, a small square | that point of `points:` |
 | segment | the middle of each of a polygon's edges, a dot | adds a point there |
+| font size | a text's top right, when it draws in a font baked from a file; drag up to grow | its font's `size:` |
+
+**A text's font size.** The handle writes the `size:` of the text's own
+font when it is written inline, or of the face's `fonts:` entry when no
+other element uses it; a font another element shares is refused, naming
+it (change it in the Face tab's Fonts, or give the text its own font in
+Properties). A font's size is the same on every watch, so **Edit for** a
+watch, shape or display refuses it. While you drag, the box is outlined
+rather than redrawn: the font is baked again at the new size, which only
+the worker can do.
 
 A handle takes a press within a few pixels of it, except where that zone
 would cover the element itself: pressing inside a thin bar, thinner than
@@ -350,7 +360,11 @@ cannot edit:
 - A plain value has the control for its kind: a number and its unit, an
   angle, the 3×3 alignment picker, a colour ([the colour
   picker](#the-colour-picker)), a `text:` template as chips
-  ([below](#a-text-template-as-chips)), a font, an icon, a touch-and-hold target, a slot, a hand set
+  ([below](#a-text-template-as-chips)), a font (the watch's, the face's
+  own `font.<name>`, or **own font…**, which writes the font inline as this
+  text's own: the named font's file and size, else the face's first font
+  file; an inline font shows its file, a size box and the way back to a
+  named font), an icon, a touch-and-hold target, a slot, a hand set
   (with **edit the set**, its lines in the YAML tab), a list of choices, on
   or off. A colour bound to a scheme role, rather than one of the face's
   swatches, names the role and jumps to the Schemes section. A colour,

@@ -300,6 +300,68 @@ export function IconPop({ value: spelled, vocab, allowNone = false, placeholder,
   }}</${Popover}>`;
 }
 
+/** The units a font's `size:` takes. */
+const FONT_UNITS = ["%r", "px"];
+/** The select's value for "own font…". */
+const OWN_FONT = "own font…";
+
+interface FontControlProps {
+  field: Field;
+  value: Value | undefined;
+  ctx: WidgetCtx;
+  onCommit: (value: Value) => void;
+  onCommitAt?: ((sub: Path, value: Value) => void) | undefined;
+}
+
+/** The font files a text's own font may be baked from: the face's fonts' sources and its own `.ttf`/`.otf` files. */
+function fontSources(ctx: WidgetCtx): string[] {
+  const out: string[] = [];
+  for (const f of ctx.globals.fonts || []) if (f.source && !out.includes(f.source)) out.push(f.source);
+  for (const a of ctx.assets || []) if (/\.(ttf|otf)$/i.test(a) && !out.includes(a)) out.push(a);
+  return out;
+}
+
+// A text's font: the watch's system fonts, the face's own (`font.<name>`),
+// or "own font…", which writes the font inline as this element's own
+// (`{source, size}`, from the named font it had, else the face's first font
+// file); an inline font shows its file, a size box and the way back to a
+// named one. Its size is also the size handle on the face.
+function FontControl({ field, value, ctx, onCommit, onCommitAt }: FontControlProps): VNode {
+  const sources = fontSources(ctx);
+  const named = (ctx.globals.fonts || []).map((f) => `font.${f.name}`);
+  const pickNamed = (e: SelectEvent): void => {
+    const v = e.currentTarget.value;
+    if (v === "") return;
+    if (v !== OWN_FONT) { onCommit(v); return; }
+    const from = typeof value === "string" ? (ctx.globals.fonts || []).find((f) => `font.${f.name}` === value) : undefined;
+    const source = from?.source ?? sources[0];
+    if (!source) return;
+    onCommit({ source, size: from?.source && typeof from.size === "string" ? from.size : "12%r" });
+  };
+  const inline = value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, Value> : null;
+  const options = (current: string) => html`
+    <option value="">${inline ? "use a named font…" : field.default != null ? `default (${field.default})` : "—"}</option>
+    ${!inline && current && !ctx.systemFonts.includes(current) && !named.includes(current) ? html`<option value=${current}>${current}</option>` : null}
+    ${named.length ? html`<optgroup label="this face">${named.map((n) => html`<option value=${n}>${n}</option>`)}</optgroup>` : null}
+    ${ctx.systemFonts.length ? html`<optgroup label="the watch's">${ctx.systemFonts.map((n) => html`<option value=${n}>${n}</option>`)}</optgroup>` : null}
+    ${inline ? null : html`<option value=${OWN_FONT} disabled=${!sources.length}
+      title=${sources.length ? "this element's own font, baked from a font file" : "the face has no font file: add one in the Face tab's Fonts"}>own font…</option>`}`;
+  if (!inline) {
+    return html`<select value=${typeof value === "string" ? value : ""} aria-label="font" onChange=${pickNamed}>${options(typeof value === "string" ? value : "")}</select>`;
+  }
+  const setAt = (key: string, v: Value): void => (onCommitAt ? onCommitAt([key], v) : onCommit({ ...inline, [key]: v }));
+  const source = typeof inline["source"] === "string" ? inline["source"] : null;
+  return html`<span class="own-font">
+    <span class="dim">own</span>
+    ${source !== null ? html`<select value=${source} aria-label="font file" title="the font file it is baked from"
+        onChange=${(e: SelectEvent) => setAt("source", e.currentTarget.value)}>
+        ${(sources.includes(source) ? sources : [source, ...sources]).map((f) => html`<option value=${f}>${f.replace(/^assets\//, "")}</option>`)}
+      </select>` : html`<code>${typeof inline["face"] === "string" ? inline["face"] : JSON.stringify(inline["face"] ?? null)}</code>`}
+    <${Quantity} value=${inline["size"]} units=${FONT_UNITS} bareUnit="px" onCommit=${(v: string | number) => setAt("size", v)} />
+    <select value="" aria-label="font" title="draw it in a named font instead" onChange=${pickNamed}>${options("")}</select>
+  </span>`;
+}
+
 interface YamlBoxProps {
   /** The value as text. */
   text: string;
@@ -347,6 +409,8 @@ interface WidgetProps {
   own?: Value | undefined;
   /** Several steps written as one change, each at a path under the key. */
   onSteps?: ((steps: Step[]) => void) | undefined;
+  /** Writes one key under this one (a font's `size:`), leaving the rest as written. */
+  onCommitAt?: ((sub: Path, value: Value) => void) | undefined;
 }
 
 /** One step of a change a control makes in several, its path under the key. */
@@ -382,7 +446,7 @@ function unknownWidget(_widget: never, fallback: VNode): VNode {
   return fallback;
 }
 
-function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps }: WidgetProps): VNode {
+function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, onCommitAt }: WidgetProps): VNode {
   // a rule list: rewritten in place over what the key holds, in one change
   const commitRules = (v: Value): void => {
     const steps = ruleSteps(own, v, field.widget === "color");
@@ -422,7 +486,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps }
       return colorControl(value, onPickColor);
     }
     case "template": return html`<${TemplateEditor} value=${shown(value)} vocab=${ctx.vocab} onCommit=${onCommit} />`;
-    case "font": return enumSelect(ctx.systemFonts, (ctx.globals.fonts || []).map((f) => `font.${f.name}`));
+    case "font": return html`<${FontControl} field=${field} value=${value} ctx=${ctx} onCommit=${onCommit} onCommitAt=${onCommitAt} />`;
     case "icon": return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} onPick=${(v: IconSpelling | null) => v && onCommit(v)} />`;
     case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
@@ -734,7 +798,8 @@ function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
         : html`<${Widget} field=${field} value=${r.value} ctx=${ctx} like=${r.like} own=${r.own}
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
             onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })}
-            onSteps=${stepsOf(ctx, base, onEdit)} />`}
+            onSteps=${stepsOf(ctx, base, onEdit)}
+            onCommitAt=${(sub: Path, v: Value) => onEdit({ op: "set", ...base, path: [...base.path, ...sub], value: v })} />`}
       ${!lane.readonly && r.own != null && !field.required && field.widget !== "readonly"
         ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}
