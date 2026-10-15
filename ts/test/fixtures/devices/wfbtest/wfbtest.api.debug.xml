@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- wfbtest's symbol table: written for this project, not taken from Garmin. It lists, in the tags Device reads, every
+     module, function and field the compiler asks a device about, so the fixture device has them all. -->
+<debugInfo>
+<symbolTable>
+<entry field="true" symbol="activeMinutesWeek"/>
+<entry field="true" symbol="activeMinutesWeekGoal"/>
+<entry field="true" symbol="alarmCount"/>
+<entry field="true" symbol="altitude"/>
+<entry field="true" symbol="ambientPressure"/>
+<entry field="true" symbol="averageRestingHeartRate"/>
+<entry field="true" symbol="battery"/>
+<entry field="true" symbol="batteryInDays"/>
+<entry field="true" symbol="calories"/>
+<entry field="true" symbol="charging"/>
+<entry field="true" symbol="condition"/>
+<entry field="true" symbol="currentHeartRate"/>
+<entry field="true" symbol="currentOxygenSaturation"/>
+<entry field="true" symbol="day"/>
+<entry field="true" symbol="day_of_week"/>
+<entry field="true" symbol="distance"/>
+<entry field="true" symbol="distanceUnits"/>
+<entry field="true" symbol="doNotDisturb"/>
+<entry field="true" symbol="elevationUnits"/>
+<entry field="true" symbol="feelsLikeTemperature"/>
+<entry field="true" symbol="floorsClimbed"/>
+<entry field="true" symbol="floorsClimbedGoal"/>
+<entry field="true" symbol="highTemperature"/>
+<entry field="true" symbol="hour"/>
+<entry field="true" symbol="is24Hour"/>
+<entry field="true" symbol="lowTemperature"/>
+<entry field="true" symbol="min"/>
+<entry field="true" symbol="month"/>
+<entry field="true" symbol="moveBarLevel"/>
+<entry field="true" symbol="notificationCount"/>
+<entry field="true" symbol="paceUnits"/>
+<entry field="true" symbol="phoneConnected"/>
+<entry field="true" symbol="precipitationChance"/>
+<entry field="true" symbol="relativeHumidity"/>
+<entry field="true" symbol="requiresBurnInProtection"/>
+<entry field="true" symbol="respirationRate"/>
+<entry field="true" symbol="sec"/>
+<entry field="true" symbol="stepGoal"/>
+<entry field="true" symbol="steps"/>
+<entry field="true" symbol="stressScore"/>
+<entry field="true" symbol="temperature"/>
+<entry field="true" symbol="temperatureUnits"/>
+<entry field="true" symbol="timeToRecovery"/>
+<entry field="true" symbol="value"/>
+<entry field="true" symbol="vo2maxCycling"/>
+<entry field="true" symbol="vo2maxRunning"/>
+<entry field="true" symbol="windSpeed"/>
+<entry field="true" symbol="year"/>
+</symbolTable>
+<functions>
+<functionEntry name="getActivityInfo" parent="Activity"/>
+<functionEntry name="getHistory" parent="ActivityMonitor"/>
+<functionEntry name="getInfo" parent="ActivityMonitor"/>
+<functionEntry name="drawAngledText" parent="Dc"/>
+<functionEntry name="drawRadialText" parent="Dc"/>
+<functionEntry name="getVectorFont" parent="Graphics"/>
+<functionEntry name="info" parent="Gregorian"/>
+<functionEntry name="getClockTime" parent="System"/>
+<functionEntry name="getDeviceSettings" parent="System"/>
+<functionEntry name="getDisplayMode" parent="System"/>
+<functionEntry name="getSystemStats" parent="System"/>
+<functionEntry name="getSettingsView" parent="AppBase"/>
+<functionEntry name="getSettings" parent="WatchFaceConfig"/>
+<functionEntry name="onPress" parent="WatchFaceDelegate"/>
+<functionEntry name="getProfile" parent="UserProfile"/>
+<functionEntry name="getSubscreen" parent="WatchUi"/>
+<functionEntry name="getCurrentConditions" parent="Weather"/>
+<functionEntry name="getDailyForecast" parent="Weather"/>
+<functionEntry name="getHourlyForecast" parent="Weather"/>
+</functions>
+<apiScopes>
+<apiScopeEntry classId="AppBase" label="Toybox_Application_AppBase"/>
+<apiScopeEntry classId="WatchFaceConfig" label="Toybox_Application_WatchFaceConfig"/>
+<apiScopeEntry classId="WatchFaceDelegate" label="Toybox_WatchUi_WatchFaceDelegate"/>
+</apiScopes>
+<dataEntryOffsetMappings>
+<dataEntry label="Toybox_Activity" parentId="Toybox" symbolId="Activity" type="module"/>
+<dataEntry label="Toybox_ActivityMonitor" parentId="Toybox" symbolId="ActivityMonitor" type="module"/>
+<dataEntry label="Toybox_Application" parentId="Toybox" symbolId="Application" type="module"/>
+<dataEntry label="Toybox_Complications" parentId="Toybox" symbolId="Complications" type="module"/>
+<dataEntry label="Toybox_Graphics" parentId="Toybox" symbolId="Graphics" type="module"/>
+<dataEntry label="Toybox_Lang" parentId="Toybox" symbolId="Lang" type="module"/>
+<dataEntry label="Toybox_Math" parentId="Toybox" symbolId="Math" type="module"/>
+<dataEntry label="Toybox_System" parentId="Toybox" symbolId="System" type="module"/>
+<dataEntry label="Toybox_Time" parentId="Toybox" symbolId="Time" type="module"/>
+<dataEntry label="Toybox_UserProfile" parentId="Toybox" symbolId="UserProfile" type="module"/>
+<dataEntry label="Toybox_WatchUi" parentId="Toybox" symbolId="WatchUi" type="module"/>
+<dataEntry label="Toybox_Weather" parentId="Toybox" symbolId="Weather" type="module"/>
+</dataEntryOffsetMappings>
+</debugInfo>

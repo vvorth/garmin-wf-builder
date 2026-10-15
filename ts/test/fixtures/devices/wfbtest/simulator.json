@@ -1,0 +1,33 @@
+{
+  "image": "wfbtest.png",
+  "ppi": 200,
+  "graphicsResourcePoolSize": 1048576,
+  "display": {
+    "shape": "round",
+    "isTouch": true,
+    "location": {
+      "x": 60,
+      "y": 60,
+      "width": 260,
+      "height": 260
+    }
+  },
+  "fonts": [
+    {
+      "fontSet": "ww",
+      "fonts": [
+        { "name": "xtiny", "type": "ttf", "filename": "RobotoCondensed-Regular", "height": 22 },
+        { "name": "tiny", "type": "ttf", "filename": "RobotoCondensed-Bold", "height": 26 },
+        { "name": "small", "type": "ttf", "filename": "RobotoCondensed-Bold", "height": 30 },
+        { "name": "medium", "type": "ttf", "filename": "RobotoCondensed-Bold", "height": 34 },
+        { "name": "large", "type": "ttf", "filename": "RobotoCondensed-Bold", "height": 40 },
+        { "name": "numberMild", "type": "ttf", "filename": "Roboto-Black", "height": 46 },
+        { "name": "numberMedium", "type": "ttf", "filename": "Roboto-Black", "height": 62 },
+        { "name": "numberHot", "type": "ttf", "filename": "Roboto-Black", "height": 80 },
+        { "name": "numberThaiHot", "type": "ttf", "filename": "Roboto-Black", "height": 96 },
+        { "name": "RobotoCondensedBold", "type": "system_ttf", "filename": "RobotoCondensed-Bold" },
+        { "name": "RobotoCondensedRegular", "type": "system_ttf", "filename": "RobotoCondensed-Regular" }
+      ]
+    }
+  ]
+}

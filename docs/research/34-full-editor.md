@@ -517,6 +517,58 @@ Those tests need device files, which are Garmin's and cannot be committed
   device id it does not know (it will not; builds would stay on real
   devices), needs a probe.
 
+**The fixture probe (2026-10-15)**, with `ts/test/fixtures/devices/` the
+only device folder visible (`WFB_DEVICES`, plus a new
+`WFB_DEVICE_REFERENCE` for its reference page), SDK 9.2.0:
+
+- VERIFIED: the loader accepts a device with no `.cft` font. Its nine
+  `FONT_*` entries name `RobotoCondensed-Regular`, `RobotoCondensed-Bold`
+  and `Roboto-Black`, which the registry's stand-ins cover exactly, and
+  `Device.systemFonts` measures every one.
+- VERIFIED: the SDK-wide `bin/api.debug.xml`, linked into the device
+  folder as `wfbtest.api.debug.xml`, loads, and its functions and fields
+  answer, but it has no `<dataEntry type="module">` rows, so
+  `hasModule` is false for every module: the complications example lints
+  with `warning[api-gated]: hr_value: 'complication.heart_rate' needs module
+  Toybox.Complications, which wfbtest lacks`. The fixture ships its own
+  symbol table instead, written for the project, listing every module,
+  function and field the compiler asks about.
+- VERIFIED: with no symbol table at all, the lint degrades to notes
+  (`note[api-gated]: wfbtest: no symbol table, so API-level gating is not
+  checked`), but two paths throw rather than degrade: resolving a `face:`
+  font (`DeviceError: wfbtest: missing wfbtest.api.debug.xml` from
+  `layout.ts`'s `vectorGate1Ok`) and generating a design that uses a
+  module (the same error from `availability.ts`'s `computeGuards`).
+- VERIFIED: with the fixture's own table, `examples/features/shapes`
+  retargeted to `wfbtest` loads, resolves, lints with no diagnostic,
+  generates and renders a frame in its skin; so do 28 of the other 29
+  examples. `features/instinct` errors (`subscreen`), as it should on a
+  watch with no subscreen.
+- VERIFIED: `monkeyc` refuses the id: `error[monkeyc]: Invalid device id
+  specified: 'wfbtest'.` Builds stay on real devices.
+- VERIFIED: `wfb studio` started with the overrides opens a design
+  targeting `wfbtest`, draws it, lists its layers and applies a drag
+  (a scratch Playwright test over `browser/harness.ts`).
+- VERIFIED: the existing suites are written against real devices by
+  name. On the fixture alone 21 of the fast suite's 43 files pass whole,
+  `fixture-device.test.ts` among them (154 tests, run in a copy of the
+  repository with no device file, no SDK and an empty home folder); the
+  other 22 fail, mostly on `unknown device
+  'fenix8solar47mm'.  Installed: wfbtest`. The goldens are frozen on the
+  real set, so they cannot run on the fixture without a second golden set.
+- VERIFIED: the browser suite is written against real devices too. On the
+  fixture alone `open.test.ts` passes 29 of 30, but only because each
+  example takes the "targets not installed here, no frame" branch; "every
+  template on the home screen opens and draws" fails, and `build.test.ts`
+  and the first `canvas.test.ts` tests fail waiting for a frame
+  (`page.waitForFunction: Timeout 60000ms exceeded`). The rest of the suite
+  was not run on it.
+
+So the secret stays the route for the full suites, and the fixture carries
+a fork's pull request: the type check, those 21 files, and
+`ts/test/fixture-device.test.ts` among them (`docs/development.md`,
+"Continuous integration").
+
 The three failures the fast suite shows in this container are not
 regressions: the goldens were frozen with five devices (`venusq2`,
 `instinct2`, `instinct2x`, `instinct3solar45mm`, `instincte45mm`) the

@@ -1,0 +1,28 @@
+{
+  "deviceId": "wfbtest",
+  "displayName": "wfb test device",
+  "deviceFamily": "round-260x260",
+  "resolution": {
+    "width": 260,
+    "height": 260
+  },
+  "displayType": "mip",
+  "bitsPerPixel": 8,
+  "alphaBlendingSupport": false,
+  "appTypes": [
+    {
+      "type": "watchFace",
+      "memoryLimit": 131072
+    }
+  ],
+  "partNumbers": [
+    {
+      "connectIQVersion": "5.2.0",
+      "languages": [
+        {
+          "code": "eng"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "wfbtest",
+  "source": "ts/test/fixtures/devices/README.md",
+  "name": "wfb test device",
+  "attributes": {
+    "Id": "wfbtest",
+    "Screen Shape": "round",
+    "Screen Size": "260 x 260",
+    "Display Colors": "64",
+    "Touch": "true"
+  },
+  "app_types": {
+    "Watch Face": {
+      "memory_limit_bytes": 131072,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": { "face": "Roboto Condensed", "font": "RobotoCondensed-Regular", "size_px": 22 },
+        "FONT_TINY": { "face": "Roboto Condensed", "font": "RobotoCondensed-Bold", "size_px": 26 },
+        "FONT_SMALL": { "face": "Roboto Condensed", "font": "RobotoCondensed-Bold", "size_px": 30 },
+        "FONT_MEDIUM": { "face": "Roboto Condensed", "font": "RobotoCondensed-Bold", "size_px": 34 },
+        "FONT_LARGE": { "face": "Roboto Condensed", "font": "RobotoCondensed-Bold", "size_px": 40 },
+        "FONT_NUMBER_MILD": { "face": "Roboto Black", "font": "Roboto-Black", "size_px": 46 },
+        "FONT_NUMBER_MEDIUM": { "face": "Roboto Black", "font": "Roboto-Black", "size_px": 62 },
+        "FONT_NUMBER_HOT": { "face": "Roboto Black", "font": "Roboto-Black", "size_px": 80 },
+        "FONT_NUMBER_THAI_HOT": { "face": "Roboto Black", "font": "Roboto-Black", "size_px": 96 }
+      },
+      "scalable": {}
+    }
+  },
+  "normalized": {
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "watchface_memory_bytes": 131072
+  }
+}

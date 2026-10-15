@@ -229,7 +229,8 @@ ts/                   the compiler, its tests and tools: one package for the
                         goldens.ts, export-data.ts, docs-shots.ts, build.ts and more
   test/                 node:test tests (npm test, test/CLAUDE.md); fixtures/ the
                         designs the goldens and font tests build (fixtures/slice/,
-                        the Phase 2 slice, is the Monkey C goldens' source)
+                        the Phase 2 slice, is the Monkey C goldens' source) and
+                        fixtures/devices/, the fixture device wfbtest
   slow/                 the monkeyc suite (npm run test:slow)
   browser/              the Playwright suite over wfb studio's pages (npm run test:browser):
                         harness.ts starts the server and headless Chromium
@@ -775,10 +776,34 @@ or `PLAYWRIGHT_BROWSERS_PATH` pointing at one) and, for the build test,
 `CIQ_SDK`. A failed test leaves a screenshot in `ts/browser/shots/`. It
 takes about six minutes.
 
+**The fixture device.** `ts/test/fixtures/devices/` holds `wfbtest`, a
+round 260x260 MIP watch the project wrote itself (`compiler.json`,
+`simulator.json`, a skin, its own symbol table and its device-reference
+page; no Garmin file, its `README.md` says what each gives). Its system
+fonts name the registry's free stand-ins, and its symbol table lists every
+module, function and field the compiler asks about.
+`ts/test/fixture-device.test.ts` loads, resolves, lints, generates and draws
+designs on it with no other device visible. Two environment variables make
+it the only device anything else sees:
+
+```sh
+export WFB_DEVICES="$PWD/ts/test/fixtures/devices"              # the device folders
+export WFB_DEVICE_REFERENCE="$PWD/ts/test/fixtures/devices/reference"  # their reference pages
+```
+
+With them, every example but `features/instinct` (wfbtest has no
+subscreen) resolves, lints clean and draws once its `targets:` name
+`wfbtest`, and `wfb studio` opens, draws and edits such a design. `monkeyc`
+does not know the id (`Invalid device id specified: 'wfbtest'`), so builds
+stay on real devices. The rest of the fast suite and the browser suite are
+written against the verification devices by name, and the goldens are
+frozen on them, so they need the real device files.
+
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs `npm run typecheck`, `npm test` and `npm run
-test:browser` on Node 24 for every push and pull request, after
+test:browser` on Node 24 for every push and pull request that has the
+device secret, after
 `tools/setup-env.sh` has installed the SDK (cached between runs), the
 developer key, the device reference and the fonts, and Playwright has
 installed Chromium. The goldens are expected green there, since the owner's
@@ -804,9 +829,37 @@ gh release create ci-devices /tmp/devices.tar.bz2.gpg --title "CI device files" 
 ```
 
 A newer device set replaces the asset: `gh release upload ci-devices
-/tmp/devices.tar.bz2.gpg --clobber`. A pull request from a fork has no
-secrets, so its run stops at the restore step with a message saying so.
-The workflow has not yet been run; it is written to be right by reading.
+/tmp/devices.tar.bz2.gpg --clobber`.
+
+**Without the secret** (a pull request from a fork has none) the run falls
+back to the fixture device, says so in a notice, and sets `WFB_DEVICES` and
+`WFB_DEVICE_REFERENCE` to it. It installs no SDK, Java, device reference or
+Chromium: `npm ci`, the icon font and the three system-font stand-ins
+`wfbtest` names (`tools/fetch-system-fonts.ts`), then `npm run typecheck`
+and the test files in the workflow's `FIXTURE_TESTS`, which pass with no
+Garmin file at all:
+
+| Runs on the fixture alone | Needs the owner's devices (not run without the secret) |
+|---|---|
+| `bake`, `bundle`, `data`, `doc-citations`, `draw`, `emit`, `expr`, `fixture-device`, `gate`, `kinds`, `lint`, `page-app`, `page-face`, `page-layers`, `page-modules`, `page-store`, `palette`, `py`, `units`, `uuid`, `yaml` | `aod`, `availability`, `barrel`, `cli`, `devices`, `diagnostics`, `edit`, `formatting`, `garmin-raster`, `geometry`, `golden-monkeyc`, `goldens`, `hold`, `layout`, `overrides`, `page-panels`, `parameter-limits`, `protocol`, `studio`, `studio-canvas`, `studio-edits`, `studio-panels`, and the browser suite |
+
+The second column's files name real devices (the verification devices,
+`fenix847mm`, and the goldens' whole set), so on the fixture alone they
+fail, mostly with `unknown device '…'.  Installed: wfbtest`, the rest on
+an assertion about a face drawn on a named device. They fail rather than
+skip on purpose: a skip would let a missing device turn a test off
+unnoticed in the full run too. To run the fixture's set by hand, with no
+Garmin file visible:
+
+```sh
+cd ts
+WFB_DEVICES="$PWD/test/fixtures/devices" WFB_DEVICE_REFERENCE="$PWD/test/fixtures/devices/reference" \
+  WFB_NO_GARMIN_FONTS=1 node --test test/bake.test.ts test/bundle.test.ts …   # the FIXTURE_TESTS list
+```
+
+The workflow has not yet been run on GitHub; both paths are written to be
+right by reading, and the fallback's commands were run in a copy of the
+repository with no device files, no SDK and an empty home folder.
 
 ## What is decided
 

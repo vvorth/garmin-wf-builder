@@ -13,8 +13,13 @@ export { DeviceError };
 /** The repository root: `ts/src/devices/` is three levels below it. */
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "../../../..");
 
-/** One JSON page per device, extracted from the installed SDK's device reference. */
-export const DEVICE_REFERENCE = join(REPO_ROOT, ".cache", "device-reference", "devices");
+/**
+ * One JSON page per device, extracted from the installed SDK's device
+ * reference; `WFB_DEVICE_REFERENCE` names another folder of such pages (the
+ * fixture device's, `ts/test/fixtures/devices/reference`, beside
+ * `WFB_DEVICES` naming its device folder).
+ */
+export const DEVICE_REFERENCE = process.env["WFB_DEVICE_REFERENCE"] || join(REPO_ROOT, ".cache", "device-reference", "devices");
 
 export const DEFAULT_DEVICE_ROOTS = [
   join(homedir(), ".Garmin", "ConnectIQ", "Devices"),

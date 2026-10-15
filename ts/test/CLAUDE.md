@@ -47,12 +47,20 @@ Loaded automatically when working under `ts/test/`.
   `tools/setup-env.sh`, and `build.test.ts` is skipped without `CIQ_SDK`. A
   failed test leaves a screenshot in `ts/browser/shots/` (gitignored). It
   takes about six minutes; a test that passes is not done until it has
-  passed three runs in a row. CI runs it on every push
+  passed three runs in a row. CI runs it on every push with the device secret
   (`.github/workflows/ci.yml`, `docs/development.md`).
 - **`fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing
   fixture fails rather than skips, because a skip once silently turned the
   goldens off.
+- **`fixtures/devices/`** is `wfbtest`, the fixture device: a watch the
+  project wrote (no Garmin file), which `fixture-device.test.ts` compiles
+  and draws on with no other device visible. `WFB_DEVICES` and
+  `WFB_DEVICE_REFERENCE` pointed at it make it the only device `wfb`, the
+  editor and the tests see. Only the test files in `ci.yml`'s
+  `FIXTURE_TESTS` pass that way; the rest name real devices and fail on it
+  (`docs/development.md`, "Continuous integration"). A new test that needs
+  no real device belongs in that list.
 - **Drive every new diagnostic red** against violating input before trusting
   it, and cut the whole path so a second branch cannot quietly answer.
 - **A test must be able to fail against a knowingly broken implementation.**
