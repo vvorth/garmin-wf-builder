@@ -21,3 +21,10 @@
   screen edge is around where diagonal lines ends and along the top arcs.       
   update the yaml accordingly                                                   
 
+
+red-tactical (reference.png, a render of a fēnix 8 with a red tactical face):
+
+❯ use watchface-from-image skill and make me this watchface, 20 iterations
+❯ default font for clock is fine
+❯ no, battery glyph is good
+❯ don't replace it with drawn primitives

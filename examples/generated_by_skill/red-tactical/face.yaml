@@ -1,0 +1,257 @@
+# Red Tactical: a hybrid tactical dial. Analog hands over a digital hour
+# (white) and minute (hollow red), a segmented step arc down the left half,
+# red minute-scale ticks down the right half, and three ringed subdials:
+# VO2 max, battery and altitude.
+#
+# Preview the picture's time with:  wfb preview <file> --time 10:10:30
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 4daede36-300e-45d7-839e-a562422ae5ae
+  name: Red Tactical
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    red: "#FF0000"
+    track: "#550000"
+
+  fonts:
+    steps: { face: [RobotoCondensedBold], size: 14%r }
+    label: { face: [RobotoCondensedRegular], size: 14%r }
+    bold: { face: [RobotoCondensedBold], size: 14%r }
+    small: { face: [RobotoCondensedBold], size: 9%r }
+
+  hand_sets:
+    minutes:
+      minute:
+        color: color.fg
+        parts:
+          blade: { type: rectangle, at: { dy: -33%r }, size: { width: 1.5%r, height: 90%r } }
+          tip:   { type: circle, at: { dy: -78%r }, radius: 1%r }
+          tail:  { type: circle, at: { dy: 12%r }, radius: 1%r }
+    hours:
+      hour:
+        color: color.bg
+        parts:
+          blade: { type: rectangle, at: { dy: -22%r }, size: { width: 6.5%r, height: 61%r } }
+          tip:   { type: circle, at: { dy: -52.5%r }, radius: 3.25%r }
+          tail:  { type: circle, at: { dy: 8.5%r }, radius: 3.25%r }
+    sweep:
+      second:
+        color: color.red
+        parts:
+          needle: { type: line, at: { dy: 13%r }, to: { dy: -96.5%r }, thickness: 2px }
+          hub:    { type: circle, radius: 2.6%r }
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  # Right half: a tick every 5 degrees from 5 to 175.
+  minute_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 35
+    start: 5deg
+    step_angle: 5deg
+    color: color.red
+    parts:
+      tick: { type: line, at: { dy: -97%r }, to: { dy: -89%r }, thickness: 1px }
+
+  # Left half: twelve hollow cells laid exactly under the step gauge's own
+  # cells ((180 - 11 x 3) / 12 = 12.25 degrees each, 3 degrees apart).
+  step_cells:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    step_angle: 15.25deg
+    color: color.bg
+    outline: { color: color.red, width: 1 }
+    parts:
+      cell: { type: arc, radius: 93.5%r, thickness: 6%r, start_angle: 180deg, sweep: 12.25deg }
+
+  vo2_track:
+    type: circle
+    at: { anchor: center, dx: -51.5%r }
+    radius: 24%r
+    filled: false
+    thickness: 3%r
+    color: color.track
+    lint: { allow: [contrast], reason: "a deliberately dim track; the lit arc drawn over it carries the reading" }
+
+  battery_track:
+    type: circle
+    at: { anchor: center, dx: 51.5%r }
+    radius: 24%r
+    filled: false
+    thickness: 3%r
+    color: color.track
+    lint: { allow: [contrast], reason: "a deliberately dim track; the lit arc drawn over it carries the reading" }
+
+  altitude_track:
+    type: arc
+    at: { anchor: center, dx: 1%r, dy: 49.5%r }
+    radius: 25%r
+    thickness: 3%r
+    start_angle: 80deg
+    sweep: 240deg
+    color: color.track
+    lint: { allow: [contrast], reason: "a deliberately dim track; the lit arc drawn over it carries the reading" }
+
+  vo2_label:
+    type: text
+    text: "VO"
+    font: font.bold
+    at: { anchor: center, dx: -46.5%r, dy: 0%r }
+    align: right
+    color: color.fg
+
+  vo2_subscript:
+    type: text
+    text: "2"
+    font: font.small
+    at: { anchor: center, dx: -46.2%r, dy: 2.5%r }
+    align: left
+    color: color.fg
+
+  altitude_icon:
+    type: icon
+    icon: altitude
+    size: 10%r
+    at: { anchor: center, dx: 0.5%r, dy: 43.5%r }
+    color: color.fg
+
+elements:
+  steps_gauge:
+    type: gauge
+    style: segments
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 93.5%r
+    thickness: 6%r
+    start_angle: 360deg
+    sweep: -180deg
+    count: 12
+    gap: 5.0%r
+    color: color.red
+    absent: hide
+
+  steps_icon:
+    type: icon
+    icon: steps
+    size: 7%r
+    at: { anchor: center, dx: -64%r, dy: -48%r }
+    color: color.fg
+
+  steps_value:
+    type: text
+    text: "{activity.steps:d}"
+    font: font.steps
+    at: { anchor: center, dx: -51%r, dy: -61%r }
+    curve: { style: angled, angle: -46deg }
+    color: color.fg
+    absent: { text: "--" }
+    on_hold: steps
+
+  clock_hour:
+    type: text
+    text: "{time.clock:%h}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dx: -0.3%r, dy: -55%r }
+    align: right
+    color: color.fg
+
+  clock_minute:
+    type: text
+    text: "{time.clock:%M}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dx: -1.1%r, dy: -55%r }
+    align: left
+    color: color.bg
+    outline: { color: color.red, width: 1 }
+    lint: { allow: [text-outline-interior], reason: "hollow digits on the plain background; the interior is the background colour" }
+
+  date:
+    type: text
+    text: "{date.today:%b %e}"
+    font: font.bold
+    at: { anchor: center, dy: -32.5%r }
+    color: color.fg
+
+  vo2_gauge:
+    type: gauge
+    style: arc
+    value: user.vo2max_running
+    max: 70
+    at: { anchor: center, dx: -51.5%r }
+    radius: 24%r
+    thickness: 3%r
+    start_angle: 150deg
+    sweep: 360deg
+    color: color.red
+    absent: hide
+    on_hold: vo2max_run
+
+  battery_gauge:
+    type: gauge
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center, dx: 51.5%r }
+    radius: 24%r
+    thickness: 3%r
+    start_angle: 180deg
+    sweep: 360deg
+    color: color.red
+    on_hold: battery
+
+  battery_icon:
+    type: icon
+    icon: { codepoint: "U+F240" }
+    size: 10%r
+    at: { anchor: center, dx: 52.5%r, dy: 0.5%r }
+    color: color.fg
+
+  altitude:
+    type: text
+    text: "{ambient.altitude:d}"
+    font: font.label
+    units: auto
+    at: { anchor: center, dx: 1%r, dy: 58%r }
+    color: color.fg
+    absent: { text: "--" }
+    on_hold: altitude
+
+  minute_hand:
+    type: hands
+    set: minutes
+    at: { anchor: center }
+    outline: { color: color.fg, width: 3 }
+    lint: { allow: [contrast], reason: "a solid white hand: the ring only widens it, while the hour hand's ring makes it hollow" }
+
+  hour_hand:
+    type: hands
+    set: hours
+    at: { anchor: center }
+    outline: { color: color.fg, width: 3 }
+
+  second_hand:
+    type: hands
+    set: sweep
+    at: { anchor: center }
+    seconds: awake
