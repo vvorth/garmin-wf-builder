@@ -1,4 +1,5 @@
-// The YAML tab against the real worker: a comment typed is saved; text that
+// The YAML tab against the real worker: a comment typed is saved; Tab
+// indents instead of leaving the editor; text that
 // is not YAML is not saved, with the reason under the pane; a compiler error
 // is saved and shown; a `pt` typed where no font is keeps the face readable,
 // reports an error on its line and undoes clean; and the two-tab conflict,
@@ -32,6 +33,27 @@ h.test("a comment typed is saved a moment later; Undo outside the tab takes the 
   assert.equal(undone.text, base.text);
   await s.pane("YAML");
   assert.equal(await s.yamlText(), base.text, "the pane did not follow the undo");
+  assert.deepEqual(s.errors, []);
+});
+
+h.test("Tab in the YAML tab indents the line and keeps the focus; Shift-Tab takes it back; Escape then Tab leaves", async (s) => {
+  const base = await s.openExample("features/shapes");
+  await s.waitFace();
+  await s.waitIdle();
+  await s.pane("YAML");
+  await s.appendYaml("\n# tab");
+  await s.page.keyboard.press("Home");
+  await s.page.keyboard.press("Tab");
+  await s.eventually(async () => (await s.yamlText()).endsWith("\n  # tab"), "Tab to indent the line by two spaces");
+  assert.ok(await s.page.locator(".cm-content").evaluate((el) => el.contains(document.activeElement)), "Tab moved the focus out of the editor");
+  await s.page.keyboard.press("Shift+Tab");
+  await s.eventually(async () => (await s.yamlText()).endsWith("\n# tab"), "Shift-Tab to take the indent back");
+  assert.ok((await s.yamlText()).startsWith(base.text));
+  // Escape, then Tab, still leaves the editor by keyboard
+  await s.page.keyboard.press("Escape");
+  await s.page.keyboard.press("Tab");
+  assert.ok(!(await s.page.locator(".cm-content").evaluate((el) => el.contains(document.activeElement))), "Escape then Tab kept the focus in the editor");
+  assert.ok((await s.yamlText()).endsWith("\n# tab"), "Escape then Tab changed the text");
   assert.deepEqual(s.errors, []);
 });
 

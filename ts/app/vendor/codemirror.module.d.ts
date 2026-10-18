@@ -184,6 +184,11 @@ export interface KeyBinding {
 
 export declare const keymap: Facet<readonly KeyBinding[]>;
 
+// -- @codemirror/commands ---------------------------------------------------------
+
+/** Tab indents the selected lines (or inserts an indent unit), Shift-Tab dedents. */
+export declare const indentWithTab: KeyBinding;
+
 // -- @lezer/highlight ------------------------------------------------------------
 
 /** A syntax category a highlight style colours. */

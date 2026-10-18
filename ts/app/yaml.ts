@@ -14,7 +14,7 @@ import { html } from "htm/preact";
 import type { VNode } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
-  Annotation, EditorSelection, EditorView, HighlightStyle, basicSetup, forceLinting, linter, lintGutter,
+  Annotation, EditorSelection, EditorView, HighlightStyle, basicSetup, forceLinting, indentWithTab, keymap, linter, lintGutter,
   syntaxHighlighting, tags, yaml, yamlSchema,
 } from "./vendor/codemirror.module.js";
 import type { Diagnostic as LintDiagnostic, JSONSchema7 } from "./vendor/codemirror.module.js";
@@ -145,7 +145,8 @@ export function YamlPane({ doc }: YamlPaneProps): VNode {
         parent: host.current,
         doc: store.state.yaml.text,
         extensions: [
-          basicSetup, highlight, yaml(), yamlSchema(s), lintGutter(),
+          // Tab indents rather than moving focus; Escape then Tab still leaves the editor (CodeMirror's own escape hatch).
+          basicSetup, keymap.of([indentWithTab]), highlight, yaml(), yamlSchema(s), lintGutter(),
           linter((lv) => lintFrom(lv, state.current.doc.diagnostics), { delay: 0 }),
           typed, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto" } }, { dark: true }),
         ],

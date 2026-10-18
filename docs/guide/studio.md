@@ -747,7 +747,10 @@ is never renamed or removed for you.
 
 **YAML** above the face shows the design's text, with completion and
 explanations from the format's schema and the compiler's diagnostics in
-the gutter. What you type is saved a moment (300 ms) after you stop, or
+the gutter. **Tab** indents the line, or every selected line, by two
+spaces and **Shift+Tab** takes the indent back, rather than moving to the
+next control; to leave the text with the keyboard, press **Escape** and
+then **Tab**. What you type is saved a moment (300 ms) after you stop, or
 at once when you leave or reload the page, and
 a burst of typing, saves less than 10 seconds apart, is one step for
 **Undo** outside the tab. Text that
