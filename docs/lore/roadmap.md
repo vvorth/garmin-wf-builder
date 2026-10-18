@@ -73,9 +73,12 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Fonts** — system fonts measured and previewed from the device's own
   files, `.cft` included (`docs/research/10-system-fonts.md`); vector fonts
   (`face:`) and `curve:` on `text`, `data` and pattern text parts, 44 of 136
-  devices; a curved `data` reading's `icon:` in the text's own frame (any
-  angled pair, a radial one at the run's fixed end, baked at one exact turn
-  per device; `upright:`); `outline:` (the stamped ring) with lint
+  devices; a radial run's spacing along its baseline circle (lints and
+  preview); a curved `data` reading's `icon:` in the text's own frame (any
+  angled pair; a radial one at the run's fixed end, baked at one exact turn
+  per device, or at the free end or beside a centred run, placed on the
+  watch from the measured width and baked at 3° steps per device;
+  `upright:`); `outline:` (the stamped ring) with lint
   `text-outline-interior`. `docs/guide/fonts.md`, `text.md`.
 - **`outline:` everywhere** (research 19) — a 1–3 px ring on
   shapes, icons, `hands` (each hand whole), `pattern` (each copy whole),

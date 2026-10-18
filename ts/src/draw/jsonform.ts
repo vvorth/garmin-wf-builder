@@ -214,7 +214,7 @@ class JsonWriter {
       case "SeriesRebuild": ev.step(op); break;
       case "SeriesDraw": this.walk(seriesOps(op, ev)); break;
       case "Let": case "Assign": case "LetSlotPick": case "LetAutoScale": case "VisibleGuard": case "NullGuard": case "AntiAlias":
-      case "Return": case "SlotPull": case "SlotIcon": case "SlotText": case "Continue": case "LetText":
+      case "Return": case "SlotPull": case "SlotIcon": case "IconStep": case "SlotText": case "Continue": case "LetText":
         ev.step(op);
         break;
       case "If": this.walk(ev.cond(op.cond) ? op.then : op.otherwise); break;
@@ -223,7 +223,7 @@ class JsonWriter {
         const text = ev.string(op.text);
         if (text === null) return;
         const out: JsonOp = {
-          op: "text", x: this.num(op.x), y: this.num(op.y), text, font: this.font(op.font), justify: [...op.justify],
+          op: "text", x: this.num(op.x), y: this.num(op.y), text, font: this.font(ev.face(op.font)), justify: [...op.justify],
           align: op.align, valign: op.valign, style: op.style, angle: op.angle !== null ? ev.n(op.angle) : null,
           radius: op.radius !== null ? val(op.radius.value) : null, direction: op.direction,
           box: op.box !== null ? [op.box.x, op.box.y, op.box.width, op.box.height] : null,

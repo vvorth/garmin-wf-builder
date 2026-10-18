@@ -2766,7 +2766,7 @@
       "additionalProperties": false,
       "properties": {
         "curve": {
-          "description": "Draws the reading along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText, exactly as 'curve:' on a 'text' element. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry. 'icon:' is placed in the text's own frame and turns with it: any pairing on 'angled'; on 'radial' only at the run's fixed end ('align: left' with 'position: left', 'align: right' with 'position: right'), with a px or %r 'radius:'.",
+          "description": "Draws the reading along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText, exactly as 'curve:' on a 'text' element. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry. 'icon:' is placed in the text's own frame and turns with it: any pairing on 'angled'; on 'radial' 'position: left' or 'right' with any 'align:' (not 'top'/'bottom'), with a px or %r 'radius:'. At the run's fixed end the icon's turn is baked once per device; at the free end or beside a centred run its place is computed on the watch from the reading's width and its glyph is baked at 3-degree steps.",
           "$ref": "#/$defs/curve"
         },
         "type": {
@@ -2873,7 +2873,7 @@
             "upright": {
               "type": "boolean",
               "default": false,
-              "description": "Beside 'curve:' only: draw the icon unturned, at the point the curved pair puts it. Default false: it turns with the reading."
+              "description": "Beside 'curve:' only: draw the icon unturned, at the point the curved pair puts it. Default false: it turns with the reading. An upright icon at a radial run's free end needs no baked steps."
             }
           }
         },

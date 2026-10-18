@@ -7,6 +7,7 @@
 // handed in as a set (`setIconFontGlyphs`): Node reads the installed font,
 // the browser receives it from the server.
 import data from "./data/icons.json" with { type: "json" };
+import type { Device } from "./devices/device.ts";
 import { formatG } from "./py.ts";
 import { type Length, pixelSize } from "./units.ts";
 
@@ -121,6 +122,99 @@ export class PinnedTurn {
   turn(minorRadius: number, advance: number): number {
     return normalTurn((this.direction === "counter_clockwise" ? 270 : 90) - this.angle(minorRadius, advance));
   }
+}
+
+/** Degrees between two baked turns of a free-end radial icon: the worst snap is half of it. */
+export const TURN_STEP = 3;
+
+/** Where a radial pair's icon sits when its place depends on the reading's width. */
+export type FreePlace = "after" | "before" | "center_left" | "center_right";
+
+/** A radial run on one device: its circle's radius, the radius its advances are laid out along, and its widest reading. */
+export interface RunGeometry {
+  radius: number;
+  spacing: number;
+  /** In pixels; 0 where the reading does not draw. */
+  widest: number;
+}
+
+/** A free-end icon's path: its centre is at `theta + perPx * textWidth` radians (Garmin's convention). */
+export interface IconPath {
+  theta: number;
+  perPx: number;
+  /** Where the text is drawn, Garmin degrees: a centred pair's text is shifted so the pair centres on the authored angle. */
+  textGarmin: number;
+}
+
+/** A free-end icon's baked turns on one device: step `i` is the icon centred at `first + i * size` radians. */
+export interface IconSteps {
+  first: number;
+  size: number;
+  count: number;
+  /** The step for a reading of width `w` is `round(w * perPx)`. */
+  perPx: number;
+}
+
+/**
+ * A radial pair's icon at the run's free end, or beside a centred run: its
+ * angle follows the reading's width, which only the watch knows. Its glyphs
+ * are baked at `TURN_STEP` steps covering every angle the widest reading can
+ * push it to on a device, and the watch draws the nearest. The bake and the
+ * layout resolve it here, with the same arithmetic.
+ */
+export class SteppedTurn {
+  /** The authored angle, in Garmin degrees. */
+  readonly startGarmin: number;
+  readonly gap: Length;
+  readonly place: FreePlace;
+  readonly direction: string | null;
+  readonly run: (device: Device) => RunGeometry;
+
+  constructor(startGarmin: number, gap: Length, place: FreePlace, direction: string | null, run: (device: Device) => RunGeometry) {
+    this.startGarmin = startGarmin;
+    this.gap = gap;
+    this.place = place;
+    this.direction = direction;
+    this.run = run;
+  }
+
+  /**
+   * The icon centre's angle as a function of the reading's width, for a
+   * reference glyph of this upright advance. The reading spans `width /
+   * spacing` radians; the gap and the icon are arc lengths on the run's circle.
+   */
+  path(device: Device, advance: number): IconPath {
+    // A clockwise run walks towards smaller Garmin angles; `ahead` is +1 where the icon follows the run.
+    const sign = this.direction === "counter_clockwise" ? 1 : -1;
+    const { radius, spacing } = this.run(device);
+    const gap = pixelSize(this.gap, device.minorRadius);
+    const centred = this.place === "center_left" || this.place === "center_right";
+    const ahead = this.place === "after" || this.place === "center_right" ? 1 : -1;
+    const k = (sign * ahead) / (centred ? 2 : 1);
+    // Free end: width/spacing + (gap + advance/2)/radius past the fixed end. Centred: the pair spans
+    // width/spacing + (gap + advance)/radius about the authored angle, so the icon sits half of width/spacing + gap/radius off it.
+    const lead = (centred ? gap : gap + advance / 2) / radius;
+    const shift = centred ? (-ahead * sign * (advance + gap)) / 2 / radius : 0;
+    return { theta: (this.startGarmin * Math.PI) / 180 + k * lead, perPx: k / spacing, textGarmin: this.startGarmin + (shift * 180) / Math.PI };
+  }
+
+  /** The turns baked on `device`: from the shortest reading's angle to the widest's, `TURN_STEP` apart. */
+  steps(device: Device, advance: number): IconSteps {
+    const { theta, perPx } = this.path(device, advance);
+    const step = (TURN_STEP * Math.PI) / 180;
+    const sweep = Math.abs(perPx) * this.run(device).widest;
+    return { first: theta, size: perPx < 0 ? -step : step, count: Math.floor(sweep / step + 0.5) + 1, perPx: Math.abs(perPx) / step };
+  }
+
+  /** Degrees clockwise to bake an icon centred at `theta` radians: tops outward on a clockwise run, inward on a counter-clockwise one. */
+  turnAt(theta: number): number {
+    return normalTurn((this.direction === "counter_clockwise" ? 270 : 90) - (theta * 180) / Math.PI);
+  }
+}
+
+/** The font key of step `index` of a free-end icon's font `key`. */
+export function stepKey(key: string, index: number): string {
+  return `${key}_s${index}`;
 }
 
 /** The synthetic font name for every icon declared at this `size:`, glyph, anti-aliasing setting and turn. */

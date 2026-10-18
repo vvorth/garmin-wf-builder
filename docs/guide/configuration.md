@@ -482,7 +482,7 @@ frame, and turns with it:
 | `icon: {position:}` | `angled` | `radial` |
 |---|---|---|
 | `left` / `right` | before / after the run, along its turned baseline | before / after the run along the circle; `gap:` and widths are arc lengths at `radius:` |
-| `top` / `bottom` | on the glyphs' "up" / "down" side | outward / inward for a clockwise run (glyphs face out), the reverse for counter-clockwise |
+| `top` / `bottom` | on the glyphs' "up" / "down" side | an error |
 
 ```yaml
     curve: { style: radial, angle: -46deg, radius: 80%r }
@@ -494,24 +494,47 @@ frame, and turns with it:
   upright pair (laid out on the watch exactly as an upright one) turns
   rigidly about `at:` by `angle:`, and the icon is baked turned by the
   same angle.
-* `style: radial` takes the icon only at the run's **fixed end**: `align:
-  left` with `position: left` (the icon just before the run's start) or
-  `align: right` with `position: right` (just after its end). Anywhere
-  else the icon's place on the circle would depend on how wide the reading
-  is, which only the watch knows, so every other pairing is a build error.
-  For the same pairs to keep a fixed shape, `radius:` must be `px` or
-  `%r` beside an icon (the icon's turn is baked before layout runs, as its
+* `style: radial` takes `position: left` or `right` with any `align:`.
+  `top` and `bottom` are a build error: stacking the icon across the run
+  would move the run off its own radius. `radius:` must be `px` or `%r`
+  beside an icon (the icon's turns are baked before layout runs, as its
   `size:` is).
-* A pinned radial icon is centred on the circle half the *reference*
-  glyph's width (the default choice's, the one the icon font is sized
-  by) plus `gap:` past the fixed end, in the middle of the run's band, and
-  baked turned to face exactly the way the run faces there. The radius,
-  gap and glyph width are per device, so the turn is too: each target
-  bakes the font at its own exact angle, under one resource name. Another
-  choice's glyph is centred on the same point, so its own gap differs
-  from `gap:` by half the difference in width.
+* **At the fixed end** (`align: left` with `position: left`, just before
+  the run's start, or `align: right` with `position: right`, just after
+  its end) the icon's place does not depend on the reading. It is centred
+  on the circle half the *reference* glyph's width (the default choice's,
+  the one the icon font is sized by) plus `gap:` past the fixed end, in
+  the middle of the run's band, and baked turned to face exactly the way
+  the run faces there. The radius, gap and glyph width are per device, so
+  the turn is too: each target bakes the font at its own exact angle,
+  under one resource name. Another choice's glyph is centred on the same
+  point, so its own gap differs from `gap:` by half the difference in
+  width.
+* **At the free end** (`align: left` with `position: right`, `align:
+  right` with `position: left`) and **beside a centred run** (`align:
+  center`, where the reading and the icon together are centred on
+  `angle:`) the icon's place follows the reading's width, which only the
+  watch knows. The watch measures the reading and puts the icon's centre
+  that far round the circle, plus `gap:` and half the reference glyph's
+  width. A reading's glyphs are spaced along their baseline circle, not
+  the circle `radius:` names, and the build allows for that
+  ([Limitations](../limitations.md#a-face-cannot-ship-its-own-ttf-and-vector-fonts-are-garmins-only)).
+* A free-end icon cannot be baked at one turn, so it is baked at **3°
+  steps** covering every angle the slot's widest reading can push it to
+  on that device, and the watch draws the nearest step: at most 1.5° off,
+  well under a pixel at a glyph's edge. Each step is a font of its own
+  (all the slot's glyphs), and only the step in use is loaded, on the
+  frame the step changes. The cost is in the `.prg`, not the face's
+  memory: about one step for every 5 px of the widest reading at an 80%r
+  radius on a 260 px screen, so a
+  slot of numbers bakes about 8 steps, and a slot that can show the
+  weather's condition text (the widest reading there is) about 30. On a
+  `fenix8solar47mm` with steps, floors, Body Battery, stress, heart rate
+  and the weather, that is 1.1 KB more memory than the same pair at the
+  fixed end and 42 KB more `.prg`; without the weather, 0.4 KB and 3 KB.
 * `icon: {upright: true}` draws the icon unturned at the same point (any
-  `curve:` style; beside an upright reading it is an error).
+  `curve:` style; beside an upright reading it is an error). An upright
+  free-end icon has no steps.
 
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice

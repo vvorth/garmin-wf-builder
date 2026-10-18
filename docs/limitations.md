@@ -254,13 +254,21 @@ One honest limit on that, not to be glossed over:
   identically in `error` and `hide` mode. `error` guarantees a usable face
   was published at build time on every target; it does not, and cannot,
   guarantee the element is never missing from the wrist.
-* **A radial slot reading takes its icon only at the run's fixed end**
-  (`align: left` with `position: left`, `align: right` with `position:
-  right`). At the free end, or beside a centred run, the icon's angle
-  would come from the reading's measured width, and whether the watch lays
-  the run out round the circle to that same length is unverified
-  (`docs/research/35-curved-slot-reading.md` §3.2), so those pairings are
-  a build error. An angled pair takes the icon on any side.
+* **A radial run's glyphs are spaced along their baseline circle**, not
+  the circle `radius:` names: under `TEXT_JUSTIFY_VCENTER` on a clockwise
+  run the baseline sits `ascent - lineHeight/2` inside it, so a run sweeps
+  `width / (radius - that)`. Measured once, in the simulator, on
+  `fenix8solar47mm` (RobotoCondensedBold 28 px, clockwise, `VCENTER`; the
+  curved-slot probe, `docs/lore/rendering.md`). The lints, the preview and
+  a free-end icon's angle all use this rule; for a counter-clockwise run,
+  `top`/`bottom`, other faces and other sizes it is inferred, not measured.
+* **A radial slot reading takes its icon before or after the run**
+  (`position: left`/`right`, any `align:`); `top`/`bottom` is a build
+  error. At the free end and beside a centred run the icon's angle is
+  computed on the watch from the reading's measured width by the rule
+  above, and its glyph snaps to the nearest of the turns baked at 3°
+  steps. That pairing has been seen only in `wfb preview`; how it lines up
+  on a watch is §4's. An angled pair takes the icon on any side.
 
 The radial glyph-facing model — `curve: {style: radial, direction:
 clockwise}` faces glyphs outward, `counter_clockwise` faces inward, so text
@@ -1225,6 +1233,17 @@ rasterisation:
   (`docs/research/probes/ring-on-device/`), as the fitted rules draw it.
   The AMOLED `fenix847mm` anti-aliases every edge, which the preview does
   not. For those pixels, the simulator is authoritative.
+
+### A curved reading's icon at the free end
+
+A radial `data` reading with its icon at the run's free end, or beside a
+centred run (`docs/guide/configuration.md`, "A curved reading"), builds
+warning-free on the three verification devices and previews as designed.
+Not yet seen on a watch or in the simulator: whether the gap between the
+reading's last glyph and the icon holds for short and long readings alike
+(the baseline-spacing rule in §1 was measured on plain runs, not on this
+pair), and how often a reading that changes width (a heart rate) makes the
+watch load a different step's font.
 
 ### Data, config and the AOD heat map
 

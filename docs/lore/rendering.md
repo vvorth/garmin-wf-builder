@@ -68,6 +68,25 @@ From `docs/research/probes/vector-fonts/` (`fenix8solar47mm`,
   its vertical midline on the radius through its own centre.
 - Without `TEXT_JUSTIFY_VCENTER`, the text's **baseline** sits on the
   circle, each glyph growing toward its own "up".
+- **A run's advances are laid out along its baseline circle**, not the
+  circle `drawRadialText` is given. Measured in the user's host simulator
+  on `fenix8solar47mm` (2026-10-18, the curved-slot probe's `gap.jungle`,
+  `docs/research/probes/curved-slot/README.md`): RobotoCondensedBold
+  28 px, `TEXT_JUSTIFY_LEFT | TEXT_JUSTIFY_VCENTER`, clockwise from 150°
+  (Garmin's convention), lineHeight 28 and ascent 22 by the compiler's
+  metrics, which the device agrees with (`getTextWidthInPixels` of
+  `12345678` is 96 on both). "1234" at R = 78 ran 4.6 px past its
+  `width / R` end along the arc, "12345678" at R = 52 ran 16.1 px past
+  it: not one constant factor (about 10% and 17%). Under `VCENTER` the
+  clockwise baseline is `ascent - lineHeight/2` = 8 px inside R, and
+  spacing the advances along R − 8 predicts 5.5 and 17.5 px, the last
+  glyph's side bearing accounting for the rest. ("1" at R = 104 stopped
+  3 px short: side bearing only.) `radialSpacingRadius` in
+  `ts/src/layout.ts` is the rule, used by the lints, the preview and a
+  curved reading's free-end icon. UNVERIFIED: counter-clockwise (taken as
+  the mirror, R + 8), `top` and `bottom` (the baseline is derived from
+  where the compiler puts the radius: on the circle for `bottom`, one
+  ascent in for `top`), and other faces and sizes.
 - The glyph shapes of Garmin's device-resident faces are not reproduced:
   the preview draws a stand-in font.
 

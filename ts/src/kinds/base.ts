@@ -10,7 +10,7 @@ import { ringGroups } from "../ir/rings.ts";
 import type { Placed, PlacedPattern, ResolvedFont, Resolver } from "../layout.ts";
 import type { Span } from "../diagnostics.ts";
 import type { Curve } from "../ir/model.ts";
-import type { PinnedTurn } from "../icons.ts";
+import type { PinnedTurn, SteppedTurn } from "../icons.ts";
 import type { Box, Length } from "../units.ts";
 import type { DrawContext, Op } from "../draw/program.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
@@ -21,10 +21,14 @@ export class IconFont {
   readonly glyphs: string;
   readonly reference: string;
   readonly antialias: boolean;
-  /** Degrees clockwise every glyph is baked turned (0 is upright), or a pinned radial icon's turn, resolved per device. */
-  readonly rotate: number | PinnedTurn;
+  /**
+   * Degrees clockwise every glyph is baked turned (0 is upright), or a radial
+   * pair's turn resolved per device: one pinned turn, or a free-end icon's
+   * steps, each step its own font.
+   */
+  readonly rotate: number | PinnedTurn | SteppedTurn;
 
-  constructor(size: Length | null, glyphs: string, reference: string, antialias: boolean, rotate: number | PinnedTurn = 0) {
+  constructor(size: Length | null, glyphs: string, reference: string, antialias: boolean, rotate: number | PinnedTurn | SteppedTurn = 0) {
     this.size = size;
     this.glyphs = glyphs;
     this.reference = reference;

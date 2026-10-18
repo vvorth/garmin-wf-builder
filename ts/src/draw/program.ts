@@ -340,6 +340,14 @@ export interface SlotIcon { t: "SlotIcon"; font: string; key: string; method: st
 export const SlotIcon = (font: string, key: string, method: string, guarded: boolean, glyph: string | null): SlotIcon =>
   ({ t: "SlotIcon", font, key, method, guarded, glyph });
 
+/**
+ * A free-end radial icon's turned font: step `index` of the `Layout` array
+ * `steps`, loaded into the view field `_<field>` only when the step changes,
+ * then read into `iconFont`. `key` is the font key the steps are named from.
+ */
+export interface IconStep { t: "IconStep"; field: string; key: string; steps: string; index: Num }
+export const IconStep = (field: string, key: string, steps: string, index: Num): IconStep => ({ t: "IconStep", field, key, steps, index });
+
 /** A data element's reading, its label in front, or under `absent:` its placeholder or nothing. */
 export interface SlotText {
   t: "SlotText"; module: string; guarded: boolean; unit: boolean; short: boolean; label: string | null; absent: string | null;
@@ -369,7 +377,7 @@ export const Blank = (): Blank => ({ t: "Blank" });
 
 export type Op = SetColor | SetPen | Primitive | FillPolygon | ArcSpan | ArcProgress | Part | SeriesRebuild | SeriesDraw
   | LoadFont | Text | Glyph | LetText | IfNotNull | IfAod | IfAwake | Let | Assign | If | For | Continue | Return
-  | SlotPull | SlotIcon | SlotText | LetSlotPick | LetAutoScale | VisibleGuard | NullGuard | AntiAlias | Comment | Blank;
+  | SlotPull | SlotIcon | IconStep | SlotText | LetSlotPick | LetAutoScale | VisibleGuard | NullGuard | AntiAlias | Comment | Blank;
 
 // -- what lowering is given ------------------------------------------------------
 

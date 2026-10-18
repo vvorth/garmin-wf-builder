@@ -22,7 +22,7 @@ import { fontForHeight, type SystemFace } from "./fonts/fallback.ts";
 import { bounds, flatten, rasterise } from "./fonts/raster.ts";
 import { type Element, type Expression, type Face, type StyleEntry } from "./ir/model.ts";
 import { type RingGroup, ringGroups } from "./ir/rings.ts";
-import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, type ResolvedFace } from "./layout.ts";
+import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, radialSpacingRadius, type ResolvedFace } from "./layout.ts";
 import { Color, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
 import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
@@ -484,11 +484,14 @@ export class Renderer {
       glyphVerticalAlign = "top";
       glyphRadius = radius + (counterClockwise ? -face.baseline : face.baseline);
     }
+    // Advances are laid out along the baseline circle, which a centred or top run does not sit on.
+    const spacing = radialSpacingRadius(radius, verticalAlign, direction, face.baseline, face.lineHeight);
+    if (spacing <= 0) return;
     const base = radians(angleGarmin);
     let pen = 0.0;
     Array.from(text).forEach((ch, i) => {
       const advance = advances[i]!;
-      const theta = base + sign * ((pen + advance / 2.0 - alignOffset) / radius);
+      const theta = base + sign * ((pen + advance / 2.0 - alignOffset) / spacing);
       const px = cx + glyphRadius * Math.cos(theta), py = cy - glyphRadius * Math.sin(theta);
       this.turnedRun(face, ch, degrees(theta) + facing, "center", glyphVerticalAlign, [px, py], color);
       pen += advance;

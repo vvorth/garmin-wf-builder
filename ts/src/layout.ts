@@ -75,14 +75,27 @@ export function radialAlignOffset(align: string, totalAdvance: number): number {
   return ({ left: 0.0, center: totalAdvance / 2.0, right: totalAdvance } as Record<string, number>)[align]!;
 }
 
-/** The Garmin-degree interval a radial run sweeps, unordered. */
+/**
+ * The radius a radial run's glyph advances are laid out along: its baseline
+ * circle, not the circle `radius:` names. Under `VCENTER` the baseline sits
+ * `ascent - lineHeight/2` toward the glyphs' "down" (inward on a clockwise
+ * run); without it, on the circle (`bottom`), or one ascent down (`top`,
+ * which the call shifts by `Graphics.getFontAscent`). Measured on a clockwise
+ * `VCENTER` run (`docs/lore/rendering.md`, "Text on a curve").
+ */
+export function radialSpacingRadius(radius: number, verticalAlign: string, direction: string | null, ascent: number, lineHeight: number): number {
+  const down = verticalAlign === "center" ? ascent - lineHeight / 2.0 : verticalAlign === "top" ? ascent : 0.0;
+  return direction === "counter_clockwise" ? radius + down : radius - down;
+}
+
+/** The Garmin-degree interval a radial run sweeps, unordered, its advances laid out along `spacing` (`radialSpacingRadius`). */
 export function radialTextAngleSpan(curveAngleGarmin: number, direction: string | null, align: string,
-  totalAdvance: number, radius: number, pad = 0.0): [number, number] {
+  totalAdvance: number, spacing: number, pad = 0.0): [number, number] {
   const sign = radialDirectionSign(direction);
   const offset = radialAlignOffset(align, totalAdvance);
   return [
-    curveAngleGarmin - sign * degrees((offset + pad) / radius),
-    curveAngleGarmin + sign * degrees((totalAdvance - offset + pad) / radius),
+    curveAngleGarmin - sign * degrees((offset + pad) / spacing),
+    curveAngleGarmin + sign * degrees((totalAdvance - offset + pad) / spacing),
   ];
 }
 
@@ -301,9 +314,10 @@ export function textInk(x: number, y: number, width: number, height: number, ali
   }): Ink {
   if (curveStyle === "angled") return new InkQuad(rotatedRectCorners(x, y, width, height, align, verticalAlign, angleGarmin, pad));
   if (curveStyle === "radial") {
-    if (radiusPx <= 0) return new InkDisc(x, y, radiusPx + height + pad);
-    const [a, b] = radialTextAngleSpan(angleGarmin, direction, align, width, radiusPx, pad);
     const ascent = metric !== null ? device.db.measure.ascent(metric) : height;
+    const spacing = radialSpacingRadius(radiusPx, verticalAlign, direction, ascent, metric !== null ? device.db.measure.lineHeight(metric) : height);
+    if (radiusPx <= 0 || spacing <= 0) return new InkDisc(x, y, radiusPx + height + pad);
+    const [a, b] = radialTextAngleSpan(angleGarmin, direction, align, width, spacing, pad);
     const [inner, outer] = radialTextBand(radiusPx, height, verticalAlign, direction, ascent, pad);
     return new InkSector(x, y, inner, outer, a, b);
   }
@@ -636,6 +650,24 @@ export class PlacedData extends Placed {
   /** A radial pair: the icon's centre, and the turn its font is baked at on this device. */
   icon_point: [number, number] | null = null;
   icon_turn = 0;
+  /** A radial pair's icon whose place follows the reading's width, computed on the watch. */
+  icon_track: IconTrack | null = null;
+}
+
+/**
+ * A free-end (or centred-pair) radial icon on one device: its centre is at
+ * `theta + per_px * textWidth` radians, `middle` px from the anchor, and its
+ * turn is step `round(textWidth * steps_per_px)` of `steps` baked steps
+ * (`steps` is 0 for an upright icon, which has none).
+ */
+export interface IconTrack {
+  theta: number;
+  per_px: number;
+  middle: number;
+  steps: number;
+  steps_per_px: number;
+  /** Each step's baked turn, degrees clockwise. */
+  turns: number[];
 }
 
 /** Who a `SubPixelLength` or `ResolveWarning` is recorded against. */

@@ -2,6 +2,7 @@
 import type { AodOverride, Element, Expression, Face } from "../../ir/model.ts";
 import { DataElement, slotOf, walkElements } from "../../ir/model.ts";
 import { configDataIds, elementConstPrefix } from "../../ir/naming.ts";
+import { SteppedTurn } from "../../icons.ts";
 import * as kinds from "../../kinds/index.ts";
 import { type Placed, PlacedText, type ResolvedFace } from "../../layout.ts";
 import { stringLiteral } from "../../mcsource.ts";
@@ -278,7 +279,8 @@ export const CONFIG_LAYOUT_METHOD = "configLayout";
 /** Every bitmap font resource this view loads in `onLayout`, in first-appearance draw order, each ring font after its base. */
 export function loadedFonts(resolved: ResolvedFace): string[] {
   const face = resolved.face;
-  const loaded = [...new Set(kinds.placedTextRuns(resolved.items, face).filter(([, run]) => !run.aod_only && !run.isVector(face)).map(([, run]) => run.font))];
+  const loaded = [...new Set(kinds.placedTextRuns(resolved.items, face)
+    .filter(([, run]) => !run.aod_only && !run.isVector(face) && !(run.icon?.rotate instanceof SteppedTurn)).map(([, run]) => run.font))];
   const after = new Map<string, number>();
   for (const [ring, [base]] of kinds.ringFonts(face)) {
     if (!loaded.includes(base)) continue;
@@ -286,6 +288,12 @@ export function loadedFonts(resolved: ResolvedFace): string[] {
     loaded.splice(loaded.indexOf(base) + after.get(base)!, 0, ring);
   }
   return loaded;
+}
+
+/** Free-end radial icons' fonts: each a field holding the one step in use, loaded on the frame the step changes. */
+export function steppedFonts(resolved: ResolvedFace): string[] {
+  return [...new Set(kinds.placedTextRuns(resolved.items, resolved.face).filter(([, run]) => run.icon?.rotate instanceof SteppedTurn)
+    .map(([, run]) => run.font))];
 }
 
 /** Baked fonts named only by a text's `aod: {font:}` override, loaded on entering sleep. */

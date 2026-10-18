@@ -134,6 +134,16 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;");
       w.blank();
       break;
+    case "IconStep": {
+      const index = numCode(op.index, aod);
+      w.comment("the icon's font is baked turned at steps; load the nearest only when it changes");
+      w.block(`if (${index} != _${op.field}Step)`, () => {
+        w.line(`_${op.field} = WatchUi.loadResource(Layout.${op.steps}[${index}]) as FontResource;`);
+        w.line(`_${op.field}Step = ${index};`);
+      });
+      w.line(`iconFont = _${op.field};`);
+      break;
+    }
     case "SlotText": printSlotText(w, op); break;
     case "LetSlotPick":
       w.line(`var chosenId = ${op.field};`);

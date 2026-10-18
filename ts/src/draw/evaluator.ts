@@ -256,6 +256,12 @@ export class Evaluator {
     return val(this.num(n)!);
   }
 
+  /** `font` as this frame draws it: a baked font picked on the watch (a free-end icon's step) is the key its local holds. */
+  face(font: Font): Font {
+    const picked = this.locals.get(font.code);
+    return font.baked !== null && typeof picked === "string" && picked !== font.baked ? { ...font, baked: picked } : font;
+  }
+
   cond(c: Cond): boolean {
     const r = this.renderer;
     return condValue(c, r.options.aod, this.locals, r.values, r.options.asleep);
@@ -356,6 +362,11 @@ export class Evaluator {
         this.locals.set("iconFont", r.resolved.fonts.get(op.key) ? op.key : null);
         this.locals.set("iconGlyph", op.glyph);
         break;
+      case "IconStep": {
+        const key = icons.stepKey(op.key, Math.trunc(this.n(op.index)));
+        this.locals.set("iconFont", r.resolved.fonts.has(key) ? key : null);
+        break;
+      }
       case "SlotText": this.locals.set("text", slotText(op, r.values)); break;
       case "LetSlotPick":
         this.locals.set("pulled", new Pulled(op.sample));
@@ -401,7 +412,7 @@ export class Evaluator {
     if (text === null) return;
     const anchor: [number, number] = [Math.trunc(this.n(op.x)), Math.trunc(this.n(op.y))];
     const align = op.align ?? justifyAlign(op.justify);
-    const face = r.options.aod && op.font.asleep !== null ? op.font.asleep : op.font;
+    const face = r.options.aod && op.font.asleep !== null ? op.font.asleep : this.face(op.font);
     if (face.vector) {
       r.drawVectorText(text, anchor, align, op.valign, face.metric, this.color, op.style,
         op.angle !== null ? this.n(op.angle) : 0.0, op.radius !== null ? Math.trunc(val(op.radius.value)) : 0, op.direction, op.box);

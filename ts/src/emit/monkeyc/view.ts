@@ -19,7 +19,7 @@ import * as usage from "../usage.ts";
 import { Writer } from "../writer.ts";
 import {
   andList, aodFontField, aodOnlyFonts, AodStyle, CONFIG_LAYOUT_METHOD, constPrefix, describe, editorSlots, fontField, gatedHolds, header,
-  HOLDS_SHOWN, holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile, vectorFontsUsedIn,
+  HOLDS_SHOWN, holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile, steppedFonts, vectorFontsUsedIn,
 } from "./common.ts";
 import * as configMenu from "./config_menu.ts";
 import {
@@ -371,10 +371,19 @@ function emitStaticMethods(w: Writer, face: Face, statics: StaticPlan, aaDefault
 function emitFields(w: Writer, resolved: ResolvedFace, aodOnly: string[]): void {
   const loaded = loadedFonts(resolved);
   const vectorFonts = vectorFontsUsedIn(resolved);
-  if (loaded.length === 0 && vectorFonts.length === 0 && aodOnly.length === 0) return;
+  const stepped = steppedFonts(resolved);
+  if (loaded.length === 0 && vectorFonts.length === 0 && aodOnly.length === 0 && stepped.length === 0) return;
   if (loaded.length > 0) {
     w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\nonLayout rather than per frame.");
     for (const name of loaded) w.line(`private var _${fontField(name)} as FontResource?;`);
+    w.blank();
+  }
+  if (stepped.length > 0) {
+    w.doc("A curved reading's icon, baked turned at steps: the one step in use and\nits index, loaded on the frame the step changes rather than every step in onLayout.");
+    for (const name of stepped) {
+      w.line(`private var _${fontField(name)} as FontResource?;`);
+      w.line(`private var _${fontField(name)}Step as Number = -1;`);
+    }
     w.blank();
   }
   if (aodOnly.length > 0) {

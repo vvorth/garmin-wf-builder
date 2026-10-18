@@ -63,6 +63,12 @@ export function generated(text: string, deviceIds: string[] | null = null): Map<
   return out;
 }
 
+/** Where the shared sources differ between the design's targets: empty when the view and delegate are one file for all. */
+export function divergences(text: string): unknown[] {
+  const f = face(text);
+  return generate(f, f.targets.map((id) => db.get(id)), read).divergences;
+}
+
 /** The generated view's text. */
 export function view(text: string, deviceIds: string[] | null = null): string {
   return [...generated(text, deviceIds)].find(([name]) => name.endsWith("View.mc"))![1];

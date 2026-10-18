@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slices 1–5 and most of 7 done; slice 6 waits on §5 check 2. D1–D8 decided (2026-10-18); D7 refined while building slice 5.** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–5 and most of 7 done; slice 6 built, not yet verified on a watch (§5 check 2 done, its gate passed by the baseline-spacing rule). D1–D8 decided (2026-10-18); D7 refined while building slices 5 and 6.** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -66,20 +66,51 @@ slot, with touch and hold opening whatever the slot shows.
   grows too costly, change to invented codes
   in the Unicode private-use planes (U+F0000–U+10FFFF), which the
   vendored icon font does not use.
-- **D7: a pinned radial icon gets one exact turn per device; only a
-  free-end icon would snap to 3° steps.** (Refined while building slice
-  5.) A pinned icon's centre is at a build-time angle, θ₀ ∓ (gap +
-  reference advance / 2) / R, every other choice's glyph centred on the
-  same point, so there is exactly one turn to bake and no step to pick on
-  the watch. R, the gap and the reference glyph's advance are per device,
-  so the turn is too, and the generated view is one file shared by every
-  target: the font therefore has **one resource name on every device**
-  (an element-specific key with no angle in it), and each device's bake
+- **D7: a pinned radial icon gets one exact turn per device; a free-end
+  (or centred-pair) icon snaps to 3° steps, baked per device and named
+  in `Layout.mc`.** (Refined while building slices 5 and 6.) A pinned
+  icon's centre is at a build-time angle, θ₀ ∓ (gap + reference advance /
+  2) / R, every other choice's glyph centred on the same point, so there
+  is exactly one turn to bake and no step to pick on the watch. R, the gap
+  and the reference glyph's advance are per device, so the turn is too,
+  and the generated view is one file shared by every target: the font
+  therefore has **one resource name on every device** (an
+  element-specific key with no angle in it), and each device's bake
   resolves the turn itself (`PinnedTurn` in `ts/src/icons.ts`, read by
-  both `iconFontSpecs` and the layout). Steps remain the plan for slice
-  6's free end, whose angle is only known on the watch: the worst error
-  is 1.5°, about 0.3 px at the edge of a 24 px glyph, and only the steps
-  the icon's centre can reach across the slot's widest reading are baked.
+  both `iconFontSpecs` and the layout).
+
+  A free-end icon's angle is only known on the watch: θ = θ₀' + k ·
+  textWidth, with k = ±1/R_s (±1/(2 R_s) beside a centred run) and R_s the
+  run's baseline radius (`radialSpacingRadius`, §5 check 2). Its glyph is
+  baked at 3° steps from the shortest reading's angle to the widest's on
+  each device (`SteppedTurn` in `ts/src/icons.ts`, again one function for
+  the bake and the layout), and the watch draws step round(textWidth ·
+  |k| / 3°), clamped to the last: at most 1.5° off, about 0.3 px at the edge
+  of a 24 px glyph. **How the shared view names a per-device set of
+  fonts:** the step count differs per device (R, the font and the widest
+  reading all do), so the steps' `Rez.Fonts` ids are not in the view at
+  all. Each device's `Layout.mc` holds them, `const <P>_ICON_STEPS as
+  Array<ResourceId> = [Rez.Fonts.…S0, …]`, beside `<P>_ICON_LAST` and the
+  arithmetic's constants; the view only indexes it. Chosen over a fixed
+  step count N per element (option a): N would have to be bounded with
+  no device list, over-baking every device to the worst one's range, while
+  per-device arrays bake exactly each device's own range and cannot fall
+  short of it. A bake and a layout that ever disagree on the count or a
+  turn throw at resolve time (`DataKind.resolve`), rather than draw a
+  wrong glyph. **Only the step in use is loaded**: one view field and its
+  index per element, `WatchUi.loadResource` on the frame the step
+  changes. Loading every step in `onLayout` would cost a font handle each
+  (+56 B a handle, slice 5's measure; 31 steps for a slot with the
+  weather is about 1.7 KB) and the steps would sit loaded all day.
+  Measured on `fenix8solar47mm` (`--build-stats`), a free-end pair beside
+  the same pair at the fixed end: with steps, floors, Body Battery,
+  stress, heart rate and the weather (31 steps), 4,190 + 7,624 B against
+  3,902 + 6,777 B, **+1,135 B** memory, `.prg` 156,092 against 114,348 B;
+  without the weather (8 steps), 1,705 + 5,006 B against 1,624 + 4,665 B,
+  **+422 B**, `.prg` 109,324 against 106,220 B. The weather's condition
+  text is the widest reading any slot has, and each step carries every
+  weather glyph.
+
   An angled curve and a fixed `rotate:` are one exact angle.
 - **D8: the key names.** `rotate: <Angle>` on `type: icon` (clockwise,
   `0deg` upright, the same zero as `curve: {style: angled}`), and
@@ -246,19 +277,33 @@ red-then-green test for each new diagnostic.
 - Draw program: `DrawText` ops, as the upright pair's, so the evaluator
   justifies the icon as `drawText` does; no new op.
 
-### Slice 6 — the free end and a centred radial pair (step 3)
+### Slice 6 — the free end and a centred radial pair (step 3): built, not yet verified on a watch
 
-**Gated on §5 check 2.** The icon's angle here comes from
-`getTextWidthInPixels / R`, and the device must lay the run out to the
-same length, or the gap drifts with the reading's length.
+**Gate passed.** §5 check 2 found no constant ratio between the measured
+width and the drawn arc, but a rule: a run's advances are laid out along
+its baseline circle (`radialSpacingRadius` in `ts/src/layout.ts`, recorded
+in `docs/lore/rendering.md`). The icon's angle divides the measured width
+by that radius. The same rule now spaces every radial run in the lints and
+the preview, which changed the preview of each shipped face with a centred
+or `top` radial run (`vector-text`, `outline`, `curved-slot`, two
+fixtures) and two corpus designs' lint boxes.
 
-- Lift slice 5's error for the remaining radial pairings. The step range
-  now spans the widest reading (about 11 steps for a 75 px reading on a
-  150 px radius).
-- If check 2 finds a constant ratio between the measured width and the
-  drawn arc, apply it in the mapping and record the measurement in
-  `docs/lore/rendering.md`. If it finds no usable rule, this slice stops
-  and the free end stays an error.
+- `position: left`/`right` with any `align:` on a radial pair; `top`/
+  `bottom` stay an error (stacking across the run would move it off its
+  radius).
+- Free end and centred pair: the angle, the point and the step are
+  computed on the watch from `getTextWidthInPixels`, with per-device
+  constants in `Layout.mc`; a centred pair's text is drawn centred at a
+  build-time angle shifted by half the icon and gap, so the pair centres
+  on `angle:`. Steps per D7.
+- `icon: {upright: true}`: the slot's upright font at the computed point,
+  no steps.
+- Lints: the sector covers reading + gap + icon from the authored angle as
+  the alignment lays it out; highlight and hold are its box. A data
+  element's widest reading is now measured in its vector font (it was
+  measured with no metrics, so the first choice's reading won).
+- Still the user's: the free-end pair on a watch or in the simulator
+  (§5 check 5).
 
 ### Slice 7 — example, screenshots, docs: done but for the angled pair
 
@@ -292,12 +337,19 @@ The simulator crashes in this container, so these run on the host:
    `fenix947mm`): readings right, but a turned icon whose ink left its
    cell was cropped by the watch; the bake now grows turned cells to fit.
    Re-check the icons after that fix.
-2. **Before slice 6:** the probe's `curved` variant
-   (`docs/research/probes/curved-slot/README.md`, "On the host"). It draws
-   three fixed readings of very different widths, each followed by a glyph
-   at the predicted end: is the gap between the last digit and the glyph
-   the same on all three rows? One screenshot answers it.
+2. **Before slice 6: done (2026-10-18).** The probe's `gap` variant
+   (`docs/research/probes/curved-slot/README.md`, "On the host") in the
+   user's host simulator on `fenix8solar47mm`: "1234" at R = 78 ran
+   4.6 px past its `width / R` end, "12345678" at R = 52 ran 16.1 px past
+   it. Not a constant ratio; it fits advances spaced along the baseline
+   circle, 8 px inside R under `VCENTER` (5.5 and 17.5 px predicted).
+   Counter-clockwise, `top`/`bottom` and other faces are inferred.
 3. **After slice 5:** the pinned pair turned on `fenix8solar47mm` and
    `fr955`, compared with `wfb preview` frame for frame.
 4. **After slice 4:** touch and hold anywhere in the slot group opens the
    picked metric's glance, and still does after re-picking.
+5. **After slice 6:** the free-end and centred pairs (a scratch face like
+   slice 6's: clockwise free end, counter-clockwise free end, centred) on
+   `fenix8solar47mm` and `fr955`: the gap between the reading's last glyph
+   and the icon looks the same for a short and a long reading (switch the
+   pick between heart rate and steps), and the icon faces the run.

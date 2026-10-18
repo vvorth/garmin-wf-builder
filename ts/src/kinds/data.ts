@@ -5,25 +5,26 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type ConfigDataSlot, DataElement, type Element, type Expression, HOLD_AUTO } from "../ir/model.ts";
-import { dataHoldMethod, dataIconMethod } from "../ir/naming.ts";
+import { dataHoldMethod, dataIconMethod, fontResourceId } from "../ir/naming.ts";
 import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
 import {
-  alignmentShift, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, justify, longer, type Placed, PlacedData,
-  radialDirectionSign, radialTextBand, replaceFields, type Resolver, resolvedCurve, textInk,
+  alignmentShift, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, type IconTrack, justify, type LayoutFont, longer, type Placed, PlacedData,
+  radialDirectionSign, radialSpacingRadius, radialTextBand, replaceFields, Resolver, resolvedCurve, textInk,
 } from "../layout.ts";
+import type { Device } from "../devices/device.ts";
 import { flt } from "../draw/barrel.ts";
-import { degrees, formatG, quoted, str, truthy } from "../py.ts";
+import { degrees, formatG, quoted, roundHalfEven, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
 import { Box, IntBox, type Length, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 import {
-  AodRestyled, Assign, Bin, Blank, Cmp, Comment, type Cond, Const, Conv, type DrawContext, Font, FontHeight, If, IfNotNull, IsPulsing, Let,
+  AodRestyled, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv, type DrawContext, Font, FontHeight, IconStep, If, IfNotNull, IsPulsing, Let,
   Lit, LoadFont, Local, LocalsSet, type Num, NumLocal, NumPick, type Op, type Paint, Paren, Return, SetColor, SlotIcon, SlotPull, SlotText,
   type Str, Text as DrawText, TextWidth,
 } from "../draw/program.ts";
-import { constPrefix, fontField } from "../emit/monkeyc/common.ts";
+import { constPrefix, fontField, McLiteral } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
 import { DATA_SAMPLE } from "../sample.ts";
@@ -47,21 +48,19 @@ function checkSlotColorAbsence(b: Builder, node: Node, element: DataElement, key
 }
 
 /**
- * A radial reading takes its icon only at the run's fixed end, where the
- * icon's place cannot depend on the reading's width; and with a radius the
- * bake can resolve before layout, since the icon's turn is baked from it.
+ * A radial reading takes its icon before or after the run, along the
+ * circle; and with a radius the bake can resolve before layout, since the
+ * icon's turns are baked from it.
  */
 function checkRadialPair(b: Builder, node: Node, icon: Node, element: DataElement): void {
   const curve = element.curve!;
   if (curve.style !== "radial") return;
-  const pinned = (element.align === "left" && element.icon_position === "left")
-    || (element.align === "right" && element.icon_position === "right");
-  if (!pinned) {
-    b.bag.error("complication-slot", `${element.id}: a radial reading takes its icon only at the run's fixed end: `
-      + "'align: left' with 'icon: {position: left}', or 'align: right' with 'icon: {position: right}'",
+  if (element.icon_position !== "left" && element.icon_position !== "right") {
+    b.bag.error("complication-slot", `${element.id}: a radial reading takes its icon before or after the run: `
+      + "'icon: {position: left}' or 'icon: {position: right}', with any 'align:'",
     b.doc.span(icon, "position") ?? b.doc.span(node, "icon"), {
-      notes: [`with align: ${element.align} and position: ${element.icon_position}, the icon's place on the circle `
-        + "would depend on how wide the reading is, which only the watch knows",
+      notes: [`position: ${element.icon_position} would stack the icon across the run, outward or inward of the circle, `
+        + "which moves the run off its own radius",
       `or draw the slot's icon as its own element: 'type: icon' with 'slot: ${element.slot}' and 'rotate:'`],
     });
     element.icon_size = null;
@@ -87,9 +86,8 @@ function slotChoices(face: Face, element: DataElement): string[] {
   return slot.choices.filter((name) => complications.TYPES.has(name));
 }
 
-/** The widest plausible reading: the widest of the choices' readings, and the placeholder. */
-function dataWidest(r: Resolver, element: DataElement): string {
-  const font = r.fontForRef(element.font, element.font_is_custom);
+/** The widest plausible reading in `font`: the widest of the choices' readings, and the placeholder. */
+function dataWidest(r: Resolver, element: DataElement, font: LayoutFont): string {
   let widest = "";
   for (const name of slotChoices(r.face, element)) {
     const candidate = complications.widestReading(name, element.unit, element.short);
@@ -150,23 +148,51 @@ function pinnedTurn(element: DataElement): icons.PinnedTurn {
     element.icon_gap ?? new units.Length(DATA_ICON_GAP, "px"), element.align === "right", curve.direction);
 }
 
+/** A radial pair whose icon sits at the run's fixed end, so its place does not depend on the reading's width. */
+function isPinned(element: DataElement): boolean {
+  return (element.align === "left" && element.icon_position === "left") || (element.align === "right" && element.icon_position === "right");
+}
+
+/** A radial reading's run on `device`: the circle `radius:` names, its spacing radius, and the widest reading in its own font. */
+function runGeometry(face: Face, element: DataElement, device: Device): icons.RunGeometry {
+  const r = new Resolver(face, device, new Map());
+  const font = r.textFont(element.font, element.font_is_custom, element.curve);
+  const radius = round(units.pixelSize(element.curve!.radius, device.minorRadius));
+  const ascent = font.metric !== null ? device.db.measure.ascent(font.metric) : font.lineHeight;
+  return {
+    radius, spacing: radialSpacingRadius(radius, element.vertical_align, element.curve!.direction, ascent, font.lineHeight),
+    widest: font.available ? font.width(dataWidest(r, element, font)) : 0,
+  };
+}
+
+/** A radial pair's icon at the free end, or beside a centred run: its turns are steps baked per device. */
+function steppedTurn(element: DataElement, face: Face): icons.SteppedTurn {
+  const curve = element.curve!;
+  const place: icons.FreePlace = element.align === "center" ? (element.icon_position === "left" ? "center_left" : "center_right")
+    : element.align === "left" ? "after" : "before";
+  return new icons.SteppedTurn(garminCurveAngle("radial", curve.angle), element.icon_gap ?? new units.Length(DATA_ICON_GAP, "px"),
+    place, curve.direction, (device) => runGeometry(face, element, device));
+}
+
 /**
  * A data element's icon font key and the turn it is baked at. An angled pair
- * turns by the curve's own angle; a pinned radial icon's turn is per device,
- * so its font is this element's own, under one name on every device.
+ * turns by the curve's own angle; a radial icon's turn is per device, so its
+ * font is this element's own, under one name on every device: one pinned
+ * turn, or, at the free end, steps (`icons.stepKey`) the watch picks from.
  */
-function dataIconFont(element: DataElement): [string, number | icons.PinnedTurn] {
+function dataIconFont(element: DataElement, face: Face): [string, number | icons.PinnedTurn | icons.SteppedTurn] {
   const curve = element.curve;
   const plain = (turn: number): [string, number] => [slotIconFontKey(element.slot, element.icon_size, element.resolved_antialias, turn), turn];
   if (curve === null || element.icon_upright) return plain(0);
   if (curve.style === "angled") return plain(icons.normalTurn(curve.angle.degrees));
-  const glyphKey = `slot_${element.slot}_pinned_${constPrefix(element.id).toLowerCase()}`;
-  return [icons.fontKey(element.icon_size, glyphKey, element.resolved_antialias), pinnedTurn(element)];
+  const id = constPrefix(element.id).toLowerCase();
+  if (isPinned(element)) return [icons.fontKey(element.icon_size, `slot_${element.slot}_pinned_${id}`, element.resolved_antialias), pinnedTurn(element)];
+  return [icons.fontKey(element.icon_size, `slot_${element.slot}_steps_${id}`, element.resolved_antialias), steppedTurn(element, face)];
 }
 
 /** A slot's multi-glyph icon font, or `null` when none of its choices has an icon. */
 export function slotIconRun(label: string, face: Face, slotName: string, size: Length | null, antialias: boolean,
-  turn: number | icons.PinnedTurn, span: Span | null, key: string | null = null): TextRun | null {
+  turn: number | icons.PinnedTurn | icons.SteppedTurn, span: Span | null, key: string | null = null): TextRun | null {
   const slot = face.config_data.get(slotName);
   const reference = slotReferenceGlyph(slot);
   if (slot === undefined || reference === null) return null;
@@ -296,6 +322,34 @@ function generalPair(element: DataElement, placed: PlacedData, prefix: string, f
   return ops;
 }
 
+/**
+ * A radial pair's icon whose place follows the reading: its angle from the
+ * measured width, its point on the middle of the run's band, and (unless
+ * upright) the baked step nearest its turn, loaded only when the step changes.
+ */
+function trackedIcon(p: PlacedData, prefix: string, font: Font, iconFont: Font, iconShown: Cond, iconPaint: Paint | null, draw: DrawFn): Op[] {
+  const track = p.icon_track!;
+  const k = (name: string, value: number, float = true): Const => Const(`${prefix}_ICON_${name}`, float ? flt(value) : value);
+  const width = NumLocal("textWidth"), theta = NumLocal("iconTheta");
+  const ops: Op[] = [
+    Let("textWidth", TextWidth(Local("text"), font)),
+    Let("iconTheta", Bin("+", k("THETA", track.theta), Bin("*", k("PER_PX", track.per_px), width))),
+  ];
+  if (track.steps > 0) {
+    const last = k("LAST", track.steps - 1, false);
+    ops.push(Let("iconStep", Conv(Paren(Bin("+", Bin("*", width, k("STEP_PER_PX", track.steps_per_px)), Lit(flt(0.5)))), "toNumber")),
+      If(Cmp(">", NumLocal("iconStep"), last), [Assign("iconStep", last)]),
+      IconStep(fontField(p.icon_font_key!), p.icon_font_key!, `${prefix}_ICON_STEPS`, NumLocal("iconStep")));
+  }
+  const rounded = (n: Num): Num => Conv(Paren(Bin("+", n, Lit(flt(0.5)))), "toNumber");
+  const r = k("R", track.middle);
+  const x = rounded(Bin("+", Const(`${prefix}_CX`, p.anchor_point[0]), Bin("*", r, Call("Math.cos", [theta]))));
+  const y = rounded(Bin("-", Const(`${prefix}_CY`, p.anchor_point[1]), Bin("*", r, Call("Math.sin", [theta]))));
+  ops.push(If(iconShown, [...(iconPaint !== null ? [SetColor(iconPaint)] : []),
+    draw(x, y, iconFont, Local("iconGlyph"), ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"])]));
+  return ops;
+}
+
 class DataKind extends ElementKind<DataElement> {
   readonly name = "data";
   readonly irClass = DataElement;
@@ -314,7 +368,7 @@ class DataKind extends ElementKind<DataElement> {
         glyphs: textGlyphs(element, face), span: element.span, unsupported: element.unsupported, curve: element.curve,
       }));
     }
-    const [key, turn] = dataIconFont(element);
+    const [key, turn] = dataIconFont(element, face);
     const icon = element.icon_size === null ? null
       : slotIconRun(`${element.id}.icon`, face, element.slot, element.icon_size, element.resolved_antialias, turn, element.span, key);
     if (icon !== null) runs.push(icon);
@@ -328,7 +382,7 @@ class DataKind extends ElementKind<DataElement> {
   override resolve(r: Resolver, element: DataElement, parent: Box, depth: number): Placed {
     const [cx, cy] = r.point(element.at, parent);
     const font = r.textFont(element.font, element.font_is_custom, element.curve);
-    const widest = dataWidest(r, element);
+    const widest = dataWidest(r, element, font);
     const textWidth = font.width(widest), lineHeight = font.lineHeight;
     if (element.curve !== null) {
       let curve = resolvedCurve(element.curve);
@@ -338,28 +392,57 @@ class DataKind extends ElementKind<DataElement> {
         });
       }
       const reference = element.icon_size !== null ? slotReferenceGlyph(r.face.config_data.get(element.slot)) : null;
-      const iconKey = reference !== null ? dataIconFont(element)[0] : null;
-      const iconFont = iconKey !== null ? r.fonts.get(iconKey) : undefined;
+      const [iconKey, turnOf] = reference !== null ? dataIconFont(element, r.face) : [null, 0];
+      // A stepped icon has no font under its own key: step 0 stands for every step's metrics.
+      const iconFont = iconKey === null ? undefined : r.fonts.get(turnOf instanceof icons.SteppedTurn ? icons.stepKey(iconKey, 0) : iconKey);
       const iconPx = reference !== null ? units.pixelSize(element.icon_size, r.device.minorRadius) : 0;
       const iconWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.measure(reference)[0] : iconPx;
       // The bake turned the pinned glyphs by the upright advance, before their cells grew.
       const pinWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.unturnedAdvance(reference) : iconPx;
       const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
       let width = textWidth, height = lineHeight, inkAngle = curve.angle_garmin, iconPoint: [number, number] | null = null, iconTurn = 0;
+      let iconTrack: IconTrack | null = null;
+      const middle = (): number => {
+        const ascent = font.metric !== null ? r.device.db.measure.ascent(font.metric) : lineHeight;
+        const [inner, outer] = radialTextBand(curve.radius_px, lineHeight, element.vertical_align, curve.direction, ascent);
+        return (inner + outer) / 2;
+      };
       if (reference !== null && curve.style === "angled") {
         // The upright pair, turned whole about the anchor.
         const geometry = dataPairGeometry(element.icon_position, iconWidth, iconPx, textWidth, lineHeight, gapPx);
         [width, height] = [geometry.width, Math.max(geometry.height, 1)];
         iconTurn = element.icon_upright ? 0 : icons.normalTurn(curve.angle_degrees);
+      } else if (reference !== null && !isPinned(element)) {
+        // The icon follows the reading's width round the circle, computed on the watch; the turn snaps to a baked step.
+        const free = steppedTurn(element, r.face);
+        const path = free.path(r.device, pinWidth);
+        let steps = 0, stepsPerPx = 0, turns: number[] = [], widestIcon = iconWidth;
+        if (turnOf instanceof icons.SteppedTurn) {
+          const baked = free.steps(r.device, pinWidth);
+          [steps, stepsPerPx] = [baked.count, baked.perPx];
+          for (let i = 0; i < steps; i++) {
+            // The bake resolved the same steps from the same inputs; a step it did not bake would be a wrong glyph on the watch.
+            const step = r.fonts.get(icons.stepKey(iconKey!, i));
+            const turn = free.turnAt(baked.first + i * baked.size);
+            if (step === undefined || step.rotate !== turn) throw new Error(`${element.id}: step ${i} of ${iconKey} was not baked at ${turn}deg on ${r.device.id}`);
+            turns.push(turn);
+            widestIcon = Math.max(widestIcon, step.measure(reference)[0]);
+          }
+          if (r.fonts.has(icons.stepKey(iconKey!, steps))) throw new Error(`${element.id}: ${iconKey} has more steps baked than ${r.device.id} reaches`);
+        }
+        iconTrack = { theta: path.theta, per_px: path.perPx, middle: middle(), steps, steps_per_px: stepsPerPx, turns };
+        // A centred pair's text is centred off the authored angle so the pair, not the text, centres on it.
+        curve = replaceFields(curve, { angle_garmin: path.textGarmin });
+        // The lint sector: the pair along the run from the authored angle, as the alignment lays it out.
+        width = textWidth + gapPx + widestIcon;
+        if (element.vertical_align === "center") height = Math.max(lineHeight, iconPx);
       } else if (reference !== null) {
         // Centred half the reference glyph's advance plus the gap past the run's fixed end, in the middle of the run's band.
         const pin = pinnedTurn(element);
         const theta = pin.angle(r.device.minorRadius, pinWidth) * Math.PI / 180;
         iconTurn = element.icon_upright ? 0 : pin.turn(r.device.minorRadius, pinWidth);
-        const ascent = font.metric !== null ? r.device.db.measure.ascent(font.metric) : lineHeight;
-        const [inner, outer] = radialTextBand(curve.radius_px, lineHeight, element.vertical_align, curve.direction, ascent);
-        const middle = (inner + outer) / 2;
-        iconPoint = [round(cx + middle * Math.cos(theta)), round(cy - middle * Math.sin(theta))];
+        const mid = middle();
+        iconPoint = [round(cx + mid * Math.cos(theta)), round(cy - mid * Math.sin(theta))];
         // The lint sector grows by the icon and its gap on the icon's side of the fixed end.
         const lead = gapPx + iconWidth;
         width = textWidth + lead;
@@ -376,6 +459,7 @@ class DataKind extends ElementKind<DataElement> {
         element, box, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)], font: font.resolved(), widest,
         icon_font_key: iconKey, icon_px: iconPx, icon_position: element.icon_position, icon_gap_px: gapPx, highlight: box, curve,
         measured_width: round(width), line_height: height, ink_angle_garmin: inkAngle, icon_point: iconPoint, icon_turn: iconTurn,
+        icon_track: iconTrack,
       });
     }
     let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
@@ -588,6 +672,8 @@ class DataKind extends ElementKind<DataElement> {
           const at = (axis: "X" | "Y", value: number): Const => Const(`${prefix}_ICON_${axis}`, value);
           ops.push(If(iconShown, [...(iconPaint !== null ? [SetColor(iconPaint)] : []),
             draw(at("X", p.icon_point[0]), at("Y", p.icon_point[1]), iconFont, glyphText, centred)]));
+        } else if (iconFont !== null && iconShown !== null && p.icon_track !== null) {
+          ops.push(...trackedIcon(p, prefix, font, iconFont, iconShown, iconPaint, draw));
         }
         return ops;
       }
@@ -635,7 +721,7 @@ class DataKind extends ElementKind<DataElement> {
       [`${prefix}_CX`, p.anchor_point[0], "the icon+reading pair is centred here at runtime"],
       [`${prefix}_CY`, p.anchor_point[1], ""],
     ];
-    if (p.element.icon_gap !== null && p.icon_point === null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
+    if (p.element.icon_gap !== null && p.icon_point === null && p.icon_track === null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
     if (p.curve.style !== null) {
       const authorNote = p.curve.style === "radial"
         ? `${formatG(p.curve.angle_degrees)}deg clockwise from 12 o'clock`
@@ -645,6 +731,18 @@ class DataKind extends ElementKind<DataElement> {
       if (p.icon_point !== null) {
         out.push([`${prefix}_ICON_X`, p.icon_point[0], `the pinned icon's centre; its font is baked turned ${formatG(p.icon_turn)}deg here`],
           [`${prefix}_ICON_Y`, p.icon_point[1], ""]);
+      } else if (p.icon_track !== null) {
+        const t = p.icon_track;
+        out.push([`${prefix}_ICON_THETA`, flt(t.theta), "the icon's centre for an empty reading, radians in Garmin's convention"],
+          [`${prefix}_ICON_PER_PX`, flt(t.per_px), "radians it moves per pixel of reading, laid out along the run's baseline circle"],
+          [`${prefix}_ICON_R`, flt(t.middle), "the middle of the run's band"]);
+        if (t.steps > 0) {
+          const keys = Array.from({ length: t.steps }, (_, i) => `Rez.Fonts.${fontResourceId(icons.stepKey(p.icon_font_key!, i))}`);
+          out.push([`${prefix}_ICON_STEP_PER_PX`, flt(t.steps_per_px), `the nearest of ${t.steps} turns is step round(width * this)`],
+            [`${prefix}_ICON_LAST`, t.steps - 1, ""],
+            [`${prefix}_ICON_STEPS`, new McLiteral("Array<ResourceId>", `[${keys.join(", ")}]`),
+              `the icon baked turned ${t.turns.map((turn) => formatG(roundHalfEven(turn * 10) / 10)).join(", ")}deg`]);
+        }
       } else if (p.curve.style === "angled" && p.icon_font_key !== null) {
         const rad = p.curve.angle_degrees * Math.PI / 180;
         out.push([`${prefix}_COS`, flt(Math.cos(rad)), "the pair turns about the anchor by the curve's angle"], [`${prefix}_SIN`, flt(Math.sin(rad)), ""]);

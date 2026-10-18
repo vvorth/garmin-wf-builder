@@ -1,9 +1,11 @@
 // A slot drawn round the dial: a turned icon (`rotate:`), and its pieces.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PlacedData, PlacedIcon } from "../src/layout.ts";
-import { previewOptions, render } from "../src/preview.ts";
-import { checked, errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
+import { Tiles, toJson } from "../src/draw/jsonform.ts";
+import { stepKey } from "../src/icons.ts";
+import { type PlacedData, type PlacedIcon, type PlacedText, radialSpacingRadius } from "../src/layout.ts";
+import { frameItems, newRenderer, previewOptions, render, sampleValues } from "../src/preview.ts";
+import { checked, divergences, errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
 const icon = (extra: string): string => `${MINIMAL}
   glyph:
@@ -156,7 +158,8 @@ test("a radial reading's box is its sector at the rim, not a box round the centr
   const r = resolved(curvedData(RADIAL));
   const p = r.items.find((item) => item.id === "value")!;
   const [cx, cy] = [r.device.width / 2, r.device.height / 2];
-  assert.ok(p.box.right < cx && p.box.bottom < cy, `box ${JSON.stringify(p.box)} sits in the upper left quarter`);
+  // The weather choice's condition text is the widest reading: its sector runs past 12 o'clock, but stays at the rim.
+  assert.ok(p.box.x < cx && p.box.bottom < cy - 60, `box ${JSON.stringify(p.box)} sits along the upper rim`);
 });
 
 test("an upright reading takes a face: font too", () => {
@@ -235,14 +238,18 @@ const PAIR = "    icon: {size: 10%r, position: left, color: color.hot}\n";
 const curvedPair = (extra: string, targets?: string): string =>
   curvedData(extra, targets).replace('fg: "#FFFFFF"', 'fg: "#FFFFFF"\n    hot: "#FF0000"');
 
-test("a radial reading takes its icon at the run's fixed end only", () => {
-  assert.deepEqual(errors(curvedPair(`${RADIAL}${PAIR}`)).map((d) => d.message), []);
-  const right = RADIAL.replace("align: left", "align: right");
-  assert.deepEqual(errors(curvedPair(`${right}${PAIR.replace("left", "right")}`)).map((d) => d.message), []);
-  for (const [align, position] of [["center", "left"], ["left", "right"], ["right", "left"], ["left", "top"]]) {
-    const refused = errors(curvedPair(`${RADIAL.replace("align: left", `align: ${align}`)}${PAIR.replace("position: left", `position: ${position}`)}`));
-    assert.ok(refused.some((d) => /takes its icon only at the run's fixed end: 'align: left' with 'icon: \{position: left\}', or 'align: right' with 'icon: \{position: right\}'/.test(d.message)),
-      `${align}/${position}: ${refused.map((d) => d.message).join("\n")}`);
+/** A radial pair with this `align:` and `icon: {position:}`, and anything more on the icon. */
+const radialPair = (align: string, position: string, extra = "", curve = RADIAL, targets?: string): string =>
+  curvedPair(`${curve.replace("align: left", `align: ${align}`)}${PAIR.replace("position: left", `position: ${position}`).replace("}\n", `${extra}}\n`)}`, targets);
+
+test("a radial reading takes its icon before or after the run, with any align", () => {
+  for (const align of ["left", "center", "right"]) {
+    for (const position of ["left", "right"]) assert.deepEqual(errors(radialPair(align, position)).map((d) => d.message), [], `${align}/${position}`);
+    for (const position of ["top", "bottom"]) {
+      const refused = errors(radialPair(align, position));
+      assert.ok(refused.some((d) => /a radial reading takes its icon before or after the run: 'icon: \{position: left\}' or 'icon: \{position: right\}', with any 'align:'/.test(d.message)),
+        `${align}/${position}: ${refused.map((d) => d.message).join("\n")}`);
+    }
   }
 });
 
@@ -322,4 +329,166 @@ test("the preview draws a pinned icon before the run's start, turned to face out
   const column = (x: number): number => ink.filter(([ix]) => ix === x).length;
   assert.ok(column(left) < column(right), `the terminal's column (${column(left)}) is thinner than the base's (${column(right)})`);
   assert.ok(p.box.x <= p.icon_point![0] && p.box.bottom >= p.icon_point![1], "the lint box covers the icon");
+});
+
+const placedValue = (text: string, id = "fenix8solar47mm"): PlacedData => resolved(text, id).items.find((item) => item.id === "value") as PlacedData;
+
+test("a free-end or centred icon's angle is computed on the watch from the measured width", () => {
+  const draw = method(view(radialPair("left", "right")), "drawValue");
+  assert.match(draw, /var textWidth = dc\.getTextWidthInPixels\(text, textFont\);\s+var iconTheta = Layout\.VALUE_ICON_THETA \+ Layout\.VALUE_ICON_PER_PX \* textWidth;/);
+  assert.match(draw, /var iconStep = \(textWidth \* Layout\.VALUE_ICON_STEP_PER_PX \+ 0\.5\)\.toNumber\(\);/);
+  assert.match(draw, /_fontIcon10pctrSlotLeftStepsValue = WatchUi\.loadResource\(Layout\.VALUE_ICON_STEPS\[iconStep\]\) as FontResource;/);
+  assert.match(draw, /dc\.drawText\(\(Layout\.VALUE_CX \+ Layout\.VALUE_ICON_R \* Math\.cos\(iconTheta\) \+ 0\.5\)\.toNumber\(\), \(Layout\.VALUE_CY - Layout\.VALUE_ICON_R \* Math\.sin\(iconTheta\) \+ 0\.5\)\.toNumber\(\), iconFont, iconGlyph,/);
+  // A clockwise run walks towards smaller Garmin angles: an icon that follows it moves that way per pixel, one that leads it the other.
+  const ccw = RADIAL.replace("radius: 80%r}", "radius: 80%r, direction: counter_clockwise}");
+  const sign = (align: string, position: string, curve = RADIAL): number => Math.sign(placedValue(radialPair(align, position, "", curve)).icon_track!.per_px);
+  assert.deepEqual([sign("left", "right"), sign("right", "left"), sign("center", "right"), sign("center", "left")], [-1, 1, -1, 1]);
+  assert.deepEqual([sign("left", "right", ccw), sign("right", "left", ccw), sign("center", "right", ccw), sign("center", "left", ccw)], [1, -1, 1, -1]);
+});
+
+/** Garmin degrees of a pixel's centre about `(cx, cy)`. */
+const garminAt = ([x, y]: [number, number], cx: number, cy: number): number => (Math.atan2(cy - (y + 0.5), x + 0.5 - cx) * 180) / Math.PI;
+const numOf = (n: unknown): number => (typeof n === "object" && n !== null ? (n as { value: number; add: number }).value + (n as { add: number }).add : n as number);
+
+/** One pair's frame: its red icon and white reading pixels, and its program as the editor's JSON (the reading's and the icon's text ops). */
+function pairFrame(text: string): { p: PlacedData; red: [number, number][]; white: [number, number][]; reading: string; iconAt: [number, number]; iconFont: string } {
+  const r = resolved(text);
+  const p = r.items.find((item) => item.id === "value") as PlacedData;
+  const frame = render(r, previewOptions({ scale: 1 }));
+  const red: [number, number][] = [], white: [number, number][] = [];
+  for (let y = 0; y < frame.height; y++) {
+    for (let x = 0; x < frame.width; x++) {
+      const i = (y * frame.width + x) * 4;
+      if (frame.data[i]! > 128 && frame.data[i + 1]! < 64) red.push([x, y]);
+      else if (frame.data[i]! > 128 && frame.data[i + 1]! > 128 && frame.data[i + 2]! > 128) white.push([x, y]);
+    }
+  }
+  const options = previewOptions();
+  const renderer = newRenderer(r, options, sampleValues(r, options, null), [0, 0, 0]);
+  const placed = frameItems(r, options, null).find((item) => item.id === "value")!;
+  const [ops, fonts] = toJson(renderer, placed, new Tiles());
+  const texts = ops.filter((op) => op.op === "text");
+  const reading = texts.find((op) => fonts.get(op["font"] as string)!.vector)!;
+  const icon = texts.find((op) => !fonts.get(op["font"] as string)!.vector)!;
+  return { p, red, white, reading: reading["text"] as string, iconAt: [numOf(icon["x"]), numOf(icon["y"])], iconFont: fonts.get(icon["font"] as string)!.baked! };
+}
+
+test("the preview puts a free-end icon past the run's end, where the watch's arithmetic does", () => {
+  for (const [curve, ccw] of [[RADIAL.replace("-46deg", "-60deg"), false],
+    [RADIAL.replace("-46deg", "200deg").replace("radius: 80%r}", "radius: 80%r, direction: counter_clockwise}"), true]] as const) {
+    const { p, red, white, reading, iconAt, iconFont } = pairFrame(radialPair("left", "right", "", curve));
+    const t = p.icon_track!;
+    const [cx, cy] = p.anchor_point;
+    // The watch's own arithmetic: the angle from the measured width, the nearest baked step.
+    const width = resolved(radialPair("left", "right", "", curve)).device.db.measure.measure(reading, p.font.metric!)[0];
+    const theta = t.theta + t.per_px * width;
+    assert.deepEqual(iconAt, [Math.trunc(cx + t.middle * Math.cos(theta) + 0.5), Math.trunc(cy - t.middle * Math.sin(theta) + 0.5)]);
+    assert.equal(iconFont, stepKey(p.icon_font_key!, Math.min(Math.trunc(width * t.steps_per_px + 0.5), t.steps - 1)));
+    // And the pixels: the icon's ink centred there, past the reading's last ink along the run.
+    assert.ok(red.length > 20 && white.length > 20, `${red.length} icon and ${white.length} reading pixels`);
+    const mx = red.reduce((s, [x]) => s + x + 0.5, 0) / red.length, my = red.reduce((s, [, y]) => s + y + 0.5, 0) / red.length;
+    assert.ok(Math.hypot(mx - iconAt[0], my - iconAt[1]) <= 2.5, `icon ink at ${mx},${my}; drawn at ${iconAt}`);
+    const icon = red.map((px) => garminAt(px, cx, cy)), text = white.map((px) => garminAt(px, cx, cy));
+    if (ccw) assert.ok(Math.min(...icon) > Math.max(...text), `counter-clockwise: icon from ${Math.min(...icon)}deg, reading up to ${Math.max(...text)}deg`);
+    else assert.ok(Math.max(...icon) < Math.min(...text), `clockwise: icon up to ${Math.max(...icon)}deg, reading from ${Math.min(...text)}deg`);
+  }
+});
+
+test("a centred pair centres on the authored angle, the icon before or after the reading", () => {
+  for (const position of ["left", "right"]) {
+    const { p, red, white } = pairFrame(radialPair("center", position, "", RADIAL.replace("-46deg", "-90deg")));
+    const [cx, cy] = p.anchor_point;
+    const all = [...red, ...white].map((px) => garminAt(px, cx, cy));
+    // At 9 o'clock (Garmin 180) atan2 wraps: measure from the authored angle instead.
+    const off = all.map((a) => ((a - 180 + 540) % 360) - 180);
+    const middle = (Math.min(...off) + Math.max(...off)) / 2;
+    assert.ok(Math.abs(middle) <= 2.5, `${position}: the pair's ink is centred ${middle}deg off the authored angle`);
+    const icon = red.map((px) => ((garminAt(px, cx, cy) - 180 + 540) % 360) - 180), text = white.map((px) => ((garminAt(px, cx, cy) - 180 + 540) % 360) - 180);
+    // Clockwise at 9 o'clock reads upward: before the reading is below it (larger Garmin angle).
+    if (position === "left") assert.ok(Math.min(...icon) > Math.max(...text), `left: icon from ${Math.min(...icon)}, reading up to ${Math.max(...text)}`);
+    else assert.ok(Math.max(...icon) < Math.min(...text), `right: icon up to ${Math.max(...icon)}, reading from ${Math.min(...text)}`);
+  }
+});
+
+test("each device bakes the steps its own widest reading reaches, and the view stays one file", () => {
+  const devices = ["fenix8solar47mm", "fenix8solar51mm", "fr955"];
+  const text = radialPair("left", "right", "", RADIAL, `[${devices.join(", ")}]`);
+  const counts = devices.map((id) => {
+    const r = resolved(text, id);
+    const p = r.items.find((item) => item.id === "value") as PlacedData;
+    const t = p.icon_track!, key = p.icon_font_key!;
+    assert.ok(!r.fonts.has(key) && !r.fonts.has(stepKey(key, t.steps)), `${id}: only the steps are baked`);
+    for (let i = 0; i < t.steps; i++) {
+      const font = r.fonts.get(stepKey(key, i))!;
+      assert.equal(font.rotate, t.turns[i], `${id} step ${i}`);
+      // The watch clips a glyph to its cell: every turned glyph's ink stays inside it.
+      for (const g of font.glyphs.values()) {
+        if (g.width === 0) continue;
+        assert.ok(g.xoffset >= 0 && g.xoffset + g.width <= g.xadvance && g.yoffset >= 0 && g.yoffset + g.height <= font.line_height,
+          `${id} step ${i}: ${JSON.stringify(g)} in a ${font.line_height} line`);
+      }
+    }
+    // Any reading up to the widest picks a step within half a step of its exact turn.
+    const widest = r.device.db.measure.measure(p.widest, p.font.metric!)[0];
+    for (let w = 0; w <= widest; w++) {
+      const exact = 90 - ((t.theta + t.per_px * w) * 180) / Math.PI;
+      const step = Math.min(Math.trunc(w * t.steps_per_px + 0.5), t.steps - 1);
+      const off = ((t.turns[step]! - exact) % 360 + 540) % 360 - 180;
+      assert.ok(Math.abs(off) <= 1.5 + 1e-9, `${id}: a ${w} px reading snaps ${off}deg off`);
+    }
+    return t.steps;
+  });
+  assert.ok(counts.every((n) => n > 5), `steps ${counts}`);
+  assert.deepEqual(divergences(text), [], "the view and delegate are one file for every target");
+  const files = generated(text);
+  devices.forEach((id, i) => {
+    const layout = files.get(`source-${id}/Layout.mc`)!;
+    assert.equal((layout.match(/Rez\.Fonts\.FontIcon10pctrSlotLeftStepsValueS\d+/g) ?? []).length, counts[i], id);
+  });
+});
+
+test("icon: {upright: true} at the free end draws the slot's upright font at the computed point, with no steps", () => {
+  for (const align of ["left", "center"]) {
+    const text = radialPair(align, "right", ", upright: true");
+    const r = resolved(text);
+    const p = r.items.find((item) => item.id === "value") as PlacedData;
+    assert.equal(p.icon_font_key, "icon_10pctr_slot_left");
+    assert.equal(p.icon_track!.steps, 0);
+    assert.ok(![...r.fonts.keys()].some((k) => k.includes("_steps_")), [...r.fonts.keys()].join(" "));
+    const draw = method(view(text), "drawValue");
+    assert.match(draw, /var iconTheta = Layout\.VALUE_ICON_THETA/);
+    assert.doesNotMatch(draw, /iconStep/);
+    assert.equal(pairFrame(text).iconFont, "icon_10pctr_slot_left");
+  }
+});
+
+test("a radial run's advances are laid out along its baseline circle, as the simulator drew them", () => {
+  // The curved-slot probe on fenix8solar47mm: RobotoCondensedBold 28 px, clockwise from 150deg (Garmin), VCENTER.
+  // Its ink ran 16.1 px past width/R for "12345678" at R = 52, and 4.6 px for "1234" at R = 78; the baseline rule predicts 17.5 and 5.5.
+  const probe = (reading: string, radius: number): string => `${MINIMAL.replace("resources:\n", "resources:\n  fonts:\n    probe: { face: [RobotoCondensedBold], size: 28px }\n")}
+  value:
+    type: text
+    text: "${reading}"
+    font: font.probe
+    at: {anchor: center}
+    curve: {style: radial, angle: -60deg, radius: ${radius}px}
+    align: left
+    color: color.fg
+`;
+  for (const [reading, radius, past] of [["12345678", 52, 16.1], ["1234", 78, 4.6]] as const) {
+    const r = resolved(probe(reading, radius));
+    const p = r.items.find((item) => item.id === "value") as PlacedText;
+    const metric = p.font.metric!;
+    const width = r.device.db.measure.measure(reading, metric)[0];
+    const spacing = radialSpacingRadius(radius, "center", null, r.device.db.measure.ascent(metric), r.device.db.measure.lineHeight(metric));
+    assert.ok(spacing < radius, `the baseline sits inside the circle: ${spacing}`);
+    const frame = render(r, previewOptions({ scale: 1 }));
+    const [cx, cy] = p.anchor_point;
+    let end = 360;
+    for (let y = 0; y < frame.height; y++) {
+      for (let x = 0; x < frame.width; x++) if (frame.data[(y * frame.width + x) * 4]! > 128) end = Math.min(end, garminAt([x, y], cx, cy));
+    }
+    const beyond = ((150 - (width / radius) * 180 / Math.PI - end) * Math.PI / 180) * radius;
+    assert.ok(Math.abs(beyond - past) <= 2, `"${reading}" at R=${radius}: ink ends ${beyond.toFixed(1)} px past width/R, measured ${past}`);
+  }
 });

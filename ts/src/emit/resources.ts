@@ -13,7 +13,7 @@ import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
 import { type Face, FontSpec } from "../ir/model.ts";
-import type { PinnedTurn } from "../icons.ts";
+import { type PinnedTurn, SteppedTurn, stepKey } from "../icons.ts";
 import { comparePoints } from "../kinds/data.ts";
 import * as kinds from "../kinds/index.ts";
 import { roundHalfEven } from "../py.ts";
@@ -81,18 +81,27 @@ export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number
 
 /**
  * One synthetic `FontSpec` per icon font key: its nominal size on this device, its glyphs, anti-aliasing and turn.
- * A pinned radial icon's turn is resolved here, per device, from the size just computed.
+ * A pinned radial icon's turn, or a free-end one's steps (one spec each), is resolved here, per device, from the size just computed.
  */
 export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): Map<string, FontSpec> {
-  const byKey = new Map<string, [units.Length | null, string, string, boolean, number | PinnedTurn]>();
+  const byKey = new Map<string, [units.Length | null, string, string, boolean, number | PinnedTurn | SteppedTurn]>();
   for (const [, run] of kinds.faceTextRuns(face)) {
     if (run.icon !== null) byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias, run.icon.rotate]);
   }
-  return new Map([...byKey].map(([key, [length, glyphs, reference, antialias, rotate]]) => {
+  const out = new Map<string, FontSpec>();
+  for (const [key, [length, glyphs, reference, antialias, rotate]] of byKey) {
     const size = bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius));
-    const turn = typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, glyphAdvance(iconFont, reference, size));
-    return [key, FontSpec.create({ name: key, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px") })];
-  }));
+    const spec = (name: string, turn: number): FontSpec =>
+      FontSpec.create({ name, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px") });
+    if (rotate instanceof SteppedTurn) {
+      // A free-end icon: one font per step this device's widest reading can reach, none under `key` itself.
+      const steps = rotate.steps(device, glyphAdvance(iconFont, reference, size));
+      for (let i = 0; i < steps.count; i++) out.set(stepKey(key, i), spec(stepKey(key, i), rotate.turnAt(steps.first + i * steps.size)));
+      continue;
+    }
+    out.set(key, spec(key, typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, glyphAdvance(iconFont, reference, size))));
+  }
+  return out;
 }
 
 /** Rasterise every declared font, every icon font and every ring font, at this device's size. */

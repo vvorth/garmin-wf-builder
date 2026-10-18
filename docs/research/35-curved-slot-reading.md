@@ -139,8 +139,8 @@ there is computed from `getTextWidthInPixels / R`, while the device lays
 the run out along the circle by its own rules. If the two disagree, the gap
 drifts with the reading's length. The text preview matched the simulator
 on facing and angular *start*, never on a run's angular *length*. The
-pinned end does not depend on this at all. **UNVERIFIED**: the probe's
-host check (§6) answers it.
+pinned end does not depend on this at all. **Answered** by the probe's
+host check (§6, question 1): the run is spaced along its baseline circle, so the icon's angle divides by that radius instead of R.
 
 ### 3.3 Upright icon beside a curved reading
 
@@ -213,9 +213,16 @@ available.
 ## 6. Open questions
 
 1. **Does a radial run's angular length equal `getTextWidthInPixels / R`?**
-   This only matters for an icon on the free end. Answer it with the
-   probe's `curved` variant in the host simulator (its README, "On the
-   host").
+   **Answered: no, it is `width / (R − (ascent − lineHeight/2))` under
+   `VCENTER` on a clockwise run.** VERIFIED once, in the host simulator
+   (`fenix8solar47mm`, 2026-10-18, the probe's `gap` variant): with
+   RobotoCondensedBold 28 px (lineHeight 28, ascent 22) clockwise from
+   150°, "1234" at R = 78 ran 4.6 px past its `width / R` end and
+   "12345678" at R = 52 ran 16.1 px past it, against 5.5 and 17.5 px
+   predicted by spacing the advances along the baseline circle, 8 px
+   inside R. Not a constant factor (10% and 17%). UNVERIFIED:
+   counter-clockwise, `top`/`bottom`, other faces and sizes. Recorded in
+   `docs/lore/rendering.md`, "Text on a curve".
 2. `drawBitmap2`'s transform origin, and whether a palette'd
    `BufferedBitmap` blits with a transparent background on MIP. This only
    matters if C is ever built; the same host run shows it.

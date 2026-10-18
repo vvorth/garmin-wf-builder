@@ -11,7 +11,7 @@ watch face that differ in **exactly one class**, `ProbePair`, so the
 | **a** | does a radial reading in a vector font, measured with `Dc.getTextWidthInPixels(text, VectorFont)`, plus a baked glyph drawn into a `BufferedBitmap` and blitted through `Dc.drawBitmap2(..., {:transform => AffineTransform})`, compile warning-free under `-l 3`, `typecheck = strict`? | **Yes**, on `fenix8solar47mm`, `fenix8solar51mm` and `fr955`, SDK 9.2.0. |
 | **b** | does the same guarded source build for a device with none of those APIs? | **Yes**, warning-free on `fenix6`. The `has` guards fold at compile time and the curved code is dropped: code is *smaller* than the baseline there (514 B against 643 B). |
 | **c** | what does the curved path cost? | **+70 B data / +486 B code** on `fenix8solar47mm` and `fr955` (baseline 508 / 494, curved 578 / 980). `.prg` +1,008 B. |
-| **d** | does it draw right? | **Partly.** On the user's host simulator (`fenix8solar47mm`, 2026-10-18) the first version crashed: `drawBitmap2` throws `Source must not use a color palette` for a `BufferedBitmap` created with `:palette`. The buffer is now full-colour. The gap question ("On the host" below) is still open. |
+| **d** | does it draw right? | **Partly.** On the user's host simulator (`fenix8solar47mm`, 2026-10-18) the first version crashed: `drawBitmap2` throws `Source must not use a color palette` for a `BufferedBitmap` created with `:palette`. The buffer is now full-colour. The gap question is answered ("On the host" below): a run is spaced along its baseline circle, not R. |
 
 ## The variants
 
@@ -49,6 +49,18 @@ Each row's digits should sit exactly between its two red ticks. If the
 digits stop short of the second tick, or run past it, and more so on the
 longer rows, the device lays a run out to a different length than
 `getTextWidthInPixels` measures.
+
+**Result (the user's host simulator, `fenix8solar47mm`, 2026-10-18).** The
+capture was measured by fitting the dial's centre and scale to the three
+150° start ticks (worst residual 1.5 device px). The runs are longer than
+`width / R`, and more so on the smaller circle: "1234" at R = 78 runs
+4.6 px past its end tick along the arc, "12345678" at R = 52 runs 16.1 px
+past; "1" at R = 104 stops 3 px short, its side bearing. That is not one
+factor (about 10% and 17%). It fits advances laid out along the
+**baseline** circle: under `VCENTER` the clockwise baseline sits
+`ascent − lineHeight/2` = 22 − 14 = 8 px inside R, which predicts 5.5 and
+17.5 px. The compiler's metrics for the face (lineHeight 28, ascent 22,
+`getTextWidthInPixels("12345678")` = 96) agree with the device's.
 
 The `curved` variant (an icon turned at runtime through `drawBitmap2`)
 cannot answer it: its 68 px marker hides the runs, and where
