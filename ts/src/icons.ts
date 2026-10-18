@@ -80,13 +80,21 @@ const UNIT_WORD: Readonly<Record<string, string>> = { "%r": "pctr", "%": "pct", 
 
 export const DYNAMIC_WEATHER_TAG = "weather";
 
-/** The synthetic font name for every icon declared at this `size:`, glyph and anti-aliasing setting. */
-export function fontKey(length: Length | null, glyphKey: string, antialias = false): string {
+/** `degrees` as a turn in [0, 360): what a font key and a bake are told. */
+export function normalTurn(degrees: number): number {
+  const turn = ((degrees % 360) + 360) % 360;
+  return turn === 0 ? 0 : turn;
+}
+
+/** The synthetic font name for every icon declared at this `size:`, glyph, anti-aliasing setting and turn. */
+export function fontKey(length: Length | null, glyphKey: string, antialias = false, rotate = 0): string {
   let unitValue: string;
   if (length === null) unitValue = "default";
   else unitValue = `${formatG(length.value).replaceAll(".", "p").replaceAll("-", "neg")}${UNIT_WORD[length.unit]}`;
   const glyphId = Array.from(glyphKey).length === 1 ? `u${glyphKey.codePointAt(0)!.toString(16)}` : glyphKey;
-  return `icon_${unitValue}_${glyphId}${antialias ? "_aa" : ""}`;
+  const turn = normalTurn(rotate);
+  const turnId = turn === 0 ? "" : `_r${formatG(turn).replaceAll(".", "p")}`;
+  return `icon_${unitValue}_${glyphId}${turnId}${antialias ? "_aa" : ""}`;
 }
 
 /** `Weather.CONDITION_*` to the catalogue name its glyph comes from. */

@@ -16,6 +16,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
+| `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
 | `color:` | colour expression | — | [Colours](colors.md) |
 | `align:` | one of the nine anchor names, or a compass alias | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |
 
@@ -138,6 +139,34 @@ survive it (see `ts/src/emit/resources.ts`). See `ts/assets/icons/README.md` for
 how to find a codepoint, and its licensing (the font aggregates several
 separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
 catalogue draws from are attributed there).
+
+#### A turned icon: `rotate:`
+
+```yaml
+steps_icon:
+  type: icon
+  icon: steps
+  size: 10%r
+  rotate: -46deg              # clockwise from upright; negative turns counter-clockwise
+  at: { anchor: center, dx: -64%r, dy: -48%r }
+```
+
+`rotate:` turns the glyph clockwise from upright, by any angle, so it can
+stand along the bezel beside curved text. **The glyph is baked already
+turned**: the build rotates the glyph's outline and then rasterises it, so
+a turned icon's edge is as clean as an upright one's. On the watch it is
+still one `drawText`, on every device, with no API it needs and no cost
+beyond its own font. A turned icon gets a font of its own, holding only the
+glyphs it can draw. A whole turn (`360deg`) is the upright icon.
+
+The glyph turns about the point a centred `drawText` puts at `at:` (half
+its advance across, half the line down), so the icon stays where the
+upright one would have been drawn. The size is set before turning: an icon
+is the same size at every angle. Its lint box covers both its cell and the
+turned ink, which can reach outside it (a tall glyph turned a quarter is
+wider than its advance). `rotate:` works with `icon: {for:}` (every glyph
+the lookup can return is turned alike) and with `outline:` (the ring is
+grown from the turned glyph).
 
 #### A dynamic icon: `icon: {for:}`
 

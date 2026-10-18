@@ -20,12 +20,15 @@ export class IconFont {
   readonly glyphs: string;
   readonly reference: string;
   readonly antialias: boolean;
+  /** Degrees clockwise every glyph is baked turned; 0 is upright. */
+  readonly rotate: number;
 
-  constructor(size: Length | null, glyphs: string, reference: string, antialias: boolean) {
+  constructor(size: Length | null, glyphs: string, reference: string, antialias: boolean, rotate = 0) {
     this.size = size;
     this.glyphs = glyphs;
     this.reference = reference;
     this.antialias = antialias;
+    this.rotate = rotate;
   }
 }
 

@@ -2603,6 +2603,10 @@
         "color": {
           "$ref": "#/$defs/colorExpression"
         },
+        "rotate": {
+          "$ref": "#/$defs/angle",
+          "description": "Turns the glyph clockwise from upright ('0deg'), about the point it is drawn centred on. The glyph is baked already turned, so its edge is as clean as an upright one's and it draws on every device."
+        },
         "outline": {
           "description": "A ring of 'width' px round the glyph, stamped exactly as a text 'outline:' is: an opening inside the icon wider than twice the ring gets a ring of its own. Omit the key to draw no ring.",
           "$ref": "#/$defs/outline"

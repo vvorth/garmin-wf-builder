@@ -26,7 +26,9 @@ or AOD-related has been observed on a watch or in the simulator.
   `shapes.md`, `analog-hands.md`, `patterns.md`.
 - **Placement and drawing** — `align:` everywhere (nine anchor names and
   compass aliases), `static:` blocks, `antialias:`, `visible:`,
-  `monospace:`, `min_1px:`. `docs/guide/placement.md`.
+  `monospace:`, `min_1px:`. `rotate:` on `type: icon`, the glyph baked
+  already turned (`ts/src/fonts/bake.ts`). `docs/guide/placement.md`,
+  `icons.md`.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`

@@ -139,6 +139,8 @@ export class FontSpec {
   antialias = false;
   monospace = false;
   align = "center";
+  /** Degrees clockwise every glyph is baked turned: an icon font's `rotate:`. */
+  rotate = 0;
   face: string[] | null = null;
   unsupported: string | null = null;
 
@@ -799,8 +801,15 @@ export class IconElement extends Element {
   value_for: Expression | null = null;
   size: Length | null = null;
   color: Expression | null = null;
+  /** `rotate:`, clockwise from upright; `null` draws it upright. */
+  rotate: Angle | null = null;
 
   static create(init: Partial<IconElement>): IconElement { return make(IconElement, init); }
+
+  /** The turn its font is baked at, in [0, 360). */
+  get turn(): number {
+    return this.rotate === null ? 0 : icons.normalTurn(this.rotate.degrees);
+  }
 
   get isDynamic(): boolean {
     return this.value_for !== null;

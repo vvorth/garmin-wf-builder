@@ -80,12 +80,12 @@ export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number
 
 /** One synthetic `FontSpec` per icon font key: its nominal size on this device, its glyphs and anti-aliasing. */
 export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): Map<string, FontSpec> {
-  const byKey = new Map<string, [units.Length | null, string, string, boolean]>();
+  const byKey = new Map<string, [units.Length | null, string, string, boolean, number]>();
   for (const [, run] of kinds.faceTextRuns(face)) {
-    if (run.icon !== null) byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias]);
+    if (run.icon !== null) byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias, run.icon.rotate]);
   }
-  return new Map([...byKey].map(([key, [length, glyphs, reference, antialias]]) => [key, FontSpec.create({
-    name: key, source: ICON_FONT, glyphs, antialias, span: null,
+  return new Map([...byKey].map(([key, [length, glyphs, reference, antialias, rotate]]) => [key, FontSpec.create({
+    name: key, source: ICON_FONT, glyphs, antialias, rotate, span: null,
     size: new units.Length(bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius)), "px"),
   })]));
 }
@@ -102,7 +102,8 @@ function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<t
   if (memo === null) return bake(source, options);
   let sheets = memo.get(source.bytes);
   if (sheets === undefined) memo.set(source.bytes, sheets = new Map());
-  const key = JSON.stringify([source.path, options.name, options.size, options.glyphs, options.antialias ?? false, options.monospace ?? false, options.align ?? "center"]);
+  const key = JSON.stringify([source.path, options.name, options.size, options.glyphs, options.antialias ?? false, options.monospace ?? false,
+    options.align ?? "center", options.rotate ?? 0]);
   let baked = sheets.get(key);
   if (baked === undefined) sheets.set(key, baked = bake(source, options));
   return baked;
@@ -120,7 +121,9 @@ export function bakeFonts(face: Face, device: Device, read: FontReader, memo: Ba
   }
   const specs = [...kinds.faceTextRuns(face)].some(([, run]) => run.icon !== null) ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map();
   for (const [name, spec] of specs) {
-    baked.set(name, memoBake(memo, read(spec.source!), { name, size: spec.pixelSize(device.minorRadius), glyphs: spec.glyphs!, antialias: spec.antialias }));
+    baked.set(name, memoBake(memo, read(spec.source!), {
+      name, size: spec.pixelSize(device.minorRadius), glyphs: spec.glyphs!, antialias: spec.antialias, rotate: spec.rotate,
+    }));
   }
   // Last: each ring font is dilated from its base's own sheet.
   for (const [name, [base, glyphs, width]] of kinds.ringFonts(face)) {

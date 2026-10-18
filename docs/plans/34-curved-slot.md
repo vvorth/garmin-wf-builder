@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
+**Status: in progress. Slice 1 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -145,7 +145,7 @@ Each slice is warning-free on the three verification devices, keeps the
 fast suite green, updates its docs in the same commit (§4), and has a
 red-then-green test for each new diagnostic.
 
-### Slice 1 — `rotate:` on `type: icon`
+### Slice 1 — `rotate:` on `type: icon`: done
 
 - Schema and IR: `rotate: <Angle>` on `type: icon`, any angle, static or
   dynamic icon (`icon: {for: weather...}` turns its whole glyph set).

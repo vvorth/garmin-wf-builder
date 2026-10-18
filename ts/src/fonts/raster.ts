@@ -16,7 +16,7 @@ export type PathCommand =
 /** How far a flattened curve may stray from the true one, in pixels. */
 const TOLERANCE = 0.05;
 
-type Segment = [number, number, number, number];
+export type Segment = [number, number, number, number];
 
 /** The path as closed polylines' segments. */
 export function flatten(commands: readonly PathCommand[]): Segment[] {

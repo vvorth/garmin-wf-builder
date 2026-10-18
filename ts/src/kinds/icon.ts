@@ -21,7 +21,7 @@ import { discPerimeterOffsets } from "../ir/model.ts";
 import { bakedRing, bakedRingLocal } from "./text.ts";
 
 type Node = Map<DataKey, Data>;
-type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align">;
+type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align" | "rotate">;
 
 /** `icon: {codepoint: "U+F0BC"}`: a codepoint the catalogue does not name, spelled so it survives a review. */
 function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, placement: Placement): Element {
@@ -47,12 +47,19 @@ class IconKind extends ElementKind<IconElement> {
     } else {
       glyphKey = measureCodepoint = element.codepoint;
     }
-    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias);
+    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     const font = r.fonts.get(key);
     const [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
-    const box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
+    let box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
+    const ink = element.turn !== 0 && font !== undefined ? font.glyphs.get(measureCodepoint) : undefined;
+    if (ink !== undefined && ink.width > 0) {
+      // A turned glyph's ink can leave its cell, so the box covers both.
+      const x0 = Math.min(box.x, box.x + ink.xoffset), y0 = Math.min(box.y, box.y + ink.yoffset);
+      const x1 = Math.max(box.x + width, box.x + ink.xoffset + ink.width), y1 = Math.max(box.y + height, box.y + ink.yoffset + ink.height);
+      box = new Box(x0, y0, x1 - x0, y1 - y0);
+    }
     return PlacedIcon.create({
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
       anchor_point: [round(cx), round(cy)], justify: justify(element),
@@ -70,9 +77,9 @@ class IconKind extends ElementKind<IconElement> {
     } else {
       glyphKey = glyphs = reference = element.codepoint;
     }
-    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias);
+    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     return [new TextRun(element.id, key, {
-      span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias), glyph_table: table,
+      span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias, element.turn), glyph_table: table,
     })];
   }
 
@@ -91,8 +98,8 @@ class IconKind extends ElementKind<IconElement> {
     }
     const size = b.bakedSizeLength(node, "size", { code: "icon", label: "icon size", note: ICON_SIZE_NOTE });
     const [align, verticalAlign] = b.alignment(node);
-    // Every spelling of `icon:` shares these four keys.
-    const placement: Placement = { size, color: b.colorExpression(node, "color"), align, vertical_align: verticalAlign };
+    // Every spelling of `icon:` shares these keys.
+    const placement: Placement = { size, color: b.colorExpression(node, "color"), align, vertical_align: verticalAlign, rotate: b.angle(node, "rotate") };
 
     if (dynamic !== null) {
       let valueFor = b.expression(dynamic, "for");

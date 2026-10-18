@@ -13,7 +13,7 @@ import { discPerimeterOffsets } from "../ir/model.ts";
 import { roundHalfEven } from "../py.ts";
 import { BakedFont, GlyphBox, type Sheet } from "./bmfont.ts";
 import type { FontFile } from "./files.ts";
-import { bounds, flatten, type PathCommand, rasterise } from "./raster.ts";
+import { bounds, flatten, type PathCommand, rasterise, type Segment } from "./raster.ts";
 import { nameRecord, readSfnt } from "./sfnt.ts";
 
 export const SUPERSAMPLE = 16;
@@ -170,11 +170,25 @@ function boxResize(src: Uint8Array, w: number, h: number, outW: number, outH: nu
   return out;
 }
 
+/**
+ * `segments` turned `degrees` clockwise (y down) about the point a centred,
+ * vertically centred `drawText` puts at its anchor: half the advance, half
+ * the line. A turned glyph then stays where the upright one is drawn.
+ */
+function turned(segments: Segment[], degrees: number, pivotX: number, pivotY: number): Segment[] {
+  const t = (degrees * Math.PI) / 180, cos = Math.cos(t), sin = Math.sin(t);
+  const x = (px: number, py: number): number => pivotX + (px - pivotX) * cos - (py - pivotY) * sin;
+  const y = (px: number, py: number): number => pivotY + (px - pivotX) * sin + (py - pivotY) * cos;
+  return segments.map(([x0, y0, x1, y1]) => [x(x0, y0), y(x0, y0), x(x1, y1), y(x1, y1)]);
+}
+
 /** One glyph rasterised at 16x, and where its ink starts relative to the pen and the line's top; `null` for no ink. */
-function rasteriseGlyph(p: Parsed, size: number, ch: string, antialias: boolean): [Tile, number, number] | null {
+function rasteriseGlyph(p: Parsed, size: number, ch: string, antialias: boolean, rotate = 0): [Tile, number, number] | null {
   const big = size * SUPERSAMPLE;
-  const [ascent] = metrics(p, big);
-  const segments = flatten(commands(p, ch, big, ascent));
+  const [ascent, descent] = metrics(p, big);
+  let segments = flatten(commands(p, ch, big, ascent));
+  // Turned before rasterising, so the edge is as clean as an upright glyph's.
+  if (rotate !== 0) segments = turned(segments, rotate, advanceAt(p, ch, size) * SUPERSAMPLE / 2, (ascent + descent) / 2);
   const b = bounds(segments);
   if (b === null) return null;
   // An integer-aligned canvas over the outline, a pixel of margin each way.
@@ -279,10 +293,12 @@ export interface BakeOptions {
   antialias?: boolean;
   monospace?: boolean;
   align?: string;
+  /** Degrees clockwise to turn every glyph; 0 is upright. */
+  rotate?: number;
 }
 
 /** Rasterise `glyphs` from `source` at `size` pixels. */
-export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center" }: BakeOptions): BakedFont {
+export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center", rotate = 0 }: BakeOptions): BakedFont {
   if (!(ALIGNMENTS as readonly string[]).includes(align)) throw new Error(`font '${name}': unknown align '${align}'`);
   const chars = orderedUnique(glyphs);
   if (chars.length === 0) throw new Error(`font '${name}': no glyphs to bake`);
@@ -291,7 +307,7 @@ export function bake(source: FontFile, { name, size, glyphs, antialias = false, 
   const rendered: Rendered[] = chars.map((ch) => {
     // The advance and the line metrics stay at the target size, as FreeType scales them.
     const advance = advanceAt(p, ch, size);
-    const found = rasteriseGlyph(p, size, ch, antialias);
+    const found = rasteriseGlyph(p, size, ch, antialias, rotate);
     return found === null ? [ch, EMPTY, 0, 0, advance] : [ch, found[0], found[1], found[2], advance];
   });
   const font = BakedFont.create({
