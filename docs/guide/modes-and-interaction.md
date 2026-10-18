@@ -165,7 +165,32 @@ build error — see "The Data axis"), and it is never resolved to a fixed
 the slot at any moment, so the generated code reads the slot's own current
 `Complications.Id` field fresh on every hold instead. `Source.
 launch_complication` and `hold-auto-unresolved`/`hold-auto-ambiguous` never
-apply to it.
+apply to it. The same holds for an icon with `slot:`.
+
+**A group's `on_hold: auto` follows the one slot drawn inside it.** When
+the group's elements, at any depth, draw exactly one `config: slots:` slot
+(a `type: data`, or a gauge or icon with `slot:`), the whole group's box
+opens that slot's current pick, read on every hold, as a data element's
+`auto` does:
+
+```yaml
+left_slot:
+  type: group
+  size: { width: 100%, height: 100% }
+  at: { anchor: center }
+  on_hold: auto                # the glance of whatever the wearer picked for 'left'
+  children:
+    ring:  { type: gauge, slot: left, ... }
+    glyph: { type: icon, slot: left, ... }
+    value: { type: data, slot: left, ... }
+```
+
+Members bound to fixed sources (a clock beside the slot) do not count.
+Two different slots inside one group is `hold-auto-ambiguous`; a group with
+no slot resolves `auto` from its own bound sources as before, which for a
+group is `hold-auto-unresolved`. A member that keeps its own `on_hold:` is
+reachable only outside the group's box: regions are tested parents first,
+and `hold-overlap` warns.
 
 ## See also
 

@@ -537,6 +537,9 @@ coordinate frame and, when it carries `on_hold:`, a hit region. Use a
 natural way to make a multi-element cluster (an icon next to its value, as
 above) act as a single touch target instead of naming `on_hold:` on each piece
 separately. See [Interactivity](modes-and-interaction.md#interactivity-on_hold).
+A group's `on_hold: auto` follows the one slot drawn inside it, so a slot's
+gauge, icon and reading grouped together open whatever the wearer picked
+([`on_hold: auto`](modes-and-interaction.md#on_hold-auto)).
 
 **`visible:` on a group gates every element beneath it**, at any depth. The
 group's condition is conjoined into each descendant's own at build time (a group

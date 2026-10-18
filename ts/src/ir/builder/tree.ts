@@ -10,7 +10,7 @@ import type { Common, SchemaPath } from "../../kinds/base.ts";
 import * as kinds from "../../kinds/index.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../../kinds/shape.ts";
 import { quoted, str, truthy } from "../../py.ts";
-import { type Element, Expression, HOLD_AUTO, holdSlot, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
+import { type Element, Expression, Group, groupSlots, HOLD_AUTO, holdSlot, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
 import { elementConstPrefix, elementMethodName } from "../naming.ts";
 import { ringGroups } from "../rings.ts";
 import type { Builder } from "./index.ts";
@@ -366,6 +366,15 @@ export class ElementTree extends StaticPass {
   /** Resolve `on_hold: auto` once the element is fully built; one following a slot keeps it for the device. */
   private resolveHoldAuto(element: Element): void {
     if (holdSlot(element) !== null) return;
+    if (element instanceof Group && element.on_hold === HOLD_AUTO && groupSlots(element).length > 1) {
+      const slots = groupSlots(element).map(quoted).join(", ");
+      this.bag.error("hold-auto-ambiguous", `${element.id}: 'on_hold: auto' is ambiguous between slots ${slots}`, element.span, {
+        notes: ["a group's 'auto' follows the one slot drawn inside it",
+          "move one slot's elements out of the group, or put 'on_hold: auto' on each slot's own elements instead"],
+      });
+      element.on_hold = null;
+      return;
+    }
     if (element.on_hold === HOLD_AUTO) {
       element.on_hold = this.resolveAutoTarget(element.id, "on_hold", ElementTree.holdAutoSources(element), element.span);
     }

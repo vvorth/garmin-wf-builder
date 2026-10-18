@@ -971,11 +971,21 @@ export function slotOf(element: Element): string | null {
   return null;
 }
 
+/** Every distinct slot drawn by an element of `group`, at any depth, in document order. */
+export function groupSlots(group: Group): string[] {
+  return [...new Set(walkElements(group.items).map(slotOf).filter((name): name is string => name !== null))];
+}
+
 /** The slot whose current pick `on_hold: auto` opens, read on the watch at every hold; `null` when the target is fixed. */
 export function holdSlot(element: Element): string | null {
   if (element.on_hold !== HOLD_AUTO) return null;
   if (element instanceof DataElement) return element.slot;
   if (element instanceof IconElement) return element.slot;
+  if (element instanceof Group) {
+    // A group follows the one slot drawn inside it; with none or several, `auto` is resolved (or refused) at build time.
+    const slots = groupSlots(element);
+    return slots.length === 1 ? slots[0]! : null;
+  }
   return null;
 }
 

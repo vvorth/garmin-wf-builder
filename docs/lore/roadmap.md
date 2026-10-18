@@ -41,7 +41,8 @@ or AOD-related has been observed on a watch or in the simulator.
   {else:}]`) wherever an expression is taken, rewritten to the `?:` chain
   by `ts/src/lower.ts`. `docs/guide/data.md` ("Rules").
 - **Interactivity** — `on_hold:` (including `on_hold: auto`) on every
-  element; `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
+  element, a group's `auto` following the one slot inside it;
+  `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
 - **Configuration: all four native axes** — `accent_color`, `data_color`,
   Styles with `theme: schemes:` and `layouts:` (form A), the Data axis as
   `config: slots:` drawn by `type: data`, a gauge or an icon with `slot:`;

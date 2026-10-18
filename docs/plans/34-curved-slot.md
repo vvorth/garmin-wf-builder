@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slices 1–3 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–4 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -201,14 +201,15 @@ red-then-green test for each new diagnostic.
   `direction` as a curved text op does. The printer already emits both
   calls.
 
-### Slice 4 — a group's `on_hold:` follows its slot (D3, D5)
+### Slice 4 — a group's `on_hold:` follows its slot (D3, D5): done
 
 - `resolveHoldAuto` (`ts/src/ir/builder/tree.ts`) gains the group rule in
   D5. The group's hold region is its box, and the delegate's exit is the
   slot's field (`emitExitTo` with the slot's id, as a data element's
   hold).
-- A member's own `on_hold:` inside such a group is a warning: the group's
-  region already covers it.
+- A member's own `on_hold:` inside such a group is the existing
+  `hold-overlap` warning (regions are tested parents first); its message
+  now names the slot whose pick the group opens.
 - Tests: one slot (resolves); two slots (`hold-auto-ambiguous`); a slot
   plus a fixed-source text (resolves to the slot); no slot (unchanged).
 

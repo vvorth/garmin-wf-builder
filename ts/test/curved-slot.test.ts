@@ -182,3 +182,53 @@ test("a device with no vector fonts is a build error, or with unsupported: hide,
   assert.ok(baked.some((d) => /'unsupported:' is not accepted here/.test(d.message)), baked.map((d) => d.message).join("\n"));
 });
 
+/** A group holding slot `left`'s icon, plus `more` inside it; `on_hold: auto` on the group. */
+const slotGroup = (more = ""): string => `${MINIMAL.replace("elements:", `${SLOT.replace("config:\n  slots:\n", "config:\n  slots:\n    right: {default: stress, choices: [stress, steps]}\n")}elements:`)}
+  slot_group:
+    type: group
+    size: {width: 50%, height: 50%}
+    at: {anchor: center}
+    on_hold: auto
+    children:
+      glyph:
+        type: icon
+        slot: left
+        size: 20%r
+        at: {anchor: center}
+        color: color.fg
+${more}`;
+
+test("on_hold: auto on a group follows the one slot drawn inside it", () => {
+  const files = generated(slotGroup());
+  const delegate = [...files].find(([name]) => name.endsWith("Delegate.mc"))![1];
+  assert.match(delegate, /`slot_group` -> whatever the wearer picked for slot left/);
+  assert.match(delegate, /Complications\.exitTo\(_view\.holdTargetForSlotGroup\(\)\);/);
+  assert.match(view(slotGroup()), /function holdTargetForSlotGroup\(\) as Complications\.Id \{\s+return _configDataLeft;/);
+});
+
+test("a fixed-source member does not count; a second slot is ambiguous", () => {
+  const clock = `      clock:\n        type: text\n        text: "{time.hour}"\n        font: FONT_SMALL\n        at: {anchor: center, dy: 20%}\n        color: color.fg\n`;
+  assert.deepEqual(errors(slotGroup(clock)).map((d) => d.message), []);
+  assert.match(view(slotGroup(clock)), /function holdTargetForSlotGroup\(\)/);
+  const other = `      other:\n        type: icon\n        slot: right\n        size: 10%r\n        at: {anchor: center, dy: 30%}\n        color: color.fg\n`;
+  const twice = errors(slotGroup(other));
+  assert.ok(twice.some((d) => d.code === "hold-auto-ambiguous" && /'left', 'right'/.test(d.message)), twice.map((d) => d.message).join("\n"));
+});
+
+test("a group with no slot keeps today's auto: resolved from bound sources, or refused", () => {
+  const plain = `${MINIMAL}
+  plain:
+    type: group
+    size: {width: 50%, height: 50%}
+    at: {anchor: center}
+    on_hold: auto
+    children:
+      clock:
+        type: text
+        text: "{time.hour}"
+        font: FONT_SMALL
+        at: {anchor: center}
+        color: color.fg
+`;
+  assert.ok(errors(plain).some((d) => d.code === "hold-auto-unresolved"), errors(plain).map((d) => d.message).join("\n"));
+});

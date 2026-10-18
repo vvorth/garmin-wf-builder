@@ -12,7 +12,7 @@ import * as series from "./series.ts";
 import type { IntBox } from "./units.ts";
 import { compareVersions, Device, DeviceError } from "./devices/device.ts";
 import { Bag, Diagnostic, getCloseMatches, type Severity, type Span } from "./diagnostics.ts";
-import { authoredDrawOrder, CONFIG_SYMBOL, type Curve, type Element, type Face, type FontSpec, Graph, neverTogether, PatternElement, slotOf, walkElements } from "./ir/model.ts";
+import { authoredDrawOrder, CONFIG_SYMBOL, type Curve, type Element, type Face, type FontSpec, Graph, holdSlot, neverTogether, PatternElement, slotOf, walkElements } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
 import * as expr from "./expr.ts";
 import type { Expression } from "./ir/model.ts";
@@ -1066,7 +1066,9 @@ export function checkHoldTargets(resolved: ResolvedFace, bag: Bag): void {
     for (const first of held.slice(0, index)) {
       if (neverTogether(first.element, second.element)) continue;
       if (!intersects(first.box, second.box)) continue;
-      const opens = gated.has(first.element) ? `opens ${quoted(first.element.on_hold)} whenever ${first.id} is drawn` : `always opens ${quoted(first.element.on_hold)}`;
+      const followed = holdSlot(first.element);
+      const target = followed !== null ? `slot ${quoted(followed)}'s pick` : quoted(first.element.on_hold);
+      const opens = gated.has(first.element) ? `opens ${target} whenever ${first.id} is drawn` : `always opens ${target}`;
       emit(bag, second, diag("warning", "hold-overlap",
         `${second.id}'s hold region overlaps ${first.id}'s on ${device.id}, so a touch in the shared area ${opens}`,
         second.element.span, {
