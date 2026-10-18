@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slices 1–4 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–5 done. D1–D8 decided (2026-10-18); D7 refined while building slice 5.** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -59,15 +59,28 @@ slot, with touch and hold opening whatever the slot shows.
   no invented codes, keep `IconGlyphs` and the per-choice `codepoint:`
   overrides unchanged, and extend today's font key (size, glyph set,
   anti-aliasing) with an angle. The cost is one loaded font handle per
-  angle. Slice 5 measures it. If it is too high, change to invented codes
+  angle. Slice 5 measured it: a pinned radial pair beside a same-size
+  slot icon (two fonts) against the same pair `upright: true` (one shared
+  font) on `fenix8solar47mm` is 6,404 B against 6,348 B, **+56 B** (18 B
+  data, 38 B code) for the extra handle. Separate fonts stay. If that ever
+  grows too costly, change to invented codes
   in the Unicode private-use planes (U+F0000–U+10FFFF), which the
   vendored icon font does not use.
-- **D7: radial icons snap to 3° steps.** The icon's *position* is exact;
-  only its turn snaps. The worst error is 1.5°, about 0.3 px at the edge
-  of a 24 px glyph. An angled curve and a fixed `rotate:` are one exact
-  angle, with no snapping. The steps baked are only those the icon's
-  centre can reach: the build knows every glyph's width and the slot's
-  widest reading.
+- **D7: a pinned radial icon gets one exact turn per device; only a
+  free-end icon would snap to 3° steps.** (Refined while building slice
+  5.) A pinned icon's centre is at a build-time angle, θ₀ ∓ (gap +
+  reference advance / 2) / R, every other choice's glyph centred on the
+  same point, so there is exactly one turn to bake and no step to pick on
+  the watch. R, the gap and the reference glyph's advance are per device,
+  so the turn is too, and the generated view is one file shared by every
+  target: the font therefore has **one resource name on every device**
+  (an element-specific key with no angle in it), and each device's bake
+  resolves the turn itself (`PinnedTurn` in `ts/src/icons.ts`, read by
+  both `iconFontSpecs` and the layout). Steps remain the plan for slice
+  6's free end, whose angle is only known on the watch: the worst error
+  is 1.5°, about 0.3 px at the edge of a 24 px glyph, and only the steps
+  the icon's centre can reach across the slot's widest reading are baked.
+  An angled curve and a fixed `rotate:` are one exact angle.
 - **D8: the key names.** `rotate: <Angle>` on `type: icon` (clockwise,
   `0deg` upright, the same zero as `curve: {style: angled}`), and
   `icon: {upright: true}` on a curved `type: data` to keep the icon
@@ -213,26 +226,25 @@ red-then-green test for each new diagnostic.
 - Tests: one slot (resolves); two slots (`hold-auto-ambiguous`); a slot
   plus a fixed-source text (resolves to the slot); no slot (unchanged).
 
-### Slice 5 — a curved pair, icon on the pinned end (step 2)
+### Slice 5 — a curved pair, icon on the pinned end (step 2): done
 
 - `icon:` beside `curve:` is accepted when the icon's angle cannot
   depend on the reading's width: any `angled` pair; on `radial`, `align:
-  left` with `position: left`, or `align: right` with `position: right`.
-  Every other radial pairing is an error naming the two pinned ones until
-  slice 6.
-- Layout: `generalPair` keeps computing `(along, cross)`. One mapping per
-  style turns that into a point: angled, a rotation by the build-time
-  `cos a`/`sin a`; radial, `θ = θ₀ ∓ along/R` and `r = R ± cross`.
-- Icon turn: angled bakes one font at `a`. Radial bakes the 3° steps (D7)
-  the icon's centre can reach across the slot's glyph widths (one or two
-  for a pinned icon), and the watch picks the step nearest its computed
-  `θ`. `icon: {upright: true}` bakes none and draws the unturned glyph at
-  the same point.
-- Measure: `--build-stats` for a pinned radial pair on `fenix8solar47mm`
-  against an unturned one. This settles D6: the data bytes per extra
-  font handle.
-- Draw program: a `Glyph` op whose font is picked by a step index. The
-  evaluator and the browser renderer evaluate the index as the watch does.
+  left` with `position: left`, or `align: right` with `position: right`,
+  with a `px`/`%r` radius. Every other radial pairing is an error naming
+  the two pinned ones until slice 6.
+- Angled: `generalPair` (and the fast path) keep computing the upright
+  pair on the watch; each draw point is turned about the anchor by the
+  build-time `<P>_COS`/`<P>_SIN`. The text draws with `drawAngledText`
+  and the upright justify; the icon draws centred on its turned centre,
+  from one font baked at `a`.
+- Radial: the icon is drawn centred at build-time `<P>_ICON_X/_ICON_Y`
+  (the middle of the run's band, at the angle in D7), from a font baked
+  at that device's exact turn (D7). `icon: {upright: true}` draws the
+  slot's unturned font at the same point.
+- Measured (D6): +56 B for the extra font handle.
+- Draw program: `DrawText` ops, as the upright pair's, so the evaluator
+  justifies the icon as `drawText` does; no new op.
 
 ### Slice 6 — the free end and a centred radial pair (step 3)
 

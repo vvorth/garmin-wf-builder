@@ -469,13 +469,47 @@ string, drawn curved as a whole.
 * `font:` must be a `face:` font: `drawAngledText`/`drawRadialText` refuse
   any other, so 44 of 136 watch-face devices can draw it
   ([Fonts](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)).
-* A curved reading takes **no `icon:`**. Draw the slot's icon as its own
-  element, [`type: icon` with `slot:`](icons.md#a-slots-icon-slot), placed and
-  turned (`rotate:`) to sit beside the run.
 * The lints see the run's real shape (a sector of a ring, or a turned
-  rectangle), sized from the widest reading any choice could draw; the
-  native editor's highlight and the `on_hold:` region are that shape's
-  box.
+  rectangle), sized from the widest reading any choice could draw, with
+  its icon and gap when it has one; the native editor's highlight and the
+  `on_hold:` region are that shape's box.
+
+**A curved pair.** `icon:` beside `curve:` is placed in the text's own
+frame, and turns with it:
+
+| `icon: {position:}` | `angled` | `radial` |
+|---|---|---|
+| `left` / `right` | before / after the run, along its turned baseline | before / after the run along the circle; `gap:` and widths are arc lengths at `radius:` |
+| `top` / `bottom` | on the glyphs' "up" / "down" side | outward / inward for a clockwise run (glyphs face out), the reverse for counter-clockwise |
+
+```yaml
+    curve: { style: radial, angle: -46deg, radius: 80%r }
+    align: left                        # the run starts at -46deg ...
+    icon: { size: 10%r, position: left, gap: 2px }   # ... and the icon sits just before it
+```
+
+* `style: angled` takes any `position:` with any `align:`: the whole
+  upright pair (laid out on the watch exactly as an upright one) turns
+  rigidly about `at:` by `angle:`, and the icon is baked turned by the
+  same angle.
+* `style: radial` takes the icon only at the run's **fixed end**: `align:
+  left` with `position: left` (the icon just before the run's start) or
+  `align: right` with `position: right` (just after its end). Anywhere
+  else the icon's place on the circle would depend on how wide the reading
+  is, which only the watch knows, so every other pairing is a build error.
+  For the same pairs to keep a fixed shape, `radius:` must be `px` or
+  `%r` beside an icon (the icon's turn is baked before layout runs, as its
+  `size:` is).
+* A pinned radial icon is centred on the circle half the *reference*
+  glyph's width (the default choice's, the one the icon font is sized
+  by) plus `gap:` past the fixed end, in the middle of the run's band, and
+  baked turned to face exactly the way the run faces there. The radius,
+  gap and glyph width are per device, so the turn is too: each target
+  bakes the font at its own exact angle, under one resource name. Another
+  choice's glyph is centred on the same point, so its own gap differs
+  from `gap:` by half the difference in width.
+* `icon: {upright: true}` draws the icon unturned at the same point (any
+  `curve:` style; beside an upright reading it is an error).
 
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice

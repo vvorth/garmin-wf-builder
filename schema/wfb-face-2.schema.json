@@ -2766,7 +2766,7 @@
       "additionalProperties": false,
       "properties": {
         "curve": {
-          "description": "Draws the reading along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText, exactly as 'curve:' on a 'text' element. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry. Takes no 'icon:': draw the slot's icon as its own 'type: icon' with 'slot:'.",
+          "description": "Draws the reading along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText, exactly as 'curve:' on a 'text' element. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry. 'icon:' is placed in the text's own frame and turns with it: any pairing on 'angled'; on 'radial' only at the run's fixed end ('align: left' with 'position: left', 'align: right' with 'position: right'), with a px or %r 'radius:'.",
           "$ref": "#/$defs/curve"
         },
         "type": {
@@ -2869,6 +2869,11 @@
             "color": {
               "$ref": "#/$defs/colorExpression",
               "description": "The icon's own colour, distinct from the reading's 'color:'. Must not be nullable. Defaults to 'color:'."
+            },
+            "upright": {
+              "type": "boolean",
+              "default": false,
+              "description": "Beside 'curve:' only: draw the icon unturned, at the point the curved pair puts it. Default false: it turns with the reading."
             }
           }
         },

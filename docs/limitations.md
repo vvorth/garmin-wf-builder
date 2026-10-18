@@ -254,6 +254,13 @@ One honest limit on that, not to be glossed over:
   identically in `error` and `hide` mode. `error` guarantees a usable face
   was published at build time on every target; it does not, and cannot,
   guarantee the element is never missing from the wrist.
+* **A radial slot reading takes its icon only at the run's fixed end**
+  (`align: left` with `position: left`, `align: right` with `position:
+  right`). At the free end, or beside a centred run, the icon's angle
+  would come from the reading's measured width, and whether the watch lays
+  the run out round the circle to that same length is unverified
+  (`docs/research/35-curved-slot-reading.md` §3.2), so those pairings are
+  a build error. An angled pair takes the icon on any side.
 
 The radial glyph-facing model — `curve: {style: radial, direction:
 clockwise}` faces glyphs outward, `counter_clockwise` faces inward, so text

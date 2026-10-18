@@ -2,7 +2,7 @@
 // every icon and ring font, the fonts' resource entries, the strings, the
 // launcher icon and the native editor's config..
 import type { Device } from "../devices/device.ts";
-import { bake, dilate, inkHeight, toFnt } from "../fonts/bake.ts";
+import { bake, dilate, glyphAdvance, inkHeight, toFnt } from "../fonts/bake.ts";
 import * as complications from "../complications.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
 import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
@@ -13,6 +13,7 @@ import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
 import { type Face, FontSpec } from "../ir/model.ts";
+import type { PinnedTurn } from "../icons.ts";
 import { comparePoints } from "../kinds/data.ts";
 import * as kinds from "../kinds/index.ts";
 import { roundHalfEven } from "../py.ts";
@@ -78,16 +79,20 @@ export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number
   return result;
 }
 
-/** One synthetic `FontSpec` per icon font key: its nominal size on this device, its glyphs and anti-aliasing. */
+/**
+ * One synthetic `FontSpec` per icon font key: its nominal size on this device, its glyphs, anti-aliasing and turn.
+ * A pinned radial icon's turn is resolved here, per device, from the size just computed.
+ */
 export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): Map<string, FontSpec> {
-  const byKey = new Map<string, [units.Length | null, string, string, boolean, number]>();
+  const byKey = new Map<string, [units.Length | null, string, string, boolean, number | PinnedTurn]>();
   for (const [, run] of kinds.faceTextRuns(face)) {
     if (run.icon !== null) byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias, run.icon.rotate]);
   }
-  return new Map([...byKey].map(([key, [length, glyphs, reference, antialias, rotate]]) => [key, FontSpec.create({
-    name: key, source: ICON_FONT, glyphs, antialias, rotate, span: null,
-    size: new units.Length(bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius)), "px"),
-  })]));
+  return new Map([...byKey].map(([key, [length, glyphs, reference, antialias, rotate]]) => {
+    const size = bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius));
+    const turn = typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, glyphAdvance(iconFont, reference, size));
+    return [key, FontSpec.create({ name: key, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px") })];
+  }));
 }
 
 /** Rasterise every declared font, every icon font and every ring font, at this device's size. */

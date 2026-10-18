@@ -36,6 +36,8 @@ export class BakedFont {
   /** Every glyph was given the same advance, `cell_width`. */
   monospace = false;
   cell_width = 0;
+  /** Degrees clockwise every glyph was baked turned. */
+  rotate = 0;
   fnt_name = "";
   png_name = "";
   sheet: Sheet | null = null;

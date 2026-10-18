@@ -91,6 +91,11 @@ function advanceAt(p: Parsed, ch: string, size: number): number {
   return Math.floor((mulFix(p.font.charToGlyph(ch).advanceWidth ?? 0, scale(p, size)) + 32) / 64);
 }
 
+/** `ch`'s advance in `source` baked at `size`: what the baked sheet's `xadvance` will be, turned or not. */
+export function glyphAdvance(source: FontFile, ch: string, size: number): number {
+  return advanceAt(load(source), ch, size);
+}
+
 function commands(p: Parsed, ch: string, size: number, baseline: number): PathCommand[] {
   return p.font.charToGlyph(ch).getPath(0, baseline, size).commands.map((c: Command): PathCommand => {
     if (c.type === "Z") return { type: "Z" };
@@ -311,7 +316,7 @@ export function bake(source: FontFile, { name, size, glyphs, antialias = false, 
     return found === null ? [ch, EMPTY, 0, 0, advance] : [ch, found[0], found[1], found[2], advance];
   });
   const font = BakedFont.create({
-    name, face: p.face, size, line_height: ascent + descent, base: ascent, antialias, monospace,
+    name, face: p.face, size, line_height: ascent + descent, base: ascent, antialias, monospace, rotate,
     cell_width: monospace ? cellWidth(rendered) : 0, fnt_name: `${name}.fnt`, png_name: `${name}.png`,
   });
   return place(font, rendered, monospace ? align : null);

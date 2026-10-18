@@ -836,6 +836,8 @@ export class DataElement extends Element {
   icon_position = "left";
   icon_gap: Length | null = null;
   icon_color: Expression | null = null;
+  /** `icon: {upright: true}` beside `curve:`: the icon is drawn unturned at the point the pair puts it. */
+  icon_upright = false;
   label = "none";
   unit = false;
   short = false;

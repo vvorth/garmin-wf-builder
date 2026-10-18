@@ -8,7 +8,7 @@
 // the browser receives it from the server.
 import data from "./data/icons.json" with { type: "json" };
 import { formatG } from "./py.ts";
-import type { Length } from "./units.ts";
+import { type Length, pixelSize } from "./units.ts";
 
 export interface Icon { name: string; codepoint: string; description: string }
 
@@ -84,6 +84,43 @@ export const DYNAMIC_WEATHER_TAG = "weather";
 export function normalTurn(degrees: number): number {
   const turn = ((degrees % 360) + 360) % 360;
   return turn === 0 ? 0 : turn;
+}
+
+/**
+ * A radial pair's icon pinned to the run's fixed end: where its centre sits
+ * on the circle and how far its glyphs turn. Every input is per device (the
+ * radius, the gap, the reference glyph's advance at its baked size), so the
+ * bake and the layout each resolve it here, with the same arithmetic.
+ */
+export class PinnedTurn {
+  /** The run's fixed end, in Garmin degrees (3 o'clock = 0, counter-clockwise). */
+  readonly startGarmin: number;
+  readonly radius: Length;
+  readonly gap: Length;
+  /** The icon sits after the run's end (`align: right`), not before its start. */
+  readonly after: boolean;
+  readonly direction: string | null;
+
+  constructor(startGarmin: number, radius: Length, gap: Length, after: boolean, direction: string | null) {
+    this.startGarmin = startGarmin;
+    this.radius = radius;
+    this.gap = gap;
+    this.after = after;
+    this.direction = direction;
+  }
+
+  /** The icon centre's Garmin angle: the gap plus half the reference advance, as arc length past the fixed end. */
+  angle(minorRadius: number, advance: number): number {
+    // A clockwise run walks towards smaller Garmin angles.
+    const sign = this.direction === "counter_clockwise" ? 1 : -1;
+    const along = (pixelSize(this.gap, minorRadius) + advance / 2) / pixelSize(this.radius, minorRadius);
+    return this.startGarmin + (this.after ? sign : -sign) * (along * 180) / Math.PI;
+  }
+
+  /** Degrees clockwise to bake the glyphs at: tops outward on a clockwise run, inward on a counter-clockwise one. */
+  turn(minorRadius: number, advance: number): number {
+    return normalTurn((this.direction === "counter_clockwise" ? 270 : 90) - this.angle(minorRadius, advance));
+  }
 }
 
 /** The synthetic font name for every icon declared at this `size:`, glyph, anti-aliasing setting and turn. */

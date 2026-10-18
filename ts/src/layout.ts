@@ -631,9 +631,13 @@ export class PlacedData extends Placed {
   highlight: IntBox | null = null;
   /** `curve:` resolved for this device; `style` is `null` for an upright reading. */
   curve: ResolvedCurve = new ResolvedCurve();
-  /** The widest reading's width and the font's line height: a curved reading's lint shape. */
+  /** A curved reading's lint shape: its run (with any icon and gap) along, its line height across, from this Garmin angle. */
   measured_width = 0;
   line_height = 0;
+  ink_angle_garmin = 0.0;
+  /** A radial pair: the icon's centre, and the turn its font is baked at on this device. */
+  icon_point: [number, number] | null = null;
+  icon_turn = 0;
 }
 
 /** Who a `SubPixelLength` or `ResolveWarning` is recorded against. */
@@ -1116,7 +1120,8 @@ function shapeInk(placed: Placed, device: Device): Ink | null {
     const outline = placed instanceof PlacedText ? placed.element.outline : null;
     return textInk(placed.anchor_point[0], placed.anchor_point[1], placed.measured_width, placed.line_height,
       placed.element.align, placed.element.vertical_align, {
-        curveStyle: placed.curve.style, angleGarmin: placed.curve.angle_garmin, radiusPx: placed.curve.radius_px,
+        curveStyle: placed.curve.style, angleGarmin: placed instanceof PlacedData ? placed.ink_angle_garmin : placed.curve.angle_garmin,
+        radiusPx: placed.curve.radius_px,
         direction: placed.curve.direction, metric: placed.font.metric, pad: outline !== null ? outline.width : 0.0,
         device,
       });

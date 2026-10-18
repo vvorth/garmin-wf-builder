@@ -378,7 +378,7 @@ test("a data element's icon is edited and format is not offered", async () => {
   const path = indexFor(doc.text).elements().find((e) => e.name === "left_register")!.path;
   const fields = Object.fromEntries((inspect(doc.text, path, null)["fields"] as any[]).map((f) => [f.key, f]));
   assert.equal(fields["icon"].widget, "object");
-  assert.deepEqual(Object.fromEntries(fields["icon"].children.map((c: any) => [c.key, c.widget])), { size: "length", position: "enum", gap: "length", color: "color" });
+  assert.deepEqual(Object.fromEntries(fields["icon"].children.map((c: any) => [c.key, c.widget])), { size: "length", position: "enum", gap: "length", color: "color", upright: "bool" });
   assert.ok(!("format" in fields));
 });
 
