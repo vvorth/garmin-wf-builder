@@ -436,9 +436,11 @@ Instead:
 *From [`examples/features/curved-slot`](../../examples/features/curved-slot/face.yaml): each
 half of the dial is one slot, drawn as a segmented gauge round the edge, the
 picked metric's icon turned to stand along the bezel, and the reading curved
-beside it. Steps on the left run clockwise with their glyphs facing out; Body
-Battery on the right runs counter-clockwise, so it reads upright along the
-bottom. Touch and hold anywhere in a half opens that slot's pick.*
+beside it. Steps on the left run clockwise with their glyphs facing out, the
+icon a separate `type: icon`; Body Battery on the right runs
+counter-clockwise, so it reads upright along the bottom, its icon the
+reading's own `icon:` at the run's start. Touch and hold anywhere in a half
+opens that slot's pick.*
 
 ```yaml
 resources:

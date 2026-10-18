@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slices 1–5 done. D1–D8 decided (2026-10-18); D7 refined while building slice 5.** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–5 and most of 7 done; slice 6 waits on §5 check 2. D1–D8 decided (2026-10-18); D7 refined while building slice 5.** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -260,10 +260,12 @@ same length, or the gap drifts with the reading's length.
   `docs/lore/rendering.md`. If it finds no usable rule, this slice stops
   and the free end stays an error.
 
-### Slice 7 — example, screenshots, docs
+### Slice 7 — example, screenshots, docs: done but for the angled pair
 
 - `examples/features/curved-slot/face.yaml`: the format in §2 (free
-  placement), plus one pinned radial pair and one angled pair.
+  placement) on the left slot, a pinned radial pair on the right. Still
+  open: an angled pair, covered by tests but not yet shown in an example;
+  decide with slice 6 whether it joins this face or gets its own.
 - Screenshots via `ts/tools/docs-shots.ts`; a gallery entry in
   `README.md` if it earns one.
 

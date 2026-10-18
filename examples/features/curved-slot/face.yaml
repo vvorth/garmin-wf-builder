@@ -12,12 +12,15 @@
 #   `rotate:` to stand along the bezel. A turned icon is baked already
 #   turned, so its edge is as clean as an upright one's;
 # * a `type: data` reading with `curve: {style: radial}` in a `face:` font,
-#   running round the circle from where the icon stands. A curved reading
-#   takes no `icon:` of its own, which is why the icon is its own element.
+#   running round the circle from where the icon stands.
 #
-# `left` reads clockwise along the upper left, glyphs facing out. `right`
-# mirrors it along the lower right with `direction: counter_clockwise`, so
-# its glyphs face in and it reads right side up at the bottom of the dial.
+# The two slots place their icon the two ways the format offers. `left`
+# reads clockwise along the upper left, glyphs facing out, with its icon a
+# separate `type: icon` placed and turned freely. `right` mirrors it along
+# the lower right with `direction: counter_clockwise` (glyphs face in, so it
+# reads right side up at the bottom of the dial) and keeps its icon in the
+# reading's own `icon:`: with `align: left` and `position: left` the icon
+# stands just before the run's fixed start, turned to the circle there.
 #
 # Each slot's pieces sit in a `type: group` with `on_hold: auto`: the group
 # holds exactly one slot, so touch and hold anywhere in its half opens the
@@ -163,19 +166,13 @@ elements:
         color: color.right
         track_color: color.track
         absent: hide
-      right_glyph:
-        type: icon
-        slot: right
-        size: 12%r
-        rotate: -22deg               # tangent at 158deg, glyph facing in
-        at: { anchor: left, angle: 158deg, radius: 80%r }
-        color: color.right
       right_value:
         type: data
         slot: right
         font: font.reading
         at: { anchor: left }
         curve: { style: radial, angle: 150deg, radius: 80%r, direction: counter_clockwise }
-        align: left
+        align: left                  # the run starts at 150deg ...
+        icon: { size: 12%r, position: left, color: color.right }   # ... and the icon stands just before it, turned to match
         color: color.fg
         absent: { text: "--" }
