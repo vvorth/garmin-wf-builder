@@ -239,9 +239,13 @@ font still cannot be rotated or curved, and never will be** — that part of
 the practical consequence is permanent. What *is* built
 (`docs/guide/text.md`'s `curve:` section): a `fonts:` entry can name a
 device-resident face instead of baking one (`face:` instead of `source:`),
-and a `text` **element**, or a pattern's own `type: text` part,
-can bend it along a line (`style: angled`) or around a circle (`style:
-radial`). One honest limit on that, not to be glossed over:
+and a `text` **element**, a slot's `type: data` reading, or a pattern's
+own `type: text` part, can bend it along a line (`style: angled`) or
+around a circle (`style: radial`). Curved or upright, a `face:` font
+draws only on the 44 of 136 watch-face devices that publish one; on any
+other target the build fails, or with `unsupported: hide` the element is
+left out there. Nothing falls back to an upright baked font on its own.
+One honest limit on that, not to be glossed over:
 
 * **`unsupported: error` is a build-time guarantee only.**
   `Graphics.getVectorFont` returns `null` rather than throwing, and the

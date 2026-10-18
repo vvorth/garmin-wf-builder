@@ -16,7 +16,7 @@ device-resident scalable faces reachable with `face:` (below).
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `font:` | a `text` element, a pattern's text part | `{source:, size:, …}` or `{face:, size:, …}` inline, `font.<name>`, or a system name (`FONT_MEDIUM`, …) | — | [Fonts](#fonts) |
+| `font:` | a `text` or `data` element, a pattern's text part | `{source:, size:, …}` or `{face:, size:, …}` inline, `font.<name>`, or a system name (`FONT_MEDIUM`, …) | — | [Fonts](#fonts) |
 | `fonts.<name>.source:` | `resources:` | path to a `.ttf`/`.otf` | — | [Fonts](#fonts) (baked font, relative to the design file) |
 | `fonts.<name>.size:` | `resources:` | `Length` (`px`/`%r`) | — | [`size:` is a `Length`](#size-is-a-length) |
 | `fonts.<name>.glyphs:` | `resources:` | a string of characters | derived from the design | [Everything else](#everything-else) |
@@ -269,7 +269,7 @@ than reading as an unknown key.
 #### `unsupported:` — and what `error` actually promises
 
 `error` (the default) or `hide`, set on a `face:` font entry and,
-independently, on any `text` element that uses one — **the element's own
+independently, on any `text` or `data` element that uses one — **the element's own
 value wins outright** over the font's, the same "a descendant's own value
 wins over its group's" rule `antialias:` already follows.
 
@@ -277,7 +277,8 @@ wins over its group's" rule `antialias:` already follows.
   faces, the build fails, naming the device, the face(s) asked for, and the
   faces that device does publish. This is the default because a missing
   clock is not a cosmetic problem.
-* **`hide`**: the element simply does not draw on the devices that fail.
+* **`hide`**: the element simply does not draw on the devices that fail
+  (a `data` element's icon included).
   Every other device is unaffected. Where it does not draw, it has no
   `on_hold:` region either, and the placement lints (`off-screen`,
   `safe-area`, `text-overflow`, ...) say nothing about it: the one

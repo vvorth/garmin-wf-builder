@@ -629,6 +629,11 @@ export class PlacedData extends Placed {
   icon_position = "left";
   icon_gap_px = DATA_ICON_GAP;
   highlight: IntBox | null = null;
+  /** `curve:` resolved for this device; `style` is `null` for an upright reading. */
+  curve: ResolvedCurve = new ResolvedCurve();
+  /** The widest reading's width and the font's line height: a curved reading's lint shape. */
+  measured_width = 0;
+  line_height = 0;
 }
 
 /** Who a `SubPixelLength` or `ResolveWarning` is recorded against. */
@@ -1074,7 +1079,7 @@ export class Resolver {
 }
 
 /** `TEXT_JUSTIFY_*` flags for anything with `align`/`vertical_align`. */
-export function justify(element: Text | TextPart | IconElement): string[] {
+export function justify(element: Pick<Text, "align" | "vertical_align">): string[] {
   const flag = ({ left: "TEXT_JUSTIFY_LEFT", center: "TEXT_JUSTIFY_CENTER", right: "TEXT_JUSTIFY_RIGHT" } as Record<string, string>)[element.align]!;
   return element.vertical_align === "center" ? [flag, "TEXT_JUSTIFY_VCENTER"] : [flag];
 }
@@ -1107,8 +1112,8 @@ export function circularExtent(placed: Placed): [number, number, number] | null 
 function shapeInk(placed: Placed, device: Device): Ink | null {
   const circle = circularExtent(placed);
   if (circle !== null) return new InkDisc(...circle);
-  if (placed instanceof PlacedText && placed.curve.style !== null) {
-    const outline = placed.element.outline;
+  if ((placed instanceof PlacedText || placed instanceof PlacedData) && placed.curve.style !== null) {
+    const outline = placed instanceof PlacedText ? placed.element.outline : null;
     return textInk(placed.anchor_point[0], placed.anchor_point[1], placed.measured_width, placed.line_height,
       placed.element.align, placed.element.vertical_align, {
         curveStyle: placed.curve.style, angleGarmin: placed.curve.angle_garmin, radiusPx: placed.curve.radius_px,

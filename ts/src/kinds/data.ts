@@ -9,13 +9,17 @@ import { dataHoldMethod, dataIconMethod } from "../ir/naming.ts";
 import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
-import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, PlacedData, type Resolver } from "../layout.ts";
+import {
+  alignmentShift, DATA_ICON_GAP, dataPairGeometry, HIDDEN_BY_FONT, justify, longer, type Placed, PlacedData, replaceFields, type Resolver,
+  resolvedCurve, textInk,
+} from "../layout.ts";
+import { flt } from "../draw/barrel.ts";
 import { formatG, quoted, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
 import { Box, IntBox, type Length, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 import {
-  AodRestyled, Assign, Bin, Blank, Cmp, Comment, type Cond, Const, type DrawContext, Font, FontHeight, If, IsPulsing, Let, Lit,
+  AodRestyled, Assign, Bin, Blank, Cmp, Comment, type Cond, Const, type DrawContext, Font, FontHeight, If, IfNotNull, IsPulsing, Let, Lit,
   LoadFont, Local, LocalsSet, type Num, NumLocal, NumPick, type Op, type Paint, Return, SetColor, SlotIcon, SlotPull, SlotText,
   type Str, Text as DrawText, TextWidth,
 } from "../draw/program.ts";
@@ -251,18 +255,42 @@ class DataKind extends ElementKind<DataElement> {
 
   override textRuns(element: DataElement, face: Face): TextRun[] {
     const runs: TextRun[] = [];
-    if (element.font_is_custom) runs.push(new TextRun(element.id, element.font, { glyphs: textGlyphs(element, face), span: element.span }));
+    if (element.font_is_custom) {
+      runs.push(new TextRun(element.id, element.font, {
+        glyphs: textGlyphs(element, face), span: element.span, unsupported: element.unsupported, curve: element.curve,
+      }));
+    }
     const icon = element.icon_size === null ? null
       : slotIconRun(`${element.id}.icon`, face, element.slot, element.icon_size, element.resolved_antialias, 0, element.span);
     if (icon !== null) runs.push(icon);
     return runs;
   }
 
+  override hiddenReason(placed: Placed): string | null {
+    return (placed as PlacedData).font.available ? null : HIDDEN_BY_FONT;
+  }
+
   override resolve(r: Resolver, element: DataElement, parent: Box, depth: number): Placed {
     const [cx, cy] = r.point(element.at, parent);
-    const font = r.fontForRef(element.font, element.font_is_custom);
+    const font = r.textFont(element.font, element.font_is_custom, element.curve);
     const widest = dataWidest(r, element);
     const textWidth = font.width(widest), lineHeight = font.lineHeight;
+    if (element.curve !== null) {
+      let curve = resolvedCurve(element.curve);
+      if (curve.style === "radial" && element.curve.radius !== null) {
+        curve = replaceFields(curve, {
+          radius_px: round(r.extent(element.curve.radius, parent, "minor", 0, null, element.resolved_min_1px, "curve.radius")),
+        });
+      }
+      const box = textInk(cx, cy, textWidth, lineHeight, element.align, element.vertical_align, {
+        curveStyle: curve.style, angleGarmin: curve.angle_garmin, radiusPx: curve.radius_px, direction: curve.direction,
+        metric: font.metric, pad: 0, device: r.device,
+      }).box().rounded();
+      return PlacedData.create({
+        element, box, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)], font: font.resolved(), widest,
+        icon_position: element.icon_position, highlight: box, curve, measured_width: round(textWidth), line_height: lineHeight,
+      });
+    }
     let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
     if (element.icon_size !== null) {
       const referenceGlyph = slotReferenceGlyph(r.face.config_data.get(element.slot));
@@ -343,21 +371,18 @@ class DataKind extends ElementKind<DataElement> {
       vertical_align: verticalAlign,
     });
     const fontOk = b.resolveFont(node, element);
-    if (fontOk && b.isVectorFont(element.font, element.font_is_custom)) {
-      b.bag.error("complication-slot", `${element.id}: 'font: font.${element.font}' is a 'face:' `
-        + "(vector) font -- not accepted on a 'type: data' element", b.doc.span(node, "font"), {
-        notes: [
-          "a vector font is drawn straight from the device's own "
-          + "resident face through Dc.drawText/drawAngledText/"
-          + "drawRadialText -- a data element draws its reading "
-          + "through a different path that only accepts a baked "
-          + "bitmap font or one of the platform's fixed system fonts",
-          "a vector font is only usable on a 'text' element",
-          "declare this font with 'source:' instead, or point "
-          + "'font:' at a baked or system font",
-        ],
-      });
+    const fontIsVector = fontOk && b.isVectorFont(element.font, element.font_is_custom);
+    const fontNote = b.fontKindNote(element.font, element.font_is_custom);
+    if (node.has("curve")) {
+      element.curve = b.buildCurve(node, element.id, { verticalAlign: element.vertical_align, fontOk, fontIsVector, fontNote });
+      if (element.curve !== null && element.icon_size !== null) {
+        b.bag.error("complication-slot", `${element.id}: a curved reading takes no 'icon:' here`, b.doc.span(node, "icon"), {
+          notes: ["draw the slot's icon as its own element, placed and turned freely: "
+            + "'type: icon' with 'slot: " + element.slot + "' and 'rotate:'"],
+        });
+      }
     }
+    if (fontOk && node.has("unsupported") && !element.inSubscreen) b.checkUnsupported(node, element.id, fontIsVector, fontNote);
 
     if (element.on_hold !== null && element.on_hold !== HOLD_AUTO) {
       // A fixed target would disagree with the slot the moment the wearer repoints it.
@@ -403,13 +428,9 @@ class DataKind extends ElementKind<DataElement> {
   override lower(ctx: DrawContext, placed: Placed): Op[] {
     const p = placed as PlacedData;
     const element = p.element;
-    const aod = ctx.aod;
-    const prefix = constPrefix(p.id);
     const face = ctx.resolved.face;
     const slot = face.config_data.get(element.slot)!;
     const shown = ctx.shown(slot);
-    const ctype = complications.TYPES.get(shown)!;
-    const sample = slotSample(shown);
     const guarded = ctx.complications_guarded;
     const ops: Op[] = [
       Comment("the editor is animating this exact slot right now -- skip it, or the"),
@@ -420,20 +441,37 @@ class DataKind extends ElementKind<DataElement> {
       Comment(`slot: ${element.slot}`),
       SlotPull(configField(`data_${element.slot}`), guarded, DATA_SAMPLE.get(shown) ?? null),
     ];
-    let iconFont: Font | null = null;
     if (p.icon_font_key !== null) {
-      ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded, slotSampleGlyph(slot, shown, sample)));
-      iconFont = Font("iconFont", { baked: p.icon_font_key });
+      ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded,
+        slotSampleGlyph(slot, shown, slotSample(shown))));
     }
-    let code: string;
-    if (p.font.is_custom) {
+    let font: Font;
+    if (p.font.is_vector) {
+      // A device-resident face: null where the device publishes none, and then nothing draws.
+      ops.push(LoadFont("textFont", `_${fontField(p.font.reference)}`, { onNull: "none" }));
+      font = Font("textFont", { metric: p.font.metric, vector: true });
+    } else if (p.font.is_custom) {
       ops.push(LoadFont("textFont", `_${fontField(p.font.reference)}`));
-      code = "textFont";
+      font = Font("textFont", { baked: p.font.reference, metric: p.font.metric, px: p.font.px });
     } else {
-      code = `Graphics.${p.font.reference}`;
+      font = Font(`Graphics.${p.font.reference}`, { metric: p.font.metric, px: p.font.px });
     }
-    const font = Font(code, { baked: p.font.is_custom ? p.font.reference : null, metric: p.font.metric, px: p.font.px });
-    ops.push(Blank(), SlotText({
+    const drawing = this.drawing(ctx, p, font);
+    return p.font.is_vector ? [...ops, Blank(), IfNotNull("textFont", drawing)] : [...ops, Blank(), ...drawing];
+  }
+
+  /** The reading, and its icon: pulled into `text`, then drawn curved, or as a pair centred on the watch. */
+  private drawing(ctx: DrawContext, p: PlacedData, font: Font): Op[] {
+    const element = p.element;
+    const aod = ctx.aod;
+    const prefix = constPrefix(p.id);
+    const shown = ctx.shown(ctx.resolved.face.config_data.get(element.slot)!);
+    const ctype = complications.TYPES.get(shown)!;
+    const sample = slotSample(shown);
+    const guarded = ctx.complications_guarded;
+    const iconFont = p.icon_font_key !== null ? Font("iconFont", { baked: p.icon_font_key }) : null;
+    const ops: Op[] = [];
+    ops.push(SlotText({
       module: SLOT_TEXT_MODULE, guarded, unit: element.unit, short: element.short, label: element.label, absent: element.absent,
       placeholder: element.placeholder, type_name: ctype.name, sample,
       label_sample: ({ short: "Now ", long: "Current " } as Record<string, string>)[element.label ?? ""] ?? "",
@@ -446,6 +484,13 @@ class DataKind extends ElementKind<DataElement> {
     else iconPaint = AodRestyled(element, "icon_color", textPaint);
     const text = Local("text"), glyphText = Local("iconGlyph");
     const cx = Const(`${prefix}_CX`, p.anchor_point[0]), cy = Const(`${prefix}_CY`, p.anchor_point[1]);
+    if (p.curve.style !== null) {
+      const angle = Const(`${prefix}_ANGLE`, flt(p.curve.angle_garmin));
+      const radius = p.curve.style === "radial" ? Const(`${prefix}_RADIUS`, p.curve.radius_px) : null;
+      return [...ops, SetColor(textPaint), DrawText(cx, cy, font, text, justify(element), element.vertical_align, {
+        align: element.align, style: p.curve.style, angle, radius, direction: p.curve.direction, box: p.innerBox,
+      })];
+    }
     const iconShown = iconFont !== null ? LocalsSet(["iconGlyph", "iconFont"]) : null;
     const draw: DrawFn = (x, y, face_, string, justify) =>
       DrawText(x, y, face_, string, justify, justify.includes("TEXT_JUSTIFY_VCENTER") ? "center" : "top", { joined: true });
@@ -473,6 +518,13 @@ class DataKind extends ElementKind<DataElement> {
       [`${prefix}_CY`, p.anchor_point[1], ""],
     ];
     if (p.element.icon_gap !== null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
+    if (p.curve.style !== null) {
+      const authorNote = p.curve.style === "radial"
+        ? `${formatG(p.curve.angle_degrees)}deg clockwise from 12 o'clock`
+        : `${formatG(p.curve.angle_degrees)}deg clockwise rotation from upright`;
+      out.push([`${prefix}_ANGLE`, flt(p.curve.angle_garmin), `${authorNote}, in Garmin's convention`]);
+      if (p.curve.style === "radial") out.push([`${prefix}_RADIUS`, p.curve.radius_px, ""]);
+    }
     return out;
   }
 

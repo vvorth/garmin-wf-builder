@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PlacedIcon } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
-import { errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
+import { checked, errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
 const icon = (extra: string): string => `${MINIMAL}
   glyph:
@@ -124,3 +124,61 @@ test("an icon takes icon: or slot:, not both, and slot: must be declared", () =>
   const neither = errors(slotIcon("").replace("    slot: left\n", ""));
   assert.ok(neither.some((d) => /needs one of 'icon' or 'slot'/.test(d.message)), neither.map((d) => d.message).join("\n"));
 });
+
+const FACE_FONT = `
+  fonts:
+    reading: { face: [BionicSemiBold, RobotoCondensedBold], size: 11%r }
+`;
+
+/** A data element on slot `left`, with a `face:` font declared beside the palette. */
+const curvedData = (extra: string, targets = "[fenix8solar47mm]"): string => `${MINIMAL
+  .replace("targets: [fenix8solar47mm]", `targets: ${targets}`)
+  .replace("resources:\n", `resources:${FACE_FONT}`)
+  .replace("elements:", `${SLOT}elements:`)}
+  value:
+    type: data
+    slot: left
+    font: font.reading
+    at: {anchor: center}
+    color: color.fg
+${extra}`;
+
+const RADIAL = "    curve: {style: radial, angle: -46deg, radius: 80%r}\n    align: left\n";
+
+test("a curved reading draws through drawRadialText or drawAngledText, in a face: font", () => {
+  const radial = method(view(curvedData(RADIAL)), "drawValue");
+  assert.match(radial, /var textFont = _fontReading;\s+if \(textFont != null\) \{/);
+  assert.match(radial, /dc\.drawRadialText\(Layout\.VALUE_CX, Layout\.VALUE_CY, textFont, text,\s+Graphics\.TEXT_JUSTIFY_LEFT \| Graphics\.TEXT_JUSTIFY_VCENTER, Layout\.VALUE_ANGLE, Layout\.VALUE_RADIUS,\s+Graphics\.RADIAL_TEXT_DIRECTION_CLOCKWISE\);/);
+  const angled = method(view(curvedData("    curve: {style: angled, angle: 30deg}\n")), "drawValue");
+  assert.match(angled, /dc\.drawAngledText\(Layout\.VALUE_CX, Layout\.VALUE_CY, textFont, text,/);
+});
+
+test("a radial reading's box is its sector at the rim, not a box round the centre", () => {
+  const r = resolved(curvedData(RADIAL));
+  const p = r.items.find((item) => item.id === "value")!;
+  const [cx, cy] = [r.device.width / 2, r.device.height / 2];
+  assert.ok(p.box.right < cx && p.box.bottom < cy, `box ${JSON.stringify(p.box)} sits in the upper left quarter`);
+});
+
+test("an upright reading takes a face: font too", () => {
+  assert.deepEqual(errors(curvedData("")).map((d) => d.message), []);
+  assert.match(method(view(curvedData("")), "drawValue"), /if \(textFont != null\) \{/);
+});
+
+test("curve: needs a face: font, and takes no icon:", () => {
+  const baked = errors(curvedData(RADIAL).replace("font: font.reading", "font: FONT_SMALL"));
+  assert.ok(baked.some((d) => /only support scalable fonts/.test(d.message + d.notes.join(" "))), baked.map((d) => d.message).join("\n"));
+  const icon = errors(curvedData(`${RADIAL}    icon: {size: 10%r}\n`));
+  assert.ok(icon.some((d) => /a curved reading takes no 'icon:' here/.test(d.message)), icon.map((d) => d.message).join("\n"));
+});
+
+test("a device with no vector fonts is a build error, or with unsupported: hide, leaves the reading out", () => {
+  const both = "[fenix8solar47mm, fenix6]";
+  const refused = checked(curvedData(RADIAL, both)).filter((d) => d.severity === "error");
+  assert.ok(refused.some((d) => d.code === "font-unavailable" && /fenix6/.test(d.message)), refused.map((d) => d.message).join("\n"));
+  const hidden = checked(curvedData(`${RADIAL}    unsupported: hide\n`, both)).filter((d) => d.severity === "error");
+  assert.deepEqual(hidden.map((d) => d.message), []);
+  const baked = errors(curvedData("    unsupported: hide\n").replace("font: font.reading", "font: FONT_SMALL"));
+  assert.ok(baked.some((d) => /'unsupported:' is not accepted here/.test(d.message)), baked.map((d) => d.message).join("\n"));
+});
+

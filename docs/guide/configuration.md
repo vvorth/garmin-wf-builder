@@ -407,6 +407,14 @@ Instead:
   but because the pair is measured on the device, its alignment arithmetic
   runs there too, for every icon `position:`, rather than moving a
   build-time box (the same runtime exception as the centring above).
+* **`font:`** is a system font, a baked font, or a `face:` (vector) font.
+  A `face:` font is resident on the watch, so nothing is baked for the
+  reading's characters. It draws only on the devices that publish the face,
+  and `unsupported: error | hide` on the element or the font says what to
+  do elsewhere ([Fonts](fonts.md#unsupported--and-what-error-actually-promises));
+  hidden, the element draws nothing there, its icon included.
+* **`curve:`** bends the reading along a line or round a circle: see
+  [A curved reading](#a-curved-reading-curve) below.
 * A `data` element **cannot be static** (its reading changes every frame,
   and the wearer can repoint it at any time) -- an error, naming why.
 * **`on_hold:`** accepts exactly one value here: **`auto`**. Touch and hold
@@ -421,6 +429,45 @@ Instead:
   slot currently shows, bind a plain `text`/`icon` element to the matching
   `complication.<name>` source and put `on_hold: <name>` there instead. No
   `on_hold:` at all is a legitimate choice -- holding does nothing.
+
+#### A curved reading: `curve:`
+
+```yaml
+resources:
+  fonts:
+    reading: { face: [BionicSemiBold, RobotoCondensedBold], size: 11%r }
+
+elements:
+  left_value:
+    type: data
+    slot: left
+    font: font.reading                 # a face: font, as curve: on text requires
+    at: { anchor: center }             # radial: the centre of the circle
+    curve: { style: radial, angle: -46deg, radius: 80%r }
+    align: left                        # the run starts at -46deg and runs clockwise
+    color: color.fg
+    absent: { text: "--" }
+```
+
+`curve:` takes the same keys, with the same rules, as on a `text` element
+([Text: `curve:`](text.md#curve--rotated-and-radial-text)): `style: angled`
+turns the reading about `at:` by `angle:`, and `style: radial` runs it
+round a circle centred on `at:`, starting at `angle:` (12 o'clock = 0,
+clockwise), `radius:` out. `align:` says which end of the run sits at
+`angle:`; a radial `align: bottom` puts the baseline on the circle, and an
+angled one is an error. The `label:`, `unit:` and `short:` text is one
+string, drawn curved as a whole.
+
+* `font:` must be a `face:` font: `drawAngledText`/`drawRadialText` refuse
+  any other, so 44 of 136 watch-face devices can draw it
+  ([Fonts](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)).
+* A curved reading takes **no `icon:`**. Draw the slot's icon as its own
+  element, [`type: icon` with `slot:`](icons.md#a-slots-icon-slot), placed and
+  turned (`rotate:`) to sit beside the run.
+* The lints see the run's real shape (a sector of a ring, or a turned
+  rectangle), sized from the widest reading any choice could draw; the
+  native editor's highlight and the `on_hold:` region are that shape's
+  box.
 
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice

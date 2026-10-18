@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slices 1–2 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–3 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -179,7 +179,7 @@ red-then-green test for each new diagnostic.
 - The native editor's slot highlight (`SlotDrawable`) covers every
   element bound to the slot, as it already does for a slot gauge.
 
-### Slice 3 — `face:` fonts and `curve:` on `type: data`
+### Slice 3 — `face:` fonts and `curve:` on `type: data`: done
 
 - Drop the `complication-slot` error that refuses a `face:` font. A
   vector font is resident on the device, so the "bake every character any

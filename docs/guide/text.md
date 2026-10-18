@@ -449,6 +449,9 @@ and `bottom` mean depends on `style:`:
   falls on the "down" side, as an upright `top` puts the whole line below
   its anchor. `center` needs no adjustment; it is `VCENTER`, as above.
 
+A slot's reading takes the same `curve:`: see [The Data
+axis](configuration.md#a-curved-reading-curve).
+
 `unsupported:` (`error`/`hide`, see [Fonts](fonts.md#fonts)) works exactly the same
 way on a curved element as on any other `face:`-font `text` element, and can
 still be set on the element to override the font's own value outright.

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { load as loadDesign } from "../src/build.ts";
+import { load as loadDesign, resolveAll, selectDevices } from "../src/build.ts";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { Bag, type Diagnostic } from "../src/diagnostics.ts";
 import { drawnText } from "../src/draw/index.ts";
@@ -34,6 +34,14 @@ export function face(text: string): Face {
   const [f, bag] = load(text);
   assert.ok(f !== null, bag.render());
   return f;
+}
+
+/** Every diagnostic a build reports before codegen: loading, then each target resolved and linted, then the cross-target checks. */
+export function checked(text: string): Diagnostic[] {
+  const [f, bag] = load(text);
+  assert.ok(f !== null, bag.render());
+  resolveAll(f, selectDevices(f, db, bag), bag, (face, device) => bakeFonts(face, device, read));
+  return bag.items;
 }
 
 export function errors(text: string): Diagnostic[] {

@@ -313,7 +313,8 @@ export class ElementTree extends StaticPass {
         });
       return false;
     }
-    if (node.has("unsupported") && !inSubscreen && node.get("type") !== "text") {
+    // A text or data element's `unsupported:` also governs its `face:` font, checked by its kind.
+    if (node.has("unsupported") && !inSubscreen && node.get("type") !== "text" && node.get("type") !== "data") {
       this.bag.error("subscreen", `${str(node.get("id"))}: 'unsupported:' is not accepted here`,
         this.doc.span(node, "unsupported") ?? span, {
           notes: ["on this element it governs 'at: {anchor: subscreen}' on a target "

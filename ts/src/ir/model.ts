@@ -829,6 +829,8 @@ export class DataElement extends Element {
   slot = "";
   font = "FONT_SMALL";
   font_is_custom = false;
+  /** `curve:`: the reading drawn along a line or round a circle, in a `face:` font. */
+  curve: Curve | null = null;
   icon_size: Length | null = null;
   color: Expression | null = null;
   icon_position = "left";

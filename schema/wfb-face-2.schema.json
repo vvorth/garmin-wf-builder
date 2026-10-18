@@ -2765,6 +2765,10 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "curve": {
+          "description": "Draws the reading along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText, exactly as 'curve:' on a 'text' element. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry. Takes no 'icon:': draw the slot's icon as its own 'type: icon' with 'slot:'.",
+          "$ref": "#/$defs/curve"
+        },
         "type": {
           "const": "data"
         },
