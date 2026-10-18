@@ -195,6 +195,7 @@ and `hold-overlap` warns.
 ## See also
 
 - [`examples/features/complications/face.yaml`](../../examples/features/complications/face.yaml) — `on_hold:` naming a complication type directly, and `on_hold: auto`.
+- [`examples/features/curved-slot/face.yaml`](../../examples/features/curved-slot/face.yaml) — two slot groups, each with `on_hold: auto` following the slot inside it.
 - [Configuration → The Data axis](configuration.md#the-data-axis) — a `data` element's own `on_hold: auto`, resolved on-device rather than at build time.
 - [Analog hands](analog-hands.md) — `seconds:`, the other mode-dependent choice on the analog dial.
 - [Always-on display](always-on-display.md) — `aod:`, the AMOLED sleep frame.

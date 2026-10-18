@@ -1,0 +1,181 @@
+# A curved slot: one wearer-picked metric drawn as three separate pieces
+# round the bezel (docs/guide/icons.md, "A slot's icon: `slot:`";
+# docs/guide/configuration.md, "A curved reading: `curve:`";
+# docs/guide/modes-and-interaction.md, "`on_hold: auto`").
+#
+# Each half of the dial is one `config: slots:` slot, and every piece of it
+# follows the wearer's pick:
+#
+# * a segmented `gauge` with `slot:` round the edge, filled against the
+#   picked metric's own scale (a pick with no scale, the weather, hides it);
+# * a `type: icon` with `slot:`: the picked metric's glyph, turned with
+#   `rotate:` to stand along the bezel. A turned icon is baked already
+#   turned, so its edge is as clean as an upright one's;
+# * a `type: data` reading with `curve: {style: radial}` in a `face:` font,
+#   running round the circle from where the icon stands. A curved reading
+#   takes no `icon:` of its own, which is why the icon is its own element.
+#
+# `left` reads clockwise along the upper left, glyphs facing out. `right`
+# mirrors it along the lower right with `direction: counter_clockwise`, so
+# its glyphs face in and it reads right side up at the bottom of the dial.
+#
+# Each slot's pieces sit in a `type: group` with `on_hold: auto`: the group
+# holds exactly one slot, so touch and hold anywhere in its half opens the
+# glance of whatever the wearer picked there, read fresh on every hold.
+# Each group covers one half of the dial, so the two hold regions do not
+# overlap; its inner edge's middle (`anchor: right` in the left half,
+# `anchor: left` in the right) is the dial's centre, which every piece is
+# placed round. The icon stands at the reading's own radius, just before
+# the run starts, turned to the tangent there (`rotate:` equal to its
+# angle facing out, its angle minus 180deg facing in).
+#
+# Curved text needs a device-resident vector font: fenix8solar47mm/51mm
+# resolve `font.reading` to BionicSemiBold, fr955 to RobotoCondensedBold.
+# A device with neither cannot build this face (no fallback is drawn).
+#
+# What is verified: this design builds warning-free on all three targets,
+# and `wfb preview` draws each pick in place. How the reading's run lines
+# up with the turned icon on a real watch, and the hold, are not.
+#
+# Build it with:    ./wfb build examples/features/curved-slot/face.yaml
+# Preview it with:  ./wfb preview examples/features/curved-slot/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 5e2d9c47-8a13-4b6f-9c70-1f4e3a8b2d66
+  name: Feature Curved Slot
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  fonts:
+    reading:
+      face: [BionicSemiBold, RobotoCondensedBold]
+      size: 18%r
+
+  # 64-colour MIP safe: each channel 00/55/AA/FF.
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
+    track: "#555555"
+    left: "#00AAFF"
+    right: "#FFAA00"
+
+config:
+  slots:
+    left:
+      default: steps
+      choices: [steps, floors_climbed, body_battery, stress, current_weather]
+    right:
+      default: body_battery
+      choices: [body_battery, heart_rate, battery, stress, current_weather]
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -4% }
+    color: color.fg
+
+  today:
+    type: text
+    text: "{date.today:%a %e}"
+    font: FONT_TINY
+    at: { anchor: center, dy: 14% }
+    color: color.dim
+
+  # -- left: clockwise along the upper left, glyphs facing out --------------
+
+  left_slot:
+    type: group
+    size: { width: 50%, height: 100% }   # the left half: its right edge is the dial's centre
+    at: { anchor: left }
+    align: left
+    on_hold: auto
+    children:
+      left_ring:
+        type: gauge
+        slot: left
+        style: segments
+        at: { anchor: right }
+        radius: 93.5%r
+        thickness: 6%r
+        start_angle: 360deg
+        sweep: -180deg
+        count: 12
+        gap: 5%r
+        color: color.left
+        track_color: color.track
+        absent: hide
+      left_glyph:
+        type: icon
+        slot: left
+        size: 12%r
+        rotate: -58deg               # tangent at -58deg, glyph facing out
+        at: { anchor: right, angle: -58deg, radius: 80%r }
+        color: color.left
+      left_value:
+        type: data
+        slot: left
+        font: font.reading
+        at: { anchor: right }
+        curve: { style: radial, angle: -50deg, radius: 80%r }
+        align: left
+        color: color.fg
+        absent: { text: "--" }
+
+  # -- right: counter-clockwise along the lower right, glyphs facing in -----
+
+  right_slot:
+    type: group
+    size: { width: 50%, height: 100% }   # the right half: its left edge is the dial's centre
+    at: { anchor: right }
+    align: right
+    on_hold: auto
+    children:
+      right_ring:
+        type: gauge
+        slot: right
+        style: segments
+        at: { anchor: left }
+        radius: 93.5%r
+        thickness: 6%r
+        start_angle: 0deg
+        sweep: 180deg
+        count: 12
+        gap: 5%r
+        color: color.right
+        track_color: color.track
+        absent: hide
+      right_glyph:
+        type: icon
+        slot: right
+        size: 12%r
+        rotate: -22deg               # tangent at 158deg, glyph facing in
+        at: { anchor: left, angle: 158deg, radius: 80%r }
+        color: color.right
+      right_value:
+        type: data
+        slot: right
+        font: font.reading
+        at: { anchor: left }
+        curve: { style: radial, angle: 150deg, radius: 80%r, direction: counter_clockwise }
+        align: left
+        color: color.fg
+        absent: { text: "--" }

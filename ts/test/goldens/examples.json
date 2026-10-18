@@ -1290,6 +1290,130 @@
    }
   }
  },
+ "examples/features/curved-slot/face.yaml": {
+  "diagnostics": "",
+  "projects": {
+   "targets": {
+    "manifest.xml": "77b41d938447e6d6b4bd8a88be42bbbf",
+    "monkey.jungle": "f11fc18b5976c4fa51105396e0f0a404",
+    "resources/strings/strings.xml": "419f34593af78aabeecd4325a441e1f6",
+    "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
+    "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
+    "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
+    "source-fenix8solar47mm/Layout.mc": "4471b43987189613789785cd94d3c0f8",
+    "source-fenix8solar51mm/Layout.mc": "9764f304acf1373a257caa0647d5f04b",
+    "source-fr955/Layout.mc": "cfaee015c14365829961d3300b9ea183",
+    "source/IconGlyphs.mc": "4f7891f51fed3478d6268dea5e5af0e4",
+    "source/FeatureCurvedSlotView.mc": "b22c057fa745270b538523af3f836af4",
+    "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
+    "source/SlotText.mc": "1dd074880ec01721cd9716838920226b",
+    "source/SlotScale.mc": "6381b24c2e0cbb6ee6005b56fc4e12c7",
+    "source/FeatureCurvedSlotDelegate.mc": "a2cd87283d04e82410d780c0fff247d9",
+    "source/FeatureCurvedSlotConfigMenuDelegate.mc": "8bc205f29f868eb3f489c4688ed89f12",
+    "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
+    "runtime-lib/WfbComplications.mc": "d975e35ad57537e42e935db68ff0307f",
+    "runtime-lib/WfbProfileScale.mc": "c0d3b082841981f590a66c6a28b4e68c",
+    "runtime-lib/WfbReading.mc": "1b382051b100cfee76cd202db21f0613",
+    "runtime-lib/WfbScale.mc": "79898f0c3945497f0c3993838df9596b",
+    "runtime-lib/WfbWeather.mc": "0f489658f124163dcf34e285cd8c58e1",
+    "resources-fenix8solar47mm/fonts/fonts.xml": "a9f0d0172d236026cc97276f00457acd",
+    "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
+    "resources-fenix8solar47mm/configs/watchface.xml": "eb8508c8ec5f09dda100b6c2856ff195",
+    "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_left_r302.fnt": "d30119e2abd9257931255b6badb2914a",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_r338.fnt": "a03698fc6f163ef116dc9a488afadca1",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_r338.png": "ea206da1d4396d130965a038e0d58c8e",
+    "resources-fenix8solar51mm/fonts/fonts.xml": "c1b0e64a8f83ce0559ba3f915ff03162",
+    "resources-fenix8solar51mm/drawables/drawables.xml": "f116d6ad42d7159051c79e17776e9a72",
+    "resources-fenix8solar51mm/configs/watchface.xml": "eb8508c8ec5f09dda100b6c2856ff195",
+    "resources-fenix8solar51mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_left_r302.fnt": "30ca38f43bdd86e84ced39bc998cfe80",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_left_r302.png": "a8b98f0e7742887e3042057d0d368392",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_r338.fnt": "d88e2bf0d0e74c0b8e83c70ac83c0d36",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_r338.png": "4067a40f053aeba1e2bf1b1cb57620cc",
+    "resources-fr955/fonts/fonts.xml": "a9f0d0172d236026cc97276f00457acd",
+    "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
+    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr955/fonts/icon_12pctr_slot_left_r302.fnt": "d30119e2abd9257931255b6badb2914a",
+    "resources-fr955/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
+    "resources-fr955/fonts/icon_12pctr_slot_right_r338.fnt": "a03698fc6f163ef116dc9a488afadca1",
+    "resources-fr955/fonts/icon_12pctr_slot_right_r338.png": "ea206da1d4396d130965a038e0d58c8e"
+   },
+   "amoled-mix": {
+    "refused": [
+     "font-unavailable: left_value: 'font: font.reading' has no usable face on fenix6, fr245",
+     "font-unavailable: right_value: 'font: font.reading' has no usable face on fenix6, fr245"
+    ]
+   },
+   "fenix9-mix": {
+    "manifest.xml": "abf691c8088a6e7044d6d73617e41b10",
+    "monkey.jungle": "c4a2227ef6e19d98f4b9330b96c0a9eb",
+    "resources/strings/strings.xml": "419f34593af78aabeecd4325a441e1f6",
+    "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
+    "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
+    "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
+    "source-fenix947mm/Layout.mc": "edac54328f8d238581e1768b4ff11e2f",
+    "source-fr955/Layout.mc": "cfaee015c14365829961d3300b9ea183",
+    "source/IconGlyphs.mc": "4f7891f51fed3478d6268dea5e5af0e4",
+    "source/FeatureCurvedSlotView.mc": "ddad1a3e327b5efb838bc3ec5acebff4",
+    "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
+    "source/SlotText.mc": "1dd074880ec01721cd9716838920226b",
+    "source/SlotScale.mc": "6381b24c2e0cbb6ee6005b56fc4e12c7",
+    "source/FeatureCurvedSlotDelegate.mc": "a2cd87283d04e82410d780c0fff247d9",
+    "source/FeatureCurvedSlotConfigMenuDelegate.mc": "8bc205f29f868eb3f489c4688ed89f12",
+    "runtime-lib/WfbArc.mc": "e814d0750ebed4759f7141e70919c05b",
+    "runtime-lib/WfbComplications.mc": "d975e35ad57537e42e935db68ff0307f",
+    "runtime-lib/WfbProfileScale.mc": "c0d3b082841981f590a66c6a28b4e68c",
+    "runtime-lib/WfbReading.mc": "1b382051b100cfee76cd202db21f0613",
+    "runtime-lib/WfbScale.mc": "79898f0c3945497f0c3993838df9596b",
+    "runtime-lib/WfbWeather.mc": "0f489658f124163dcf34e285cd8c58e1",
+    "resources-fenix947mm/fonts/fonts.xml": "8af2e54b93696ef4bbb65c65aa427e17",
+    "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
+    "resources-fenix947mm/configs/watchface.xml": "eb8508c8ec5f09dda100b6c2856ff195",
+    "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_left_r302.fnt": "c43b17147c7d0903ed1a90d58dc3df0e",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_left_r302.png": "d70f642d8d98dff5f51ac6bf12f00e8b",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_right_r338.fnt": "271cf0d880b7f4035b99565e5c07c34a",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_right_r338.png": "a97f05e5547588d2d33ccf6087ebeec8",
+    "resources-fr955/fonts/fonts.xml": "a9f0d0172d236026cc97276f00457acd",
+    "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
+    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr955/fonts/icon_12pctr_slot_left_r302.fnt": "d30119e2abd9257931255b6badb2914a",
+    "resources-fr955/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
+    "resources-fr955/fonts/icon_12pctr_slot_right_r338.fnt": "a03698fc6f163ef116dc9a488afadca1",
+    "resources-fr955/fonts/icon_12pctr_slot_right_r338.png": "ea206da1d4396d130965a038e0d58c8e"
+   }
+  },
+  "previews": {
+   "default": {
+    "fenix8solar47mm": "25077aac6db3ead5d5a68edb24c77239",
+    "fenix8solar51mm": "6f3d05ecabf6f40f3ebab0f3559994d9",
+    "fr955": "e027d9cbe6096e102f74c1898231ffdc"
+   },
+   "asleep": {
+    "fenix8solar47mm": "25077aac6db3ead5d5a68edb24c77239",
+    "fenix8solar51mm": "6f3d05ecabf6f40f3ebab0f3559994d9",
+    "fr955": "e027d9cbe6096e102f74c1898231ffdc"
+   },
+   "time": {
+    "fenix8solar47mm": "cf9309fa2412ffdfa632b01a0bafee5a",
+    "fenix8solar51mm": "f30075186a850d5834dc2b8bea9c075d",
+    "fr955": "1427eb1346104ce8cc4d41a1102d4485"
+   },
+   "all-styles": {
+    "fenix8solar47mm": "refused: 'Feature Curved Slot' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
+    "fenix8solar51mm": "refused: 'Feature Curved Slot' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
+    "fr955": "refused: 'Feature Curved Slot' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
+   },
+   "aod": {
+    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+   },
+   "aod-minute-7": {
+    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+   }
+  }
+ },
  "examples/features/gauge/face.yaml": {
   "diagnostics": "examples/features/gauge/face.yaml:44:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   44 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/gauge/face.yaml:44:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   44 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/gauge/face.yaml:44:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   44 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {

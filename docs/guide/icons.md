@@ -194,7 +194,10 @@ chooses its own: from the picked type, by the slot's catalogue icons and
 its per-choice `icon:` overrides, with a weather type's icon following the
 pulled condition. It is the icon of a slot on its own, placed and turned
 freely, beside the slot's [gauge](progress-and-graphs.md#gauges-on-a-slot)
-and its `type: data` reading drawn without an `icon:`.
+and its `type: data` reading drawn without an `icon:`
+([`examples/features/curved-slot`](../../examples/features/curved-slot/face.yaml)
+puts all three round the bezel; its screenshot is in
+[A curved reading](configuration.md#a-curved-reading-curve)).
 
 * `icon:` and `slot:` both choose the glyph, so an element takes one or
   the other; both is an error.
