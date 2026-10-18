@@ -8,7 +8,9 @@ back here.
 
 ## Open
 
-None.
+| Plan | Status |
+|---|---|
+| [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; D1–D8 decided |
 
 ## Built and deleted
 
