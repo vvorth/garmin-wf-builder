@@ -55,11 +55,11 @@ export function resolved(text: string, deviceId = "fenix8solar47mm"): ResolvedFa
 }
 
 /** The generated project's files for `deviceIds` (the design's targets when null). */
-export function generated(text: string, deviceIds: string[] | null = null): Map<string, string> {
+export function generated(text: string, deviceIds: string[] | null = null, { trace = false }: { trace?: boolean } = {}): Map<string, string> {
   const f = face(text);
   const devices = (deviceIds ?? f.targets).map((id) => db.get(id));
   const out = new Map<string, string>();
-  for (const [name, content] of generate(f, devices, read).files()) if (typeof content === "string") out.set(name, content);
+  for (const [name, content] of generate(f, devices, read, { trace }).files()) if (typeof content === "string") out.set(name, content);
   return out;
 }
 

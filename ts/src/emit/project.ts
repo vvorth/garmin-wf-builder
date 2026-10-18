@@ -16,6 +16,7 @@ import { emitSlotDrawable, emitSlotText } from "./monkeyc/data.ts";
 import { emitDelegate } from "./monkeyc/delegate.ts";
 import { emitLayout } from "./monkeyc/layout_constants.ts";
 import * as slotScale from "./monkeyc/slot_scale.ts";
+import { traced } from "./monkeyc/trace.ts";
 import { emitView } from "./monkeyc/view.ts";
 import { bakeFonts, buildBundle, bundleFiles, type FontReader, type ResourceBundle, sharedStrings } from "./resources.ts";
 import * as strhash from "./strhash.ts";
@@ -79,8 +80,9 @@ export class GeneratedProject {
  * fonts baked through `read`.
  */
 export function generate(face: Face, devices: Device[], read: FontReader,
-  { baked = null, resolved = null, profile = null }: {
+  { baked = null, resolved = null, profile = null, trace = false }: {
     baked?: ReadonlyMap<string, Map<string, BakedFont>> | null; resolved?: ReadonlyMap<string, ResolvedFace> | null; profile?: number | null;
+    trace?: boolean;
   } = {}): GeneratedProject {
   const project = new GeneratedProject(face, devices);
   const guards = computeGuards(face, devices);
@@ -111,6 +113,7 @@ export function generate(face: Face, devices: Device[], read: FontReader,
   }
   if (needsDelegate(face)) project.sources.push(checkShared(project, (r) => emitDelegate(r, guards)));
   if (guards.config_menu) project.sources.push(configMenu.emitDelegates(face));
+  if (trace) project.sources = project.sources.map(traced);
   project.barrel = [...usage.barrelModules(project.sources.map((s) => s.text))].sort();
   avoidStringLabelCollisions(project);
   return project;

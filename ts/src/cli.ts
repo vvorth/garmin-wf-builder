@@ -180,6 +180,7 @@ const COMMAND_LIST: readonly Command[] = [
       flags: ["--profile"], type: INT, bare: DEFAULT_PROFILE_REPS, metavar: "REPS",
       help: `time every element's draw on the watch and show the average per call over it (default: ${DEFAULT_PROFILE_REPS} repetitions per sample) -- a build for measuring, not for wearing`,
     },
+    { flags: ["--trace"], kind: "flag", help: "print a line (System.println) at every lifecycle and config-editor callback the face gets, with the watch's milliseconds -- read it with `wfb simulate --follow`, or on a watch from GARMIN/APPS/LOGS/<PRG NAME>.TXT (create it empty first); a build for measuring, not for wearing" },
     { flags: ["-j", "--jobs"], type: POSITIVE_INT, metavar: "N", help: `compile up to N devices at once (default: one per device, at most one per CPU and at most ${MAX_DEFAULT_JOBS})` },
     { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
@@ -212,6 +213,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["-o", "--output"], default: DEFAULT_OUTPUT, help: `build directory (default: ${DEFAULT_OUTPUT})` },
     { flags: ["--screenshot"], help: "capture the simulator window to this PNG" },
     { flags: ["-f", "--follow"], kind: "flag", help: "stay attached and print the face's console output (System.println) until Ctrl-C" },
+    { flags: ["--trace"], kind: "flag", help: "print a line (System.println) at every lifecycle and config-editor callback the face gets, with the watch's milliseconds -- read it with `wfb simulate --follow`, or on a watch from GARMIN/APPS/LOGS/<PRG NAME>.TXT (create it empty first); a build for measuring, not for wearing" },
     { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
     DEVICES_DIR,
@@ -406,7 +408,7 @@ async function buildCommand(args: Namespace): Promise<number> {
     output: args["output"] as string, bag, devicesOnly: (args["devices"] as string[] | null) ?? null,
     db: discoverDb(args["devices_dir"] as string | null),
     toolchain: Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null),
-    compilePrg: !args["no_compile"], profile: args["profile"] as number | null, jobs: args["jobs"] as number | null,
+    compilePrg: !args["no_compile"], profile: args["profile"] as number | null, trace: Boolean(args["trace"]), jobs: args["jobs"] as number | null,
   });
   const verboseFlag = Boolean(args["verbose"]);
   let shown = bag;
@@ -662,7 +664,7 @@ async function simulateCommand(args: Namespace): Promise<number> {
   const device = (args["device"] as string | null) ?? null;
   const result = await runBuild(args["design"] as string, {
     output: args["output"] as string, bag, devicesOnly: device ? [device] : null,
-    db: discoverDb(args["devices_dir"] as string | null), toolchain, compilePrg: true,
+    db: discoverDb(args["devices_dir"] as string | null), toolchain, compilePrg: true, trace: Boolean(args["trace"]),
   });
   printBag(bag, Boolean(args["verbose"]));
   if (toolchain === null || result === null || result.products.size === 0) {

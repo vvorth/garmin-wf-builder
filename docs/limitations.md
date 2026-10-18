@@ -560,10 +560,15 @@ still true of the shipped feature:
   (`$CIQ_SDK/doc/Toybox/Timer/Timer.html`). The editor's own power mode
   is undocumented. The frozen second hand was still drawn, and an awake-only
   second hand is hidden once `onEnterSleep` runs, so the face had not been
-  told it was asleep. **UNVERIFIED on a watch:** that the ticker runs in
-  the editor, and that a redraw coinciding with a tick cannot hold the skip
-  (the "Done" redraw arriving between a tick and its `onUpdate` would keep
-  the slot hidden until the editor's next move). Measured on
+  told it was asleep. **It does not work yet, seen on a fēnix 8
+  (2026-10-18):** while a slot, or one of its choices, is pulsing, the
+  second hand still stands still. Whether the ticker never starts, is
+  stopped (`onHide`), or ticks while the editor ignores the redraws it asks
+  for is not yet known; `wfb build --trace` logs each of those
+  (`docs/guide/preview-and-cli.md`, "Tracing"). Also unverified: that a
+  redraw coinciding with a tick cannot hold the skip (the "Done" redraw
+  arriving between a tick and its `onUpdate` would keep the slot hidden
+  until the editor's next move). Measured on
   `examples/features/slots/face.yaml` and `examples/features/config/face.yaml`,
   `fenix8solar47mm`: +90 B data and about +250 B code each. Without these, the selected slot was drawn
   by nobody: seen on a fenix8solar47mm, it vanished while selected, showed

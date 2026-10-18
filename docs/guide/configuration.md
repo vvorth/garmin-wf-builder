@@ -579,12 +579,11 @@ module (`fenix5`/`fenix5x`, and fenix6/fr245 for the menu too) the slot
 shows its absent state instead of any default; see `api-gated` below for
 that fact from the slot's own side, reported independently.
 
-**The native editor's preview keeps time.** The editor redraws the face only
-when the wearer moves through it, so a face it started redraws itself once a
-second, the awake frame's rate, while it is awake: a second hand keeps
-sweeping while the wearer scrolls a slot's choices or holds a step. Nothing
-in the YAML turns this on; every face with a `config:` block has it, and it
-never runs outside the editor (see [Limitations](../limitations.md)).
+**The native editor's preview does not keep time yet.** The editor redraws
+the face only when the wearer moves through it. A face it started asks for a
+redraw once a second while it is awake, but on a fēnix 8 the second hand
+still stands still while a slot or one of its choices is pulsing (see
+[Limitations](../limitations.md)). Nothing in the YAML changes this.
 
 ### The settings menu, on a watch without the native editor
 

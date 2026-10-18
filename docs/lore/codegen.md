@@ -519,6 +519,16 @@ These cost real time to discover; do not rediscover them.
   draw order), so the shared view and each device's `PROF_X`/`PROF_Y`
   anchors in `Layout` agree.
 
+- **`wfb build --trace` (`ts/src/emit/monkeyc/trace.ts`) is a pass over
+  the finished sources**, not an emitter option: it opens each callback its
+  table names (by file suffix and function name) with a `System.println`,
+  waiting past a multi-line signature until its parentheses balance (the
+  delegate's `onWatchFaceConfigEdited` takes a dictionary type whose brace
+  opens first), and adds `import Toybox.System;` where missing. It runs
+  before the string-label collision pass, which then sees its literals.
+  Removing the lines gives back the plain build byte for byte
+  (`ts/test/edit-preview.test.ts`).
+
 - **`aod: {outline: ...}` on a `text` element: the ring is one more AOD
   override, but not a ternary alone, because a ring can exist in one frame
   and not the other.** `ts/src/kinds/text.ts` reads one decision,

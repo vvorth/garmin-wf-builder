@@ -48,8 +48,9 @@ or AOD-related has been observed on a watch or in the simulator.
   `config: slots:` drawn by `type: data`, a gauge or an icon with `slot:`
   (all three round the bezel in `examples/features/curved-slot/`);
   one `color.<name>` namespace for
-  swatches and roles; the native editor's preview redraws once a second
-  while awake. `docs/guide/configuration.md`, `styles-and-layouts.md`.
+  swatches and roles; a face the native editor started asks for a redraw
+  once a second (not yet seen to reach the screen while a slot pulses).
+  `docs/guide/configuration.md`, `styles-and-layouts.md`.
 - **A slot's reading per complication type** — times of day, durations,
   paces, rounded temperatures, hours, `K` counts and condition names,
   following the watch's units and clock; `unit:` adds each type's unit and
@@ -135,6 +136,10 @@ or AOD-related has been observed on a watch or in the simulator.
   grown in the preview as on the watch (research 28 §7). What still
   differs from the watch is in `docs/limitations.md`.
   `docs/development.md`, "Element kinds".
+- **Measuring builds** — `wfb build --profile` (each element's draw time
+  and code size, `ts/src/emit/monkeyc/profile.ts`) and `--trace` (a
+  `System.println` opening every lifecycle and config-editor callback,
+  `ts/src/emit/monkeyc/trace.ts`). `docs/guide/preview-and-cli.md`.
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`frameInSkin` in `ts/src/preview.ts`); a device without a skin renders the bare

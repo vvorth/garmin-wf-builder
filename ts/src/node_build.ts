@@ -172,9 +172,9 @@ export function writeProject(project: GeneratedProject, root: string, clean = tr
 }
 
 /** Build `path` into `output`. `jobs` is how many `monkeyc`s run at once. */
-export async function build(given: string, { output, bag, devicesOnly = null, db, toolchain = null, compilePrg = true, clean = true, profile = null, jobs = null, read = readFontFile }: {
+export async function build(given: string, { output, bag, devicesOnly = null, db, toolchain = null, compilePrg = true, clean = true, profile = null, trace = false, jobs = null, read = readFontFile }: {
   output: string; bag: Bag; devicesOnly?: string[] | null; db: DeviceDatabase; toolchain?: Toolchain | null; compilePrg?: boolean;
-  clean?: boolean; profile?: number | null; jobs?: number | null; read?: FontReader;
+  clean?: boolean; profile?: number | null; trace?: boolean; jobs?: number | null; read?: FontReader;
 }): Promise<BuildResult | null> {
   const started = performance.now();
   const path = pathStr(given);
@@ -185,7 +185,7 @@ export async function build(given: string, { output, bag, devicesOnly = null, db
   const [resolved] = resolveAll(face, devices, bag, (f, device) => bakeFonts(f, device, read));
   if (!bag.ok()) return null;
   const buildDir = resolve(output, slug(face.name));
-  const project = generate(face, devices, read, { resolved, profile });
+  const project = generate(face, devices, read, { resolved, profile, trace });
   for (const d of project.divergences) {
     bag.error("shared-source", `internal error: the shared ${d.path} differs between ${d.first} and ${d.other}`, null, {
       notes: [

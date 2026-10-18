@@ -68,3 +68,26 @@ test("a face with no config has no ticker", () => {
   const files = generated(MINIMAL + SECONDS, ["fenix8solar47mm"]);
   for (const text of files.values()) assert.doesNotMatch(text, /Timer|_editMode|onEditTick/);
 });
+
+test("--trace opens every lifecycle and editor callback with a println, and nothing else changes", () => {
+  const plain = generated(SLOTS, ["fenix8solar47mm", "fr955"]);
+  const traced = generated(SLOTS, ["fenix8solar47mm", "fr955"], { trace: true });
+  const line = (text: string, fn: string): RegExp => new RegExp(`function ${fn}\\([^]*?\\{\\n\\s*System\\.println\\("wfb " \\+ System\\.getTimer\\(\\) \\+ " [A-Za-z]+\\.${fn}"`);
+  const app = file(traced, "App.mc"), view = file(traced, "View.mc"), delegate = file(traced, "Delegate.mc");
+  assert.match(app, line(app, "onStart"));
+  assert.match(app, /^import Toybox\.System;$/m);
+  for (const fn of ["initialize", "onLayout", "onShow", "onHide", "onUpdate", "onEnterSleep", "onExitSleep", "startEditTicks", "onEditTick", "setPulsing", "drawableFor"]) {
+    assert.match(view, line(view, fn), fn);
+  }
+  assert.match(method(view, "onUpdate"), /" pulsing=" \+ _pulsing/);
+  // a multi-line signature: the line lands in the body, past the options' own brace
+  assert.match(delegate, /:committed as \$\.Toybox\.Lang\.Boolean\}\) as Void \{\n\s*System\.println\([^\n]*onWatchFaceConfigEdited" \+ " type=" \+ options\[:type\]/);
+  assert.match(file(traced, "SlotDrawable.mc"), /System\.println\([^\n]*SlotDrawable\.draw"/);
+  // the config menu's delegates are not traced, and removing the lines gives back the plain build
+  assert.doesNotMatch(file(traced, "ConfigMenuDelegate.mc"), /println/);
+  for (const [name, text] of traced) {
+    const untraced = text.split("\n").filter((l) => !/System\.println\("wfb "/.test(l)).join("\n");
+    assert.equal(untraced.replace(/\nimport Toybox\.System;/, plain.get(name)!.includes("import Toybox.System;") ? "\nimport Toybox.System;" : ""), plain.get(name), name);
+  }
+  for (const text of plain.values()) assert.doesNotMatch(text, /println\("wfb /);
+});
