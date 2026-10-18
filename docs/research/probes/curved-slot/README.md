@@ -13,12 +13,14 @@ watch face that differ in **exactly one class**, `ProbePair`, so the
 | **c** | what does the curved path cost? | **+70 B data / +486 B code** on `fenix8solar47mm` and `fr955` (baseline 508 / 494, curved 578 / 980). `.prg` +1,008 B. |
 | **d** | does it draw right? | **Partly.** On the user's host simulator (`fenix8solar47mm`, 2026-10-18) the first version crashed: `drawBitmap2` throws `Source must not use a color palette` for a `BufferedBitmap` created with `:palette`. The buffer is now full-colour. The gap question ("On the host" below) is still open. |
 
-## The two variants
+## The variants
 
 | variant | `ProbePair` draws |
 |---|---|
 | `variant-baseline` | what `type: data` draws today: a baked icon glyph and a `FONT_SMALL` reading, upright, centred together from their measured widths |
 | `variant-curved` | three fixed readings, `1`, `1234` and `12345678`, each with `drawRadialText` in `RobotoCondensedBold` 28 px, clockwise from 150° (Garmin's convention) on circles of 80%, 60% and 40% of the half-width; after each, the icon at the angle the reading's measured width puts it, rotated to stand on the circle through a full-colour `BufferedBitmap` (no `:palette`: see **d**) and `drawBitmap2`'s `:transform` |
+
+| `variant-gap` (`gap.jungle`) | the gap question alone: the same three readings, and two thin red radial ticks just outside each, at the angles its measured width predicts for the run's start and end. No bitmap, no transform. Not part of the cost comparison |
 
 The "icon" is the `Clock` sheet from `../vector-fonts` (glyph `8`): any baked
 font exercises the same draw path, so the probe does not vendor the icon font.
@@ -35,22 +37,23 @@ done; done
 
 ## On the host
 
-The open behavioural questions (research 35 §6) are answered by running the
-`curved` variant on `fenix8solar47mm` in the host simulator:
+The gap question is answered by the `gap` variant, one still frame on
+`fenix8solar47mm` in the host simulator:
 
 ```sh
-monkeyc -f curved.jungle -d fenix8solar47mm -o curved.prg -y ~/ciq/developer_key.der -w
-connectiq && monkeydo curved.prg fenix8solar47mm
+monkeyc -f gap.jungle -d fenix8solar47mm -o gap.prg -y ~/ciq/developer_key.der -w
+connectiq && monkeydo gap.prg fenix8solar47mm
 ```
 
-One still frame answers it. Look for:
+Each row's digits should sit exactly between its two red ticks. If the
+digits stop short of the second tick, or run past it, and more so on the
+longer rows, the device lays a run out to a different length than
+`getTextWidthInPixels` measures.
 
-- **The gap.** Each of the three rows draws its digits round a circle,
-  then an `8` where the compiler predicts the run ends, plus a 6 px gap.
-  If the watch lays a run out to the length `getTextWidthInPixels`
-  measures, the gap between the last digit and the `8` is the same on all
-  three rows. If the `8` overlaps the last digit, or the gap grows with
-  the length of the row, the run's drawn length differs from the measured
-  width.
-- The `8`'s background drawn transparent, not a white or black square.
+The `curved` variant (an icon turned at runtime through `drawBitmap2`)
+cannot answer it: its 68 px marker hides the runs, and where
+`drawBitmap2`'s `:transform` places a bitmap is itself undocumented. Its
+own questions, run the same way with `curved.jungle`:
+
+- The `8`'s background drawn transparent, not a square.
 - The `8` standing on the circle (its top towards the edge), not upright.
