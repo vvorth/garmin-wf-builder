@@ -12,7 +12,7 @@ import type { Face } from "../ir/model.ts";
 import { alignmentShift, DATA_ICON_GAP, dataPairGeometry, longer, type Placed, PlacedData, type Resolver } from "../layout.ts";
 import { formatG, quoted, str, truthy } from "../py.ts";
 import * as units from "../units.ts";
-import { Box, IntBox, roundPx as round } from "../units.ts";
+import { Box, IntBox, type Length, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 import {
   AodRestyled, Assign, Bin, Blank, Cmp, Comment, type Cond, Const, type DrawContext, Font, FontHeight, If, IsPulsing, Let, Lit,
@@ -79,13 +79,40 @@ function textGlyphs(element: DataElement, face: Face): Set<string> {
 
 const byKey = (a: icons.SlotIcon, b: icons.SlotIcon): number => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
-/** The slot's multi-glyph icon font, or `null` when none of its choices has an icon. */
-function iconRun(element: DataElement, face: Face): TextRun | null {
-  if (element.icon_size === null) return null;
-  const slot = face.config_data.get(element.slot);
-  if (slot === undefined) return null;
+/** The glyph a slot's icon font is sized and measured by: the default choice's, else the first by name; `null` with no icons. */
+export function slotReferenceGlyph(slot: ConfigDataSlot | undefined): string | null {
+  if (slot === undefined || slot.icons.size === 0) return null;
+  return (slot.icons.get(slot.default) ?? [...slot.icons.values()].sort(byKey)[0]!).codepoint;
+}
+
+/** The icon font key of slot `slotName` at this size, anti-aliasing and turn: one font however many elements draw it. */
+export function slotIconFontKey(slotName: string, size: Length | null, antialias: boolean, turn = 0): string {
+  return icons.fontKey(size, `slot_${slotName}`, antialias, turn);
+}
+
+/** The sample frame's icon for `shown`: its catalogue glyph, or a weather type's for the sample condition. */
+export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown): string | null {
+  const icon = slot.icons.get(shown);
+  if (icon === undefined) return null;
+  if (slot.conditionIcons.has(shown) && typeof sample === "number" && Number.isInteger(sample)) {
+    return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(sample) ?? "weather_unknown")!.codepoint;
+  }
+  return icon.codepoint;
+}
+
+/** The sample reading a slot showing `shown` draws on the host. */
+export function slotSample(shown: string): unknown {
+  const ctype = complications.TYPES.get(shown)!;
+  return DATA_SAMPLE.has(ctype.name) ? DATA_SAMPLE.get(ctype.name) : (ctype.value_type !== "string" ? 12 : "--");
+}
+
+/** A slot's multi-glyph icon font, or `null` when none of its choices has an icon. */
+export function slotIconRun(label: string, face: Face, slotName: string, size: Length | null, antialias: boolean, turn: number,
+  span: Span | null): TextRun | null {
+  const slot = face.config_data.get(slotName);
+  const reference = slotReferenceGlyph(slot);
+  if (slot === undefined || reference === null) return null;
   const mapped = slot.icons;
-  if (mapped.size === 0) return null;
   const codepoints = new Set([...mapped.values()].map((si) => si.codepoint));
   const table = new Map([...mapped.values()].map((si): [string, string] => [si.key, si.codepoint]));
   if (slot.conditionIcons.size > 0) {
@@ -94,10 +121,8 @@ function iconRun(element: DataElement, face: Face): TextRun | null {
     for (const name of icons.GARMIN_WEATHER_CONDITION_ICON.values()) table.set(name, icons.CATALOG.get(name)!.codepoint);
   }
   const glyphs = [...codepoints].sort(comparePoints).join("");
-  const reference = mapped.get(slot.default) ?? [...mapped.values()].sort(byKey)[0]!;
-  const key = icons.fontKey(element.icon_size, `slot_${element.slot}`, element.resolved_antialias);
-  return new TextRun(`${element.id}.icon`, key, {
-    span: element.span, icon: new IconFont(element.icon_size, glyphs, reference.codepoint, element.resolved_antialias), glyph_table: table,
+  return new TextRun(label, slotIconFontKey(slotName, size, antialias, turn), {
+    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table,
   });
 }
 
@@ -227,7 +252,8 @@ class DataKind extends ElementKind<DataElement> {
   override textRuns(element: DataElement, face: Face): TextRun[] {
     const runs: TextRun[] = [];
     if (element.font_is_custom) runs.push(new TextRun(element.id, element.font, { glyphs: textGlyphs(element, face), span: element.span }));
-    const icon = iconRun(element, face);
+    const icon = element.icon_size === null ? null
+      : slotIconRun(`${element.id}.icon`, face, element.slot, element.icon_size, element.resolved_antialias, 0, element.span);
     if (icon !== null) runs.push(icon);
     return runs;
   }
@@ -239,18 +265,10 @@ class DataKind extends ElementKind<DataElement> {
     const textWidth = font.width(widest), lineHeight = font.lineHeight;
     let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
     if (element.icon_size !== null) {
-      const slot = r.face.config_data.get(element.slot);
-      let referenceGlyph: string | null = null;
-      if (slot !== undefined) {
-        const mapped = slot.icons;
-        if (mapped.size > 0) {
-          const reference = mapped.get(slot.default) ?? [...mapped.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))[0]!;
-          referenceGlyph = reference.codepoint;
-        }
-      }
+      const referenceGlyph = slotReferenceGlyph(r.face.config_data.get(element.slot));
       if (referenceGlyph !== null) {
         iconPx = units.pixelSize(element.icon_size, r.device.minorRadius);
-        iconFontKey = icons.fontKey(element.icon_size, `slot_${element.slot}`, element.resolved_antialias);
+        iconFontKey = slotIconFontKey(element.slot, element.icon_size, element.resolved_antialias);
         const iconFont = r.fonts.get(iconFontKey);
         iconWidth = iconFont !== undefined ? iconFont.measure(referenceGlyph)[0] : iconPx;
       }
@@ -391,7 +409,7 @@ class DataKind extends ElementKind<DataElement> {
     const slot = face.config_data.get(element.slot)!;
     const shown = ctx.shown(slot);
     const ctype = complications.TYPES.get(shown)!;
-    const sample = DATA_SAMPLE.has(ctype.name) ? DATA_SAMPLE.get(ctype.name) : (ctype.value_type !== "string" ? 12 : "--");
+    const sample = slotSample(shown);
     const guarded = ctx.complications_guarded;
     const ops: Op[] = [
       Comment("the editor is animating this exact slot right now -- skip it, or the"),
@@ -404,15 +422,7 @@ class DataKind extends ElementKind<DataElement> {
     ];
     let iconFont: Font | null = null;
     if (p.icon_font_key !== null) {
-      const icon = slot.icons.get(shown);
-      let glyph: string | null = null;
-      if (icon !== undefined) {
-        glyph = icon.codepoint;
-        if (slot.conditionIcons.has(shown) && typeof sample === "number" && Number.isInteger(sample)) {
-          glyph = icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(sample) ?? "weather_unknown")!.codepoint;
-        }
-      }
-      ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded, glyph));
+      ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded, slotSampleGlyph(slot, shown, sample)));
       iconFont = Font("iconFont", { baked: p.icon_font_key });
     }
     let code: string;

@@ -10,7 +10,7 @@ import type { Common, SchemaPath } from "../../kinds/base.ts";
 import * as kinds from "../../kinds/index.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../../kinds/shape.ts";
 import { quoted, str, truthy } from "../../py.ts";
-import { DataElement, type Element, Expression, HOLD_AUTO, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
+import { type Element, Expression, HOLD_AUTO, holdSlot, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
 import { elementConstPrefix, elementMethodName } from "../naming.ts";
 import { ringGroups } from "../rings.ts";
 import type { Builder } from "./index.ts";
@@ -362,9 +362,9 @@ export class ElementTree extends StaticPass {
     return null;
   }
 
-  /** Resolve `on_hold: auto` once the element is fully built; a `data` element keeps it for the device. */
+  /** Resolve `on_hold: auto` once the element is fully built; one following a slot keeps it for the device. */
   private resolveHoldAuto(element: Element): void {
-    if (element instanceof DataElement) return;
+    if (holdSlot(element) !== null) return;
     if (element.on_hold === HOLD_AUTO) {
       element.on_hold = this.resolveAutoTarget(element.id, "on_hold", ElementTree.holdAutoSources(element), element.span);
     }

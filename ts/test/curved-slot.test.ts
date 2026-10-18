@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PlacedIcon } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
-import { MINIMAL, resolved } from "./designs.ts";
+import { errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
 const icon = (extra: string): string => `${MINIMAL}
   glyph:
@@ -51,4 +51,76 @@ test("the preview pastes a turned glyph where drawText puts it, not at its grown
   }
   assert.ok(p.box.x < p.cell!.x, "the box grew past the cell");
   assert.ok(Math.abs(x0 - left) <= 1 && Math.abs(y0 - top) <= 1, `ink at ${x0},${y0}; drawText puts it at ${left},${top}`);
+});
+
+const SLOT = `
+config:
+  slots:
+    left:
+      default: steps
+      choices: [steps, stress, current_weather, { type: heart_rate, icon: { codepoint: "U+F04CE" } }]
+`;
+
+const slotIcon = (extra: string): string => `${MINIMAL.replace("elements:", `${SLOT}elements:`)}
+  glyph:
+    type: icon
+    slot: left
+    size: 20%r
+    at: {anchor: center}
+    color: color.fg
+${extra}`;
+
+/** The lit pixels of one preview frame, showing slot `left` as `pick`. */
+function lit(text: string, pick: string): string {
+  const frame = render(resolved(text), previewOptions({ scale: 1, picks: [["left", pick]] }));
+  return Array.from({ length: frame.width * frame.height }, (_, i) => (frame.data[i * 4]! > 128 ? "1" : "0")).join("");
+}
+
+test("an icon with slot: draws the icon of whatever the wearer picked", () => {
+  const steps = lit(slotIcon(""), "steps"), stress = lit(slotIcon(""), "stress");
+  assert.ok(steps.includes("1") && stress.includes("1"), "both picks draw");
+  assert.notEqual(steps, stress);
+  const v = view(slotIcon(""));
+  assert.match(method(v, "iconForGlyph"), /COMPLICATION_TYPE_HEART_RATE: return "U\+F04CE";/);
+  assert.match(method(v, "drawGlyph"), /var iconName = iconForGlyph\(chosenId.getType\(\), pulled\);/);
+});
+
+test("an icon with slot: is drawn by the editor's slot drawable, and turns", () => {
+  const v = view(slotIcon("    rotate: 30deg"));
+  assert.match(method(v, "drawSlotLeft"), /drawGlyph\(dc\);/);
+  assert.match(method(v, "drawGlyph"), /_fontIcon20pctrSlotLeftR30/);
+});
+
+test("a slot icon and a data element's icon of one size share one font", () => {
+  const text = `${slotIcon("")}
+  value:
+    type: data
+    slot: left
+    at: {anchor: center, dy: 30%r}
+    icon: {size: 20%r}
+    color: color.fg
+`;
+  const keys = new Set(resolved(text).items.flatMap((p) => {
+    const q = p as unknown as { font_key?: string; icon_font_key?: string | null };
+    return [q.font_key, q.icon_font_key].filter((k): k is string => typeof k === "string");
+  }));
+  assert.deepEqual([...keys], ["icon_20pctr_slot_left"]);
+});
+
+test("on_hold: auto on a slot icon opens the pick's glance; a fixed target is refused", () => {
+  const files = generated(slotIcon("    on_hold: auto"));
+  const delegate = [...files].find(([name]) => name.endsWith("Delegate.mc"))![1];
+  assert.match(delegate, /Complications\.exitTo\(_view\.holdTargetForGlyph\(\)\);/);
+  assert.match(view(slotIcon("    on_hold: auto")), /function holdTargetForGlyph\(\) as Complications\.Id \{\s+return _configDataLeft;/);
+  const refused = errors(slotIcon("    on_hold: heart_rate"));
+  assert.ok(refused.some((d) => d.code === "on-hold" && /only accepts 'auto'/.test(d.message)), refused.map((d) => d.message).join("\n"));
+});
+
+test("an icon takes icon: or slot:, not both, and slot: must be declared", () => {
+  const both = errors(slotIcon("    icon: steps"));
+  assert.ok(both.some((d) => /'icon:' and 'slot:' both choose the glyph/.test(d.message)), both.map((d) => d.message).join("\n"));
+  const unknown = errors(slotIcon("").replace("slot: left\n    size", "slot: right\n    size"));
+  assert.ok(unknown.some((d) => /unknown slot 'right'/.test(d.message)), unknown.map((d) => d.message).join("\n"));
+  const neither = errors(slotIcon("").replace("    slot: left\n", ""));
+  assert.ok(neither.some((d) => /needs one of 'icon' or 'slot'/.test(d.message)), neither.map((d) => d.message).join("\n"));
 });

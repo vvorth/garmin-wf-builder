@@ -803,6 +803,8 @@ export class IconElement extends Element {
   color: Expression | null = null;
   /** `rotate:`, clockwise from upright; `null` draws it upright. */
   rotate: Angle | null = null;
+  /** `slot:`, a `config: slots:` name: the glyph follows the wearer's pick. */
+  slot: string | null = null;
 
   static create(init: Partial<IconElement>): IconElement { return make(IconElement, init); }
 
@@ -963,6 +965,15 @@ export function drawnCopies(count: number, skip: readonly number[], skipEvery: n
 export function slotOf(element: Element): string | null {
   if (element instanceof DataElement) return element.slot;
   if (element instanceof Gauge) return element.slot;
+  if (element instanceof IconElement) return element.slot;
+  return null;
+}
+
+/** The slot whose current pick `on_hold: auto` opens, read on the watch at every hold; `null` when the target is fixed. */
+export function holdSlot(element: Element): string | null {
+  if (element.on_hold !== HOLD_AUTO) return null;
+  if (element instanceof DataElement) return element.slot;
+  if (element instanceof IconElement) return element.slot;
   return null;
 }
 

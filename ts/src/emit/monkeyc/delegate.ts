@@ -5,7 +5,7 @@
 // WatchFace config mode", and serves only the native editor's highlight.
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
-import { DataElement } from "../../ir/model.ts";
+import { holdSlot } from "../../ir/model.ts";
 import { dataHoldMethod } from "../../ir/naming.ts";
 import type { ResolvedFace } from "../../layout.ts";
 import { Writer } from "../writer.ts";
@@ -121,8 +121,9 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
         const bit = gated.indexOf(element);
         const shownTest = bit >= 0 ? ` && (_view.${HOLDS_SHOWN} & ${maskLiteral((1 << bit) >>> 0)}) != 0` : "";
         const condition = hitTest(`${prefix}_HOLD`, layoutTest + shownTest);
-        if (element instanceof DataElement) {
-          w.comment(`\`${element.id}\` -> whatever the wearer picked for slot ${element.slot}`);
+        const followed = holdSlot(element);
+        if (followed !== null) {
+          w.comment(`\`${element.id}\` -> whatever the wearer picked for slot ${followed}`);
           w.block(condition, () => {
             if (guards.complications) {
               w.line(`var id = _view.${dataHoldMethod(element.id)}();`);

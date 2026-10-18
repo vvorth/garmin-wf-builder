@@ -7,13 +7,13 @@ import { Device } from "../../devices/device.ts";
 import * as drawProgram from "../../draw/index.ts";
 import { frameMembers } from "../../draw/frames.ts";
 import type { Expression, Face } from "../../ir/model.ts";
-import { HOLD_AUTO } from "../../ir/model.ts";
+import { HOLD_AUTO, holdSlot } from "../../ir/model.ts";
 import {
   configDataIds, configField, elementMethodName as method, elementRingMethod, fontResourceId, localName, staticGroupMethod,
 } from "../../ir/naming.ts";
 import { type RingGroup, ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
-import { type Placed, PlacedData, PlacedGraph, PlacedHands, type ResolvedFace } from "../../layout.ts";
+import { type Placed, PlacedData, PlacedGraph, PlacedHands, PlacedIcon, type ResolvedFace } from "../../layout.ts";
 import * as vocab from "../../vocab.ts";
 import * as usage from "../usage.ts";
 import { Writer } from "../writer.ts";
@@ -257,8 +257,12 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     if (plan.complicationReaders().length > 0) emitComplicationCallback(w);
     for (const graph of graphs) emitGraphRebuild(w, graph, guards);
     for (const placed of resolved.items) {
-      if (placed instanceof PlacedData && placed.icon_font_key !== null) emitDataIconMethod(w, resolved, placed);
-      if (placed instanceof PlacedData && placed.element.on_hold === HOLD_AUTO) emitDataHoldMethod(w, placed, guards);
+      if (placed instanceof PlacedData && placed.icon_font_key !== null) emitDataIconMethod(w, resolved, placed.id, placed.element.slot);
+      if (placed instanceof PlacedIcon && placed.element.slot !== null && resolved.fonts.has(placed.font_key)) {
+        emitDataIconMethod(w, resolved, placed.id, placed.element.slot);
+      }
+      const followed = holdSlot(placed.element);
+      if (followed !== null) emitDataHoldMethod(w, placed.id, followed, guards);
     }
     if (slots.length > 0) emitDataEditorMethods(w, resolved, plan, slots);
     if (statics !== null) emitStaticMethods(w, face, statics, aaDefault, face.hasConfig, guards.config_menu, plan, rings);

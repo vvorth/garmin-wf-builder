@@ -4,7 +4,7 @@ import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
 import type { Face } from "../../ir/model.ts";
 import { configField, dataHoldMethod, dataIconMethod, elementMethodName } from "../../ir/naming.ts";
-import type { PlacedData, ResolvedFace } from "../../layout.ts";
+import type { ResolvedFace } from "../../layout.ts";
 import type { Writer as WriterType } from "../writer.ts";
 import { Writer } from "../writer.ts";
 import { dataElements, type EditorSlot, header, type SourceFile } from "./common.ts";
@@ -281,30 +281,28 @@ export function emitSlotText(face: Face): SourceFile {
   return { path: `source/${SLOT_TEXT_MODULE}.mc`, text: w.render() };
 }
 
-/** `holdTargetFor<Id>()`: the public getter `on_hold: auto` on a data element compiles to. */
-export function emitDataHoldMethod(w: WriterType, placed: PlacedData, guards: Guards = NO_GUARDS): void {
-  const element = placed.element;
-  const field = configField(`data_${element.slot}`);
+/** `holdTargetFor<Id>()`: the public getter `on_hold: auto` on an element following slot `slot` compiles to. */
+export function emitDataHoldMethod(w: WriterType, elementId: string, slot: string, guards: Guards = NO_GUARDS): void {
+  const field = configField(`data_${slot}`);
   const returnType = guards.complications ? "Complications.Id?" : "Complications.Id";
   w.blank();
-  w.doc(`\`${element.id}\`'s current pick, for the delegate's 'on_hold: auto' ->\n`
+  w.doc(`\`${elementId}\`'s current pick, for the delegate's 'on_hold: auto' ->\n`
     + "Complications.exitTo.  Whatever the wearer has this slot pointed at right\n"
     + "now, read fresh -- never a fixed type baked in at build time.");
-  w.block(`function ${dataHoldMethod(element.id)}() as ${returnType}`, () => w.line(`return ${field};`));
+  w.block(`function ${dataHoldMethod(elementId)}() as ${returnType}`, () => w.line(`return ${field};`));
 }
 
-/** `iconFor<Id>(t)`: one slot's picked type to its icon's catalogue name. */
-export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, placed: PlacedData): void {
-  const element = placed.element;
-  const slot = resolved.face.config_data.get(element.slot)!;
+/** `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue name, for element `elementId`. */
+export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string): void {
+  const slot = resolved.face.config_data.get(slotName)!;
   const mapped = slot.icons;
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
   const follows = slot.conditionIcons;
   w.blank();
-  w.doc(`\`${element.id}\`'s icon, chosen from the wearer's picked type -- not from\n`
+  w.doc(`\`${elementId}\`'s icon, chosen from the wearer's picked type -- not from\n`
     + "the reading, so it still shows on a frame the reading could not be pulled.\n"
     + "A weather type's icon follows the pulled condition when there is one.");
-  w.block(`private function ${dataIconMethod(element.id)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
+  w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
     if (follows.size > 0) w.line("var value = (pulled != null) ? pulled.value : null;");
     w.block("switch (t)", () => {
       for (const name of names) {

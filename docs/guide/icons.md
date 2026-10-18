@@ -15,6 +15,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
 | `color:` | colour expression | — | [Colours](colors.md) |
@@ -167,6 +168,48 @@ turned ink, which can reach outside it (a tall glyph turned a quarter is
 wider than its advance). `rotate:` works with `icon: {for:}` (every glyph
 the lookup can return is turned alike) and with `outline:` (the ring is
 grown from the turned glyph).
+
+#### A slot's icon: `slot:`
+
+```yaml
+config:
+  slots:
+    left: { default: steps, choices: [steps, floors_climbed, body_battery, stress] }
+
+elements:
+  left_icon:
+    type: icon
+    slot: left                # instead of icon:
+    size: 10%r
+    rotate: -46deg
+    at: { anchor: center, dx: -64%r, dy: -48%r }
+    color: color.fg
+    on_hold: auto             # opens the glance of whatever is picked
+```
+
+`slot:` names a [`config: slots:`](configuration.md#the-data-axis) slot in
+place of `icon:`. The glyph is then the icon of whatever the wearer picked
+for that slot, chosen on the watch, exactly as a `type: data` element
+chooses its own: from the picked type, by the slot's catalogue icons and
+its per-choice `icon:` overrides, with a weather type's icon following the
+pulled condition. It is the icon of a slot on its own, placed and turned
+freely, beside the slot's [gauge](progress-and-graphs.md#gauges-on-a-slot)
+and its `type: data` reading drawn without an `icon:`.
+
+* `icon:` and `slot:` both choose the glyph, so an element takes one or
+  the other; both is an error.
+* The icon follows the picked *type*, not the reading, so it draws on a
+  frame the reading could not be pulled, as a data element's icon does. A
+  pick with no icon (a Connect IQ app's complication under `choices: any`,
+  or a choice with `icon: none`) draws nothing.
+* `on_hold:` accepts `auto` only: the glance of the current pick, read at
+  every hold. A fixed target would disagree with the icon the moment the
+  wearer picks something else.
+* The icon font holds every glyph the slot's choices can show, at this
+  element's `size:` and `rotate:`. A data element's icon of the same size
+  on the same slot shares the font.
+* The native editor's highlight for the slot covers this icon too, and the
+  editor draws it in each choice it previews.
 
 #### A dynamic icon: `icon: {for:}`
 

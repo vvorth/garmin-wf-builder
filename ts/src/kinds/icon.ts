@@ -4,7 +4,10 @@ import * as catalog from "../catalog.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
-import { type Element, type Face, IconElement } from "../ir/model.ts";
+import { type Element, type Face, HOLD_AUTO, IconElement } from "../ir/model.ts";
+import { configDataIds, configField, dataIconMethod } from "../ir/naming.ts";
+import { DATA_SAMPLE } from "../sample.ts";
+import { resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph } from "./data.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
 import { quoted, str } from "../py.ts";
@@ -12,8 +15,8 @@ import * as units from "../units.ts";
 import { Box, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
 import {
-  AodDimmed, AodRestyled, Blank, Comment, Const, type DrawContext, Font, Glyph, IconChoice, IfNotNull, LoadFont, type Op,
-  type Paint, RingColor, SetColor, Shifted, type Str, StrLit,
+  AodDimmed, AodRestyled, Blank, Comment, Const, type DrawContext, Font, Glyph, IconChoice, If, IfNotNull, IsPulsing, LoadFont, Local,
+  LocalsSet, type Op, type Paint, Return, RingColor, SetColor, Shifted, SlotIcon, SlotPull, type Str, StrLit,
 } from "../draw/program.ts";
 import { constPrefix, fontField } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
@@ -39,15 +42,19 @@ class IconKind extends ElementKind<IconElement> {
     const [cx, cy] = r.point(element.at, parent);
     // Independent of `parent`: an icon's font is baked once, before any box is resolved.
     const px = units.pixelSize(element.size, r.device.minorRadius);
-    let glyphKey: string, measureCodepoint: string;
-    if (element.isDynamic) {
+    let key: string, measureCodepoint: string;
+    if (element.slot !== null) {
+      // The glyph follows the wearer's pick; measure the one the slot's font is sized by.
+      key = slotIconFontKey(element.slot, element.size, element.resolved_antialias, element.turn);
+      measureCodepoint = slotReferenceGlyph(r.face.config_data.get(element.slot)) ?? icons.FALLBACK_CODEPOINT;
+    } else if (element.isDynamic) {
       // The real glyph is chosen on the device; measure the one `bakeSize` used.
-      glyphKey = icons.DYNAMIC_WEATHER_TAG;
+      key = icons.fontKey(element.size, icons.DYNAMIC_WEATHER_TAG, element.resolved_antialias, element.turn);
       measureCodepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH;
     } else {
-      glyphKey = measureCodepoint = element.codepoint;
+      key = icons.fontKey(element.size, element.codepoint, element.resolved_antialias, element.turn);
+      measureCodepoint = element.codepoint;
     }
-    const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     const font = r.fonts.get(key);
     const [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
@@ -67,7 +74,11 @@ class IconKind extends ElementKind<IconElement> {
     });
   }
 
-  override textRuns(element: IconElement): TextRun[] {
+  override textRuns(element: IconElement, face: Face): TextRun[] {
+    if (element.slot !== null) {
+      const run = slotIconRun(element.id, face, element.slot, element.size, element.resolved_antialias, element.turn, element.span);
+      return run !== null ? [run] : [];
+    }
     let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
     if (element.isDynamic) {
       // The glyph is chosen on the device, so the font holds every one it could be.
@@ -88,9 +99,11 @@ class IconKind extends ElementKind<IconElement> {
     const name = node.get("icon");
     const spec = name instanceof Map ? name : null;
     const dynamic = spec !== null && spec.has("for") ? spec : null;
+    if (node.has("slot")) return this.buildSlot(b, node, common);
     if (name === undefined || name === null) {
-      b.bag.error("icon", "an icon element needs one 'icon:'", b.doc.span(node), {
-        notes: ["'icon:' names a glyph from the built-in catalogue (run `wfb sources` for the list)",
+      b.bag.error("icon", "an icon element needs one 'icon:' or 'slot:'", b.doc.span(node), {
+        notes: ["'slot:' names a 'config: slots:' slot: the glyph follows whatever the wearer picks there",
+          "'icon:' names a glyph from the built-in catalogue (run `wfb sources` for the list)",
           "or is {codepoint: \"U+XXXX\"}, any codepoint in the icon font -- for "
           + "the ~10,000 glyphs the catalogue does not name",
           "or is {for: <expression>}, choosing one at runtime from a "
@@ -122,9 +135,71 @@ class IconKind extends ElementKind<IconElement> {
     return IconElement.create({ ...common, icon: name, codepoint, ...placement });
   }
 
+  /** `slot:` instead of `icon:`: the glyph of whatever the wearer picked for that slot. */
+  private buildSlot(b: Builder, node: Node, common: Common): Element {
+    const raw = str(node.get("slot"));
+    const slot = resolveSlotReference(b, raw, b.doc.span(node, "slot"));
+    if (node.has("icon")) {
+      b.bag.error("icon", `${common.id}: 'icon:' and 'slot:' both choose the glyph -- keep one`, b.doc.span(node, "icon"), {
+        notes: ["with 'slot:', the glyph is the icon of whatever the wearer picked for that slot, chosen on the watch",
+          "a per-choice icon is set in the slot's own 'choices:' list: { type: <name>, icon: <name> }"],
+      });
+    }
+    const size = b.bakedSizeLength(node, "size", { code: "icon", label: "icon size", note: ICON_SIZE_NOTE });
+    const [align, verticalAlign] = b.alignment(node);
+    const element = IconElement.create({
+      ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, slot: slot !== null ? slot.name : raw,
+      size, color: b.colorExpression(node, "color"), align, vertical_align: verticalAlign, rotate: b.angle(node, "rotate"),
+    });
+    if (element.on_hold !== null && element.on_hold !== HOLD_AUTO) {
+      // A fixed target would disagree with the slot the moment the wearer repoints it.
+      b.bag.error("on-hold", `${element.id}: 'on_hold:' on an icon with 'slot:' only accepts 'auto', not ${quoted(element.on_hold)}`,
+        b.doc.span(node, "on_hold"), {
+          notes: ["'on_hold: auto' opens the glance of whatever the wearer picked for this slot, read at every hold"],
+        });
+      element.on_hold = null;
+    }
+    return element;
+  }
+
+  /** A slot icon: pulled each frame, then drawn when the pick has a glyph. */
+  private lowerSlot(ctx: DrawContext, p: PlacedIcon): Op[] {
+    const element = p.element;
+    const face = ctx.resolved.face;
+    const slot = face.config_data.get(element.slot!)!;
+    const shown = ctx.shown(slot);
+    if (!ctx.resolved.fonts.has(p.font_key)) return [Comment(`no choice of slot ${element.slot} has an icon`)];
+    const ops: Op[] = [
+      Comment("the editor is animating this slot -- its drawable draws it (drawSlot)"),
+      If(IsPulsing(configDataIds(face).get(element.slot!)!), [Return()]),
+      Blank(),
+      Comment(`slot: ${element.slot} -- the icon of the wearer's pick`),
+      SlotPull(configField(`data_${element.slot}`), ctx.complications_guarded, DATA_SAMPLE.get(shown) ?? null),
+      SlotIcon(fontField(p.font_key), p.font_key, dataIconMethod(element.id), ctx.complications_guarded,
+        slotSampleGlyph(slot, shown, slotSample(shown))),
+    ];
+    const prefix = constPrefix(p.id);
+    const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
+    const glyph = Local("iconGlyph"), shownGlyph = LocalsSet(["iconGlyph", "iconFont"]);
+    const draw = (font: Font, dx = 0, dy = 0): Glyph =>
+      Glyph(Shifted(x, dx), Shifted(y, dy), font, glyph, p.justify, element.vertical_align, p.cell ?? p.innerBox, p.center);
+    const font = Font("iconFont", { baked: p.font_key });
+    const ringOps = (paint: Paint, width: number): Op[] => {
+      const baked = bakedRing(element, face, width);
+      if (baked === null) return [If(shownGlyph, [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(font, dx, dy))])];
+      const local = bakedRingLocal(width);
+      return [LoadFont(local, `_${fontField(baked)}`, { onNull: "none" }),
+        IfNotNull(local, [If(shownGlyph, [SetColor(paint), draw(Font(local, { baked }))])])];
+    };
+    if (ctx.ring !== null) return [...ops, ...ringOps(RingColor(), ctx.ring.width)];
+    if (element.outline !== null) ops.push(...ringOps(AodDimmed(element, element.outline.color), element.outline.width), Blank());
+    return [...ops, If(shownGlyph, [SetColor(AodRestyled(element, "color")), draw(font)])];
+  }
+
   override lower(ctx: DrawContext, placed: Placed): Op[] {
     const p = placed as PlacedIcon;
     const element = p.element;
+    if (element.slot !== null) return this.lowerSlot(ctx, p);
     const prefix = constPrefix(p.id);
     const font = Font("font", { baked: p.font_key });
     const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
@@ -163,6 +238,7 @@ class IconKind extends ElementKind<IconElement> {
 
   override describe(placed: Placed): string {
     const element = (placed as PlacedIcon).element;
+    if (element.slot !== null) return `the icon of slot ${quoted(element.slot)}'s pick`;
     if (element.value_for !== null) return `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
     return `the ${quoted(element.icon)} icon`;
   }

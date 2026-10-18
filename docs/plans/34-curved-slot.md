@@ -1,6 +1,6 @@
 # 34 — A curved slot: turned icons, `slot:` on an icon, a curved reading
 
-**Status: in progress. Slice 1 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
+**Status: in progress. Slices 1–2 done. D1–D8 decided (2026-10-18).** Delete this file once every slice has shipped
 (`docs/CLAUDE.md`).
 
 Research: `docs/research/35-curved-slot-reading.md`. In short:
@@ -163,7 +163,7 @@ red-then-green test for each new diagnostic.
 - Preview and `wfb studio` draw the baked sheet as they draw any sheet;
   the inspector gets `rotate:` from the schema.
 
-### Slice 2 — `slot:` on `type: icon`
+### Slice 2 — `slot:` on `type: icon`: done
 
 - `slot:` in place of `icon:`: the glyph is chosen on the watch from the
   picked type, by the same `switch` and per-choice overrides as the data

@@ -290,6 +290,8 @@ entries, not a bare reference and a mapping-form entry naming the same type.
 
 A gauge can draw a slot too, filled against the picked metric's own
 scale: see [Gauges on a slot](progress-and-graphs.md#gauges-on-a-slot).
+So can an icon, placed and turned on its own instead of beside the
+reading: see [A slot's icon](icons.md#a-slots-icon-slot).
 
 `type: data` draws one slot, naming it as `slot: <name>`. Unlike every
 other element, **which complication is showing is not known at build time**
