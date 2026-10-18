@@ -53,6 +53,7 @@ class IconKind extends ElementKind<IconElement> {
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
     let box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
+    const cell = element.turn !== 0 ? box.rounded() : null;
     const ink = element.turn !== 0 && font !== undefined ? font.glyphs.get(measureCodepoint) : undefined;
     if (ink !== undefined && ink.width > 0) {
       // A turned glyph's ink can leave its cell, so the box covers both.
@@ -62,7 +63,7 @@ class IconKind extends ElementKind<IconElement> {
     }
     return PlacedIcon.create({
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
-      anchor_point: [round(cx), round(cy)], justify: justify(element),
+      anchor_point: [round(cx), round(cy)], justify: justify(element), cell,
     });
   }
 
@@ -137,7 +138,7 @@ class IconKind extends ElementKind<IconElement> {
     }
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
     const draw = (face: Font, dx = 0, dy = 0): Glyph =>
-      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
+      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.cell ?? p.innerBox, p.center);
     const ringOps = (paint: Paint, width: number): Op[] => {
       const baked = bakedRing(element, ctx.resolved.face, width);
       if (baked === null) return [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(font, dx, dy))];

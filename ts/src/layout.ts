@@ -421,6 +421,8 @@ export class PlacedIcon extends Placed {
   codepoint = "?";
   anchor_point: [number, number] = [0, 0];
   justify: string[] = [];
+  /** A turned glyph's cell, where drawText puts it; `box` also covers ink that leaves it. `null` when upright. */
+  cell: IntBox | null = null;
 }
 
 export class PlacedGraph extends Placed {
