@@ -73,6 +73,17 @@ function needsThicknessConstant(element: Shape): boolean {
   return element.aod !== null && element.aod.filled === false;
 }
 
+/**
+ * Whether an outlined circle's pen width can differ between devices: a
+ * relative `thickness:` (or `aod:` thickness) resolves per screen, so it
+ * must be a `Layout` constant, as every other stroked shape's is. A `px`
+ * width is the same everywhere and stays a literal in the shared view.
+ */
+function circlePenVaries(element: Shape): boolean {
+  const relative = (length: { unit: string } | null | undefined): boolean => length != null && length.unit !== "px";
+  return relative(element.thickness) || relative(element.aod?.thickness);
+}
+
 /** The shapes whose `outline:` ring is one grown copy of the primitive. */
 const GROWN = new Set(["circle", "rectangle"]);
 
@@ -244,7 +255,7 @@ class ShapeKind extends ElementKind<Shape> {
 
     const thickness = (): AodPick => {
       const asleep = p.aod_thickness;
-      if (element.shape === "circle") return AodPick(Lit(p.thickness), asleep !== null ? Lit(asleep) : null);
+      if (element.shape === "circle" && !circlePenVaries(element)) return AodPick(Lit(p.thickness), asleep !== null ? Lit(asleep) : null);
       return AodPick(c("THICKNESS"), asleep !== null ? c("AOD_THICKNESS") : null);
     };
 
@@ -329,6 +340,7 @@ class ShapeKind extends ElementKind<Shape> {
     }
     if (element.shape === "circle") {
       out.push([`${prefix}_RADIUS`, p.radius, ""]);
+      if (circlePenVaries(element) && needsThicknessConstant(element)) out.push([`${prefix}_THICKNESS`, p.thickness, "pen width"], ...lc.aodThicknessConstant(prefix, p));
     } else if (element.shape === "line") {
       out.push([`${prefix}_END_X`, p.end[0], ""], [`${prefix}_END_Y`, p.end[1], ""], [`${prefix}_THICKNESS`, p.thickness, ""]);
       out.push(...lc.aodThicknessConstant(prefix, p));

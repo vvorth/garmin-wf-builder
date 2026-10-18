@@ -247,3 +247,31 @@ test("a data element's icon and text, in each position", () => {
     assert.equal(position === "left" || position === "right" ? alone.width : alone.height, position === "left" || position === "right" ? 30 : 14, position);
   }
 });
+
+test("an outlined circle's relative thickness is a per-device constant, so one view serves screens of different sizes", async () => {
+  // 3%r is 4 px on a 260 px fenix 8 and 7 px on a 454 px fenix 9: written as a
+  // literal pen width in the shared view, the two targets' views differed.
+  const { generate } = await import("../src/emit/project.ts");
+  const design = (thickness: string) => `
+format: 2
+face: { id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test }
+build: { targets: [fenix8solar47mm, fenix947mm] }
+resources: { palette: { bg: "#000000", fg: "#FFFFFF" } }
+elements:
+  ring: { type: circle, at: { anchor: center }, radius: 24%r, filled: false, thickness: ${thickness}, color: color.fg }
+`;
+  const views = (text: string) => {
+    const f = face(text);
+    const read = (p: string) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p));
+    const project = generate(f, f.targets.map((id) => db.get(id)), read);
+    const view = [...project.files()].find(([name]) => name.endsWith("View.mc"))![1] as string;
+    return { divergences: project.divergences, ring: view.split("function drawRing")[1]!.split("\n    }")[0]! };
+  };
+  const relative = views(design("3%r"));
+  assert.deepEqual(relative.divergences, []);
+  assert.match(relative.ring, /dc\.setPenWidth\(Layout\.RING_THICKNESS\);/);
+  // a px width is the same on every screen, so it stays the literal it always was
+  const absolute = views(design("3px"));
+  assert.deepEqual(absolute.divergences, []);
+  assert.match(absolute.ring, /dc\.setPenWidth\(3\);/);
+});
