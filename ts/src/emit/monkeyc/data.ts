@@ -28,9 +28,18 @@ export function emitPulsingField(w: WriterType): void {
   w.doc("Which slot the native editor is animating right now (a\n"
     + "config_data_ids unique id), or 0 for none.  Read by every element\n"
     + "drawing a slot so the system does not see it drawn twice while it\n"
-    + "pulses, and cleared after every onUpdate: the skip covers the one\n"
-    + "redraw that follows the editor's request for the drawable.");
+    + "pulses.  The editor says when a slot starts pulsing but not always\n"
+    + "when it stops (the move on to \"Done\" only redraws), so onUpdate\n"
+    + "lifts the skip at the second redraw of the editor's own: the first\n"
+    + "follows its request for the drawable, and the edit ticker's redraws\n"
+    + "are not the editor's.");
   w.line("private var _pulsing as Number = 0;");
+  w.blank();
+  w.doc("Whether the editor has asked for a drawable since its last redraw.");
+  w.line("private var _pulseFresh as Boolean = false;");
+  w.blank();
+  w.doc("Whether the redraw now pending is the edit ticker's.");
+  w.line("private var _editTick as Boolean = false;");
   w.blank();
 }
 
@@ -40,7 +49,10 @@ export function emitDataEditorMethods(w: WriterType, resolved: ResolvedFace, pla
   const placedById = new Map(resolved.items.map((p) => [p.id, p]));
   w.doc("The native editor is telling this view which slot it is about to animate,\nor, with 0, that none is being animated any more.\n\n"
     + "Only ever called from getComplicationDrawable and onWatchFaceConfigEdited,\nwhich fire solely inside the on-device config editor (research 07 1a).");
-  w.block("function setPulsing(unique as Number) as Void", () => w.line("_pulsing = unique;"));
+  w.block("function setPulsing(unique as Number) as Void", () => {
+    w.line("_pulsing = unique;");
+    w.line("_pulseFresh = unique != 0;");
+  });
   w.blank();
   for (const slot of slots) {
     const members = slot.elements.filter((e) => placedById.has(e.id)).map((e) => placedById.get(e.id)!);

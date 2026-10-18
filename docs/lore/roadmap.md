@@ -43,8 +43,8 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Configuration: all four native axes** — `accent_color`, `data_color`,
   Styles with `theme: schemes:` and `layouts:` (form A), the Data axis as
   `config: slots:` drawn by `type: data`; one `color.<name>` namespace for
-  swatches and roles. `docs/guide/configuration.md`,
-  `styles-and-layouts.md`.
+  swatches and roles; the native editor's preview redraws once a second
+  while awake. `docs/guide/configuration.md`, `styles-and-layouts.md`.
 - **A slot's reading per complication type** — times of day, durations,
   paces, rounded temperatures, hours, `K` counts and condition names,
   following the watch's units and clock; `unit:` adds each type's unit and

@@ -525,11 +525,28 @@ still true of the shipped feature:
   view's `drawSlot`, which lifts `_pulsing` for its own call, and the
   delegate clears `_pulsing` once an edit's `:type` is not a complication
   (null is the end of editing) — the SDK sample's `setVisible` dance and
-  `_editingComplication` reset. `onUpdate` also clears it after every frame,
-  so the skip covers one redraw: traced on a fenix8solar47mm, each move in
+  `_editingComplication` reset. Traced on a fenix8solar47mm, each move in
   the Data step asks for the drawable twice, draws it once and redraws the
-  face once (the face is not redrawn while a step is held), and the move
-  past the last slot to "Done" fires no callback, only a redraw. Without these, the selected slot was drawn
+  face once, the editor does not redraw the face while a step is held, and
+  the move past the last slot to "Done" fires no callback, only a redraw.
+  So `onUpdate` lifts the skip at the editor's second redraw after a
+  drawable request (`_pulseFresh`), deciding before it draws, and the edit
+  ticker's own redraws (below) are not counted. **A face the editor
+  started ticks once a second while awake** (`startEditTicks`), so its
+  second hand and seconds keep the active frame's rate instead of standing
+  still between the wearer's moves: a `Timer.Timer` that only asks for a
+  redraw, started in `onShow` and `onExitSleep`, stopped in `onHide` and
+  `onEnterSleep`, because `Timer.start` "will cause an app crash if called
+  from a watch face app while in low power mode"
+  (`$CIQ_SDK/doc/Toybox/Timer/Timer.html`). The editor's own power mode
+  is undocumented. The frozen second hand was still drawn, and an awake-only
+  second hand is hidden once `onEnterSleep` runs, so the face had not been
+  told it was asleep. **UNVERIFIED on a watch:** that the ticker runs in
+  the editor, and that a redraw coinciding with a tick cannot hold the skip
+  (the "Done" redraw arriving between a tick and its `onUpdate` would keep
+  the slot hidden until the editor's next move). Measured on
+  `examples/features/slots/face.yaml` and `examples/features/config/face.yaml`,
+  `fenix8solar47mm`: +90 B data and about +250 B code each. Without these, the selected slot was drawn
   by nobody: seen on a fenix8solar47mm, it vanished while selected, showed
   no preview while scrolling its choices, and stayed hidden until another
   slot was selected. Measured on `examples/features/slots/face.yaml` at a fixed path,

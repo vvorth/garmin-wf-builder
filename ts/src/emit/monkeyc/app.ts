@@ -6,20 +6,20 @@ import type { Face } from "../../ir/model.ts";
 import * as kinds from "../../kinds/index.ts";
 import { quoted } from "../../py.ts";
 import { Writer } from "../writer.ts";
-import { editorSlots, header, needsDelegate, type SourceFile } from "./common.ts";
+import { header, needsDelegate, type SourceFile } from "./common.ts";
 
 /** `source/<Face>App.mc`: the application entry point. */
 export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
   const needsIt = needsDelegate(face);
   const menu = guards !== null && guards.config_menu;
-  const hasSlots = editorSlots(face).length > 0;
+  const editable = face.hasConfig;
   const w = new Writer();
   w.doc(header(face)).blank();
   w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank();
   w.doc(`The application entry point for ${quoted(face.name)}.`);
-  const viewCtor = hasSlots ? `new ${face.entry}View(_editMode)` : `new ${face.entry}View()`;
+  const viewCtor = editable ? `new ${face.entry}View(_editMode)` : `new ${face.entry}View()`;
   w.block(`class ${face.entry}App extends Application.AppBase`, () => {
-    if (hasSlots) {
+    if (editable) {
       w.doc("Whether the watch face was started by the native config editor.\n"
         + "\n"
         + "Read exactly once, by getInitialView just below -- which is what keeps\nthis from being a written-but-never-read field (verified: "
@@ -35,7 +35,7 @@ export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
     }
     w.block("function initialize()", () => w.line("AppBase.initialize();"));
     w.blank();
-    if (hasSlots) {
+    if (editable) {
       w.doc("Detect edit mode before the initial view is retrieved -- the SDK's own\nConfigurationWatchFaceApp.onStart, verbatim.");
       w.block("function onStart(state as Dictionary?) as Void", () => {
         w.block("if (state != null)", () => {

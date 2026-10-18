@@ -212,6 +212,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
       emitPulsingField(w);
       emitResourcesLoadedField(w);
     }
+    if (face.hasConfig) emitEditTickerFields(w);
     if (needsSleepingField) {
       w.doc("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep below.\n\n"
         + "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
@@ -238,7 +239,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
       w.line(`var ${HOLDS_SHOWN} as Number = 0;`);
       w.blank();
     }
-    emitInitialize(w, face, slots.length > 0, guards);
+    emitInitialize(w, face, guards);
     if (aaDefault !== null) emitAntialiasHelper(w);
     if (face.hasConfig) emitApplyConfig(w, face, statics);
     if (guards.config_menu) {
@@ -252,6 +253,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     if (prof !== null) emitProfileOverlay(w, prof);
     if (hasPartialUpdate(resolved, guards)) emitOnPartialUpdate(w, resolved, plan, aaDefault, rings);
     emitSleepHooks(w, resolved, needsSleepingField, aod.on, guards, aodOnly);
+    if (face.hasConfig) emitEditTicker(w, slots.length > 0);
     if (plan.complicationReaders().length > 0) emitComplicationCallback(w);
     for (const graph of graphs) emitGraphRebuild(w, graph, guards);
     for (const placed of resolved.items) {
@@ -494,20 +496,14 @@ function emitResolveStyle(w: Writer, face: Face): void {
   w.blank();
 }
 
-function emitInitialize(w: Writer, face: Face, hasSlots: boolean, guards: Guards): void {
-  if (hasSlots) {
-    w.doc("`editMode` is accepted, not stored: getComplicationDrawable/onTap\n"
-      + "(the delegate) are self-gating -- the system simply never calls them\n"
-      + "outside the native editor -- and every complication here is pulled\n"
-      + "fresh every frame rather than cached or subscribed, so there is\n"
-      + "nothing else in this view for edit mode to change.  An unused\n"
-      + "*parameter* does not warn (verified, same as the delegate's own\n"
-      + "`view` parameter); a written-but-never-read *field* does (verified\n"
-      + "the other way -- \"Member variable '_editMode' is not used.\"), which\n"
-      + "is why AppBase.onStart's own flag is forwarded here rather than kept.");
+function emitInitialize(w: Writer, face: Face, guards: Guards): void {
+  if (face.hasConfig) {
+    w.doc("`editMode`: whether the native config editor started this face, which\n"
+      + "then keeps its preview ticking (startEditTicks).");
   }
-  w.block(hasSlots ? "function initialize(editMode as Boolean)" : "function initialize()", () => {
+  w.block(face.hasConfig ? "function initialize(editMode as Boolean)" : "function initialize()", () => {
     w.line("WatchFace.initialize();");
+    if (face.hasConfig) w.line("_editMode = editMode;");
     if (guards.complications && face.config_data.size > 0) {
       w.blank();
       w.comment("Toybox.Complications is absent on at least one target -- leave");
@@ -639,6 +635,15 @@ function emitOnUpdate(w: Writer, resolved: ResolvedFace, plan: ReadPlan, aod: bo
       + "both the asleep and awake branches below; an element that overrides the\n"
       + "default sets and restores it around its own drawing." : ""));
   w.block("function onUpdate(dc as Dc) as Void", () => {
+    if (hasSlots) {
+      w.comment("the editor's slot skip covers its own redraw after asking for the");
+      w.comment("drawable and the ticker's; its next (the move on to \"Done\") lifts it");
+      w.block("if (!_editTick)", () => {
+        w.block("if (_pulseFresh)", () => w.line("_pulseFresh = false;"));
+        w.block("else", () => w.line("_pulsing = 0;"));
+      });
+      w.line("_editTick = false;");
+    }
     w.line("dc.clearClip();");
     if (gatedHolds(resolved.face).length > 0) w.line(`${HOLDS_SHOWN} = 0;`);
     if (aaDefault !== null) w.line(`applyAntiAlias(dc, ${mcBool(aaDefault)});`);
@@ -647,12 +652,6 @@ function emitOnUpdate(w: Writer, resolved: ResolvedFace, plan: ReadPlan, aod: bo
       w.block("else", () => emitModeBody(w, resolved, plan, "active", statics, rings, profile));
     } else {
       emitModeBody(w, resolved, plan, "active", statics, rings, profile);
-    }
-    if (hasSlots) {
-      w.blank();
-      w.comment("the editor's slot skip covers this one redraw: its next move asks");
-      w.comment("for a drawable again, but moving on to \"Done\" only redraws");
-      w.line("_pulsing = 0;");
     }
   });
   w.blank();
@@ -888,8 +887,13 @@ function emitOnPartialUpdate(w: Writer, resolved: ResolvedFace, plan: ReadPlan, 
 }
 
 function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolean, aod: boolean, guards: Guards, aodOnly: string[]): void {
+  const editable = resolved.face.hasConfig;
   w.doc("Awake: full-power updates resume.");
   w.block("function onExitSleep() as Void", () => {
+    if (editable) {
+      w.line("_editAwake = true;");
+      w.line("startEditTicks();");
+    }
     if (needsSleeping) w.line("_sleeping = false;");
     if (aod) w.line("_aod = false;");
     for (const name of aodOnly) w.line(`_${aodFontField(name)} = null;`);
@@ -902,6 +906,11 @@ function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolea
   else doc = "Asleep: the next onUpdate draws the low-power layout.";
   w.doc(doc);
   w.block("function onEnterSleep() as Void", () => {
+    if (editable) {
+      w.comment("Timer.start crashes a watch face in low power mode");
+      w.line("_editAwake = false;");
+      w.line("stopEditTicks();");
+    }
     if (needsSleeping) w.line("_sleeping = true;");
     if (aod) {
       w.line("var settings = System.getDeviceSettings();");
@@ -928,6 +937,49 @@ function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolea
     });
     w.blank();
   }
+}
+
+function emitEditTickerFields(w: Writer): void {
+  w.doc("The native config editor redraws the face only when the wearer moves\n"
+    + "through it, so a face it started keeps its own once-a-second redraw\n"
+    + "going, the active frame's rate, while awake: Timer.start crashes a\n"
+    + "watch face in low power mode.  The timer is null while stopped.");
+  w.line("private var _editMode as Boolean = false;");
+  w.line("private var _editAwake as Boolean = true;");
+  w.line("private var _editTimer as Timer.Timer? = null;");
+  w.blank();
+}
+
+/** The editor preview's ticker: started on show and on waking, stopped on hide and on sleep. */
+function emitEditTicker(w: Writer, hasSlots: boolean): void {
+  w.doc("Shown: a face the editor started begins ticking.");
+  w.block("function onShow() as Void", () => w.line("startEditTicks();"));
+  w.blank();
+  w.doc("Hidden: nothing to redraw.");
+  w.block("function onHide() as Void", () => w.line("stopEditTicks();"));
+  w.blank();
+  w.block("private function startEditTicks() as Void", () => {
+    w.block("if (_editMode && _editAwake && _editTimer == null)", () => {
+      w.line("var timer = new Timer.Timer();");
+      w.line("timer.start(method(:onEditTick), 1000, true);");
+      w.line("_editTimer = timer;");
+    });
+  });
+  w.blank();
+  w.block("private function stopEditTicks() as Void", () => {
+    w.line("var timer = _editTimer;");
+    w.block("if (timer != null)", () => {
+      w.line("timer.stop();");
+      w.line("_editTimer = null;");
+    });
+  });
+  w.blank();
+  w.doc("One edit tick: redraw.  Public: the timer calls it through a Method.");
+  w.block("function onEditTick() as Void", () => {
+    if (hasSlots) w.line("_editTick = true;");
+    w.line("WatchUi.requestUpdate();");
+  });
+  w.blank();
 }
 
 function emitComplicationCallback(w: Writer): void {

@@ -82,6 +82,7 @@ jobs:
             # test/devices.test.ts
             # test/diagnostics.test.ts
             # test/edit.test.ts
+            # test/edit-preview.test.ts
             # test/formatting.test.ts
             # test/garmin-raster.test.ts
             # test/geometry.test.ts

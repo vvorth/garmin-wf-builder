@@ -66,6 +66,7 @@ export const TOYBOX_MODULES: ReadonlyMap<string, string> = new Map([
   ["UserProfile", "Toybox.UserProfile"],
   ["Complications", "Toybox.Complications"],
   ["Math", "Toybox.Math"],
+  ["Timer", "Toybox.Timer"],
   ["Application", "Toybox.Application"],
   ["WatchFaceConfig", "Toybox.Application.WatchFaceConfig"],
 ]);
