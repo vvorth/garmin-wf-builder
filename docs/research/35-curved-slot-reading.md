@@ -36,7 +36,7 @@ design:
 | `Dc.drawBitmap2(x, y, bitmap, {:transform => AffineTransform, :tintColor, :filterMode})` is API 4.2.1 on **60** watch-face devices, a strict superset of the 44 | `Dc.html`, counted the same way | VERIFIED (count) |
 | `Graphics.AffineTransform` (API 4.2.0) has `translate`, `rotate`, `scale`, `setMatrix` …; `rotate(theta)` post-multiplies `[cos −sin; sin cos]` | `$CIQ_SDK/doc/Toybox/Graphics/AffineTransform.html` | VERIFIED (doc) |
 | What `drawBitmap2`'s `:transform` maps (source pixel → destination relative to `(x, y)`?) and how `FILTER_MODE_POINT` samples a rotated 1-bit glyph | not documented | **UNVERIFIED** |
-| Whether a `BufferedBitmap` whose palette includes `COLOR_TRANSPARENT` blits with a transparent background on a MIP device (`alphaBlendingSupport: false`) | `Graphics.html` warns only about partial alpha | **UNVERIFIED** |
+| `drawBitmap2` refuses a palette'd source: a `BufferedBitmap` created with `:palette` throws `Source must not use a color palette`, so a transparent 2-colour buffer is out; whether a full-colour one blits with a transparent background on MIP is unknown | the user's host simulator, `fenix8solar47mm`, 2026-10-18 (`probes/curved-slot`) | VERIFIED (the throw); **UNVERIFIED** (the rest) |
 | A baked font (resource) lands in the graphics pool, not the watch-face limit, since API 4.0.0 | constraint 11; research 12 probe (d) | VERIFIED (measured) |
 
 The three verification targets have all of it.

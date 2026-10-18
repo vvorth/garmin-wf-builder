@@ -11,14 +11,14 @@ watch face that differ in **exactly one class**, `ProbePair`, so the
 | **a** | does a radial reading in a vector font, measured with `Dc.getTextWidthInPixels(text, VectorFont)`, plus a baked glyph drawn into a `BufferedBitmap` and blitted through `Dc.drawBitmap2(..., {:transform => AffineTransform})`, compile warning-free under `-l 3`, `typecheck = strict`? | **Yes**, on `fenix8solar47mm`, `fenix8solar51mm` and `fr955`, SDK 9.2.0. |
 | **b** | does the same guarded source build for a device with none of those APIs? | **Yes**, warning-free on `fenix6`. The `has` guards fold at compile time and the curved code is dropped: code is *smaller* than the baseline there (514 B against 643 B). |
 | **c** | what does the curved path cost? | **+70 B data / +486 B code** on `fenix8solar47mm` and `fr955` (baseline 508 / 494, curved 578 / 980). `.prg` +1,008 B. |
-| **d** | does it draw right? | **Not answered.** The simulator crashes in this container (`CLAUDE.md` §3). See "On the host" below. |
+| **d** | does it draw right? | **Partly.** On the user's host simulator (`fenix8solar47mm`, 2026-10-18) the first version crashed: `drawBitmap2` throws `Source must not use a color palette` for a `BufferedBitmap` created with `:palette`. The buffer is now full-colour. The gap question ("On the host" below) is still open. |
 
 ## The two variants
 
 | variant | `ProbePair` draws |
 |---|---|
 | `variant-baseline` | what `type: data` draws today: a baked icon glyph and a `FONT_SMALL` reading, upright, centred together from their measured widths |
-| `variant-curved` | three fixed readings, `1`, `1234` and `12345678`, each with `drawRadialText` in `RobotoCondensedBold` 28 px, clockwise from 150° (Garmin's convention) on circles of 80%, 60% and 40% of the half-width; after each, the icon at the angle the reading's measured width puts it, rotated to stand on the circle through a 2-colour (`COLOR_TRANSPARENT`, `COLOR_WHITE`) `BufferedBitmap` and `drawBitmap2`'s `:transform` |
+| `variant-curved` | three fixed readings, `1`, `1234` and `12345678`, each with `drawRadialText` in `RobotoCondensedBold` 28 px, clockwise from 150° (Garmin's convention) on circles of 80%, 60% and 40% of the half-width; after each, the icon at the angle the reading's measured width puts it, rotated to stand on the circle through a full-colour `BufferedBitmap` (no `:palette`: see **d**) and `drawBitmap2`'s `:transform` |
 
 The "icon" is the `Clock` sheet from `../vector-fonts` (glyph `8`): any baked
 font exercises the same draw path, so the probe does not vendor the icon font.

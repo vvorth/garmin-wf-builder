@@ -48,10 +48,11 @@ class ProbePair {
 
         var buffer = _buffer;
         if (buffer == null) {
+            // No :palette: drawBitmap2 throws "Source must not use a color
+            // palette" for one (simulator, fenix8solar47mm, 2026-10-18).
             buffer = Graphics.createBufferedBitmap({
                 :width => iw,
                 :height => ih,
-                :palette => [Graphics.COLOR_TRANSPARENT, Graphics.COLOR_WHITE],
             });
             _buffer = buffer;
         }
