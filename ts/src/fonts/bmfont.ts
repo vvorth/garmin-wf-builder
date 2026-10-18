@@ -38,6 +38,8 @@ export class BakedFont {
   cell_width = 0;
   /** Degrees clockwise every glyph was baked turned. */
   rotate = 0;
+  /** A turned font's advances before its cells grew to hold the turned ink; empty when upright. */
+  unturned_advances: Map<string, number> = new Map();
   fnt_name = "";
   png_name = "";
   sheet: Sheet | null = null;
@@ -49,6 +51,11 @@ export class BakedFont {
     let width = 0;
     for (const ch of text) width += this.glyphs.get(ch)?.xadvance ?? 0;
     return [width, this.line_height];
+  }
+
+  /** `ch`'s advance as the upright glyph has it: what spacing round a turned glyph is measured from. */
+  unturnedAdvance(ch: string): number {
+    return this.unturned_advances.get(ch) ?? this.glyphs.get(ch)?.xadvance ?? 0;
   }
 
   /** Characters `text` needs that this font does not hold. */

@@ -59,18 +59,10 @@ class IconKind extends ElementKind<IconElement> {
     const [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
-    let box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
-    const cell = element.turn !== 0 ? box.rounded() : null;
-    const ink = element.turn !== 0 && font !== undefined ? font.glyphs.get(measureCodepoint) : undefined;
-    if (ink !== undefined && ink.width > 0) {
-      // A turned glyph's ink can leave its cell, so the box covers both.
-      const x0 = Math.min(box.x, box.x + ink.xoffset), y0 = Math.min(box.y, box.y + ink.yoffset);
-      const x1 = Math.max(box.x + width, box.x + ink.xoffset + ink.width), y1 = Math.max(box.y + height, box.y + ink.yoffset + ink.height);
-      box = new Box(x0, y0, x1 - x0, y1 - y0);
-    }
+    const box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
     return PlacedIcon.create({
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
-      anchor_point: [round(cx), round(cy)], justify: justify(element), cell,
+      anchor_point: [round(cx), round(cy)], justify: justify(element),
     });
   }
 
@@ -182,7 +174,7 @@ class IconKind extends ElementKind<IconElement> {
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
     const glyph = Local("iconGlyph"), shownGlyph = LocalsSet(["iconGlyph", "iconFont"]);
     const draw = (font: Font, dx = 0, dy = 0): Glyph =>
-      Glyph(Shifted(x, dx), Shifted(y, dy), font, glyph, p.justify, element.vertical_align, p.cell ?? p.innerBox, p.center);
+      Glyph(Shifted(x, dx), Shifted(y, dy), font, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
     const font = Font("iconFont", { baked: p.font_key });
     const ringOps = (paint: Paint, width: number): Op[] => {
       const baked = bakedRing(element, face, width);
@@ -213,7 +205,7 @@ class IconKind extends ElementKind<IconElement> {
     }
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
     const draw = (face: Font, dx = 0, dy = 0): Glyph =>
-      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.cell ?? p.innerBox, p.center);
+      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
     const ringOps = (paint: Paint, width: number): Op[] => {
       const baked = bakedRing(element, ctx.resolved.face, width);
       if (baked === null) return [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(font, dx, dy))];

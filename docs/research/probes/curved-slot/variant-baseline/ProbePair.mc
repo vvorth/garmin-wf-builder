@@ -14,7 +14,8 @@ class ProbePair {
         _icon = WatchUi.loadResource($.Rez.Fonts.Clock) as FontResource;
     }
 
-    function draw(dc as Dc, cx as Number, cy as Number, reading as String, glyph as String) as Void {
+    function draw(dc as Dc, cx as Number, cy as Number, reading as String, glyph as String, start as Float, percent as Number) as Void {
+        cy = cy - cy * (80 - percent) / 100;
         var icon = _icon;
         if (icon == null) {
             return;

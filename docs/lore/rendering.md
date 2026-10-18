@@ -71,6 +71,20 @@ From `docs/research/probes/vector-fonts/` (`fenix8solar47mm`,
 - The glyph shapes of Garmin's device-resident faces are not reproduced:
   the preview draws a stand-in font.
 
+## Baked fonts: a glyph is clipped to its cell
+
+Seen in the user's captures of `examples/features/curved-slot` on
+`fenix8solar47mm`, `fr955` and `fenix947mm` (2026-10-18), not yet a
+controlled probe: a baked glyph whose ink sat 2 px left of its cell
+(`xoffset: -2`, a turned Body Battery icon) was drawn with that strip cut
+off by a straight edge, on all three. The cell is the glyph's advance
+across and the font's line height down. The preview does not clip, so it
+showed the glyph whole. The bake therefore grows a turned glyph's cell
+about its centre until the ink fits (`fitCells` in `ts/src/fonts/bake.ts`).
+Unchecked: whether the vertical edge clips the same way, and whether a
+ring font's glyphs, which reach `w` px past their base's ink, are cut where
+that ink touches its cell.
+
 ## AMOLED
 
 `fenix847mm` draws every primitive with grey partial pixels along its

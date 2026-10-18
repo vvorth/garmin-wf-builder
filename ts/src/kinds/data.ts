@@ -342,6 +342,8 @@ class DataKind extends ElementKind<DataElement> {
       const iconFont = iconKey !== null ? r.fonts.get(iconKey) : undefined;
       const iconPx = reference !== null ? units.pixelSize(element.icon_size, r.device.minorRadius) : 0;
       const iconWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.measure(reference)[0] : iconPx;
+      // The bake turned the pinned glyphs by the upright advance, before their cells grew.
+      const pinWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.unturnedAdvance(reference) : iconPx;
       const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
       let width = textWidth, height = lineHeight, inkAngle = curve.angle_garmin, iconPoint: [number, number] | null = null, iconTurn = 0;
       if (reference !== null && curve.style === "angled") {
@@ -352,8 +354,8 @@ class DataKind extends ElementKind<DataElement> {
       } else if (reference !== null) {
         // Centred half the reference glyph's advance plus the gap past the run's fixed end, in the middle of the run's band.
         const pin = pinnedTurn(element);
-        const theta = pin.angle(r.device.minorRadius, iconWidth) * Math.PI / 180;
-        iconTurn = element.icon_upright ? 0 : pin.turn(r.device.minorRadius, iconWidth);
+        const theta = pin.angle(r.device.minorRadius, pinWidth) * Math.PI / 180;
+        iconTurn = element.icon_upright ? 0 : pin.turn(r.device.minorRadius, pinWidth);
         const ascent = font.metric !== null ? r.device.db.measure.ascent(font.metric) : lineHeight;
         const [inner, outer] = radialTextBand(curve.radius_px, lineHeight, element.vertical_align, curve.direction, ascent);
         const middle = (inner + outer) / 2;

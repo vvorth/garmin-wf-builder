@@ -22,7 +22,7 @@ class ProbePair {
         }
     }
 
-    function draw(dc as Dc, cx as Number, cy as Number, reading as String, glyph as String) as Void {
+    function draw(dc as Dc, cx as Number, cy as Number, reading as String, glyph as String, start as Float, percent as Number) as Void {
         var icon = _icon;
         var vector = _vector;
         if (icon == null || vector == null) {
@@ -31,8 +31,7 @@ class ProbePair {
         if (!(Graphics has :createBufferedBitmap) || !(Graphics has :AffineTransform) || !(dc has :drawBitmap2)) {
             return;
         }
-        var radius = cx * 80 / 100;
-        var start = 136.0;    // Garmin degrees: 3 o'clock = 0, counter-clockwise positive
+        var radius = cx * percent / 100;    // start: Garmin degrees, 3 o'clock = 0, counter-clockwise positive
         var gap = 6;
         dc.drawRadialText(cx, cy, vector, reading,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER,

@@ -288,10 +288,15 @@ The simulator crashes in this container, so these run on the host:
    `fenix8solar47mm`. The radial reading starts at the authored angle and
    faces the right way for each pick; switching the pick in the native
    editor redraws it.
+   Seen 2026-10-18 in the user's captures (`fenix8solar47mm`, `fr955`,
+   `fenix947mm`): readings right, but a turned icon whose ink left its
+   cell was cropped by the watch; the bake now grows turned cells to fit.
+   Re-check the icons after that fix.
 2. **Before slice 6:** the probe's `curved` variant
-   (`docs/research/probes/curved-slot/README.md`, "On the host"). As the
-   minute changes the reading's width, does the gap between its last digit
-   and the glyph stay constant?
+   (`docs/research/probes/curved-slot/README.md`, "On the host"). It draws
+   three fixed readings of very different widths, each followed by a glyph
+   at the predicted end: is the gap between the last digit and the glyph
+   the same on all three rows? One screenshot answers it.
 3. **After slice 5:** the pinned pair turned on `fenix8solar47mm` and
    `fr955`, compared with `wfb preview` frame for frame.
 4. **After slice 4:** touch and hold anywhere in the slot group opens the

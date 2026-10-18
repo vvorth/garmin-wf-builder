@@ -1,6 +1,5 @@
 import Toybox.Graphics;
 import Toybox.Lang;
-import Toybox.System;
 import Toybox.WatchUi;
 
 //! Probe: curved-slot. The two build variants differ only in `ProbePair`
@@ -23,10 +22,13 @@ class ProbeView extends WatchUi.WatchFace {
         dc.clear();
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
 
-        // A reading whose width is only known at runtime, as a slot's is.
-        var clock = System.getClockTime();
-        var reading = (clock.min * 173).toString();
-
-        _pair.draw(dc, dc.getWidth() / 2, dc.getHeight() / 2, reading, "8");
+        // Three fixed readings of very different widths, each followed by the
+        // glyph at the angle its measured width predicts: one still frame
+        // shows whether the gap after a radial run stays the same.
+        var cx = dc.getWidth() / 2;
+        var cy = dc.getHeight() / 2;
+        _pair.draw(dc, cx, cy, "1", "8", 150.0, 80);
+        _pair.draw(dc, cx, cy, "1234", "8", 150.0, 60);
+        _pair.draw(dc, cx, cy, "12345678", "8", 150.0, 40);
     }
 }

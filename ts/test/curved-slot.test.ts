@@ -32,8 +32,8 @@ test("a turned icon's lint box covers ink that leaves its cell", () => {
   assert.ok(turned.width >= upright.height - 6, `turned ${turned.width}x${turned.height}`);
 });
 
-test("the preview pastes a turned glyph where drawText puts it, not at its grown box", () => {
-  // A quarter-turned battery's ink leaves its cell, so its box starts left of the cell.
+test("the preview pastes a turned glyph where drawText puts it", () => {
+  // A quarter-turned battery: a tall glyph whose turned ink is wider than its upright advance.
   const text = icon("    rotate: 90deg").replace("icon: steps", "icon: battery");
   const r = resolved(text);
   const p = r.items.find((item) => item.id === "glyph") as PlacedIcon;
@@ -49,7 +49,6 @@ test("the preview pastes a turned glyph where drawText puts it, not at its grown
       if (frame.data[(y * frame.width + x) * 4]! > 128) [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
     }
   }
-  assert.ok(p.box.x < p.cell!.x, "the box grew past the cell");
   assert.ok(Math.abs(x0 - left) <= 1 && Math.abs(y0 - top) <= 1, `ink at ${x0},${y0}; drawText puts it at ${left},${top}`);
 });
 

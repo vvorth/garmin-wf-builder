@@ -89,3 +89,16 @@ test("a turned glyph turns about the point a centred drawText anchors", () => {
   assert.ok(Math.abs(c0[0]! + c1[0]!) <= 1 && Math.abs(c0[1]! + c1[1]!) <= 1, `centres ${c0} and ${c1}`);
   assert.equal(g1.xadvance, g0.xadvance);
 });
+
+test("a turned glyph's ink stays inside its cell, grown about the centre", () => {
+  // The watch clips a glyph to its advance and its line; "L" turned 45 degrees overflows its advance.
+  const upright = bake(file(OPEN_SANS), { name: "a", size: 40, glyphs: "L" });
+  const turned = bake(file(OPEN_SANS), { name: "a", size: 40, glyphs: "L", rotate: 45 });
+  const g = turned.glyphs.get("L")!;
+  assert.ok(g.xoffset >= 0 && g.xoffset + g.width <= g.xadvance, `x ${g.xoffset}+${g.width} in ${g.xadvance}`);
+  assert.ok(g.yoffset >= 0 && g.yoffset + g.height <= turned.line_height, `y ${g.yoffset}+${g.height} in ${turned.line_height}`);
+  // Grown evenly: the advance and the line by an even amount, the upright advance kept for spacing.
+  assert.equal((g.xadvance - upright.glyphs.get("L")!.xadvance) % 2, 0);
+  assert.equal((turned.line_height - upright.line_height) % 2, 0);
+  assert.equal(turned.unturnedAdvance("L"), upright.glyphs.get("L")!.xadvance);
+});

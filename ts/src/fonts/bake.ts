@@ -315,11 +315,32 @@ export function bake(source: FontFile, { name, size, glyphs, antialias = false, 
     const found = rasteriseGlyph(p, size, ch, antialias, rotate);
     return found === null ? [ch, EMPTY, 0, 0, advance] : [ch, found[0], found[1], found[2], advance];
   });
+  const unturned = new Map(rendered.map((r) => [r[0], r[4]]));
+  const grown = rotate !== 0 ? fitCells(rendered, ascent + descent) : 0;
   const font = BakedFont.create({
-    name, face: p.face, size, line_height: ascent + descent, base: ascent, antialias, monospace, rotate,
+    name, face: p.face, size, line_height: ascent + descent + 2 * grown, base: ascent + grown, antialias, monospace, rotate,
     cell_width: monospace ? cellWidth(rendered) : 0, fnt_name: `${name}.fnt`, png_name: `${name}.png`,
+    unturned_advances: rotate !== 0 ? unturned : new Map(),
   });
   return place(font, rendered, monospace ? align : null);
+}
+
+/**
+ * Grow each turned glyph's cell about its centre until its ink fits, in
+ * place, and return how far the line grew on each side. The watch clips a
+ * glyph to its cell (its advance by the line), and turning moves ink out of
+ * it; centred drawing (`TEXT_JUSTIFY_CENTER | VCENTER`) still lands the
+ * glyph where it was.
+ */
+function fitCells(rendered: Rendered[], lineHeight: number): number {
+  let grown = 0;
+  for (const [, tile, , top] of rendered) if (!isEmpty(tile)) grown = Math.max(grown, -top, top + tile.height - lineHeight);
+  rendered.forEach((r, i) => {
+    const [ch, tile, left, top, advance] = r;
+    const wider = isEmpty(tile) ? 0 : Math.max(0, -left, left + tile.width - advance);
+    rendered[i] = [ch, tile, left + wider, top + grown, advance + 2 * wider];
+  });
+  return grown;
 }
 
 /**

@@ -9,8 +9,8 @@ watch face that differ in **exactly one class**, `ProbePair`, so the
 | | question | answer |
 |---|---|---|
 | **a** | does a radial reading in a vector font, measured with `Dc.getTextWidthInPixels(text, VectorFont)`, plus a baked glyph drawn into a `BufferedBitmap` and blitted through `Dc.drawBitmap2(..., {:transform => AffineTransform})`, compile warning-free under `-l 3`, `typecheck = strict`? | **Yes**, on `fenix8solar47mm`, `fenix8solar51mm` and `fr955`, SDK 9.2.0. |
-| **b** | does the same guarded source build for a device with none of those APIs? | **Yes**, warning-free on `fenix6`. The `has` guards fold at compile time and the curved code is dropped: code is *smaller* than the baseline there (447 B against 554 B). |
-| **c** | what does the curved path cost? | **+70 B data / +509 B code** on `fenix8solar47mm` and `fr955` (baseline 483 / 416, curved 553 / 925). `.prg` +1,072 B. |
+| **b** | does the same guarded source build for a device with none of those APIs? | **Yes**, warning-free on `fenix6`. The `has` guards fold at compile time and the curved code is dropped: code is *smaller* than the baseline there (514 B against 643 B). |
+| **c** | what does the curved path cost? | **+70 B data / +486 B code** on `fenix8solar47mm` and `fr955` (baseline 508 / 494, curved 578 / 980). `.prg` +1,008 B. |
 | **d** | does it draw right? | **Not answered.** The simulator crashes in this container (`CLAUDE.md` §3). See "On the host" below. |
 
 ## The two variants
@@ -18,7 +18,7 @@ watch face that differ in **exactly one class**, `ProbePair`, so the
 | variant | `ProbePair` draws |
 |---|---|
 | `variant-baseline` | what `type: data` draws today: a baked icon glyph and a `FONT_SMALL` reading, upright, centred together from their measured widths |
-| `variant-curved` | the reading with `drawRadialText` in `RobotoCondensedBold` 28 px, clockwise from 136° (Garmin's convention); then the icon *after* the run, at the angle the measured width puts it, rotated to stand on the circle through a 2-colour (`COLOR_TRANSPARENT`, `COLOR_WHITE`) `BufferedBitmap` and `drawBitmap2`'s `:transform` |
+| `variant-curved` | three fixed readings, `1`, `1234` and `12345678`, each with `drawRadialText` in `RobotoCondensedBold` 28 px, clockwise from 150° (Garmin's convention) on circles of 80%, 60% and 40% of the half-width; after each, the icon at the angle the reading's measured width puts it, rotated to stand on the circle through a 2-colour (`COLOR_TRANSPARENT`, `COLOR_WHITE`) `BufferedBitmap` and `drawBitmap2`'s `:transform` |
 
 The "icon" is the `Clock` sheet from `../vector-fonts` (glyph `8`): any baked
 font exercises the same draw path, so the probe does not vendor the icon font.
@@ -43,7 +43,14 @@ monkeyc -f curved.jungle -d fenix8solar47mm -o curved.prg -y ~/ciq/developer_key
 connectiq && monkeydo curved.prg fenix8solar47mm
 ```
 
-Look for: the glyph's background drawn transparent (not a white or black
-square); the glyph upright at 12 o'clock and standing on the circle
-elsewhere; and the gap between the run's last digit and the glyph staying
-the same as the minute (and so the reading's width) changes.
+One still frame answers it. Look for:
+
+- **The gap.** Each of the three rows draws its digits round a circle,
+  then an `8` where the compiler predicts the run ends, plus a 6 px gap.
+  If the watch lays a run out to the length `getTextWidthInPixels`
+  measures, the gap between the last digit and the `8` is the same on all
+  three rows. If the `8` overlaps the last digit, or the gap grows with
+  the length of the row, the run's drawn length differs from the measured
+  width.
+- The `8`'s background drawn transparent, not a white or black square.
+- The `8` standing on the circle (its top towards the edge), not upright.

@@ -163,9 +163,12 @@ glyphs it can draw. A whole turn (`360deg`) is the upright icon.
 The glyph turns about the point a centred `drawText` puts at `at:` (half
 its advance across, half the line down), so the icon stays where the
 upright one would have been drawn. The size is set before turning: an icon
-is the same size at every angle. Its lint box covers both its cell and the
-turned ink, which can reach outside it (a tall glyph turned a quarter is
-wider than its advance). `rotate:` works with `icon: {for:}` (every glyph
+is the same size at every angle. **The watch clips a glyph to its cell**
+(its advance across, the font's line down), and turned ink can reach past
+it: a tall glyph turned a quarter is wider than its advance. So a turned
+glyph's cell grows evenly about its centre until the ink fits, which keeps
+the centred glyph where it was and stops the watch cropping its edge; the
+lint box is that cell. `rotate:` works with `icon: {for:}` (every glyph
 the lookup can return is turned alike) and with `outline:` (the ring is
 grown from the turned glyph).
 
