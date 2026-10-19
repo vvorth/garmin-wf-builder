@@ -91,15 +91,17 @@ export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): M
   const out = new Map<string, FontSpec>();
   for (const [key, [length, glyphs, reference, antialias, rotate]] of byKey) {
     const size = bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius));
+    // The widest glyph places the icon, as the layout does (`pinWidth`).
+    const advance = Math.max(...Array.from(glyphs, (ch) => glyphAdvance(iconFont, ch, size)));
     const spec = (name: string, turn: number): FontSpec =>
       FontSpec.create({ name, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px") });
     if (rotate instanceof SteppedTurn) {
       // A free-end icon: one font per step this device's widest reading can reach, none under `key` itself.
-      const steps = rotate.steps(device, glyphAdvance(iconFont, reference, size));
+      const steps = rotate.steps(device, advance);
       for (let i = 0; i < steps.count; i++) out.set(stepKey(key, i), spec(stepKey(key, i), rotate.turnAt(steps.first + i * steps.size)));
       continue;
     }
-    out.set(key, spec(key, typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, glyphAdvance(iconFont, reference, size))));
+    out.set(key, spec(key, typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, advance)));
   }
   return out;
 }

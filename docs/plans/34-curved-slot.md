@@ -336,7 +336,7 @@ The simulator crashes in this container, so these run on the host:
    Seen 2026-10-18 in the user's captures (`fenix8solar47mm`, `fr955`,
    `fenix947mm`): readings right, but a turned icon whose ink left its
    cell was cropped by the watch; the bake now grows turned cells to fit.
-   Re-check the icons after that fix.
+   Re-checked 2026-10-19: the icons are no longer cropped.
 2. **Before slice 6: done (2026-10-18).** The probe's `gap` variant
    (`docs/research/probes/curved-slot/README.md`, "On the host") in the
    user's host simulator on `fenix8solar47mm`: "1234" at R = 78 ran
@@ -344,12 +344,19 @@ The simulator crashes in this container, so these run on the host:
    it. Not a constant ratio; it fits advances spaced along the baseline
    circle, 8 px inside R under `VCENTER` (5.5 and 17.5 px predicted).
    Counter-clockwise, `top`/`bottom` and other faces are inferred.
-3. **After slice 5:** the pinned pair turned on `fenix8solar47mm` and
-   `fr955`, compared with `wfb preview` frame for frame.
-4. **After slice 4:** touch and hold anywhere in the slot group opens the
+3. **After slice 5: done (2026-10-19).** The pinned pair in the user's
+   `fenix947mm` simulator matches `wfb preview` in place and turn.
+4. **After slice 4: done (2026-10-19).** Touch and hold anywhere in the slot group opens the
    picked metric's glance, and still does after re-picking.
 5. **After slice 6:** the free-end and centred pairs (a scratch face like
    slice 6's: clockwise free end, counter-clockwise free end, centred) on
    `fenix8solar47mm` and `fr955`: the gap between the reading's last glyph
    and the icon looks the same for a short and a long reading (switch the
    pick between heart rate and steps), and the icon faces the run.
+   Run 2026-10-19 on `fenix947mm` (`scratch/free-end`): the reading's end
+   matched `width / spacing` to a fraction of a degree, but at "20.9K"
+   the clockwise icons overlapped it. The cause was the icon, not the
+   run: the slot's font is sized by the default pick's glyph (heart), so
+   the feet came out wider than the half-advance the gap was measured
+   from. The user chose to place every slot icon by the slot's widest
+   glyph (a narrow icon gets a wider gap). Re-check after that fix.

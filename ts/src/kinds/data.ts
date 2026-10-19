@@ -397,8 +397,10 @@ class DataKind extends ElementKind<DataElement> {
       const iconFont = iconKey === null ? undefined : r.fonts.get(turnOf instanceof icons.SteppedTurn ? icons.stepKey(iconKey, 0) : iconKey);
       const iconPx = reference !== null ? units.pixelSize(element.icon_size, r.device.minorRadius) : 0;
       const iconWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.measure(reference)[0] : iconPx;
-      // The bake turned the pinned glyphs by the upright advance, before their cells grew.
-      const pinWidth = reference === null ? 0 : iconFont !== undefined ? iconFont.unturnedAdvance(reference) : iconPx;
+      // The bake turned the pinned glyphs by the upright advance, before their cells grew. The widest of the slot's
+      // glyphs, so whichever the wearer picks clears the reading (a narrow one gets a wider gap).
+      const pinWidth = reference === null ? 0 : iconFont !== undefined
+        ? Math.max(...[...iconFont.glyphs.keys()].map((ch) => iconFont.unturnedAdvance(ch))) : iconPx;
       const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
       let width = textWidth, height = lineHeight, inkAngle = curve.angle_garmin, iconPoint: [number, number] | null = null, iconTurn = 0;
       let iconTrack: IconTrack | null = null;

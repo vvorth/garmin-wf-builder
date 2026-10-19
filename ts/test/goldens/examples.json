@@ -1300,9 +1300,9 @@
     "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
     "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix8solar47mm/Layout.mc": "fa3d8c81c304f7340b94d00f4bfe17d3",
-    "source-fenix8solar51mm/Layout.mc": "abae39ee1550eec3f1c373b3157788f0",
-    "source-fr955/Layout.mc": "d8a804582c8032ab0ff12ec6fff5b51c",
+    "source-fenix8solar47mm/Layout.mc": "272c4f08424232e7666d37d2b15fe1c3",
+    "source-fenix8solar51mm/Layout.mc": "830b05f67237144edef3dd28188789ba",
+    "source-fr955/Layout.mc": "47936204c3c2d4de49347450f75b12db",
     "source/IconGlyphs.mc": "4f7891f51fed3478d6268dea5e5af0e4",
     "source/FeatureCurvedSlotView.mc": "8e13f721004774edef44dc4cff571db7",
     "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
@@ -1322,23 +1322,23 @@
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fenix8solar47mm/fonts/icon_12pctr_slot_left_r302.fnt": "aeb091af17db5d9b768ea5be0443b908",
     "resources-fenix8solar47mm/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
-    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "dac939eee805bf18ee8ac30fbf9d899d",
-    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "5c7c59b61c7ffe65293d1aca9e088b86",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "3dac6898389161e8055ca3e649dcf907",
+    "resources-fenix8solar47mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "359def99a8c73842780dbd7b74d84290",
     "resources-fenix8solar51mm/fonts/fonts.xml": "91721957350eceb1e5d41b4e12cd3704",
     "resources-fenix8solar51mm/drawables/drawables.xml": "f116d6ad42d7159051c79e17776e9a72",
     "resources-fenix8solar51mm/configs/watchface.xml": "eb8508c8ec5f09dda100b6c2856ff195",
     "resources-fenix8solar51mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fenix8solar51mm/fonts/icon_12pctr_slot_left_r302.fnt": "072ab853f03c0b36848428b4ce2302a9",
     "resources-fenix8solar51mm/fonts/icon_12pctr_slot_left_r302.png": "a8b98f0e7742887e3042057d0d368392",
-    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "9d3437944170aac058ff6c846bbbb5b6",
-    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "ad6f4b7a6c093c1701e779610fb9339c",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "554c211f14a5c2df05cec9084efcdf4e",
+    "resources-fenix8solar51mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "622813cedf3fb89aee390a56443f58aa",
     "resources-fr955/fonts/fonts.xml": "7ca222f4d5fc19efda5eff994a2f0109",
     "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
     "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr955/fonts/icon_12pctr_slot_left_r302.fnt": "aeb091af17db5d9b768ea5be0443b908",
     "resources-fr955/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
-    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "dac939eee805bf18ee8ac30fbf9d899d",
-    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.png": "5c7c59b61c7ffe65293d1aca9e088b86"
+    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "3dac6898389161e8055ca3e649dcf907",
+    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.png": "359def99a8c73842780dbd7b74d84290"
    },
    "amoled-mix": {
     "refused": [
@@ -1353,8 +1353,8 @@
     "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
     "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix947mm/Layout.mc": "c597c888ebe15ab6007a582ccef153da",
-    "source-fr955/Layout.mc": "d8a804582c8032ab0ff12ec6fff5b51c",
+    "source-fenix947mm/Layout.mc": "47b2e29697c99d933f38655c367f23a6",
+    "source-fr955/Layout.mc": "47936204c3c2d4de49347450f75b12db",
     "source/IconGlyphs.mc": "4f7891f51fed3478d6268dea5e5af0e4",
     "source/FeatureCurvedSlotView.mc": "c60286a7c721ae4eb9b20845e4366847",
     "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
@@ -1374,32 +1374,32 @@
     "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
     "resources-fenix947mm/fonts/icon_12pctr_slot_left_r302.fnt": "10add3e8360398079473a3f45a351f21",
     "resources-fenix947mm/fonts/icon_12pctr_slot_left_r302.png": "d70f642d8d98dff5f51ac6bf12f00e8b",
-    "resources-fenix947mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "d3043357853cca06ed1a355e822d0f70",
-    "resources-fenix947mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "e5aff981a2fe1d857316f3dc1731c6f5",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "4373921b284ad3c04913ddd16dcbd2eb",
+    "resources-fenix947mm/fonts/icon_12pctr_slot_right_pinned_right_value.png": "bbcd7f8ca33d5da20aa668e55070f328",
     "resources-fr955/fonts/fonts.xml": "7ca222f4d5fc19efda5eff994a2f0109",
     "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
     "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr955/fonts/icon_12pctr_slot_left_r302.fnt": "aeb091af17db5d9b768ea5be0443b908",
     "resources-fr955/fonts/icon_12pctr_slot_left_r302.png": "f0bfd30ae61c8b3800f39be6e401de77",
-    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "dac939eee805bf18ee8ac30fbf9d899d",
-    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.png": "5c7c59b61c7ffe65293d1aca9e088b86"
+    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.fnt": "3dac6898389161e8055ca3e649dcf907",
+    "resources-fr955/fonts/icon_12pctr_slot_right_pinned_right_value.png": "359def99a8c73842780dbd7b74d84290"
    }
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "95be1e38f58dc815d8b82356191b64f2",
-    "fenix8solar51mm": "a4166fafc39b1aec6266988f007b9157",
-    "fr955": "82c9968570cedd59bbf12ba4d228078e"
+    "fenix8solar47mm": "c341be4a5a788150558e6cdd88f8a7e6",
+    "fenix8solar51mm": "42c73f33073143974d902314c4d67751",
+    "fr955": "fa8b99e0458f56b6e9f40f9688d4c35a"
    },
    "asleep": {
-    "fenix8solar47mm": "95be1e38f58dc815d8b82356191b64f2",
-    "fenix8solar51mm": "a4166fafc39b1aec6266988f007b9157",
-    "fr955": "82c9968570cedd59bbf12ba4d228078e"
+    "fenix8solar47mm": "c341be4a5a788150558e6cdd88f8a7e6",
+    "fenix8solar51mm": "42c73f33073143974d902314c4d67751",
+    "fr955": "fa8b99e0458f56b6e9f40f9688d4c35a"
    },
    "time": {
-    "fenix8solar47mm": "db56cb16b44cb890b876d3b8daa74ec6",
-    "fenix8solar51mm": "e192774d73ffb00453c9cc99433bcd11",
-    "fr955": "1bd3cbb6f4aae75ee615ad375d188fa8"
+    "fenix8solar47mm": "471656f4f57e28971bf69ee239414b87",
+    "fenix8solar51mm": "6179c82f09590c3aa36df03ac9d44c58",
+    "fr955": "4da8dad7194b290fc50411b6e4f70b97"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Curved Slot' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",

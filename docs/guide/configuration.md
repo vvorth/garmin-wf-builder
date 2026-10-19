@@ -502,21 +502,21 @@ frame, and turns with it:
 * **At the fixed end** (`align: left` with `position: left`, just before
   the run's start, or `align: right` with `position: right`, just after
   its end) the icon's place does not depend on the reading. It is centred
-  on the circle half the *reference* glyph's width (the default choice's,
-  the one the icon font is sized by) plus `gap:` past the fixed end, in
-  the middle of the run's band, and baked turned to face exactly the way
-  the run faces there. The radius, gap and glyph width are per device, so
-  the turn is too: each target bakes the font at its own exact angle,
-  under one resource name. Another choice's glyph is centred on the same
-  point, so its own gap differs from `gap:` by half the difference in
-  width.
+  on the circle half the slot's *widest* glyph's width plus `gap:` past
+  the fixed end, in the middle of the run's band, and baked turned to
+  face exactly the way the run faces there. The radius, gap and glyph
+  width are per device, so the turn is too: each target bakes the font at
+  its own exact angle, under one resource name. Every choice's glyph is
+  centred on the same point, so the widest one sits exactly `gap:` from
+  the run and a narrower one further, by half the difference in width.
 * **At the free end** (`align: left` with `position: right`, `align:
   right` with `position: left`) and **beside a centred run** (`align:
   center`, where the reading and the icon together are centred on
   `angle:`) the icon's place follows the reading's width, which only the
   watch knows. The watch measures the reading and puts the icon's centre
-  that far round the circle, plus `gap:` and half the reference glyph's
-  width. A reading's glyphs are spaced along their baseline circle, not
+  that far round the circle, plus `gap:` and half the slot's widest
+  glyph's width, so a narrower glyph stands further off, as at the fixed
+  end. A reading's glyphs are spaced along their baseline circle, not
   the circle `radius:` names, and the build allows for that
   ([Limitations](../limitations.md#a-face-cannot-ship-its-own-ttf-and-vector-fonts-are-garmins-only)).
 * A free-end icon cannot be baked at one turn, so it is baked at **3°
