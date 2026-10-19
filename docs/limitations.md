@@ -1253,6 +1253,21 @@ reading's last glyph and the icon holds for short and long readings alike
 pair), and how often a reading that changes width (a heart rate) makes the
 watch load a different step's font.
 
+### A curved reading's hold
+
+`on_hold:` on a radial `data` reading holds the arc of the reading the
+view drew last frame, not a box: the view records the reading's width
+(`dc.getTextWidthInPixels`) each frame and the delegate tests the touch's
+radius and angle against that arc (`runtime-lib/WfbHold.mc`). Measured on a
+face with two such readings, `fenix8solar47mm`: +71 B data and +293 B code
+over the same face with box holds. It builds warning-free on the three
+verification devices, and the preview's pixels lie inside the host's arc;
+**not yet seen on a watch**, so whether a hold on the reading reaches it,
+and whether the width the watch reports for a vector font matches the
+run's arc as `drawRadialText` lays it out, are open. The `hold-overlap`
+lint still compares the reading's widest-choice box, which every arc fits
+inside, so a warning there can be one the wearer never meets.
+
 ### Data, config and the AOD heat map
 
 **Every source is a plain per-frame read; there are no refresh tiers or TTL

@@ -519,6 +519,20 @@ These cost real time to discover; do not rediscover them.
   draw order), so the shared view and each device's `PROF_X`/`PROF_Y`
   anchors in `Layout` agree.
 
+- **A radial reading's `on_hold:` is an arc the watch sizes from what it
+  drew.** The draw program records the reading's width into a public view
+  field (`holdSpan<Id>`) with an ordinary `Assign` right after the
+  reading is formatted (`ts/src/kinds/data.ts`), so it runs wherever the
+  reading draws and nowhere else; `Layout.mc` carries the band's radii
+  squared, the run's degrees per pixel and the icon's lead before and
+  after; the delegate turns them into a start angle and a signed sweep
+  for `WfbHold.inArc` (`arcTest` in `ts/src/emit/monkeyc/delegate.ts`).
+  `radialRunArc` is the host twin: the editor outlines the frame's own
+  reading with it (`drawnRunBox` in `ts/src/draw/index.ts`), and
+  `ts/test/hold-arc.test.ts` evaluates the delegate's emitted arithmetic
+  against it and holds both to the preview's pixels. The lints keep
+  `placed.box`, the widest choice's shape.
+
 - **`wfb build --trace` (`ts/src/emit/monkeyc/trace.ts`) is a pass over
   the finished sources**, not an emitter option: it opens each callback its
   table names (by file suffix and function name) with a `System.println`,

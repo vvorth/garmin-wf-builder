@@ -100,7 +100,12 @@ silently overlap neighbours on a dense face. For a bigger target, or to make
 several elements act as one, put them in a [`group`](elements.md#group) and put `on_hold:`
 on the group instead of each child. On a device where the element does not
 draw at all -- `unsupported: hide` on a missing `face:` font or subscreen
--- its region is empty there, so a hold never fires on blank screen.
+-- its region is empty there, so a hold never fires on blank screen. A
+reading curved round a circle (`type: data` with `curve: {style:
+radial}`) is held by the arc it covers as drawn, its icon included, not
+by the box round every reading its slot could show: the face measures the
+reading each frame, so the region follows the wearer's pick
+([A curved reading](configuration.md#a-curved-reading-curve)).
 
 Regions are tested in draw order and the first match wins, so two overlapping
 regions make the second unreachable. That is a warning (`hold-overlap`), not

@@ -91,6 +91,7 @@ jobs:
             # test/golden-monkeyc.test.ts
             # test/goldens.test.ts
             # test/hold.test.ts
+            # test/hold-arc.test.ts
             # test/layout.test.ts
             # test/overrides.test.ts
             # test/page-accept.test.ts

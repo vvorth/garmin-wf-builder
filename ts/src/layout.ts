@@ -652,6 +652,11 @@ export class PlacedData extends Placed {
   icon_turn = 0;
   /** A radial pair's icon whose place follows the reading's width, computed on the watch. */
   icon_track: IconTrack | null = null;
+  /** A radial reading's run: the radii `[inner, outer]` its ink spans, and the radius its advances are laid out along. */
+  run_band: [number, number] = [0, 0];
+  run_spacing = 0;
+  /** A radial pair's icon and gap along the run, on `icon_position`'s side of the text (0 without an icon). */
+  icon_lead = 0;
 }
 
 /**

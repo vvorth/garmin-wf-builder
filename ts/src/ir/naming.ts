@@ -65,6 +65,11 @@ export function dataHoldMethod(elementId: string): string {
   return "holdTargetFor" + elementSuffix(elementId);
 }
 
+/** The public view field a held radial `data` element records its drawn reading's width in, for the delegate. */
+export function holdSpanField(elementId: string): string {
+  return "holdSpan" + elementSuffix(elementId);
+}
+
 export const graphSeriesField = (id: string): string => lowerFirst(elementSuffix(id)) + "Series";
 export const graphMinField = (id: string): string => lowerFirst(elementSuffix(id)) + "Min";
 export const graphMaxField = (id: string): string => lowerFirst(elementSuffix(id)) + "Max";

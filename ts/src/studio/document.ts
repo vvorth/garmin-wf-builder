@@ -13,6 +13,7 @@ import { resolveAll, selectDevices } from "../build.ts";
 import type { Device, DeviceDatabase } from "../devices/device.ts";
 import { Bag, type Diagnostic } from "../diagnostics.ts";
 import { inLayout } from "../draw/frames.ts";
+import { drawnRunBox } from "../draw/index.ts";
 import { compose, layers } from "../draw/layers.ts";
 import * as colors from "../edit/colors.ts";
 import {
@@ -35,7 +36,7 @@ import { isSfnt } from "../fonts/sfnt.ts";
 import { Group, type Element, type Face } from "../ir/model.ts";
 import type { ResolvedFace } from "../layout.ts";
 import { encodePng } from "../png.ts";
-import { frameItems, pngBytes, previewOptions, type PreviewOptions, render, resolveStyleEntry } from "../preview.ts";
+import { frameItems, pngBytes, previewOptions, type PreviewOptions, render, resolveStyleEntry, sampleValues } from "../preview.ts";
 import { assetPath, type Bundle, bundle, FACE, inside, missing, references } from "./bundle.ts";
 import { describe, handles, partGeometry } from "./drag.ts";
 import { aodKeys, GEOMETRY, globalsOf, inspect } from "./inspect.ts";
@@ -963,9 +964,11 @@ export class Document {
         image = pngBytes(compose(stack, resolved, options));
         painted = stack.filter((layer) => layer.id === placed.id);
       } else {
+        const values = sampleValues(resolved, options, entry);
         for (const placed of resolved.items) {
           if (!drawn.has(placed.id) && !(placed.kind === "group" && authored.has(placed.id) && inLayout(placed, layout))) continue;
-          const box = placed.box;
+          // a curved reading is outlined round what it draws, not round every reading its slot could show
+          const box = drawnRunBox(resolved, placed, values, options.picks) ?? placed.box;
           const span = placed.element.span;
           const off = hidden.has(placed.id);
           items.push({

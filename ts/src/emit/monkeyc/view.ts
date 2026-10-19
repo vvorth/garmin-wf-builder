@@ -9,10 +9,11 @@ import { frameMembers } from "../../draw/frames.ts";
 import type { Expression, Face } from "../../ir/model.ts";
 import { HOLD_AUTO, holdSlot } from "../../ir/model.ts";
 import {
-  configDataIds, configField, elementMethodName as method, elementRingMethod, fontResourceId, localName, staticGroupMethod,
+  configDataIds, configField, elementMethodName as method, elementRingMethod, fontResourceId, holdSpanField, localName, staticGroupMethod,
 } from "../../ir/naming.ts";
 import { type RingGroup, ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
+import { radialHold } from "../../kinds/data.ts";
 import { type Placed, PlacedData, PlacedGraph, PlacedHands, PlacedIcon, type ResolvedFace } from "../../layout.ts";
 import * as vocab from "../../vocab.ts";
 import * as usage from "../usage.ts";
@@ -237,6 +238,11 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
         + "the delegate's onPress reaches only what the last frame drew.  Public: a\n"
         + "delegate cannot reach a private field.");
       w.line(`var ${HOLDS_SHOWN} as Number = 0;`);
+      w.blank();
+    }
+    for (const placed of resolved.items.filter(radialHold)) {
+      w.doc(`The width \`${placed.id}\`'s reading was last drawn at, in px: a hold on it is tested\nagainst the arc that much reading covers.  Public: the delegate reads it.`);
+      w.line(`var ${holdSpanField(placed.id)} as Number = 0;`);
       w.blank();
     }
     emitInitialize(w, face, guards);

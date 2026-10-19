@@ -12,12 +12,14 @@ import { ReadPlan } from "../emit/monkeyc/readplan.ts";
 import { negated } from "../emit/monkeyc/view.ts";
 import { localName } from "../ir/naming.ts";
 import * as kinds from "../kinds/index.ts";
-import type { Placed, ResolvedFace } from "../layout.ts";
+import { arcBbox, type Placed, PlacedData, type ResolvedFace } from "../layout.ts";
+import { radialRunArc } from "../kinds/data.ts";
+import type { IntBox } from "../units.ts";
 import { truthy } from "../py.ts";
 import type { Renderer, RGB } from "../preview.ts";
 import * as vocab from "../vocab.ts";
-import { Evaluator, strValue, type Values } from "./evaluator.ts";
-import { AntiAlias, DrawContext, NullGuard, type Op, VisibleGuard } from "./program.ts";
+import { Evaluator, slotText, strValue, type Values } from "./evaluator.ts";
+import { AntiAlias, DrawContext, NullGuard, type Op, type SlotText, VisibleGuard } from "./program.ts";
 
 export { DrawContext } from "./program.ts";
 export type { Op } from "./program.ts";
@@ -108,6 +110,43 @@ export function drawnText(resolved: ResolvedFace, placed: Placed, values: Values
     return [false, null];
   };
   return walk(ops)[1];
+}
+
+/**
+ * A radial reading's outline as the frame draws it: the arc of the reading
+ * shown for `picks` at `values`, its icon included, rather than its box
+ * round every reading the slot could show. `null` for anything else, or
+ * when it draws no reading.
+ */
+export function drawnRunBox(resolved: ResolvedFace, placed: Placed, values: Values,
+  picks: readonly (readonly [string, string])[] = []): IntBox | null {
+  if (!(placed instanceof PlacedData) || placed.curve.style !== "radial" || placed.run_spacing <= 0 || placed.font.metric === null) return null;
+  const text = drawnReading(resolved, placed, values, picks);
+  if (!text) return null;
+  const arc = radialRunArc(placed, resolved.device.db.measure.measure(text, placed.font.metric)[0]);
+  const [cx, cy] = placed.anchor_point;
+  return arcBbox(cx, cy, arc.inner, arc.outer, arc.from, arc.from + arc.sweep).rounded();
+}
+
+/** The reading a data element shows for `picks` at `values`, as its ops format it; `null` for any other element. */
+export function drawnReading(resolved: ResolvedFace, placed: Placed, values: Values,
+  picks: readonly (readonly [string, string])[] = []): string | null {
+  const op = findSlotText(lowered(new DrawContext(resolved, new AodStyle(true), [], null, { picks }), placed));
+  return op !== null ? slotText(op, values) : null;
+}
+
+/** The reading a data element's ops format, wherever its branches put it. */
+function findSlotText(ops: readonly Op[]): SlotText | null {
+  for (const op of ops) {
+    if (op.t === "SlotText") return op;
+    for (const value of Object.values(op)) {
+      if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object" && value[0] !== null && "t" in value[0]) {
+        const found = findSlotText(value as Op[]);
+        if (found !== null) return found;
+      }
+    }
+  }
+  return null;
 }
 
 /** The printed `draw<Id>` body (or a `ring<Id>` pass), after its reads. */
