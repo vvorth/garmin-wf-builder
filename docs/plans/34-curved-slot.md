@@ -358,5 +358,7 @@ The simulator crashes in this container, so these run on the host:
    the clockwise icons overlapped it. The cause was the icon, not the
    run: the slot's font is sized by the default pick's glyph (heart), so
    the feet came out wider than the half-advance the gap was measured
-   from. The user chose to place every slot icon by the slot's widest
-   glyph (a narrow icon gets a wider gap). Re-check after that fix.
+   from. Decided 2026-10-19: a font whose glyph the watch picks (a
+   slot's, the live weather's) bakes each glyph to fit a `size:` square,
+   and the pair's icon centre is `gap + size/2` from the run (briefly the
+   slot's widest glyph instead, `6cc8108`). Re-check after that fix.

@@ -44,11 +44,11 @@ class IconKind extends ElementKind<IconElement> {
     const px = units.pixelSize(element.size, r.device.minorRadius);
     let key: string, measureCodepoint: string;
     if (element.slot !== null) {
-      // The glyph follows the wearer's pick; measure the one the slot's font is sized by.
+      // The glyph follows the wearer's pick; every glyph fits a `size:` square, so measure the default pick's.
       key = slotIconFontKey(element.slot, element.size, element.resolved_antialias, element.turn);
       measureCodepoint = slotReferenceGlyph(r.face.config_data.get(element.slot)) ?? icons.FALLBACK_CODEPOINT;
     } else if (element.isDynamic) {
-      // The real glyph is chosen on the device; measure the one `bakeSize` used.
+      // The real glyph is chosen on the device; every glyph fits a `size:` square, so measure one.
       key = icons.fontKey(element.size, icons.DYNAMIC_WEATHER_TAG, element.resolved_antialias, element.turn);
       measureCodepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH;
     } else {

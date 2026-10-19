@@ -502,21 +502,18 @@ frame, and turns with it:
 * **At the fixed end** (`align: left` with `position: left`, just before
   the run's start, or `align: right` with `position: right`, just after
   its end) the icon's place does not depend on the reading. It is centred
-  on the circle half the slot's *widest* glyph's width plus `gap:` past
-  the fixed end, in the middle of the run's band, and baked turned to
-  face exactly the way the run faces there. The radius, gap and glyph
-  width are per device, so the turn is too: each target bakes the font at
-  its own exact angle, under one resource name. Every choice's glyph is
-  centred on the same point, so the widest one sits exactly `gap:` from
-  the run and a narrower one further, by half the difference in width.
+  on the circle `gap:` plus half the icon's `size:` past the fixed end,
+  in the middle of the run's band, and baked turned to face exactly the
+  way the run faces there. Every choice's glyph fits a `size:` square
+  ([Icons](icons.md)), so each clears the run by at least `gap:`. The
+  radius, gap and size are per device, so the turn is too: each target
+  bakes the font at its own exact angle, under one resource name.
 * **At the free end** (`align: left` with `position: right`, `align:
   right` with `position: left`) and **beside a centred run** (`align:
   center`, where the reading and the icon together are centred on
   `angle:`) the icon's place follows the reading's width, which only the
   watch knows. The watch measures the reading and puts the icon's centre
-  that far round the circle, plus `gap:` and half the slot's widest
-  glyph's width, so a narrower glyph stands further off, as at the fixed
-  end. A reading's glyphs are spaced along their baseline circle, not
+  that far round the circle, plus `gap:` and half the icon's `size:`. A reading's glyphs are spaced along their baseline circle, not
   the circle `radius:` names, and the build allows for that
   ([Limitations](../limitations.md#a-face-cannot-ship-its-own-ttf-and-vector-fonts-are-garmins-only)).
 * A free-end icon cannot be baked at one turn, so it is baked at **3°
@@ -539,11 +536,9 @@ frame, and turns with it:
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice
 could render (there is no per-choice format spec to size against), and the icon
-font -- when `icon:` is set -- carries every mapped choice's glyph,
-normalised to the *default* choice's own ink height (the same one-reference-
-glyph trade-off `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set: no
-single nominal size fits every icon set's glyphs equally, so the other
-choices render at whatever height that nominal size gives them).
+font -- when `icon:` is set -- carries every mapped choice's glyph, each
+baked to fit a `size:` square, as a live weather icon's glyphs are
+([Icons](icons.md)).
 
 ### What each device does with it
 

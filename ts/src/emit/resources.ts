@@ -2,7 +2,7 @@
 // every icon and ring font, the fonts' resource entries, the strings, the
 // launcher icon and the native editor's config..
 import type { Device } from "../devices/device.ts";
-import { bake, dilate, glyphAdvance, inkHeight, toFnt } from "../fonts/bake.ts";
+import { bake, dilate, inkSize, toFnt } from "../fonts/bake.ts";
 import * as complications from "../complications.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
 import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
@@ -47,12 +47,13 @@ export function glyphSet(face: Face): Map<string, string> {
 const bakeSizes = new Map<string, number>();
 
 /**
- * The nominal size to bake `codepoint` at so its ink height is as close as
- * possible to `targetPx`: the icon font's aggregated sets pad their glyphs
- * differently, so `size:` means one visual height for every icon.
+ * The nominal size to bake `codepoint` at so its ink height (with `square`,
+ * its ink's longer side) is as close as possible to `targetPx`: the icon
+ * font's aggregated sets pad their glyphs differently, so `size:` means one
+ * visual height for every icon.
  */
-export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number): number {
-  const key = `${codepoint}\0${targetPx}`;
+export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number, square = false): number {
+  const key = `${codepoint}\0${targetPx}\0${square}`;
   const hit = bakeSizes.get(key);
   if (hit !== undefined) return hit;
   let result: number;
@@ -60,13 +61,17 @@ export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number
     result = 1;
   } else {
     const reference = 512;
-    const atReference = inkHeight(iconFont, codepoint, reference);
+    const inkAt = (size: number): number => {
+      const [w, h] = inkSize(iconFont, codepoint, size);
+      return square ? Math.max(w, h) : h;
+    };
+    const atReference = inkAt(reference);
     const ratio = atReference ? atReference / reference : 1.0;
     const guess = Math.max(1, roundHalfEven(targetPx / ratio));
-    let bestSize = guess, bestInk = inkHeight(iconFont, codepoint, guess), bestDiff = Math.abs(bestInk - targetPx);
+    let bestSize = guess, bestInk = inkAt(guess), bestDiff = Math.abs(bestInk - targetPx);
     for (let candidate = Math.max(1, guess - 4); candidate < guess + 9; candidate++) {
       if (candidate === guess) continue;
-      const ink = inkHeight(iconFont, codepoint, candidate);
+      const ink = inkAt(candidate);
       const diff = Math.abs(ink - targetPx);
       // On a tie, prefer not undershooting.
       if (diff < bestDiff || (diff === bestDiff && ink >= targetPx && targetPx > bestInk)) {
@@ -81,27 +86,32 @@ export function bakeSize(iconFont: FontFile, codepoint: string, targetPx: number
 
 /**
  * One synthetic `FontSpec` per icon font key: its nominal size on this device, its glyphs, anti-aliasing and turn.
- * A pinned radial icon's turn, or a free-end one's steps (one spec each), is resolved here, per device, from the size just computed.
+ * A font whose glyph the watch picks (a slot's, the live weather's) sizes each glyph to fit a `size:` square.
+ * A pinned radial icon's turn, or a free-end one's steps (one spec each), is resolved here, per device, from `size:`.
  */
 export function iconFontSpecs(face: Face, device: Device, iconFont: FontFile): Map<string, FontSpec> {
-  const byKey = new Map<string, [units.Length | null, string, string, boolean, number | PinnedTurn | SteppedTurn]>();
+  const byKey = new Map<string, [units.Length | null, string, string, boolean, number | PinnedTurn | SteppedTurn, boolean]>();
   for (const [, run] of kinds.faceTextRuns(face)) {
-    if (run.icon !== null) byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias, run.icon.rotate]);
+    if (run.icon !== null) {
+      byKey.set(run.font, [run.icon.size, run.icon.glyphs, run.icon.reference, run.icon.antialias, run.icon.rotate, run.glyph_table !== null]);
+    }
   }
   const out = new Map<string, FontSpec>();
-  for (const [key, [length, glyphs, reference, antialias, rotate]] of byKey) {
-    const size = bakeSize(iconFont, reference, units.pixelSize(length, device.minorRadius));
-    // The widest glyph places the icon, as the layout does (`pinWidth`).
-    const advance = Math.max(...Array.from(glyphs, (ch) => glyphAdvance(iconFont, ch, size)));
-    const spec = (name: string, turn: number): FontSpec =>
-      FontSpec.create({ name, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px") });
+  for (const [key, [length, glyphs, reference, antialias, rotate, picked]] of byKey) {
+    const px = units.pixelSize(length, device.minorRadius);
+    const sizes = picked ? new Map(Array.from(glyphs, (ch): [string, number] => [ch, bakeSize(iconFont, ch, px, true)])) : null;
+    // The line is the largest glyph's, so every glyph's cell fits it.
+    const size = sizes !== null ? Math.max(...sizes.values()) : bakeSize(iconFont, reference, px);
+    const spec = (name: string, turn: number): FontSpec => FontSpec.create({
+      name, source: ICON_FONT, glyphs, antialias, rotate: turn, span: null, size: new units.Length(size, "px"), glyph_sizes: sizes,
+    });
     if (rotate instanceof SteppedTurn) {
       // A free-end icon: one font per step this device's widest reading can reach, none under `key` itself.
-      const steps = rotate.steps(device, advance);
+      const steps = rotate.steps(device, px);
       for (let i = 0; i < steps.count; i++) out.set(stepKey(key, i), spec(stepKey(key, i), rotate.turnAt(steps.first + i * steps.size)));
       continue;
     }
-    out.set(key, spec(key, typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, advance)));
+    out.set(key, spec(key, typeof rotate === "number" ? rotate : rotate.turn(device.minorRadius, px)));
   }
   return out;
 }
@@ -119,7 +129,7 @@ function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<t
   let sheets = memo.get(source.bytes);
   if (sheets === undefined) memo.set(source.bytes, sheets = new Map());
   const key = JSON.stringify([source.path, options.name, options.size, options.glyphs, options.antialias ?? false, options.monospace ?? false,
-    options.align ?? "center", options.rotate ?? 0]);
+    options.align ?? "center", options.rotate ?? 0, options.sizes ? [...options.sizes] : null]);
   let baked = sheets.get(key);
   if (baked === undefined) sheets.set(key, baked = bake(source, options));
   return baked;
@@ -139,6 +149,7 @@ export function bakeFonts(face: Face, device: Device, read: FontReader, memo: Ba
   for (const [name, spec] of specs) {
     baked.set(name, memoBake(memo, read(spec.source!), {
       name, size: spec.pixelSize(device.minorRadius), glyphs: spec.glyphs!, antialias: spec.antialias, rotate: spec.rotate,
+      sizes: spec.glyph_sizes ?? undefined,
     }));
   }
   // Last: each ring font is dilated from its base's own sheet.

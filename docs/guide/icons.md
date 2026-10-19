@@ -90,6 +90,14 @@ be baked once, before layout runs, so its size cannot depend on a parent box
 has already happened. `%r` is recommended, for the same reason it is
 recommended everywhere else: it means the same thing regardless of screen size.
 
+**What `size:` measures depends on who picks the glyph.** A fixed icon (a
+name or a codepoint) is baked so its ink is `size:` tall. An icon whose
+glyph the watch picks (`slot:`, `icon: {for:}`) is baked glyph by glyph,
+each so its ink's longer side is `size:`: every glyph fits the same
+`size:` square, so a wide glyph (`steps`) is no bigger than a tall one
+(`heart`), whichever the wearer picks or the weather brings. The font's
+line is the largest glyph's, and each glyph is centred in it.
+
 **The catalogue prefers Material Design Icons** (`nf-md`, the icon font's
 largest and most consistent set) whenever a glyph reads at least as well as an
 alternative — the one deliberate exception is `steps`, which keeps a Font

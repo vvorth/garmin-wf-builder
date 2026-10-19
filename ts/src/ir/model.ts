@@ -141,6 +141,8 @@ export class FontSpec {
   align = "center";
   /** Degrees clockwise every glyph is baked turned: an icon font's `rotate:`. */
   rotate = 0;
+  /** An icon font's size per glyph, px, overriding `size` (a slot's or the live weather's glyphs). */
+  glyph_sizes: Map<string, number> | null = null;
   face: string[] | null = null;
   unsupported: string | null = null;
 

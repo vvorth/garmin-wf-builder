@@ -300,10 +300,12 @@ export interface BakeOptions {
   align?: string;
   /** Degrees clockwise to turn every glyph; 0 is upright. */
   rotate?: number;
+  /** A size per glyph, overriding `size`: each is centred in the line `size` sets, about its own advance. */
+  sizes?: ReadonlyMap<string, number>;
 }
 
 /** Rasterise `glyphs` from `source` at `size` pixels. */
-export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center", rotate = 0 }: BakeOptions): BakedFont {
+export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center", rotate = 0, sizes }: BakeOptions): BakedFont {
   if (!(ALIGNMENTS as readonly string[]).includes(align)) throw new Error(`font '${name}': unknown align '${align}'`);
   const chars = orderedUnique(glyphs);
   if (chars.length === 0) throw new Error(`font '${name}': no glyphs to bake`);
@@ -311,9 +313,12 @@ export function bake(source: FontFile, { name, size, glyphs, antialias = false, 
   const [ascent, descent] = metrics(p, size);
   const rendered: Rendered[] = chars.map((ch) => {
     // The advance and the line metrics stay at the target size, as FreeType scales them.
-    const advance = advanceAt(p, ch, size);
-    const found = rasteriseGlyph(p, size, ch, antialias, rotate);
-    return found === null ? [ch, EMPTY, 0, 0, advance] : [ch, found[0], found[1], found[2], advance];
+    const own = sizes?.get(ch) ?? size;
+    const advance = advanceAt(p, ch, own);
+    const found = rasteriseGlyph(p, own, ch, antialias, rotate);
+    if (found === null) return [ch, EMPTY, 0, 0, advance];
+    const [a, d] = metrics(p, own);
+    return [ch, found[0], found[1], found[2] + roundHalfEven((ascent + descent - a - d) / 2), advance];
   });
   const unturned = new Map(rendered.map((r) => [r[0], r[4]]));
   const grown = rotate !== 0 ? fitCells(rendered, ascent + descent) : 0;
@@ -405,9 +410,14 @@ export function toFnt(font: BakedFont): string {
  * floor of its top to the ceiling of its bottom, in pixels.
  */
 export function inkHeight(source: FontFile, ch: string, size: number): number {
+  return inkSize(source, ch, size)[1];
+}
+
+/** `ch`'s upright ink `[width, height]` at `size`, whole pixels. */
+export function inkSize(source: FontFile, ch: string, size: number): [number, number] {
   const p = load(source);
   const b = bounds(flatten(commands(p, ch, Math.max(1, size), 0)));
-  return b === null ? 0 : Math.max(0, Math.ceil(b[3]) - Math.floor(b[1]));
+  return b === null ? [0, 0] : [Math.max(0, Math.ceil(b[2]) - Math.floor(b[0])), Math.max(0, Math.ceil(b[3]) - Math.floor(b[1]))];
 }
 
 /** `ch`'s outline at `size` px per em, its pen at the origin on the baseline, y down. */
