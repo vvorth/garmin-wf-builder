@@ -484,7 +484,7 @@ export interface Frame {
  * or a value whose shape is not the schema's), shown as its text.
  */
 export type Widget =
-  | "readonly" | "object" | "length" | "angle" | "align" | "color" | "expression" | "template" | "enum"
+  | "readonly" | "object" | "length" | "angle" | "gap" | "align" | "color" | "expression" | "template" | "enum"
   | "slot" | "handset" | "font" | "face" | "icon" | "complication" | "bool" | "number" | "text" | "yaml";
 
 /**

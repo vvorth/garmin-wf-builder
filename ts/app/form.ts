@@ -494,6 +494,7 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, 
     case "readonly": return html`<code>${String(value)}</code>`;
     case "length": return html`<${Quantity} value=${value} like=${like} units=${lengthUnitsFor(ctx.elementType)} bareUnit="px" onCommit=${onCommit} />`;
     case "angle": return html`<${Quantity} value=${value} like=${like} units=${ANGLE_UNITS} bareUnit="deg" onCommit=${onCommit} />`;
+    case "gap": return html`<${Quantity} value=${value} like=${like} units=${[...lengthUnitsFor(ctx.elementType), ...ANGLE_UNITS]} bareUnit="px" onCommit=${onCommit} />`;
     case "align": return html`<${AlignPicker} value=${value} onCommit=${onCommit} />`;
     case "color": {
       const colorControl = (v: Value | undefined, pick: (v: string) => void): VNode => {
@@ -637,7 +638,7 @@ export function seedOf(field: Field, ctx?: FaceCtx & { faceNames?: readonly stri
       if (field.enum && field.enum.length) return field.enum[0] ?? null;
       switch (field.widget) {
         case "bool": return false;
-        case "number": case "length": case "angle": return 0;
+        case "number": case "length": case "angle": case "gap": return 0;
         case "color": { const first = ctx?.globals.palette[0]; return first ? `color.${first.name}` : "#FFFFFF"; }
         case "face": return ctx?.faceNames?.[0] ?? "";
         default: return "";
@@ -660,6 +661,7 @@ function branchLabel(branch: Field): string {
     case "number": return "number";
     case "length": return "length";
     case "angle": return "angle";
+    case "gap": return "length or angle";
     case "color": return "colour";
     case "expression": return "expression";
     case "template": return "text";
@@ -678,7 +680,7 @@ function admits(branch: Field, value: Value): boolean {
   switch (branch.widget) {
     case "bool": return typeof value === "boolean";
     case "number": return typeof value === "number";
-    case "length": case "angle": return typeof value === "number" || typeof value === "string";
+    case "length": case "angle": case "gap": return typeof value === "number" || typeof value === "string";
     default: return typeof value === "string";
   }
 }

@@ -493,6 +493,18 @@
         }
       ]
     },
+    "gaugeGap": {
+      "description": "A segmented gauge's gap: a length (px, %, %r; a bare number is px), measured along the track, or on an arc gauge an angle with its unit (deg, rad or turn), the same on every screen.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/length"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(deg|rad|turn)\\s*$"
+        }
+      ]
+    },
     "size": {
       "type": "object",
       "additionalProperties": false,
@@ -2313,8 +2325,8 @@
           "maximum": 60
         },
         "gap": {
-          "description": "style: segments only -- the space between two cells, a length (default 2px). On an arc it is measured along the arc at 'radius:'.",
-          "$ref": "#/$defs/length"
+          "description": "style: segments only -- the space between two cells (default 2px): a length, measured along the track (on an arc, along the arc at 'radius:'), or on an arc an angle with its unit, such as 3deg, which keeps the cells' proportions on every screen.",
+          "$ref": "#/$defs/gaugeGap"
         },
         "bands": {
           "description": "style: scale only -- coloured zones along the track, each running from the previous band's 'to:' (the first from 0) to its own. 'to:' is a fraction of the full scale, 0-1 exclusive of 0, strictly increasing. The rest of the track draws in 'track_color:'.",

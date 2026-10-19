@@ -762,7 +762,8 @@ export class Gauge extends Element {
   fallback: Expression | null = null;
   needle: AnyHandPart[] = [];
   count: number | null = null;
-  gap: Length | null = null;
+  /** `segments`' gap: a length along the track, or on an arc an angle. */
+  gap: Length | Angle | null = null;
   bands: [number, Expression][] = [];
   pointer: Length | null = null;
 

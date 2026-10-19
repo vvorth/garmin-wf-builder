@@ -135,7 +135,7 @@ const frame = obj({
   tiles: obj({ data: str, index: record(tuple(int, int, int, literal("mask", "rgba"))) }),
 });
 
-const WIDGETS = ["readonly", "object", "length", "angle", "align", "color", "expression", "template", "enum", "slot", "handset", "font", "face", "icon",
+const WIDGETS = ["readonly", "object", "length", "angle", "gap", "align", "color", "expression", "template", "enum", "slot", "handset", "font", "face", "icon",
   "complication", "bool", "number", "text", "yaml"];
 const effective = obj({ value, from: literal("own", "override", "aod", "group", "defaults", "absent"), selector: opt(str), group: opt(str) });
 const field: Check = (v, at) => obj({

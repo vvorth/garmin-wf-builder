@@ -82,6 +82,8 @@ const MAX_DEPTH = 6;
 const WIDGET_BY_REF: Record<string, Widget> = {
   length: "length", handLength: "length", patternLength: "length",
   angle: "angle",
+  // a segmented gauge's gap: a length, or an angle on an arc
+  gaugeGap: "gap",
   align: "align",
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
   visible: "expression", partVisible: "expression", expression: "expression",

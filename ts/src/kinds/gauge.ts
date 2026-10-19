@@ -8,7 +8,7 @@ import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
 import { degrees, formatG, isNumber, num, quoted, str } from "../py.ts";
-import { Box, IntBox, roundPx as round } from "../units.ts";
+import { Angle, Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
 import {
@@ -135,6 +135,9 @@ const STYLE_ONLY_KEYS: ReadonlyMap<string, string> = new Map([
 
 const ARC_KEYS = ["radius", "thickness", "start_angle", "sweep"];
 
+/** A `gap:` written with an angle's unit: degrees between an arc's cells, whatever the radius. */
+const ANGLE_GAP = /(deg|rad|turn)\s*$/;
+
 /** `style: segments`/`scale`: an arc's four keys or a bar's `size:`, exactly one, then their own keys. */
 function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
   const style = element.style;
@@ -157,7 +160,17 @@ function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
   }
   if (style === "segments") {
     element.count = Math.trunc(num(node.get("count") as number));
-    element.gap = b.length(node, "gap");
+    const gap = node.get("gap");
+    if (typeof gap === "string" && ANGLE_GAP.test(gap)) {
+      if (arcGiven.length === 0) {
+        b.bag.error("element", `${element.id}: 'gap: ${gap.trim()}' is an angle, which only an arc gauge has -- `
+          + "on a bar give it as a length (px, %, %r)", b.doc.span(node, "gap"));
+        return false;
+      }
+      element.gap = b.angle(node, "gap");
+    } else {
+      element.gap = b.length(node, "gap");
+    }
     return true;
   }
   element.pointer = b.length(node, "pointer");
@@ -187,11 +200,14 @@ function resolveTicked(r: Resolver, element: Gauge, placed: PlacedGauge, parent:
   const arc = element.geometry === "arc";
   const length = arc ? placed.sweep : placed.size[0];
   if (element.style === "segments") {
-    let gap = r.extent(element.gap, parent, "minor", 2, null, min1px, "gap");
-    if (arc) {
-      gap = placed.radius > 0 ? degrees(gap / placed.radius) : 0.0;
-      gap = Math.abs(gap) * (placed.sweep < 0 || Object.is(placed.sweep, -0) ? -1 : 1);
+    let gap: number;
+    if (element.gap instanceof Angle) {
+      gap = element.gap.degrees;
+    } else {
+      gap = r.extent(element.gap, parent, "minor", 2, null, min1px, "gap");
+      if (arc) gap = placed.radius > 0 ? degrees(gap / placed.radius) : 0.0;
     }
+    if (arc) gap = Math.abs(gap) * (placed.sweep < 0 || Object.is(placed.sweep, -0) ? -1 : 1);
     const count = element.count!;
     placed.cell = (length - (count - 1) * gap) / count;
     placed.step = placed.cell + gap;

@@ -26,7 +26,7 @@ the same placement rule as every other element with a box.
 | `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) keyed by id | required (`needle`) | the needle, pointing at 12, axis at `at:` |
 | `size` | size | required (`bar`; `segments`/`scale` on a bar) | the bar's box |
 | `count` | 2–60 | required (`segments`) | how many cells |
-| `gap` | length | `2px` (`segments`) | space between two cells |
+| `gap` | length, or angle on an arc | `2px` (`segments`) | space between two cells |
 | `bands` | 1–8 `{to, color}` | — (`scale`) | coloured zones along the track, `to` a fraction 0–1 |
 | `pointer` | length | the track's thickness or height (`scale`) | radius of the dot at the value |
 | `color` | color expression | — | fill colour |
@@ -212,14 +212,37 @@ hr_scale:
 ```
 
 **`segments`** divides the track into `count:` equal cells with `gap:`
-between them (a length; on an arc it is measured along the arc at
-`radius:`), and lights `round(fraction × count)` of them in `color:` — so
+between them, and lights `round(fraction × count)` of them in `color:` — so
 34% of 10 cells lights 3, and 36% lights 4. The rest draw in
 `track_color:`, or not at all without one. On an arc each cell is one
 `drawArc`, so it follows the whole-degree rule every arc here does; on a
 bar, cell edges land on whole pixels the way `style: bar`'s fill does. A
 `gap:` so wide that no cell is left on some device is an error
 (`progress-segments`), not an empty element.
+
+`gap:` is a length (`px`, `%`, `%r`; a bare number is `px`), measured along
+the track: on an arc, along the arc at `radius:`, so the same `5px` is
+fewer degrees on a bigger screen. On an arc it can also be an angle with
+its unit (`3deg`, `0.01turn`), the same number of degrees on every screen,
+so the cells keep their proportions whatever the radius. An angle on a bar
+is an error.
+
+```yaml
+  steps_ring:
+    type: gauge
+    style: segments
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 93.5%r
+    thickness: 6%r
+    start_angle: 360deg
+    sweep: -180deg
+    count: 12
+    gap: 3deg                # (180 - 11 x 3) / 12 = 12.25deg a cell
+    color: color.accent
+    absent: hide
+```
 
 **`scale`** draws the track in `track_color:`, then each of `bands:` over
 it — each band runs from the previous band's `to:` (the first from 0) to

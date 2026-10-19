@@ -87,6 +87,7 @@ jobs:
             # test/edit-preview.test.ts
             # test/formatting.test.ts
             # test/garmin-raster.test.ts
+            # test/gauge-gap.test.ts
             # test/geometry.test.ts
             # test/golden-monkeyc.test.ts
             # test/goldens.test.ts
