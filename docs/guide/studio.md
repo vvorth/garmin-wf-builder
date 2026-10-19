@@ -231,7 +231,7 @@ parts, and a `gauge` with `style: needle` its needle's parts, all in a frame
 of their own: the parts are written pointing at 12 o'clock about the axis,
 in `px` or `%r`, and the watch turns them ([analog
 hands](analog-hands.md), [patterns](patterns.md)). To edit them, **enter**
-the element: the **↘** on its Layers row, or a double-click on the row.
+the element: the **✎** on its Layers row, or a double-click on the row.
 The face is then drawn as a ghost, dimmed to a third, with the element's
 parts in full colour where the watch draws them, and over it the parts'
 own frame: the axis as a dashed cross, the ring at 100 %r, and the 12
@@ -241,7 +241,8 @@ the face is drawn at, and every hand's parts are drawn at their own hand's
 angle; for a radial pattern it is the first copy drawn (copy 0, or the
 first not skipped, turned by `start:`); for a needle, the angle of the
 sample reading. The label at the top right of the face names the element
-you are in.
+you are in. In Layers, the element's ✎ turns into a green **✓** and every
+other row is dimmed, so it is plain which element you are editing.
 
 Inside, Layers lists the element's hands and their parts (or its parts)
 under its row, each with its type; click one to select it, and Properties
@@ -260,8 +261,10 @@ it; lower half: after). A pattern entered keeps its frame while you change
 its `count`, `step_angle`, `step` or `skip` in Properties, so the ghosted
 copies follow each change.
 
-**Exit**, at the top of Layers, or **Escape** with nothing being dragged,
-leaves the element; so does selecting an element outside it. A hands
+The **✓** on its row, or **Escape** with nothing being dragged, leaves the
+element; so does selecting an element outside it, dimmed or not. There is
+nothing to confirm: each change to a part is saved as you make it, and
+**Undo** takes it back. A hands
 element's parts belong to its set (`resources: hand_sets:`), so a change
 made inside one `hands` element shows in every element placing the same
 set.
@@ -499,9 +502,9 @@ not draw (hidden, absent, a different style's layout, asleep with no
 `aod:`) is dimmed; a group dims only when none of its own children draw,
 since a group never draws itself. A `hands` element lists its set's hands
 and their parts beneath it, a `pattern` or a needle gauge its parts, each
-part with its type; its **↘** enters the element ([hands, patterns and
-needles](#hands-patterns-and-needles-enter-the-set)), and **Exit** at the
-top of the list leaves it. A row whose element writes `z:` shows it as a
+part with its type; its **✎** enters the element ([hands, patterns and
+needles](#hands-patterns-and-needles-enter-the-set)), which dims every
+other row, and the **✓** that replaces it leaves. A row whose element writes `z:` shows it as a
 small badge (**z 5**): `z:` orders drawing among its siblings before their
 order in the list does ([elements](elements.md)).
 

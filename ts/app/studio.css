@@ -9,6 +9,7 @@
   --error: #ff6b6b;
   --warning: #f5c04a;
   --note: #8ab4f8;
+  --ok: #3fb950;
   color-scheme: dark;
 }
 
@@ -288,16 +289,17 @@ table.schemes .from { font-size: 10px; }
 .tree .item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .tree .item.drop-into, .tree .block.drop-into { background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .tree .empty-block { color: var(--dim); font-size: 11px; padding: 2px 24px; font-style: italic; }
-/* a hands element's hands and parts, and a pattern's or needle's parts, under their element; the entered element and its Exit */
+/* a hands element's hands and parts, and a pattern's or needle's parts, under their element; the entered element, its ✓, and every other row dimmed */
 .tree .item.hand, .tree .item.part { font-size: 12px; }
 .tree .item.hand { color: var(--dim); cursor: pointer; }
 .tree .item.hand .type { display: none; }
 .tree .item.part .type { font-size: 10px; }
 .tree .item button.enter { margin-left: auto; padding: 0 6px; font-size: 11px; line-height: 1.3; color: var(--dim); }
-.tree .item button.enter:disabled { color: var(--accent); border-color: transparent; }
-.tree .item.entered { box-shadow: inset 2px 0 0 var(--accent); }
-.layers .entered-bar { display: flex; gap: 8px; align-items: center; padding: 6px 12px 2px; font-size: 12px; }
-.layers .entered-bar button.exit { padding: 2px 8px; font-size: 12px; }
+.tree .item button.done { margin-left: auto; padding: 0 6px; font-size: 12px; font-weight: 700; line-height: 1.3; color: #fff; background: var(--ok); border-color: var(--ok); }
+.tree .item button.done:hover { filter: brightness(1.15); }
+.tree .item.entered { box-shadow: inset 2px 0 0 var(--ok); }
+.layers.entering .tree .item.outside, .layers.entering .block { opacity: .38; }
+.layers.entering .tree .item.outside:hover { opacity: .7; }
 .canvas .entered-label { position: absolute; right: 8px; top: 8px; z-index: 2; font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--dim); background: var(--panel); border: 1px solid var(--line); padding: 2px 6px; border-radius: 4px; pointer-events: none; }
 /* the item of the polygon point picked on the face */
 .field .list-item.on > .field { box-shadow: inset 2px 0 0 var(--accent); }
@@ -511,7 +513,7 @@ h3.fold:hover { color: var(--text); }
 .tree .item .row-toggles { margin-left: auto; display: flex; gap: 2px; }
 .tree .item .row-toggles button { padding: 0 4px; font-size: 11px; line-height: 1.3; border-color: transparent; background: transparent; opacity: .35; }
 .tree .item:hover .row-toggles button, .tree .item .row-toggles button.on { opacity: 1; }
-.tree .item button.enter + .row-toggles { margin-left: 0; }
+.tree .item button.enter + .row-toggles, .tree .item button.done + .row-toggles { margin-left: 0; }
 .tree .item.hidden-row > span:first-child { text-decoration: line-through; opacity: .6; }
 .tree .item .row-toggles button.inherited { opacity: .6; cursor: default; }
 .tree .item .row-toggles button[aria-label^="hide"].on { text-decoration: line-through; }

@@ -3,7 +3,8 @@
 // frame; `features/patterns`' `hour_ticks` entered and its tick part moved;
 // `features/shapes`' chevron: one vertex dragged, the whole polygon moved
 // (every point), a vertex added on a segment and removed again, byte for
-// byte; Exit and Escape leave the frame. Every change is read back from the
+// byte; the row's ✓ and Escape leave the frame, and Layers dims every
+// other row while it is entered. Every change is read back from the
 // YAML text and from the entered frame the worker draws.
 
 import assert from "node:assert/strict";
@@ -101,18 +102,18 @@ const toLocal = (dx: number, dy: number, angle: number): [number, number] => {
 async function enterFromLayers(s: Session, id: string): Promise<void> {
   await s.leftTab("Layers");
   await s.layerRow(id).locator("button.enter").click();
-  await s.page.locator(".layers .entered-bar button.exit").waitFor({ timeout: 15_000 });
+  await s.layerRow(id).locator("button.done").waitFor({ timeout: 15_000 });
   await s.page.locator(".canvas.entered").waitFor({ timeout: 30_000 });
   await s.waitIdle();
 }
 
 const left = async (s: Session): Promise<void> => {
-  await s.page.locator(".layers .entered-bar").waitFor({ state: "detached", timeout: 15_000 });
+  await s.page.locator(".layers.entering").waitFor({ state: "detached", timeout: 15_000 });
   await s.page.locator(".canvas.entered").waitFor({ state: "detached", timeout: 30_000 });
   await s.waitIdle();
 };
 
-h.test("showcase: the vintage set entered from Layers, the hour blade's vertex dragged in the hand's frame, Exit and Escape", async (s) => {
+h.test("showcase: the vintage set entered from Layers, the hour blade's vertex dragged in the hand's frame, ✓ and Escape", async (s) => {
   await s.openExample("showcase");
   await s.waitFace();
   await s.waitIdle();
@@ -163,8 +164,10 @@ h.test("showcase: the vintage set entered from Layers, the hour blade's vertex d
   after = await s.undo();
   assert.equal(after.text, base.text, `undo: ${diffLines(base.text, after.text).join(" ; ")}`);
 
-  // Exit leaves the set; Escape does too
-  await s.page.locator(".layers .entered-bar button.exit").click();
+  // while entered, every other row is dimmed but its own; its ✓ leaves the set, and Escape does too
+  assert.equal(await s.page.locator(".layers.entering .tree .item.entered.outside").count(), 0);
+  assert.ok(await s.page.locator(".layers.entering .tree .item.outside").count() > 0);
+  await s.page.locator(".layers .item.entered button.done").click();
   await left(s);
   await enterFromLayers(s, "roman_hands");
   await s.page.locator(".canvas .hit").click({ position: { x: 3, y: 3 } });

@@ -1,7 +1,7 @@
 // The Layers panel's hands and parts, rendered with preact over the minimal
 // DOM (`studio_dom.mjs`) from a real face's summary: the rows under a
-// `hands` element, a part row's selection by its tree path, the Enter and
-// Exit affordances of an element with parts, and a part row dragged onto
+// `hands` element, a part row's selection by its tree path, the ✎ and ✓
+// of an element with parts and the rows dimmed around it, and a part row dragged onto
 // another, which reorders the parts as one `move_key`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -55,14 +55,14 @@ test("a hands element lists its hands and their parts as rows, indented, each ty
       row(${JSON.stringify(HOUR.join("/"))}).click();
       row("pin").click();
       out(calls);
-      // only an element with parts offers Enter; a double-click on its row enters too
-      out([row("hands").all((e) => cls(e) === "enter").length, row("pin").all((e) => cls(e) === "enter").length, row(${JSON.stringify([...HOUR, "parts", "blade"].join("/"))}).all((e) => cls(e) === "enter").length]);
+      // only an element with parts offers ✎; a double-click on its row enters too
+      out([row("hands").all((e) => cls(e) === "enter" && e.textContent === "✎").length, row("pin").all((e) => cls(e) === "enter").length, row(${JSON.stringify([...HOUR, "parts", "blade"].join("/"))}).all((e) => cls(e) === "enter").length]);
       calls.length = 0;
       row("hands").all((e) => cls(e) === "enter")[0].click();
       row("hands").dispatch("dblclick");
       out(calls);
-      // nothing is entered: no Exit, no row marked
-      out([root.all((e) => cls(e) === "exit").length, rows().filter((e) => cls(e).includes("entered")).length]);
+      // nothing is entered: no ✓, no row marked or dimmed
+      out([root.all((e) => cls(e) === "done").length, rows().filter((e) => cls(e).includes("entered") || cls(e).includes("outside")).length]);
     `);
   assert.deepEqual(printed[0], [
     ["hour", "hand", "hand"], ["blade", "polygon", "part"],
@@ -82,13 +82,19 @@ test("a hands element lists its hands and their parts as rows, indented, each ty
   assert.deepEqual(printed[6], [0, 0]);
 });
 
-test("while entered, the element's row is marked, Exit heads the list, and a part row dropped on another reorders the parts with one move_key", () => {
+test("while entered, the element's ✎ is a ✓ that leaves, every row outside it is dimmed, and a part row dropped on another reorders the parts with one move_key", () => {
   const doc = summary(instantiate("analog", "T"));
   const needle = [...SECOND, "parts", "needle"].join("/"), weight = [...SECOND, "parts", "counterweight"].join("/");
   const printed = layers(doc, HANDS, `
       const needle = ${JSON.stringify(needle)}, weight = ${JSON.stringify(weight)};
-      out([cls(row("hands")).includes("entered"), root.all((e) => cls(e) === "exit").length, root.all((e) => cls(e) === "entered-bar")[0].textContent.includes("hands")]);
-      root.all((e) => cls(e) === "exit")[0].click();
+      const done = row("hands").all((e) => cls(e) === "done");
+      out([cls(row("hands")).includes("entered"), done.map((e) => e.textContent), row("hands").all((e) => cls(e) === "enter").length,
+           root.all((e) => cls(e).startsWith("layers"))[0].attributes.class]);
+      // dimmed: every row but the entered element's and its hands' and parts'; the other element with parts keeps its ✎
+      out(rows().filter((e) => cls(e).includes("outside")).map((e) => e.attributes["data-path"] ?? e.childNodes[0].textContent));
+      out(rows().filter((e) => !cls(e).includes("outside")).map((e) => e.attributes["data-path"] ?? e.childNodes[0].textContent).length);
+      out(row("hour_ticks").all((e) => cls(e) === "enter").length);
+      done[0].click();
       out(calls.splice(0));
       const data = {};
       const transfer = { types: [], setData(t, v) { data[t] = v; this.types.push(t); }, getData: (t) => data[t] ?? "" };
@@ -109,10 +115,15 @@ test("while entered, the element's row is marked, Exit heads the list, and a par
       row(needle).dispatch("drop", { dataTransfer: transfer, clientY: 2, currentTarget: rect(20) });
       out(calls);
     `);
-  assert.deepEqual(printed[0], [true, 1, true]);
-  assert.deepEqual(printed[1], [{ exit: true }]);
-  assert.deepEqual(printed[2], [...SECOND, "parts", "needle"]);
-  assert.deepEqual(printed[3], [
+  assert.deepEqual(printed[0], [true, ["✓"], 0, "layers entering"]);
+  const outside: string[] = printed[1];
+  assert.ok(outside.length > 0 && !outside.includes("hands") && outside.every((id) => !id.startsWith(HOUR.slice(0, 3).join("/"))), JSON.stringify(outside));
+  assert.ok(outside.includes("pin") && outside.includes("hour_ticks"), JSON.stringify(outside));
+  assert.equal(printed[2], 1 + 7, "the entered row and its three hands and four parts are not dimmed");
+  assert.equal(printed[3], 1);
+  assert.deepEqual(printed[4], [{ exit: true }]);
+  assert.deepEqual(printed[5], [...SECOND, "parts", "needle"]);
+  assert.deepEqual(printed[6], [
     { edit: { op: "move_key", element: SECOND, path: ["parts", "needle"], to: 1 } },
     { edit: { op: "move_key", element: SECOND, path: ["parts", "counterweight"], to: 0 } },
   ]);

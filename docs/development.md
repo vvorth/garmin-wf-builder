@@ -450,7 +450,8 @@ path joined with `/` (`ts/app/tree.ts`, `selectionId`), the entered frame's
 item id; the store's `context.entered` is the element entered (its tree
 path), which the frame ask carries as `enter`, and `selection.vertex` the
 polygon point picked on the face or in Properties. Layers (`ts/app/layers.ts`)
-lists hands and parts under their element, enters it (↘, double-click) and
+lists hands and parts under their element, enters it (✎, double-click),
+dims every row outside it while entered, leaves it (its ✓) and
 reorders parts with one `move_key`; the canvas (`ts/app/canvas.ts`) draws
 the entered frame's axis, ring and ray over the ghost, picks parts by their
 boxes, and turns `vertex` and `segment` handles into the point gestures,

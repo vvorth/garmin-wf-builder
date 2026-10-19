@@ -3,8 +3,9 @@
 // top row is drawn first, under the rows below it. A `hands` element lists
 // its set's hands and their parts beneath it, a pattern or a needle gauge
 // its parts: a part row selects the part (by its tree path, under the
-// element it sits in), and the element's ↘ (or a double-click) enters it,
-// so the face shows its parts in their own frame; Exit, at the top, leaves.
+// element it sits in), and the element's ✎ (or a double-click) enters it,
+// so the face shows its parts in their own frame; the ✓ it turns into
+// leaves.
 // Click selects, Ctrl/Cmd-click adds to the selection or takes a row out
 // of it, Shift-click selects every row from the selection to it; a row dragged
 // onto another goes behind it (its top half) or in front of it, onto a
@@ -57,6 +58,7 @@ interface Ctx {
   /** A part row dropped on the sibling part `onto`, at `fraction` of its height. */
   onPartDrop: (path: Path, onto: TreeNode, fraction: number, siblings: readonly TreeNode[]) => void;
   onEnter: (path: Path) => void;
+  onExit: () => void;
 }
 
 // A drop on the tree: a layer row's moves it; anything else (text, a
@@ -85,13 +87,16 @@ const fractionOf = (e: JSX.TargetedDragEvent<HTMLDivElement>): number => {
   return r.height ? (e.clientY - r.top) / r.height : 0.5;
 };
 
-// An element's row: selected by its id, dragged as its path, entered by ↘
-// or a double-click when it has parts.
+// An element's row: selected by its id, dragged as its path, entered by ✎
+// or a double-click when it has parts. Entered, its ✎ is a ✓ that leaves,
+// and every row outside it is dimmed (still a click away: picking one
+// leaves too).
 function Row({ node, next, ctx, depth }: RowProps): VNode {
   const [over, setOver] = useState<DropTarget["where"] | null>(null);
   const selected = ctx.selected === node.id || ctx.extra.includes(node.id);
   const drawn = ctx.drawn;
   const entered = ctx.entered === node.path.join("/");
+  const outside = ctx.entered !== null && !entered;
   const enterable = hasParts(node);
   const zone = (e: JSX.TargetedDragEvent<HTMLDivElement>): DropTarget => dropTarget(node, fractionOf(e), next);
   const hiddenRow = ctx.hiddenAll.has(node.id);
@@ -106,7 +111,7 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
   // a part's row dropped on an element goes nowhere: parts stay in their mapping
   const accepts = (e: JSX.TargetedDragEvent<HTMLDivElement>): boolean => carriesPath(e.dataTransfer?.types);
   return html`<li>
-    <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") + (entered ? " entered" : "") +
+    <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") + (entered ? " entered" : "") + (outside ? " outside" : "") +
                  (drawn && !anyDrawn(node, drawn) ? " undrawn" : "") + (hiddenRow ? " hidden-row" : "") + (ctx.lockedAll.has(node.id) ? " locked-row" : "")}
          draggable="true" title=${`line ${node.line}`}
          onClick=${(e: JSX.TargetedMouseEvent<HTMLDivElement>) => ctx.onSelect(node.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey)}
@@ -120,8 +125,11 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
          onDrop=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => { e.preventDefault(); setOver(null); dropped(e, ctx, zone(e).target); }}>
       <span>${node.id}</span><span class="type">${node.type}</span>
       ${node.z !== undefined ? html`<span class="z-badge" title=${`z: ${String(node.z)}: drawn by this number among its siblings before their order here`}>z ${String(node.z)}</span>` : null}
-      ${enterable ? html`<button class="enter" title=${entered ? "the parts of this element are on the face" : "Enter: edit its parts on the face (or double-click the row)"}
-          disabled=${entered} onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); ctx.onEnter(node.path); }}>↘</button>` : null}
+      ${enterable && entered ? html`<button class="done" aria-label=${`done editing the parts of ${node.id}`}
+          title="Done: back to the whole face (Esc). Each change to a part is already saved as you make it"
+          onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); ctx.onExit(); }}>✓</button>`
+        : enterable ? html`<button class="enter" aria-label=${`edit the parts of ${node.id}`} title="Edit its parts on the face (or double-click the row)"
+          onClick=${(e: JSX.TargetedMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); ctx.onEnter(node.path); }}>✎</button>` : null}
       ${ctx.onLock || ctx.onHide ? html`<span class="row-toggles">
         ${toggle(ctx.locked, ctx.lockedAll, "locked", "lock it: the canvas will not pick or drag it (Layers and Properties still do)", "lock", ctx.onLock)}
         ${toggle(ctx.hidden, ctx.hiddenAll, "hidden", "hide it in the editor's frame (the face itself keeps it)", "hide", ctx.onHide)}
@@ -139,9 +147,10 @@ function PartRow({ node, ctx, depth, owner, siblings }: RowProps): VNode {
   const id = selectionId(node);
   const selected = ctx.selected === id;
   const movable = node.kind === "part" && isPartPath(node.path);
+  const outside = ctx.entered !== null && (owner ?? []).join("/") !== ctx.entered;
   const accepts = (e: JSX.TargetedDragEvent<HTMLDivElement>): boolean => movable && carriesPath(e.dataTransfer?.types);
   return html`<li>
-    <div class=${`item ${node.kind}` + (selected ? " selected" : "") + (over ? ` drop-${over}` : "")}
+    <div class=${`item ${node.kind}` + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") + (outside ? " outside" : "")}
          draggable=${movable ? "true" : "false"} title=${`line ${node.line}`} data-path=${id}
          onClick=${() => ctx.onSelect(id, false, owner ?? undefined)}
          onDragStart=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => {
@@ -265,11 +274,12 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
       if (op && onEdit) onEdit(op);
     },
     onEnter: (path) => { if (onEnter) onEnter(path); },
+    onExit: () => { if (onExit) onExit(); },
   };
   const destinations = blocks.destinations.filter((d) => selectedNode && JSON.stringify(d.path) !== JSON.stringify(selectedNode.path.slice(0, -1))
     && JSON.stringify(d.path.slice(0, selectedNode.path.length)) !== JSON.stringify(selectedNode.path));
 
-  return html`<div class="layers">
+  return html`<div class=${"layers" + (enteredNode ? " entering" : "")}>
     <div class="add-bar">
       <select value=${type} onChange=${(e: JSX.TargetedEvent<HTMLSelectElement>) => { setType(e.currentTarget.value); setChoice(""); }} title="Add an element after the selection, or at the end of elements:">
         <option value="">+ add…</option>
@@ -296,10 +306,6 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
         <option value="">move to…</option>
         ${destinations.map((d) => html`<option value=${JSON.stringify(d.path)}>${d.label}</option>`)}
       </select>
-    </div>` : null}
-    ${enteredNode ? html`<div class="entered-bar">
-      <button class="exit" title="Leave the parts and edit the face again (Esc)" onClick=${() => { if (onExit) onExit(); }}>↖ Exit</button>
-      <span class="dim">the parts of <code>${enteredNode.id}</code> are on the face</span>
     </div>` : null}
     <div class="layer-search">
       <input type="search" class="search" placeholder="search ids and types" aria-label="search the layers" value=${query}
