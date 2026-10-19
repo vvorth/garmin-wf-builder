@@ -177,43 +177,103 @@
   },
   "weather_sunny": {
    "name": "weather_sunny",
-   "codepoint": "",
-   "description": "weather: sunny (Weather Icons weather-day_sunny)"
+   "codepoint": "󰖙",
+   "description": "weather: sunny (Material Design md-weather_sunny)"
   },
-  "weather_sunny_overcast": {
-   "name": "weather_sunny_overcast",
-   "codepoint": "",
-   "description": "weather: sunny overcast (Weather Icons weather-day_sunny_overcast)"
-  },
-  "weather_cloudy_light": {
-   "name": "weather_cloudy_light",
-   "codepoint": "",
-   "description": "weather: cloudy light (Weather Icons weather-day_cloudy)"
+  "weather_partly_cloudy": {
+   "name": "weather_partly_cloudy",
+   "codepoint": "󰖕",
+   "description": "weather: partly cloudy (Material Design md-weather_partly_cloudy)"
   },
   "weather_cloudy": {
    "name": "weather_cloudy",
-   "codepoint": "",
-   "description": "weather: cloudy (Weather Icons weather-cloudy)"
+   "codepoint": "󰖐",
+   "description": "weather: cloudy (Material Design md-weather_cloudy)"
   },
-  "weather_cloudy_heavy": {
-   "name": "weather_cloudy_heavy",
-   "codepoint": "",
-   "description": "weather: cloudy heavy (Weather Icons weather-day_cloudy_high)"
+  "weather_cloudy_alert": {
+   "name": "weather_cloudy_alert",
+   "codepoint": "󰼯",
+   "description": "weather: cloudy alert (Material Design md-weather_cloudy_alert)"
   },
   "weather_fog": {
    "name": "weather_fog",
-   "codepoint": "",
-   "description": "weather: fog (Weather Icons weather-day_fog)"
+   "codepoint": "󰖑",
+   "description": "weather: fog (Material Design md-weather_fog)"
   },
-  "weather_haze": {
-   "name": "weather_haze",
-   "codepoint": "",
-   "description": "weather: haze (Weather Icons weather-day_haze)"
+  "weather_hazy": {
+   "name": "weather_hazy",
+   "codepoint": "󰼰",
+   "description": "weather: hazy (Material Design md-weather_hazy)"
   },
-  "weather_smoke": {
-   "name": "weather_smoke",
-   "codepoint": "",
-   "description": "weather: smoke (Weather Icons weather-smoke)"
+  "weather_rainy": {
+   "name": "weather_rainy",
+   "codepoint": "󰖗",
+   "description": "weather: rainy (Material Design md-weather_rainy)"
+  },
+  "weather_partly_rainy": {
+   "name": "weather_partly_rainy",
+   "codepoint": "󰼳",
+   "description": "weather: partly rainy (Material Design md-weather_partly_rainy)"
+  },
+  "weather_pouring": {
+   "name": "weather_pouring",
+   "codepoint": "󰖖",
+   "description": "weather: pouring (Material Design md-weather_pouring)"
+  },
+  "weather_snowy": {
+   "name": "weather_snowy",
+   "codepoint": "󰖘",
+   "description": "weather: snowy (Material Design md-weather_snowy)"
+  },
+  "weather_partly_snowy": {
+   "name": "weather_partly_snowy",
+   "codepoint": "󰼴",
+   "description": "weather: partly snowy (Material Design md-weather_partly_snowy)"
+  },
+  "weather_snowy_heavy": {
+   "name": "weather_snowy_heavy",
+   "codepoint": "󰼶",
+   "description": "weather: snowy heavy (Material Design md-weather_snowy_heavy)"
+  },
+  "weather_snowy_rainy": {
+   "name": "weather_snowy_rainy",
+   "codepoint": "󰙿",
+   "description": "weather: snowy rainy (Material Design md-weather_snowy_rainy)"
+  },
+  "weather_partly_snowy_rainy": {
+   "name": "weather_partly_snowy_rainy",
+   "codepoint": "󰼵",
+   "description": "weather: partly snowy rainy (Material Design md-weather_partly_snowy_rainy)"
+  },
+  "weather_hail": {
+   "name": "weather_hail",
+   "codepoint": "󰖒",
+   "description": "weather: hail (Material Design md-weather_hail)"
+  },
+  "weather_lightning_rainy": {
+   "name": "weather_lightning_rainy",
+   "codepoint": "󰙾",
+   "description": "weather: lightning rainy (Material Design md-weather_lightning_rainy)"
+  },
+  "weather_partly_lightning": {
+   "name": "weather_partly_lightning",
+   "codepoint": "󰼲",
+   "description": "weather: partly lightning (Material Design md-weather_partly_lightning)"
+  },
+  "weather_windy": {
+   "name": "weather_windy",
+   "codepoint": "󰖝",
+   "description": "weather: windy (Material Design md-weather_windy)"
+  },
+  "weather_tornado": {
+   "name": "weather_tornado",
+   "codepoint": "󰼸",
+   "description": "weather: tornado (Material Design md-weather_tornado)"
+  },
+  "weather_hurricane": {
+   "name": "weather_hurricane",
+   "codepoint": "󰢘",
+   "description": "weather: hurricane (Material Design md-weather_hurricane)"
   },
   "weather_dust": {
    "name": "weather_dust",
@@ -225,91 +285,6 @@
    "codepoint": "",
    "description": "weather: sandstorm (Weather Icons weather-sandstorm)"
   },
-  "weather_rain_light": {
-   "name": "weather_rain_light",
-   "codepoint": "",
-   "description": "weather: rain light (Weather Icons weather-day_sprinkle)"
-  },
-  "weather_rain": {
-   "name": "weather_rain",
-   "codepoint": "",
-   "description": "weather: rain (Weather Icons weather-day_rain)"
-  },
-  "weather_rain_heavy": {
-   "name": "weather_rain_heavy",
-   "codepoint": "",
-   "description": "weather: rain heavy (Weather Icons weather-day_showers)"
-  },
-  "weather_snow": {
-   "name": "weather_snow",
-   "codepoint": "",
-   "description": "weather: snow (Weather Icons weather-day_snow)"
-  },
-  "weather_snow_heavy": {
-   "name": "weather_snow_heavy",
-   "codepoint": "",
-   "description": "weather: snow heavy (Weather Icons weather-day_snow_wind)"
-  },
-  "weather_ice": {
-   "name": "weather_ice",
-   "codepoint": "",
-   "description": "weather: ice (Weather Icons weather-snowflake_cold)"
-  },
-  "weather_wintry_mix": {
-   "name": "weather_wintry_mix",
-   "codepoint": "",
-   "description": "weather: wintry mix (Weather Icons weather-day_rain_mix)"
-  },
-  "weather_sleet": {
-   "name": "weather_sleet",
-   "codepoint": "",
-   "description": "weather: sleet (Weather Icons weather-day_sleet)"
-  },
-  "weather_hail": {
-   "name": "weather_hail",
-   "codepoint": "",
-   "description": "weather: hail (Weather Icons weather-day_hail)"
-  },
-  "weather_thunderstorm": {
-   "name": "weather_thunderstorm",
-   "codepoint": "",
-   "description": "weather: thunderstorm (Weather Icons weather-day_thunderstorm)"
-  },
-  "weather_thunderstorm_showers": {
-   "name": "weather_thunderstorm_showers",
-   "codepoint": "",
-   "description": "weather: thunderstorm showers (Weather Icons weather-day_storm_showers)"
-  },
-  "weather_lightning": {
-   "name": "weather_lightning",
-   "codepoint": "",
-   "description": "weather: lightning (Weather Icons weather-day_lightning)"
-  },
-  "weather_windy": {
-   "name": "weather_windy",
-   "codepoint": "",
-   "description": "weather: windy (Weather Icons weather-day_windy)"
-  },
-  "weather_strong_wind": {
-   "name": "weather_strong_wind",
-   "codepoint": "",
-   "description": "weather: strong wind (Weather Icons weather-strong_wind)"
-  },
-  "weather_tornado": {
-   "name": "weather_tornado",
-   "codepoint": "",
-   "description": "weather: tornado (Weather Icons weather-tornado)"
-  },
-  "weather_hurricane": {
-   "name": "weather_hurricane",
-   "codepoint": "",
-   "description": "weather: hurricane (Weather Icons weather-hurricane)"
-  },
-  "weather_hurricane_warning": {
-   "name": "weather_hurricane_warning",
-   "codepoint": "",
-   "description": "weather: hurricane warning (Weather Icons weather-hurricane_warning)"
-  },
   "weather_volcano": {
    "name": "weather_volcano",
    "codepoint": "",
@@ -319,132 +294,62 @@
    "name": "weather_unknown",
    "codepoint": "",
    "description": "weather: unknown (Weather Icons weather-na)"
-  },
-  "weather_sunny_night": {
-   "name": "weather_sunny_night",
-   "codepoint": "",
-   "description": "weather: sunny, night (Weather Icons weather-night_clear)"
-  },
-  "weather_cloudy_light_night": {
-   "name": "weather_cloudy_light_night",
-   "codepoint": "",
-   "description": "weather: cloudy light, night (Weather Icons weather-night_alt_partly_cloudy)"
-  },
-  "weather_cloudy_night": {
-   "name": "weather_cloudy_night",
-   "codepoint": "",
-   "description": "weather: cloudy, night (Weather Icons weather-night_alt_cloudy)"
-  },
-  "weather_fog_night": {
-   "name": "weather_fog_night",
-   "codepoint": "",
-   "description": "weather: fog, night (Weather Icons weather-night_fog)"
-  },
-  "weather_rain_light_night": {
-   "name": "weather_rain_light_night",
-   "codepoint": "",
-   "description": "weather: rain light, night (Weather Icons weather-night_alt_sprinkle)"
-  },
-  "weather_rain_night": {
-   "name": "weather_rain_night",
-   "codepoint": "",
-   "description": "weather: rain, night (Weather Icons weather-night_alt_rain)"
-  },
-  "weather_rain_heavy_night": {
-   "name": "weather_rain_heavy_night",
-   "codepoint": "",
-   "description": "weather: rain heavy, night (Weather Icons weather-night_alt_showers)"
-  },
-  "weather_snow_night": {
-   "name": "weather_snow_night",
-   "codepoint": "",
-   "description": "weather: snow, night (Weather Icons weather-night_alt_snow)"
-  },
-  "weather_snow_heavy_night": {
-   "name": "weather_snow_heavy_night",
-   "codepoint": "",
-   "description": "weather: snow heavy, night (Weather Icons weather-night_snow_wind)"
-  },
-  "weather_wintry_mix_night": {
-   "name": "weather_wintry_mix_night",
-   "codepoint": "",
-   "description": "weather: wintry mix, night (Weather Icons weather-night_alt_rain_mix)"
-  },
-  "weather_sleet_night": {
-   "name": "weather_sleet_night",
-   "codepoint": "",
-   "description": "weather: sleet, night (Weather Icons weather-night_alt_sleet)"
-  },
-  "weather_hail_night": {
-   "name": "weather_hail_night",
-   "codepoint": "",
-   "description": "weather: hail, night (Weather Icons weather-night_alt_hail)"
-  },
-  "weather_thunderstorm_night": {
-   "name": "weather_thunderstorm_night",
-   "codepoint": "",
-   "description": "weather: thunderstorm, night (Weather Icons weather-night_alt_thunderstorm)"
-  },
-  "weather_thunderstorm_showers_night": {
-   "name": "weather_thunderstorm_showers_night",
-   "codepoint": "",
-   "description": "weather: thunderstorm showers, night (Weather Icons weather-night_alt_storm_showers)"
   }
  },
  "garmin_weather_condition_icon": {
   "0": "weather_sunny",
-  "1": "weather_cloudy_light",
-  "2": "weather_cloudy_heavy",
-  "3": "weather_rain",
-  "4": "weather_snow",
+  "1": "weather_partly_cloudy",
+  "2": "weather_cloudy",
+  "3": "weather_rainy",
+  "4": "weather_snowy",
   "5": "weather_windy",
-  "6": "weather_thunderstorm",
-  "7": "weather_wintry_mix",
+  "6": "weather_lightning_rainy",
+  "7": "weather_snowy_rainy",
   "8": "weather_fog",
-  "9": "weather_haze",
+  "9": "weather_hazy",
   "10": "weather_hail",
-  "11": "weather_rain_heavy",
-  "12": "weather_thunderstorm_showers",
-  "13": "weather_rain",
-  "14": "weather_rain_light",
-  "15": "weather_rain_heavy",
-  "16": "weather_snow",
-  "17": "weather_snow_heavy",
-  "18": "weather_wintry_mix",
-  "19": "weather_wintry_mix",
+  "11": "weather_partly_rainy",
+  "12": "weather_partly_snowy_rainy",
+  "13": "weather_partly_snowy_rainy",
+  "14": "weather_partly_rainy",
+  "15": "weather_pouring",
+  "16": "weather_partly_snowy",
+  "17": "weather_snowy_heavy",
+  "18": "weather_partly_snowy_rainy",
+  "19": "weather_snowy_rainy",
   "20": "weather_cloudy",
-  "21": "weather_wintry_mix",
-  "22": "weather_sunny_overcast",
-  "23": "weather_sunny_overcast",
-  "24": "weather_rain_light",
-  "25": "weather_rain_heavy",
-  "26": "weather_rain_heavy",
-  "27": "weather_rain_light",
-  "28": "weather_lightning",
+  "21": "weather_snowy_rainy",
+  "22": "weather_partly_cloudy",
+  "23": "weather_partly_cloudy",
+  "24": "weather_partly_rainy",
+  "25": "weather_rainy",
+  "26": "weather_pouring",
+  "27": "weather_partly_rainy",
+  "28": "weather_partly_lightning",
   "29": "weather_fog",
   "30": "weather_dust",
-  "31": "weather_rain_light",
+  "31": "weather_partly_rainy",
   "32": "weather_tornado",
-  "33": "weather_smoke",
-  "34": "weather_ice",
+  "33": "weather_cloudy_alert",
+  "34": "weather_snowy_heavy",
   "35": "weather_sandstorm",
-  "36": "weather_strong_wind",
+  "36": "weather_windy",
   "37": "weather_sandstorm",
   "38": "weather_volcano",
-  "39": "weather_haze",
-  "40": "weather_sunny_overcast",
+  "39": "weather_hazy",
+  "40": "weather_partly_cloudy",
   "41": "weather_hurricane",
-  "42": "weather_hurricane_warning",
-  "43": "weather_snow",
-  "44": "weather_wintry_mix",
-  "45": "weather_rain",
-  "46": "weather_snow",
-  "47": "weather_wintry_mix",
-  "48": "weather_snow",
-  "49": "weather_sleet",
-  "50": "weather_sleet",
-  "51": "weather_snow",
-  "52": "weather_cloudy_light",
+  "42": "weather_lightning_rainy",
+  "43": "weather_partly_snowy",
+  "44": "weather_partly_snowy_rainy",
+  "45": "weather_partly_rainy",
+  "46": "weather_partly_snowy",
+  "47": "weather_partly_snowy_rainy",
+  "48": "weather_snowy_heavy",
+  "49": "weather_snowy_rainy",
+  "50": "weather_snowy",
+  "51": "weather_snowy_heavy",
+  "52": "weather_partly_cloudy",
   "53": "weather_unknown"
  },
  "complication_icon": {

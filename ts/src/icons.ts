@@ -242,7 +242,7 @@ export function chooseWeatherIcon(condition: unknown): string {
   return GARMIN_WEATHER_CONDITION_ICON.get(Math.trunc(condition)) ?? "weather_unknown";
 }
 
-export const WEATHER_BAKE_REFERENCE_GLYPH: string = CATALOG.get("weather_rain")!.codepoint;
+export const WEATHER_BAKE_REFERENCE_GLYPH: string = CATALOG.get("weather_rainy")!.codepoint;
 
 /** Each complication type with a catalogue icon of its own. */
 export const COMPLICATION_ICON: ReadonlyMap<string, string> = new Map(Object.entries(data.complication_icon));

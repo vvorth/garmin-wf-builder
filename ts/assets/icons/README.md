@@ -29,18 +29,17 @@ icon sets; the ones this project's catalogue draws from are:
 
 | Icon set | Used for | Upstream | License |
 |---|---|---|---|
-| Material Design Icons | `heart`, `flame`, `alarm`, `dnd`, `notification`, `battery`, `floors`, `distance`, `phone` | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
+| Material Design Icons | `heart`, `flame`, `alarm`, `dnd`, `notification`, `battery`, `floors`, `distance`, `phone`, most `weather_*` | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
 | Font Awesome Free | `steps` | github.com/FortAwesome/Font-Awesome | CC BY 4.0 |
-| Weather Icons | `weather_*` | github.com/erikflowers/weather-icons | SIL OFL 1.1 |
+| Weather Icons | `weather_dust`, `weather_sandstorm`, `weather_volcano`, `weather_unknown` | github.com/erikflowers/weather-icons | SIL OFL 1.1 |
 
 Material Design Icons is preferred for a new catalogue entry whenever a glyph
 reads at least as well as an alternative -- it is the largest, most
 consistently-drawn set in this font. `steps` is the deliberate exception (its
-catalogue description says why), and weather icons come from the
-dedicated Weather Icons set rather than MDI's own `weather_*` glyphs, because
-it has more distinct conditions and day/night pairs -- and, unusually for this
-font, its codepoints fit in the Basic Multilingual Plane (see "Codepoints
-above U+FFFF" below).
+catalogue description says why). Weather icons are MDI's own weather set,
+one glyph per condition that reads the same at any hour; Weather Icons
+supplies only the conditions MDI has no glyph for (dust, sand, volcanic ash,
+unknown).
 
 CC BY 4.0 and Apache 2.0 both require attribution, which this file provides:
 Font Awesome Free icons by Fonticons, Inc.; Material Design Icons by the
@@ -79,8 +78,7 @@ https://www.nerdfonts.com/cheat-sheet.
 
 ## Codepoints above U+FFFF
 
-Material Design Icons' glyphs (and MDI's own `weather_*` glyphs, though this
-catalogue does not use those -- see above) live entirely above the Basic
+Material Design Icons' glyphs (the `weather_*` ones included) live entirely above the Basic
 Multilingual Plane, needing a surrogate pair in a JSON or JavaScript string
 rather than one `\uXXXX`. `monkeyc` compiles a string literal containing one without
 complaint. The one real problem was in the *resource compiler*: a generated

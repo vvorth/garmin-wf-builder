@@ -62,10 +62,9 @@ screenshot shows the weather icon.
 steps_icon:
   type: icon
   icon: steps                 # alarm | battery | distance | dnd | flame | floors | heart |
-                               # notification | phone | steps, plus one `weather_<condition>`
-                               # per Weather.CONDITION_* bucket and a `weather_<condition>_night`
-                               # variant for most of them -- run `wfb sources` for the full,
-                               # current list (53 names as of this writing)
+                               # notification | phone | steps, plus the `weather_*` glyphs the
+                               # Weather.CONDITION_* values map to -- run `wfb sources` for the
+                               # full, current list
   size: 30px                  # px or %r only -- see below
   color: color.accent
 ```
@@ -102,10 +101,12 @@ line is the largest glyph's, and each glyph is centred in it.
 largest and most consistent set) whenever a glyph reads at least as well as an
 alternative — the one deliberate exception is `steps`, which keeps a Font
 Awesome glyph because MDI's walking/running figures read as "activity" rather
-than "step count" at a glance. Weather icons (`weather_*`) come from the font's
-dedicated Weather Icons set instead, because it covers more distinct conditions
-and day/night pairs than MDI's own `weather_*` glyphs and — unlike them — its
-codepoints fit in the Basic Multilingual Plane (`ts/assets/icons/README.md`). `GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts` maps every
+than "step count" at a glance. Weather icons (`weather_*`) are MDI's weather
+set too, named after their MDI glyphs (`weather_partly_rainy`,
+`weather_snowy_heavy`), except dust, sand, volcanic ash and the unknown
+condition, which MDI lacks and the font's Weather Icons set supplies. Each
+reads the same by day and by night, so a condition has one icon at any hour.
+`GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts` maps every
 `Toybox.Weather.CONDITION_*` value (0–53) to one of these.
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
@@ -242,8 +243,7 @@ This currently accepts only a bare `weather.condition*` source (see `wfb
 sources`) — not an expression over one (`weather.condition + 1` is rejected;
 the lookup needs the raw `Weather.CONDITION_*` value). The generated code
 resolves the glyph in two steps, mirroring `ts/src/icons.ts` exactly: `WfbWeather.
-chooseIcon()` (a hand-written barrel function, day glyphs only for now — there
-is no sunrise/sunset source yet to pick the night variant on-device) turns the
+chooseIcon()` (a hand-written barrel function) turns the
 condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
 each build directly from the icon catalogue, not hand-written — turns that
 name into the actual character. A weather condition is not a special case on
