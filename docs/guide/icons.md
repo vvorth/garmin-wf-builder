@@ -202,8 +202,8 @@ elements:
 place of `icon:`. The glyph is then the icon of whatever the wearer picked
 for that slot, chosen on the watch, exactly as a `type: data` element
 chooses its own: from the picked type, by the slot's catalogue icons and
-its per-choice `icon:` overrides, with a weather type's icon following the
-pulled condition. It is the icon of a slot on its own, placed and turned
+its per-choice `icon:` overrides, with a weather type's icon following a
+weather condition ([configuration](configuration.md)). It is the icon of a slot on its own, placed and turned
 freely, beside the slot's [gauge](progress-and-graphs.md#gauges-on-a-slot)
 and its `type: data` reading drawn without an `icon:`
 ([`examples/features/curved-slot`](../../examples/features/curved-slot/face.yaml)

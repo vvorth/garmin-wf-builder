@@ -595,9 +595,12 @@ still true of the shipped feature:
   native editor and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type***
   (`Complications.Id.getType()`), except a weather type's, which follows
-  the pulled condition (`WfbWeather.chooseIcon`, the mapping `icon: {for:
-  weather.condition}` uses) and falls back to the type's own `weather` icon
-  on a frame with no reading. Every native type has a catalogue icon
+  a condition (`WfbWeather.chooseIcon`, the mapping `icon: {for:
+  weather.condition}` uses): the weather and forecast types their own
+  pulled condition, `current_temperature` the current one and
+  `high_low_temperature` today's forecast one, read beside the reading
+  (`Weather.getCurrentConditions()`, `getDailyForecast()[0]`). With no
+  condition it falls back to the type's own catalogue icon. Every native type has a catalogue icon
   (`COMPLICATION_ICON` in `ts/src/icons.ts` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`), and

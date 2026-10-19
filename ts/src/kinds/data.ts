@@ -27,7 +27,7 @@ import {
 import { constPrefix, fontField, McLiteral } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
-import { DATA_SAMPLE } from "../sample.ts";
+import { DATA_SAMPLE, SAMPLE } from "../sample.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -125,12 +125,14 @@ export function slotIconFontKey(slotName: string, size: Length | null, antialias
   return icons.fontKey(size, `slot_${slotName}`, antialias, turn);
 }
 
-/** The sample frame's icon for `shown`: its catalogue glyph, or a weather type's for the sample condition. */
+/** The sample frame's icon for `shown`: its catalogue glyph, or a weather type's for the sample condition it follows. */
 export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown): string | null {
   const icon = slot.icons.get(shown);
   if (icon === undefined) return null;
-  if (slot.conditionIcons.has(shown) && typeof sample === "number" && Number.isInteger(sample)) {
-    return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(sample) ?? "weather_unknown")!.codepoint;
+  const follows = complications.ICON_CONDITION.get(shown);
+  const condition = follows === undefined || follows === null ? sample : SAMPLE.get(follows);
+  if (slot.conditionIcons.has(shown) && typeof condition === "number" && Number.isInteger(condition)) {
+    return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(condition) ?? "weather_unknown")!.codepoint;
   }
   return icon.codepoint;
 }

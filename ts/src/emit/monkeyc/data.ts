@@ -292,6 +292,9 @@ export function emitDataHoldMethod(w: WriterType, elementId: string, slot: strin
   w.block(`function ${dataHoldMethod(elementId)}() as ${returnType}`, () => w.line(`return ${field};`));
 }
 
+/** The `WfbConditions` function reading each `complications.ICON_CONDITION` source. */
+const CONDITION_READER: ReadonlyMap<string, string> = new Map([["weather.condition", "current"], ["weather.condition_today", "today"]]);
+
 /** `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue name, for element `elementId`. */
 export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string): void {
   const slot = resolved.face.config_data.get(slotName)!;
@@ -303,13 +306,19 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
     + "the reading, so it still shows on a frame the reading could not be pulled.\n"
     + "A weather type's icon follows the pulled condition when there is one.");
   w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
-    if (follows.size > 0) w.line("var value = (pulled != null) ? pulled.value : null;");
+    if ([...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
     w.block("switch (t)", () => {
       for (const name of names) {
         const icon = mapped.get(name);
         if (icon === undefined) continue;
         const ctype = complications.TYPES.get(name)!;
-        if (follows.has(name)) {
+        const source = complications.ICON_CONDITION.get(name);
+        if (follows.has(name) && source !== null && source !== undefined) {
+          // A temperature carries no condition: read the one it follows beside it.
+          const reader = CONDITION_READER.get(source);
+          if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
+          w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
+        } else if (follows.has(name)) {
           w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
         } else {
           w.line(`case Complications.${ctype.constant}: return "${icon.key}";`);

@@ -357,11 +357,16 @@ Instead:
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
   `U+XXXX` override's canonical spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
-  **A weather type's icon follows the pulled condition** (`WfbWeather.
-  chooseIcon`, the same mapping as `icon: {for: weather.condition}`), and falls
-  back to the type's own `weather` icon on a frame with no reading; the
-  slot's icon font then carries every condition glyph. A weather choice
-  with an authored `icon:` keeps it.
+  **A weather type's icon follows a weather condition** (`WfbWeather.
+  chooseIcon`, the same mapping as `icon: {for: weather.condition}`):
+  `current_weather` and `forecast_weather_1day`/`2day`/`3day` their own
+  pulled condition (the forecast day's predicted one),
+  `current_temperature` the current condition (`weather.condition`), and
+  `high_low_temperature` today's overall forecast condition
+  (`weather.condition_today`). With no condition it falls back to the
+  type's own catalogue icon (`weather`, `temperature`,
+  `temperature_range`); the slot's icon font then carries every condition
+  glyph. A weather choice with an authored `icon:` keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
   `TYPES` in `ts/src/complications.ts` entirely) simply draws no icon, since this

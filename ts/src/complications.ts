@@ -40,6 +40,16 @@ export const PRESENTATION: ReadonlyMap<string, readonly [string, string]> =
 /** The longest reading `short: true` aims for, in characters. */
 export const SHORT_LENGTH: number = data.short_length;
 export const READING: ReadonlyMap<string, string> = new Map(Object.entries(data.reading));
+/**
+ * The weather condition each weather type's icon follows: `null` for the
+ * type's own value (a `Weather.CONDITION_*`), else the `weather.*` source
+ * read beside it: a temperature has no condition of its own, so the current
+ * one shows the current condition and today's high/low today's.
+ */
+export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
+  ["current_weather", null], ["forecast_weather_1day", null], ["forecast_weather_2day", null], ["forecast_weather_3day", null],
+  ["current_temperature", "weather.condition"], ["high_low_temperature", "weather.condition_today"],
+]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));
 export const WORDED: ReadonlySet<string> = new Set(data.worded);
 export const WEATHER_CONDITION_TEXT: ReadonlyMap<number, readonly [string, string]> =

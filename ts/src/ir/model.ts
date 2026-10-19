@@ -336,9 +336,9 @@ export class ConfigDataSlot {
   get allowAny(): boolean { return this.choices === "any"; }
   get field(): string { return configField(`data_${this.name}`); }
 
-  /** The weather types whose icon follows the pulled condition: every weather choice left on its catalogue icon. */
+  /** The weather types whose icon follows a condition (`complications.ICON_CONDITION`): every one left on its catalogue icon. */
   get conditionIcons(): Set<string> {
-    return new Set([...this.icons.keys()].filter((name) => complications.READING.get(name) === "condition" && !this.icon_overrides.has(name)));
+    return new Set([...this.icons.keys()].filter((name) => complications.ICON_CONDITION.has(name) && !this.icon_overrides.has(name)));
   }
 
   /** Complication type to icon, for every choice that ends up with one. */

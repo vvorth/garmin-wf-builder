@@ -86,6 +86,18 @@ test("an icon with slot: draws the icon of whatever the wearer picked", () => {
   assert.match(method(v, "drawGlyph"), /var iconName = iconForGlyph\(chosenId.getType\(\), pulled\);/);
 });
 
+test("a temperature pick's icon follows a weather condition, read beside it", () => {
+  const text = slotIcon("").replace("choices: [steps,", "choices: [steps, current_temperature, high_low_temperature, forecast_weather_2day,");
+  const rain = lit(text, "forecast_weather_2day");  // its sample condition is rain, as weather.condition's is
+  assert.equal(lit(text, "current_temperature"), rain, "the sample condition's icon, not the thermometer");
+  assert.equal(lit(text, "high_low_temperature"), rain);
+  assert.notEqual(lit(text, "stress"), rain);
+  const icon = method(view(text), "iconForGlyph");
+  assert.match(icon, /CURRENT_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.current\(\), "temperature"\);/);
+  assert.match(icon, /HIGH_LOW_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.today\(\), "temperature_range"\);/);
+  assert.match(icon, /FORECAST_WEATHER_2DAY: return \(value instanceof Lang.Number\) \? WfbWeather.chooseIcon\(value\) : "weather";/);
+});
+
 test("an icon with slot: is drawn by the editor's slot drawable, and turns", () => {
   const v = view(slotIcon("    rotate: 30deg"));
   assert.match(method(v, "drawSlotLeft"), /drawGlyph\(dc\);/);
