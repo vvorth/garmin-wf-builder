@@ -5,7 +5,7 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type ConfigDataSlot, DataElement, type Element, type Expression, HOLD_AUTO } from "../ir/model.ts";
-import { dataHoldMethod, dataIconMethod, fontResourceId, holdSpanField } from "../ir/naming.ts";
+import { dataHoldMethod, dataIconMethod, fontResourceId } from "../ir/naming.ts";
 import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
@@ -234,30 +234,6 @@ export function highlightBox(box: IntBox, anchorX: number, align: string, screen
   return new IntBox(left, box.y, right - left, box.height).union(box);
 }
 
-/** Whether `p` is held by its curve's own arc (`radialRunArc`) rather than by its box. */
-export function radialHold(p: Placed): p is PlacedData {
-  return p instanceof PlacedData && p.curve.style === "radial" && p.element.on_hold !== null;
-}
-
-/**
- * The part of the circle a radial reading `textWidth` px long covers, its
- * icon included, `pad` px wider all round: the radii `[inner, outer]`, and
- * the Garmin-degree angle it starts at with the signed sweep it turns
- * through. The watch's hold test computes the same from the drawn width
- * (`WfbHold.inArc`); the editor outlines the one its frame draws.
- */
-export function radialRunArc(p: PlacedData, textWidth: number, pad = 0): { inner: number; outer: number; from: number; sweep: number } {
-  const sign = radialDirectionSign(p.curve.direction);
-  const perPx = 180 / (Math.PI * p.run_spacing);
-  const offset = ({ left: 0, center: textWidth / 2, right: textWidth } as Record<string, number>)[p.element.align] ?? 0;
-  const before = (p.icon_position === "left" ? p.icon_lead : 0) + pad;
-  const after = (p.icon_position === "right" ? p.icon_lead : 0) + pad;
-  return {
-    inner: Math.max(0, p.run_band[0] - pad), outer: p.run_band[1] + pad,
-    from: p.curve.angle_garmin - sign * (offset + before) * perPx, sweep: sign * (textWidth + before + after) * perPx,
-  };
-}
-
 /** The generated module a data element's reading is formatted by. */
 export const SLOT_TEXT_MODULE = "SlotText";
 
@@ -427,7 +403,6 @@ class DataKind extends ElementKind<DataElement> {
       const pinWidth = iconPx;
       const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
       let width = textWidth, height = lineHeight, inkAngle = curve.angle_garmin, iconPoint: [number, number] | null = null, iconTurn = 0;
-      let iconLead = 0;
       let iconTrack: IconTrack | null = null;
       const middle = (): number => {
         const ascent = font.metric !== null ? r.device.db.measure.ascent(font.metric) : lineHeight;
@@ -461,8 +436,7 @@ class DataKind extends ElementKind<DataElement> {
         // A centred pair's text is centred off the authored angle so the pair, not the text, centres on it.
         curve = replaceFields(curve, { angle_garmin: path.textGarmin });
         // The lint sector: the pair along the run from the authored angle, as the alignment lays it out.
-        iconLead = gapPx + widestIcon;
-        width = textWidth + iconLead;
+        width = textWidth + gapPx + widestIcon;
         if (element.vertical_align === "center") height = Math.max(lineHeight, iconPx);
       } else if (reference !== null) {
         // Centred half the reference glyph's advance plus the gap past the run's fixed end, in the middle of the run's band.
@@ -472,10 +446,10 @@ class DataKind extends ElementKind<DataElement> {
         const mid = middle();
         iconPoint = [round(cx + mid * Math.cos(theta)), round(cy - mid * Math.sin(theta))];
         // The lint sector grows by the icon and its gap on the icon's side of the fixed end.
-        iconLead = gapPx + iconWidth;
-        width = textWidth + iconLead;
+        const lead = gapPx + iconWidth;
+        width = textWidth + lead;
         const sign = radialDirectionSign(curve.direction);
-        inkAngle = curve.angle_garmin + (element.align === "right" ? sign : -sign) * degrees(iconLead / curve.radius_px);
+        inkAngle = curve.angle_garmin + (element.align === "right" ? sign : -sign) * degrees(lead / curve.radius_px);
         // shortcut: off a centred band the icon is assumed no taller than the line; widen the band if that ever bites.
         if (element.vertical_align === "center") height = Math.max(lineHeight, iconPx);
       }
@@ -483,19 +457,11 @@ class DataKind extends ElementKind<DataElement> {
         curveStyle: curve.style, angleGarmin: inkAngle, radiusPx: curve.radius_px, direction: curve.direction,
         metric: font.metric, pad: 0, device: r.device,
       }).box().rounded();
-      let runBand: [number, number] = [0, 0], runSpacing = 0;
-      if (curve.style === "radial") {
-        // as textInk lays the run out: the band its ink spans, the circle its advances follow
-        const ascent = font.metric !== null ? r.device.db.measure.ascent(font.metric) : height;
-        runSpacing = radialSpacingRadius(curve.radius_px, element.vertical_align, curve.direction, ascent,
-          font.metric !== null ? r.device.db.measure.lineHeight(font.metric) : height);
-        runBand = radialTextBand(curve.radius_px, height, element.vertical_align, curve.direction, ascent);
-      }
       return PlacedData.create({
         element, box, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)], font: font.resolved(), widest,
         icon_font_key: iconKey, icon_px: iconPx, icon_position: element.icon_position, icon_gap_px: gapPx, highlight: box, curve,
         measured_width: round(width), line_height: height, ink_angle_garmin: inkAngle, icon_point: iconPoint, icon_turn: iconTurn,
-        icon_track: iconTrack, run_band: runBand, run_spacing: runSpacing, icon_lead: iconLead,
+        icon_track: iconTrack,
       });
     }
     let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
@@ -684,8 +650,6 @@ class DataKind extends ElementKind<DataElement> {
       placeholder: element.placeholder, type_name: ctype.name, sample,
       label_sample: ({ short: "Now ", long: "Current " } as Record<string, string>)[element.label ?? ""] ?? "",
     }));
-    // a hold follows what is drawn: the delegate turns this width into the reading's arc
-    if (radialHold(p)) ops.push(Assign(holdSpanField(p.id), TextWidth(Local("text"), font)));
     const textPaint = AodRestyled(element, "color");
     const hasOverride = aod.on && element.aod !== null && element.aod.icon_color !== null;
     let iconPaint: Paint | null;

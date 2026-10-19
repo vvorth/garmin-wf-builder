@@ -6,7 +6,6 @@ import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace } from "../../avai
 import { discPerimeterOffsets, type Element, overrideKeyFor, slotOf, variantConstant } from "../../ir/model.ts";
 import { ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
-import { radialHold, radialRunArc } from "../../kinds/data.ts";
 import {
   HIDDEN_BY_OVERRIDE, HIDDEN_BY_SUBSCREEN, type Placed, type PlacedGauge, type PlacedGraph, type PlacedHands, type PlacedPattern, type PlacedShape,
   type ResolvedFace, type ResolvedHandPart,
@@ -278,24 +277,10 @@ function variantConstants(resolved: ResolvedFace, placed: Placed): Constants {
   return [[variantConstant(element.id), variant, variant === 0 ? "its own colour" : "'overrides:' colour on this device"]];
 }
 
-/** The hit rectangle for an `on_hold:` element: its own drawn box, or empty where it does not draw; a radial reading's arc instead. */
+/** The hit rectangle for an `on_hold:` element: its own drawn box, or empty where it does not draw. */
 function holdConstants(resolved: ResolvedFace, placed: Placed): Constants {
   if (placed.element.on_hold === null) return [];
   const prefix = constPrefix(placed.id);
-  if (radialHold(placed)) {
-    // the band's radii squared and the run's scale; the drawn width comes from the view each frame
-    const hidden = resolved.hidden.has(placed.id);
-    const arc = radialRunArc(placed, 0);
-    const lead = (side: string): number => (placed.icon_position === side ? placed.icon_lead : 0);
-    return [
-      [`${prefix}_HOLD_R0SQ`, hidden ? 0 : Math.floor(arc.inner) ** 2,
-        hidden ? "hit region: empty, not drawn on this device" : "hit region: the arc the drawn reading covers"],
-      [`${prefix}_HOLD_R1SQ`, hidden ? -1 : Math.ceil(arc.outer) ** 2, ""],
-      [`${prefix}_HOLD_PER_PX`, flt(180 / (Math.PI * placed.run_spacing)), "degrees of the run per px of reading"],
-      [`${prefix}_HOLD_BEFORE`, lead("left"), "px held before the reading: its icon and gap on that side"],
-      [`${prefix}_HOLD_AFTER`, lead("right"), "px held after it"],
-    ];
-  }
   let box = placed.box;
   let note = "hit region: the element's own drawn box";
   if (resolved.hidden.has(placed.id)) {

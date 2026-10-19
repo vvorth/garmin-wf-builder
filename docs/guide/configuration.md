@@ -479,14 +479,8 @@ string, drawn curved as a whole.
   ([Fonts](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)).
 * The lints see the run's real shape (a sector of a ring, or a turned
   rectangle), sized from the widest reading any choice could draw, with
-  its icon and gap when it has one; the native editor's highlight is that
-  shape's box, since the wearer scrolls through every choice in it.
-* With `style: radial`, the editor outlines the reading it draws (the
-  pick and sample its frame shows, icon included), and `on_hold:` holds
-  the arc the reading covers as the watch drew it last: the face measures
-  the reading every frame, so the region follows the wearer's pick, a
-  step count's short arc or a weather condition's long one. A `style:
-  angled` reading keeps the box of its widest choice for both.
+  its icon and gap when it has one; the native editor's highlight and the
+  `on_hold:` region are that shape's box.
 
 **A curved pair.** `icon:` beside `curve:` is placed in the text's own
 frame, and turns with it:

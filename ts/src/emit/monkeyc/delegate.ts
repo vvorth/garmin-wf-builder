@@ -6,9 +6,8 @@
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
 import { holdSlot } from "../../ir/model.ts";
-import { dataHoldMethod, holdSpanField } from "../../ir/naming.ts";
-import { radialHold } from "../../kinds/data.ts";
-import { type PlacedData, radialDirectionSign, type ResolvedFace } from "../../layout.ts";
+import { dataHoldMethod } from "../../ir/naming.ts";
+import type { ResolvedFace } from "../../layout.ts";
 import { Writer } from "../writer.ts";
 import {
   CONFIG_LAYOUT_METHOD, constPrefix, type EditorSlot, editorSlots, gatedHolds, header, HOLDS_SHOWN, holdTargets, maskLiteral, type SourceFile,
@@ -48,21 +47,6 @@ function emitExitTo(w: Writer, exitArg: string, guard: string | null = null): vo
 function hitTest(box: string, extra = ""): string {
   return `if (x >= Layout.${box}_X && x < Layout.${box}_X + Layout.${box}_WIDTH\n`
     + `        && y >= Layout.${box}_Y && y < Layout.${box}_Y + Layout.${box}_HEIGHT${extra})`;
-}
-
-/**
- * A radial reading's hold: the arc the reading the view last drew covers
- * (`radialRunArc` on the host), its icon included.
- */
-function arcTest(placed: PlacedData, extra: string): string {
-  const prefix = constPrefix(placed.id);
-  const span = `_view.${holdSpanField(placed.id)}`;
-  const offset = ({ left: "", center: `${span} / 2.0 + `, right: `${span} + ` } as Record<string, string>)[placed.element.align] ?? "";
-  const ccw = radialDirectionSign(placed.curve.direction) > 0;
-  const from = `Layout.${prefix}_ANGLE ${ccw ? "-" : "+"} (${offset}Layout.${prefix}_HOLD_BEFORE) * Layout.${prefix}_HOLD_PER_PX`;
-  const sweep = `${ccw ? "" : "-"}(${span} + Layout.${prefix}_HOLD_BEFORE + Layout.${prefix}_HOLD_AFTER) * Layout.${prefix}_HOLD_PER_PX`;
-  return `if (WfbHold.inArc(x, y, Layout.${prefix}_CX, Layout.${prefix}_CY, Layout.${prefix}_HOLD_R0SQ, Layout.${prefix}_HOLD_R1SQ,\n`
-    + `        ${from},\n        ${sweep})${extra})`;
 }
 
 /** `source/<Face>Delegate.mc`: turn a touch and hold into a glance. */
@@ -136,8 +120,7 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
         const layoutTest = element.layout !== null ? ` && _view.${CONFIG_LAYOUT_METHOD}() == ${face.layouts.indexOf(element.layout)}` : "";
         const bit = gated.indexOf(element);
         const shownTest = bit >= 0 ? ` && (_view.${HOLDS_SHOWN} & ${maskLiteral((1 << bit) >>> 0)}) != 0` : "";
-        const placed = resolved.items.find((p) => p.id === element.id);
-        const condition = placed !== undefined && radialHold(placed) ? arcTest(placed, layoutTest + shownTest) : hitTest(`${prefix}_HOLD`, layoutTest + shownTest);
+        const condition = hitTest(`${prefix}_HOLD`, layoutTest + shownTest);
         const followed = holdSlot(element);
         if (followed !== null) {
           w.comment(`\`${element.id}\` -> whatever the wearer picked for slot ${followed}`);
