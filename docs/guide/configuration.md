@@ -314,7 +314,7 @@ Instead:
 
   | Types | Drawn | With `unit: true` |
   |---|---|---|
-  | steps, calories, floors, intensity minutes, notifications, stress, sleep score, pushes | `8809`; from 10,000 up, thousands with one decimal: `10.0K`, `12.9K` | -- |
+  | steps, calories, floors, intensity minutes, notifications, stress, sleep score, pushes | `8809`; from 10,000 up, thousands with one decimal: `10.0K`, `12.9K` (with `short:`, from 1,000: `765`, `1.5K`, `7.8K`) | -- |
   | heart rate, respiration rate | `77`, `17` | `77bpm`, `17brpm` |
   | battery, body battery, pulse ox, solar input | `100` | `100%` |
   | VO2 max (run, bike) | `49`; 0 (nothing recorded) is absent | -- |
@@ -337,6 +337,7 @@ Instead:
   significant figures, with `Complication.unit`'s suffix under `unit:`.
 * **`short:`** (`false` default) keeps a reading to seven characters where a
   rule can: a weather condition's short name (`Mo clr`, `Pt cldy`, `Ch r/s`),
+  a count in thousands from 1,000 rather than 10,000 (`7.8K` for 7,849),
   a training status's (`Maint`, `Prodctv`, in the case the device reported
   it), `26/17` for `H 26 / L 17`, and a `unit:` suffix dropped when it would
   pass seven (`12:30/mi` -> `12:30`). Text the device supplies otherwise --

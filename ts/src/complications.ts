@@ -124,13 +124,14 @@ function suffixed(number: string, suffix: string, short: boolean): string {
   return number + suffix;
 }
 
-function count(value: unknown, deviceUnit: unknown): string {
+/** `WfbReading.count`: whole, or thousands with one decimal from 10,000 (`short:`, from 1,000). */
+function count(value: unknown, deviceUnit: unknown, short = false): string {
   if (isFloatValue(value)) {
     if (deviceUnit === "K") return `${formatFixed(num(value as number), 1)}K`;
     return formatValue(value) + (typeof deviceUnit === "string" ? deviceUnit : "");
   }
   const whole = Math.trunc(num(value as number));
-  if (Math.abs(whole) >= 10000) return `${formatFixed(whole / 1000.0, 1)}K`;
+  if (Math.abs(whole) >= (short ? 1000 : 10000)) return `${formatFixed(whole / 1000.0, 1)}K`;
   return String(whole);
 }
 
@@ -184,7 +185,7 @@ export function formatReading(name: string, value: unknown, deviceUnit: unknown 
   const number = isNumber(value) && typeof value !== "boolean" ? num(value) : typeof value === "boolean" ? Number(value) : 0.0;
   if (kind === "count" || kind === "vo2max") {
     if (kind === "vo2max" && Math.trunc(number) === 0) return null;
-    return suffixed(count(value, deviceUnit), unit ? COUNT_UNIT.get(name) ?? "" : "", short);
+    return suffixed(count(value, deviceUnit, short && kind === "count"), unit ? COUNT_UNIT.get(name) ?? "" : "", short);
   }
   if (kind === "percent") return String(rounded(number)) + (unit ? "%" : "");
   if (kind === "condition") return conditionText(Math.trunc(number), short);

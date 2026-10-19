@@ -99,6 +99,7 @@ jobs:
             # test/page-panels.test.ts
             # test/parameter-limits.test.ts
             # test/protocol.test.ts
+            # test/reading-count.test.ts
             # test/studio.test.ts
             # test/studio-canvas.test.ts
             # test/studio-edits.test.ts

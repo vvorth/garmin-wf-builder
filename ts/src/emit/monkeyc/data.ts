@@ -167,7 +167,7 @@ function wordedVariants(face: Face, kind: string): Set<boolean> {
 
 const NUMERIC_READING: Readonly<Record<string, string>> = {
   percent: "WfbReading.percent(value, unit)",
-  vo2max: "(value.toNumber() == 0) ? null : WfbReading.count(value, c.unit)",
+  vo2max: "(value.toNumber() == 0) ? null : WfbReading.count(value, c.unit, false)",
   clock: "WfbReading.clock(value, settings.is24Hour)",
   duration: "WfbReading.duration(value)",
   hours: "WfbReading.hours(value)",
@@ -244,8 +244,8 @@ export function emitSlotText(face: Face): SourceFile {
           let expression: string;
           if (kind === "count") {
             const suffix = complications.COUNT_UNIT.get(name) ?? "";
-            expression = !suffix ? "WfbReading.count(value, c.unit)"
-              : `WfbReading.suffixed(WfbReading.count(value, c.unit), unit ? "${suffix}" : "", short)`;
+            expression = !suffix ? "WfbReading.count(value, c.unit, short)"
+              : `WfbReading.suffixed(WfbReading.count(value, c.unit, short), unit ? "${suffix}" : "", short)`;
           } else if (kind === "condition") {
             expression = variantExpression(conditions, "conditionShort(value.toNumber())", "conditionName(value.toNumber())");
           } else {
