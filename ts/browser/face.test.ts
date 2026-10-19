@@ -89,7 +89,7 @@ h.test("Colours: rename, recolour, add, remove unused, and a used colour's delet
 
   // its chip recolours every user at once
   await row("cool").locator("button.chip-button").click();
-  await s.page.locator(".popover-body.pop .pop-grid button[aria-label='Yellow']").click();
+  await s.page.locator(".popover-body.pop .pop-families button[aria-label='Yellow']").click();
   doc = await written(s, base);
   assert.match(doc.text, /^    cool: "#FFFF00"$/m, diffLines(base.text, doc.text).join(" ; "));
   assert.equal(diffLines(base.text, doc.text).length, 2, "recolouring changed more than the swatch's value");
@@ -97,7 +97,7 @@ h.test("Colours: rename, recolour, add, remove unused, and a used colour's delet
 
   // + Colour adds one of the 64, named; then it is unused, and Remove unused takes it
   await s.page.locator(".face-section-body .row .popover button", { hasText: "+ Colour" }).click();
-  await s.page.locator(".popover-body.pop .pop-grid button[aria-label='Yellow']").click();
+  await s.page.locator(".popover-body.pop .pop-families button[aria-label='Yellow']").click();
   doc = await written(s, base);
   assert.match(doc.text, /^    yellow: \{ value: "#FFFF00", label: Yellow \}$/m);
   await s.expectText(row("yellow").locator(".note"), /not used/);

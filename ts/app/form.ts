@@ -23,13 +23,13 @@ import { useState, useEffect, useRef } from "preact/hooks";
 import type { JSX, VNode } from "preact";
 import YAML from "yaml";
 import {
-  ANGLE_UNITS, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor, parseHex, parseQuantity, safeOn, swatchFor, toHex,
+  ANGLE_UNITS, at, colorName, convertQuantity, formatQuantity, lengthUnitsFor, mipFamilies, parseHex, parseQuantity, safeOn, swatchFor, toHex,
 } from "./values.ts";
 import { AddName, Popover } from "./ui.ts";
 import { TemplateEditor } from "./template-editor.ts";
 import { ConditionEditor, type ListStep, resultOf, ruleListSteps } from "./condition-editor.ts";
 import type {
-  EditOp, EditScope, Effective, Field, Globals, IconSpelling, Inspect, Path, Scope, Summary, Value, Vocabulary,
+  EditOp, EditScope, Effective, Field, Globals, IconSpelling, Inspect, MipColor, Path, Scope, Summary, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
 // -- the callbacks and the context the panels share ---------------------------------------
@@ -214,13 +214,14 @@ export interface ColorPopProps {
 
 // The colour picker: a chip that opens three groups, the face's own colours
 // (its swatches, then its roles where a role is allowed), the 64 named MIP
-// colours, and a custom colour. A swatch or role is picked as
+// colours by family (`mipFamilies`), and a custom colour. A swatch or role is picked as
 // `color.<name>`; one of the 64 or a custom colour as its hex, which the
 // worker turns into the swatch holding it (`src/edit/colors.ts`).
 export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, label, onPick }: ColorPopProps): VNode {
   const [custom, setCustom] = useState<string>("");
   const palette = ctx.globals.palette || [];
   const mip = ctx.vocab.mip || [];
+  const families = mipFamilies(mip);
   const displays = ctx.globals.displays || [];
   const ref = colorName(value);
   const swatch = ref ? palette.find((p) => p.name === ref) : undefined;
@@ -235,6 +236,11 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
     <${Popover} buttonClass="chip-button" bodyClass="pop" title=${title || "pick a colour"} label=${chip}
       onOpen=${() => setCustom("")}>${(close: () => void) => {
       const pick = (v: string) => { close(); setCustom(""); onPick(v); };
+      const mipSwatch = (m: MipColor): VNode => {
+        const holder = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
+        return html`<button class=${"swatch" + (holder ? " held" : "")} style=${`background:${m.value}`} aria-label=${m.label}
+          title=${`${m.label} ${m.value}${holder ? ` (this face: ${holder.name})` : ""}`} onClick=${() => pick(m.value)}></button>`;
+      };
       return html`
       ${faceGroup ? html`<div class="pop-group">
         <div class="pop-title">This face</div>
@@ -246,10 +252,10 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
       </div>` : null}
       <div class="pop-group">
         <div class="pop-title">MIP 64</div>
-        <div class="pop-grid">${mip.map((m) => {
-          const holder = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
-          return html`<button class=${"swatch" + (holder ? " held" : "")} style=${`background:${m.value}`} aria-label=${m.label}
-            title=${`${m.label} ${m.value}${holder ? ` (this face: ${holder.name})` : ""}`} onClick=${() => pick(m.value)}></button>`; })}</div>
+        ${families ? html`<div class="pop-families">${families.map((f) => html`
+          <div class=${"pop-family" + (f.name === "Gray" ? " gray" : "")} role="group" aria-label=${f.name}>${f.rows.flat().map((m) =>
+            m ? mipSwatch(m) : html`<span class="gap"></span>`)}</div>`)}</div>`
+          : html`<div class="pop-grid">${mip.map(mipSwatch)}</div>`}
       </div>
       <div class="pop-group">
         <div class="pop-title">Custom</div>

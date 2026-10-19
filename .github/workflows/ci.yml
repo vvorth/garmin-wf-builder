@@ -62,6 +62,7 @@ jobs:
             test/kinds.test.ts
             test/lint.test.ts
             test/page-app.test.ts
+            test/page-colors.test.ts
             test/page-face.test.ts
             test/page-layers.test.ts
             test/page-modules.test.ts

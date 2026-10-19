@@ -83,6 +83,54 @@ export function mipNearest(rgb: RGB): RGB {
   return [near(rgb[0]), near(rgb[1]), near(rgb[2])];
 }
 
+/** One section of the colour picker's 64: a family's rows, light to dark, a gap as null. */
+export interface MipFamily {
+  name: string;
+  rows: (MipColor | null)[][];
+}
+
+const FAMILIES = ["Red", "Yellow", "Green", "Cyan", "Blue", "Magenta"];
+
+// The 64 MIP colours as the picker lays them out: four grays, and six hue
+// families of ten (the 60 others split evenly by hue sector, 60 degrees each
+// centred on a primary or secondary). Every family has the same 3 x 4 block,
+// left to right from the previous family's side to the next's, rows by tone:
+// two light colours with the pastel between them; the three vivid ones (no
+// channel between 00 and FF); two medium ones with the muted one between;
+// and the one dark one (55 and 00 only) alone in the middle. So a family
+// reads "pick a hue, then a shade", and the hue runs on across the blocks.
+// Null when `mip` is not the 64 (each family must fill its block exactly).
+export function mipFamilies(mip: readonly MipColor[]): MipFamily[] | null {
+  const levelled = mip.map((m) => {
+    const rgb = parseHex(m.value);
+    return rgb && mipLegal(rgb) ? { m, l: rgb.map((c) => MIP.indexOf(c)) } : null;
+  });
+  if (levelled.some((x) => x === null) || mip.length !== 64) return null;
+  const all = levelled as { m: MipColor; l: number[] }[];
+  const grays = all.filter((x) => x.l[0] === x.l[1] && x.l[1] === x.l[2]).sort((a, b) => b.l[0]! - a.l[0]!);
+  const hue = (l: number[]): number => {
+    const [r, g, b] = l as [number, number, number];
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  };
+  const tier = (l: number[]): string => `${Math.max(...l)}${Math.min(...l)}`;
+  const families: MipFamily[] = [];
+  for (const [index, name] of FAMILIES.entries()) {
+    const members = all.filter((x) => tier(x.l)[0] !== tier(x.l)[1] && Math.floor(((hue(x.l) + 30) % 360) / 60) === index);
+    // signed degrees from the family's centre: the previous family's side first
+    const side = (x: { l: number[] }): number => ((hue(x.l) - index * 60 + 540) % 360) - 180;
+    const of = (...tiers: string[]): MipColor[] => members.filter((x) => tiers.includes(tier(x.l))).sort((a, b) => side(a) - side(b)).map((x) => x.m);
+    const flanked = (middle: MipColor[], sides: MipColor[]): (MipColor | null)[] => [sides[0] ?? null, middle[0] ?? null, sides[1] ?? null];
+    const rows = [flanked(of("32"), of("31")), of("30"), flanked(of("21"), of("20")), [null, ...of("10"), null]];
+    if (rows.some((row) => row.length !== 3) || rows.flat().filter(Boolean).length !== 10 || members.length !== 10) return null;
+    families.push({ name, rows });
+  }
+  if (grays.length !== 4) return null;
+  families.push({ name: "Gray", rows: grays.map((x) => [x.m]) });
+  return families;
+}
+
 // A `color.<name>` reference's name, or null.
 export function colorName(value: unknown): string | null {
   const m = typeof value === "string" && value.match(/^color\.([A-Za-z_][A-Za-z0-9_]*)$/);

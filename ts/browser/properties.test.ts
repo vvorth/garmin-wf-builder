@@ -145,7 +145,14 @@ h.test("the colour picker: this face, MIP 64 and a custom colour", async (s) => 
   assert.ok(fresh, "every MIP colour is in the palette already");
   await s.selectLayer("dot");
   await chip.click();
-  await pop.locator(`.pop-grid button[aria-label="${fresh.label}"]`).click();
+  // the 64 by family: six hue blocks of ten and the grays, each light to dark
+  const families = pop.locator(".pop-families .pop-family");
+  await families.last().waitFor();
+  assert.deepEqual(await families.evaluateAll((els) => els.map((e) => `${e.getAttribute("aria-label")} ${e.querySelectorAll("button.swatch").length}`)),
+    ["Red 10", "Yellow 10", "Green 10", "Cyan 10", "Blue 10", "Magenta 10", "Gray 4"]);
+  assert.deepEqual(await pop.locator(".pop-family[aria-label=Red] button.swatch").evaluateAll((els) => els.slice(0, 4).map((e) => (e.getAttribute("title") ?? "").match(/#[0-9A-F]{6}/)?.[0])),
+    ["#FF55AA", "#FFAAAA", "#FF5555", "#FF0055"]);
+  await pop.locator(`.pop-families button[aria-label="${fresh.label}"]`).click();
   after = await written(s, base);
   assert.match(lines(after, "dot"), new RegExp(`color: color\\.${fresh.name}\\b`), lines(after, "dot"));
   // one of the 64 is added with its label, in the long form

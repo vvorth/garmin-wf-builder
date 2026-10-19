@@ -720,7 +720,14 @@ A colour's chip opens three groups:
 - **This face**: its colours, then its roles where the key takes one (a
   role follows the wearer's style or pick).
 - **MIP 64**: [the 64 colours](mip-palette.md) a MIP screen shows exactly,
-  by name. A ringed one is already in the face.
+  by name. A ringed one is already in the face. They are laid out by
+  family: red, yellow, green on the first line with the grays beside them,
+  cyan, blue, magenta on the second. Every family is the same block, so a
+  shade sits in the same place in each: a light row with the pastel in the
+  middle, the vivid row with the pure colour in the middle, a medium row
+  with the muted shade in the middle, and the one dark shade under it.
+  Each block's left column leans toward the previous family and its right
+  toward the next.
 - **Custom**: the browser's colour picker and a hex field. Under them, the
   name it will have, and a ⚠ with the nearest safe colour when one of the
   face's screens would dither it (a 64-colour screen, or black and white
