@@ -314,7 +314,7 @@ test("the vocabulary offers each type with its icon and sample", () => {
   assert.equal(Object.keys(types).length, 42);
   assert.deepEqual(types["heart_rate"], { name: "heart_rate", label: "Heart rate", category: "health", icon: "heart", sample: "72" });
   assert.equal(types["wheelchair_pushes"].sample, null);
-  assert.equal((vocabulary()["icon_glyphs"] as any).heart, 0xF02D1);
+  assert.equal((vocabulary()["icon_glyphs"] as any).heart, 0xF05F6);
 });
 
 test("a slot is added with a data element drawing it", async () => {

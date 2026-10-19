@@ -29,21 +29,18 @@ icon sets; the ones this project's catalogue draws from are:
 
 | Icon set | Used for | Upstream | License |
 |---|---|---|---|
-| Material Design Icons | `heart`, `flame`, `alarm`, `dnd`, `notification`, `battery`, `floors`, `distance`, `phone`, most `weather_*` | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
-| Font Awesome Free | `steps` | github.com/FortAwesome/Font-Awesome | CC BY 4.0 |
+| Material Design Icons | every catalogue icon but the four below | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
 | Weather Icons | `weather_dust`, `weather_sandstorm`, `weather_volcano`, `weather_unknown` | github.com/erikflowers/weather-icons | SIL OFL 1.1 |
 
 Material Design Icons is preferred for a new catalogue entry whenever a glyph
 reads at least as well as an alternative -- it is the largest, most
-consistently-drawn set in this font. `steps` is the deliberate exception (its
-catalogue description says why). Weather icons are MDI's own weather set,
+consistently-drawn set in this font. Weather icons are MDI's own weather set,
 one glyph per condition that reads the same at any hour; Weather Icons
 supplies only the conditions MDI has no glyph for (dust, sand, volcanic ash,
 unknown).
 
-CC BY 4.0 and Apache 2.0 both require attribution, which this file provides:
-Font Awesome Free icons by Fonticons, Inc.; Material Design Icons by the
-Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
+Apache 2.0 requires attribution, which this file provides: Material Design
+Icons by the Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
 
 ## Adding an icon to the catalogue
 

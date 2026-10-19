@@ -2,13 +2,13 @@
  "catalog": {
   "heart": {
    "name": "heart",
-   "codepoint": "󰋑",
-   "description": "a heart, for heart rate (Material Design md-heart)"
+   "codepoint": "󰗶",
+   "description": "a heart with a pulse line, for heart rate (Material Design md-heart_pulse)"
   },
   "steps": {
    "name": "steps",
-   "codepoint": "",
-   "description": "two offset footprints, for step count (Font Awesome fa-shoe_prints -- kept over MDI's walking/running figures, which read as \"activity\" rather than \"steps\" at a glance)"
+   "codepoint": "󰷺",
+   "description": "a shoe print, for step count (Material Design md-shoe_print)"
   },
   "flame": {
    "name": "flame",
@@ -52,8 +52,8 @@
   },
   "body_battery": {
    "name": "body_battery",
-   "codepoint": "󱈑",
-   "description": "a battery with a heart cut into it, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-battery_heart_variant)"
+   "codepoint": "󰙌",
+   "description": "a figure with raised arms, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-human_handsup)"
   },
   "stress": {
    "name": "stress",

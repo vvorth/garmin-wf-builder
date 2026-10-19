@@ -1,6 +1,7 @@
 <fonts xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <!-- clock: OpenSans-Regular.ttf at 68px, 11 glyphs -->
     <font id="FontClock" filename="clock.fnt" filter="0123456789:" antialias="false" />
-    <!-- icon_30px_uee14: SymbolsNerdFont-Regular.ttf at 31px, 1 glyphs -->
-    <font id="FontIcon30pxUee14" filename="icon_30px_uee14.fnt" filter="" antialias="false" />
+    <!-- icon_30px_uf0dfa: SymbolsNerdFont-Regular.ttf at 36px, 1 glyphs -->
+    <!-- filter omitted: icon_30px_uf0dfa needs a glyph above U+FFFF, which the resource compiler's filter parsing cannot represent -->
+    <font id="FontIcon30pxUf0dfa" filename="icon_30px_uf0dfa.fnt" antialias="false" />
 </fonts>

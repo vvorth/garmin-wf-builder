@@ -99,9 +99,7 @@ line is the largest glyph's, and each glyph is centred in it.
 
 **The catalogue prefers Material Design Icons** (`nf-md`, the icon font's
 largest and most consistent set) whenever a glyph reads at least as well as an
-alternative — the one deliberate exception is `steps`, which keeps a Font
-Awesome glyph because MDI's walking/running figures read as "activity" rather
-than "step count" at a glance. Weather icons (`weather_*`) are MDI's weather
+alternative. Weather icons (`weather_*`) are MDI's weather
 set too, named after their MDI glyphs (`weather_partly_rainy`,
 `weather_snowy_heavy`), except dust, sand, volcanic ash and the unknown
 condition, which MDI lacks and the font's Weather Icons set supplies. Each
