@@ -227,7 +227,8 @@ ts/                   the compiler, its tests and tools: one package for the
   assets/               downloaded, not committed: the icon font (icons/) and the
                         registry's system-font stand-ins (system-fonts/)
   tools/                setup-env's fetchers, fetch-sdk.ts (the Docker image),
-                        goldens.ts, export-data.ts, docs-shots.ts, build.ts and more
+                        goldens.ts, export-data.ts, docs-shots.ts, studio-shots.ts,
+                        build.ts and more
   test/                 node:test tests (npm test, test/CLAUDE.md); fixtures/ the
                         designs the goldens and font tests build (fixtures/slice/,
                         the Phase 2 slice, is the Monkey C goldens' source) and

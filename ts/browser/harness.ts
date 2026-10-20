@@ -75,7 +75,7 @@ async function freePort(): Promise<number> {
 }
 
 /** `wfb studio` on a free port: resolves once it answers `GET /` with 200. */
-async function startServer(): Promise<{ base: string; child: ChildProcess }> {
+export async function startServer(): Promise<{ base: string; child: ChildProcess }> {
   const port = await freePort();
   const child = spawn(process.execPath, [join(REPO_ROOT, "ts", "src", "cli.ts"), "studio", "-p", String(port)], {
     cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"], env: process.env,
@@ -613,6 +613,11 @@ export interface Harness {
   test(name: string, fn: (s: Session, t: TestContext) => Promise<void>, options?: { timeout?: number }): void;
 }
 
+/** Headless Chromium, from wherever Playwright is installed. */
+export function launchBrowser(): Promise<Browser> {
+  return loadPlaywright().chromium.launch({ headless: true });
+}
+
 /**
  * The file's suite: the server and the browser, started once and torn down
  * after the file's tests. `url` is the test file's `import.meta.url`, which
@@ -627,9 +632,8 @@ export async function suite(url: string): Promise<Harness> {
       test: (name) => { test(name, { skip }, () => {}); },
     };
   }
-  const { chromium } = loadPlaywright();
   const server = await startServer();
-  const browser: Browser = await chromium.launch({ headless: true });
+  const browser = await launchBrowser();
   const context = await browser.newContext({ viewport: VIEWPORT, acceptDownloads: true });
   await context.addInitScript(TOAST_INIT);
   after(async () => {

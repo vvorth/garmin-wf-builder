@@ -1,18 +1,80 @@
 # garmin-wf-builder
 
-**Describe a Garmin watch face in one YAML file; `wfb` builds a signed `.prg`
-for every watch you list, ready to sideload.**
+**A visual studio for Garmin Connect IQ watch faces: design on the watch's own
+screen, see it live on every watch you target, and download a signed `.prg`
+to sideload, without writing a line of Monkey C.**
 
-You write the layout, the data it shows and what the wearer may change. `wfb`
-checks it against each watch's own limits, generates the Monkey C code
-(Garmin's programming language) and runs Garmin's compiler, so you never need
-to write Monkey C yourself. It can also draw a preview of the face on your
-computer.
+![wfb studio: the Red Tactical face open in the visual editor](docs/screenshots/studio.png)
 
-![All seven styles of the showcase face](docs/screenshots/showcase-styles.png)
+*`wfb studio` with Red Tactical, a face made with it and running on its
+author's watch: layers on the left, the face at the centre with the selected
+subdial's handles, every target watch underneath, and the subdial's keys in
+Properties.*
 
-*[`examples/showcase`](examples/showcase/face.yaml): one YAML file, seven
-styles the wearer switches between on the watch.*
+## The editor
+
+`wfb studio` runs on your own computer and opens in the browser. Everything
+you do in it is written to a plain YAML design file, so you can switch
+between dragging and typing at any point without losing anything.
+
+- **Edit on the face.** Click to select, drag to move, pull handles to
+  resize a box, a ring, an arc's ends, a line or a polygon's points. Moves
+  snap to the screen's centre, to other elements' edges and centres, and to
+  a grid in screen-relative units. You can move several elements at once or
+  nudge them with the arrow keys. Double-click a set of hands, a tick
+  pattern or a gauge needle in Layers to edit its parts in the frame they
+  turn in.
+- **Every watch at once.** The face is drawn at the resolution of the
+  watch you're editing, by rules fitted to the Connect IQ simulator's own
+  pixels, with a thumbnail for every other target underneath. Place an element once for
+  every watch, or override it for one watch, one screen shape or one display
+  type. **1:1** shows the watch at its real size.
+- **Preview any moment.** Set the time and date or let it run live, choose
+  what each complication slot shows, and switch between the awake,
+  low-power and AMOLED always-on frames and the wearer's styles.
+- **Properties that know the format.** Each key gets the right control: a
+  text template edited as chips, colours that follow data edited as rules,
+  a colour picker built around the 64 colours a MIP screen shows exactly,
+  and a card for each complication slot listing every Garmin data type with
+  its icon and sample reading.
+- **The whole face in one tab.** Colours and schemes, the styles the wearer
+  picks from, complication slots, fonts (drop in a TTF), and hand sets
+  started from presets.
+- **A YAML editor, too.** Completion and hover explanations come from the
+  format's schema, and the compiler's diagnostics appear in the gutter.
+  Selecting an element on the face selects its lines. The file you
+  download is still your own: your units, your layout and your comments
+  survive.
+- **Checked as you go.** Warnings about each watch (text that won't fit,
+  colours that dither, APIs a watch lacks, the memory budget) are listed
+  live, and clicking one selects the element it is about.
+- **Nothing gets lost.** Undo and redo survive restarts, the change
+  history can be browsed, and snapshots are taken automatically. Faces live
+  in the browser's own storage, and everything except building works
+  offline.
+- **Build and sideload.** **Build…** compiles the face for any installed
+  watch and downloads its signed `.prg`, with its memory use against that
+  watch's limit.
+
+![Complication slot card in Properties](docs/screenshots/studio-2.png)
+
+*A complication slot's card: tick the Garmin data types the wearer may pick
+on the watch, star the one it shows first, and see each type's icon and
+sample reading.*
+
+[**The editor guide**](docs/guide/studio.md) covers every gesture, panel
+and shortcut.
+
+## Quick start
+
+```sh
+./tools/setup-env.sh              # SDK, signing key, fonts, Node (Linux or macOS)
+alias wfb="$PWD/wfb"
+wfb studio                        # open the address it prints, then New face or Open
+```
+
+[**Getting started**](docs/guide/getting-started.md) covers setup, the
+device files you need, and how to copy the face onto your watch.
 
 - **Watches:** any Connect IQ watch that runs faces at API 3.2 or newer (the
   fēnix 6 / Forerunner 245 generation onwards). Every limit is read from
@@ -21,22 +83,20 @@ styles the wearer switches between on the watch.*
 - **Distribution:** personal sideloading over USB, not the Connect IQ Store.
 - **Status:** early (`wfb` 0.1.0, `format: 2`). It works end to end and is still changing. See [what isn't built yet](docs/limitations.md#2-not-implemented-yet).
 
-## Quick start
+## Under the hood: one YAML file
+
+Every face is one YAML design file: the layout, the data it shows and what
+the wearer may change. `wfb` checks it against each watch's own limits,
+generates the Monkey C code (Garmin's programming language) and runs
+Garmin's compiler. The editor is the easiest way to write that file, but
+not the only one. The same compiler works from the command line, for a
+text editor, scripts or CI:
 
 ```sh
-./tools/setup-env.sh              # SDK, signing key, fonts, Node (Linux or macOS)
-alias wfb="$PWD/wfb"
 wfb new "My Face"                 # a working face from a template
 wfb preview my-face.yaml --watch  # a PNG that redraws every time you save
 wfb build my-face.yaml            # one signed .prg per watch
-wfb studio                        # or edit it in the browser, at the address it prints
 ```
-
-`wfb studio` is a visual editor: drag and resize elements on the watch's
-screen, edit their keys and the face's colours, styles and fonts, arrange
-layers, or edit the YAML itself, with undo and snapshots. It writes your
-own YAML back in your units, comments kept
-([the editor](docs/guide/studio.md)).
 
 A complete face (a clock) is under 20 lines:
 
@@ -58,8 +118,10 @@ elements:
     color: color.fg
 ```
 
-[**Getting started**](docs/guide/getting-started.md) covers setup, the
-device files you need, and how to copy the face onto your watch.
+![All seven styles of the showcase face](docs/screenshots/showcase-styles.png)
+
+*[`examples/showcase`](examples/showcase/face.yaml): one YAML file, seven
+styles the wearer switches between on the watch.*
 
 ## What you can build
 

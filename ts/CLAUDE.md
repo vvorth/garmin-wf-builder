@@ -192,7 +192,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   (`extract-device-reference.ts`, `fetch-icon-font.ts`,
   `fetch-system-fonts.ts`), `fetch-sdk.ts` (the Docker image's SDK),
   `build.ts`, `goldens.ts`, `export-data.ts`, `docs-shots.ts` (the
-  screenshots in `../docs/screenshots/`), `gen-profile-face.ts` and
+  screenshots in `../docs/screenshots/`), `studio-shots.ts` (the editor's
+  screenshots there, through `browser/harness.ts`), `gen-profile-face.ts` and
   `summary.ts` (the page tests' face summaries).
 - `test/` holds the `node:test` files (`test/CLAUDE.md`); `slow/` the
   `monkeyc` suite; `browser/` the Playwright suite over the editor's pages
