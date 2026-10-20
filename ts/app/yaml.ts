@@ -45,7 +45,7 @@ const remote = Annotation.define<boolean>();
 let schema: Promise<JSONSchema7> | null = null;
 function loadSchema(): Promise<JSONSchema7> {
   // `r.json()` is untyped: the schema is whatever the server serves
-  schema = schema || fetch("/api/schema").then((r) => r.json() as Promise<JSONSchema7>);
+  schema = schema || fetch("api/schema").then((r) => r.json() as Promise<JSONSchema7>);
   return schema;
 }
 

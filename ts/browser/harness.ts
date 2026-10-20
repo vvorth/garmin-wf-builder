@@ -607,6 +607,8 @@ export class Session {
 export interface Harness {
   base: string;
   context: BrowserContext;
+  /** Stop the file's server, for a test of the editor without it; resolves once it no longer answers. */
+  stop(): Promise<void>;
   /** A test with a fresh page; skipped, with the reason, when the suite cannot run here. */
   test(name: string, fn: (s: Session, t: TestContext) => Promise<void>, options?: { timeout?: number }): void;
 }
@@ -621,7 +623,7 @@ export async function suite(url: string): Promise<Harness> {
   const skip = skipReason();
   if (skip) {
     return {
-      base: "", context: null as unknown as BrowserContext,
+      base: "", context: null as unknown as BrowserContext, stop: async () => {},
       test: (name) => { test(name, { skip }, () => {}); },
     };
   }
@@ -637,6 +639,10 @@ export async function suite(url: string): Promise<Harness> {
   mkdirSync(SHOTS, { recursive: true });
   return {
     base: server.base, context,
+    async stop() {
+      server.child.kill();
+      await new Promise((r) => server.child.exitCode !== null || server.child.signalCode !== null ? r(null) : server.child.once("exit", r));
+    },
     test(name, fn, options = {}) {
       test(name, { timeout: options.timeout ?? 180_000 }, async (t) => {
         const page = await context.newPage();

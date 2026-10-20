@@ -25,9 +25,9 @@ test("every Face-tab section offers an unintrusive link to its guide chapter", a
   const printed = await render(text, "\n      const fetched = [];\n      globalThis.fetch = (url) => { fetched.push(url); return Promise.resolve({ ok: false, text: async () => \"\" }); };\n      const opened = [];\n      for (const title of [\"Target devices\", \"Colours\", \"Colour settings\", \"Colour schemes\", \"Styles\", \"Hand sets\", \"Slots\", \"Fonts\"]) {\n        await openSection(title);\n        const link = find((e) => cls(e) === \"face-section-guide\")[0];\n        await click(link);\n        await settle();\n        opened.push(find((e) => e.localName === \"strong\" && e.textContent === \"Help\").length > 0);\n        const close = find((e) => e.localName === \"button\" && e.attributes[\"aria-label\"] === \"Close\")[0];\n        if (close) await click(close);\n      }\n      out(opened);\n      out(fetched);\n    ");
   assert.deepEqual(printed[0], [true, true, true, true, true, true, true, true]);
   assert.deepEqual(printed[1], [
-    "/help/docs/guide/getting-started.md", "/help/docs/guide/colors.md", "/help/docs/guide/configuration.md",
-    "/help/docs/guide/colors.md", "/help/docs/guide/styles-and-layouts.md", "/help/docs/guide/analog-hands.md",
-    "/help/docs/guide/configuration.md", "/help/docs/guide/fonts.md",
+    "help/docs/guide/getting-started.md", "help/docs/guide/colors.md", "help/docs/guide/configuration.md",
+    "help/docs/guide/colors.md", "help/docs/guide/styles-and-layouts.md", "help/docs/guide/analog-hands.md",
+    "help/docs/guide/configuration.md", "help/docs/guide/fonts.md",
   ]);
 });
 

@@ -1,4 +1,4 @@
-// `/dist/raster.js` (src/raster/canvas.ts, bundled by the server) as the
+// `dist/raster.js` (src/raster/canvas.ts, bundled by the server) as the
 // page's type check sees it: the exports the canvas draws with, declared
 // to the real signatures by hand, with the two `raster/pillow.ts` types
 // they take. Hand-written so the compiler's sources stay out of the page's

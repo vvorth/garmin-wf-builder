@@ -1,6 +1,6 @@
 // What the editor's canvas (`ts/app/canvas.ts`) draws with: the preview's
 // own rasteriser, and the frame's layers moved, inked and dragged. The
-// studio server bundles this module for the page (`/dist/raster.js`), so
+// studio server bundles this module for the page (`dist/raster.js`), so
 // the browser draws with the very code the preview does.
 import { drawProgress, drawSpan } from "../draw/barrel.ts";
 import { drawOps, image, type JsonNum, type JsonOp, type Tile, unpackTiles } from "./pillow.ts";

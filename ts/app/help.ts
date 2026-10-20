@@ -52,7 +52,7 @@ export function HelpDialog({ start = HELP_HOME, onClose }: HelpDialogProps): VNo
 
   useEffect(() => {
     let live = true;
-    fetch("/help/" + at.path).then(async (r) => {
+    fetch("help/" + at.path).then(async (r) => {
       const text = await r.text();
       if (!live) return;
       setPage({ path: at.path, html: r.ok ? rendered(text) : `<p class="error-text">${at.path} is not here.</p>` });
@@ -73,7 +73,7 @@ export function HelpDialog({ start = HELP_HOME, onClose }: HelpDialogProps): VNo
     }
     for (const img of root.querySelectorAll<HTMLImageElement>("img[src]")) {
       const src = img.getAttribute("src") ?? "";
-      if (!/^[a-z]+:|^\/\//i.test(src)) img.src = "/help/" + resolve(page.path, src)[0];
+      if (!/^[a-z]+:|^\/\//i.test(src)) img.src = "help/" + resolve(page.path, src)[0];
     }
     const target = at.hash && root.querySelector(`[id="${CSS.escape(decodeURIComponent(at.hash.slice(1)))}"]`);
     if (target) target.scrollIntoView();
@@ -89,7 +89,7 @@ export function HelpDialog({ start = HELP_HOME, onClose }: HelpDialogProps): VNo
     if (/^[a-z]+:|^\/\//i.test(href)) { window.open(href, "_blank", "noopener"); return; }
     const [path, hash] = resolve(at.path, href);
     if (path.endsWith(".md")) open(path, hash);
-    else window.open("/help/" + path + hash, "_blank", "noopener");
+    else window.open("help/" + path + hash, "_blank", "noopener");
   };
 
   const goBack = (): void => {

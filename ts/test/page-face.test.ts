@@ -283,7 +283,7 @@ test("the new sections link to their guide chapters", async () => {
       }
       out(fetched);
     `);
-  assert.deepEqual(printed[0], ["/help/docs/guide/design-file.md", "/help/docs/guide/design-file.md", "/help/docs/guide/styles-and-layouts.md"]);
+  assert.deepEqual(printed[0], ["help/docs/guide/design-file.md", "help/docs/guide/design-file.md", "help/docs/guide/styles-and-layouts.md"]);
 });
 
 test("a layout's label is typed in its row, set and removed, and names it in the Styles matrix", async () => {

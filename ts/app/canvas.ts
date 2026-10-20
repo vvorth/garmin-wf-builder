@@ -32,7 +32,7 @@ import type { Box, Placed } from "./hit.ts";
 import { elementOf, handleAt, moveHandle, movedBy, together, topmost } from "./hit.ts";
 import type { AnyGesture, Entry, GestureEntry, Guides, Preview } from "./outbox.ts";
 import { offsets, shiftItems, unshown } from "./outbox.ts";
-import * as raster from "/dist/raster.js";
+import * as raster from "./raster.js";
 import {
   angleAt, dragHint, moveTargets, nearestTurn, resizeDelta, snapAngle, snapLength, snapMove,
 } from "./snap.ts";

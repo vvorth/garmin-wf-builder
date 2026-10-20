@@ -4,8 +4,7 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": false,
-    "types": [],
-    "paths": { "/dist/raster.js": ["./app/dist-raster.d.ts"] }
+    "types": []
   },
   "include": ["app/**/*.ts"]
 }

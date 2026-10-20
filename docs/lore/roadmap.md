@@ -148,6 +148,10 @@ or AOD-related has been observed on a watch or in the simulator.
   overrides a complication type's sample (a slot's reading and icon, and
   every source of the same quantity) or any source's (`previewSamples` in
   `ts/src/cli.ts`). `docs/guide/preview-and-cli.md`.
+- **The editor offline** — a service worker (`ts/src/studio/sw.ts`) keeps
+  what the page and its worker fetched and answers from it when the server
+  or its proxy cannot be reached; installable (`ts/app/manifest.webmanifest`);
+  every path relative, for a proxy's sub-path. `docs/guide/studio.md`.
 - **The editor** (`wfb studio`) — a web app run in the browser, compiler
   and all, over a small Node server that sends the watches' files and fonts
   and builds (`ts/src/studio/`, `ts/app/`): new from a template,

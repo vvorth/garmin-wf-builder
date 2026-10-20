@@ -6,7 +6,9 @@
 //
 // - the app (`ts/app/`, from `main.ts`), the worker and the canvas's
 //   rasteriser (`src/raster/canvas.ts`), each bundled at start and served
-//   under `/dist/`; `/static/` serves the page's files as they are;
+//   under `/dist/`; `/static/` serves the page's files as they are, and
+//   `/sw.js` the service worker that keeps them for working offline
+//   (`src/studio/sw.ts`);
 // - `GET /api/devices`: every installed device's `compiler.json`,
 //   `simulator.json` and a digest of its `api.debug.xml` (the symbol tags
 //   the compiler reads, a few percent of the file), and the SDK device
@@ -20,6 +22,9 @@
 // - `POST /api/build?device=&stem=`: a face's bundle in, built with
 //   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`,
 //   for the newest builds.
+//
+// Every path the page and its workers ask for is relative, so the editor
+// also works behind a proxy serving it under a sub-path (which strips it).
 //
 // Every request must name an IP address, `localhost`, the listening host or
 // an `--allow-host` name in `Host`, and a build must come from the server's
@@ -51,10 +56,10 @@ const APP = join(TS, "app");
  * `ts/`), so a checkout serves its own. `external` names imports left for
  * the browser to fetch as they are.
  */
-async function bundle(entry: string, external: string[] = []): Promise<Uint8Array> {
+async function bundle(entry: string, external: string[] = [], format: "esm" | "iife" = "esm"): Promise<Uint8Array> {
   const esbuild = await import("esbuild");
   const built = await esbuild.build({
-    entryPoints: [join(TS, entry)], bundle: true, format: "esm", platform: "browser", target: "es2023", write: false, logLevel: "silent", external,
+    entryPoints: [join(TS, entry)], bundle: true, format, platform: "browser", target: "es2023", write: false, logLevel: "silent", external,
   });
   return built.outputFiles[0]!.contents;
 }
@@ -112,7 +117,7 @@ export function allowed(request: IncomingMessage, names: ReadonlySet<string> | n
 }
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-  ".json": "application/json", ".map": "application/json", ".ttf": "font/ttf", ".png": "image/png", ".svg": "image/svg+xml",
+  ".json": "application/json", ".webmanifest": "application/manifest+json", ".map": "application/json", ".ttf": "font/ttf", ".png": "image/png", ".svg": "image/svg+xml",
   ".md": "text/markdown; charset=utf-8", ".yaml": "text/plain; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".jpg": "image/jpeg", ".gif": "image/gif", "": "text/plain; charset=utf-8",
 };
 /** What `/help/` serves: the files a doc links to, never the compiler or the user's licensed `vendor/`. */
@@ -264,8 +269,10 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
   const scratch = mkdtempSync(join(tmpdir(), "wfb-studio-builds-"));
   const worker = await bundle("src/studio/worker.ts");
   const raster = await bundle("src/raster/canvas.ts");
-  // the page imports the rasteriser as `/dist/raster.js`, which the browser fetches as today
-  const app = await bundle("app/main.ts", ["/dist/raster.js"]);
+  // the page imports the rasteriser as `./raster.js`, which the browser fetches as `dist/raster.js`
+  const app = await bundle("app/main.ts", ["./raster.js"]);
+  // a classic script, which every browser runs as a service worker
+  const serviceWorker = await bundle("src/studio/sw.ts", [], "iife");
 
   const send = (response: ServerResponse, status: number, body: string | Uint8Array, type: string, headers: Record<string, string> = {}): void => {
     response.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store", ...headers });
@@ -317,7 +324,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
     return {
       ok, device, log: log.trim(), seconds: Number(formatFixed((performance.now() - started) / 1000, 1)),
       memory: stats ? `${stats.total.toLocaleString("en-US")} B / ${stats.limit.toLocaleString("en-US")} B (${formatFixed(100 * stats.total / stats.limit, 1)}%)` : null,
-      download: ok ? `/api/builds/${id}` : null,
+      download: ok ? `api/builds/${id}` : null,
     };
   };
 
@@ -333,6 +340,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
       if (path === "/dist/app.js") return send(response, 200, app, "text/javascript; charset=utf-8");
       if (path === "/dist/worker.js") return send(response, 200, worker, "text/javascript; charset=utf-8");
       if (path === "/dist/raster.js") return send(response, 200, raster, "text/javascript; charset=utf-8");
+      if (path === "/sw.js") return send(response, 200, serviceWorker, "text/javascript; charset=utf-8");
       if (path.startsWith("/help/")) {
         const relative = normalize(decodeURIComponent(path.slice("/help/".length)));
         return HELP.test(relative) ? sendFile(response, REPO_ROOT, relative) : sendJson(response, 404, { error: "not found" });

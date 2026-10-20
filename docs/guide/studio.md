@@ -50,6 +50,34 @@ the browser to keep its storage even when the disk runs low; clearing
 the browser's site data still deletes the faces, so download a face you
 want to keep elsewhere.
 
+## Offline, and behind a proxy
+
+The editor keeps a copy of everything it has fetched from the server: the
+page, the schema, the icon font, the watch list, and the files and fonts
+of every watch it has drawn on, which opening a face fetches for all its
+targets. When the server cannot be reached, because you are offline, the
+server stopped or the proxy in front of it cannot reach it, the editor
+opens from that copy and works as usual: faces, previews, edits and
+history all live in the browser. Only **Build…** needs the server, and
+says so. A watch the editor never drew on is not in the copy, and neither
+is a vector face (`face:`) added while offline.
+
+The copy is kept by a service worker, which browsers allow only over
+`https` or at `localhost`/`127.0.0.1`: over plain `http` to another name
+the editor works online only. The copy belongs to one address, as the
+faces do. Browsers whose address bar offers to install the page (Chrome,
+Edge) run it as an app in its own window.
+
+The page asks for every file by a relative path, so a proxy may serve the
+editor under a sub-path, such as `https://example.com/wfb/`, when it
+strips the prefix before passing a request on and serves the bare
+`/wfb` as a redirect to `/wfb/`. Give `--allow-host` the name the proxy
+reaches the server by. With a proxy that signs you in (Cloudflare Access,
+say), the editor's own load follows the proxy to its sign-in page when
+your session has expired; the offline copy never stands in for a sign-in.
+A build in a page left open past the session fails with a message: reload
+the page to sign in again.
+
 ## Faces in and out
 
 The home screen offers:
@@ -839,6 +867,7 @@ without end. A snapshot keeps what it needs, however old.
   ([getting started](getting-started.md)).
 - Run in a browser on another computer: it listens on this one only,
   unless you tell it otherwise, and then warns.
+- Build offline: building runs `monkeyc` on the server.
 - Share faces between browsers: each keeps its own (above).
 
 The editor's checks and gestures are tested without a browser, and the

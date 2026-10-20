@@ -86,6 +86,7 @@ class RecordedFonts implements FontFiles {
 
 const decode = (text: string): Uint8Array => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
+// Paths are relative to this script (`dist/worker.js`), so the editor also works under a proxy's sub-path.
 async function fetchOk(url: string): Promise<globalThis.Response> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url}: ${response.status}`);
@@ -95,10 +96,10 @@ async function fetchOk(url: string): Promise<globalThis.Response> {
 const channel = new BroadcastChannel("wfb-studio");
 
 async function start(): Promise<Router> {
-  loadSchema(await (await fetchOk("/api/schema")).json());
+  loadSchema(await (await fetchOk("../api/schema")).json());
   let iconFont: FontFile | null = null;
   try {
-    const bytes = new Uint8Array(await (await fetchOk("/api/icon-font")).arrayBuffer());
+    const bytes = new Uint8Array(await (await fetchOk("../api/icon-font")).arrayBuffer());
     const font = opentype.parse(bytes.buffer);
     const map = (font.tables["cmap"] as { glyphIndexMap: Record<string, number> }).glyphIndexMap;
     setIconFontGlyphs(new Set(Object.keys(map).map((cp) => String.fromCodePoint(Number(cp)))));
@@ -106,7 +107,7 @@ async function start(): Promise<Router> {
   } catch {
     setIconFontGlyphs("the icon font is not installed on the server: run ./tools/setup-env.sh there");
   }
-  const digest = await (await fetchOk("/api/devices")).json() as {
+  const digest = await (await fetchOk("../api/devices")).json() as {
     devices: Record<string, Record<string, string>>; references: Record<string, unknown>; listing: ReturnType<typeof devices>;
   };
   const files = new MemoryDeviceFiles();
@@ -122,7 +123,7 @@ async function start(): Promise<Router> {
       prepared.set(key, (async () => {
         if (!db.ids().includes(id)) return;
         const query = faces.length > 0 ? `?faces=${encodeURIComponent([...new Set(faces)].join(","))}` : "";
-        const extras = await (await fetchOk(`/api/devices/${encodeURIComponent(id)}/extras${query}`)).json() as {
+        const extras = await (await fetchOk(`../api/devices/${encodeURIComponent(id)}/extras${query}`)).json() as {
           calls: [string, string, string | null][]; files: Record<string, string>; skin: { name: string; data: string } | null;
         };
         const bytes = new Map(Object.entries(extras.files).map(([path, data]) => [path, decode(data)]));
@@ -151,8 +152,15 @@ async function start(): Promise<Router> {
       await Promise.all(ids.map((id) => prepare(id, faces)));
     },
     build: async (zip, device, _version, stem) => {
-      const response = await fetch(`/api/build?device=${encodeURIComponent(device)}&stem=${encodeURIComponent(stem)}`, { method: "POST", body: zip as Uint8Array<ArrayBuffer> });
-      const body = await response.json() as Record<string, unknown>;
+      let response: globalThis.Response, body: Record<string, unknown>;
+      try {
+        response = await fetch(`../api/build?device=${encodeURIComponent(device)}&stem=${encodeURIComponent(stem)}`, { method: "POST", body: zip as Uint8Array<ArrayBuffer> });
+        body = await response.json() as Record<string, unknown>;
+      } catch {
+        // No answer, or not the server's own (a proxy's error or sign-in page): the editor itself works on from its offline copy.
+        throw Object.assign(new Error("building needs wfb studio, which did not answer: you are offline, the server stopped, "
+          + "or your sign-in expired (reload the page to sign in again)"), { status: 503 });
+      }
       if (!response.ok) throw Object.assign(new Error(String(body["error"])), { status: response.status });
       return body as unknown as BuildResult;
     },

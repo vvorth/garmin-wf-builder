@@ -385,7 +385,7 @@ input[type="range"].wide { width: 100%; }
 .handset, .color-field { display: inline-flex; gap: 8px; align-items: center; }
 .handset a, .face-panel li.hand-set a, .hand-set-card a { color: var(--accent); }
 /* icons, and a slot's card */
-@font-face { font-family: "wfb-icons"; src: url("/api/icon-font") format("truetype"); }
+@font-face { font-family: "wfb-icons"; src: url("../api/icon-font") format("truetype"); }
 .glyph { font-family: "wfb-icons"; font-size: 16px; line-height: 1; display: inline-block; min-width: 1em; text-align: center; }
 .pop-grid.icons { grid-template-columns: repeat(10, 1fr); }
 .pop .swatch.icon { background: var(--raised); color: var(--text); font-size: 14px; display: grid; place-items: center; }

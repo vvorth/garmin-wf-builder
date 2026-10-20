@@ -106,7 +106,10 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     CodeMirror and marked vendored in `app/vendor/`. The server bundles
     `app/main.ts` with esbuild when it starts and serves it as
     `/dist/app.js` (`/dist/raster.js` stays a separate module the page
-    imports); `/static/` serves `index.html`, `studio.css` and `vendor/`
+    imports as `./raster.js`); `/sw.js` is `src/studio/sw.ts`, the service
+    worker keeping the editor's files for offline use, and every path the
+    page asks for is relative, for a proxy's sub-path; `/static/` serves
+    `index.html`, `studio.css`, the manifest, its icons and `vendor/`
     as files. Every module in `app/` is TypeScript, strict.
     `app/store.ts` is the editor's state: one `EditorStore` (the face,
     the selection, the editing `context`, the per-browser `view` and `ui`

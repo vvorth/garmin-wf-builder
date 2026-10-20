@@ -69,6 +69,7 @@ jobs:
             test/page-store.test.ts
             test/palette.test.ts
             test/py.test.ts
+            test/studio-sw.test.ts
             test/units.test.ts
             test/uuid.test.ts
             test/yaml.test.ts

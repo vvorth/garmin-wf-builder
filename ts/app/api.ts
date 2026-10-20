@@ -21,10 +21,26 @@ let worker: Worker | null = null;
 let loaded = false;                        // the worker has answered once
 let failed: RefusedResponse | null = null; // the answer every request gets once the worker failed to load
 
+// The service worker (src/studio/sw.ts) keeps what the page and the worker
+// fetch, so the editor opens with no network. Browsers allow one over https
+// and on localhost only. A worker started before it controls the page is
+// never under it, so on a first visit the worker waits for it, a while at most.
+const controlled: Promise<unknown> = (async () => {
+  const sw = typeof navigator === "undefined" ? undefined : navigator.serviceWorker;
+  if (sw === undefined) return;
+  const registration = await sw.register("sw.js").catch(() => null);
+  // a hard reload leaves the page uncontrolled under an active one, which will not claim it
+  if (registration === null || sw.controller !== null || (registration.installing === null && registration.waiting === null)) return;
+  await new Promise((done) => {
+    sw.addEventListener("controllerchange", done, { once: true });
+    setTimeout(done, 5000);
+  });
+})();
+
 // Started on the first request, so a module that only draws (and its tests) needs none.
 function started(): Worker {
   if (worker === null) {
-    worker = new Worker("/dist/worker.js", { type: "module" });
+    worker = new Worker("dist/worker.js", { type: "module" });
     worker.onmessage = (e: MessageEvent) => {
       loaded = true;
       const message = e.data as Incoming;   // the worker boundary: `postMessage` carries untyped data
@@ -52,6 +68,7 @@ function started(): Worker {
  */
 export async function call<O extends Op>(op: O, args?: Args<O>, body: Blob | Uint8Array | null = null): Promise<Response<O>> {
   const bytes = body instanceof Blob ? new Uint8Array(await body.arrayBuffer()) : body;
+  await controlled;
   const id = next++;
   return new Promise((resolve) => {
     if (failed) { resolve(failed); return; }

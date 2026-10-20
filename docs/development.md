@@ -199,7 +199,8 @@ ts/                   the compiler, its tests and tools: one package for the
     build.ts, node_build.ts  the pipeline, and writing and compiling a project (Node)
     cli.ts                `wfb`, over node:util's parseArgs; term.ts behind it
     studio/               the editor's worker (the history store, open documents, the
-                          requests) and its server (devices, fonts, builds);
+                          requests), its server (devices, fonts, builds) and its
+                          service worker (sw.ts, the offline copy);
                           protocol.ts is the page/worker contract, every request
                           and answer as TypeScript interfaces; parts.ts the parts of
                           hands, patterns and needles as the tree, the entered

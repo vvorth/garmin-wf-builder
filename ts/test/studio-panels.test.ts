@@ -845,8 +845,8 @@ test("the server bundles the page as /dist/app.js: one module rendering into #ap
     const bundle = await response.text();
     assert.match(bundle, /getElementById\("app"\)/, "the entry's render is in the bundle");
     assert.doesNotMatch(bundle, /vendor\/preact-htm/, "Preact comes from npm, not the vendored module");
-    assert.doesNotMatch(bundle, /^\s*import\b.*["']\.\//m, "every relative import is bundled in");
-    assert.match(bundle, /from\s*"\/dist\/raster\.js"/, "the rasteriser stays a separate module");
+    assert.doesNotMatch(bundle, /^\s*import\b.*["']\.\/(?!raster\.js")/m, "every relative import but the rasteriser is bundled in");
+    assert.match(bundle, /from\s*"\.\/raster\.js"/, "the rasteriser stays a separate module, beside the bundle");
   } finally {
     await server.close();
   }
@@ -856,11 +856,22 @@ test("the server sends the app, the device digest, a device's extras, and refuse
   const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
   const url = (path: string): string => `http://127.0.0.1:${server.port}${path}`;
   try {
-    assert.match(await (await fetch(url("/"))).text(), /\/dist\/app\.js/);
+    assert.match(await (await fetch(url("/"))).text(), /src="dist\/app\.js"/);
     assert.equal((await fetch(url("/static/studio.css"))).status, 200);
     assert.match(await (await fetch(url("/dist/raster.js"))).text(), /export\s*\{[^}]*\bliveOps\b/);
     assert.equal((await fetch(url("/static/../../package.json"))).status, 404);
     assert.match(await (await fetch(url("/dist/worker.js"))).text(), /wfb-studio/);
+    const sw = await fetch(url("/sw.js"));
+    assert.match(sw.headers.get("content-type") ?? "", /^text\/javascript/);
+    assert.doesNotMatch(await sw.text(), /^\s*export\b/m, "a classic script: a service worker registered without type: module");
+    const manifest = await fetch(url("/static/manifest.webmanifest"));
+    assert.equal(manifest.headers.get("content-type"), "application/manifest+json");
+    for (const icon of (await manifest.json() as { icons: { src: string }[] }).icons) {
+      assert.equal((await fetch(url(`/static/${icon.src}`))).headers.get("content-type"), "image/png", icon.src);
+    }
+    for (const page of ["/", "/static/studio.css"]) {
+      assert.doesNotMatch(await (await fetch(url(page))).text(), /(href|src)="\/|url\("\//, `${page}: relative paths only, for a proxy's sub-path`);
+    }
     const digest = await (await fetch(url("/api/devices"))).json() as any;
     const xml = digest.devices.fr955["fr955.api.debug.xml"] as string;
     assert.ok(xml.includes("<functionEntry") && !xml.includes("<localVariable"));
