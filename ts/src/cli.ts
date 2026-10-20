@@ -18,6 +18,7 @@ import { bakeFonts } from "./emit/resources.ts";
 import { resolveRegistryKey } from "./fonts/files.ts";
 import { deviceNeededNames, garminFontRoot, NodeFontFiles } from "./fonts/node.ts";
 import * as icons from "./icons.ts";
+import type { ExprValue } from "./expr.ts";
 import type { ResolvedFace } from "./layout.ts";
 import type { MemoryStats } from "./lint.ts";
 import { ICON_FONT, installAssets, readFontFile, SCHEMA } from "./node.ts";
@@ -197,6 +198,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--all-styles"], kind: "flag", help: "render every 'config: style:' entry side by side, one PNG per device" },
     { flags: ["--time"], metavar: "HH:MM[:SS]", help: "render analog hands (and any time.*-bound element) at this time instead of the sample 10:09:42" },
     { flags: ["--units"], choices: ["metric", "statute"], help: "the watch's unit setting to render a 'units: auto' element under (default: metric)" },
+    { flags: ["--sample"], kind: "append", dest: "samples", metavar: "NAME=VALUE[,...]", help: "render at this reading instead of the sample one: a complication type (notification_count=0, steps=5432; also sets complication.<type>) or a catalogue path (device.notification_count=0, device.is_24_hour=false); repeatable, or several comma separated" },
     { flags: ["--asleep"], kind: "flag", help: "hide every awake-only second hand, simulating a sleeping glance (no mode/aod-set switch: 'always_on' membership used to do that too, but was removed -- see --aod)" },
     { flags: ["--aod"], kind: "flag", help: "render the AMOLED always-on-display frame: the resolved 'aod:' set, restyled, with every awake-only second hand hidden" },
     { flags: ["--minute"], type: INT, metavar: "N", help: "render minute N of the day (0-1439); sugar for --time, and mutually exclusive with it" },
@@ -483,6 +485,34 @@ function parsePreviewTime(text: string): [number, number, number] | null {
 
 class FlagError extends Error {}
 
+/**
+ * `--sample` values parsed: catalogue paths (they contain a dot) for `sample`,
+ * complication types for `data_sample` and their own `complication.<type>` path.
+ */
+function previewSamples(given: readonly string[]): [Map<string, ExprValue>, Map<string, unknown>] {
+  const sample = new Map<string, ExprValue>(), data = new Map<string, unknown>();
+  for (const pair of given.flatMap((g) => g.split(","))) {
+    const at = pair.indexOf("=");
+    const name = pair.slice(0, at).trim(), text = pair.slice(at + 1).trim();
+    if (at < 1 || text === "") throw new FlagError(`--sample ${quoted(pair)} is not NAME=VALUE`);
+    const type = name.includes(".") ? catalog.get(name)?.type : complications.TYPES.get(name)?.value_type;
+    if (type === undefined) {
+      throw new FlagError(`--sample ${quoted(name)} is neither a complication type nor a catalogue path (see wfb complications and wfb sources)`);
+    }
+    let value: ExprValue;
+    if (type === "string") value = text;
+    else if (type === "boolean" && (text === "true" || text === "false")) value = text === "true";
+    else if ((type === "number" && /^-?\d+$/.test(text)) || (type === "float" && Number.isFinite(Number(text)))) value = Number(text);
+    else throw new FlagError(`--sample ${name}=${text}: ${name} takes a ${type === "number" ? "whole number" : type}`);
+    if (name.includes(".")) sample.set(name, value);
+    else {
+      data.set(name, value);
+      if (catalog.get(`complication.${name}`) !== undefined) sample.set(`complication.${name}`, value);
+    }
+  }
+  return [sample, data];
+}
+
 /** Check `preview`'s flag combinations and return the moment to render (`null`: the sample time). */
 function previewTime(args: Namespace, minutesPerDay: number): [number, number, number] | null {
   const exclusive: [string, boolean][][] = [
@@ -542,16 +572,23 @@ async function renderPreview(args: Namespace, db: DeviceDatabase, blurb = true):
   printBag(bag, verboseFlag);
   if (!bag.ok()) return [1, watched];
 
-  let sample: Map<string, number> | null = null;
+  let sample: Map<string, ExprValue>, dataSample: Map<string, unknown>;
+  try {
+    [sample, dataSample] = previewSamples((args["samples"] as string[] | null) ?? []);
+  } catch (e) {
+    if (!(e instanceof FlagError)) throw e;
+    error(e.message);
+    return [1, watched];
+  }
   if (args["units"] != null) {
     const setting = args["units"] === "statute" ? 1 : 0;
-    sample = new Map(["distance", "elevation", "temperature", "pace"].map((name) => [`device.${name}_units`, setting]));
+    for (const name of ["distance", "elevation", "temperature", "pace"]) sample.set(`device.${name}_units`, setting);
   }
   const skin = Boolean(args["skin"]);
   const scale = args["scale"] as number;
   const options = preview.previewOptions({
     scale, quantise: !args["no_quantise"], style, time, asleep: Boolean(args["asleep"]), aod: heatmap || Boolean(args["aod"]),
-    sample, skin,
+    sample, data_sample: dataSample, skin,
   });
   const color = term.shouldColor(process.stdout);
   const label = status("preview", color);

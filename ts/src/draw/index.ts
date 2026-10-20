@@ -79,7 +79,9 @@ export function paint(renderer: Renderer, placed: Placed, ring: RingPass | null 
 
 /** How the host lowers `placed`: with always-on code present, the face's own dimming, and the view's value guards. */
 export function context(renderer: Renderer, placed: Placed, ring: RingPass | null = null): DrawContext {
-  return new DrawContext(renderer.resolved, new AodStyle(true), renderer.valueGuards(placed), ring, { picks: renderer.options.picks });
+  return new DrawContext(renderer.resolved, new AodStyle(true), renderer.valueGuards(placed), ring, {
+    picks: renderer.options.picks, dataSample: renderer.options.data_sample,
+  });
 }
 
 /** The string `placed` (a text-drawing element) draws at `values`, without painting it; `null` when it draws none. */

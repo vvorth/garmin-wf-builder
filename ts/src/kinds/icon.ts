@@ -6,7 +6,6 @@ import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, HOLD_AUTO, IconElement } from "../ir/model.ts";
 import { configDataIds, configField, dataIconMethod } from "../ir/naming.ts";
-import { DATA_SAMPLE } from "../sample.ts";
 import { resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph } from "./data.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
@@ -166,9 +165,9 @@ class IconKind extends ElementKind<IconElement> {
       If(IsPulsing(configDataIds(face).get(element.slot!)!), [Return()]),
       Blank(),
       Comment(`slot: ${element.slot} -- the icon of the wearer's pick`),
-      SlotPull(configField(`data_${element.slot}`), ctx.complications_guarded, DATA_SAMPLE.get(shown) ?? null),
+      SlotPull(configField(`data_${element.slot}`), ctx.complications_guarded, ctx.dataSample(shown) ?? null),
       SlotIcon(fontField(p.font_key), p.font_key, dataIconMethod(element.id), ctx.complications_guarded,
-        slotSampleGlyph(slot, shown, slotSample(shown))),
+        slotSampleGlyph(slot, shown, slotSample(shown, ctx))),
     ];
     const prefix = constPrefix(p.id);
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);

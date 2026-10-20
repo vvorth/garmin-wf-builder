@@ -45,6 +45,8 @@ export interface PreviewOptions {
   mask_shape: boolean;
   /** Sample readings overriding `SAMPLE`. */
   sample: ReadonlyMap<string, ExprValue> | null;
+  /** Sample readings by complication type, overriding `DATA_SAMPLE`. */
+  data_sample: ReadonlyMap<string, unknown>;
   /** A `config: style:` entry to render, or `null` for the default entry. */
   style: string | null;
   /** `[hour, minute, second]` overriding the sample time. */
@@ -66,7 +68,7 @@ export interface PreviewOptions {
 export function previewOptions(fields: Partial<PreviewOptions> = {}): PreviewOptions {
   return {
     scale: 2, quantise: true, mask_shape: true, sample: null, style: null, time: null, date: null, asleep: false, aod: false,
-    aod_mask: true, picks: [], skin: false, ...fields,
+    aod_mask: true, picks: [], skin: false, data_sample: new Map(), ...fields,
   };
 }
 

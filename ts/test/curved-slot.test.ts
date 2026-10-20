@@ -107,6 +107,11 @@ test("a notification count pick's icon empties at zero, unless the author chose 
   assert.equal(slotSampleGlyph(slot, "notification_count", 3), full);
   assert.match(method(view(text), "iconForGlyph"),
     /NOTIFICATION_COUNT: return \(value instanceof Lang.Number && value == 0\) \? "notification_none" : "notification";/);
+  const pick = previewOptions({ scale: 1, picks: [["left", "notification_count"]] });
+  const drawn = (count: number) =>
+    render(resolved(text), { ...pick, data_sample: new Map([["notification_count", count]]) }).data;
+  assert.deepEqual(drawn(3), render(resolved(text), pick).data, "3 is the sample count");
+  assert.notDeepEqual(drawn(0), drawn(3), "the preview draws the empty bubble at 0");
   const authored = slotIcon("").replace("choices: [steps,", "choices: [steps, { type: notification_count, icon: { codepoint: \"U+F04CE\" } },");
   assert.equal(slotSampleGlyph(face(authored).config_data.get("left")!, "notification_count", 0), "\u{F04CE}");
   assert.match(method(view(authored), "iconForGlyph"), /NOTIFICATION_COUNT: return "U\+F04CE";/);

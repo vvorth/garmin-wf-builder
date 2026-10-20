@@ -132,6 +132,21 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(nope.code === 1 && nope.stderr.includes("no such command 'nope'") && nope.stderr.includes("validate"));
   });
 
+  test("preview: --sample sets a slot's reading, and refuses an unknown name or a wrong value", () => {
+    const frame = (...extra: string[]): Buffer => wfb(["preview", "examples/showcase/face.yaml", "-d", "fenix8solar47mm", "-o", "-", ...extra]).bytes;
+    const plainFrame = frame();
+    assert.ok(frame("--sample", "steps=8432").equals(plainFrame), "the sample value itself changes nothing");
+    assert.ok(!frame("--sample", "steps=5432").equals(plainFrame), "the steps slot draws the given reading");
+    for (const [given, message] of [
+      ["foo=1", "neither a complication type nor a catalogue path"], ["steps=1.5", "steps takes a whole number"],
+      ["steps", "is not NAME=VALUE"], ["device.is_24_hour=maybe", "takes a boolean"],
+    ]) {
+      const r = wfb(["preview", "examples/showcase/face.yaml", "-d", "fenix8solar47mm", "-o", "-", "--sample", given!]);
+      assert.equal(r.code, 1);
+      assert.ok(r.stderr.includes(message!), r.stderr);
+    }
+  });
+
   test("preview: a bad time, a non-target device, stdout, -d, quiet, conflicts (a heat map is in slow/)", () => {
     const bad = wfb(["preview", "examples/features/analog/face.yaml", "--time", "not-a-time", "-d", "fenix8solar47mm", "-o", join(scratch(), "p")]);
     assert.ok(bad.code === 1 && bad.stderr.includes("not-a-time") && bad.stderr.includes("HH:MM"));

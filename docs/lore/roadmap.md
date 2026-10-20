@@ -144,6 +144,10 @@ or AOD-related has been observed on a watch or in the simulator.
   the simulator skin the device files ship, at its `display.location`
   (`frameInSkin` in `ts/src/preview.ts`); a device without a skin renders the bare
   screen with one warning. `docs/guide/preview-and-cli.md`.
+- **Preview at chosen readings** — `wfb preview --sample NAME=VALUE`
+  overrides a complication type's sample (a slot's reading and icon, and
+  `complication.<type>`) or any source's (`previewSamples` in
+  `ts/src/cli.ts`). `docs/guide/preview-and-cli.md`.
 - **The editor** (`wfb studio`) — a web app run in the browser, compiler
   and all, over a small Node server that sends the watches' files and fonts
   and builds (`ts/src/studio/`, `ts/app/`): new from a template,

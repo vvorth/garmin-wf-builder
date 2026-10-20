@@ -24,7 +24,7 @@ import { discPerimeterOffsets } from "../ir/model.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
 import type { RotatablePart } from "../layout.ts";
 import { radians } from "../py.ts";
-import { DATA_SAMPLE, SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
+import { SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
 import * as vocab from "../vocab.ts";
 
 type Node = Map<DataKey, Data>;
@@ -332,7 +332,7 @@ class Lowering {
     const face = this.ctx.resolved.face;
     const slot = face.config_data.get(element.slot!);
     const shown = slot !== undefined ? this.ctx.shown(slot) : null;
-    const sample = shown !== null ? DATA_SAMPLE.get(shown) ?? null : null;
+    const sample = shown !== null ? this.ctx.dataSample(shown) ?? null : null;
     const scale = shown !== null ? complications.scaleFor(shown, {
       goals: SAMPLE_GOALS, heartRateZones: SAMPLE_HEART_RATE_ZONES, sex: SAMPLE_WEARER_SEX, age: SAMPLE_WEARER_AGE, value: sample,
     }) : null;

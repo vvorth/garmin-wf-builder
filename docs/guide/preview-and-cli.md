@@ -55,7 +55,7 @@ wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good templ
 wfb studio    [-p PORT]            # the editor, on http://127.0.0.1:8765/
 wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]] [--trace]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
-wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [-q] [-o -]  # render to PNG; no simulator
+wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml [-d DEVICE] [-f] [--trace] [--screenshot PNG]  # run it in the simulator
 wfb devices                        # installed device definitions and their limits
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
@@ -70,6 +70,17 @@ wfb help      [command]            # every command's own help, from its own docs
 named. It accepts any installed device (`wfb devices`), not only a listed
 target; an unlisted one draws a `target` note, and the generated manifest
 lists exactly the devices asked for.
+
+`wfb preview --sample NAME=VALUE` renders at a reading of your own instead of
+the sample one, to see a state the sample does not show: `--sample
+notification_count=0 --sample steps=5432,pulse_ox=97`. A bare name is a
+complication type (`wfb complications`): it sets what a `config: slots:`
+slot showing that type draws, and its `complication.<type>` source. A
+dotted name is a source (`wfb sources`), such as
+`device.notification_count=0` or `device.is_24_hour=false`; `activity.steps`
+and `complication.steps` are separate sources, so set the one the element
+reads. A value must suit the type: a whole number, a number, `true` or
+`false`, or text.
 
 `wfb build` compiles the devices in parallel: one `monkeyc` per device, at
 most one per CPU and at most four at once. `-j N` sets the limit, and `-j 1`

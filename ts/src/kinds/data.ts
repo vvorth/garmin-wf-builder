@@ -27,7 +27,7 @@ import {
 import { constPrefix, fontField, McLiteral } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
-import { DATA_SAMPLE, SAMPLE } from "../sample.ts";
+import { SAMPLE } from "../sample.ts";
 
 type Node = Map<DataKey, Data>;
 
@@ -139,9 +139,9 @@ export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unk
 }
 
 /** The sample reading a slot showing `shown` draws on the host. */
-export function slotSample(shown: string): unknown {
+export function slotSample(shown: string, ctx: DrawContext): unknown {
   const ctype = complications.TYPES.get(shown)!;
-  return DATA_SAMPLE.has(ctype.name) ? DATA_SAMPLE.get(ctype.name) : (ctype.value_type !== "string" ? 12 : "--");
+  return ctx.dataSample(ctype.name) ?? (ctype.value_type !== "string" ? 12 : "--");
 }
 
 /** A radial pair's pinned icon: the run's fixed end, its radius and the gap, for the bake and the layout to resolve per device. */
@@ -620,11 +620,11 @@ class DataKind extends ElementKind<DataElement> {
       If(IsPulsing(configDataIds(face).get(element.slot)!), [Return()]),
       Blank(),
       Comment(`slot: ${element.slot}`),
-      SlotPull(configField(`data_${element.slot}`), guarded, DATA_SAMPLE.get(shown) ?? null),
+      SlotPull(configField(`data_${element.slot}`), guarded, ctx.dataSample(shown) ?? null),
     ];
     if (p.icon_font_key !== null) {
       ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded,
-        slotSampleGlyph(slot, shown, slotSample(shown))));
+        slotSampleGlyph(slot, shown, slotSample(shown, ctx))));
     }
     let font: Font;
     if (p.font.is_vector) {
@@ -648,7 +648,7 @@ class DataKind extends ElementKind<DataElement> {
     const prefix = constPrefix(p.id);
     const shown = ctx.shown(ctx.resolved.face.config_data.get(element.slot)!);
     const ctype = complications.TYPES.get(shown)!;
-    const sample = slotSample(shown);
+    const sample = slotSample(shown, ctx);
     const guarded = ctx.complications_guarded;
     const iconFont = p.icon_font_key !== null ? Font("iconFont", { baked: p.icon_font_key }) : null;
     const ops: Op[] = [];

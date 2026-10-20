@@ -16,6 +16,7 @@ import type { ConfigDataSlot, Element, Expression } from "../ir/model.ts";
 import type { ResolvedFace, RotatablePart } from "../layout.ts";
 import type { IntBox } from "../units.ts";
 import * as complications from "../complications.ts";
+import { DATA_SAMPLE } from "../sample.ts";
 import type { AodStyle, RingPass } from "../emit/monkeyc/common.ts";
 
 /** A number as the watch types it: a whole `number` is a Number; a non-whole one, or a `WholeFloat`, is a Float. */
@@ -393,15 +394,25 @@ export class DrawContext {
   readonly complications_guarded: boolean;
   /** On the host only, the type each slot is drawn showing, as `[slot, type]` pairs. */
   readonly picks: readonly (readonly [string, string])[];
+  /** On the host only, readings by complication type overriding `DATA_SAMPLE`. */
+  readonly data_sample: ReadonlyMap<string, unknown>;
 
   constructor(resolved: ResolvedFace, aod: AodStyle, valueGuards: readonly string[] = [], ring: RingPass | null = null,
-    { complicationsGuarded = false, picks = [] }: { complicationsGuarded?: boolean; picks?: readonly (readonly [string, string])[] } = {}) {
+    { complicationsGuarded = false, picks = [], dataSample = new Map() }: {
+      complicationsGuarded?: boolean; picks?: readonly (readonly [string, string])[]; dataSample?: ReadonlyMap<string, unknown>;
+    } = {}) {
     this.resolved = resolved;
     this.aod = aod;
     this.value_guards = valueGuards;
     this.ring = ring;
     this.complications_guarded = complicationsGuarded;
     this.picks = picks;
+    this.data_sample = dataSample;
+  }
+
+  /** The sample reading of complication type `name`: the override, else `DATA_SAMPLE`'s; `undefined` for neither. */
+  dataSample(name: string): unknown {
+    return this.data_sample.has(name) ? this.data_sample.get(name) : DATA_SAMPLE.get(name);
   }
 
   /** The type `slot` is drawn showing: its pick, when it has one the slot may show, else its `default:`. */
