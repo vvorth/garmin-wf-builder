@@ -75,11 +75,11 @@ lists exactly the devices asked for.
 the sample one, to see a state the sample does not show: `--sample
 notification_count=0 --sample steps=5432,pulse_ox=97`. A bare name is a
 complication type (`wfb complications`): it sets what a `config: slots:`
-slot showing that type draws, and its `complication.<type>` source. A
-dotted name is a source (`wfb sources`), such as
-`device.notification_count=0` or `device.is_24_hour=false`; `activity.steps`
-and `complication.steps` are separate sources, so set the one the element
-reads. A value must suit the type: a whole number, a number, `true` or
+slot showing that type draws, and every source of the same quantity whose
+type holds the value (`notification_count` sets `device.notification_count`
+and `complication.notification_count`; `steps` sets `activity.steps`). A
+dotted name is one source (`wfb sources`), such as `device.is_24_hour=false`.
+A value must suit the type: a whole number, a number, `true` or
 `false`, or text.
 
 `wfb build` compiles the devices in parallel: one `monkeyc` per device, at

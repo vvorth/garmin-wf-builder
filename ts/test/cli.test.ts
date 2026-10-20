@@ -137,6 +137,9 @@ describe("the command line", { concurrency: true }, () => {
     const plainFrame = frame();
     assert.ok(frame("--sample", "steps=8432").equals(plainFrame), "the sample value itself changes nothing");
     assert.ok(!frame("--sample", "steps=5432").equals(plainFrame), "the steps slot draws the given reading");
+    // The showcase's badge reads device.notification_count, no slot: the type reaches the source too.
+    assert.ok(frame("--sample", "notification_count=4").equals(frame("--sample", "device.notification_count=4")));
+    assert.ok(!frame("--sample", "notification_count=4").equals(plainFrame));
     for (const [given, message] of [
       ["foo=1", "neither a complication type nor a catalogue path"], ["steps=1.5", "steps takes a whole number"],
       ["steps", "is not NAME=VALUE"], ["device.is_24_hour=maybe", "takes a boolean"],

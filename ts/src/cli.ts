@@ -198,7 +198,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--all-styles"], kind: "flag", help: "render every 'config: style:' entry side by side, one PNG per device" },
     { flags: ["--time"], metavar: "HH:MM[:SS]", help: "render analog hands (and any time.*-bound element) at this time instead of the sample 10:09:42" },
     { flags: ["--units"], choices: ["metric", "statute"], help: "the watch's unit setting to render a 'units: auto' element under (default: metric)" },
-    { flags: ["--sample"], kind: "append", dest: "samples", metavar: "NAME=VALUE[,...]", help: "render at this reading instead of the sample one: a complication type (notification_count=0, steps=5432; also sets complication.<type>) or a catalogue path (device.notification_count=0, device.is_24_hour=false); repeatable, or several comma separated" },
+    { flags: ["--sample"], kind: "append", dest: "samples", metavar: "NAME=VALUE[,...]", help: "render at this reading instead of the sample one: a complication type (notification_count=0, steps=5432; also sets the sources of the same quantity, such as device.notification_count) or a catalogue path (activity.steps=5432, device.is_24_hour=false); repeatable, or several comma separated" },
     { flags: ["--asleep"], kind: "flag", help: "hide every awake-only second hand, simulating a sleeping glance (no mode/aod-set switch: 'always_on' membership used to do that too, but was removed -- see --aod)" },
     { flags: ["--aod"], kind: "flag", help: "render the AMOLED always-on-display frame: the resolved 'aod:' set, restyled, with every awake-only second hand hidden" },
     { flags: ["--minute"], type: INT, metavar: "N", help: "render minute N of the day (0-1439); sugar for --time, and mutually exclusive with it" },
@@ -487,7 +487,8 @@ class FlagError extends Error {}
 
 /**
  * `--sample` values parsed: catalogue paths (they contain a dot) for `sample`,
- * complication types for `data_sample` and their own `complication.<type>` path.
+ * complication types for `data_sample` and every source of the same quantity
+ * (`device.notification_count`, `complication.notification_count`).
  */
 function previewSamples(given: readonly string[]): [Map<string, ExprValue>, Map<string, unknown>] {
   const sample = new Map<string, ExprValue>(), data = new Map<string, unknown>();
@@ -507,7 +508,10 @@ function previewSamples(given: readonly string[]): [Map<string, ExprValue>, Map<
     if (name.includes(".")) sample.set(name, value);
     else {
       data.set(name, value);
-      if (catalog.get(`complication.${name}`) !== undefined) sample.set(`complication.${name}`, value);
+      // Every source reading the same quantity, where its type holds the value (not date.today, nor high/low's two floats).
+      for (const source of catalog.CATALOG.values()) {
+        if (source.launch_complication === name && (source.type === type || (source.type === "float" && type === "number"))) sample.set(source.path, value);
+      }
     }
   }
   return [sample, data];
