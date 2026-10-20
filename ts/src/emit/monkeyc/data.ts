@@ -301,12 +301,14 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
   const mapped = slot.icons;
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
   const follows = slot.conditionIcons;
+  const zero = slot.zeroIcons;
   w.blank();
   w.doc(`\`${elementId}\`'s icon, chosen from the wearer's picked type -- not from\n`
     + "the reading, so it still shows on a frame the reading could not be pulled.\n"
-    + "A weather type's icon follows the pulled condition when there is one.");
+    + "A weather type's icon follows the pulled condition when there is one,\n"
+    + "and a count's empties when the pulled count is 0.");
   w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
-    if ([...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
+    if (zero.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
     w.block("switch (t)", () => {
       for (const name of names) {
         const icon = mapped.get(name);
@@ -318,6 +320,8 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
           const reader = CONDITION_READER.get(source);
           if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
           w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
+        } else if (zero.has(name)) {
+          w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${complications.ICON_WHEN_ZERO.get(name)}" : "${icon.key}";`);
         } else if (follows.has(name)) {
           w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
         } else {

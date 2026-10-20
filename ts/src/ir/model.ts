@@ -341,6 +341,11 @@ export class ConfigDataSlot {
     return new Set([...this.icons.keys()].filter((name) => complications.ICON_CONDITION.has(name) && !this.icon_overrides.has(name)));
   }
 
+  /** The count types whose icon empties at zero (`complications.ICON_WHEN_ZERO`): every one left on its catalogue icon. */
+  get zeroIcons(): Set<string> {
+    return new Set([...this.icons.keys()].filter((name) => complications.ICON_WHEN_ZERO.has(name) && !this.icon_overrides.has(name)));
+  }
+
   /** Complication type to icon, for every choice that ends up with one. */
   get icons(): Map<string, icons.SlotIcon> {
     if (this.choices === "any") {

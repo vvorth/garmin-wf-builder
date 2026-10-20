@@ -50,6 +50,8 @@ export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
   ["current_weather", null], ["forecast_weather_1day", null], ["forecast_weather_2day", null], ["forecast_weather_3day", null],
   ["current_temperature", "weather.condition"], ["high_low_temperature", "weather.condition_today"],
 ]);
+/** A count type whose icon empties at zero: the catalogue name drawn when the pulled count is 0. */
+export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification_none"]]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));
 export const WORDED: ReadonlySet<string> = new Set(data.worded);
 export const WEATHER_CONDITION_TEXT: ReadonlyMap<number, readonly [string, string]> =

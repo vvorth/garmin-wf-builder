@@ -368,6 +368,10 @@ Instead:
   type's own catalogue icon (`weather`, `temperature`,
   `temperature_range`); the slot's icon font then carries every condition
   glyph. A weather choice with an authored `icon:` keeps it.
+  **A `notification_count` icon empties at zero**: `notification_none`
+  (an outlined bubble) when the pulled count is 0, `notification` (a
+  filled one) otherwise and when nothing could be pulled. An authored
+  `icon:` on that choice keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
   `TYPES` in `ts/src/complications.ts` entirely) simply draws no icon, since this

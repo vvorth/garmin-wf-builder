@@ -2,10 +2,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Tiles, toJson } from "../src/draw/jsonform.ts";
-import { stepKey } from "../src/icons.ts";
+import { CATALOG, stepKey } from "../src/icons.ts";
+import { slotSampleGlyph } from "../src/kinds/data.ts";
 import { type PlacedData, type PlacedIcon, type PlacedText, radialSpacingRadius } from "../src/layout.ts";
 import { frameItems, newRenderer, previewOptions, render, sampleValues } from "../src/preview.ts";
-import { checked, divergences, errors, generated, method, MINIMAL, resolved, view } from "./designs.ts";
+import { checked, divergences, errors, face, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
 const icon = (extra: string): string => `${MINIMAL}
   glyph:
@@ -96,6 +97,19 @@ test("a temperature pick's icon follows a weather condition, read beside it", ()
   assert.match(icon, /CURRENT_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.current\(\), "temperature"\);/);
   assert.match(icon, /HIGH_LOW_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.today\(\), "temperature_range"\);/);
   assert.match(icon, /FORECAST_WEATHER_2DAY: return \(value instanceof Lang.Number\) \? WfbWeather.chooseIcon\(value\) : "weather";/);
+});
+
+test("a notification count pick's icon empties at zero, unless the author chose one", () => {
+  const text = slotIcon("").replace("choices: [steps,", "choices: [steps, notification_count,");
+  const slot = face(text).config_data.get("left")!;
+  const full = CATALOG.get("notification")!.codepoint, empty = CATALOG.get("notification_none")!.codepoint;
+  assert.equal(slotSampleGlyph(slot, "notification_count", 0), empty);
+  assert.equal(slotSampleGlyph(slot, "notification_count", 3), full);
+  assert.match(method(view(text), "iconForGlyph"),
+    /NOTIFICATION_COUNT: return \(value instanceof Lang.Number && value == 0\) \? "notification_none" : "notification";/);
+  const authored = slotIcon("").replace("choices: [steps,", "choices: [steps, { type: notification_count, icon: { codepoint: \"U+F04CE\" } },");
+  assert.equal(slotSampleGlyph(face(authored).config_data.get("left")!, "notification_count", 0), "\u{F04CE}");
+  assert.match(method(view(authored), "iconForGlyph"), /NOTIFICATION_COUNT: return "U\+F04CE";/);
 });
 
 test("an icon with slot: is drawn by the editor's slot drawable, and turns", () => {

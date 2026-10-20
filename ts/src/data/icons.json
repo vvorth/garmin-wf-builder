@@ -30,6 +30,11 @@
    "codepoint": "󰅺",
    "description": "a speech bubble; draw a count on top of it (Material Design md-comment)"
   },
+  "notification_none": {
+   "name": "notification_none",
+   "codepoint": "󰆂",
+   "description": "an empty speech bubble, for no notifications (Material Design md-comment_outline)"
+  },
   "battery": {
    "name": "battery",
    "codepoint": "󰁹",

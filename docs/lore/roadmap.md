@@ -55,7 +55,7 @@ or AOD-related has been observed on a watch or in the simulator.
   paces, rounded temperatures, hours, `K` counts and condition names,
   following the watch's units and clock; `unit:` adds each type's unit and
   `short:` keeps to seven characters; a weather slot's icon follows the
-  condition (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
+  condition, and a notification count's empties at zero (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **The `config:` settings menu** — on a watch without the native editor
   but with `getSettingsView` (fr955), the `config:` axes as one list per
