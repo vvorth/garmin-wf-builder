@@ -85,16 +85,25 @@ folder that holds your face.
 
 ## The editor
 
+With no command, the image serves the editor on port `8765`:
+
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  vvorth/garmin-wf-builder:latest studio
+  vvorth/garmin-wf-builder:latest
 ```
 
 Open <http://127.0.0.1:8765/>. Faces are kept in your browser and come in and
-out by upload and download, so the editor needs no `/work` mount. Anyone who
-reaches the port can run builds, so publish it on `127.0.0.1` only.
+out by upload and download, so the editor needs no `/work` mount.
+
+In the container the editor listens on every address and answers requests
+addressed by any host name, so it works behind whatever name a proxy or your
+network gives it. **Securing it is up to how you publish the port**: anyone
+who reaches it can run builds. Publish it on `127.0.0.1`, or behind a reverse
+proxy with authentication. To change the defaults, pass `studio` with your
+own options: `--port N`, `--host ADDRESS`, or `--allow-host NAME` to answer
+only that name.
 
 ## Docker Compose
 
@@ -104,7 +113,6 @@ services:
     image: vvorth/garmin-wf-builder:latest
     container_name: garmin-wf-builder
     restart: unless-stopped
-    command: ["studio"]
     ports:
       - "127.0.0.1:8765:8765"
     volumes:

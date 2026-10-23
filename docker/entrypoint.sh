@@ -81,14 +81,25 @@ case "${1:-}" in
         # the editor's Build runs `wfb build`, which signs with this key
         needs_key=1
         # Inside the container the server must listen beyond its own
-        # loopback for a published port to reach it; publish it to the
-        # host's loopback only (docs/container.md, "The editor").
+        # loopback for a published port to reach it, and it is reached by
+        # whatever name the host, a proxy or an orchestrator gives it, which
+        # the container cannot know. So it binds every address and answers
+        # every name, and who can reach the port is up to how it is
+        # published (docs/container.md, "The editor"). An explicit --host,
+        # --allow-host or --allow-any-host replaces the matching default.
         has_host=0
+        has_names=0
         for arg in "$@"; do
-            case "$arg" in --host|--host=*) has_host=1 ;; esac
+            case "$arg" in
+                --host|--host=*) has_host=1 ;;
+                --allow-host|--allow-host=*|--allow-any-host) has_names=1 ;;
+            esac
         done
         if [ "$has_host" = 0 ]; then
             set -- "$@" --host 0.0.0.0
+        fi
+        if [ "$has_names" = 0 ]; then
+            set -- "$@" --allow-any-host
         fi
         ;;
     devices)

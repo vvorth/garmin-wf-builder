@@ -181,4 +181,6 @@ USER 1000
 WORKDIR /work
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["--help"]
+# With no arguments the image serves the editor (docs/container.md, "The editor");
+# any other arguments are a `wfb` command line instead.
+CMD ["studio"]

@@ -134,7 +134,8 @@ To use a key you already have:
 
 ## Commands
 
-The image's entrypoint is `wfb`, so the arguments are the CLI's:
+The image's entrypoint is `wfb`, so the arguments are the CLI's. With no
+arguments it runs `studio` (below):
 
 ```sh
 docker run ... garmin-wf-builder build     design.yaml [-d DEVICE] [--no-compile]
@@ -166,23 +167,36 @@ What each command needs mounted:
 
 ### The editor
 
-`wfb studio` serves the visual editor. Inside the container it listens on
-all of the container's interfaces (the entrypoint adds `--host 0.0.0.0`), so
-**publish the port to the host's loopback only**:
+`wfb studio` serves the visual editor, and is what the image runs with no
+arguments:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder studio
+  garmin-wf-builder
 ```
 
 Then open `http://127.0.0.1:8765/` in a browser on the host. The faces and
 their history are kept in that browser ([where the faces
 are](guide/studio.md#where-the-faces-are)), and go in by upload and come out
 by download, so the editor needs no `/work` mount. Its Build signs with the
-key at `/keys`, as `build` does. Whoever reaches the port can run builds, so
-never publish it beyond `127.0.0.1`.
+key at `/keys`, as `build` does.
+
+Inside the container the server cannot know the address or the name it is
+reached by: the host, a reverse proxy or an orchestrator decides both. So the
+entrypoint adds `--host 0.0.0.0` (every address) and `--allow-any-host`
+(answer any `Host` name) to `studio`, and the published port is the boundary.
+**Whoever reaches the port can run builds**, so publish it to the host's
+loopback (`-p 127.0.0.1:8765:8765`) or behind a reverse proxy that
+authenticates. The server says so when it starts, instead of the
+`--allow-any-host` warning it prints on a host.
+
+Each default gives way to an option of your own: `docker run ...
+garmin-wf-builder studio --port 9000`, `--host ADDRESS`, or `--allow-host
+NAME` to answer only that name (and IP addresses and `localhost`), which
+drops `--allow-any-host`. The options are in [the editor's
+guide](guide/studio.md).
 
 ---
 

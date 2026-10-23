@@ -240,7 +240,9 @@ interface Options {
 /** Run the server until Ctrl-C. */
 export async function serve(options: Options): Promise<void> {
   const { host, port } = options;
-  if (options.allowAnyHost) {
+  const inContainer = process.env["WFB_CONTAINER"] === "1";
+  // The container's entrypoint answers any name on purpose: there, the published port is the boundary.
+  if (options.allowAnyHost && !inContainer) {
     console.error("warning: --allow-any-host answers requests addressed by any name, so a web page whose name points at this "
       + "computer can read the editor; use --allow-host NAME for a name you trust");
   }
@@ -248,8 +250,8 @@ export async function serve(options: Options): Promise<void> {
   const shown = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host.includes(":") ? `[${host}]` : host;
   console.log(`wfb studio on http://${shown}:${running.port}/  (faces are kept in the browser)`);
   if (!LOOPBACK.includes(host)) {
-    if (process.env["WFB_CONTAINER"] === "1") {
-      console.log(`in a container: publish the port to the host's loopback only, -p 127.0.0.1:${port}:${port}, and open the address above there`);
+    if (inContainer) {
+      console.log(`in a container: anyone who reaches the published port can run builds, so publish it to the host's loopback (-p 127.0.0.1:${port}:${port}) or behind a proxy you trust`);
     } else {
       console.error(`warning: listening on ${host}, not loopback: anyone who can reach this port can run builds on this computer`);
     }

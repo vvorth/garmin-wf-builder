@@ -7,8 +7,9 @@
 # (.github/workflows/docker.yml). The fixture device `wfbtest`
 # (ts/test/fixtures/devices/) stands in for the device definitions a user
 # mounts at /devices, so the test covers what runs on the fixture alone: the
-# toolchain starts (Node, the JRE, `monkeyc`), and the slice fixture
-# generates a project and renders a preview. `monkeyc` does not know
+# toolchain starts (Node, the JRE, `monkeyc`), the slice fixture generates
+# a project and renders a preview, and the default command serves the editor
+# to a request addressed by any host name. `monkeyc` does not know
 # `wfbtest`, so a compiled .prg needs real devices and is not tested here.
 set -euo pipefail
 
@@ -18,7 +19,9 @@ fixtures="$root/ts/test/fixtures"
 
 work="$(mktemp -d)"
 # What the container writes belongs to its uid (1000), not necessarily the caller's.
+studio=""
 cleanup() {
+    [ -z "$studio" ] || docker rm -f "$studio" >/dev/null 2>&1 || true
     docker run --rm -v "$work:/work" --entrypoint sh "$image" -c 'rm -rf /work/build' >/dev/null 2>&1 || true
     rm -rf "$work"
 }
@@ -47,3 +50,18 @@ run build --no-compile face.yaml
 test -f "$work/build/slice/manifest.xml"
 run preview face.yaml -o build/preview
 test -s "$work/build/preview/wfbtest.png"
+
+# No arguments: the editor, on every address and answering any name.
+studio=$(docker run -d -p 127.0.0.1::8765 \
+    -v "$fixtures/devices:/devices:ro" \
+    -v "$fixtures/devices/reference:/reference:ro" \
+    -e WFB_DEVICE_REFERENCE=/reference \
+    -e WFB_NO_GARMIN_FONTS=1 \
+    "$image")
+port=$(docker port "$studio" 8765/tcp | head -1 | sed 's/.*://')
+for _ in $(seq 1 30); do
+    curl -fsS -o /dev/null -H 'Host: studio.example' "http://127.0.0.1:$port/" && break
+    sleep 1
+done
+curl -fsS -o /dev/null -H 'Host: studio.example' "http://127.0.0.1:$port/"
+docker logs "$studio" 2>&1 | grep -q 'wfb studio on'
