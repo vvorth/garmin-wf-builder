@@ -4,7 +4,8 @@ name: Release
 # version YY.M.N (26.10.0, 26.10.1, ...: N counts the releases of the month). After the check
 # passes it fast-forwards the release branch to that commit and tags it, then publishes a GitHub release
 # whose notes list the commits since the previous release, and the image to Docker Hub as
-# vvorth/garmin-wf-builder:<version> and latest.
+# vvorth/garmin-wf-builder:<version> and latest, and refreshes the Docker Hub page from
+# DOCKERHUB.md.
 # Nothing is committed: the release version lives in the tag, the release and the image's
 # org.opencontainers.image.version label. ts/src/version.ts, which every generated file's
 # header names, is the compiler's own version and is changed by hand.
@@ -130,3 +131,60 @@ jobs:
       ref: ${{ needs.version.outputs.tag }}
       publish: ${{ needs.version.outputs.version }}
     secrets: inherit
+
+  docker-hub-page:
+    name: Docker Hub page
+    needs: [version, docker]
+    runs-on: ubuntu-latest
+    # Editing the repository page needs a Docker Hub token with the Read, Write, Delete
+    # permission. Without it this job warns and fails on its own; the release is out.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      # The overview is DOCKERHUB.md as released; the short description is kept here.
+      - name: Update the description and overview
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DESCRIPTION: 'Visual editor and compiler for Garmin Connect IQ watch faces: YAML in, signed sideloadable .prg out'
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const api = 'https://hub.docker.com/v2';
+          const repo = 'vvorth/garmin-wf-builder';
+
+          async function call(url, options = {}) {
+            const response = await fetch(url, options);
+            if (!response.ok)
+              throw new Error(`${options.method || 'GET'} ${url}: ${response.status} ${await response.text()}`);
+            return response.json();
+          }
+
+          (async() => {
+            const description = process.env.DESCRIPTION;
+            const overview = fs.readFileSync('DOCKERHUB.md', 'utf8');
+            // Docker Hub's limits
+            if (description.length > 100) throw new Error(`the description is ${description.length} characters, over 100`);
+            if (overview.length > 25000) throw new Error(`DOCKERHUB.md is ${overview.length} characters, over 25000`);
+
+            const {access_token: token} = await call(`${api}/auth/token`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({identifier: process.env.DOCKERHUB_USERNAME, secret: process.env.DOCKERHUB_TOKEN}),
+            });
+            await call(`${api}/repositories/${repo}/`, {
+              method: 'PATCH',
+              headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+              body: JSON.stringify({description, full_description: overview}),
+            });
+            console.log(`Updated the ${repo} page from DOCKERHUB.md`);
+          })().catch(error => {
+            console.log(`::warning::The Docker Hub page was not updated: ${error.message}`);
+            process.exitCode = 1;
+          });
+          NODE

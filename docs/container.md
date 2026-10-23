@@ -258,7 +258,8 @@ The version is in the image's `org.opencontainers.image.version` label
 (`dev+<commit>` on a dev image); `wfb --version` prints the compiler's own
 version, which is not the release number. How the images are made is in
 `docs/development.md`, "Continuous integration".
-The Docker Hub page's overview is `DOCKERHUB.md` at the repository root.
+The Docker Hub page's overview is `DOCKERHUB.md` at the repository root;
+each release uploads it.
 
 ## How the image is built
 

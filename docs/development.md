@@ -835,7 +835,7 @@ released `main` commit. Five workflows in `.github/workflows/`:
 | `check.yml` | called by `ci.yml` and `release.yml` | the type check and the fast suite on the fixture device, below; `npm audit` warns, and fails only a release |
 | `ci.yml` | every pull request, every push to `main` and `release` | `check.yml`, then the Docker image (`docker.yml`) on pull requests and `main`. A push to `main` publishes `vvorth/garmin-wf-builder:dev` and `dev-<commit>`, and keeps the newest ten `dev-<commit>` tags. A check that already passed on the same commit (a merged pull request, `release` fast-forwarded) is not repeated |
 | `docker.yml` | called by `ci.yml` and `release.yml` | builds the image for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture, runs `tools/image-smoke-test.sh` on it, and with a tag to publish pushes both and joins them into one multi-arch tag |
-| `release.yml` | by hand: Actions → Release → Run workflow | releases the head of `main` as `YY.M.N` (`26.10.0`, `26.10.1`, …; `N` counts the month's releases): runs the check (audit strict) and the image test, fast-forwards `release` to that commit and tags it `vYY.M.N`, writes a GitHub release listing the commits since the previous tag, and publishes the image as `<version>` and `latest` |
+| `release.yml` | by hand: Actions → Release → Run workflow | releases the head of `main` as `YY.M.N` (`26.10.0`, `26.10.1`, …; `N` counts the month's releases): runs the check (audit strict) and the image test, fast-forwards `release` to that commit and tags it `vYY.M.N`, writes a GitHub release listing the commits since the previous tag, publishes the image as `<version>` and `latest`, and sets the Docker Hub page's overview to `DOCKERHUB.md` and its short description |
 | `audit.yml` | weekly, and by hand | `npm audit` of `ts/` on `main`; Dependabot (`.github/dependabot.yml`) opens the updates against `main`: every action update in one pull request, npm's minor and patch updates in another and its major ones in a third, never a major `@types/node` (the types follow Node 24) |
 
 A release commits nothing: its version is the tag, the GitHub release and
@@ -844,7 +844,8 @@ is the compiler's own version, which every generated file's header names
 (and so every golden), and changes by hand. Publishing needs two
 repository secrets, `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker
 Hub access token with Read & Write, plus Delete for the `dev-<commit>`
-clean-up, which otherwise warns and fails on its own).
+clean-up and the Docker Hub page, each of which otherwise warns and fails
+on its own).
 
 `tools/image-smoke-test.sh IMAGE` runs the image with the fixture device
 mounted at `/devices`: `wfb --version`, `java -version`, `monkeyc
