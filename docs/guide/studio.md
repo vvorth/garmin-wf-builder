@@ -28,6 +28,10 @@ Faces are opened in the editor itself, from its home screen
 | `--allow-any-host` | answer requests addressed by any name, for debugging; it warns, since a web page whose name points at this computer can then read the editor (builds still come only from its own page) |
 | `--devices-dir` | the device definitions, as for `wfb build` |
 | `--fonts` | Garmin's own font files, as for `wfb preview` |
+| `--assist {ollama,openai}` | a model for the [Assist](#assist) dialog: `ollama` talks to Ollama's own API (and shows the model's thinking), `openai` to any OpenAI-compatible chat endpoint, with the key read from `WFB_ASSIST_KEY` |
+| `--assist-url URL` | where the model is: Ollama's server (default `http://127.0.0.1:11434`), or the endpoint's base ending in `/v1` (required for `openai`) |
+| `--assist-model MODEL` | the model: default `qwen3-vl:8b` for Ollama, required for `openai` |
+| `--assist-context TOKENS` | Ollama: the context window asked for (default 16384); the model's weights plus this many tokens of cache must fit the machine's memory |
 
 In the Docker image, publish the port to your computer only
 ([the container guide](../container.md#the-editor)).
@@ -826,6 +830,54 @@ watch's `GARMIN/APPS` folder ([getting started](getting-started.md)).
 A face that does not load is not built: mend its errors first. One build
 runs at a time. The build signs with the same developer key `wfb build`
 does; in the container, mount `/keys` for it.
+
+## Assist
+
+**Assist…** is a chat with a vision model that writes the face: drop a
+picture of a watch face (a photo, a screenshot, a sketch) and say what you
+want, or, with no picture, ask for a change to the face as it is ("make
+the minutes bigger", "black background", "swap the top-right slot to
+calories"). The model answers with the whole `face.yaml`, the editor
+applies it as one recorded change ("Assist" in History; **Undo** takes it
+back), validates it,
+and sends the errors back to the model by itself, up to three rounds. Each
+turn shows the model's thinking as it streams, its answer, and the result:
+applied or not, the error and warning counts with the messages, and the
+face as drawn for the watch viewed.
+
+Closing the dialog, or clicking outside it, only hides the chat: a request
+under way goes on (the top bar's button shows **Assist… ●** meanwhile),
+and opening it again shows the chat where it got to, with what you had
+typed. **Stop** cancels the request in flight, at the model too, and the
+fix rounds after it; the answer so far stays shown, but the model is not
+told the stopped request. **Reset** forgets the chat and the picture, so
+the next request starts afresh with the face as it is; the changes already
+applied stay, and **Undo** takes them back. The chat belongs to the face:
+opening another face resets it.
+
+The model must be named when the editor starts (`--assist`, above). The
+default is Ollama on the same computer with `qwen3-vl:8b`, a vision model
+of about 6 GB that fits in 8–10 GB of memory with the default context; a
+CPU takes one to three minutes a turn, and on a slow one reading a long
+request alone can take several minutes before the model's first word. The
+dialog shows how long it has waited, and the editor holds the connection
+open for as long as the model takes. Any OpenAI-compatible endpoint
+works too (`--assist openai`), the key in `WFB_ASSIST_KEY`, so the page
+never sees it. Ollama on another machine needs `OLLAMA_HOST=0.0.0.0` there
+and `--assist-url http://<that machine>:11434` here.
+
+What to expect: a small local model gets the layout roughly right and
+needs the fix rounds; it cannot measure the picture, so sizes and
+positions are approximate, and it will not match pixel for pixel. Chat
+corrections to an existing face work well. A larger hosted model does
+noticeably better at the first draft. The picture is sent once, scaled to
+1024 px, with the first request; the box **also send the model the face
+as drawn** attaches the preview to later requests, which costs tokens and
+which a small model rarely makes use of.
+
+What the model may use is what the editor sends it: the format's rules,
+the face's targets with their fonts, every data source, icon and
+complication type. It cannot add font files or images.
 
 ## History
 

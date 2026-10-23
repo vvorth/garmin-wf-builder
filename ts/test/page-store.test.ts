@@ -393,3 +393,100 @@ test("entering an element asks the frame with enter and inspects a part by its p
   assert.deepEqual(printed[8], [handsPath, handsPath, bladePath.join("/")]);
   assert.deepEqual(printed[9], [null, null]);
 });
+
+test("Assist's chat lives in the store: Stop ends the request and drops it from the chat, Reset forgets the chat", async () => {
+  const face = faceFixture();
+  const printed = await store(face, `
+      const s = new EditorStore(summary.id);
+      await settle();
+      // the server: each POST's body and signal kept, its answer a stream the test writes to
+      const posts = [];
+      const encoder = new TextEncoder();
+      globalThis.fetch = async (url, init = {}) => {
+        if (!init.method) return new Response(JSON.stringify({ enabled: true, provider: "ollama", model: "fake", url: "x" }));
+        const post = { body: JSON.parse(init.body), signal: init.signal, stream: null };
+        posts.push(post);
+        const body = new ReadableStream({ start(c) { post.stream = c; } });
+        init.signal.addEventListener("abort", () => { try { post.stream.error(new DOMException("aborted", "AbortError")); } catch {} });
+        return new Response(body);
+      };
+      const send = (post, event) => post.stream.enqueue(encoder.encode(JSON.stringify(event) + "\\n"));
+      const a = s.assist;
+      let changes = 0;
+      a.subscribe(() => changes++);
+      a.loadStatus(); await wait(0);
+      out(a.state.status.enabled);
+      // a request under way, its thinking streaming in
+      a.setInput("make it red");
+      const first = a.submit();
+      await wait(0);
+      send(posts[0], { kind: "thinking", text: "pondering" });
+      await wait(5);
+      const last = () => a.state.turns[a.state.turns.length - 1];
+      out([a.state.busy, a.state.turns.length, last().thinking, last().streaming, a.started, changes > 0]);
+      // Stop: the request is cancelled (the server sees its signal), the turn says so, the chat forgets the request
+      a.stop();
+      await first;
+      out([a.state.busy, posts[0].signal.aborted, last().streaming, last().error, a.started, posts.length]);
+      // so the next request is the first again: the face goes with it, alone
+      a.setInput("make it blue");
+      const second = a.submit();
+      await wait(0);
+      out([posts[1].body.messages.length, posts[1].body.messages[0].content.startsWith("make it blue"),
+           posts[1].body.messages[0].content.includes("The face as it is now")]);
+      // Reset mid-request: cancelled, and nothing arriving after it touches the cleared chat
+      a.reset();
+      try { send(posts[1], { kind: "text", text: "late" }); } catch {}
+      await second;
+      out([a.state.busy, posts[1].signal.aborted, a.state.turns.length, a.state.input, a.state.image, a.started, a.state.status.enabled]);
+      a.setInput("again");
+      const third = a.submit();
+      await wait(0);
+      out(posts[2].body.messages.length);
+      a.stop(); await third;
+      // an answer with no YAML is not applied, and its fix round goes out by itself; Stop there ends the rounds
+      a.setInput("x");
+      const fourth = a.submit();
+      await wait(0);
+      send(posts[3], { kind: "text", text: "I cannot see it." });
+      posts[3].stream.close();
+      await wait(20);
+      out([posts.length, a.state.turns.length, a.state.turns[3].applied.ok, a.state.busy]);
+      a.stop(); await fourth;
+      await wait(20);
+      out([posts[4].signal.aborted, a.state.busy, posts.length]);
+      // the stopped fix request left the chat; the answer before it stayed
+      a.setInput("more");
+      const fifth = a.submit();
+      await wait(0);
+      out(posts[5].body.messages.map((m) => m.role));
+      a.stop(); await fifth;
+      // Stop while the editor applies an answer: the change still lands, but no fix round follows
+      a.setInput("y");
+      const sixth = a.submit();
+      await wait(0);
+      send(posts[6], { kind: "text", text: "\\u0060\\u0060\\u0060yaml\\nformat: 2\\n\\u0060\\u0060\\u0060\\n" });
+      posts[6].stream.close();
+      await wait(20);
+      out([a.state.busy, requests[requests.length - 1][0]]);
+      a.stop();
+      unanswered[unanswered.length - 1]({ status: 400, json: { error: "refused for the test" } });
+      await sixth;
+      await wait(20);
+      out([posts.length, a.state.busy]);
+      s.dispose();
+    `);
+  assert.deepEqual(printed, [
+    true,
+    [true, 2, "pondering", true, true, true],
+    [false, true, false, "stopped", false, 1],
+    [1, true, true],
+    [false, true, 0, "", null, false, true],
+    1,
+    [5, 6, false, true],
+    [true, false, 5],
+    ["user", "assistant", "user"],
+    [true, "text"],
+    [7, false],
+  ]);
+});

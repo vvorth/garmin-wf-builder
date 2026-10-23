@@ -569,3 +569,23 @@ table.styles-matrix td.actions { white-space: nowrap; }
 .axis .axis-list { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 2px; }
 .axis .axis-choice { display: flex; gap: 6px; align-items: center; }
 .axis .axis-choice .reorder { margin-left: auto; }
+
+/* The Assist dialog: the transcript, each turn, the model's thinking, the result of applying an answer. */
+.modal.assist { width: min(820px, calc(100vw - 32px)); height: calc(100vh - 48px); }
+.assist-body { flex: 1; min-height: 0; }
+.assist-transcript { flex: 1; min-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.assist-turn { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.assist-turn.user { background: var(--panel-2, transparent); }
+.assist-turn.auto { opacity: .85; }
+.assist-turn .who { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); }
+.assist-turn .said { white-space: pre-wrap; }
+.assist-thinking summary { cursor: pointer; color: var(--dim); }
+.assist-thinking pre, .assist-answer { white-space: pre-wrap; margin: 4px 0 0; max-height: 40vh; overflow: auto; font-size: 12px; }
+.assist-image { max-width: 160px; max-height: 160px; border-radius: 6px; border: 1px solid var(--line); }
+.assist-result { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding-top: 6px; }
+.assist-result img { width: 96px; height: 96px; border-radius: 50%; border: 1px solid var(--line); }
+.assist-result.bad > div > div:first-child { color: var(--error); }
+.assist-compose { display: flex; flex-direction: column; gap: 6px; }
+.assist-compose .row { display: flex; gap: 6px; align-items: center; }
+.assist-compose input.wide { flex: 1; }
+.topbar button.assist-busy { color: var(--accent, inherit); }

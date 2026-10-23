@@ -23,6 +23,7 @@ import type {
   StructureOp, Summary, TreeNode, Value, VersionArgs, Vocabulary,
 } from "../src/studio/protocol.ts";
 import { api, call, listen } from "./api.ts";
+import { AssistSession } from "./assist-session.ts";
 import type { DiagnosticFilter } from "./diagnostics.ts";
 import { rangeIds, selectAll as allShown } from "./hit.ts";
 import { droppedError, enqueue, inFlight, mark, newer, next, saveState } from "./outbox.ts";
@@ -97,7 +98,7 @@ export interface Fold {
   lower: boolean;
 }
 
-export type Dialog = "build" | "calibrate" | "keys" | "help" | null;
+export type Dialog = "build" | "calibrate" | "keys" | "help" | "assist" | null;
 
 export interface Ui {
   leftTab: "layers" | "face";
@@ -326,6 +327,8 @@ type Timer = ReturnType<typeof setTimeout>;
 
 export class EditorStore {
   state: EditorState;
+  /** The Assist chat: the page's, outliving the dialog that shows it. */
+  readonly assist = new AssistSession({ doc: () => this.state.doc, device: () => this.state.context.device, accept: (d) => this.accept(d) });
   /** Where the YAML pane was, per face, while the editor is open. */
   readonly yamlPlaces = new Map<string, YamlPlace>();
   private readonly listeners = new Set<() => void>();
@@ -391,6 +394,7 @@ export class EditorStore {
   open(docId: string | null): void {
     if (docId === this.state.docId) return;
     this.epoch++;
+    this.assist.follow(docId);
     if (this.textTimer !== null) { clearTimeout(this.textTimer); this.textTimer = null; }
     this.frameWaiting = null;
     this.frameKey = null;

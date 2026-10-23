@@ -74,10 +74,10 @@ async function freePort(): Promise<number> {
   throw new Error(`no free port in ${PORTS[0]}-${PORTS[PORTS.length - 1]}`);
 }
 
-/** `wfb studio` on a free port: resolves once it answers `GET /` with 200. */
-export async function startServer(): Promise<{ base: string; child: ChildProcess }> {
+/** `wfb studio` on a free port, with `args` after it (`--assist`, say): resolves once it answers `GET /` with 200. */
+export async function startServer(args: readonly string[] = []): Promise<{ base: string; child: ChildProcess }> {
   const port = await freePort();
-  const child = spawn(process.execPath, [join(REPO_ROOT, "ts", "src", "cli.ts"), "studio", "-p", String(port)], {
+  const child = spawn(process.execPath, [join(REPO_ROOT, "ts", "src", "cli.ts"), "studio", "-p", String(port), ...args], {
     cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"], env: process.env,
   });
   let output = "";
@@ -621,9 +621,9 @@ export function launchBrowser(): Promise<Browser> {
 /**
  * The file's suite: the server and the browser, started once and torn down
  * after the file's tests. `url` is the test file's `import.meta.url`, which
- * names its screenshots.
+ * names its screenshots; `args` are the server's own options.
  */
-export async function suite(url: string): Promise<Harness> {
+export async function suite(url: string, { args = [] }: { args?: readonly string[] } = {}): Promise<Harness> {
   const file = basename(fileURLToPath(url)).replace(/\.test\.ts$/, "");
   const skip = skipReason();
   if (skip) {
@@ -632,7 +632,7 @@ export async function suite(url: string): Promise<Harness> {
       test: (name) => { test(name, { skip }, () => {}); },
     };
   }
-  const server = await startServer();
+  const server = await startServer(args);
   const browser = await launchBrowser();
   const context = await browser.newContext({ viewport: VIEWPORT, acceptDownloads: true });
   await context.addInitScript(TOAST_INIT);

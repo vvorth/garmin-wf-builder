@@ -232,6 +232,10 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["-p", "--port"], type: INT, default: 8765, help: "the port to listen on (default: 8765)" },
     DEVICES_DIR,
     { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb preview`" },
+    { flags: ["--assist"], choices: ["ollama", "openai"], default: null, help: "a model for the editor's Assist dialog: ollama (its own API, the model's thinking shown) or openai (any OpenAI-compatible chat endpoint; the key from $WFB_ASSIST_KEY)" },
+    { flags: ["--assist-url"], dest: "assist_url", metavar: "URL", help: "where the model is: for ollama its server (default http://127.0.0.1:11434), for openai the base ending in /v1 (required)" },
+    { flags: ["--assist-model"], dest: "assist_model", metavar: "MODEL", help: "the model's name: for ollama default qwen3-vl:8b, for openai required" },
+    { flags: ["--assist-context"], dest: "assist_context", type: INT, default: 16384, metavar: "TOKENS", help: "ollama: the context window to ask for, in tokens (default 16384); the model and this many tokens of cache must fit the machine's memory" },
   ]),
   command("devices", devicesCommand, [DEVICES_DIR]),
   command("fonts", fontsCommand, [
@@ -772,10 +776,23 @@ async function studioCommand(args: Namespace): Promise<number> {
     error(e.message);
     return 1;
   }
+  const provider = args["assist"] as "ollama" | "openai" | null;
+  let assist = null;
+  if (provider !== null) {
+    const { DEFAULTS } = await import("./studio/assist.ts");
+    const url = (args["assist_url"] as string | null) ?? (provider === "ollama" ? DEFAULTS.url : null);
+    const model = (args["assist_model"] as string | null) ?? (provider === "ollama" ? DEFAULTS.model : null);
+    if (url === null || model === null) {
+      error(`--assist openai needs --assist-url (the base ending in /v1) and --assist-model`);
+      return 1;
+    }
+    assist = { provider, url, model, key: process.env["WFB_ASSIST_KEY"] ?? null, context: args["assist_context"] as number };
+  }
   await serve({
     host: args["host"] as string, allowHosts, allowAnyHost: args["allow_any_host"] === true,
     port: args["port"] as number, db,
     fontsDir: (args["fonts_dir"] as string | null) ?? null,
+    assist,
   });
   return 0;
 }

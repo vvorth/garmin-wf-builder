@@ -198,6 +198,12 @@ NAME` to answer only that name (and IP addresses and `localhost`), which
 drops `--allow-any-host`. The options are in [the editor's
 guide](guide/studio.md).
 
+The editor's **Assist** dialog needs a model the container can reach. For
+Ollama on the host, add `--assist ollama --assist-url
+http://host.docker.internal:11434` (on Linux, also `--add-host
+host.docker.internal:host-gateway` to `docker run`), with Ollama started
+there as `OLLAMA_HOST=0.0.0.0 ollama serve`.
+
 ---
 
 ## File ownership

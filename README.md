@@ -55,6 +55,10 @@ between dragging and typing at any point without losing anything.
 - **Build and sideload.** **Build…** compiles the face for any installed
   watch and downloads its signed `.prg`, with its memory use against that
   watch's limit.
+- **A face from a picture.** **Assist…** chats with a vision model you run
+  yourself (Ollama, or any OpenAI-compatible endpoint): drop a photo of a
+  face, or ask for a change in words, and each answer is applied, checked,
+  and corrected until it validates ([the editor's guide](docs/guide/studio.md#assist)).
 
 ![Complication slot card in Properties](docs/screenshots/studio-2.png)
 

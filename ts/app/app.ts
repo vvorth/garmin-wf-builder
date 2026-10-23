@@ -17,6 +17,7 @@ import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { Canvas, Strip } from "./canvas.ts";
 import { Layers } from "./layers.ts";
 import { YamlPane } from "./yaml.ts";
+import { AssistButton, AssistDialog } from "./assist.ts";
 import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
 import { SHORTCUTS } from "./keys.ts";
@@ -543,6 +544,7 @@ function TopBar({ doc }: { doc: Summary }): VNode {
         ${counts.error} error${counts.error > 1 ? "s" : ""}</button>` : null}
     <button title="The README and the guide" onClick=${() => store.setUi({ dialog: "help" })}>Help</button>
     <button class="keys-help" title="Keyboard shortcuts (?)" onClick=${() => store.setUi({ dialog: "keys" })}>?</button>
+    <${AssistButton} session=${store.assist} onClick=${() => store.setUi({ dialog: "assist" })} />
     <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
             onClick=${() => store.setUi({ dialog: "build" })}>Build…</button>
     <${DownloadMenu} doc=${doc} />
@@ -727,6 +729,7 @@ function Dialogs({ doc }: { doc: Summary }): VNode | null {
   const close = (): void => store.setUi({ dialog: null });
   return html`
     ${dialog === "build" ? html`<${BuildDialog} doc=${doc} vocab=${vocab ?? {}} device=${device} onClose=${close} />` : null}
+    ${dialog === "assist" ? html`<${AssistDialog} session=${store.assist} onClose=${close} />` : null}
     ${dialog === "keys" ? html`<${ShortcutHelp} onClose=${close} />` : null}
     ${palette ? html`<${CommandPalette} doc=${doc} />` : null}
     ${dialog === "help" ? html`<${HelpDialog} start="docs/guide/studio.md" onClose=${close} />` : null}

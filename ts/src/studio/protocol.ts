@@ -991,6 +991,8 @@ export interface BatchArgs extends VersionArgs {
 
 export interface TextArgs extends VersionArgs {
   text: string;
+  /** The history entry's own label: the change is recorded alone, never merged with typing before it. Absent: the YAML tab's typing, merged while it goes on. */
+  label?: string;
 }
 
 /** The editing context an inspect answers for: `awake` and no style when absent. */

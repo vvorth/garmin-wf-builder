@@ -96,7 +96,15 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
     among them; `move_key`, `rename_layout` and `delete_layout` beside the
     colour, scheme, slot and hand-set ops; composition is a page-side `batch`);
     `server.ts` (Node) sends the app, the devices' digest, a
-    device's skin and font files, the docs for Help (`/help/`), and builds.
+    device's skin and font files, the docs for Help (`/help/`), builds, and
+    relays the Assist dialog's chat to the model `--assist` names
+    (`assist.ts`: the two providers, Ollama's own API and OpenAI-compatible,
+    the vocabulary the prompt in `assist-prompt.ts` ends with, and the
+    reading of an answer's YAML; the page's `app/assist-session.ts` is the
+    chat itself, which the store owns (`store.assist`) so that closing the
+    dialog only hides it: the transcript, the run in flight with its Stop
+    and Reset, and each answer applied as one `text` edit; `app/assist.ts`
+    is the dialog over it).
     `protocol.ts` is the one place the page/worker contract lives: every
     request's arguments and every answer, event and refusal as TypeScript
     interfaces, which the worker's builders return and the page imports.

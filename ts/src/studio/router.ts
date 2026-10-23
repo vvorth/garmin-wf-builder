@@ -341,7 +341,7 @@ export class Router {
         return json({ ...doc.summary(), select });
       }
       case "text":
-        doc.replaceText(text(args, "text"), int(args, "version"));
+        doc.replaceText(text(args, "text"), int(args, "version"), typeof args["label"] === "string" && args["label"] !== "" ? args["label"] : undefined);
         return this.changed(doc, tab);
       case "inspect": {
         const element = args["element"];

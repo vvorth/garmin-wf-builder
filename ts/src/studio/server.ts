@@ -21,7 +21,11 @@
 //   read-only, for the Help popup;
 // - `POST /api/build?device=&stem=`: a face's bundle in, built with
 //   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`,
-//   for the newest builds.
+//   for the newest builds;
+// - `GET /api/assist`: whether `--assist` named a model, and which;
+//   `POST /api/assist`: the chat so far in, the model's answer out as it
+//   streams, one JSON event a line (`assist.ts`). The key never leaves
+//   the server.
 //
 // Every path the page and its workers ask for is relative, so the editor
 // also works behind a proxy serving it under a sub-path (which strips it).
@@ -30,10 +34,12 @@
 // an `--allow-host` name in `Host`, and a build must come from the server's
 // own page (`allowed`).
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, normalize, resolve } from "node:path";
+import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { unzipSync } from "fflate";
 import { DeviceDatabase } from "../devices/device.ts";
@@ -44,6 +50,7 @@ import { NodeFontFiles } from "../fonts/node.ts";
 import { ICON_FONT, SCHEMA } from "../node.ts";
 import { build as runBuild, Toolchain } from "../node_build.ts";
 import { formatFixed } from "../py.ts";
+import { type AssistConfig, type AssistRequest, type AssistStatus, type Fetch, chat, systemPrompt, vocabulary } from "./assist.ts";
 import { MAX_UPLOAD_BYTES } from "./bundle.ts";
 import { devices as listDevices } from "./inspect.ts";
 import type { BuildResult } from "./protocol.ts";
@@ -235,7 +242,27 @@ interface Options {
   port: number;
   db: DeviceDatabase;
   fontsDir: string | null;
+  /** The model the Assist dialog talks to (`--assist`); none when absent. */
+  assist?: AssistConfig | null;
+  /** How often a quiet Assist answer sends the page a blank line, in milliseconds. */
+  keepAliveMs?: number;
 }
+
+// `fetch` over `node:http`, for the model. Node's own `fetch` gives up when
+// a response's headers take five minutes, or its body pauses as long, and a
+// model on a CPU can read a long request for longer than that before its
+// first word: this waits for as long as the model takes, and Stop (the
+// signal) still ends it.
+const patientFetch: Fetch = (url, init) => new Promise((done, fail) => {
+  const target = new URL(url);
+  const request = (target.protocol === "https:" ? httpsRequest : httpRequest)(target, { method: init.method, headers: init.headers, ...(init.signal ? { signal: init.signal } : {}) }, (answer) => {
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(answer.headers)) if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+    done(new Response(Readable.toWeb(answer) as ReadableStream<Uint8Array>, { status: answer.statusCode ?? 502, headers }));
+  });
+  request.on("error", fail);
+  request.end(init.body);
+});
 
 /** Run the server until Ctrl-C. */
 export async function serve(options: Options): Promise<void> {
@@ -249,6 +276,7 @@ export async function serve(options: Options): Promise<void> {
   const running = await start(options);
   const shown = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host.includes(":") ? `[${host}]` : host;
   console.log(`wfb studio on http://${shown}:${running.port}/  (faces are kept in the browser)`);
+  if (options.assist) console.log(`assist: ${options.assist.provider} ${options.assist.model} at ${options.assist.url}`);
   if (!LOOPBACK.includes(host)) {
     if (inContainer) {
       console.log(`in a container: anyone who reaches the published port can run builds, so publish it to the host's loopback (-p 127.0.0.1:${port}:${port}) or behind a proxy you trust`);
@@ -261,7 +289,7 @@ export async function serve(options: Options): Promise<void> {
 }
 
 /** The server listening (`port` 0: any free port); `close` stops it and removes its builds. */
-export async function start({ host, allowHosts = [], allowAnyHost = false, port, db, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
+export async function start({ host, allowHosts = [], allowAnyHost = false, port, db, fontsDir, assist = null, keepAliveMs = 15_000 }: Options): Promise<{ port: number; close: () => Promise<void> }> {
   const fonts = new NodeFontFiles(fontsDir);
   let digested: Buffer | null = null;
   const extrasCache = new Map<string, Buffer>();
@@ -376,6 +404,35 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
         } finally {
           building = false;
         }
+      }
+      if (path === "/api/assist" && request.method === "GET") {
+        const status: AssistStatus = assist ? { enabled: true, provider: assist.provider, model: assist.model, url: assist.url } : { enabled: false };
+        return sendJson(response, 200, status);
+      }
+      if (path === "/api/assist" && request.method === "POST") {
+        if (!assist) return sendJson(response, 503, { error: "the editor was started without an assistant: wfb studio --assist ollama" });
+        const body = JSON.parse(new TextDecoder().decode(await readBody(request))) as Partial<AssistRequest>;
+        if (!Array.isArray(body.messages) || !Array.isArray(body.targets)) return sendJson(response, 400, { error: "messages and targets are required" });
+        // the page may give up (Stop, closing the dialog): the model is told to as well
+        const controller = new AbortController();
+        response.on("close", () => { if (!response.writableFinished) controller.abort(); });
+        response.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store", "X-Accel-Buffering": "no" });
+        // The headers go now, and a blank line (which the page skips) every
+        // so often while the model is quiet: a model on a CPU can read a
+        // long request for minutes before its first word, and a browser
+        // (Firefox, after five minutes) or a proxy gives up on a silent one.
+        response.flushHeaders();
+        const keepAlive = setInterval(() => { if (!response.destroyed) response.write("\n"); }, keepAliveMs);
+        try {
+          const system = systemPrompt(vocabulary(db, body.targets.map(String)));
+          for await (const event of chat(assist, system, body.messages, controller.signal, patientFetch)) {
+            if (response.destroyed) break;
+            response.write(JSON.stringify(event) + "\n");
+          }
+        } finally {
+          clearInterval(keepAlive);
+        }
+        return response.end();
       }
       const download = /^\/api\/builds\/([0-9a-f]+)$/.exec(path);
       if (download) {

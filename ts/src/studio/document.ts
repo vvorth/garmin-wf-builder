@@ -734,12 +734,13 @@ export class Document {
    * refused for an error the load reports: typing passes through broken
    * states. Text that is not YAML at all is refused, not recorded.
    */
-  replaceText(t: string, expected: number): Change {
+  /** The whole text replaced: typing (merged with typing just before it), or one change under its own `label`. */
+  replaceText(t: string, expected: number, label: string = TEXT_EDIT): Change {
     this.check(expected);
     if (t === this.text) return this.head;
     indexFor(t);
     const analysed = this.analyseText(t, this.headAssets());
-    return this.commit(t, this.headAssets(), TEXT_EDIT, expected, analysed, this.typing());
+    return this.commit(t, this.headAssets(), label, expected, analysed, label === TEXT_EDIT && this.typing());
   }
 
   private typing(): boolean {

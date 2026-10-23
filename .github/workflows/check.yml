@@ -70,6 +70,7 @@ jobs:
       - name: Tests that need no Garmin device file
         run: |
           tests=(
+            test/assist.test.ts
             test/bake.test.ts
             test/bundle.test.ts
             test/data.test.ts
