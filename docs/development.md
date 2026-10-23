@@ -32,14 +32,14 @@ Either install locally:
 ```
 
 …or use the container, which needs nothing on the host but Docker and your own
-copy of the device definitions:
+copy of the device definitions (`docker build -t garmin-wf-builder .` builds
+the same image from the checkout):
 
 ```sh
-docker build -t garmin-wf-builder .
 docker run --rm -v "$PWD:/work" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder build examples/features/graph/face.yaml
+  vvorth/garmin-wf-builder build examples/features/graph/face.yaml
 ```
 
 See [`docs/container.md`](container.md). The local install:
@@ -826,8 +826,32 @@ frozen on them, so they need the real device files.
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to
-`main`, on Node 24, with **no Garmin file at all**: Garmin's device
+Work lands on `dev` (pull requests target it); `main` only ever moves to
+a released `dev` commit. Five workflows in `.github/workflows/`:
+
+| Workflow | When | What |
+|---|---|---|
+| `check.yml` | called by `ci.yml` and `release.yml` | the type check and the fast suite on the fixture device, below; `npm audit` warns, and fails only a release |
+| `ci.yml` | every pull request, every push to `dev` and `main` | `check.yml`, then the Docker image (`docker.yml`) on pull requests and `dev`. A push to `dev` publishes `vvorth/garmin-wf-builder:dev` and `dev-<commit>`, and keeps the newest ten `dev-<commit>` tags. A check that already passed on the same commit (a merged pull request, `main` fast-forwarded) is not repeated |
+| `docker.yml` | called by `ci.yml` and `release.yml` | builds the image for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture, runs `tools/image-smoke-test.sh` on it, and with a tag to publish pushes both and joins them into one multi-arch tag |
+| `release.yml` | by hand: Actions → Release → Run workflow | releases the head of `dev` as `YY.M.N` (`26.10.0`, `26.10.1`, …; `N` counts the month's releases): runs the check (audit strict) and the image test, fast-forwards `main` to that commit and tags it `vYY.M.N`, writes a GitHub release listing the commits since the previous tag, and publishes the image as `<version>` and `latest` |
+| `audit.yml` | weekly, and by hand | `npm audit` of `ts/` on `dev`; Dependabot (`.github/dependabot.yml`) opens the updates against `dev` |
+
+A release commits nothing: its version is the tag, the GitHub release and
+the image's `org.opencontainers.image.version` label. `ts/src/version.ts`
+is the compiler's own version, which every generated file's header names
+(and so every golden), and changes by hand. Publishing needs two
+repository secrets, `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker
+Hub access token with Read & Write, plus Delete for the `dev-<commit>`
+clean-up, which otherwise warns and fails on its own).
+
+`tools/image-smoke-test.sh IMAGE` runs the image with the fixture device
+mounted at `/devices`: `wfb --version`, `java -version`, `monkeyc
+--version`, then the slice fixture retargeted at `wfbtest` through `wfb
+build --no-compile` and `wfb preview`. `monkeyc` does not know `wfbtest`,
+so no `.prg` is compiled in CI.
+
+`check.yml` runs on Node 24, with **no Garmin file at all**: Garmin's device
 definitions are the owner's licensed copy and are never in the repository
 (root `CLAUDE.md` §2). It runs on the project's own fixture device,
 `wfbtest` (`ts/test/fixtures/devices/`), which `WFB_DEVICES` and

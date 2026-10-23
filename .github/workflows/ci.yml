@@ -1,116 +1,126 @@
-# The type check and the fast suite's tests that need no Garmin file, on every
-# pull request and every push to main.
-#
-# Garmin's device definitions (vendor/devices/, ~/.Garmin/ConnectIQ/Devices)
-# are the owner's licensed copy and are never in the repository, so CI runs
-# on the project's own fixture device, wfbtest (ts/test/fixtures/devices/),
-# with no SDK, no device reference and no Garmin font. The test files that
-# name a real device, and the browser suite, are listed below commented out
-# with the reason; run them locally after tools/setup-env.sh
-# (docs/development.md, "Continuous integration"). The slow suite (every
-# design through monkeyc) runs by hand only.
 name: CI
 
+# Pull requests and pushes to dev and main: the checks (check.yml) and the
+# Docker image. A push to dev also publishes vvorth/garmin-wf-builder:dev and
+# dev-<commit> once the check and the image pass.
+# A check that already passed on this exact commit (a pull request merged into
+# dev, dev fast-forwarded to main) is not repeated: check runs are looked up
+# by commit, not by branch.
+# Releases are in release.yml.
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [dev, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Only the newest commit of a branch or pull request matters, dev images included.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  tested:
+    name: Checks already passed on this commit
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: ts
-    env:
-      # the fixture device is the only device anything sees
-      WFB_DEVICES: ${{ github.workspace }}/ts/test/fixtures/devices
-      WFB_DEVICE_REFERENCE: ${{ github.workspace }}/ts/test/fixtures/devices/reference
-      WFB_NO_GARMIN_FONTS: "1"
+    permissions:
+      checks: read
+    outputs:
+      check: ${{ steps.runs.outputs.check }}
     steps:
-      - uses: actions/checkout@v4
+      - id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # a pull request runs on a merge commit; its check runs are filed under the head commit
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          passed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
+            --jq '.check_runs[] | select(.app.slug == "github-actions" and .conclusion == "success") | .name')
+          if grep -qx ".*Type check and tests" <<<"$passed"; then
+            echo "check=true" >> "$GITHUB_OUTPUT"
+            echo "Type check and tests: already passed on $SHA, skipped"
+          else
+            echo "check=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: actions/setup-node@v4
+  check:
+    needs: tested
+    if: needs.tested.outputs.check != 'true'
+    uses: ./.github/workflows/check.yml
+
+  docker:
+    name: Docker image
+    needs: [tested, check]
+    # main gets commits already built on dev; its images are built by release.yml.
+    # A check skipped as already passed counts as passed.
+    if: >-
+      ${{ !cancelled()
+      && (needs.check.result == 'success' || (needs.check.result == 'skipped' && needs.tested.outputs.check == 'true'))
+      && (github.event_name == 'pull_request' || github.ref == 'refs/heads/dev') }}
+    uses: ./.github/workflows/docker.yml
+    with:
+      publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'dev' || '' }}
+    secrets: inherit
+
+  docker-cleanup:
+    name: Remove old dev tags
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    # Deleting tags needs a Docker Hub token with the Delete permission. Without it this job
+    # warns and fails on its own, but the dev image is already published.
+    continue-on-error: true
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: ts/package-lock.json
-
-      # ts/'s dependencies, the icon font, and the free system-font stand-ins wfbtest names
-      - name: Install
+      - name: Remove old dev tags
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          KEEP_DEV_TAGS: 10
         run: |
-          npm ci --no-audit --no-fund
-          node tools/fetch-icon-font.ts
-          node tools/fetch-system-fonts.ts
+          node <<'NODE'
+          const api = 'https://hub.docker.com/v2';
+          const repo = 'vvorth/garmin-wf-builder';
+          const keep = Number(process.env.KEEP_DEV_TAGS);
 
-      - name: Type check
-        run: npm run typecheck
+          async function call(url, options = {}) {
+            const response = await fetch(url, options);
+            if (!response.ok)
+              throw new Error(`${options.method || 'GET'} ${url}: ${response.status} ${await response.text()}`);
+            return (response.status === 204 ? null : response.json());
+          }
 
-      - name: Tests that need no Garmin device file
-        run: |
-          tests=(
-            test/bake.test.ts
-            test/bundle.test.ts
-            test/data.test.ts
-            test/doc-citations.test.ts
-            test/draw.test.ts
-            test/emit.test.ts
-            test/expr.test.ts
-            test/fixture-device.test.ts
-            test/gate.test.ts
-            test/kinds.test.ts
-            test/lint.test.ts
-            test/page-app.test.ts
-            test/page-colors.test.ts
-            test/page-face.test.ts
-            test/page-layers.test.ts
-            test/page-modules.test.ts
-            test/page-store.test.ts
-            test/palette.test.ts
-            test/py.test.ts
-            test/studio-sw.test.ts
-            test/units.test.ts
-            test/uuid.test.ts
-            test/yaml.test.ts
-            # Need the owner's Garmin device files (vendor/devices/): each
-            # names a real device (the verification devices fenix8solar47mm,
-            # fenix8solar51mm and fr955, fenix847mm, or the goldens' whole
-            # set), which the fixture device cannot stand in for.
-            # test/aod.test.ts
-            # test/availability.test.ts
-            # test/barrel.test.ts
-            # test/cli.test.ts
-            # test/curved-slot.test.ts
-            # test/devices.test.ts
-            # test/diagnostics.test.ts
-            # test/edit.test.ts
-            # test/edit-preview.test.ts
-            # test/formatting.test.ts
-            # test/garmin-raster.test.ts
-            # test/gauge-gap.test.ts
-            # test/geometry.test.ts
-            # test/golden-monkeyc.test.ts
-            # test/goldens.test.ts
-            # test/hold.test.ts
-            # test/layout.test.ts
-            # test/overrides.test.ts
-            # test/page-accept.test.ts
-            # test/page-panels.test.ts
-            # test/parameter-limits.test.ts
-            # test/protocol.test.ts
-            # test/reading-count.test.ts
-            # test/studio.test.ts
-            # test/studio-canvas.test.ts
-            # test/studio-edits.test.ts
-            # test/studio-panels.test.ts
-          )
-          node --test "${tests[@]}"
+          (async() => {
+            const {access_token: token} = await call(`${api}/auth/token`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({identifier: process.env.DOCKERHUB_USERNAME, secret: process.env.DOCKERHUB_TOKEN}),
+            });
+            const headers = {Authorization: `Bearer ${token}`};
 
-      # The browser suite (ts/browser/) drives the editor over the example
-      # faces, which target real devices, so it needs the owner's device
-      # files too; it runs locally with `npm run test:browser`.
-      # - name: Install Chromium for the browser suite
-      #   run: npx playwright install --with-deps chromium
-      # - name: Browser suite
-      #   run: npm run test:browser
+            const tags = [];
+            for (let url = `${api}/repositories/${repo}/tags?page_size=100`; url;) {
+              const page = await call(url, {headers});
+              tags.push(...page.results);
+              url = page.next;
+            }
+
+            // Only per-commit dev tags: dev, latest and version tags are never removed.
+            const pushedAt = tag => Date.parse(tag.tag_last_pushed || tag.last_updated);
+            const old = tags
+              .filter(tag => /^dev-[0-9a-f]{7}$/.test(tag.name))
+              .sort((a, b) => pushedAt(b) - pushedAt(a))
+              .slice(keep);
+            for (const tag of old) {
+              await call(`${api}/repositories/${repo}/tags/${tag.name}/`, {method: 'DELETE', headers});
+              console.log(`Removed ${repo}:${tag.name}`);
+            }
+            console.log(`Kept the newest ${keep} dev-<commit> tags, removed ${old.length}`);
+          })().catch(error => {
+            console.log(`::warning::Old dev tags were not removed: ${error.message}`);
+            process.exitCode = 1;
+          });
+          NODE

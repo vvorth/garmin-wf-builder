@@ -75,9 +75,12 @@ finds the one the SDK Manager installed. It also prints two `export` lines
 **Docker (macOS shown):**
 
 ```sh
-docker build -t garmin-wf-builder .
-alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys garmin-wf-builder'
+docker pull vvorth/garmin-wf-builder
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys vvorth/garmin-wf-builder'
 ```
+
+`vvorth/garmin-wf-builder` is the latest release; `docker build -t
+garmin-wf-builder .` in a checkout builds the same image yourself.
 
 The container sees only the current directory, so run `wfb` from the folder
 that holds your face. The `wfb-keys` volume keeps your signing key between

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+
+  # ts/ is the npm package. One pull request for minor and patch updates, one for major ones.
+  - package-ecosystem: npm
+    directory: /ts
+    target-branch: dev
+    schedule:
+      interval: monthly
+    groups:
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+      npm-major:
+        patterns: ['*']
+        update-types: [major]

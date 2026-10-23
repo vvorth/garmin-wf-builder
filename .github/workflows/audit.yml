@@ -1,0 +1,31 @@
+name: Audit
+
+# npm audit blocks only a release (check.yml strict_audit): new advisories for the dependencies of dev
+# show up here every week, and Dependabot brings the fix.
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: dev
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci --ignore-scripts --no-fund
+      - run: npm audit --omit=dev --audit-level=moderate

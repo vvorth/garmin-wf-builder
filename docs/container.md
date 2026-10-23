@@ -4,14 +4,16 @@ A container image that turns a YAML design into a signed, sideloadable Connect I
 `.prg` — with no Garmin SDK, no Java and no Node set up on the host.
 
 ```sh
-docker build -t garmin-wf-builder .
-
 docker run --rm \
   -v "$PWD:/work" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder build examples/features/graph/face.yaml
+  vvorth/garmin-wf-builder build examples/features/graph/face.yaml
 ```
+
+The image is published on Docker Hub ("Published images" below); `docker
+build -t garmin-wf-builder .` in a checkout builds the same image, and the
+rest of this page uses that local name.
 
 (a `-v "<Fonts dir>:/fonts:ro"` mount is also accepted, and optional — see
 "Garmin's own font files" below.)
@@ -36,7 +38,7 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | **Device definitions** | **required, and must come from you** — see below |
 | **Garmin's own font files** | optional — see below |
 | **Network** | only at image build time, for the SDK, the icon and system fonts, and the npm packages |
-| **Architecture** | verified on `linux/amd64`. The pruned SDK contains **no native binaries** — only shell scripts and JVM bytecode — so `linux/arm64` should work, but has not been tested |
+| **Architecture** | `linux/amd64` and `linux/arm64`. The pruned SDK contains **no native binaries**, only shell scripts and JVM bytecode. CI builds each on its own architecture and smoke-tests it with the fixture device, which generates and previews but cannot compile, so a real `.prg` build is verified on `linux/amd64` only |
 
 ### The one thing you have to supply: device definitions
 
@@ -240,6 +242,23 @@ for those, run the simulator on a desktop machine with the full SDK.
 
 ---
 
+## Published images
+
+`vvorth/garmin-wf-builder` on Docker Hub, multi-arch (`linux/amd64`,
+`linux/arm64`):
+
+| Tag | What |
+|---|---|
+| `latest` | the newest release |
+| `<version>`, e.g. `26.10.0` | a release: `YY.M.N`, `N` counting the month's releases, the same as the git tag `v<version>` and the GitHub release |
+| `dev` | the newest commit on the `dev` branch that passed CI |
+| `dev-<commit>` | one `dev` commit; the newest ten are kept |
+
+The version is in the image's `org.opencontainers.image.version` label
+(`dev+<commit>` on a dev image); `wfb --version` prints the compiler's own
+version, which is not the release number. How the images are made is in
+`docs/development.md`, "Continuous integration".
+
 ## How the image is built
 
 Three stages, and **no system package manager runs in any of them** — the
@@ -351,6 +370,10 @@ tests still run — only the slow suite, which invokes `monkeyc`, needs them.
 ```sh
 docker run --rm --workdir /opt/wfb/ts garmin-wf-builder npm test
 ```
+
+This project's own CI tests each image with `tools/image-smoke-test.sh`,
+which mounts the fixture device `wfbtest` at `/devices`, starts the
+toolchain, and generates and previews a face, compiling nothing.
 
 To build for real in CI, the device definitions have to reach the runner
 somehow — a private artefact store or a self-hosted runner that has them. They

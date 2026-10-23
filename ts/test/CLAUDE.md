@@ -58,7 +58,7 @@ Loaded automatically when working under `ts/test/`.
   and draws on with no other device visible. `WFB_DEVICES` and
   `WFB_DEVICE_REFERENCE` pointed at it make it the only device `wfb`, the
   editor and the tests see. CI runs on it alone: only the test files active
-  in `ci.yml`'s test step pass that way; the rest name real devices, fail on
+  in `.github/workflows/check.yml`'s test step pass that way; the rest name real devices, fail on
   it, and are listed there commented out (`docs/development.md`,
   "Continuous integration"). A new test file that needs no real device goes
   in the active list; one that does goes in the commented list.

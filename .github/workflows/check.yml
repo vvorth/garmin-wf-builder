@@ -1,0 +1,136 @@
+# The type check and the fast suite's tests that need no Garmin file: the
+# one test run every event goes through. ci.yml (pull requests, dev, main) and
+# release.yml (the dev commit being released) call it, and publish only after
+# it passes.
+#
+# Garmin's device definitions (vendor/devices/, ~/.Garmin/ConnectIQ/Devices)
+# are the owner's licensed copy and are never in the repository, so CI runs
+# on the project's own fixture device, wfbtest (ts/test/fixtures/devices/),
+# with no SDK, no device reference and no Garmin font. The test files that
+# name a real device, and the browser suite, are listed below commented out
+# with the reason; run them locally after tools/setup-env.sh
+# (docs/development.md, "Continuous integration"). The slow suite (every
+# design through monkeyc) runs by hand only.
+name: Check
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out (empty means the ref of the calling event)
+        type: string
+        default: ''
+      strict_audit:
+        description: Fail on npm audit findings (release.yml); otherwise they only warn, audit.yml reports them weekly
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Type check and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ts
+    env:
+      # the fixture device is the only device anything sees
+      WFB_DEVICES: ${{ github.workspace }}/ts/test/fixtures/devices
+      WFB_DEVICE_REFERENCE: ${{ github.workspace }}/ts/test/fixtures/devices/reference
+      WFB_NO_GARMIN_FONTS: "1"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+
+      # ts/'s dependencies, the icon font, and the free system-font stand-ins wfbtest names
+      - name: Install
+        run: |
+          npm ci --no-audit --no-fund
+          node tools/fetch-icon-font.ts
+          node tools/fetch-system-fonts.ts
+
+      # A new advisory in a dependency is not caused by the commit under test: it blocks only a release.
+      - name: npm audit
+        continue-on-error: ${{ !inputs.strict_audit }}
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Tests that need no Garmin device file
+        run: |
+          tests=(
+            test/bake.test.ts
+            test/bundle.test.ts
+            test/data.test.ts
+            test/doc-citations.test.ts
+            test/draw.test.ts
+            test/emit.test.ts
+            test/expr.test.ts
+            test/fixture-device.test.ts
+            test/gate.test.ts
+            test/kinds.test.ts
+            test/lint.test.ts
+            test/page-app.test.ts
+            test/page-colors.test.ts
+            test/page-face.test.ts
+            test/page-layers.test.ts
+            test/page-modules.test.ts
+            test/page-store.test.ts
+            test/palette.test.ts
+            test/py.test.ts
+            test/studio-sw.test.ts
+            test/units.test.ts
+            test/uuid.test.ts
+            test/yaml.test.ts
+            # Need the owner's Garmin device files (vendor/devices/): each
+            # names a real device (the verification devices fenix8solar47mm,
+            # fenix8solar51mm and fr955, fenix847mm, or the goldens' whole
+            # set), which the fixture device cannot stand in for.
+            # test/aod.test.ts
+            # test/availability.test.ts
+            # test/barrel.test.ts
+            # test/cli.test.ts
+            # test/curved-slot.test.ts
+            # test/devices.test.ts
+            # test/diagnostics.test.ts
+            # test/edit.test.ts
+            # test/edit-preview.test.ts
+            # test/formatting.test.ts
+            # test/garmin-raster.test.ts
+            # test/gauge-gap.test.ts
+            # test/geometry.test.ts
+            # test/golden-monkeyc.test.ts
+            # test/goldens.test.ts
+            # test/hold.test.ts
+            # test/layout.test.ts
+            # test/overrides.test.ts
+            # test/page-accept.test.ts
+            # test/page-panels.test.ts
+            # test/parameter-limits.test.ts
+            # test/protocol.test.ts
+            # test/reading-count.test.ts
+            # test/studio.test.ts
+            # test/studio-canvas.test.ts
+            # test/studio-edits.test.ts
+            # test/studio-panels.test.ts
+          )
+          node --test "${tests[@]}"
+
+      # The browser suite (ts/browser/) drives the editor over the example
+      # faces, which target real devices, so it needs the owner's device
+      # files too; it runs locally with `npm run test:browser`.
+      # - name: Install Chromium for the browser suite
+      #   run: npx playwright install --with-deps chromium
+      # - name: Browser suite
+      #   run: npm run test:browser

@@ -1,0 +1,132 @@
+name: Release
+
+# Rolling release: Actions -> Release -> Run workflow publishes the current head of dev as
+# version YY.M.N (26.10.0, 26.10.1, ...: N counts the releases of the month). After the check
+# passes it fast-forwards main to that commit and tags it, then publishes a GitHub release
+# whose notes list the commits since the previous release, and the image to Docker Hub as
+# vvorth/garmin-wf-builder:<version> and latest.
+# Nothing is committed: the release version lives in the tag, the release and the image's
+# org.opencontainers.image.version label. ts/src/version.ts, which every generated file's
+# header names, is the compiler's own version and is changed by hand.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Pick the release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: dev
+          # All tags are needed to number the release within its month and to find the previous one.
+          fetch-depth: 0
+      - id: version
+        run: |
+          sha=$(git rev-parse HEAD)
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
+          if [ -n "$previous" ] && [ "$(git rev-list --count "$previous..HEAD")" = 0 ]; then
+            echo "::error::dev ($sha) is already released as $previous: nothing to release"
+            exit 1
+          fi
+          # SemVer forbids leading zeros, so the month is 9, not 09.
+          month="$(date -u +%y).$(date -u +%-m)"
+          last=$(git tag --list "v$month.*" | sed -n "s/^v$month\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
+          version="$month.$(( ${last:--1} + 1 ))"
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $sha as $version (previous release: ${previous:-none})"
+
+  check:
+    needs: version
+    uses: ./.github/workflows/check.yml
+    with:
+      ref: ${{ needs.version.outputs.sha }}
+      strict_audit: true
+
+  # The image is built and tested before anything is pushed; only publishing waits for the tag.
+  docker-test:
+    name: Docker image
+    needs: version
+    uses: ./.github/workflows/docker.yml
+    with:
+      ref: ${{ needs.version.outputs.sha }}
+
+  tag:
+    name: Tag the release
+    needs: [version, check, docker-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ needs.version.outputs.sha }}
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      # Full history: git checks locally that main is an ancestor of the release commit, and a
+      # shallow clone lacks main's commit whenever main is behind dev ("rejected (fetch first)").
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          fetch-depth: 0
+      # One atomic push: if main is not an ancestor of the release commit, nothing is pushed
+      # and nothing is published.
+      - name: Push main and the tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" -m "Release ${TAG#v}" "$SHA"
+          git push --atomic origin "$SHA:refs/heads/main" "refs/tags/$TAG"
+
+  github-release:
+    name: GitHub release
+    needs: [version, tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          fetch-depth: 0
+      - name: Write release notes
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$TAG^" 2>/dev/null || true)
+          {
+            echo "Docker image: \`docker pull vvorth/garmin-wf-builder:${TAG#v}\` (see docs/container.md)."
+            echo
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s (%h)' ${previous:+"$previous.."}"$TAG"
+          } > release-notes.md
+          cat release-notes.md
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ needs.version.outputs.version }}
+          make_latest: true
+          body_path: release-notes.md
+
+  docker:
+    name: Docker image
+    needs: [version, tag]
+    uses: ./.github/workflows/docker.yml
+    with:
+      ref: ${{ needs.version.outputs.tag }}
+      publish: ${{ needs.version.outputs.version }}
+    secrets: inherit

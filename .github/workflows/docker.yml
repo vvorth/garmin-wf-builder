@@ -1,0 +1,104 @@
+name: Docker
+
+# The image for linux/amd64 and linux/arm64, each built and tested on a runner of its own
+# architecture (no emulation) by tools/image-smoke-test.sh. With publish set, both
+# architectures are pushed by digest and joined into one tag of vvorth/garmin-wf-builder.
+# ci.yml (pull requests, dev) and release.yml call it.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out (empty means the ref of the calling event)
+        type: string
+        default: ''
+      publish:
+        description: Empty to build and test only, dev for dev and dev-<commit>, a release version for <version> and latest
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  REPOSITORY: vvorth/garmin-wf-builder
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # A release image carries its version; any other one is marked with its commit
+      # (dev+b95beaa), so it is not taken for a release.
+      - name: Build image
+        env:
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          REVISION=$(git rev-parse HEAD)
+          if [ -z "$PUBLISH" ] || [ "$PUBLISH" = dev ]; then VERSION="dev+${REVISION::7}"; else VERSION=$PUBLISH; fi
+          echo "REVISION=$REVISION" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          docker buildx build --label "org.opencontainers.image.revision=$REVISION" \
+            --label "org.opencontainers.image.version=$VERSION" --load -t garmin-wf-builder:test .
+      - name: Test the image
+        run: ./tools/image-smoke-test.sh garmin-wf-builder:test
+      - name: Log in to Docker Hub
+        if: inputs.publish != ''
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # The same build comes from the cache. It is pushed without a tag: the publish job tags
+      # both architectures at once, so a tag never points to one architecture only.
+      - name: Push image by digest
+        if: inputs.publish != ''
+        run: |
+          mkdir -p digests
+          docker buildx build --label "org.opencontainers.image.revision=$REVISION" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --output "type=image,name=$REPOSITORY,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file metadata.json .
+          node -p "require('./metadata.json')['containerimage.digest']" > "digests/${{ matrix.arch }}"
+      - if: inputs.publish != ''
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: docker-digests-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish ${{ inputs.publish }}
+    needs: build
+    if: inputs.publish != ''
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH: ${{ inputs.publish }}
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: docker-digests-*
+          merge-multiple: true
+          path: digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tag multi-arch image
+        run: |
+          if [ "$PUBLISH" = dev ]; then tags="dev dev-${GITHUB_SHA::7}"; else tags="$PUBLISH latest"; fi
+          args=()
+          for tag in $tags; do args+=(-t "$REPOSITORY:$tag"); done
+          for file in digests/*; do args+=("$REPOSITORY@$(cat "$file")"); done
+          docker buildx imagetools create "${args[@]}"
