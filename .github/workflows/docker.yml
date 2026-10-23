@@ -3,7 +3,7 @@ name: Docker
 # The image for linux/amd64 and linux/arm64, each built and tested on a runner of its own
 # architecture (no emulation) by tools/image-smoke-test.sh. With publish set, both
 # architectures are pushed by digest and joined into one tag of vvorth/garmin-wf-builder.
-# ci.yml (pull requests, dev) and release.yml call it.
+# ci.yml (pull requests, main) and release.yml call it.
 on:
   workflow_call:
     inputs:
@@ -12,7 +12,7 @@ on:
         type: string
         default: ''
       publish:
-        description: Empty to build and test only, dev for dev and dev-<commit>, a release version for <version> and latest
+        description: Empty to build and test only, dev for dev and dev-<commit> (main), a release version for <version> and latest
         type: string
         default: ''
 

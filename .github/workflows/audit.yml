@@ -1,6 +1,6 @@
 name: Audit
 
-# npm audit blocks only a release (check.yml strict_audit): new advisories for the dependencies of dev
+# npm audit blocks only a release (check.yml strict_audit): new advisories for the dependencies of main
 # show up here every week, and Dependabot brings the fix.
 on:
   schedule:
@@ -20,8 +20,6 @@ jobs:
         working-directory: ts
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          ref: dev
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24

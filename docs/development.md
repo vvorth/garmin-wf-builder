@@ -826,16 +826,17 @@ frozen on them, so they need the real device files.
 
 ### Continuous integration
 
-Work lands on `dev` (pull requests target it); `main` only ever moves to
-a released `dev` commit. Five workflows in `.github/workflows/`:
+Work lands on `main`, the development branch (pull requests target it);
+the `release` branch holds the latest release and only ever moves to a
+released `main` commit. Five workflows in `.github/workflows/`:
 
 | Workflow | When | What |
 |---|---|---|
 | `check.yml` | called by `ci.yml` and `release.yml` | the type check and the fast suite on the fixture device, below; `npm audit` warns, and fails only a release |
-| `ci.yml` | every pull request, every push to `dev` and `main` | `check.yml`, then the Docker image (`docker.yml`) on pull requests and `dev`. A push to `dev` publishes `vvorth/garmin-wf-builder:dev` and `dev-<commit>`, and keeps the newest ten `dev-<commit>` tags. A check that already passed on the same commit (a merged pull request, `main` fast-forwarded) is not repeated |
+| `ci.yml` | every pull request, every push to `main` and `release` | `check.yml`, then the Docker image (`docker.yml`) on pull requests and `main`. A push to `main` publishes `vvorth/garmin-wf-builder:dev` and `dev-<commit>`, and keeps the newest ten `dev-<commit>` tags. A check that already passed on the same commit (a merged pull request, `release` fast-forwarded) is not repeated |
 | `docker.yml` | called by `ci.yml` and `release.yml` | builds the image for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture, runs `tools/image-smoke-test.sh` on it, and with a tag to publish pushes both and joins them into one multi-arch tag |
-| `release.yml` | by hand: Actions → Release → Run workflow | releases the head of `dev` as `YY.M.N` (`26.10.0`, `26.10.1`, …; `N` counts the month's releases): runs the check (audit strict) and the image test, fast-forwards `main` to that commit and tags it `vYY.M.N`, writes a GitHub release listing the commits since the previous tag, and publishes the image as `<version>` and `latest` |
-| `audit.yml` | weekly, and by hand | `npm audit` of `ts/` on `dev`; Dependabot (`.github/dependabot.yml`) opens the updates against `dev` |
+| `release.yml` | by hand: Actions → Release → Run workflow | releases the head of `main` as `YY.M.N` (`26.10.0`, `26.10.1`, …; `N` counts the month's releases): runs the check (audit strict) and the image test, fast-forwards `release` to that commit and tags it `vYY.M.N`, writes a GitHub release listing the commits since the previous tag, and publishes the image as `<version>` and `latest` |
+| `audit.yml` | weekly, and by hand | `npm audit` of `ts/` on `main`; Dependabot (`.github/dependabot.yml`) opens the updates against `main`: every action update in one pull request, npm's minor and patch updates in another and its major ones in a third, never a major `@types/node` (the types follow Node 24) |
 
 A release commits nothing: its version is the tag, the GitHub release and
 the image's `org.opencontainers.image.version` label. `ts/src/version.ts`

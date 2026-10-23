@@ -1,8 +1,8 @@
 name: Release
 
-# Rolling release: Actions -> Release -> Run workflow publishes the current head of dev as
+# Rolling release: Actions -> Release -> Run workflow publishes the current head of main as
 # version YY.M.N (26.10.0, 26.10.1, ...: N counts the releases of the month). After the check
-# passes it fast-forwards main to that commit and tags it, then publishes a GitHub release
+# passes it fast-forwards the release branch to that commit and tags it, then publishes a GitHub release
 # whose notes list the commits since the previous release, and the image to Docker Hub as
 # vvorth/garmin-wf-builder:<version> and latest.
 # Nothing is committed: the release version lives in the tag, the release and the image's
@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: dev
+          ref: main
           # All tags are needed to number the release within its month and to find the previous one.
           fetch-depth: 0
       - id: version
@@ -37,7 +37,7 @@ jobs:
           sha=$(git rev-parse HEAD)
           previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
           if [ -n "$previous" ] && [ "$(git rev-list --count "$previous..HEAD")" = 0 ]; then
-            echo "::error::dev ($sha) is already released as $previous: nothing to release"
+            echo "::error::main ($sha) is already released as $previous: nothing to release"
             exit 1
           fi
           # SemVer forbids leading zeros, so the month is 9, not 09.
@@ -76,20 +76,20 @@ jobs:
       SHA: ${{ needs.version.outputs.sha }}
       TAG: ${{ needs.version.outputs.tag }}
     steps:
-      # Full history: git checks locally that main is an ancestor of the release commit, and a
-      # shallow clone lacks main's commit whenever main is behind dev ("rejected (fetch first)").
+      # Full history: git checks locally that release is an ancestor of the release commit, and a
+      # shallow clone lacks release's commit whenever it is behind main ("rejected (fetch first)").
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
-      # One atomic push: if main is not an ancestor of the release commit, nothing is pushed
+      # One atomic push: if release is not an ancestor of the release commit, nothing is pushed
       # and nothing is published.
-      - name: Push main and the tag
+      - name: Push the release branch and the tag
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag -a "$TAG" -m "Release ${TAG#v}" "$SHA"
-          git push --atomic origin "$SHA:refs/heads/main" "refs/tags/$TAG"
+          git push --atomic origin "$SHA:refs/heads/release" "refs/tags/$TAG"
 
   github-release:
     name: GitHub release

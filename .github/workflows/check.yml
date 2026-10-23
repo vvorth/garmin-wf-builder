@@ -1,7 +1,7 @@
 # The type check and the fast suite's tests that need no Garmin file: the
-# one test run every event goes through. ci.yml (pull requests, dev, main) and
-# release.yml (the dev commit being released) call it, and publish only after
-# it passes.
+# one test run every event goes through. ci.yml (pull requests, main,
+# release) and release.yml (the main commit being released) call it, and
+# publish only after it passes.
 #
 # Garmin's device definitions (vendor/devices/, ~/.Garmin/ConnectIQ/Devices)
 # are the owner's licensed copy and are never in the repository, so CI runs

@@ -1,15 +1,16 @@
 name: CI
 
-# Pull requests and pushes to dev and main: the checks (check.yml) and the
-# Docker image. A push to dev also publishes vvorth/garmin-wf-builder:dev and
-# dev-<commit> once the check and the image pass.
+# Pull requests and pushes to main (development) and release (the latest
+# release): the checks (check.yml) and the Docker image. A push to main also
+# publishes vvorth/garmin-wf-builder:dev and dev-<commit> once the check and
+# the image pass.
 # A check that already passed on this exact commit (a pull request merged into
-# dev, dev fast-forwarded to main) is not repeated: check runs are looked up
-# by commit, not by branch.
+# main, release fast-forwarded to main) is not repeated: check runs are looked
+# up by commit, not by branch.
 # Releases are in release.yml.
 on:
   push:
-    branches: [dev, main]
+    branches: [main, release]
   pull_request:
 
 permissions:
@@ -52,21 +53,21 @@ jobs:
   docker:
     name: Docker image
     needs: [tested, check]
-    # main gets commits already built on dev; its images are built by release.yml.
+    # release gets commits already built on main; its images are built by release.yml.
     # A check skipped as already passed counts as passed.
     if: >-
       ${{ !cancelled()
       && (needs.check.result == 'success' || (needs.check.result == 'skipped' && needs.tested.outputs.check == 'true'))
-      && (github.event_name == 'pull_request' || github.ref == 'refs/heads/dev') }}
+      && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
     uses: ./.github/workflows/docker.yml
     with:
-      publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'dev' || '' }}
+      publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'dev' || '' }}
     secrets: inherit
 
   docker-cleanup:
     name: Remove old dev tags
     needs: docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Deleting tags needs a Docker Hub token with the Delete permission. Without it this job
     # warns and fails on its own, but the dev image is already published.

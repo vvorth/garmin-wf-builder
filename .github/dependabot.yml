@@ -1,15 +1,17 @@
 version: 2
 updates:
+  # Every action update in one pull request.
   - package-ecosystem: github-actions
     directory: /
-    target-branch: dev
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
 
   # ts/ is the npm package. One pull request for minor and patch updates, one for major ones.
   - package-ecosystem: npm
     directory: /ts
-    target-branch: dev
     schedule:
       interval: monthly
     groups:
@@ -19,3 +21,7 @@ updates:
       npm-major:
         patterns: ['*']
         update-types: [major]
+    ignore:
+      # The types follow the Node the project runs on (24), not the newest Node.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]

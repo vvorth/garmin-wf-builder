@@ -251,8 +251,8 @@ for those, run the simulator on a desktop machine with the full SDK.
 |---|---|
 | `latest` | the newest release |
 | `<version>`, e.g. `26.10.0` | a release: `YY.M.N`, `N` counting the month's releases, the same as the git tag `v<version>` and the GitHub release |
-| `dev` | the newest commit on the `dev` branch that passed CI |
-| `dev-<commit>` | one `dev` commit; the newest ten are kept |
+| `dev` | the newest commit on `main`, the development branch, that passed CI |
+| `dev-<commit>` | one `main` commit; the newest ten are kept |
 
 The version is in the image's `org.opencontainers.image.version` label
 (`dev+<commit>` on a dev image); `wfb --version` prints the compiler's own
