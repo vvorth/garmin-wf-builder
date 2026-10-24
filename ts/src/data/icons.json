@@ -37,8 +37,8 @@
   },
   "battery": {
    "name": "battery",
-   "codepoint": "󰁹",
-   "description": "a battery outline (Material Design md-battery)"
+   "codepoint": "",
+   "description": "a horizontal battery, three quarters full (Font Awesome nf-fa-battery_3 -- lying down, where Material Design's batteries stand upright)"
   },
   "floors": {
    "name": "floors",

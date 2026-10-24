@@ -28,16 +28,16 @@ test("rotate: bakes a font of its own, and a whole turn is upright", () => {
 });
 
 test("a turned icon's lint box covers ink that leaves its cell", () => {
-  // The battery glyph is tall and narrow: turned a quarter, its ink is wider than its advance.
-  const battery = (extra: string): string => icon(extra).replace("icon: steps", "icon: battery");
-  const upright = placedIcon(battery("")).box, turned = placedIcon(battery("    rotate: 90deg")).box;
+  // The thermometer glyph is tall and narrow: turned a quarter, its ink is wider than its advance.
+  const thermometer = (extra: string): string => icon(extra).replace("icon: steps", "icon: temperature");
+  const upright = placedIcon(thermometer("")).box, turned = placedIcon(thermometer("    rotate: 90deg")).box;
   assert.ok(upright.height > upright.width, `upright ${upright.width}x${upright.height}`);
   assert.ok(turned.width >= upright.height - 6, `turned ${turned.width}x${turned.height}`);
 });
 
 test("the preview pastes a turned glyph where drawText puts it", () => {
-  // A quarter-turned battery: a tall glyph whose turned ink is wider than its upright advance.
-  const text = icon("    rotate: 90deg").replace("icon: steps", "icon: battery");
+  // A quarter-turned thermometer: a tall glyph whose turned ink is wider than its upright advance.
+  const text = icon("    rotate: 90deg").replace("icon: steps", "icon: temperature");
   const r = resolved(text);
   const p = r.items.find((item) => item.id === "glyph") as PlacedIcon;
   const font = r.fonts.get(p.font_key)!, g = font.glyphs.get(p.codepoint)!;
@@ -346,8 +346,8 @@ function iconInk(text: string): [number, number][] {
 
 test("the preview draws a pinned icon before the run's start, turned to face out", () => {
   // At 9 o'clock a clockwise run climbs; its icon sits just below the start, its top pointing out (left).
-  const text = curvedPair(`${RADIAL.replace("-46deg", "-90deg")}${PAIR}`).replace("default: steps", "default: battery")
-    .replace("choices: [steps,", "choices: [battery, steps,");
+  const text = curvedPair(`${RADIAL.replace("-46deg", "-90deg")}${PAIR}`).replace("default: steps", "default: pulse_ox")
+    .replace("choices: [steps,", "choices: [pulse_ox, steps,");
   const p = resolved(text).items.find((item) => item.id === "value") as PlacedData;
   const ink = iconInk(text);
   assert.ok(ink.length > 20, `${ink.length} icon pixels`);
@@ -355,10 +355,10 @@ test("the preview draws a pinned icon before the run's start, turned to face out
   assert.ok(Math.abs(mx - p.icon_point![0]) <= 2 && Math.abs(my - p.icon_point![1]) <= 2, `ink at ${mx},${my}; placed at ${p.icon_point}`);
   const [cx, cy] = p.anchor_point;
   assert.ok(mx < cx - 80 && my > cy + 2, `left of the centre and below the run's start at 9 o'clock: ${mx},${my}`);
-  // The battery's terminal is its top: turned to face out, it is the thin end on the left.
-  const xs = ink.map(([x]) => x), left = Math.min(...xs), right = Math.max(...xs);
-  const column = (x: number): number => ink.filter(([ix]) => ix === x).length;
-  assert.ok(column(left) < column(right), `the terminal's column (${column(left)}) is thinner than the base's (${column(right)})`);
+  // The drop's point is its top: turned to face out, it is the thin end on the left, the round end on the right.
+  const xs = ink.map(([x]) => x), left = Math.min(...xs), right = Math.max(...xs), third = (right - left) / 3;
+  const stem = ink.filter(([x]) => x < left + third).length, bulb = ink.filter(([x]) => x > right - third).length;
+  assert.ok(stem < bulb, `the left third (${stem} pixels) is the thin point, the right third (${bulb}) the round end`);
   assert.ok(p.box.x <= p.icon_point![0] && p.box.bottom >= p.icon_point![1], "the lint box covers the icon");
 });
 
