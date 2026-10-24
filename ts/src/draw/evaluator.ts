@@ -201,6 +201,10 @@ export function condValue(c: Cond, aod = false, env: ReadonlyMap<string, LocalVa
     case "NotSleeping": return !(asleep || aod);
     case "IsPulsing": return false;
     case "NotPulsing": return true;
+    case "SeriesShown": {
+      const samples = env.get(c.series);
+      return Array.isArray(samples) && samples.length > 0;
+    }
   }
 }
 
@@ -349,6 +353,13 @@ export class Evaluator {
         this.locals.set(op.series, samples);
         this.locals.set(op.minimum, op.min_auto ? barrel.autoMin(samples) : 0);
         this.locals.set(op.maximum, op.max_auto ? barrel.autoMax(samples) : 0);
+        break;
+      }
+      case "SlotSeriesRebuild": {
+        const samples = op.samples !== null ? [...op.samples] : [];
+        this.locals.set(op.series, samples);
+        this.locals.set(op.minimum, op.floor !== null ? op.floor : barrel.autoMin(samples));
+        this.locals.set(op.maximum, barrel.autoMax(samples));
         break;
       }
       case "SeriesDraw": this.run(seriesOps(op, this)); break;

@@ -165,11 +165,11 @@ build error — see "The Data axis"), and it is never resolved to a fixed
 the slot at any moment, so the generated code reads the slot's own current
 `Complications.Id` field fresh on every hold instead. `Source.
 launch_complication` and `hold-auto-unresolved`/`hold-auto-ambiguous` never
-apply to it. The same holds for an icon with `slot:`.
+apply to it. The same holds for an icon or a graph with `slot:`.
 
 **A group's `on_hold: auto` follows the one slot drawn inside it.** When
 the group's elements, at any depth, draw exactly one `config: slots:` slot
-(a `type: data`, or a gauge or icon with `slot:`), the whole group's box
+(a `type: data`, or a gauge, graph or icon with `slot:`), the whole group's box
 opens that slot's current pick, read on every hold, as a data element's
 `auto` does:
 

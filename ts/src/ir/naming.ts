@@ -69,6 +69,7 @@ export const graphSeriesField = (id: string): string => lowerFirst(elementSuffix
 export const graphMinField = (id: string): string => lowerFirst(elementSuffix(id)) + "Min";
 export const graphMaxField = (id: string): string => lowerFirst(elementSuffix(id)) + "Max";
 export const graphBuiltField = (id: string): string => lowerFirst(elementSuffix(id)) + "BuiltAt";
+export const graphTypeField = (id: string): string => lowerFirst(elementSuffix(id)) + "PickedType";
 export const graphRebuildMethod = (id: string): string => "rebuild" + elementSuffix(id);
 
 function elementSuffix(elementId: string): string {

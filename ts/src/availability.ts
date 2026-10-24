@@ -121,9 +121,13 @@ export function modulesUsed(face: Face): Set<string> {
   }
   if (usesComplications(face)) modules.add("Complications");
   for (const element of face.walk()) {
-    if (element instanceof Graph && element.series_def !== null
-      && (element.series_def.acquisition === "hourly_forecast" || element.series_def.acquisition === "daily_forecast")) {
-      modules.add(ACQUISITION[element.series_def.acquisition].module.replace(/^Toybox\./, ""));
+    if (!(element instanceof Graph)) continue;
+    // A slot graph acquires every series its slot can pick.
+    const defs = element.series_def !== null ? [element.series_def] : element.slot_picks.map((pick) => pick.def);
+    for (const def of defs) {
+      if (def.acquisition === "hourly_forecast" || def.acquisition === "daily_forecast") {
+        modules.add(ACQUISITION[def.acquisition].module.replace(/^Toybox\./, ""));
+      }
     }
   }
   return modules;

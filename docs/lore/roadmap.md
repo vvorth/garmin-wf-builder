@@ -45,8 +45,9 @@ or AOD-related has been observed on a watch or in the simulator.
   `Complications.exitTo`. `docs/guide/modes-and-interaction.md`.
 - **Configuration: all four native axes** — `accent_color`, `data_color`,
   Styles with `theme: schemes:` and `layouts:` (form A), the Data axis as
-  `config: slots:` drawn by `type: data`, a gauge or an icon with `slot:`
-  (all three round the bezel in `examples/features/curved-slot/`);
+  `config: slots:` drawn by `type: data`, a gauge, a graph or an icon with `slot:`
+  (the reading, a gauge and an icon round the bezel in
+  `examples/features/curved-slot/`);
   one `color.<name>` namespace for
   swatches and roles; a face the native editor started asks for a redraw
   once a second (not yet seen to reach the screen while a slot pulses).
@@ -100,6 +101,14 @@ or AOD-related has been observed on a watch or in the simulator.
   editor treats a slot as every element drawing it
   (`editorSlots` in `ts/src/emit/monkeyc/common.ts`). Zone colouring by a metric's
   own bands is not built. `docs/guide/progress-and-graphs.md`.
+- **Graphs on a slot** — `slot:` on a graph plots the history of the
+  wearer's pick over that pick's own span (`SLOT_SERIES` in
+  `ts/src/series.ts`: heart rate over 4 hours, steps, calories, floors and
+  active minutes over 7 days, the temperature forecast over 12 hours),
+  rebuilt once a minute and when the pick changes (`rebuild<Id>(type)` in
+  `ts/src/emit/monkeyc/graph.ts`); any other pick hides the graph.
+  `on_hold: auto` opens the pick. `examples/features/slot-graph/`,
+  `docs/guide/progress-and-graphs.md`.
 - **Always-on display** — one `aod:` block shape on elements, groups and
   `defaults:`, resolved key by key element > group > face default,
   restyled by inline ternaries; a cascading `dim:`; the pixel `mask:`

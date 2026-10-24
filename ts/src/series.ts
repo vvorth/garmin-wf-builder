@@ -123,3 +123,37 @@ export function get(name: string): SeriesDef | undefined {
 export function names(): string[] {
   return [...SERIES.keys()].sort();
 }
+
+/**
+ * What a `graph` with `slot:` plots for one complication type the wearer
+ * can pick: the history of that same quantity, over a span fixed per type
+ * (one `range:` cannot fit a heart rate binned by the hour and steps
+ * counted by the day). A type missing here has no history a watch face may
+ * read (`UNAVAILABLE`'s reasons), and a graph hides while it is picked.
+ */
+export interface SlotSeries {
+  /** The complication type (`wfb complications`). */
+  type: string;
+  /** The `SERIES` entry plotted. */
+  series: string;
+  range_kind: "duration" | "count";
+  /** Seconds for a duration, samples for a count. */
+  range_value: number;
+  /** A fixed lower bound, or `null` for the samples' own minimum: a count of things starts at nothing. */
+  floor: number | null;
+  /** The span, as the guide and the generated comments say it. */
+  span: string;
+}
+
+const slotSeries = (type: string, seriesName: string, rangeKind: "duration" | "count", rangeValue: number,
+  floor: number | null, span: string): [string, SlotSeries] =>
+  [type, { type, series: seriesName, range_kind: rangeKind, range_value: rangeValue, floor, span }];
+
+export const SLOT_SERIES: ReadonlyMap<string, SlotSeries> = new Map([
+  slotSeries("heart_rate", "heart_rate", "duration", 4 * 3600, null, "the last 4 hours, binned"),
+  slotSeries("steps", "steps", "count", 7, 0, "the last 7 days"),
+  slotSeries("calories", "calories", "count", 7, 0, "the last 7 days"),
+  slotSeries("floors_climbed", "floors_climbed", "count", 7, 0, "the last 7 days"),
+  slotSeries("intensity_minutes", "active_minutes", "count", 7, 0, "the last 7 days' active minutes"),
+  slotSeries("current_temperature", "forecast_temperature", "count", 12, null, "the next 12 hours' forecast"),
+]);

@@ -212,7 +212,8 @@ is the one axis with no meaning of its own for this compiler to key on.
 
 **The editor's own animated highlight is built too**, and it is
 automatic: any design with at least one element drawing a slot (a `data`
-element, or a [gauge with `slot:`](progress-and-graphs.md#gauges-on-a-slot))
+element, or a [gauge](progress-and-graphs.md#gauges-on-a-slot), [graph](progress-and-graphs.md#graphs-on-a-slot)
+or [icon](icons.md#a-slots-icon-slot) with `slot:`)
 gets `AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
 `setSelectedComplication`, and `WatchFaceDelegate.getComplicationDrawable`
 returning a generated `<Face>SlotDrawable` that delegates straight back to
@@ -290,6 +291,9 @@ entries, not a bare reference and a mapping-form entry naming the same type.
 
 A gauge can draw a slot too, filled against the picked metric's own
 scale: see [Gauges on a slot](progress-and-graphs.md#gauges-on-a-slot).
+A graph can plot the pick's history (heart rate over hours; steps,
+calories, floors and active minutes over days; the temperature forecast):
+see [Graphs on a slot](progress-and-graphs.md#graphs-on-a-slot).
 So can an icon, placed and turned on its own instead of beside the
 reading: see [A slot's icon](icons.md#a-slots-icon-slot).
 

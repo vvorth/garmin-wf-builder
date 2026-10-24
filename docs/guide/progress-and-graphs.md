@@ -38,13 +38,14 @@ the same placement rule as every other element with a box.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `series` | a name from `wfb series` | required | which time series to plot |
-| `range` | `{duration: 30m/4h/7d}` or `{samples: n}` | required | how much history |
-| `buckets` | integer | `40` | time bins; `heart_rate` over a duration only |
+| `series` | a name from `wfb series` | required, unless `slot` | which time series to plot |
+| `range` | `{duration: 30m/4h/7d}` or `{samples: n}` | required with `series` | how much history |
+| `slot` | a `config: slots:` name | — | instead of `series`/`range`: the history of the wearer's pick ([below](#graphs-on-a-slot)) |
+| `buckets` | integer | `40` | time bins; `heart_rate` over a duration, or a slot that can show heart rate |
 | `style` | `line`\|`area`\|`bars` | `line` | rendering |
 | `thickness` | length | — | pen width, `style: line` only |
 | `bar_width` | length | — | `style: bars` only |
-| `min` / `max` | `auto`\|number\|expression | `auto` | plotted bounds |
+| `min` / `max` | `auto`\|number\|expression | `auto` | plotted bounds; not beside `slot` |
 | `size` | size | required | the graph's own box |
 | `color` | color expression | — | line/area/bar colour |
 | `align` | one of the nine anchor names, or a compass alias | `center` | box point at `at:` ([details](placement.md#placement-at-and-align)) |
@@ -470,9 +471,80 @@ graph's own computation over a source whose sample interval is minutes
 cannot produce new information by recomputing it every second. **CPU cost
 is unmeasured** — see `docs/limitations.md`.
 
+#### Graphs on a slot
+
+`slot:` binds a graph to a [`config: slots:`](configuration.md#the-data-axis)
+slot instead of `series:` and `range:`. It plots the history of whatever the
+wearer picked, beside the slot's `type: data` reading, and follows the pick
+when the wearer changes it:
+
+![graphs on two slots](../screenshots/slot-graph.png)
+*From [`examples/features/slot-graph`](../../examples/features/slot-graph/face.yaml): heart-rate
+bars beside the slot's reading below the clock, and above it a line over
+`choices: any` showing the temperature forecast. Both are the slots'
+default picks, drawn with stand-in series.*
+
+```yaml
+config:
+  slots:
+    bottom:
+      default: heart_rate
+      choices: [heart_rate, steps, calories, floors_climbed, intensity_minutes, current_temperature]
+
+elements:
+  bottom_graph:
+    type: graph
+    slot: bottom              # instead of series:/range:
+    style: bars
+    bar_width: 3px
+    buckets: 24               # a heart-rate pick's time bins
+    at: { anchor: center, dy: 22% }
+    size: { width: 60%, height: 12% }
+    color: color.data
+  bottom_value:
+    type: data
+    slot: bottom
+    at: { anchor: center, dy: 36% }
+    icon: { size: 9%r }
+    absent: { text: "--" }
+    on_hold: auto
+```
+
+Each pick plots its own history over its own span:
+
+| Picked | Plots | Span | Bounds |
+|---|---|---|---|
+| heart rate | `heart_rate` | the last 4 hours, binned into `buckets:` (default 40) | its samples' own lowest to highest |
+| steps | `steps` | the last 7 days | 0 to the highest day |
+| calories | `calories` | the last 7 days | 0 to the highest day |
+| floors climbed | `floors_climbed` | the last 7 days | 0 to the highest day |
+| intensity minutes | `active_minutes` | the last 7 days, as each day's active minutes | 0 to the highest day |
+| current temperature | `forecast_temperature` | the next 12 hours' forecast | its samples' own lowest to highest |
+| anything else | — | — | the graph hides |
+
+**A pick with no history hides the graph**: Body Battery, stress, pulse ox,
+altitude and pressure are histories only `Toybox.SensorHistory` serves,
+which a watch face may not read, and solar input has no history at all (see
+[`docs/limitations.md`](../limitations.md)); the date, the weather and the
+rest are not series. The slot's `type: data` reading still shows. A slot
+whose choices include nothing from the table is a build error, and so are
+`range:`, `min:` and `max:` beside `slot:`: no one span or bound fits
+every pick. `buckets:` needs heart rate among the slot's choices. The series
+is rebuilt once a minute, as any graph's is, and also on the first frame
+after the wearer picks something else.
+
+`on_hold: auto` on a slot graph opens the glance of whatever is picked, as
+on the slot's `type: data` element. Like a `data` element, a slot graph
+belongs in the shared `elements:`, never inside a `layouts:` body, and in
+the native editor it is part of its slot: tapping it selects the slot, and
+the highlight covers it. On an fr955 the slot is picked from the generated
+settings menu. The preview draws the slot's `default:` pick with a
+stand-in series, as it draws any graph.
+
 ## See also
 
 - [`examples/features/graph/face.yaml`](../../examples/features/graph/face.yaml) — every series family and all three graph styles.
+- [`examples/features/slot-graph/face.yaml`](../../examples/features/slot-graph/face.yaml) — a graph and a reading on one slot.
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — two `style: arc` battery gauges.
 - [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — the shared alignment rule.
 - [Elements](elements.md) — the common keys every element shares (`sleep_update`, `visible`, `antialias`, `min_1px`, `lint`, `on_hold`).

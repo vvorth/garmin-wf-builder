@@ -38,7 +38,7 @@ export class TopLevelBlocks extends FontBlock {
     }
     for (const element of walkElements(elements)) {
       if (slotOf(element) !== null && element.layout !== null) {
-        const what = element instanceof DataElement ? "a 'type: data' element" : "a gauge with 'slot:'";
+        const what = element instanceof DataElement ? "a 'type: data' element" : `${/^[aeiou]/.test(element.kind) ? "an" : "a"} ${element.kind} with 'slot:'`;
         this.bag.error("layouts", `${quoted(element.id)}: ${what} may not be inside layout ${quoted(element.layout)} content`,
           element.span, {
             notes: [

@@ -46,6 +46,7 @@ export function condCode(c: Cond, aod: AodStyle = NO_AOD): string {
     case "NotSleeping": return "!_sleeping";
     case "IsPulsing": return `_pulsing == ${c.unique}`;
     case "NotPulsing": return `_pulsing != ${c.unique}`;
+    case "SeriesShown": return `${c.series}.size() > 0`;
   }
 }
 
@@ -102,6 +103,16 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.block(`if (graphMinute != ${op.built})`, () => {
         w.line(`${op.built} = graphMinute;`);
         w.line(`${op.method}();`);
+      });
+      break;
+    case "SlotSeriesRebuild":
+      w.line(`var chosenId = ${op.field};`);
+      w.line(op.guarded ? "var chosenType = (chosenId != null) ? chosenId.getType() : null;" : "var chosenType = chosenId.getType();");
+      w.line("var graphMinute = System.getClockTime().min;");
+      w.block(`if (graphMinute != ${op.built} || chosenType != ${op.type_field})`, () => {
+        w.line(`${op.built} = graphMinute;`);
+        w.line(`${op.type_field} = chosenType;`);
+        w.line(`${op.method}(chosenType);`);
       });
       break;
     case "SeriesDraw": {

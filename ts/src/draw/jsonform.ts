@@ -211,7 +211,7 @@ class JsonWriter {
         break;
       }
       case "Part": this.walk(partOps(op, ev)); break;
-      case "SeriesRebuild": ev.step(op); break;
+      case "SeriesRebuild": case "SlotSeriesRebuild": ev.step(op); break;
       case "SeriesDraw": this.walk(seriesOps(op, ev)); break;
       case "Let": case "Assign": case "LetSlotPick": case "LetAutoScale": case "VisibleGuard": case "NullGuard": case "AntiAlias":
       case "Return": case "SlotPull": case "SlotIcon": case "IconStep": case "SlotText": case "Continue": case "LetText":

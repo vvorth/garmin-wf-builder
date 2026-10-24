@@ -1,0 +1,119 @@
+# Graphs on `config: slots:` slots
+# (docs/guide/progress-and-graphs.md, "Graphs on a slot").
+#
+# A graph with `slot:` plots the history of whatever the wearer picked for
+# that slot, over the pick's own span -- no `series:` or `range:` to write,
+# and none that could fit every choice:
+#
+# * `history` (heart rate by default) is bars over an explicit list:
+#   heart rate binned into 24 bars over the last 4 hours, steps, calories
+#   and floors as the last 7 days from zero, the current temperature as the
+#   next 12 hours' forecast. `history_value` is the same slot's reading, so
+#   the bars and the number always agree, and holding either opens the
+#   pick's glance.
+# * `trend` (the current temperature by default) is a line over
+#   `choices: any`: every pick with a history plots, and any other (Body
+#   Battery, the date, the weather, ...) hides the line while the reading
+#   above it still shows.
+#
+# The series is rebuilt once a minute, as any graph's is, and on the first
+# frame after the wearer picks something else. In the native editor (fenix
+# 8) each slot is its graph and its reading together; fr955 offers the two
+# slots from the generated settings menu.
+#
+# What is verified: this design builds warning-free on all three targets.
+# How the editor's highlight and taps behave on a watch is not.
+#
+# Build it with:  ./wfb build examples/features/slot-graph/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 9cf983dd-2395-499c-9c93-34b688b05dd0
+  name: Feature Slot Graph
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
+    warm: "#FFAA00"
+
+config:
+  slots:
+    history:
+      label: "Bars"
+      default: heart_rate
+      choices: [heart_rate, steps, calories, floors_climbed, current_temperature]
+    trend:
+      label: "Line"
+      default: current_temperature
+      choices: any
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MILD
+    at: { anchor: center, dy: -8% }
+    color: color.fg
+
+  # -- top: a line over choices: any ---------------------------------------
+
+  trend_value:
+    type: data
+    slot: trend
+    at: { anchor: center, dy: -38% }
+    font: FONT_XTINY
+    icon: { size: 10%r, gap: 1%r, color: color.warm }
+    color: color.fg
+    short: true
+    absent: { text: "--" }
+    on_hold: auto
+
+  trend:
+    type: graph
+    slot: trend
+    style: line
+    thickness: 2px
+    at: { anchor: center, dy: -27% }
+    size: { width: 50%, height: 9% }
+    color: color.warm
+
+  # -- bottom: bars over an explicit list ------------------------------------
+
+  history:
+    type: graph
+    slot: history
+    style: bars
+    bar_width: 4px
+    buckets: 24
+    at: { anchor: center, dy: 15% }
+    size: { width: 60%, height: 14% }
+    color: color.accent
+    on_hold: auto
+
+  history_value:
+    type: data
+    slot: history
+    at: { anchor: center, dy: 30% }
+    font: FONT_XTINY
+    icon: { size: 10%r, gap: 1%r, color: color.accent }
+    color: color.fg
+    absent: { text: "--" }
+    on_hold: auto

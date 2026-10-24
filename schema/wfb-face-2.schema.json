@@ -2677,8 +2677,6 @@
       "type": "object",
       "required": [
         "type",
-        "series",
-        "range",
         "size"
       ],
       "additionalProperties": false,
@@ -2687,14 +2685,18 @@
           "const": "graph"
         },
         "series": {
-          "description": "A name from the series catalogue (`wfb series`): heart_rate; steps, calories, distance, floors_climbed, active_minutes; forecast_temperature, forecast_precipitation_chance, forecast_cloud_cover, forecast_uv_index, forecast_wind_speed, forecast_humidity; daily_high_temperature, daily_low_temperature, daily_precipitation_chance. None of these needs a permission; SensorHistory-backed series (pressure, stress, elevation, Body Battery) and solar are not available to a watch face at all -- see docs/limitations.md.",
+          "description": "A name from the series catalogue (`wfb series`; 'slot:' in its place follows the wearer's pick): heart_rate; steps, calories, distance, floors_climbed, active_minutes; forecast_temperature, forecast_precipitation_chance, forecast_cloud_cover, forecast_uv_index, forecast_wind_speed, forecast_humidity; daily_high_temperature, daily_low_temperature, daily_precipitation_chance. None of these needs a permission; SensorHistory-backed series (pressure, stress, elevation, Body Battery) and solar are not available to a watch face at all -- see docs/limitations.md.",
           "type": "string"
+        },
+        "slot": {
+          "description": "Which declared 'config: slots:' entry this graph shows, by name, in place of 'series:' and 'range:': the history of whatever the wearer picked, over that pick's own span -- heart rate the last 4 hours (binned by 'buckets:'), steps, calories, floors and intensity minutes (as active minutes) the last 7 days, the current temperature the next 12 hours' forecast. A pick with no history (Body Battery, stress, solar, the date, ...) hides the graph. 'min:' and 'max:' are not read beside it: the bounds are the samples' own extent, from zero for a count (docs/guide/progress-and-graphs.md, \"Graphs on a slot\").",
+          "$ref": "#/$defs/identifier"
         },
         "range": {
           "$ref": "#/$defs/graphRange"
         },
         "buckets": {
-          "description": "Time bins for a time-binned series read over a duration -- i.e. heart_rate with a duration range. Default 40. An error naming the series on anything else.",
+          "description": "Time bins for a time-binned series read over a duration -- i.e. heart_rate with a duration range, or a 'slot:' that can show heart rate. Default 40. An error naming the series on anything else.",
           "type": "integer",
           "minimum": 1,
           "default": 40
@@ -2766,6 +2768,23 @@
         "unsupported": {
           "$ref": "#/$defs/unsupported"
         }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "series"
+          ]
+        },
+        {
+          "required": [
+            "slot"
+          ]
+        }
+      ],
+      "dependentRequired": {
+        "series": [
+          "range"
+        ]
       }
     },
     "dataElement": {

@@ -12,7 +12,7 @@ import type { Span } from "../diagnostics.ts";
 import type * as expr from "../expr.ts";
 import * as icons from "../icons.ts";
 import type { Color } from "../palette.ts";
-import type { SeriesDef } from "../series.ts";
+import type { SeriesDef, SlotSeries } from "../series.ts";
 import * as units from "../units.ts";
 import type { Angle, Length } from "../units.ts";
 import { quoted } from "../py.ts";
@@ -862,9 +862,20 @@ export class DataElement extends Element {
   }
 }
 
+/** One complication type a slot graph can plot: its table entry, its series, and how many samples that reads. */
+export interface GraphPick {
+  pick: SlotSeries;
+  def: SeriesDef;
+  sample_count: number;
+}
+
 export class Graph extends Element {
   series = "";
   series_def: SeriesDef | null = null;
+  /** The `config: slots:` slot whose pick chooses the series, in place of `series:`. */
+  slot: string | null = null;
+  /** The slot's choices that have a series, in choice order; empty without `slot:`. */
+  slot_picks: GraphPick[] = [];
   range_kind = "duration";
   range_value = 0;
   buckets = 40;
@@ -978,6 +989,7 @@ export function slotOf(element: Element): string | null {
   if (element instanceof DataElement) return element.slot;
   if (element instanceof Gauge) return element.slot;
   if (element instanceof IconElement) return element.slot;
+  if (element instanceof Graph) return element.slot;
   return null;
 }
 
@@ -991,6 +1003,7 @@ export function holdSlot(element: Element): string | null {
   if (element.on_hold !== HOLD_AUTO) return null;
   if (element instanceof DataElement) return element.slot;
   if (element instanceof IconElement) return element.slot;
+  if (element instanceof Graph) return element.slot;
   if (element instanceof Group) {
     // A group follows the one slot drawn inside it; with none or several, `auto` is resolved (or refused) at build time.
     const slots = groupSlots(element);

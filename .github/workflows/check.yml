@@ -120,6 +120,7 @@ jobs:
             # test/parameter-limits.test.ts
             # test/protocol.test.ts
             # test/reading-count.test.ts
+            # test/slot-graph.test.ts
             # test/studio.test.ts
             # test/studio-canvas.test.ts
             # test/studio-edits.test.ts

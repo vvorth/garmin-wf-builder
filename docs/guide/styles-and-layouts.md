@@ -86,7 +86,7 @@ layout element, including one with no `z:` at all; `z:` only orders content
 to interleave a layout's content with the shared content by `z:` -- writing
 one is not supported.
 
-**A `data` element, or a gauge with `slot:`, may not appear inside a
+**A `data` element, or a gauge, graph or icon with `slot:`, may not appear inside a
 `layouts:` body, in either `static:` or `elements:`.** The Data axis is face-wide -- one `<complication
 id=...>` in the generated resource, however many layouts read it -- so a
 slot belongs in the shared top-level `elements:` only. This also keeps the

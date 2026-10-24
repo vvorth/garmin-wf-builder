@@ -130,7 +130,11 @@ export const NotSleeping = (): NotSleeping => ({ t: "NotSleeping" });
 export interface IsPulsing { t: "IsPulsing"; unique: number }
 export const IsPulsing = (unique: number): IsPulsing => ({ t: "IsPulsing", unique });
 
-export type Cond = Present | LocalsSet | Cmp | NotPulsing | AnyOf | Truthy | NotSleeping | IsPulsing;
+/** `<series>.size() > 0`: a slot graph's cached series holds samples, so its pick has a history. */
+export interface SeriesShown { t: "SeriesShown"; series: string }
+export const SeriesShown = (series: string): SeriesShown => ({ t: "SeriesShown", series });
+
+export type Cond = Present | LocalsSet | Cmp | NotPulsing | AnyOf | Truthy | NotSleeping | IsPulsing | SeriesShown;
 
 // -- strings --------------------------------------------------------------------
 
@@ -258,6 +262,21 @@ export const SeriesRebuild = (built: string, method: string, series: string, min
   samples: readonly (number | null)[], minAuto: boolean, maxAuto: boolean): SeriesRebuild =>
   ({ t: "SeriesRebuild", built, method, series, minimum, maximum, samples: [...samples], min_auto: minAuto, max_auto: maxAuto });
 
+/**
+ * A slot graph's rebuild: the pick's type read off the slot, then the
+ * series rebuilt when the minute or the pick changes. On the host,
+ * `samples` is the stand-in series of the pick shown, `null` for a pick with
+ * no history, and `floor` its fixed lower bound.
+ */
+export interface SlotSeriesRebuild {
+  t: "SlotSeriesRebuild"; field: string; guarded: boolean; built: string; type_field: string; method: string;
+  series: string; minimum: string; maximum: string; samples: (number | null)[] | null; floor: number | null;
+}
+export const SlotSeriesRebuild = (field: string, guarded: boolean, built: string, typeField: string, method: string,
+  series: string, minimum: string, maximum: string, samples: readonly (number | null)[] | null, floor: number | null): SlotSeriesRebuild =>
+  ({ t: "SlotSeriesRebuild", field, guarded, built, type_field: typeField, method, series, minimum, maximum,
+    samples: samples !== null ? [...samples] : null, floor });
+
 /** `WfbSeries.drawLine`/`drawArea`/`drawBars` of the cached series. */
 export interface SeriesDraw { t: "SeriesDraw"; style: string; x: Num; y: Num; w: Num; h: Num; width: Num | null; series: string; lo: Num; hi: Num }
 export const SeriesDraw = (style: string, x: Num, y: Num, w: Num, h: Num, width: Num | null, series: string, lo: Num, hi: Num): SeriesDraw =>
@@ -376,7 +395,7 @@ export const Comment = (text: string): Comment => ({ t: "Comment", text });
 export interface Blank { t: "Blank" }
 export const Blank = (): Blank => ({ t: "Blank" });
 
-export type Op = SetColor | SetPen | Primitive | FillPolygon | ArcSpan | ArcProgress | Part | SeriesRebuild | SeriesDraw
+export type Op = SetColor | SetPen | Primitive | FillPolygon | ArcSpan | ArcProgress | Part | SeriesRebuild | SlotSeriesRebuild | SeriesDraw
   | LoadFont | Text | Glyph | LetText | IfNotNull | IfAod | IfAwake | Let | Assign | If | For | Continue | Return
   | SlotPull | SlotIcon | IconStep | SlotText | LetSlotPick | LetAutoScale | VisibleGuard | NullGuard | AntiAlias | Comment | Blank;
 

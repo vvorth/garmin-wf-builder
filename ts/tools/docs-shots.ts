@@ -45,6 +45,7 @@ const EXAMPLES: Record<string, [string, string[], [Box, number] | null]> = {
   styles: ["features/styles", ["--all-styles"], null],
   slots: ["features/slots", [], null],
   "slot-gauge": ["features/slot-gauge", [], null],
+  "slot-graph": ["features/slot-graph", [], null],
   "curved-slot": ["features/curved-slot", [], null],
   // Cropped to the five system-font-size rows; the vertical_align rows below are calibration detail.
   "system-fonts": ["system-fonts/text", [], [[0, 0, 260, 195], SCALE]],
